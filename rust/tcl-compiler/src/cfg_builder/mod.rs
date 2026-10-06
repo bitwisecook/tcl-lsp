@@ -2052,25 +2052,12 @@ impl<'a> CfgBuilder<'a> {
         Some(current)
     }
 
-    /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
-    fn lower_foreach_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
-        let Statement::Foreach {
-            is_dict_iteration,
-            is_array_iteration,
-            raw_args,
-            raw_tokens,
-            iterators,
-            is_lmap,
-            span,
-            ..
-        } = stmt
-        else {
-            unreachable!();
-        };
-
+    /// List operands run before loop-variable binding or any body entry.
+    /// Preserve the original global-frame and registry-barrier order here.
+    fn record_foreach_operand_barriers(&mut self, stmt: &Statement, current: &str) {
         if self.embedded_subst_extras(stmt).opaque_global {
             self.block_mut(current).statements.push(Statement::Barrier {
-                span: *span,
+                span: stmt.span(),
                 reason: "foreach list runs an unreadable script at the global frame".to_owned(),
                 command: "<global-frame-script>".to_owned(),
                 canonical_command: None,
@@ -2093,6 +2080,25 @@ impl<'a> CfgBuilder<'a> {
                     "foreach list evaluation reaches a registry-declared evaluation barrier",
                 ));
         }
+    }
+
+    /// Dispatch `Foreach` — dict for/map, opaque top-level, or inlined.
+    fn lower_foreach_dispatch(&mut self, stmt: &Statement, current: &str) -> String {
+        let Statement::Foreach {
+            is_dict_iteration,
+            is_array_iteration,
+            raw_args,
+            raw_tokens,
+            iterators,
+            is_lmap,
+            span,
+            ..
+        } = stmt
+        else {
+            unreachable!();
+        };
+
+        self.record_foreach_operand_barriers(stmt, current);
 
         // `array for {k v} arr body` (Tcl 9.0): the body runs in the caller's
         // frame, so the analysis CFG inlines it (shared reaching-defs / const

@@ -20,6 +20,7 @@
 //! Reference discovery and exact engine validation belong to tcl-test-support.
 
 use std::cmp::Ordering;
+use std::fmt::Write;
 use std::path::Path;
 use tcl_dialect::{
     PackagePrefer, compare_versions_bytes_for, select_package_version_for,
@@ -56,7 +57,7 @@ fn package_comparator_matches_all_live_c_releases() {
         let mut script = String::new();
         let mut expected = String::new();
         for &(a, b) in PAIRS {
-            script.push_str(&format!("set code [catch {{package vcompare {{{a}}} {{{b}}}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}\n"));
+            writeln!(script, "set code [catch {{package vcompare {{{a}}} {{{b}}}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}").unwrap();
             if !validate_version_bytes_for(a.as_bytes(), oracle.version)
                 || !validate_version_bytes_for(b.as_bytes(), oracle.version)
             {
@@ -70,12 +71,12 @@ fn package_comparator_matches_all_live_c_releases() {
                     Ordering::Equal => 0,
                     Ordering::Greater => 1,
                 };
-            expected.push_str(&format!("{answer}\n"));
+            writeln!(expected, "{answer}").unwrap();
         }
         for &(version, requirement) in REQUIREMENTS {
-            script.push_str(&format!(
-                "set code [catch {{package vsatisfies {{{version}}} {{{requirement}}}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}\n"
-            ));
+            writeln!(script,
+                "set code [catch {{package vsatisfies {{{version}}} {{{requirement}}}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}"
+            ).unwrap();
             if !validate_version_bytes_for(version.as_bytes(), oracle.version) {
                 expected.push_str("1\n");
                 continue;
@@ -111,7 +112,7 @@ fn package_lookup_matches_all_live_c_releases() {
             let mut script = String::new();
             let mut expected = String::new();
             for version in providers {
-                script.push_str(&format!("puts [catch {{package ifneeded OracleSelection {version} {{package provide OracleSelection {version}}}}}]\n"));
+                writeln!(script, "puts [catch {{package ifneeded OracleSelection {version} {{package provide OracleSelection {version}}}}}]").unwrap();
                 expected.push_str(
                     if validate_version_bytes_for(version.as_bytes(), oracle.version) {
                         "0\n"
@@ -120,7 +121,7 @@ fn package_lookup_matches_all_live_c_releases() {
                     },
                 );
             }
-            script.push_str(&format!("set code [catch {{package require {}OracleSelection {requirement}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}\n", if exact { "-exact " } else { "" }));
+            writeln!(script, "set code [catch {{package require {}OracleSelection {requirement}}} answer]\nputs $code\nif {{$code == 0}} {{puts $answer}}", if exact { "-exact " } else { "" }).unwrap();
             let selection = if exact {
                 tcl_dialect::select_package_version_exact_for(
                     &providers,

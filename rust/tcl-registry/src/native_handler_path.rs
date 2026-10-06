@@ -90,6 +90,19 @@ mod tests {
 
     #[test]
     fn unknown_selector_cardinality_or_duplicate_path_cannot_supply_dependencies() {
+        static DUPLICATE: NativeHandlerLookupPaths = NativeHandlerLookupPaths {
+            argument: 0,
+            alternatives: &[
+                NativeHandlerLookupPath {
+                    value: "hex",
+                    lookups: &[],
+                },
+                NativeHandlerLookupPath {
+                    value: "hex",
+                    lookups: &[],
+                },
+            ],
+        };
         let paths = encoding_paths();
         for words in [
             &[InvocationWord::Dynamic, InvocationWord::Literal("data")][..],
@@ -111,19 +124,6 @@ mod tests {
                     .is_none()
             );
         }
-        static DUPLICATE: NativeHandlerLookupPaths = NativeHandlerLookupPaths {
-            argument: 0,
-            alternatives: &[
-                NativeHandlerLookupPath {
-                    value: "hex",
-                    lookups: &[],
-                },
-                NativeHandlerLookupPath {
-                    value: "hex",
-                    lookups: &[],
-                },
-            ],
-        };
         assert!(
             DUPLICATE
                 .select(InvocationArguments::literals(&["hex"]), 0)

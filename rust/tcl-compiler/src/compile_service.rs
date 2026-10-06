@@ -910,7 +910,9 @@ mod tests {
         let decode = |input: &str| {
             input
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect::<Vec<_>>()
         };
@@ -941,14 +943,9 @@ mod tests {
             );
             assert_eq!(
                 tail.line,
-                u32::try_from(
-                    source[..start]
-                        .iter()
-                        .filter(|&&byte| byte == b'\n')
-                        .count()
-                        + 1
-                )
-                .unwrap(),
+                tcl_lexer::LineIndex::from_bytes(&source)
+                    .line_at(u32::try_from(start).expect("fixture offset fits source"))
+                    + 1,
                 "{row}"
             );
             compared += 1;
@@ -959,11 +956,13 @@ mod tests {
         assert!(unavailable.command_text.is_empty());
     }
 
+    type ParseTailCase<'a> = (&'a [u8], &'a [u8], &'a [u8], u32);
+
     #[test]
     fn original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term() {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let service = BytecodeCompileService::for_profile(profile);
-        let cases: &[(&[u8], &[u8], &[u8], u32)] = &[
+        let cases: &[ParseTailCase<'_>] = &[
             (b"set x \"", b"set x \"", b"set x ", 1),
             (b"set x \"abc", b"set x \"", b"set x \"abc", 1),
             (b"set x {abc", b"set x {", b"set x {abc", 1),

@@ -95,9 +95,8 @@ pub(super) fn is_factory_body(
 pub(super) fn lookup_factory<'a>(
     cand: &FactoryCandidate,
     factories: &'a HashMap<String, String>,
-    ctx: &ScanCtx<'_>,
 ) -> Option<&'a str> {
-    for key in ctx.command_keys(&cand.ns_prefix, &cand.head) {
+    for key in ScanCtx::command_keys(&cand.ns_prefix, &cand.head) {
         if let Some((key, _)) = factories.get_key_value(&key) {
             return Some(key.as_str());
         }
@@ -268,10 +267,7 @@ mod tests {
     fn lookup_absolute_head_matches_verbatim() {
         let f = factories(&[("::foo::DEFC", "foo")]);
         let c = cand("::foo::DEFC", "anywhere");
-        assert_eq!(
-            lookup_factory(&c, &f, &ScanCtx::default()),
-            Some("::foo::DEFC")
-        );
+        assert_eq!(lookup_factory(&c, &f), Some("::foo::DEFC"));
     }
 
     #[test]
@@ -280,17 +276,14 @@ mod tests {
         // `ns` should resolve to the call-site one.
         let f = factories(&[("::ns::DEFC", "ns_home"), ("::DEFC", "global_home")]);
         let c = cand("DEFC", "ns");
-        assert_eq!(
-            lookup_factory(&c, &f, &ScanCtx::default()),
-            Some("::ns::DEFC")
-        );
+        assert_eq!(lookup_factory(&c, &f), Some("::ns::DEFC"));
     }
 
     #[test]
     fn lookup_global_fallback_when_call_ns_misses() {
         let f = factories(&[("::DEFC", "global_home")]);
         let c = cand("DEFC", "ns");
-        assert_eq!(lookup_factory(&c, &f, &ScanCtx::default()), Some("::DEFC"));
+        assert_eq!(lookup_factory(&c, &f), Some("::DEFC"));
     }
 
     #[test]
@@ -299,7 +292,7 @@ mod tests {
         // bare `DEFC` call from namespace `ns`.
         let f = factories(&[("::other::DEFC", "other_home")]);
         let c = cand("DEFC", "ns");
-        assert!(lookup_factory(&c, &f, &ScanCtx::default()).is_none());
+        assert!(lookup_factory(&c, &f).is_none());
     }
 
     use super::super::ctx::ProcBodyInfo;

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original-object command lookup and retained compiler literal actions.
 
-use super::*;
+use super::{
+    Command, CommandId, CommandSidecarKey, CommandSlot, FunctionAsm, NamespacePath, Namespaces,
+    NsId, ROOT_NS, Rc, Value, Vm,
+};
 use tcl_runtime_api::native_command_name::{
     NativeCommandNameCache, NativeCommandNameLookupState, NativeCommandNamePriming,
     NativeCommandNameReference, NativeCommandNameTarget, NativeLiteralContext,
@@ -60,6 +63,47 @@ impl Vm {
         original: &Value,
     ) -> Result<Option<CommandId>, ValueError> {
         self.native_command_from_original_at(self.current_ns_id(), original)
+    }
+
+    fn install_selected_original_command_name(
+        &self,
+        original: &Value,
+        key: &str,
+        reference: Option<NativeCommandNameReference>,
+        protocol: tcl_registry::native_command_literal::NativeCommandNameProtocol,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<Option<CommandId>, ValueError> {
+        let slot = self
+            .command_slot(key)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original command-name slot",
+            ))?;
+        let token =
+            self.visible_command_generation(key)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original command-name node",
+                ))?;
+        let cache = NativeCommandNameCache {
+            interpreter: self.native_interpreter_identity(),
+            version: protocol.version(),
+            slot: tcl_core_types::NativeByteCommandSlot::new(
+                self.ns_path(slot.namespace),
+                slot.simple,
+            ),
+            namespace_token: u64::from(slot.namespace.0),
+            token,
+            implementation_generation: token,
+            command_epoch: self
+                .name_world
+                .borrow()
+                .command_name_epochs
+                .get(&token)
+                .copied()
+                .unwrap_or(0),
+            reference,
+        };
+        original.install_native_command_name_cache(cache, dialect)?;
+        Ok(Some(CommandId(self.intern_cmd(token))))
     }
 
     fn native_command_from_original_at(
@@ -154,37 +198,7 @@ impl Vm {
             }
             return Ok(None);
         };
-        let slot = self
-            .command_slot(&key)
-            .ok_or(ValueError::CommandProtocolUnavailable(
-                "original command-name slot",
-            ))?;
-        let token =
-            self.visible_command_generation(&key)
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "original command-name node",
-                ))?;
-        let cache = NativeCommandNameCache {
-            interpreter: self.native_interpreter_identity(),
-            version: protocol.version(),
-            slot: tcl_core_types::NativeByteCommandSlot::new(
-                self.ns_path(slot.namespace),
-                slot.simple,
-            ),
-            namespace_token: u64::from(slot.namespace.0),
-            token,
-            implementation_generation: token,
-            command_epoch: self
-                .name_world
-                .borrow()
-                .command_name_epochs
-                .get(&token)
-                .copied()
-                .unwrap_or(0),
-            reference,
-        };
-        original.install_native_command_name_cache(cache, dialect)?;
-        Ok(Some(CommandId(self.intern_cmd(token))))
+        self.install_selected_original_command_name(original, &key, reference, protocol, dialect)
     }
 
     /// Resolve the original operand and produce the selected native full name.

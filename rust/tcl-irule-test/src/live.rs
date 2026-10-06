@@ -216,7 +216,7 @@ impl LiveSession {
     /// framework's `[file dirname [info script]]` lookups resolve correctly).
     fn source_file(&mut self, path: &Path) -> Result<(), SessionError> {
         let script = format!("source {}", list_element(&path.display().to_string()));
-        self.eval_host_initialization(&script).map(|_| ())
+        self.eval_host_initialization(&script)
     }
 
     fn eval_host_initialization(&mut self, script: &str) -> Result<(), SessionError> {
@@ -427,7 +427,9 @@ mod tests {
         );
         let options = completion.options.as_list().unwrap();
         let error_code = options
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .find(|pair| pair[0].string_bytes().as_ref() == b"-errorcode")
             .expect("original error code");
         assert_eq!(error_code[1].string_bytes().as_ref(), b"RAW \xfe\0code");
@@ -1667,7 +1669,7 @@ mod tests {
         }
         session
             .load_irule(
-                r#"
+                r"
             proc tick {} { upvar 1 flow alias; incr alias; incr ::static::count }
             when RULE_INIT {
                 set static::count $::seed
@@ -1678,7 +1680,7 @@ mod tests {
                 after 10 {tick}
             }
             when HTTP_RESPONSE { set static::observed $flow }
-        "#,
+        ",
             )
             .unwrap();
         session.eval("::orch::tmm_select 0").unwrap();
@@ -1717,13 +1719,13 @@ mod tests {
             RetainedActivationRefusal, ScheduledCallbackOutcome,
         };
         let mut session = LiveSession::embedded().unwrap();
-        session.load_irule(r#"
+        session.load_irule(r"
             when RULE_INIT { set static::count 0 }
             when HTTP_REQUEST {
                 after 3 {incr ::static::count; return -code error -level 2 -errorcode {TIMER EXACT} boom}
                 after 6 {set ::static::stale MUST_NOT_RUN}
             }
-        "#).unwrap();
+        ").unwrap();
         session.fire_event("RULE_INIT").unwrap();
         session.fire_event("HTTP_REQUEST").unwrap();
         let reports = session.advance_time(3);

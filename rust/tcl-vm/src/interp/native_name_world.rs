@@ -375,7 +375,7 @@ impl NativeNameWorld {
         if !absolute
             && protocol
                 .tcl_version()
-                .is_some_and(|version| version.has_namespace_path())
+                .is_some_and(tcl_dialect::TclVersion::has_namespace_path)
         {
             let paths = self
                 .ns_deferral

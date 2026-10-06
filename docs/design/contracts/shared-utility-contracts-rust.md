@@ -2295,13 +2295,17 @@ prefix predicate, followed by the independent full GetInt conversion.
 The compiler's native byte plan resolves original heads through the immutable
 entry's exact byte lookup, retaining command token, generation, selected compiler
 and original validation boundary. Ordinary set/increment/list opcode recipes
-have no additional private path. Mutable ensembles, unknown registrations and
-unsupported recipes retain the provider obligation. Nested compiler hooks must
+have no additional private path. Uncaptured ensemble configurations, unknown
+registrations and unsupported recipes retain the provider obligation. Captured
+original configurations retain every selected nested compiler prerequisite
+before operands. Nested compiler hooks must
 also close before the whole script can be admitted. A registered plan requires
 an emitter for that exact operation; it grants no normal-handler effect, purity,
-value, current cell or runtime object-class facts. Command/namespace mutation
-withdraws cache reuse and validates the retained prerequisites at their declared
-boundary before argument evaluation.
+value, current cell or runtime object-class facts. Command and namespace
+mutations apply the selected native compiler and resolver invalidation rules.
+Retained prerequisites validate at their declared boundary before argument
+evaluation; command-reference changes alone do not imply native compiler-cache
+invalidation.
 
 `closed_original_byte_compilation(module, entry, registry, context)` checks every
 original command and bracket child in the same immutable source images. Generic

@@ -231,7 +231,23 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
         key,
         ambiguous,
     ));
-    let prepared = if jim {
+    let prepared =
+        prepare_prefix_miss_return(&mut return_ops, return_protocol, options, message, jim)?;
+    Ok(crate::return_options::publish(
+        vm,
+        &mut return_ops,
+        prepared,
+    ))
+}
+
+fn prepare_prefix_miss_return(
+    return_ops: &mut NativeReturnOps,
+    return_protocol: tcl_cmd_core::return_options::ReturnOptionsProtocol,
+    options: tcl_cmd_core::return_options::PreparedPrefixErrorOptions<Value>,
+    message: Value,
+    jim: bool,
+) -> Result<tcl_cmd_core::return_options::PreparedReturn<Value>, tcl_cmd_core::CmdError> {
+    Ok(if jim {
         let mut argv = vec![
             Value::string("-level"),
             Value::int(0),
@@ -241,7 +257,7 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
         argv.extend(return_ops.list(&options.original)?);
         argv.push(message);
         return_options::prepare_return(
-            &mut return_ops,
+            return_ops,
             return_protocol,
             &argv,
             ReturnOptionsPurpose::User,
@@ -268,18 +284,13 @@ fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_c
             key_bytes: b"-code".to_vec(),
         });
         return_options::prepare_return_pairs(
-            &mut return_ops,
+            return_ops,
             return_protocol,
             PreparedOptionPairs { pairs },
             Some(message),
             ReturnOptionsPurpose::InternalDictionary,
         )?
-    };
-    Ok(crate::return_options::publish(
-        vm,
-        &mut return_ops,
-        prepared,
-    ))
+    })
 }
 
 #[cfg(test)]

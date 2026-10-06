@@ -33,7 +33,10 @@ impl NativeNumericEnvironment {
     target_os = "freebsd"
 ))]
 mod native {
-    use super::*;
+    use super::{
+        DoubleNumericConversion, NumericEnvironmentUnavailable, NumericErrorState,
+        UnsignedNumericConversion,
+    };
     use std::ffi::CString;
 
     fn errno_pointer() -> *mut libc::c_int {
@@ -93,9 +96,9 @@ mod native {
             let value = if long
                 || core::mem::size_of::<libc::c_long>() == core::mem::size_of::<libc::c_longlong>()
             {
-                libc::strtoul(original.as_ptr().add(offset), &mut end, 0) as u64
+                libc::strtoul(original.as_ptr().add(offset), &raw mut end, 0) as u64
             } else {
-                libc::strtoull(original.as_ptr().add(offset), &mut end, 0) as u64
+                libc::strtoull(original.as_ptr().add(offset), &raw mut end, 0) as u64
             };
             (value, end.offset_from(original.as_ptr()))
         };
@@ -129,8 +132,11 @@ mod native {
         // SAFETY: offset lies in the owned NUL-terminated allocation, base is
         // admitted by strtoull, and end points to a writable local pointer.
         let (value, consumed) = unsafe {
-            let value =
-                libc::strtoull(original.as_ptr().add(offset), &mut end, base as libc::c_int);
+            let value = libc::strtoull(
+                original.as_ptr().add(offset),
+                &raw mut end,
+                libc::c_int::try_from(base).expect("admitted strtoull radix fits c_int"),
+            );
             (value, end.offset_from(original.as_ptr()))
         };
         let after = state();
@@ -160,7 +166,7 @@ mod native {
             if reset_errno {
                 *errno_pointer() = 0;
             }
-            let value = libc::strtod(original.as_ptr(), &mut end);
+            let value = libc::strtod(original.as_ptr(), &raw mut end);
             (value, end.offset_from(original.as_ptr()))
         };
         let after = state();

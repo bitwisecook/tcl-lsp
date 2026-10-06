@@ -1162,6 +1162,70 @@ mod tests {
         );
     }
 
+    fn missing_committed_haystack(
+        fu: &crate::compilation_unit::FunctionUnit,
+        native_registry: &CommandRegistry,
+        w: &[ShimmerWarning],
+    ) -> ! {
+        let reads: Vec<_> = fu
+            .ssa
+            .blocks
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, statement)| {
+                        let view = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                        let tokens = view.source_tokens()?;
+                        Some((
+                            statement.statement.span(),
+                            tokens
+                                .variable_accesses
+                                .iter()
+                                .map(|access| {
+                                    let read = view
+                                        .read_reference(&access.source, &access.original_spelling);
+                                    let types = read
+                                        .and_then(|read| {
+                                            read.version.map(|version| (read.symbol, version))
+                                        })
+                                        .and_then(|key| fu.types.get(&key));
+                                    let representations: Vec<_> = access
+                                        .context_alternatives()
+                                        .iter()
+                                        .map(|context| {
+                                            let place =
+                                                crate::var_resolve::resolve_substitution_access(
+                                                    &access.original_spelling,
+                                                    context,
+                                                    native_registry,
+                                                    tcl_registry::TraceOperation::Read,
+                                                );
+                                            (
+                                                context
+                                                    .read_produces_value(&place, native_registry),
+                                                context.contents_representation_at(&place),
+                                            )
+                                        })
+                                        .collect();
+                                    (
+                                        &access.original_spelling,
+                                        access.source.span,
+                                        read,
+                                        types,
+                                        access.context_residual(),
+                                        representations,
+                                    )
+                                })
+                                .collect::<Vec<_>>(),
+                        ))
+                    })
+            })
+            .collect();
+        panic!("committed Dict haystack of `in` must be flagged; warnings={w:?}; reads={reads:?}")
+    }
+
     /// `in`/`ni` convert the RIGHT operand to a list. A *committed* Dict
     /// haystack genuinely re-represents (Dict → List); a *pure* string haystack
     /// does not — `[string trim "a b c"]` is a pure string (oracle: it goes pure
@@ -1182,72 +1246,10 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, native_registry);
-        let warning = w.iter().find(|sw| sw.variable == "hay").unwrap_or_else(|| {
-            let reads: Vec<_> = fu
-                .ssa
-                .blocks
-                .iter()
-                .flat_map(|(&block, body)| {
-                    body.statements
-                        .iter()
-                        .enumerate()
-                        .filter_map(move |(index, statement)| {
-                            let view =
-                                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
-                            let tokens = view.source_tokens()?;
-                            Some((
-                                statement.statement.span(),
-                                tokens
-                                    .variable_accesses
-                                    .iter()
-                                    .map(|access| {
-                                        let read = view.read_reference(
-                                            &access.source,
-                                            &access.original_spelling,
-                                        );
-                                        let types = read
-                                            .and_then(|read| {
-                                                read.version.map(|version| (read.symbol, version))
-                                            })
-                                            .and_then(|key| fu.types.get(&key));
-                                        let representations: Vec<_> = access
-                                            .context_alternatives()
-                                            .iter()
-                                            .map(|context| {
-                                                let place =
-                                                    crate::var_resolve::resolve_substitution_access(
-                                                        &access.original_spelling,
-                                                        context,
-                                                        native_registry,
-                                                        tcl_registry::TraceOperation::Read,
-                                                    );
-                                                (
-                                                    context.read_produces_value(
-                                                        &place,
-                                                        native_registry,
-                                                    ),
-                                                    context.contents_representation_at(&place),
-                                                )
-                                            })
-                                            .collect();
-                                        (
-                                            &access.original_spelling,
-                                            access.source.span,
-                                            read,
-                                            types,
-                                            access.context_residual(),
-                                            representations,
-                                        )
-                                    })
-                                    .collect::<Vec<_>>(),
-                            ))
-                        })
-                })
-                .collect();
-            panic!(
-                "committed Dict haystack of `in` must be flagged; warnings={w:?}; reads={reads:?}"
-            )
-        });
+        let warning = w
+            .iter()
+            .find(|sw| sw.variable == "hay")
+            .unwrap_or_else(|| missing_committed_haystack(fu, native_registry, &w));
         assert_eq!(warning.from_type, TclType::Dict);
         assert_eq!(warning.to_type, TclType::List);
 

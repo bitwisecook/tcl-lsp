@@ -585,10 +585,10 @@ fn rename_definition_operand(
                 line_index,
             )
         });
-    Some(edits.map(Ok).unwrap_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
+    Some(edits.map_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
         "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
         source, line_index, Some(reference.name_span()),
-    ))))
+    )), Ok))
 }
 
 fn prepare_list_built_self_method_rename(

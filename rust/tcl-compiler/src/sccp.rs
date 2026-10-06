@@ -560,6 +560,7 @@ impl SemanticValueProjection {
                         defining_class: input.defining_class.as_deref(),
                         registry_engine: input.registry_engine,
                         trust: input.trust,
+                        proven_pure_parameters: false,
                     }),
                 },
             )
@@ -884,15 +885,8 @@ fn solve_value_facts(
                     continue;
                 };
 
-                let incoming_exec: Vec<BlockId> = preds
-                    .get(bn)
-                    .map(|set| {
-                        set.iter()
-                            .copied()
-                            .filter(|p| executable_edges.contains(&(*p, *bn)))
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                let incoming_exec =
+                    incoming_executable_predecessors(*bn, &preds, &executable_edges);
 
                 // Phi nodes (not at entry, only when some predecessor is
                 // executable).
@@ -958,6 +952,20 @@ fn solve_value_facts(
         executable_edges,
         constant_branches,
     )
+}
+
+fn incoming_executable_predecessors(
+    block: BlockId,
+    predecessors: &HashMap<BlockId, HashSet<BlockId>>,
+    executable_edges: &HashSet<(BlockId, BlockId)>,
+) -> Vec<BlockId> {
+    predecessors
+        .get(&block)
+        .into_iter()
+        .flatten()
+        .copied()
+        .filter(|predecessor| executable_edges.contains(&(*predecessor, block)))
+        .collect()
 }
 
 fn compatibility_escaping(
@@ -1231,6 +1239,34 @@ fn statement_math_context<'a>(
     })
 }
 
+/// Widen only fresh scalar keys; original stores and read versions remain intact.
+fn widen_registry_clobbers(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    clobbers: Option<&crate::ssa::BlockValueClobbers>,
+    index: usize,
+    folds: Option<BuiltinFoldInputs<'_>>,
+) -> bool {
+    let mut changed = false;
+    for (&var, &(prior, fresh)) in clobbers
+        .and_then(|markers| markers.get(&index))
+        .into_iter()
+        .flatten()
+    {
+        let value = if folds.is_some_and(|f| f.proven_pure_parameters)
+            && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_)))
+        {
+            values
+                .get(&(var, prior))
+                .cloned()
+                .unwrap_or(LatticeValue::Unknown)
+        } else {
+            LatticeValue::Overdefined
+        };
+        changed |= set_value(values, (var, fresh), &value);
+    }
+    changed
+}
+
 fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
@@ -1254,23 +1290,7 @@ fn sccp_process_statements(
         let registry_barrier = stmt_ssa.statement.synthetic_marker()
             == Some(crate::ir::SyntheticMarker::RegistryBarrier);
         if registry_barrier {
-            for (&var, &(prior, fresh)) in clobbers
-                .and_then(|markers| markers.get(&index))
-                .into_iter()
-                .flatten()
-            {
-                let value = if folds.is_some_and(|f| f.proven_pure_parameters)
-                    && matches!(values.get(&(var, 0)), Some(LatticeValue::Const(_)))
-                {
-                    values
-                        .get(&(var, prior))
-                        .cloned()
-                        .unwrap_or(LatticeValue::Unknown)
-                } else {
-                    LatticeValue::Overdefined
-                };
-                changed |= set_value(values, (var, fresh), &value);
-            }
+            changed |= widen_registry_clobbers(values, clobbers, index, folds);
             continue;
         }
         let lookup = if ssa.point_contexts.is_some() {
@@ -3798,6 +3818,7 @@ mod tests {
                     defining_class: None,
                     registry_engine: false,
                     trust: FoldTrust::ObservedBindings,
+                    proven_pure_parameters: false,
                 }),
             },
         )

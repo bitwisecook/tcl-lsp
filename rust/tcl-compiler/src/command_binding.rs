@@ -11561,15 +11561,13 @@ impl ModuleCommandBindings {
         for discarded_module in &discarded.modules {
             retained_roots.extend_module_roots(discarded_module, false);
         }
-        let top = {
-            let mut context = BindingWalkContext {
-                registry,
-                retained_roots: &mut retained_roots,
-                timeline: None,
-                source_order_mode: false,
-            };
-            collect_binding_states(top_level, &mut context, &state, &top_namespace)
-        };
+        let top = collect_normal_binding_states(
+            top_level,
+            registry,
+            &state,
+            &top_namespace,
+            &mut retained_roots,
+        );
         let mut live = top.post;
         let mut observed = top.observed;
 
@@ -11583,15 +11581,13 @@ impl ModuleCommandBindings {
             let body_roots = retained_roots.snapshot();
             let mut next = live.clone();
             for root in &body_roots {
-                let outcome = {
-                    let mut context = BindingWalkContext {
-                        registry,
-                        retained_roots: &mut retained_roots,
-                        timeline: None,
-                        source_order_mode: false,
-                    };
-                    collect_binding_states(&root.script, &mut context, &live, &root.namespace)
-                };
+                let outcome = collect_normal_binding_states(
+                    &root.script,
+                    registry,
+                    &live,
+                    &root.namespace,
+                    &mut retained_roots,
+                );
                 if !next.same_state(&outcome.post) {
                     next.join(&outcome.post);
                 }
@@ -13608,6 +13604,22 @@ fn observe_binding_state(
 }
 
 // Flow-sensitive recursive join over every structured IR form.
+fn collect_normal_binding_states(
+    script: &Script,
+    registry: &CommandRegistry,
+    initial: &ModuleCommandBindings,
+    namespace: &crate::ir::ExecutionNamespace,
+    retained_roots: &mut RetainedBindingRoots,
+) -> BindingWalkOutcome {
+    let mut context = BindingWalkContext {
+        registry,
+        retained_roots,
+        timeline: None,
+        source_order_mode: false,
+    };
+    collect_binding_states(script, &mut context, initial, namespace)
+}
+
 #[allow(clippy::too_many_lines)]
 fn collect_binding_states(
     script: &Script,
@@ -13645,6 +13657,9 @@ fn collect_binding_states(
         }
         let statement_spans: HashSet<_> = script.statements.iter().map(Statement::span).collect();
         for stmt in &script.statements {
+            if !stmt.is_executable_invocation() {
+                continue;
+            }
             let source_order_entry = context.source_order_mode.then(|| current.clone());
             if let Some(timeline) = &mut context.timeline {
                 timeline.record_before_substitutions(stmt.span(), current);
@@ -16103,7 +16118,10 @@ fn transfer_cfg_statement(
     registry: &CommandRegistry,
     namespace: &crate::ir::ExecutionNamespace,
 ) {
-    apply_embedded_transitions(stmt, registry, state, namespace);
+    if !stmt.is_executable_invocation() {
+        return;
+    }
+    apply_embedded_transitions(stmt, registry, state, namespace, false);
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
     }
@@ -16114,6 +16132,10 @@ fn transfer_cfg_statement(
     };
     let mut observed = None;
     let mut retained = RetainedBindingRoots::default();
+    let mut context = InvocationBindingContext {
+        retained_roots: &mut retained,
+        source_order_mode: false,
+    };
     apply_may_invocation_transitions(
         stmt,
         registry,
@@ -16121,7 +16143,7 @@ fn transfer_cfg_statement(
         &mut observed,
         command_namespace.as_ref(),
         namespace,
-        &mut retained,
+        &mut context,
     );
 }
 

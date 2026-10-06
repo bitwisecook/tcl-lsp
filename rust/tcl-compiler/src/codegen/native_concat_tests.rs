@@ -17,7 +17,7 @@ fn emit_original<'a>(
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(source),
-        tcl_lexer::Span::new(0, source.len() as u32),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
         config,
     )
     .unwrap();
@@ -49,7 +49,7 @@ fn original_concat_emits_shared_recipe_with_captured_compiler_guards() {
                     tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
                 let parsed = tcl_lexer::native_script_words_in(
                     tcl_lexer::SourceImage::native(source),
-                    tcl_lexer::Span::new(0, source.len() as u32),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
                     tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
                 )
                 .unwrap();

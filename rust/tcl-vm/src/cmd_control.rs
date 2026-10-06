@@ -101,10 +101,85 @@ fn cmd_lmap(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     each_loop(vm, args, true)
 }
 
+fn each_empty_result(
+    vm: &mut Vm,
+    live_iterators: bool,
+    kind: tcl_runtime_api::native_each_loop::NativeEachLoopKind,
+) -> Result<Option<crate::exec::EachLoopRoot>, Completion<Value>> {
+    use crate::exec::EachLoopRoot;
+    use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
+    let original = if live_iterators {
+        match vm.native_jim_object_context() {
+            Ok(context) => Some(if kind == NativeEachLoopKind::Lmap {
+                EachLoopRoot::Original(context.empty_object().native_lifetime_lease())
+            } else {
+                // Jim's foreach resultObj owns emptyObj; lmap owns a List
+                // instead and only borrows emptyObj when padding variables.
+                EachLoopRoot::Header(context.empty_object().clone())
+            }),
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        }
+    } else {
+        None
+    };
+    Ok(original)
+}
+
+fn prepare_each_loop_group(
+    vm: &mut Vm,
+    pair: &[Value; 2],
+    recipe: tcl_runtime_api::native_each_loop::NativeEachLoopRecipe,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    kind: tcl_runtime_api::native_each_loop::NativeEachLoopKind,
+    empty_variables: &mut bool,
+) -> Result<crate::exec::EachLoopGroup, Completion<Value>> {
+    use crate::exec::{EachLoopGroup, EachLoopRoot};
+    let variable_root = if recipe.copies_headers() {
+        match pair[0].native_list_copy(strings) {
+            Ok(root) => EachLoopRoot::Header(root),
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        }
+    } else {
+        EachLoopRoot::Original(pair[0].native_lifetime_lease())
+    };
+    let variables = match vm.native_object_list_elements_in(variable_root.value(), strings) {
+        Ok(items) => items,
+        Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+    };
+    *empty_variables |= variables.is_empty();
+    if variables.is_empty() && !recipe.live_iterators() {
+        return Err(crate::command::completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::native_each_loop::empty_variables(recipe, kind),
+        ));
+    }
+    let value_root = if recipe.copies_headers() {
+        match pair[1].native_list_copy(strings) {
+            Ok(root) => EachLoopRoot::Header(root),
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        }
+    } else {
+        EachLoopRoot::Original(pair[1].native_lifetime_lease())
+    };
+    let values = if recipe.live_iterators() {
+        None
+    } else {
+        match vm.native_object_list_elements_in(value_root.value(), strings) {
+            Ok(items) => Some(items),
+            Err(error) => return Err(crate::command::completion_from_cmd_error(vm, error.into())),
+        }
+    };
+    Ok(EachLoopGroup {
+        variables: variable_root,
+        values: value_root,
+        variable_items: Some(variables),
+        value_items: values,
+    })
+}
+
 /// Generic loops retain actual argument objects and prepare the body only after
 /// the selected native setter sequence reaches an iteration.
 fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
-    use crate::exec::{EachLoopGroup, EachLoopRoot};
     use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
     let kind = if collect {
         NativeEachLoopKind::Lmap
@@ -132,52 +207,21 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     let mut groups = Vec::new();
     let mut lengths = Vec::new();
     let mut empty_variables = false;
-    for pair in args[..args.len() - 1].chunks_exact(2) {
-        let variable_root = if recipe.copies_headers() {
-            match pair[0].native_list_copy(strings) {
-                Ok(root) => EachLoopRoot::Header(root),
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            }
-        } else {
-            EachLoopRoot::Original(pair[0].native_lifetime_lease())
-        };
-        let variables = match vm.native_object_list_elements_in(variable_root.value(), strings) {
-            Ok(items) => items,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-        };
-        empty_variables |= variables.is_empty();
-        if variables.is_empty() && !recipe.live_iterators() {
-            return crate::command::completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::native_each_loop::empty_variables(recipe, kind),
-            );
-        }
-        let value_root = if recipe.copies_headers() {
-            match pair[1].native_list_copy(strings) {
-                Ok(root) => EachLoopRoot::Header(root),
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            }
-        } else {
-            EachLoopRoot::Original(pair[1].native_lifetime_lease())
-        };
-        let values = if recipe.live_iterators() {
-            None
-        } else {
-            match vm.native_object_list_elements_in(value_root.value(), strings) {
-                Ok(items) => Some(items),
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            }
-        };
+    for pair in args[..args.len() - 1].as_chunks::<2>().0 {
+        let group =
+            match prepare_each_loop_group(vm, pair, recipe, strings, kind, &mut empty_variables) {
+                Ok(group) => group,
+                Err(error) => return error,
+            };
         lengths.push((
-            variables.len(),
-            values.as_ref().map_or(0, |items| items.len()),
+            group
+                .variable_items
+                .as_ref()
+                .expect("prepared variable list")
+                .len(),
+            group.value_items.as_ref().map_or(0, |items| items.len()),
         ));
-        groups.push(EachLoopGroup {
-            variables: variable_root,
-            values: value_root,
-            variable_items: Some(variables),
-            value_items: values,
-        });
+        groups.push(group);
     }
     if empty_variables {
         return crate::command::completion_from_cmd_error(
@@ -185,19 +229,9 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
             tcl_cmd_core::native_each_loop::empty_variables(recipe, kind),
         );
     }
-    let jim_empty = if recipe.live_iterators() {
-        match vm.native_jim_object_context() {
-            Ok(context) => Some(if kind == NativeEachLoopKind::Lmap {
-                EachLoopRoot::Original(context.empty_object().native_lifetime_lease())
-            } else {
-                // Jim's foreach resultObj owns emptyObj; lmap owns a List
-                // instead and only borrows emptyObj when padding variables.
-                EachLoopRoot::Header(context.empty_object().clone())
-            }),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-        }
-    } else {
-        None
+    let jim_empty = match each_empty_result(vm, recipe.live_iterators(), kind) {
+        Ok(original) => original,
+        Err(error) => return error,
     };
     vm.pending.each_loop = Some(crate::exec::EachLoopReq {
         protocol,

@@ -10,6 +10,16 @@ use tcl_cmd_core::ensemble::EnsembleObjectRole;
 use tcl_core_types::NameBytes;
 use tcl_syntax::value::ValueError;
 
+#[derive(Clone, Copy)]
+pub(super) struct OriginalEnsembleInvocation<'a> {
+    pub namespace: super::NsId,
+    pub parameters: &'a [Value],
+    pub arguments: &'a [Value],
+    pub original_word_count: usize,
+    pub usage: &'a [crate::command::NativeArgumentUsageRewrite],
+    pub default_target: bool,
+}
+
 impl Vm {
     pub(super) fn borrow_native_argument_usage(
         usage: &[crate::command::NativeArgumentUsageRewrite],
@@ -27,7 +37,10 @@ impl Vm {
             .collect()
     }
     pub(super) fn advance_native_ensemble_export_epoch(&self, namespace: super::NsId) {
-        let mut epochs = self.native_ensemble_namespace_epochs.borrow_mut();
+        let mut epochs = self
+            .compilation_epochs
+            .native_ensemble_namespace_epochs
+            .borrow_mut();
         let epoch = epochs.entry(namespace).or_default();
         *epoch = epoch
             .checked_add(1)
@@ -49,13 +62,17 @@ impl Vm {
     pub(super) fn invoke_original_ensemble_prefix(
         &mut self,
         prefix: Value,
-        namespace: super::NsId,
-        parameters: &[Value],
-        arguments: &[Value],
-        original_word_count: usize,
-        usage: &[crate::command::NativeArgumentUsageRewrite],
-        default_target: bool,
+        selected: OriginalEnsembleInvocation<'_>,
     ) -> (tcl_core_types::Completion<Value>, bool) {
+        let OriginalEnsembleInvocation {
+            namespace,
+            parameters,
+            arguments,
+            original_word_count,
+            usage,
+            default_target,
+        } = selected;
+
         let dialect = self.native_invocation_dialect();
         let Some(dispatch) = dialect.native_ensemble_dispatch_protocol() else {
             return (
@@ -166,11 +183,10 @@ impl Vm {
                     ))
                 })
                 .collect::<Option<Vec<_>>>();
-            if let Some(pairs) = pairs {
-                if let Ok(root) = Value::native_dictionary_constructor(pairs, None, protocol) {
-                    def.originals.map =
-                        Some(EnsembleObjectRole::new(NativeEnsembleRoot::owned(root)));
-                }
+            if let Some(pairs) = pairs
+                && let Ok(root) = Value::native_dictionary_constructor(pairs, None, protocol)
+            {
+                def.originals.map = Some(EnsembleObjectRole::new(NativeEnsembleRoot::owned(root)));
             }
         }
         for (slot, words) in [
@@ -219,6 +235,7 @@ impl Vm {
         names: &[NameBytes],
     ) -> Result<(), ValueError> {
         let epoch = self
+            .compilation_epochs
             .native_ensemble_namespace_epochs
             .borrow()
             .get(&def.namespace)

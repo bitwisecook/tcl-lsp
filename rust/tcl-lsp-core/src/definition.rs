@@ -7206,7 +7206,7 @@ mod tests {
                             call.resolved_qualified_name.as_deref(),
                             call.resolved_command_reference
                                 .as_ref()
-                                .map(|reference| reference.slot()),
+                                .map(tcl_compiler::command_binding::SourceCommandReference::slot),
                         ))
                         .collect::<Vec<_>>()
                 )

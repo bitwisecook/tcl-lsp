@@ -1065,7 +1065,7 @@ fn dead_chain_code(
     let var = &chain.key.0;
     // A scalar-fact invalidation does not overwrite the executable cell.
     // Reads of its fresh version still observe the earlier store.
-    if let Some(symbol) = fu.ssa.var_symbol(var)
+    if let Some(symbol) = fu.ssa.cell_symbol(var)
         && fu.def_use.chains.iter().any(|(key, consumer)| {
             key.0 == *var
                 && !consumer.is_dead()
@@ -1188,7 +1188,7 @@ fn build_adce_consumers(
             continue;
         }
         let mut key = chain.key.clone();
-        if let Some(symbol) = fu.ssa.var_symbol(&key.0) {
+        if let Some(symbol) = fu.ssa.cell_symbol(&key.0) {
             key.1 = fu.ssa.binding_version(symbol, key.1);
         }
         for use_site in &chain.uses {

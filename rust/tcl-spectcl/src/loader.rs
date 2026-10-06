@@ -7404,7 +7404,7 @@ mod tests {
     #[test]
     fn native_cardinality_role_contract_loads_and_tcl_count_hook_is_rejected() {
         let pack = evaluate_pack(
-            r#"speclib counts 1.0 {
+            r"speclib counts 1.0 {
             command copied {
                 arg_role_count_resolver -native foreach::arg_role_count_resolver
                 arg_role_resolver_roles Body
@@ -7413,7 +7413,7 @@ mod tests {
                 arg_role_count_resolver {nwords} {return {2 Body}}
                 arg_role_resolver_roles Body
             }
-        }"#,
+        }",
         );
         let selected = pack.command("copied").expect("native contract loads");
         let resolver = selected
@@ -7465,7 +7465,7 @@ mod tests {
     #[test]
     fn native_structured_layout_loads_and_conflicting_inputs_are_rejected() {
         let pack = evaluate_pack(
-            r#"speclib layouts 1.0 {
+            r"speclib layouts 1.0 {
             command copied {
                 arg_role_layout_resolver -native regsub::arg_role_layout_resolver
                 arg_role_resolver_roles {Pattern FormatString VarWrite}
@@ -7479,7 +7479,7 @@ mod tests {
                 arg_role_count_resolver -native foreach::arg_role_count_resolver
                 arg_role_resolver_roles {Pattern FormatString VarWrite Body}
             }
-        }"#,
+        }",
         );
         assert!(
             pack.command("copied")

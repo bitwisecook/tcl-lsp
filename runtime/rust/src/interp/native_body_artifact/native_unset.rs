@@ -14,7 +14,7 @@ pub(super) struct UnsetOperation {
 
 enum UnsetVariable {
     Original {
-        target: Target,
+        target: Box<Target>,
         word: usize,
     },
     Expanded {
@@ -45,7 +45,10 @@ impl Builder<'_> {
                         prepared_words
                             .insert(word, self.namespace_word(captured, word, false, depth)?);
                     }
-                    UnsetVariable::Original { target, word }
+                    UnsetVariable::Original {
+                        target: Box::new(target),
+                        word,
+                    }
                 }
                 NativeUnsetReceiver::ExpandedLiteral { name, index } => {
                     let slot = self.local(&name, None);

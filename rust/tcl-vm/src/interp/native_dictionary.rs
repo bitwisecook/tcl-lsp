@@ -161,21 +161,18 @@ impl Vm {
                     break;
                 }
             }
-            match member {
-                Some(value) => {
-                    self.store_compiled_variable_result(*slot, None, value)?;
-                }
-                None => {
-                    // TclObjUnsetVar2 uses the original local-name object here.
-                    let Some(binding) = self.compiled_local_binding(*slot) else {
-                        return Err(self.refuse_host_command(
-                            "dictionary update target slot is unavailable".into(),
-                        ));
-                    };
-                    let _ = self.unset_var_bytes(binding.name.as_bytes());
-                    if let Some(refusal) = self.refused_completion() {
-                        return Err(refusal);
-                    }
+            if let Some(value) = member {
+                self.store_compiled_variable_result(*slot, None, value)?;
+            } else {
+                // TclObjUnsetVar2 uses the original local-name object here.
+                let Some(binding) = self.compiled_local_binding(*slot) else {
+                    return Err(self.refuse_host_command(
+                        "dictionary update target slot is unavailable".into(),
+                    ));
+                };
+                let _ = self.unset_var_bytes(binding.name.as_bytes());
+                if let Some(refusal) = self.refused_completion() {
+                    return Err(refusal);
                 }
             }
         }
@@ -245,26 +242,23 @@ impl Vm {
                 .prepare(current)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
             for (key, slot) in keys.iter().zip(target_slots) {
-                match vm.read_compiled_variable_result(*slot, None) {
-                    Ok(value) => {
-                        let value = if prepared.is_same_object(&value) {
-                            prepared.duplicate_value(&value)
-                        } else {
-                            value
-                        };
-                        prepared.set_member(key.clone(), value).map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
+                if let Ok(value) = vm.read_compiled_variable_result(*slot, None) {
+                    let value = if prepared.is_same_object(&value) {
+                        prepared.duplicate_value(&value)
+                    } else {
+                        value
+                    };
+                    prepared.set_member(key.clone(), value).map_err(|error| {
+                        crate::command::completion_from_cmd_error(vm, error.into())
+                    })?;
+                } else {
+                    if let Some(refusal) = vm.refused_completion() {
+                        return Err(refusal);
                     }
-                    Err(_) => {
-                        if let Some(refusal) = vm.refused_completion() {
-                            return Err(refusal);
-                        }
-                        vm.publish_swallowed_trace_error();
-                        prepared.remove_member(key).map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
-                    }
+                    vm.publish_swallowed_trace_error();
+                    prepared.remove_member(key).map_err(|error| {
+                        crate::command::completion_from_cmd_error(vm, error.into())
+                    })?;
                 }
             }
             vm.store_captured_update(name.as_bytes(), None, &captured, prepared.into_value())?;
@@ -297,14 +291,14 @@ impl Vm {
             .as_ref()
             .map(|receiver| receiver.cell.clone())
             .or_else(|| self.trace_cell_bytes(name).filter(|cell| cell.id.is_some()));
-        let explicit_array = captured
-            .as_ref()
-            .map(|receiver| receiver.explicit_array)
-            .unwrap_or_else(|| {
+        let explicit_array = captured.as_ref().map_or_else(
+            || {
                 self.resolve_var_from_bytes(name, self.current_level())
                     .filter(|resolved| resolved.elem.is_some())
                     .and_then(|resolved| resolved.base_id)
-            });
+            },
+            |receiver| receiver.explicit_array,
+        );
         let execute = |vm: &mut Self| {
             let read =
                 vm.fire_var_traces_from_cell_bytes(name, "read", None, None, selected.clone());
@@ -415,7 +409,7 @@ impl Vm {
         if let Some(refusal) = self.refused_completion() {
             return Err(refusal);
         }
-        Ok(self.variable_update_result(stored, &read_options))
+        Ok(Self::variable_update_result(stored, &read_options))
     }
 
     fn prepare_dictionary_variable_container<O: NativeDictionaryObjects<Value = Value>>(

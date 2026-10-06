@@ -422,6 +422,10 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     ]
 }
 
+pub(crate) use if_::bpf_conditional_operands;
+pub(crate) use if_::check_if_shape as native_if_shape_error;
+pub(crate) use if_::native_compile_shape_message as native_if_compile_shape_message;
+
 #[cfg(test)]
 mod tests {
     use crate::registry::CommandRegistry;
@@ -545,7 +549,3 @@ mod tests {
         );
     }
 }
-
-pub(crate) use if_::bpf_conditional_operands;
-pub(crate) use if_::check_if_shape as native_if_shape_error;
-pub(crate) use if_::native_compile_shape_message as native_if_compile_shape_message;

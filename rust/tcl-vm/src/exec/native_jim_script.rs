@@ -53,108 +53,9 @@ impl Vm {
                         .accept(self, completion);
                 }
                 ScriptStep::Token { index } => {
-                    let (kind, original) = frame
-                        .jim_script
-                        .as_ref()
-                        .expect("native Script state")
-                        .original_token(index);
-                    let original = original.native_lifetime_lease();
-                    let completion = match kind {
-                        JimScriptObjectKind::Source(
-                            tcl_lexer::JimScriptTokenKind::String
-                            | tcl_lexer::JimScriptTokenKind::Escaped,
-                        ) => ok(original.value().clone()),
-                        JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Variable) => {
-                            match self.read_original_named_variable(original.value()) {
-                                Ok(value) => ok(value),
-                                Err(completion) => completion,
-                            }
-                        }
-                        JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Command) => {
-                            match self.prepare_script_commands_value(original.value()) {
-                                Ok(prepared) => {
-                                    return Tick::PushScript {
-                                        script: prepared
-                                            .prefix
-                                            .expect("native Script always owns an activation"),
-                                        label: None,
-                                        cleanup_proc: None,
-                                        fatal_tail: None,
-                                        namespace: ScriptNamespace::Inherit,
-                                    };
-                                }
-                                Err(error) => completion_from_tcl_error(self, error),
-                            }
-                        }
-                        JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Expression) => {
-                            match self.prepare_expression_value(original.value()) {
-                                Ok(node) => {
-                                    return Tick::PushExpression {
-                                        req: ExpressionReq {
-                                            state: tcl_syntax::expr::ExprEvalState::new(node),
-                                            awaiting_array: None,
-                                            normalize: false,
-                                            jim_objects: original
-                                                .value()
-                                                .native_jim_expression_objects(),
-                                            restore_primary: original
-                                                .value()
-                                                .retain_expression_primary(),
-                                        },
-                                        placeholder: self.current_placeholder_unit(),
-                                    };
-                                }
-                                Err(error) => completion_from_tcl_error(self, error),
-                            }
-                        }
-                        JimScriptObjectKind::Source(
-                            tcl_lexer::JimScriptTokenKind::IndexedVariable,
-                        ) => {
-                            let context = match self.native_jim_object_context() {
-                                Ok(context) => context,
-                                Err(error) => {
-                                    return Tick::Return(completion_from_tcl_error(
-                                        self,
-                                        error.into(),
-                                    ));
-                                }
-                            };
-                            if let Err(error) = original
-                                .value()
-                                .ensure_native_jim_dictionary_substitution(&context)
-                            {
-                                return Tick::Return(completion_from_tcl_error(self, error.into()));
-                            }
-                            let (name, key) = original
-                                .value()
-                                .with_native_jim_dictionary_substitution(|name, key| {
-                                    (name.native_lifetime_lease(), key.native_lifetime_lease())
-                                })
-                                .expect("prepared original dictionary substitution");
-                            frame
-                                .jim_script
-                                .as_mut()
-                                .expect("native Script state")
-                                .begin_dictionary(name);
-                            return Tick::PushSubst {
-                                req: SubstReq {
-                                    original: Some(key),
-                                    template: Vec::<u8>::new().into(),
-                                    backslashes: true,
-                                    commands: true,
-                                    variables: true,
-                                    control: crate::subst::SubstitutionControl::Word,
-                                },
-                                placeholder: self.current_placeholder_unit(),
-                            };
-                        }
-                        _ => Completion::new(
-                            Code::Error,
-                            self.native_jim_object_context()
-                                .expect("active native context")
-                                .result_object(),
-                            crate::Value::empty(),
-                        ),
+                    let completion = match self.native_jim_token_completion(frame, index) {
+                        Ok(completion) => completion,
+                        Err(tick) => return *tick,
                     };
                     frame
                         .jim_script
@@ -163,6 +64,114 @@ impl Vm {
                         .accept(self, completion);
                 }
             }
+        }
+    }
+    fn native_jim_token_completion(
+        &mut self,
+        frame: &mut Frame,
+        index: usize,
+    ) -> Result<Completion<crate::Value>, Box<Tick>> {
+        let (kind, original) = frame
+            .jim_script
+            .as_ref()
+            .expect("native Script state")
+            .original_token(index);
+        let original = original.native_lifetime_lease();
+        let completion = match kind {
+            JimScriptObjectKind::Source(
+                tcl_lexer::JimScriptTokenKind::String | tcl_lexer::JimScriptTokenKind::Escaped,
+            ) => ok(original.value().clone()),
+            JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Variable) => {
+                match self.read_original_named_variable(original.value()) {
+                    Ok(value) => ok(value),
+                    Err(completion) => completion,
+                }
+            }
+            JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Command) => {
+                match self.prepare_script_commands_value(original.value()) {
+                    Ok(prepared) => {
+                        return Err(Box::new(Tick::PushScript {
+                            script: prepared
+                                .prefix
+                                .expect("native Script always owns an activation"),
+                            label: None,
+                            cleanup_proc: None,
+                            fatal_tail: None,
+                            namespace: ScriptNamespace::Inherit,
+                        }));
+                    }
+                    Err(error) => completion_from_tcl_error(self, error),
+                }
+            }
+            JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Expression) => {
+                match self.prepare_expression_value(original.value()) {
+                    Ok(node) => {
+                        return Err(Box::new(Tick::PushExpression {
+                            req: ExpressionReq {
+                                state: tcl_syntax::expr::ExprEvalState::new(node),
+                                awaiting_array: None,
+                                normalize: false,
+                                jim_objects: original.value().native_jim_expression_objects(),
+                                restore_primary: original.value().retain_expression_primary(),
+                            },
+                            placeholder: self.current_placeholder_unit(),
+                        }));
+                    }
+                    Err(error) => completion_from_tcl_error(self, error),
+                }
+            }
+            JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::IndexedVariable) => {
+                return Err(Box::new(self.native_jim_indexed_token(frame, &original)));
+            }
+            _ => Completion::new(
+                Code::Error,
+                self.native_jim_object_context()
+                    .expect("active native context")
+                    .result_object(),
+                crate::Value::empty(),
+            ),
+        };
+        Ok(completion)
+    }
+
+    fn native_jim_indexed_token(
+        &mut self,
+        frame: &mut Frame,
+        original: &crate::NativeObjectLifetimeLease,
+    ) -> Tick {
+        let context = match self.native_jim_object_context() {
+            Ok(context) => context,
+            Err(error) => {
+                return Tick::Return(completion_from_tcl_error(self, error.into()));
+            }
+        };
+        if let Err(error) = original
+            .value()
+            .ensure_native_jim_dictionary_substitution(&context)
+        {
+            return Tick::Return(completion_from_tcl_error(self, error.into()));
+        }
+        let (name, key) = original
+            .value()
+            .with_native_jim_dictionary_substitution(|name, key| {
+                (name.native_lifetime_lease(), key.native_lifetime_lease())
+            })
+            .expect("prepared original dictionary substitution");
+        frame
+            .jim_script
+            .as_mut()
+            .expect("native Script state")
+            .begin_dictionary(name);
+        Tick::PushSubst {
+            req: SubstReq {
+                original: Some(key),
+                template: Vec::<u8>::new().into(),
+                backslashes: true,
+                commands: true,
+                variables: true,
+                control: crate::subst::SubstitutionControl::Word,
+            },
+            placeholder: self.current_placeholder_unit(),
         }
     }
 }

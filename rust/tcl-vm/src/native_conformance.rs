@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Closed native conformance drivers, enabled only by the `test-support` feature.
-//! Engine OriginalObject and the supported C shim expose no dictionary search
+//! Engine `OriginalObject` and the supported C shim expose no dictionary search
 //! cursor. These drivers retain the actual root/search inside the VM and reach
 //! its physical operations through a registered native callback.
 use crate::{NativeCommand, Value, Vm};

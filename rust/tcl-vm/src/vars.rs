@@ -247,7 +247,7 @@ impl Drop for NativeArrayKeyDrain {
     }
 }
 
-/// Jim's cached VarVal pointer has no native cell/value ownership.
+/// Jim's cached `VarVal` pointer has no native cell/value ownership.
 #[derive(Clone)]
 pub(crate) struct WeakJimVariableCell {
     id: VarId,
@@ -280,6 +280,14 @@ pub(crate) struct VarArena {
     cells: HashMap<VarId, VarCell>,
     released_statics: Rc<RefCell<Vec<VarId>>>,
     released_native_alias_entries: Vec<(VarBinding, VarId)>,
+}
+
+/// The reached original search header and its already selected byte/cache views.
+#[derive(Clone, Copy)]
+pub(crate) struct NativeArraySearchHandle<'a> {
+    pub(crate) original: Option<&'a Value>,
+    pub(crate) bytes: Option<&'a [u8]>,
+    pub(crate) cache: Option<tcl_core_types::NativeArraySearchCache>,
 }
 
 impl VarArena {
@@ -493,13 +501,12 @@ impl VarArena {
 
     /// Hash entry destruction releases its key even if aliases retain the Var.
     pub(crate) fn retire_array_element_key(&mut self, id: VarId) {
-        if let Some(cell) = self.cells.get_mut(&id) {
-            if let Some(entry) = cell.native_element_key.take() {
-                if entry.destruction_owners.get() == 0 {
-                    let key = entry.original.borrow_mut().take();
-                    drop(key);
-                }
-            }
+        if let Some(cell) = self.cells.get_mut(&id)
+            && let Some(entry) = cell.native_element_key.take()
+            && entry.destruction_owners.get() == 0
+        {
+            let key = entry.original.borrow_mut().take();
+            drop(key);
         }
     }
 
@@ -562,15 +569,18 @@ impl VarArena {
         id: VarId,
         sub: &str,
         name: &[u8],
-        handle: Option<&Value>,
-        bytes: Option<&[u8]>,
-        cache: Option<tcl_core_types::NativeArraySearchCache>,
+        input: NativeArraySearchHandle<'_>,
         protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
     ) -> Result<
         Result<Value, tcl_syntax::native_array_search::NativeArraySearchFailure>,
         tcl_syntax::value::ValueError,
     > {
         use tcl_syntax::value::ValueError;
+        let NativeArraySearchHandle {
+            original: handle,
+            bytes,
+            cache,
+        } = input;
         let cell = self
             .cells
             .get_mut(&id)
@@ -1111,7 +1121,17 @@ mod tests {
         )
         .unwrap();
         let handle = arena
-            .native_array_search(root, "startsearch", b"a", None, None, None, protocol)
+            .native_array_search(
+                root,
+                "startsearch",
+                b"a",
+                NativeArraySearchHandle {
+                    original: None,
+                    bytes: None,
+                    cache: None,
+                },
+                protocol,
+            )
             .unwrap()
             .unwrap();
         let retained = handle.downgrade_native_object();
@@ -1122,7 +1142,17 @@ mod tests {
         assert!(arena.array_insert(root, b"new", shell));
         assert!(retained.upgrade().is_none());
         let handle = arena
-            .native_array_search(root, "startsearch", b"a", None, None, None, protocol)
+            .native_array_search(
+                root,
+                "startsearch",
+                b"a",
+                NativeArraySearchHandle {
+                    original: None,
+                    bytes: None,
+                    cache: None,
+                },
+                protocol,
+            )
             .unwrap()
             .unwrap();
         let retained = handle.downgrade_native_object();

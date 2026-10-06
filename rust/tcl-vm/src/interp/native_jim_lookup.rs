@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Actual Jim lookup owners, independent of C caches and compiler generations.
 
-use super::*;
+use super::{
+    Command, CommandSidecarKey, CommandSlot, Completion, Local, NameBytes, NsId, ROOT_NS, Rc,
+    RefCell, Value, VarId, Vm, native_name_world,
+};
 use std::cell::Cell;
 use std::rc::Weak;
 use tcl_syntax::value::ValueError;
@@ -199,7 +202,7 @@ impl Vm {
             .and_then(Weak::upgrade)
         {
             *node.command.borrow_mut() = command.clone();
-            *node.storage_key.borrow_mut() = key.to_owned();
+            key.clone_into(&mut node.storage_key.borrow_mut());
             *node.name.borrow_mut() = self.command_display_key_bytes(key);
         }
     }
@@ -268,19 +271,12 @@ impl Vm {
         Some(name)
     }
 
-    pub(super) fn native_jim_command_from_original_at(
+    fn cached_original_jim_command(
         &self,
-        current: NsId,
         original: &Value,
+        recipe: tcl_syntax::native_jim_lookup::NativeJimLookupProtocol,
     ) -> Result<Option<(String, Command)>, ValueError> {
-        let dialect = self.actual_native_invocation_dialect();
-        let recipe =
-            dialect
-                .native_jim_lookup_protocol()
-                .ok_or(ValueError::CommandProtocolUnavailable(
-                    "Jim original command lookup issuer",
-                ))?;
-        let hit = original
+        Ok(original
             .with_jim_command_cache(|cache| {
                 if cache.interpreter != self.native_interpreter_identity() {
                     return Err(ValueError::CommandProtocolUnavailable(
@@ -329,14 +325,29 @@ impl Vm {
                     .command_token_at_generation(node.token)
                     .and_then(|identity| match identity.key {
                         CommandSidecarKey::Visible(key) => Some(key),
-                        _ => None,
+                        CommandSidecarKey::Hidden(_) => None,
                     })
                     .unwrap_or_else(|| node.storage_key.borrow().clone());
                 let worker = node.command.borrow().clone();
                 Ok(Some((key, worker)))
             })
             .transpose()?
-            .flatten();
+            .flatten())
+    }
+
+    pub(super) fn native_jim_command_from_original_at(
+        &self,
+        current: NsId,
+        original: &Value,
+    ) -> Result<Option<(String, Command)>, ValueError> {
+        let dialect = self.actual_native_invocation_dialect();
+        let recipe =
+            dialect
+                .native_jim_lookup_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim original command lookup issuer",
+                ))?;
+        let hit = self.cached_original_jim_command(original, recipe)?;
         if hit.is_some() {
             return Ok(hit);
         }
@@ -484,7 +495,7 @@ impl Vm {
             .native_name_operand_bytes(original)
             .map_err(|error| self.refuse_host_command(error.to_string()))?;
         if self.uses_native_jim_lookup() {
-            if self.is_original_jim_dictionary_name(original, &bytes) {
+            if Self::is_original_jim_dictionary_name(original, &bytes) {
                 let context = self
                     .native_jim_object_context()
                     .map_err(|error| self.refuse_host_command(error.to_string()))?;
@@ -519,7 +530,7 @@ impl Vm {
             let bytes = self
                 .native_name_operand_bytes(original)
                 .map_err(|error| self.refuse_host_command(error.to_string()))?;
-            if self.is_original_jim_dictionary_name(original, &bytes) {
+            if Self::is_original_jim_dictionary_name(original, &bytes) {
                 return self.store_original_jim_dictionary_name(original, value);
             }
             self.install_original_jim_variable(original, &bytes)

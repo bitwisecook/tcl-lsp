@@ -21,7 +21,7 @@ impl LoadedNativeIntegerFormatter {
     /// Load the caller-selected library, verify its supplied SHA-256, actual
     /// version and symbol ownership, and initialize its native Tcl runtime.
     /// `executable` is the caller's genuine executable identity for
-    /// Tcl_FindExecutable; it is not inferred from a Tcl language profile.
+    /// `Tcl_FindExecutable`; it is not inferred from a Tcl language profile.
     pub fn load(
         library: &Path,
         expected_sha256: [u8; 32],
@@ -74,7 +74,9 @@ impl NativeIntegerFormatter for LoadedNativeIntegerFormatter {
 
 #[cfg(target_os = "linux")]
 mod native {
-    use super::*;
+    use super::{
+        NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable, NativeIntegerKind, Path,
+    };
     use sha2::{Digest, Sha256};
     use std::cell::RefCell;
     use std::ffi::{CStr, CString};
@@ -141,7 +143,7 @@ mod native {
             return Err(NativeIntegerFormatterUnavailable::Build);
         }
         let mut info: libc::Dl_info = unsafe { std::mem::zeroed() };
-        if unsafe { libc::dladdr(pointer, &mut info) } == 0 || info.dli_fbase.is_null() {
+        if unsafe { libc::dladdr(pointer, &raw mut info) } == 0 || info.dli_fbase.is_null() {
             return Err(NativeIntegerFormatterUnavailable::Build);
         }
         if info.dli_fname.is_null() {
@@ -170,6 +172,37 @@ mod native {
         }
     }
 
+    fn pin_verified_image(file: &File) -> Result<CString, NativeIntegerFormatterUnavailable> {
+        // Resolve the pinned open file, rather than looking up the supplied
+        // pathname a second time after verifying it.
+        let image_file = file
+            .try_clone()
+            .map_err(|_| NativeIntegerFormatterUnavailable::Build)?;
+        let image_fd = image_file.as_raw_fd();
+        PROCESS_IMAGES
+            .get_or_init(|| Mutex::new(Vec::new()))
+            .lock()
+            .map_err(|_| NativeIntegerFormatterUnavailable::Build)?
+            .push(image_file);
+        CString::new(format!("/proc/self/fd/{image_fd}"))
+            .map_err(|_| NativeIntegerFormatterUnavailable::Build)
+    }
+
+    fn native_version(version: Version) -> [i32; 4] {
+        let (mut major, mut minor, mut patchlevel, mut release) = (0i32, 0i32, 0i32, 0i32);
+        // SAFETY: the caller resolved Version from its live verified image;
+        // all output fields are live disjoint native integers.
+        unsafe {
+            version(
+                &raw mut major,
+                &raw mut minor,
+                &raw mut patchlevel,
+                &raw mut release,
+            );
+        }
+        [major, minor, patchlevel, release]
+    }
+
     pub(super) struct Loaded {
         pub(super) build: NativeIntegerFormatterBuild,
         interpreter: RefCell<*mut libc::c_void>,
@@ -195,19 +228,7 @@ mod native {
             if digest(&mut file)? != expected {
                 return Err(NativeIntegerFormatterUnavailable::Build);
             }
-            // Resolve the pinned open file, rather than looking up the supplied
-            // pathname a second time after verifying it.
-            let image_file = file
-                .try_clone()
-                .map_err(|_| NativeIntegerFormatterUnavailable::Build)?;
-            let image_fd = image_file.as_raw_fd();
-            PROCESS_IMAGES
-                .get_or_init(|| Mutex::new(Vec::new()))
-                .lock()
-                .map_err(|_| NativeIntegerFormatterUnavailable::Build)?
-                .push(image_file);
-            let pinned = CString::new(format!("/proc/self/fd/{image_fd}"))
-                .map_err(|_| NativeIntegerFormatterUnavailable::Build)?;
+            let pinned = pin_verified_image(&file)?;
             let executable = CString::new(executable.as_os_str().as_bytes())
                 .map_err(|_| NativeIntegerFormatterUnavailable::Build)?;
             // SAFETY: pinned refers to a live verified file; RTLD_LOCAL keeps
@@ -282,10 +303,7 @@ mod native {
                     )?),
                 )
             };
-            let (mut major, mut minor, mut patch, mut release) = (0i32, 0i32, 0i32, 0i32);
-            // SAFETY: all output fields are live disjoint native integers.
-            unsafe { version(&mut major, &mut minor, &mut patch, &mut release) };
-            let actual = [major, minor, patch, release];
+            let actual = native_version(version);
             if actual[0..2] != [8, 4] || digest(&mut file)? != expected {
                 return Err(NativeIntegerFormatterUnavailable::Build);
             }
@@ -341,7 +359,7 @@ mod native {
                 }
                 (self.set_result)(*interpreter, object);
                 let mut length = 0;
-                let bytes = (self.get_string)(object, &mut length);
+                let bytes = (self.get_string)(object, &raw mut length);
                 let length = usize::try_from(length)
                     .map_err(|_| NativeIntegerFormatterUnavailable::Operation)?;
                 if bytes.is_null() {

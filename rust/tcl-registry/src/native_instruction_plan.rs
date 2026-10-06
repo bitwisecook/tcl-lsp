@@ -946,6 +946,14 @@ mod tests {
     use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
     use tcl_syntax::native_string::NativeStringProtocol;
 
+    fn concat_result_hex(bytes: &[u8]) -> String {
+        use std::fmt::Write;
+        bytes.iter().fold(String::new(), |mut text, byte| {
+            write!(text, "{byte:02x}").unwrap();
+            text
+        })
+    }
+
     fn project(
         source: &[u8],
         grammar: NativeCompilationGrammar,
@@ -1123,10 +1131,7 @@ mod tests {
                             panic!("{engine}/{case}: {selected:?}");
                         };
                         assert_eq!(
-                            bytes
-                                .iter()
-                                .map(|byte| format!("{byte:02x}"))
-                                .collect::<String>(),
+                            concat_result_hex(&bytes),
                             expansion_result(&engine, case)[6]
                         );
                     } else {

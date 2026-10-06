@@ -81,9 +81,9 @@ pub(crate) struct CallFrame {
     /// The invocation argv (proc name + args) — used by `info level N`.
     pub call_argv: Vec<Value>,
     /// Jim's actual frame owners, retired with this frame independently of
-    /// the procedure declaration and the entered EvalObj Script pin.
-    pub(crate) _procedure_body: Option<Value>,
-    pub(crate) _procedure_parameters: Option<Value>,
+    /// the procedure declaration and the entered `EvalObj` Script pin.
+    pub(crate) procedure_body: Option<Value>,
+    pub(crate) procedure_parameters: Option<Value>,
     /// For a `namespace eval`/`inscope` body frame, the canonical namespace it
     /// runs in (no leading `::`; `""` = global). `None` for proc activations and
     /// the global frame. An unqualified variable accessed in such a frame is a
@@ -95,8 +95,8 @@ pub(crate) struct CallFrame {
 
 impl CallFrame {
     pub(crate) fn release_native_jim_owners(&mut self) {
-        let parameters = self._procedure_parameters.take();
-        let body = self._procedure_body.take();
+        let parameters = self.procedure_parameters.take();
+        let body = self.procedure_body.take();
         let namespace = self.jim_namespace.get_mut().take();
         tcl_runtime_api::jim_interpreter::release_jim_call_frame_objects(
             parameters, body, namespace,
@@ -118,8 +118,8 @@ impl CallFrame {
             locals: VarTable::new(),
             compiled_locals: Vec::new(),
             compiled_local_layout: None,
-            _procedure_body: None,
-            _procedure_parameters: None,
+            procedure_body: None,
+            procedure_parameters: None,
             statics: None,
             ns,
             level,

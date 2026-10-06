@@ -36,6 +36,8 @@ fn adapt(
     }
 }
 
+use tcl_cmd_core::regex::OriginalRegexConsumerError;
+
 pub(crate) fn register(vm: &mut Vm) {
     vm.register_stock_builtin("list", cmd_list);
     vm.register_stock_builtin("llength", cmd_llength);
@@ -143,7 +145,7 @@ fn cmd_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(completion) => return completion,
         },
     };
-    let updated = vm.variable_update_result(value, &read_options);
+    let updated = Vm::variable_update_result(value, &read_options);
     Completion::new(tcl_runtime_api::Code::Ok, updated.value, updated.options)
 }
 
@@ -374,7 +376,6 @@ fn cmd_lsearch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     let version = vm.runtime_version();
-    use tcl_cmd_core::regex::OriginalRegexConsumerError;
     match tcl_cmd_core::lsearch::lsearch_original_with_jim::<
         Vm,
         crate::cmd_regexp::CrateEngine,

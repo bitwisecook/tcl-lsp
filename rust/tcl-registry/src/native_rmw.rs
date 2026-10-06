@@ -364,6 +364,10 @@ mod tests {
 
     #[test]
     fn increment_object_hooks_retain_actual_conversion_schedule() {
+        use crate::native_compilation::{
+            NativeCompilationGuard, NativeCompilationSelection as Selection,
+            NativeCompilationWordShape as Shape,
+        };
         use crate::{InvocationArguments, InvocationWord, InvocationWords};
         let operands = [InvocationWord::Literal("input"), InvocationWord::Dynamic];
         for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -397,10 +401,6 @@ mod tests {
                 InvocationWord::Literal("1"),
             ];
             let immediate = InvocationArguments::structured(&immediate).with_dialect(dialect);
-            use crate::native_compilation::{
-                NativeCompilationGuard, NativeCompilationSelection as Selection,
-                NativeCompilationWordShape as Shape,
-            };
             let inline = Selection::Inline {
                 operation: facts.operation,
                 guard: if environment == "tcl8.4" {

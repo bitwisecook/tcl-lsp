@@ -8,73 +8,73 @@
 
 /// Original native Jim expression value and comparison observations.
 pub const JIM_RAW_EXPRESSION_VALUE_SCRIPTS: &[&str] = &[
-    r#"set a [binary format H* ff];set b [binary format H* c3bf];list [expr {$a eq $b}] [expr {$a == $b}] [expr {$a lt $b}] [expr {$a le $b}]"#,
-    r#"set a [binary format H* ff];set b [binary format H* c3bf];list [expr {$a in [list $b]}] [expr {$a in [list $a]}] [expr {$a ni [list $b]}]"#,
-    r#"set a [binary format H* ff];list [expr {$a eq $a}] [expr {$a ne $a}]"#,
-    r#"set a [binary format H* 410042];set b [binary format H* 410043];list [expr {$a eq $b}] [expr {$a == $b}] [expr {$a lt $b}]"#,
-    r#"set a [binary format H* eda080];set b [binary format H* eda081];list [expr {$a eq $b}] [expr {$a lt $b}] [expr {$a in [list $a $b]}]"#,
-    r#"set s [binary format H* c341c3a9];set r [string range $s 0 1];list [expr {$r eq $s}] [expr {$r == $s}] [string length $r]"#,
-    r#"set a [binary format H* ff];expr {$a + 1}"#,
-    r#"set a [binary format H* ff];expr {$a ? 1 : 2}"#,
-    r#"set a [binary format H* ff];set seen 0;expr {0 && [incr seen] && $a};set seen"#,
+    r"set a [binary format H* ff];set b [binary format H* c3bf];list [expr {$a eq $b}] [expr {$a == $b}] [expr {$a lt $b}] [expr {$a le $b}]",
+    r"set a [binary format H* ff];set b [binary format H* c3bf];list [expr {$a in [list $b]}] [expr {$a in [list $a]}] [expr {$a ni [list $b]}]",
+    r"set a [binary format H* ff];list [expr {$a eq $a}] [expr {$a ne $a}]",
+    r"set a [binary format H* 410042];set b [binary format H* 410043];list [expr {$a eq $b}] [expr {$a == $b}] [expr {$a lt $b}]",
+    r"set a [binary format H* eda080];set b [binary format H* eda081];list [expr {$a eq $b}] [expr {$a lt $b}] [expr {$a in [list $a $b]}]",
+    r"set s [binary format H* c341c3a9];set r [string range $s 0 1];list [expr {$r eq $s}] [expr {$r == $s}] [string length $r]",
+    r"set a [binary format H* ff];expr {$a + 1}",
+    r"set a [binary format H* ff];expr {$a ? 1 : 2}",
+    r"set a [binary format H* ff];set seen 0;expr {0 && [incr seen] && $a};set seen",
 ];
 
 /// Original native Jim expression conversion error observations.
 pub const JIM_RAW_EXPRESSION_ERROR_SCRIPTS: &[&str] = &[
-    r#"set a [binary format H* ff];expr {$a + 1}"#,
-    r#"set a [binary format H* ff];expr {1 + $a}"#,
-    r#"set a [binary format H* ff];expr {$a & 1}"#,
-    r#"set a [binary format H* ff];expr {$a % 1}"#,
-    r#"set a [binary format H* ff];expr {~$a}"#,
-    r#"set a [binary format H* ff];expr {-$a}"#,
-    r#"set a [binary format H* ff];expr {!$a}"#,
-    r#"set a [binary format H* ff];expr {$a ? 1 : 2}"#,
-    r#"set a [binary format H* ff];expr {$a && 1}"#,
+    r"set a [binary format H* ff];expr {$a + 1}",
+    r"set a [binary format H* ff];expr {1 + $a}",
+    r"set a [binary format H* ff];expr {$a & 1}",
+    r"set a [binary format H* ff];expr {$a % 1}",
+    r"set a [binary format H* ff];expr {~$a}",
+    r"set a [binary format H* ff];expr {-$a}",
+    r"set a [binary format H* ff];expr {!$a}",
+    r"set a [binary format H* ff];expr {$a ? 1 : 2}",
+    r"set a [binary format H* ff];expr {$a && 1}",
 ];
 
 /// Original native cross-release scalar numeric NUL observations.
 pub const NUMERIC_NUL_EXPRESSION_SCRIPTS: &[&str] = &[
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]"#,
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x + 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x & 1}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x ? 1 : 0}} r]; puts [list $c [binary scan $r H* hx; set hx] $::errorCode]",
 ];
 /// The same eighteen original numeric operations, with the observation list
 /// returned instead of printed. This preserves catch code, raw result hex and
 /// error code in result-based engine comparison harnesses.
 pub const NUMERIC_NUL_EXPRESSION_OBSERVATION_SCRIPTS: &[&str] = &[
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
-    r#"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode"#,
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 310058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 3100ff]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 312e350058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 300058]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* 00ff]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x + 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x & 1}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
+    r"set ::errorCode NONE; set x [binary format H* ff0031]; set c [catch {expr {$x ? 1 : 0}} r]; list $c [binary scan $r H* hx; set hx] $::errorCode",
 ];
 
 /// Actual counted-source syntax failures. Rows retain the selected engine,
@@ -508,9 +508,19 @@ pub const NATIVE_EXPRESSION_SYNTAX_FAILURES: &[(&str, &str, &[u8], &[u8])] = &[
     ),
 ];
 
+/// Engine, case, counted source, result, seeded error code and observed code.
+pub type NativeExpressionSyntaxState = (
+    &'static str,
+    &'static str,
+    &'static [u8],
+    &'static [u8],
+    &'static [u8],
+    &'static [u8],
+);
+
 /// Original counted expression syntax failures after a seeded direct native
 /// error-code state. Rows retain source, exact result and observed private code.
-pub const NATIVE_EXPRESSION_SYNTAX_STATES: &[(&str, &str, &[u8], &[u8], &[u8], &[u8])] = &[
+pub const NATIVE_EXPRESSION_SYNTAX_STATES: &[NativeExpressionSyntaxState] = &[
     (
         "tcl8.4",
         "quote_nul_eof",

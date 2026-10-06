@@ -292,6 +292,19 @@ fn c_variable_parts(
     Some((path, simple.to_owned()))
 }
 
+fn authored_static_cell_owner(cell: &CellIdentity) -> Option<&SourceNamespaceKey> {
+    match &cell.owner {
+        CellOwner::NamespaceIdentity(key) => Some(key),
+        CellOwner::RetainedSlot(slot) => match slot.as_ref() {
+            crate::raw_binding::RawBindingSlotId::Variable(cell) => {
+                authored_static_cell_owner(cell)
+            }
+            crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
+        },
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,18 +652,5 @@ mod tests {
                 simple: "a:::b::x".into()
             }
         );
-    }
-}
-
-fn authored_static_cell_owner(cell: &CellIdentity) -> Option<&SourceNamespaceKey> {
-    match &cell.owner {
-        CellOwner::NamespaceIdentity(key) => Some(key),
-        CellOwner::RetainedSlot(slot) => match slot.as_ref() {
-            crate::raw_binding::RawBindingSlotId::Variable(cell) => {
-                authored_static_cell_owner(cell)
-            }
-            crate::raw_binding::RawBindingSlotId::Callable { .. } => None,
-        },
-        _ => None,
     }
 }

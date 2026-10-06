@@ -137,10 +137,10 @@ pub(crate) fn retire_configuration(old: &super::EnsembleDef, new: Option<&super:
             new.and_then(|c| c.originals.unknown.as_ref()),
         ),
     ] {
-        if let Some(role) = old_role {
-            if new_role.is_none_or(|next| !role.same_role(next)) {
-                role.retire();
-            }
+        if let Some(role) = old_role
+            && new_role.is_none_or(|next| !role.same_role(next))
+        {
+            role.retire();
         }
     }
     if new.is_some() {

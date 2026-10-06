@@ -339,9 +339,9 @@ pub(crate) fn definition_method_reference_spans(
         .filter_map(|(_, references)| references)
         .flatten()
         .filter(|reference| {
-            !reference
+            reference
                 .method_entry()
-                .is_some_and(|entry| entry.declaration() == reference.invocation())
+                .is_none_or(|entry| entry.declaration() != reference.invocation())
         })
         .filter_map(|reference| original_definition_reference(analysis, source, reference))
         .filter(|selected| {

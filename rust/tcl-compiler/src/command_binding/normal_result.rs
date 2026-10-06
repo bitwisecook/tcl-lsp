@@ -505,7 +505,7 @@ mod tests {
             let offset = source.find("[answer]").unwrap() + 1;
             let segment = crate::segmenter::segment_commands_with_offset_and_config(
                 "answer",
-                offset as u32,
+                u32::try_from(offset).unwrap(),
                 config,
             )
             .remove(0);

@@ -173,14 +173,56 @@ strip warnings or parse only the final line. A rule that loads but fails in
 
 ## Exclusive lab VIP and backend
 
-Choose an unused routable VIP and distinct **external** backend/client host.
-Do not use the BIG-IP self IP, loopback, another BIG-IP VIP, or a secondary
-address with no valid traffic path as the backend. The backend must be reachable
-through the chosen lab VLAN. Confirm routing/firewall availability without
-changing production routes. The default rendered VIP uses TCP+HTTP, port 18086,
-and automap SNAT to provide a symmetric return path.
+**You are authorized to create both clients and servers on `dev.bragi0.com`,
+including loopback test arrangements, using any protocol suitable for the
+experiment. Every BIG-IP test virtual server must use SNAT automap.** TCP,
+HTTP, TLS, UDP, or another protocol is permitted; choose matching profiles and
+events and record the exact protocol, listener, client and server scripts.
+The supplied fixtures and drivers use HTTP over TCP; their `HTTP_REQUEST`
+probes require an HTTP profile. Additional protocol probes need their own
+event-appropriate iRules and source hashes.
 
-On the external backend host:
+Choose a protocol that reaches the operation being measured. Retain the supplied
+TCP+HTTP baseline for `HTTP_REQUEST`/`HTTP_RESPONSE` cases. A raw TCP or UDP
+control can measure its legal connection/datagram events but does not establish
+HTTP event behavior. A TLS passthrough flow reaches TCP events; HTTP events need
+an explicitly recorded TLS termination and HTTP profile. Additional protocols
+must carry a unique request identifier through the VIP to the server and echo
+it in the response, or supply an equally precise bidirectional correlation.
+Record actual profile names, event logs, transport/protocol bytes and server
+receipt rather than treating an open listener or successful TCP connect as a
+completed semantic probe.
+
+For loopback arrangements, prove both directions: the client connects to the
+BIG-IP VIP, BIG-IP's pool endpoint reaches the server/forwarder on
+`dev.bragi0.com`, the server receives the matching request from an observed
+SNAT-translated peer, and the client receives its matching response through the
+VIP. A direct localhost client-to-server exchange is only a driver control.
+It supplies no BIG-IP/TMM coverage. Forwarders can change the apparent server
+peer or reuse backend connections; record their ingress/egress tuples and
+connection reuse so that their own address is not mistaken for BIG-IP's SNAT
+identity or a fresh TMM flow.
+
+Use this traffic path for same-host testing:
+
+```text
+client on dev.bragi0.com → BIG-IP test VIP (SNAT automap)
+                        → server on dev.bragi0.com → BIG-IP → client
+```
+
+The client connects to the BIG-IP VIP. The pool targets a `dev.bragi0.com`
+address reachable from BIG-IP. A server may use a local loopback listener with
+an explicitly documented reachable forwarding endpoint on that host. Record
+both endpoints and verify the traffic traverses BIG-IP. BIG-IP's own loopback
+address would address the appliance, so use the host's reachable address in
+the pool configuration. Confirm routing/firewall availability without changing
+production routes. SNAT automap keeps the return path through BIG-IP when the
+client and backend share a host; confirm the backend observes the translated
+peer address and retain that observation. The rendered TCP+HTTP VIP uses port
+18086 and already includes `source-address-translation { type automap }`.
+Retain that setting in every manually created or protocol-specific test VIP.
+
+On `dev.bragi0.com`:
 
 ```sh
 python3 backend.py --bind 192.0.2.20 --port 18080 > backend-r2286.log 2>&1
@@ -189,8 +231,9 @@ python3 backend.py --bind 192.0.2.20 --port 18080 > backend-r2286.log 2>&1
 Addresses here are documentation placeholders: replace them with the lab's
 actual routable addresses. Capture the backend process PID; stop only that
 process after testing. Do not kill all Python processes or all listeners on a
-port. A second external host is suitable as client. If client and backend share
-a host, ensure both real network paths work and report that topology.
+port. Run the client on `dev.bragi0.com` too, using separate client and server
+ports and retained process IDs. Report the same-host topology, forwarding
+endpoints if used, and the observed SNAT return path.
 
 Render the config offline after loading the selected rule:
 
@@ -545,6 +588,22 @@ The broader C/Jim matrix cannot erase an appliance-specific result.
 
 ## Evidence bundle and decision criteria
 
+Create the peer Markdown report
+`scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md` **on the same `work`
+branch as this source document**, then commit and push the report and its
+reproducible probe additions to that branch. Preserve the source fixtures and
+record their exact tested commit and hashes. Do not put the report on a separate
+branch. Retain raw evidence in the returned bundle and link its files from the
+Markdown report.
+
+Put the exact **BIG-IP version, build and hotfix** prominently at the top of
+the Markdown report. Include the complete `tmsh show sys version` output,
+platform/VE or hardware, active device and measured TMM roster. Where a build
+or hotfix field is absent, state that explicitly. Every results table must
+identify the appliance version when more than one version is tested. Report
+current observed behavior and coverage limits; avoid implementation history or
+development-process narratives.
+
 Return a compressed evidence directory containing:
 
 * Branch/commit identifier, original generated fixture directory, manifest and
@@ -583,12 +642,12 @@ The branch handoff is
 Record the checked-out commit alongside the original fixture hashes.
 
 ```text
-Use https://github.com/bitwisecook/tcl-lsp/blob/work/scripts/dev/bigip-probes/resolution-2286/README.md and scripts/dev/bigip-probes/resolution-2286/README.md as the exact appliance verification handoff.
-Run only on an exclusive BIG-IP lab; create uniquely named temporary owned objects, never modify production objects or save sys config.
-Generate a fresh run identifier, transfer original fixture bytes, and verify manifest SHA-256 on both workstation and appliance.
-Record every loader status/warning/rejection separately from real TMM event execution; standalone Tcl/CLI/iApp is optional comparison only.
-Measure static/global initialization, per-TMM write/unset/recreate, cross-rule collisions/load order, F5 calls, scopes, aliases, renames and traces.
-Use real external clients/backend, capture raw /var/log/ltm and HTTP bytes, and prove actual CMP/TMM roster coverage for each relevant case.
-Keep byte-distinct Unicode and LF/CRLF/backslash/braced controls exact; report unsupported or unmeasured surfaces without inventing expectations.
-Return the full raw evidence bundle and honest results matrix, clean only owned exact objects/runtime names, and prove cleanup or report residue.
+Use https://github.com/bitwisecook/tcl-lsp/blob/work/scripts/dev/bigip-probes/resolution-2286/README.md as the handoff; generate a fresh run, record its work-branch commit, transfer exact fixture bytes and verify manifest SHA-256 on both hosts.
+Run only on an exclusive BIG-IP lab; create temporary uniquely named owned objects, never modify production objects or save sys config.
+Record every loader status/warning/rejection separately from actual TMM events; standalone Tcl, CLI and iApp results are comparison controls only.
+Measure static/global initialization and per-TMM write/unset/recreate, cross-rule collisions/load order, F5 calls, scopes, aliases, renames and traces.
+Create clients and servers on dev.bragi0.com using suitable protocols or documented loopback forwarding; every test BIG-IP VIP must use SNAT automap.
+Capture raw /var/log/ltm and protocol bytes, verify the translated backend peer and actual per-case CMP/TMM roster; preserve Unicode and LF/CRLF/backslash controls exactly.
+Write BIGIP_RESULTS.md beside this README on the same work branch, prominently state exact BIG-IP version/build/hotfix, link raw evidence, and commit and push the report there.
+Return the complete raw bundle and honest supported/unsupported/unmeasured matrix; clean only owned exact objects/runtime names and prove cleanup or report residue.
 ```

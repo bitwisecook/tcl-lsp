@@ -369,7 +369,7 @@ fn jim_require(vm: &mut Vm, name: &NameBytes) -> Completion<Value> {
         Ok(paths) => paths,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
     };
-    for directory in directories.iter() {
+    for directory in &directories {
         let directory = match package_operand_bytes(vm, directory) {
             Ok(bytes) => bytes,
             Err(completion) => return completion,
@@ -574,10 +574,9 @@ fn pkg_ifneeded(
             }
             ok(vm
                 .package_ifneeded(&name, &version, release)
-                .map(|script| {
+                .map_or_else(Value::empty, |script| {
                     Value::from_native_string_bytes(tcl_core_types::c_string_extent(script))
-                })
-                .unwrap_or_else(Value::empty))
+                }))
         }
         [name, version, script] => {
             let name = match name_key(vm, name) {
@@ -608,10 +607,9 @@ fn pkg_ifneeded(
 
 fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
-        [] => ok(vm
-            .package_unknown()
-            .map(|prefix| Value::from_native_string_bytes(tcl_core_types::c_string_extent(prefix)))
-            .unwrap_or_else(Value::empty)),
+        [] => ok(vm.package_unknown().map_or_else(Value::empty, |prefix| {
+            Value::from_native_string_bytes(tcl_core_types::c_string_extent(prefix))
+        })),
         [script] => {
             let bytes = match package_operand_bytes(vm, script) {
                 Ok(bytes) => bytes,
@@ -629,7 +627,6 @@ fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `package prefer`'s preference word (`tclPkg.c`): C resolves it with
 /// `Tcl_GetIndexFromObj(…, "preference", 0)`, so `l`/`s` abbreviate and the
 /// empty word — a prefix of both entries — is `ambiguous preference ""`.
-
 fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
         [] => ok(Value::string(preference_name(vm.package_prefer()))),
@@ -766,49 +763,11 @@ fn pkg_require(
         return evaluate_loader(vm, &name, &loader);
     }
 
-    if let Some(prefix) = vm.package_unknown().cloned() {
-        let mut callback = tcl_core_types::c_string_extent(&prefix).to_vec();
-        callback.push(b' ');
-        tcl_syntax::list::append_list_element(&mut callback, name.as_bytes(), true);
-        let callback_requirements = if !release.has_package_requirements() {
-            vec![
-                requested
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| NameBytes::from(&b""[..])),
-            ]
-        } else if exact {
-            vec![NameBytes::from(
-                [requested[0].as_bytes(), b"-", requested[0].as_bytes()].concat(),
-            )]
-        } else if reqs.is_empty() {
-            vec![NameBytes::from("0-")]
-        } else {
-            reqs.clone()
-        };
-        for requirement in &callback_requirements {
-            callback.push(b' ');
-            tcl_syntax::list::append_list_element(&mut callback, requirement.as_bytes(), true);
-        }
-        if exact && !release.has_package_requirements() {
-            callback.extend_from_slice(b" -exact");
-        }
-        let completion = eval_package_script(vm, &Value::from_native_string_bytes(callback));
-        if let Some(refused) = vm.refused_completion() {
-            return refused;
-        }
-        match completion.code {
-            Code::Ok => {}
-            Code::Error => {
-                let message = match package_operand_bytes(vm, &completion.result) {
-                    Ok(bytes) => bytes,
-                    Err(refused) => return refused,
-                };
-                append_loader_error_frame(vm, &message, None);
-                return completion;
-            }
-            _ => return bad_return_code(vm, &completion, None),
-        }
+    if let Some(prefix) = vm.package_unknown().cloned()
+        && let Err(completion) =
+            invoke_package_unknown(vm, &prefix, &name, &requested, exact, release)
+    {
+        return completion;
     }
 
     // The callback may provide the package directly or register a suitable
@@ -842,6 +801,56 @@ enum ProvidedStatus {
     Absent,
     Satisfies,
     Conflicts(NameBytes),
+}
+
+fn invoke_package_unknown(
+    vm: &mut Vm,
+    prefix: &[u8],
+    name: &NameBytes,
+    requested: &[NameBytes],
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+) -> Result<(), Completion<Value>> {
+    let mut callback = tcl_core_types::c_string_extent(prefix).to_vec();
+    callback.push(b' ');
+    tcl_syntax::list::append_list_element(&mut callback, name.as_bytes(), true);
+    let callback_requirements = if !release.has_package_requirements() {
+        vec![
+            requested
+                .first()
+                .cloned()
+                .unwrap_or_else(|| NameBytes::from(&b""[..])),
+        ]
+    } else if exact {
+        vec![NameBytes::from(
+            [requested[0].as_bytes(), b"-", requested[0].as_bytes()].concat(),
+        )]
+    } else if requested.is_empty() {
+        vec![NameBytes::from("0-")]
+    } else {
+        requested.to_vec()
+    };
+    for requirement in &callback_requirements {
+        callback.push(b' ');
+        tcl_syntax::list::append_list_element(&mut callback, requirement.as_bytes(), true);
+    }
+    if exact && !release.has_package_requirements() {
+        callback.extend_from_slice(b" -exact");
+    }
+    let completion = eval_package_script(vm, &Value::from_native_string_bytes(callback));
+    if let Some(refused) = vm.refused_completion() {
+        return Err(refused);
+    }
+    match completion.code {
+        Code::Ok => {}
+        Code::Error => {
+            let message = package_operand_bytes(vm, &completion.result)?;
+            append_loader_error_frame(vm, &message, None);
+            return Err(completion);
+        }
+        _ => return Err(bad_return_code(vm, &completion, None)),
+    }
+    Ok(())
 }
 
 fn provided_status(
@@ -1159,7 +1168,7 @@ fn evaluate_loader(vm: &mut Vm, name: &NameBytes, loader: &SelectedLoader) -> Co
     }
     let completion = eval_package_script(
         vm,
-        &Value::from_native_string_bytes(tcl_core_types::c_string_extent(&source)),
+        &Value::from_native_string_bytes(tcl_core_types::c_string_extent(source)),
     );
     vm.end_package_loading(name, &loader.version);
     if let Some(refused) = vm.refused_completion() {

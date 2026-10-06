@@ -591,8 +591,7 @@ mod tests {
         NativeMathFunctionTable,
     };
 
-    #[test]
-    fn fixed_math_name_and_arity_do_not_establish_native_implementation_or_owner() {
+    fn opaque_fixed_math_invocation() -> (ExecutedScriptSource, SourceImplicitMathInvocation) {
         let origin = Arc::new(SourceOriginId::authored(&Arc::from("abs(-3)")));
         let source = ExecutedScriptSource::contiguous(Arc::clone(&origin), "abs(-3)", 0).unwrap();
         let table = NativeMathFunctionTable {
@@ -606,7 +605,7 @@ mod tests {
                 arity: Some(1),
             }],
         };
-        let mut proof = SourceImplicitMathInvocation {
+        let proof = SourceImplicitMathInvocation {
             origin,
             site: 0,
             function: "abs".into(),
@@ -622,6 +621,12 @@ mod tests {
                 table,
             }),
         };
+        (source, proof)
+    }
+
+    #[test]
+    fn fixed_math_name_and_arity_do_not_establish_native_implementation_or_owner() {
+        let (source, mut proof) = opaque_fixed_math_invocation();
         let query = |proof: &SourceImplicitMathInvocation| {
             ExpressionMathBindings::for_origin(
                 std::slice::from_ref(&crate::command_binding::SourceMathInvocation::from_reached(

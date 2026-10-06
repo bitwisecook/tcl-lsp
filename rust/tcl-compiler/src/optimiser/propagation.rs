@@ -5387,13 +5387,13 @@ mod tests {
             .expect("original carrier")
             .clone();
         tokens.source_binding = None;
-        let mut context = PassContext::new(source, Default::default());
+        let mut context = PassContext::new(source, InterproceduralAnalysis::default());
         context.registry = Some(registry);
         visit_call_cmd_subst_folds(
             &mut context,
             &cu,
             &tokens,
-            &Default::default(),
+            &std::collections::HashMap::new(),
             "::",
             statement.span(),
         );

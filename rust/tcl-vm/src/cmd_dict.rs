@@ -134,14 +134,11 @@ impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for VmDictionaryOb
     }
 
     fn missing_key(&self, key: &Value) -> tcl_cmd_core::CmdError {
-        let original = match key.native_string_bytes(self.string) {
-            Ok(bytes) => bytes,
-            Err(_) => {
-                return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                    "native dictionary missing key string",
-                )
-                .into();
-            }
+        let Ok(original) = key.native_string_bytes(self.string) else {
+            return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native dictionary missing key string",
+            )
+            .into();
         };
         match tcl_syntax::naming::report_native_dictionary_missing_key(
             self.names,
@@ -344,12 +341,8 @@ fn dict_update(
     preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
     operation: impl FnOnce(&mut Vm, Option<&Value>) -> Result<Value, tcl_cmd_core::CmdError>,
 ) -> Completion<Value> {
-    let name = match vm.native_name_operand_bytes(varname) {
-        Ok(name) => name,
-        Err(_) => {
-            return vm
-                .refuse_host_command("native dictionary variable string is unavailable".into());
-        }
+    let Ok(name) = vm.native_name_operand_bytes(varname) else {
+        return vm.refuse_host_command("native dictionary variable string is unavailable".into());
     };
     let objects = match VmDictionaryObjects::selected(vm) {
         Ok(objects) => objects.with_preparation(preparation),
@@ -380,12 +373,8 @@ fn dictionary_path_update(
     keys: &[Value],
     value: Option<Value>,
 ) -> Completion<Value> {
-    let name = match vm.native_name_operand_bytes(name) {
-        Ok(name) => name,
-        Err(_) => {
-            return vm
-                .refuse_host_command("native dictionary variable string is unavailable".into());
-        }
+    let Ok(name) = vm.native_name_operand_bytes(name) else {
+        return vm.refuse_host_command("native dictionary variable string is unavailable".into());
     };
     match dictionary_path_update_bytes(
         vm,
@@ -529,22 +518,21 @@ pub(crate) fn append_member_values(
     };
     if let tcl_registry::native_dictionary::NativeDictionaryAppendInputs::Concatenate(cat) =
         policy.inputs
+        && sources.len() > 1
     {
-        if sources.len() > 1 {
-            let source = tcl_cmd_core::native_cat::concatenate(
-                &crate::value::VmAppendObjects,
-                cat.recipe(),
-                sources,
-                true,
-            )?;
-            return tcl_cmd_core::native_append::append_dictionary_operands(
-                &crate::value::VmAppendObjects,
-                issued.recipe(),
-                receiver,
-                std::slice::from_ref(&source),
-            )
-            .map_err(Into::into);
-        }
+        let source = tcl_cmd_core::native_cat::concatenate(
+            &crate::value::VmAppendObjects,
+            cat.recipe(),
+            sources,
+            true,
+        )?;
+        return tcl_cmd_core::native_append::append_dictionary_operands(
+            &crate::value::VmAppendObjects,
+            issued.recipe(),
+            receiver,
+            std::slice::from_ref(&source),
+        )
+        .map_err(Into::into);
     }
     tcl_cmd_core::native_append::append_dictionary_operands(
         &crate::value::VmAppendObjects,
@@ -741,25 +729,22 @@ fn reflect_dictionary_scope_leaf(
                 "dictionary scope variable string",
             )
         })?;
-        match vm.read_variable_result_bytes(&name, None) {
-            Ok(value) => {
-                let value = if leaf.is_same_object(&value) {
-                    leaf.duplicate_value(&value)
-                } else {
-                    value
-                };
-                leaf.set_member(key.clone(), value)?;
+        if let Ok(value) = vm.read_variable_result_bytes(&name, None) {
+            let value = if leaf.is_same_object(&value) {
+                leaf.duplicate_value(&value)
+            } else {
+                value
+            };
+            leaf.set_member(key.clone(), value)?;
+        } else {
+            if vm.refused_completion().is_some() {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "dictionary scope target read",
+                )
+                .into());
             }
-            Err(_) => {
-                if vm.refused_completion().is_some() {
-                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "dictionary scope target read",
-                    )
-                    .into());
-                }
-                vm.publish_swallowed_trace_error();
-                leaf.remove_member(key)?;
-            }
+            vm.publish_swallowed_trace_error();
+            leaf.remove_member(key)?;
         }
     }
     Ok(leaf.into_value())
@@ -788,7 +773,7 @@ pub(crate) fn expand_dictionary_scope(
             .native_string_bytes(objects.string_protocol())
             .map_err(|error| vm.refuse_host_command(error.to_string()))?;
         let value = leaf
-            .with_cached_dictionary_member(&bytes, |member| member.cloned())
+            .with_cached_dictionary_member(&bytes, Value::retain_borrowed_member)
             .expect("selected Dictionary cache")
             .expect("retained Dictionary key");
         let name = vm
@@ -947,7 +932,7 @@ fn native_dictionary_pairs(
 fn native_dictionary_loop_names(
     vm: &mut Vm,
     vars: &Value,
-) -> Result<(std::rc::Rc<[u8]>, std::rc::Rc<[u8]>), Completion<Value>> {
+) -> Result<DictionaryIterationNames, Completion<Value>> {
     let names = tcl_syntax::value::ValueOps::list_elements(vm, vars)
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
     let [key, value] = names.as_slice() else {
@@ -961,6 +946,8 @@ fn native_dictionary_loop_names(
         .map_err(|error| vm.refuse_host_command(error.to_string()))?;
     Ok((key, value))
 }
+
+type DictionaryIterationNames = (std::rc::Rc<[u8]>, std::rc::Rc<[u8]>);
 
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [vars, dictionary, body] = rest else {

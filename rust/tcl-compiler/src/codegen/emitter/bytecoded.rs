@@ -1022,7 +1022,7 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
     let Some(protocol) = ctx
         .native_hook_dialect()
-        .and_then(|dialect| dialect.unset_option_protocol())
+        .and_then(tcl_registry::InvocationDialect::unset_option_protocol)
     else {
         return false;
     };

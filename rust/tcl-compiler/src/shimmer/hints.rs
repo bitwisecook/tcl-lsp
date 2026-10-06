@@ -533,7 +533,7 @@ mod tests {
                     assert!(!operand_preserves_captured_cache(
                         &invocation,
                         0,
-                        Default::default()
+                        crate::ssa::SsaReadRepresentationAdvice::default()
                     ));
                     found = true;
                 }

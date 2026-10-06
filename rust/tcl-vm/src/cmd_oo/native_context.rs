@@ -16,9 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Actual TclOO variable-frame and object-name ownership.
+//! Actual `TclOO` variable-frame and object-name ownership.
 
-use super::*;
+use super::{
+    Code, Completion, DefTarget, NsId, OoFrame, OoId, Value, Vm, active_target, def_body_cmd,
+    display_oo_bytes, err, err_code, ok, run_define,
+};
 
 pub(super) fn install_object_helpers(vm: &mut Vm, namespace: &str) -> NsId {
     let token = vm.definition_namespace_token(namespace);
@@ -155,14 +158,11 @@ pub(super) fn unknown_definition(vm: &mut Vm, args: &[Value]) -> Completion<Valu
         Ok(bytes) => bytes,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    let head = match definition_head(vm, bytes.as_ref()) {
-        Some(head) => head,
-        None => {
-            let mut message = b"invalid command name \"".to_vec();
-            message.extend_from_slice(bytes.as_ref());
-            message.push(b'"');
-            return err(message);
-        }
+    let Some(head) = definition_head(vm, bytes.as_ref()) else {
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(bytes.as_ref());
+        message.push(b'"');
+        return err(message);
     };
     vm.invoke_command_value_at(
         vm.current_ns_id(),
@@ -303,7 +303,7 @@ pub(super) fn register_definition_workers(vm: &mut Vm) {
         .is_some()
     {
         vm.register_stock_builtin("oo::UnknownDefinition", unknown_definition);
-        vm.install_native_oo_unknown(Value::string("::oo::UnknownDefinition"));
+        vm.install_native_oo_unknown(&Value::string("::oo::UnknownDefinition"));
     }
 }
 

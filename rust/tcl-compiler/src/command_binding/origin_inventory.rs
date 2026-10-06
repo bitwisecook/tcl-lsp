@@ -829,6 +829,16 @@ impl SourceCommandBindings {
     }
 }
 
+fn original_math_site_within(
+    script: &ExecutedScriptSource,
+    origin: &Arc<SourceOriginId>,
+    site: u32,
+) -> bool {
+    origin == &script.origin
+        && site >= script.base()
+        && u64::from(site) < u64::from(script.base()) + script.text.len() as u64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -877,7 +887,7 @@ mod tests {
         let children = analysis.possible_entered_body_invocations(apply.invocation_site().unwrap());
         let targets: Vec<_> = children
             .iter()
-            .flat_map(|binding| binding.execution_targets())
+            .flat_map(crate::command_binding::SourceInvocationBinding::execution_targets)
             .filter(|target| !target.registry_backed)
             .map(|target| target.command.as_str())
             .collect();
@@ -1080,14 +1090,4 @@ mod tests {
         );
         assert_ne!(script.origin, parent.source);
     }
-}
-
-fn original_math_site_within(
-    script: &ExecutedScriptSource,
-    origin: &Arc<SourceOriginId>,
-    site: u32,
-) -> bool {
-    origin == &script.origin
-        && site >= script.base()
-        && u64::from(site) < u64::from(script.base()) + script.text.len() as u64
 }

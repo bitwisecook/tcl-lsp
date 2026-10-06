@@ -8291,8 +8291,8 @@ mod cell_resolution_tests {
 
     #[test]
     fn scalar_clobber_keeps_contents_lineage_without_creating_a_store() {
-        let registry = default_registry();
-        let mut function = Function::new("::f", "entry");
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut function = crate::cfg::Function::new("::f", "entry");
         function
             .blocks
             .get_mut(&function.entry)

@@ -56,14 +56,15 @@ impl Vm {
         } else {
             tcl_runtime_api::error_stack::ShiftedErrorStackFrame::Unreported
         };
-        let namespace_cut = target_len.min(self.ns_stack.len());
-        let namespaces = self.ns_stack.split_off(namespace_cut);
-        let namespace_ids = self.ns_id_stack.split_off(namespace_cut);
+        let namespace_cut = target_len.min(self.resolution_stacks.ns_stack.len());
+        let namespaces = self.resolution_stacks.ns_stack.split_off(namespace_cut);
+        let namespace_ids = self.resolution_stacks.ns_id_stack.split_off(namespace_cut);
         let script_cut = self
             .ns_script_frames
             .partition_point(|depth| *depth <= target_len);
         let namespace_scripts = self.ns_script_frames.split_off(script_cut);
-        self.error_stack
+        self.native_errors
+            .error_stack
             .enter_shifted_context(target_len, original_frame);
         Ok(Some(SelectedFrameRestore {
             target_len,
@@ -82,16 +83,22 @@ impl Vm {
             return;
         };
         if selected.shifted {
-            self.error_stack.leave_shifted_context();
+            self.native_errors.error_stack.leave_shifted_context();
         }
         // Ordinary retirement owns callbacks and namespace-token release for
         // children left above the selected frame by an abrupt completion.
         self.drain_call_frames_to(selected.target_len);
         self.frames.extend(selected.frames);
-        self.ns_stack.truncate(selected.target_len);
-        self.ns_stack.extend(selected.namespaces);
-        self.ns_id_stack.truncate(selected.target_len);
-        self.ns_id_stack.extend(selected.namespace_ids);
+        self.resolution_stacks
+            .ns_stack
+            .truncate(selected.target_len);
+        self.resolution_stacks.ns_stack.extend(selected.namespaces);
+        self.resolution_stacks
+            .ns_id_stack
+            .truncate(selected.target_len);
+        self.resolution_stacks
+            .ns_id_stack
+            .extend(selected.namespace_ids);
         self.ns_script_frames
             .retain(|depth| *depth <= selected.target_len);
         self.ns_script_frames.extend(selected.namespace_scripts);

@@ -1244,6 +1244,85 @@ impl Namespaces for Interp {
     }
 }
 
+impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
+    fn array_search_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_array_search::NativeArraySearchProtocol> {
+        self.native_invocation_dialect()
+            .native_array_search_protocol(
+                tcl_runtime_api::native_hash_abi::supported_backend_array_search_abi()?,
+            )
+    }
+    fn array_search_cache(
+        &self,
+        value: &*mut TclObj,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<Option<tcl_core_types::NativeArraySearchCache>, tcl_syntax::value::ValueError> {
+        crate::obj::native_array_search_cache_in(*value, protocol)
+    }
+    fn install_array_search_cache(
+        &self,
+        value: &*mut TclObj,
+        cache: tcl_core_types::NativeArraySearchCache,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        crate::obj::install_native_array_search_cache(*value, cache, protocol)
+    }
+    fn array_search_on_original(
+        &mut self,
+        target: &ArrayTarget,
+        sub: &str,
+        name: &[u8],
+        operand: Option<
+            &tcl_cmd_core::native_array_search::NativeArraySearchOperand<'_, *mut TclObj>,
+        >,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<
+        Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
+        tcl_syntax::value::ValueError,
+    > {
+        let (handle, bytes, cache) = operand.map_or((None, None, None), |operand| {
+            (Some(operand.original), Some(operand.bytes), operand.cache)
+        });
+        let record = self.array_operation_target(target).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
+        )?;
+        let cell = record.original_array_cell().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
+        )?;
+        let result =
+            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol)?;
+        if sub == "startsearch" && protocol.start_handle_has_string_primary() {
+            if let Ok(value) = result {
+                let materialization = self
+                    .native_invocation_dialect()
+                    .native_string_materialization(None)
+                    .filter(|issuer| issuer.protocol().tcl_version() == Some(protocol.version()))
+                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native array search String producer",
+                    ))?;
+                crate::obj::retain_native_string_representation(value, materialization)?;
+            }
+        }
+        if sub == "anymore" && protocol.version() == tcl_dialect::TclVersion::V8_4 {
+            if let Ok(value) = result {
+                let scalar = self
+                    .native_invocation_dialect()
+                    .native_scalar_getter_protocol()
+                    .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+                crate::obj::adopt_native_scalar_cache(
+                    value,
+                    tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(crate::obj::wide_of(
+                        value,
+                    )),
+                    scalar,
+                )?;
+            }
+        }
+        Ok(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1512,84 +1591,5 @@ mod tests {
                 obj::decr_ref_count(live.options);
             }
         });
-    }
-}
-
-impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
-    fn array_search_protocol(
-        &self,
-    ) -> Option<tcl_syntax::native_array_search::NativeArraySearchProtocol> {
-        self.native_invocation_dialect()
-            .native_array_search_protocol(
-                tcl_runtime_api::native_hash_abi::supported_backend_array_search_abi()?,
-            )
-    }
-    fn array_search_cache(
-        &self,
-        value: &*mut TclObj,
-        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
-    ) -> Result<Option<tcl_core_types::NativeArraySearchCache>, tcl_syntax::value::ValueError> {
-        crate::obj::native_array_search_cache_in(*value, protocol)
-    }
-    fn install_array_search_cache(
-        &self,
-        value: &*mut TclObj,
-        cache: tcl_core_types::NativeArraySearchCache,
-        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
-    ) -> Result<(), tcl_syntax::value::ValueError> {
-        crate::obj::install_native_array_search_cache(*value, cache, protocol)
-    }
-    fn array_search_on_original(
-        &mut self,
-        target: &ArrayTarget,
-        sub: &str,
-        name: &[u8],
-        operand: Option<
-            &tcl_cmd_core::native_array_search::NativeArraySearchOperand<'_, *mut TclObj>,
-        >,
-        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
-    ) -> Result<
-        Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
-        tcl_syntax::value::ValueError,
-    > {
-        let (handle, bytes, cache) = operand.map_or((None, None, None), |operand| {
-            (Some(operand.original), Some(operand.bytes), operand.cache)
-        });
-        let record = self.array_operation_target(target).ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
-        )?;
-        let cell = record.original_array_cell().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
-        )?;
-        let result =
-            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol)?;
-        if sub == "startsearch" && protocol.start_handle_has_string_primary() {
-            if let Ok(value) = result {
-                let materialization = self
-                    .native_invocation_dialect()
-                    .native_string_materialization(None)
-                    .filter(|issuer| issuer.protocol().tcl_version() == Some(protocol.version()))
-                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native array search String producer",
-                    ))?;
-                crate::obj::retain_native_string_representation(value, materialization)?;
-            }
-        }
-        if sub == "anymore" && protocol.version() == tcl_dialect::TclVersion::V8_4 {
-            if let Ok(value) = result {
-                let scalar = self
-                    .native_invocation_dialect()
-                    .native_scalar_getter_protocol()
-                    .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
-                crate::obj::adopt_native_scalar_cache(
-                    value,
-                    tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(crate::obj::wide_of(
-                        value,
-                    )),
-                    scalar,
-                )?;
-            }
-        }
-        Ok(result)
     }
 }

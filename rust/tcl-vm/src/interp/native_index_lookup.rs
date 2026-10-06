@@ -7,7 +7,7 @@ use tcl_registry::native_index_lookup::NativeStaticIndexTable;
 use tcl_syntax::value::ValueError;
 
 impl Vm {
-    /// Actual root/child GetIndex purpose, preserving the C9 silent first miss.
+    /// Actual root/child `GetIndex` purpose, preserving the C9 silent first miss.
     pub(crate) fn native_interpreter_option_from_original(
         &self,
         original: &Value,
@@ -31,15 +31,14 @@ impl Vm {
         }
         let miss =
             NativeStaticIndexTable::supported_backend(recipe.root_miss().expect("C9 miss table"));
-        match self.native_index_operand(original, &miss, false, "option") {
-            Err(error) => Err(error),
-            Ok(_) => {
-                // Native NRInterpCmd always returns ERROR after the second lookup.
-                // A successful second lookup installed its cache but did not set result/code.
-                let mut details = tcl_cmd_core::CmdError::new_bytes(Vec::new()).into_byte_details();
-                details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Unchanged;
-                Err(tcl_cmd_core::CmdError::from_byte_details(details))
-            }
+        if let Err(error) = self.native_index_operand(original, &miss, false, "option") {
+            Err(error)
+        } else {
+            // Native NRInterpCmd always returns ERROR after the second lookup.
+            // A successful second lookup installed its cache but did not set result/code.
+            let mut details = tcl_cmd_core::CmdError::new_bytes(Vec::new()).into_byte_details();
+            details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Unchanged;
+            Err(tcl_cmd_core::CmdError::from_byte_details(details))
         }
     }
 
@@ -71,7 +70,9 @@ impl Vm {
             Ok(cache) => {
                 let index = match &cache {
                     tcl_core_types::NativeJimOptionCache::Enum { entry, .. } => entry.index(),
-                    _ => unreachable!("Enum lookup"),
+                    tcl_core_types::NativeJimOptionCache::ComparedString { .. } => {
+                        unreachable!("Enum lookup")
+                    }
                 };
                 original.install_native_jim_option_cache(cache, dialect)?;
                 Ok(Ok(index))
@@ -118,7 +119,11 @@ impl Vm {
     ) -> Result<(std::rc::Rc<[u8]>, bool), ValueError> {
         let dialect = self.actual_native_invocation_dialect();
         if let Some((cache, origin)) = original.native_index_cache() {
-            if dialect.native_index_lookup_protocol().map(|p| p.version()) != Some(origin) {
+            if dialect
+                .native_index_lookup_protocol()
+                .map(tcl_registry::native_index_lookup::NativeIndexLookupProtocol::version)
+                != Some(origin)
+            {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "native Index usage origin",
                 ));

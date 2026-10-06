@@ -21,6 +21,12 @@ pub(crate) enum ScriptStep {
     Complete(Completion<Value>),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TokenContinuation {
+    Ready,
+    Awaiting,
+}
+
 pub(crate) struct NativeJimScriptState {
     backing: Rc<NativeJimScript>,
     lease: Option<NativeJimScriptLease>,
@@ -31,7 +37,7 @@ pub(crate) struct NativeJimScriptState {
     token: usize,
     parts: Vec<Value>,
     argv: Vec<Value>,
-    awaiting: bool,
+    awaiting: TokenContinuation,
     invocation: bool,
     completion: Option<Completion<Value>>,
     last_options: Value,
@@ -92,7 +98,7 @@ impl NativeJimScriptState {
             token: 0,
             parts: Vec::new(),
             argv: Vec::new(),
-            awaiting: false,
+            awaiting: TokenContinuation::Ready,
             invocation: false,
             completion: None,
             last_options: Value::empty(),
@@ -109,7 +115,7 @@ impl NativeJimScriptState {
         }
         if self.substitution_flags.is_some() {
             if self.token < self.backing.storage.len() && !self.stopped {
-                self.awaiting = true;
+                self.awaiting = TokenContinuation::Awaiting;
                 return Ok(ScriptStep::Token { index: self.token });
             }
             let end = self.token;
@@ -165,7 +171,7 @@ impl NativeJimScriptState {
             }
             let word = &command.words[self.word];
             if self.token < word.tokens.end {
-                self.awaiting = true;
+                self.awaiting = TokenContinuation::Awaiting;
                 return Ok(ScriptStep::Token { index: self.token });
             }
             let tokens = word.tokens.clone();
@@ -261,15 +267,15 @@ impl NativeJimScriptState {
     }
 
     pub(crate) fn accept(&mut self, vm: &mut crate::Vm, mut completion: Completion<Value>) {
-        if let Some(name) = self.pending_dictionary.take() {
-            if completion.code == Code::Ok {
-                // JimExpandDictSugar owns the actual substituted key during lookup.
-                let key = completion.result.into_native_reference();
-                completion = match vm.read_native_jim_dictionary_member(name.value(), &key) {
-                    Ok(value) => crate::interp::ok(value),
-                    Err(completion) => completion,
-                };
-            }
+        if let Some(name) = self.pending_dictionary.take()
+            && completion.code == Code::Ok
+        {
+            // JimExpandDictSugar owns the actual substituted key during lookup.
+            let key = completion.result.into_native_reference();
+            completion = match vm.read_native_jim_dictionary_member(name.value(), &key) {
+                Ok(value) => crate::interp::ok(value),
+                Err(completion) => completion,
+            };
         }
         if self.invocation {
             self.invocation = false;
@@ -280,8 +286,11 @@ impl NativeJimScriptState {
             }
             return;
         }
-        assert!(self.awaiting, "actual Script token continuation");
-        self.awaiting = false;
+        assert!(
+            self.awaiting == TokenContinuation::Awaiting,
+            "actual Script token continuation"
+        );
+        self.awaiting = TokenContinuation::Ready;
         let width = if self.substitution_flags.is_some() {
             self.backing.storage.len()
         } else {
@@ -293,11 +302,9 @@ impl NativeJimScriptState {
         if completion.code == Code::Ok || completion.code == Code::Return && interpolates {
             // intv acquires a real native reference BEFORE Jim_String.
             let value = completion.result.into_native_reference();
-            if interpolates {
-                if let Err(error) = native_script_bytes(&value) {
-                    self.completion = Some(crate::command::completion_from_tcl_error(vm, error));
-                    return;
-                }
+            if interpolates && let Err(error) = native_script_bytes(&value) {
+                self.completion = Some(crate::command::completion_from_tcl_error(vm, error));
+                return;
             }
             self.parts.push(value);
             self.token += 1;

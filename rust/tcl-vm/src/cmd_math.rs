@@ -39,10 +39,10 @@ use crate::value::Value;
 /// `FloatClassifyObjCmd`): classify a number as zero / subnormal / normal /
 /// infinite / nan. An integer coerces to its double value first (so `0` is
 /// `zero`, any other integer `normal`); a non-number errors.
-fn cmd_fpclassify(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_fpclassify(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [v] = args else {
         return crate::command::native_wrong_arguments_message(
-            _vm,
+            vm,
             "wrong # args: should be \"fpclassify floatValue\"",
         );
     };

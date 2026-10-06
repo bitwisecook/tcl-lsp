@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Original TclOO method records retained by table and reached call-chain owners.
-use super::*;
+//! Original `TclOO` method records retained by table and reached call-chain owners.
+use super::{
+    BTreeMap, Code, Completion, Method, OoId, OoState, Rc, RefCell, Step, Value, Vm, err,
+    method_report_bytes, native_method_key, ok,
+};
 use std::ops::Deref;
 
 pub(super) type MethodOwner = Rc<RefCell<Method>>;

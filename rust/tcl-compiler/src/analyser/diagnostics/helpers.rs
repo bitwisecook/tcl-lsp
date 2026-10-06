@@ -1175,9 +1175,9 @@ pub(super) fn build_undef_suppression(
         }
         for versions in markers.values() {
             for (&symbol, &(_, fresh)) in versions {
-                let name = fu.ssa.var_name(symbol);
+                let name = fu.ssa.cell_key(symbol);
                 if phi_can_undef(name, fresh, &undef_ctx, &mut memo) {
-                    can_undef.insert((name.to_owned(), fresh));
+                    can_undef.insert((name.clone(), fresh));
                 }
             }
         }
@@ -1326,7 +1326,7 @@ fn build_loop_entry_only_undef(
         for versions in markers.values() {
             for (&symbol, &(_, fresh)) in versions {
                 let binding = fu.ssa.binding_version(symbol, fresh);
-                let name = fu.ssa.var_name(symbol).to_owned();
+                let name = fu.ssa.cell_key(symbol).clone();
                 if let Some(body) = out.get(&(name.clone(), binding)).cloned() {
                     out.insert((name, fresh), body);
                 }

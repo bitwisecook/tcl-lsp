@@ -359,7 +359,7 @@ mod tests {
             "; proc ::tcltest::EvalTest args {}",
             "; proc ::tcltest::SetupTest args {}",
         ] {
-            let (bindings, tokens, registry) = inventory(suffix);
+            let (_bindings, tokens, registry) = inventory(suffix);
             assert!(
                 SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry).is_none(),
                 "{suffix}"

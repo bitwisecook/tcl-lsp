@@ -269,6 +269,7 @@ fn compiled_syntax_context_retains_same_native_message_and_options() {
             .as_ref()
             .expect("original literal array");
         let context = vm
+            .native_errors
             .error_stack
             .original_inner_context()
             .expect("interpreter innerContext");
@@ -423,6 +424,7 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
                 "{version}/{case}"
             );
             let context = vm
+                .native_errors
                 .error_stack
                 .original_inner_context()
                 .expect("original innerContext");

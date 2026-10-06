@@ -134,141 +134,6 @@ impl StackIteration {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    mod original_sources {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../rust/tcl-registry/tests/data/native_each_try_compilation/cases.rs"
-        ));
-    }
-
-    fn decode(hex: &str) -> Vec<u8> {
-        hex.as_bytes()
-            .chunks_exact(2)
-            .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
-            .collect()
-    }
-
-    #[test]
-    fn original_each_artifacts_match_all_95_native_execution_and_layout_windows() {
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv"
-                ),
-            ),
-            (
-                "tcl8.5",
-                include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.5.19.tsv"
-                ),
-            ),
-            (
-                "tcl8.6",
-                include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv"
-                ),
-            ),
-            (
-                "tcl9.0",
-                include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv"
-                ),
-            ),
-            (
-                "tcl9.1",
-                include_str!(
-                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv"
-                ),
-            ),
-        ] {
-            for fields in expected
-                .lines()
-                .skip(1)
-                .take(19)
-                .map(|row| row.split('\t').collect::<Vec<_>>())
-            {
-                crate::counters::reset();
-                {
-                    let case: usize = fields[0].parse().unwrap();
-                    let (name, source) = original_sources::CASES[case];
-                    let mut interp = super::super::tests::interpreter(engine);
-                    let body = obj::Owned::fresh(obj::new_string_bytes(source));
-                    interp.define_proc(b"p", Vec::new(), body.as_ptr());
-                    let code = interp.eval_str(b"p");
-                    assert!(
-                        !interp.host_refusal_pending(),
-                        "{engine}/{name}: {:?}",
-                        interp.result_bytes()
-                    );
-                    assert_eq!(
-                        code.as_int(),
-                        fields[1].parse::<i64>().unwrap(),
-                        "{engine}/{name}"
-                    );
-                    assert_eq!(interp.result_bytes(), decode(fields[2]), "{engine}/{name}");
-                    let compiled_count = fields[4]
-                        .split(',')
-                        .filter(|instruction| {
-                            instruction.ends_with(":foreach_start")
-                                || instruction.ends_with(":foreach_start4")
-                        })
-                        .count();
-                    if let Some(artifact) = cache(body.as_ptr()) {
-                        let actual_count = artifact
-                            .scripts
-                            .values()
-                            .flat_map(|script| &script.commands)
-                            .filter(|command| matches!(command.operation, Operation::Each(_)))
-                            .count();
-                        assert_eq!(
-                            actual_count, compiled_count,
-                            "{engine}/{name}: genuine inline iterator"
-                        );
-                        let actual = artifact
-                            .compiled_local_layout()
-                            .unwrap()
-                            .names
-                            .iter()
-                            .map(|name| {
-                                name.as_ref()
-                                    .map_or_else(Vec::new, |name| name.as_bytes().to_vec())
-                            })
-                            .collect::<Vec<_>>();
-                        let expected = if fields[3].is_empty() {
-                            Vec::new()
-                        } else {
-                            fields[3].split(',').map(decode).collect()
-                        };
-                        assert_eq!(
-                            actual, expected,
-                            "{engine}/{name}: actual named/anonymous local order"
-                        );
-                    } else {
-                        assert_eq!(
-                            compiled_count, 0,
-                            "{engine}/{name}: compiled source must retain original artifact"
-                        );
-                    }
-                }
-                assert_eq!(
-                    crate::counters::finalize(),
-                    0,
-                    "{engine}: native original owner leak"
-                );
-                assert_eq!(
-                    crate::counters::double_free_count(),
-                    0,
-                    "{engine}: native original owner release"
-                );
-            }
-        }
-    }
-}
-
 impl Interp {
     fn each_temporary(&mut self, slot: usize) -> Result<*mut TclObj, Code> {
         let value = self
@@ -531,5 +396,140 @@ impl Interp {
             );
         }
         Ok(Code::Ok)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    mod original_sources {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../rust/tcl-registry/tests/data/native_each_try_compilation/cases.rs"
+        ));
+    }
+
+    fn decode(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn original_each_artifacts_match_all_95_native_execution_and_layout_windows() {
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.4.20.tsv"
+                ),
+            ),
+            (
+                "tcl8.5",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.5.19.tsv"
+                ),
+            ),
+            (
+                "tcl8.6",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/8.6.18.tsv"
+                ),
+            ),
+            (
+                "tcl9.0",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.0.4.tsv"
+                ),
+            ),
+            (
+                "tcl9.1",
+                include_str!(
+                    "../../../../../rust/tcl-registry/tests/data/native_each_try_compilation/9.1.0.tsv"
+                ),
+            ),
+        ] {
+            for fields in expected
+                .lines()
+                .skip(1)
+                .take(19)
+                .map(|row| row.split('\t').collect::<Vec<_>>())
+            {
+                crate::counters::reset();
+                {
+                    let case: usize = fields[0].parse().unwrap();
+                    let (name, source) = original_sources::CASES[case];
+                    let mut interp = super::super::tests::interpreter(engine);
+                    let body = obj::Owned::fresh(obj::new_string_bytes(source));
+                    interp.define_proc(b"p", Vec::new(), body.as_ptr());
+                    let code = interp.eval_str(b"p");
+                    assert!(
+                        !interp.host_refusal_pending(),
+                        "{engine}/{name}: {:?}",
+                        interp.result_bytes()
+                    );
+                    assert_eq!(
+                        code.as_int(),
+                        fields[1].parse::<i64>().unwrap(),
+                        "{engine}/{name}"
+                    );
+                    assert_eq!(interp.result_bytes(), decode(fields[2]), "{engine}/{name}");
+                    let compiled_count = fields[4]
+                        .split(',')
+                        .filter(|instruction| {
+                            instruction.ends_with(":foreach_start")
+                                || instruction.ends_with(":foreach_start4")
+                        })
+                        .count();
+                    if let Some(artifact) = cache(body.as_ptr()) {
+                        let actual_count = artifact
+                            .scripts
+                            .values()
+                            .flat_map(|script| &script.commands)
+                            .filter(|command| matches!(command.operation, Operation::Each(_)))
+                            .count();
+                        assert_eq!(
+                            actual_count, compiled_count,
+                            "{engine}/{name}: genuine inline iterator"
+                        );
+                        let actual = artifact
+                            .compiled_local_layout()
+                            .unwrap()
+                            .names
+                            .iter()
+                            .map(|name| {
+                                name.as_ref()
+                                    .map_or_else(Vec::new, |name| name.as_bytes().to_vec())
+                            })
+                            .collect::<Vec<_>>();
+                        let expected = if fields[3].is_empty() {
+                            Vec::new()
+                        } else {
+                            fields[3].split(',').map(decode).collect()
+                        };
+                        assert_eq!(
+                            actual, expected,
+                            "{engine}/{name}: actual named/anonymous local order"
+                        );
+                    } else {
+                        assert_eq!(
+                            compiled_count, 0,
+                            "{engine}/{name}: compiled source must retain original artifact"
+                        );
+                    }
+                }
+                assert_eq!(
+                    crate::counters::finalize(),
+                    0,
+                    "{engine}: native original owner leak"
+                );
+                assert_eq!(
+                    crate::counters::double_free_count(),
+                    0,
+                    "{engine}: native original owner release"
+                );
+            }
+        }
     }
 }

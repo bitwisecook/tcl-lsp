@@ -218,7 +218,7 @@ impl Vm {
             }
         }
         let captured = match selected {
-            Some(resolved) => self.capture_selected_update(name, key, resolved)?,
+            Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
             None => self.capture_update_cell(name, key)?,
         };
         self.with_variable_operation(&captured.cell, |vm| {

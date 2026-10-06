@@ -9,6 +9,92 @@ use tcl_registry::native_each_compilation::{
 use tcl_syntax::native_string::NativeStringProtocol;
 
 impl Vm {
+    fn prepare_compiled_each_roots(
+        &mut self,
+        roots: &mut [Value],
+        groups: &[Vec<CompiledVariableTarget>],
+        strings: NativeStringProtocol,
+    ) -> Result<(Vec<crate::NativeListItems>, usize), Box<Tick>> {
+        let mut lists = Vec::new();
+        let mut iter_max = 0;
+        for (index, original) in roots.iter_mut().enumerate() {
+            let prepared = self.native_object_list_elements_in(original, strings);
+            if let Err(error) = prepared {
+                return Err(Box::new(Tick::Return(
+                    crate::command::completion_from_cmd_error(self, error.into()),
+                )));
+            }
+            if original.native_object_is_shared() {
+                match original.native_list_copy(strings) {
+                    Ok(copy) => *original = copy,
+                    Err(error) => {
+                        return Err(Box::new(Tick::Return(
+                            crate::command::completion_from_cmd_error(self, error.into()),
+                        )));
+                    }
+                }
+            }
+            let items = match self.native_object_list_elements_in(original, strings) {
+                Ok(items) => items,
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            };
+            iter_max = iter_max.max(items.len().div_ceil(groups[index].len()));
+            lists.push(items);
+        }
+        Ok((lists, iter_max))
+    }
+
+    fn refresh_compiled_each_temporaries(
+        &mut self,
+        auxiliary: &NativeEachAuxiliary,
+        iteration: usize,
+        strings: NativeStringProtocol,
+        iter_max: &mut usize,
+    ) -> Result<(), Box<Tick>> {
+        let counter = match self
+            .native_compiled_temporary_value(auxiliary.temporaries[auxiliary.variables.len()])
+        {
+            Ok(counter) => counter,
+            Err(completion) => return Err(Box::new(Tick::Return(completion))),
+        };
+        let Ok(count) = i64::try_from(iteration) else {
+            return Err(Box::new(Tick::Return(
+                self.refuse_host_command("compiled foreach counter overflow".into()),
+            )));
+        };
+        if let Err(error) = counter
+            .value()
+            .set_native_loop_counter(count, auxiliary.version)
+        {
+            return Err(Box::new(Tick::Return(
+                crate::command::completion_from_cmd_error(self, error.into()),
+            )));
+        }
+        *iter_max = 0;
+        for (index, group) in auxiliary.variables.iter().enumerate() {
+            let original = match self.native_compiled_temporary_value(auxiliary.temporaries[index])
+            {
+                Ok(original) => original,
+                Err(completion) => return Err(Box::new(Tick::Return(completion))),
+            };
+            let items = match self.native_object_list_elements_in(original.value(), strings) {
+                Ok(items) => items,
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            };
+            *iter_max = (*iter_max).max(items.len().div_ceil(group.len()));
+        }
+
+        Ok(())
+    }
+
     pub(super) fn native_compiled_each_start(
         &mut self,
         frame: &mut Frame,
@@ -51,37 +137,11 @@ impl Vm {
                 );
             }
             roots = frame.stack.split_off(frame.stack.len() - groups.len());
-            for (index, original) in roots.iter_mut().enumerate() {
-                let prepared = self.native_object_list_elements_in(original, strings);
-                if let Err(error) = prepared {
-                    return Tick::Return(crate::command::completion_from_cmd_error(
-                        self,
-                        error.into(),
-                    ));
-                }
-                if original.native_object_is_shared() {
-                    match original.native_list_copy(strings) {
-                        Ok(copy) => *original = copy,
-                        Err(error) => {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
-                            ));
-                        }
-                    }
-                }
-                let items = match self.native_object_list_elements_in(original, strings) {
-                    Ok(items) => items,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                iter_max = iter_max.max(items.len().div_ceil(groups[index].len()));
-                lists.push(items);
-            }
+            (lists, iter_max) = match self.prepare_compiled_each_roots(&mut roots, &groups, strings)
+            {
+                Ok(prepared) => prepared,
+                Err(tick) => return *tick,
+            };
         } else {
             if auxiliary.temporaries.len() != groups.len() + 1 {
                 return Tick::Return(
@@ -129,6 +189,101 @@ impl Vm {
         Tick::Continue
     }
 
+    fn assign_compiled_each_group(
+        &mut self,
+        state: &ForeachState,
+        group_index: usize,
+        iteration: usize,
+        storage: NativeCompiledEachStorage,
+        strings: NativeStringProtocol,
+    ) -> Result<(), Box<Tick>> {
+        let auxiliary = state.native.as_ref().expect("original compiled auxiliary");
+        let group = &auxiliary.variables[group_index];
+
+        let group_copy = if storage == NativeCompiledEachStorage::LocalGroupCopy {
+            let original =
+                match self.native_compiled_temporary_value(auxiliary.temporaries[group_index]) {
+                    Ok(original) => original,
+                    Err(completion) => return Err(Box::new(Tick::Return(completion))),
+                };
+            match original.value().native_list_copy(strings) {
+                Ok(copy) => Some(copy.into_native_unowned_lifetime()),
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            }
+        } else {
+            None
+        };
+        let copied_items = match &group_copy {
+            Some(copy) => match self.native_object_list_elements_in(copy, strings) {
+                Ok(items) => Some(items),
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            },
+            None => None,
+        };
+        for (member, slot) in group.iter().copied().enumerate() {
+            let position = iteration * group.len() + member;
+            let assigned = match storage {
+                NativeCompiledEachStorage::StackLists => {
+                    state.lists[group_index].elements().map(|items| {
+                        items.get(position).map_or_else(Value::empty, |value| {
+                            value.native_lifetime_lease().into_value()
+                        })
+                    })
+                }
+                NativeCompiledEachStorage::LocalGroupCopy => copied_items
+                    .as_ref()
+                    .expect("original group copy")
+                    .elements()
+                    .map(|items| {
+                        items.get(position).map_or_else(Value::empty, |value| {
+                            value.native_lifetime_lease().into_value()
+                        })
+                    }),
+                NativeCompiledEachStorage::LocalRefetch => {
+                    let original = match self
+                        .native_compiled_temporary_value(auxiliary.temporaries[group_index])
+                    {
+                        Ok(original) => original,
+                        Err(completion) => return Err(Box::new(Tick::Return(completion))),
+                    };
+                    match self.native_object_list_elements_in(original.value(), strings) {
+                        Ok(items) => items.elements().map(|items| {
+                            items.get(position).map_or_else(Value::empty, |value| {
+                                value.native_lifetime_lease().into_value()
+                            })
+                        }),
+                        Err(error) => {
+                            return Err(Box::new(Tick::Return(self.refuse_host_command(format!(
+                                "native Tcl 8.4 foreach member refetch fatal boundary: {error}"
+                            )))));
+                        }
+                    }
+                }
+            };
+            let assigned = match assigned {
+                Ok(value) => value,
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            };
+            if let Err(completion) = self.native_compiled_each_assign(slot, assigned, storage) {
+                return Err(Box::new(Tick::Return(completion)));
+            }
+        }
+
+        Ok(())
+    }
+
     pub(super) fn native_compiled_each_step(&mut self, frame: &mut Frame) -> Tick {
         let state = frame
             .foreach_stack
@@ -138,134 +293,25 @@ impl Vm {
         let storage = native_compiled_each_storage(auxiliary.version);
         let strings = NativeStringProtocol::C(auxiliary.version);
         let iteration = state.iter_num;
-        if storage != NativeCompiledEachStorage::StackLists {
-            let counter = match self
-                .native_compiled_temporary_value(auxiliary.temporaries[auxiliary.variables.len()])
-            {
-                Ok(counter) => counter,
-                Err(completion) => return Tick::Return(completion),
-            };
-            let Ok(count) = i64::try_from(iteration) else {
-                return Tick::Return(
-                    self.refuse_host_command("compiled foreach counter overflow".into()),
-                );
-            };
-            if let Err(error) = counter
-                .value()
-                .set_native_loop_counter(count, auxiliary.version)
-            {
-                return Tick::Return(crate::command::completion_from_cmd_error(
-                    self,
-                    error.into(),
-                ));
-            }
-            state.iter_max = 0;
-            for (index, group) in auxiliary.variables.iter().enumerate() {
-                let original =
-                    match self.native_compiled_temporary_value(auxiliary.temporaries[index]) {
-                        Ok(original) => original,
-                        Err(completion) => return Tick::Return(completion),
-                    };
-                let items = match self.native_object_list_elements_in(original.value(), strings) {
-                    Ok(items) => items,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                state.iter_max = state.iter_max.max(items.len().div_ceil(group.len()));
-            }
+        if storage != NativeCompiledEachStorage::StackLists
+            && let Err(tick) = self.refresh_compiled_each_temporaries(
+                auxiliary,
+                iteration,
+                strings,
+                &mut state.iter_max,
+            )
+        {
+            return *tick;
         }
         if iteration >= state.iter_max {
             return Tick::Continue;
         }
         state.iter_num += 1;
-        for (group_index, group) in auxiliary.variables.iter().enumerate() {
-            let group_copy = if storage == NativeCompiledEachStorage::LocalGroupCopy {
-                let original = match self
-                    .native_compiled_temporary_value(auxiliary.temporaries[group_index])
-                {
-                    Ok(original) => original,
-                    Err(completion) => return Tick::Return(completion),
-                };
-                match original.value().native_list_copy(strings) {
-                    Ok(copy) => Some(copy.into_native_unowned_lifetime()),
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
-            } else {
-                None
-            };
-            let copied_items = match &group_copy {
-                Some(copy) => match self.native_object_list_elements_in(copy, strings) {
-                    Ok(items) => Some(items),
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                },
-                None => None,
-            };
-            for (member, slot) in group.iter().copied().enumerate() {
-                let position = iteration * group.len() + member;
-                let assigned = match storage {
-                    NativeCompiledEachStorage::StackLists => {
-                        state.lists[group_index].elements().map(|items| {
-                            items.get(position).map_or_else(Value::empty, |value| {
-                                value.native_lifetime_lease().into_value()
-                            })
-                        })
-                    }
-                    NativeCompiledEachStorage::LocalGroupCopy => copied_items
-                        .as_ref()
-                        .expect("original group copy")
-                        .elements()
-                        .map(|items| {
-                            items.get(position).map_or_else(Value::empty, |value| {
-                                value.native_lifetime_lease().into_value()
-                            })
-                        }),
-                    NativeCompiledEachStorage::LocalRefetch => {
-                        let original = match self
-                            .native_compiled_temporary_value(auxiliary.temporaries[group_index])
-                        {
-                            Ok(original) => original,
-                            Err(completion) => return Tick::Return(completion),
-                        };
-                        match self.native_object_list_elements_in(original.value(), strings) {
-                            Ok(items) => items.elements().map(|items| {
-                                items.get(position).map_or_else(Value::empty, |value| {
-                                    value.native_lifetime_lease().into_value()
-                                })
-                            }),
-                            Err(error) => {
-                                return Tick::Return(self.refuse_host_command(format!(
-                                    "native Tcl 8.4 foreach member refetch fatal boundary: {error}"
-                                )));
-                            }
-                        }
-                    }
-                };
-                let assigned = match assigned {
-                    Ok(value) => value,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                if let Err(completion) = self.native_compiled_each_assign(slot, assigned, storage) {
-                    return Tick::Return(completion);
-                }
+        for group_index in 0..auxiliary.variables.len() {
+            if let Err(tick) =
+                self.assign_compiled_each_group(state, group_index, iteration, storage, strings)
+            {
+                return *tick;
             }
         }
         frame.last_options = Value::empty();

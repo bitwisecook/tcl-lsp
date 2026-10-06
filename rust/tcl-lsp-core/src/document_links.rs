@@ -242,28 +242,9 @@ pub fn document_links_in_context(
         // `source` may take optional flags (`-encoding NAME`)
         // before the path argument; locate the first non-flag
         // arg.
-        let mut path_idx: Option<usize> = None;
-        let mut i = 1;
-        while i < seg.texts.len() {
-            if seg.texts[i].starts_with('-') {
-                // Skip the flag and (if it consumes a value)
-                // the value too.  `source -encoding utf-8 foo`
-                // → skip `-encoding` + its value.
-                if matches!(seg.texts[i].as_str(), "-encoding" | "--encoding") {
-                    i += 2;
-                    continue;
-                }
-                if seg.texts[i] == "--" {
-                    i += 1;
-                    continue;
-                }
-                i += 1;
-                continue;
-            }
-            path_idx = Some(i);
-            break;
-        }
-        let Some(idx) = path_idx else { continue };
+        let Some(idx) = source_path_argument_index(&seg.texts) else {
+            continue;
+        };
         let path = &seg.texts[idx];
         // Literal `[file join a b c]` resolution: when the
         // arg is a command substitution whose head is `file
@@ -301,6 +282,22 @@ pub fn document_links_in_context(
     }
 
     links
+}
+
+fn source_path_argument_index(words: &[String]) -> Option<usize> {
+    let mut i = 1;
+    while i < words.len() {
+        if words[i].starts_with('-') {
+            if matches!(words[i].as_str(), "-encoding" | "--encoding") {
+                i += 2;
+                continue;
+            }
+            i += 1;
+            continue;
+        }
+        return Some(i);
+    }
+    None
 }
 
 /// Every `include NAME` row of a spec pack, as a link to the sibling file it

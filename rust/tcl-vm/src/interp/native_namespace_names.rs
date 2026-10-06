@@ -497,7 +497,7 @@ mod tests {
             let other = CompiledNamespaceContext::Native(binding_context(&vm, right));
             vm.push_ns_eval_token_frame(ROOT_NS, Vec::new());
             for (context, selected) in [(original.clone(), left), (other, right)] {
-                let previous = vm.enter_replay_namespace(context).unwrap().unwrap();
+                let previous = vm.enter_replay_namespace(&context).unwrap().unwrap();
                 assert_eq!(vm.current_ns_id(), selected, "{release}");
                 vm.leave_replay_namespace(previous);
                 assert_eq!(vm.current_ns_id(), ROOT_NS);
@@ -505,10 +505,10 @@ mod tests {
             vm.delete_selected_namespace(left).unwrap();
             let replacement = declare(&mut vm, &[b"a:", b"b"]);
             assert_ne!(left, replacement);
-            assert!(vm.enter_replay_namespace(original).is_err());
+            assert!(vm.enter_replay_namespace(&original).is_err());
             assert_eq!(vm.current_ns_id(), ROOT_NS);
             let context = CompiledNamespaceContext::Native(binding_context(&vm, replacement));
-            let previous = vm.enter_replay_namespace(context).unwrap().unwrap();
+            let previous = vm.enter_replay_namespace(&context).unwrap().unwrap();
             assert_eq!(vm.current_ns_id(), replacement);
             vm.leave_replay_namespace(previous);
         }

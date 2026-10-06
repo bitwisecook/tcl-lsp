@@ -60,9 +60,9 @@ impl NativeLiteralWorld {
         namespace: NsId,
         name: &[u8],
     ) {
-        if !protocol
+        if protocol
             .tcl_version()
-            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+            .is_none_or(|version| version < tcl_dialect::TclVersion::V8_6)
         {
             return;
         }
@@ -136,29 +136,30 @@ fn new_registered_string(
     bytes: &[u8],
     protocol: NativeStringProtocol,
 ) -> Result<Value, NativeLiteralUnavailable> {
-    if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4) {
-        if let Some(value) = tcl_runtime_api::native_literal::registered_c84_long(
+    if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4)
+        && let Some(value) = tcl_runtime_api::native_literal::registered_c84_long(
             bytes,
-            (std::mem::size_of::<std::os::raw::c_long>() * 8) as u8,
-        ) {
-            return Value::from_native_scalar_cache_with_storage(
-                tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(value),
-                None,
-                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
-                Some((
-                    Rc::from(bytes),
-                    tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
-                )),
-            )
-            .map_err(|_| {
-                NativeLiteralUnavailable("native registered integer literal storage is unavailable")
-            });
-        }
+            u8::try_from(std::mem::size_of::<std::os::raw::c_long>() * 8)
+                .expect("native C long width fits u8"),
+        )
+    {
+        return Value::from_native_scalar_cache_with_storage(
+            tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(value),
+            None,
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            Some((
+                Rc::from(bytes),
+                tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+            )),
+        )
+        .map_err(|_| {
+            NativeLiteralUnavailable("native registered integer literal storage is unavailable")
+        });
     }
     Ok(Value::new_native_string_bytes(bytes))
 }
 
-/// One native ByteCode local array, retained across activations and clones.
+/// One native `ByteCode` local array, retained across activations and clones.
 /// The lease drops global registration references before local object owners.
 pub(crate) struct NativeLiteralPool {
     values: Vec<RefCell<Option<Value>>>,
@@ -176,6 +177,13 @@ impl Drop for NativeLiteralPool {
             }
         }
     }
+}
+
+struct LiteralCreation<'a> {
+    world: &'a Rc<RefCell<NativeLiteralWorld>>,
+    namespace: NsId,
+    source_namespace: &'a ByteNamespacePath,
+    context: Option<&'a NativeLiteralContext>,
 }
 
 impl NativeLiteralPool {
@@ -245,297 +253,348 @@ impl NativeLiteralPool {
             registrations: Vec::new(),
             world: Rc::downgrade(world),
         };
+        let input = LiteralCreation {
+            world,
+            namespace,
+            source_namespace,
+            context,
+        };
         for action in table.native_actions() {
-            let NativeLiteralAction::Register(index) = action else {
-                match action {
-                    NativeLiteralAction::RetainSyntaxErrorInfo { options, message } => {
-                        if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
-                            return Err(NativeLiteralUnavailable(
-                                "C91 Syntax original error-info issuer",
-                            ));
-                        }
-                        let message_slot = pool.values.get(*message).ok_or(
-                            NativeLiteralUnavailable("Syntax message before registration"),
-                        )?;
-                        let message = message_slot.borrow();
-                        let original_message = message
-                            .as_ref()
-                            .ok_or(NativeLiteralUnavailable("retired Syntax message slot"))?;
-                        let options_slot = pool.values.get(*options).ok_or(
-                            NativeLiteralUnavailable("Syntax options before registration"),
-                        )?;
-                        let mut options = options_slot.borrow_mut();
-                        let original_options = options
-                            .as_ref()
-                            .ok_or(NativeLiteralUnavailable("retired Syntax options slot"))?;
-                        let updated = original_options
-                            .native_dictionary_set_member(
-                                Value::new_native_string_bytes(b"-errorinfo".as_slice()),
-                                original_message.clone(),
-                                protocol,
-                            )
-                            .map_err(|_| {
-                                NativeLiteralUnavailable("Syntax original error-info member")
-                            })?;
-                        *options = Some(updated);
-                        effect(NativeLiteralEffect::PublishSyntax {
-                            message: original_message,
-                            options: options.as_ref().expect("installed Syntax options"),
-                        })?;
-                    }
-                    NativeLiteralAction::PrimeExpressionBoolean84(index) => {
-                        if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
-                            return Err(NativeLiteralUnavailable("C84 Boolean literal issuer"));
-                        }
-                        let slot = pool.values.get(*index).ok_or(NativeLiteralUnavailable(
-                            "Boolean getter before literal registration",
-                        ))?;
-                        let borrowed = slot.borrow();
-                        let original = borrowed
-                            .as_ref()
-                            .ok_or(NativeLiteralUnavailable("retired Boolean literal slot"))?;
-                        original
-                            .native_scalar_getter(
-                                tcl_registry::InvocationDialect::for_version(
-                                    tcl_dialect::TclVersion::V8_4,
-                                ),
-                                tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
-                            )
-                            .map_err(|_| {
-                                NativeLiteralUnavailable("C84 Boolean literal conversion")
-                            })?;
-                    }
-                    NativeLiteralAction::AdoptExpressionNumber {
-                        index,
-                        version,
-                        value,
-                    } => {
-                        if protocol.tcl_version() != Some(*version) {
-                            return Err(NativeLiteralUnavailable(
-                                "native constant cache transfer issuer",
-                            ));
-                        }
-                        let slot = pool.values.get(*index).ok_or(NativeLiteralUnavailable(
-                            "constant cache transfer before registration",
-                        ))?;
-                        let borrowed = slot.borrow();
-                        let original = borrowed
-                            .as_ref()
-                            .ok_or(NativeLiteralUnavailable("retired constant literal slot"))?;
-                        original
-                            .adopt_native_expression_number_if_untyped(value.number(), *version)
-                            .map_err(|_| {
-                                NativeLiteralUnavailable(
-                                    "native constant cache transfer unavailable",
-                                )
-                            })?;
-                    }
-                    NativeLiteralAction::PrimeCommandName { index, receipt } => {
-                        if context != Some(&receipt.context)
-                            || protocol.tcl_version() != Some(receipt.version)
-                        {
-                            return Err(NativeLiteralUnavailable(
-                                "native command-name priming context is stale or foreign",
-                            ));
-                        }
-                        let slot = pool.values.get(*index).ok_or(NativeLiteralUnavailable(
-                            "native command-name priming precedes its object allocation",
-                        ))?;
-                        let borrowed = slot.borrow();
-                        let value = borrowed
-                            .as_ref()
-                            .ok_or(NativeLiteralUnavailable("retired native literal slot"))?;
-                        effect(NativeLiteralEffect::PrimeCommandName(receipt, value))?;
-                    }
-                    NativeLiteralAction::Hide(index) => {
-                        if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_5) {
-                            return Err(NativeLiteralUnavailable(
-                                "native literal hiding recipe is unavailable",
-                            ));
-                        }
-                        let value = pool.values.get_mut(*index).ok_or(NativeLiteralUnavailable(
-                            "native literal hiding precedes its object allocation",
-                        ))?;
-                        let value = value
-                            .get_mut()
-                            .as_mut()
-                            .ok_or(NativeLiteralUnavailable("retired native literal slot"))?;
-                        let mut duplicate = value.duplicate_native_object_in(protocol);
-                        if let Some(resident) = value.resident_string_bytes() {
-                            let storage = value.resident_string_storage_identity().ok_or(
-                                NativeLiteralUnavailable(
-                                    "native hidden literal storage identity is unavailable",
-                                ),
-                            )?;
-                            duplicate = duplicate
-                                .with_resident_string_bytes_and_storage(
-                                    Rc::<[u8]>::from(resident.as_ref()),
-                                    storage,
-                                )
-                                .map_err(|_| {
-                                    NativeLiteralUnavailable(
-                                        "native hidden literal resident copy is unavailable",
-                                    )
-                                })?;
-                        }
-                        *value = duplicate;
-                        if let Some(registration) = pool.registrations[*index].take() {
-                            world.borrow_mut().release(registration);
-                        }
-                    }
-                    NativeLiteralAction::Register(_) => unreachable!(),
-                }
-                continue;
-            };
-            if *index != pool.values.len() {
-                return Err(NativeLiteralUnavailable(
-                    "native literal allocation order is inconsistent",
-                ));
-            }
-            let literal = table.entries().get(*index).ok_or(NativeLiteralUnavailable(
-                "native literal allocation has no object-array entry",
-            ))?;
-            let value = match literal.allocation() {
-                NativeLiteralAllocation::RegisteredData => {
-                    pool.register(world, literal.bytes(), None, protocol)?
-                }
-                NativeLiteralAllocation::RegisteredCommand {
-                    namespace: selected,
-                    fully_qualified,
-                } => {
-                    if selected != source_namespace {
-                        return Err(NativeLiteralUnavailable(
-                            "native command literal namespace receipt differs from its bytecode owner",
-                        ));
-                    }
-                    let scope = command_partition(protocol, namespace, *fully_qualified);
-                    pool.register(world, literal.bytes(), scope, protocol)?
-                }
-                NativeLiteralAllocation::RegisteredNativeCommand {
-                    context: selected,
-                    fully_qualified,
-                } => {
-                    if context != Some(selected)
-                        || selected.namespace_token != u64::from(namespace.0)
-                        || &selected.namespace_path != source_namespace
-                    {
-                        return Err(NativeLiteralUnavailable(
-                            "native command literal has no matching namespace-token authority",
-                        ));
-                    }
-                    let scope = command_partition(protocol, namespace, *fully_qualified);
-                    pool.register(world, literal.bytes(), scope, protocol)?
-                }
-                NativeLiteralAllocation::Unshared => {
-                    pool.registrations.push(None);
-                    Value::new_native_string_bytes(literal.bytes())
-                }
-                NativeLiteralAllocation::PrivateConcatString => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
-                        return Err(NativeLiteralUnavailable(
-                            "native constant concat String issuer",
-                        ));
-                    }
-                    let original = Value::from_native_string_cache(
-                        tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
-                            protocol,
-                            num_chars: None,
-                            unicode: None,
-                        },
-                        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
-                        Some((
-                            Rc::from(literal.bytes()),
-                            tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
-                        )),
-                    )
-                    .map_err(|_| NativeLiteralUnavailable("native concat String backing"))?;
-                    pool.registrations.push(None);
-                    original
-                }
-                NativeLiteralAllocation::PrivateLogicalBoolean85(_) => {
-                    if protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
-                        return Err(NativeLiteralUnavailable("native C85 logical fold origin"));
-                    }
-                    let key = GlobalKey {
-                        protocol,
-                        namespace: None,
-                        original: literal.bytes().to_vec(),
-                    };
-                    let (registration, original) = world.borrow_mut().register(key, protocol)?;
-                    world.borrow_mut().release(registration);
-                    pool.registrations.push(None);
-                    original
-                }
-                NativeLiteralAllocation::PrivateReturnOptions(recipe) => {
-                    if recipe.protocol != protocol {
-                        return Err(NativeLiteralUnavailable(
-                            "private Return literal origin mismatch",
-                        ));
-                    }
-                    pool.registrations.push(None);
-                    crate::native_return_merge::manufacture(recipe).map_err(|_| {
-                        NativeLiteralUnavailable("private Return literal manufacture")
-                    })?
-                }
-                NativeLiteralAllocation::PrivateInteger(value) => {
-                    if !protocol
-                        .tcl_version()
-                        .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
-                    {
-                        return Err(NativeLiteralUnavailable(
-                            "native private Integer compiler recipe is unavailable",
-                        ));
-                    }
-                    pool.registrations.push(None);
-                    Value::int(*value)
-                }
-                NativeLiteralAllocation::PrivateExpressionNumber { version, value } => {
-                    if *version < tcl_dialect::TclVersion::V8_5
-                        || protocol.tcl_version() != Some(*version)
-                    {
-                        return Err(NativeLiteralUnavailable(
-                            "native folded expression literal origin",
-                        ));
-                    }
-                    pool.registrations.push(None);
-                    Value::from_native_scalar_cache(
-                        tcl_syntax::scalar_getter::NativeScalarCache::Number(value.number()),
-                        None,
-                        tcl_registry::InvocationDialect::for_version(*version),
-                    )
-                    .map_err(|_| NativeLiteralUnavailable("native folded expression header"))?
-                }
-                NativeLiteralAllocation::PrivateOriginal => {
+            if let NativeLiteralAction::Register(index) = action {
+                if *index != pool.values.len() {
                     return Err(NativeLiteralUnavailable(
-                        "native private original literal has no supplied object producer",
+                        "native literal allocation order is inconsistent",
                     ));
                 }
-                NativeLiteralAllocation::PrivateConstantList {
-                    members,
-                    protocol: selected,
-                } => {
-                    if *selected != protocol
-                        || !protocol
-                            .tcl_version()
-                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
-                    {
-                        return Err(NativeLiteralUnavailable(
-                            "native private constant List compiler recipe is unavailable",
-                        ));
-                    }
-                    pool.registrations.push(None);
-                    let children = members
-                        .iter()
-                        .map(|bytes| Value::new_native_string_bytes(bytes.clone()))
-                        .collect();
-                    Value::native_list_constructor(children, protocol)
-                }
-            };
-            pool.values.push(RefCell::new(Some(value)));
+                let literal = table.entries().get(*index).ok_or(NativeLiteralUnavailable(
+                    "native literal allocation has no object-array entry",
+                ))?;
+                let value = pool.allocate_literal(literal, &input)?;
+                pool.values.push(RefCell::new(Some(value)));
+            } else {
+                pool.apply_literal_action(action, &input, &mut effect)?;
+            }
         }
         let pool = Rc::new(pool);
         world.borrow_mut().pools.push(Rc::downgrade(&pool));
         Ok(pool)
+    }
+
+    fn apply_literal_action(
+        &mut self,
+        action: &NativeLiteralAction,
+        input: &LiteralCreation<'_>,
+        effect: &mut impl FnMut(NativeLiteralEffect<'_>) -> Result<(), NativeLiteralUnavailable>,
+    ) -> Result<(), NativeLiteralUnavailable> {
+        match action {
+            NativeLiteralAction::RetainSyntaxErrorInfo { options, message } => {
+                if self.protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
+                    return Err(NativeLiteralUnavailable(
+                        "C91 Syntax original error-info issuer",
+                    ));
+                }
+                let message_slot = self.values.get(*message).ok_or(NativeLiteralUnavailable(
+                    "Syntax message before registration",
+                ))?;
+                let message = message_slot.borrow();
+                let original_message = message
+                    .as_ref()
+                    .ok_or(NativeLiteralUnavailable("retired Syntax message slot"))?;
+                let options_slot = self.values.get(*options).ok_or(NativeLiteralUnavailable(
+                    "Syntax options before registration",
+                ))?;
+                let mut options = options_slot.borrow_mut();
+                let original_options = options
+                    .as_ref()
+                    .ok_or(NativeLiteralUnavailable("retired Syntax options slot"))?;
+                let updated = original_options
+                    .native_dictionary_set_member(
+                        Value::new_native_string_bytes(b"-errorinfo".as_slice()),
+                        original_message.clone(),
+                        self.protocol,
+                    )
+                    .map_err(|_| NativeLiteralUnavailable("Syntax original error-info member"))?;
+                *options = Some(updated);
+                effect(NativeLiteralEffect::PublishSyntax {
+                    message: original_message,
+                    options: options.as_ref().expect("installed Syntax options"),
+                })?;
+            }
+            NativeLiteralAction::Hide(index) => {
+                if self.protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_5) {
+                    return Err(NativeLiteralUnavailable(
+                        "native literal hiding recipe is unavailable",
+                    ));
+                }
+                let value = self.values.get_mut(*index).ok_or(NativeLiteralUnavailable(
+                    "native literal hiding precedes its object allocation",
+                ))?;
+                let value = value
+                    .get_mut()
+                    .as_mut()
+                    .ok_or(NativeLiteralUnavailable("retired native literal slot"))?;
+                let mut duplicate = value.duplicate_native_object_in(self.protocol);
+                if let Some(resident) = value.resident_string_bytes() {
+                    let storage = value.resident_string_storage_identity().ok_or(
+                        NativeLiteralUnavailable(
+                            "native hidden literal storage identity is unavailable",
+                        ),
+                    )?;
+                    duplicate = duplicate
+                        .with_resident_string_bytes_and_storage(
+                            Rc::<[u8]>::from(resident.as_ref()),
+                            storage,
+                        )
+                        .map_err(|_| {
+                            NativeLiteralUnavailable(
+                                "native hidden literal resident copy is unavailable",
+                            )
+                        })?;
+                }
+                *value = duplicate;
+                if let Some(registration) = self.registrations[*index].take() {
+                    input.world.borrow_mut().release(registration);
+                }
+            }
+            _ => self.prime_literal_action(action, input, effect)?,
+        }
+        Ok(())
+    }
+
+    fn prime_literal_action(
+        &mut self,
+        action: &NativeLiteralAction,
+        input: &LiteralCreation<'_>,
+        effect: &mut impl FnMut(NativeLiteralEffect<'_>) -> Result<(), NativeLiteralUnavailable>,
+    ) -> Result<(), NativeLiteralUnavailable> {
+        match action {
+            NativeLiteralAction::PrimeExpressionBoolean84(index) => {
+                if self.protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
+                    return Err(NativeLiteralUnavailable("C84 Boolean literal issuer"));
+                }
+                let slot = self.values.get(*index).ok_or(NativeLiteralUnavailable(
+                    "Boolean getter before literal registration",
+                ))?;
+                let borrowed = slot.borrow();
+                let original = borrowed
+                    .as_ref()
+                    .ok_or(NativeLiteralUnavailable("retired Boolean literal slot"))?;
+                original
+                    .native_scalar_getter(
+                        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+                        tcl_syntax::scalar_getter::NativeScalarGetterKind::Boolean,
+                    )
+                    .map_err(|_| NativeLiteralUnavailable("C84 Boolean literal conversion"))?;
+            }
+            NativeLiteralAction::AdoptExpressionNumber {
+                index,
+                version,
+                value,
+            } => {
+                if self.protocol.tcl_version() != Some(*version) {
+                    return Err(NativeLiteralUnavailable(
+                        "native constant cache transfer issuer",
+                    ));
+                }
+                let slot = self.values.get(*index).ok_or(NativeLiteralUnavailable(
+                    "constant cache transfer before registration",
+                ))?;
+                let borrowed = slot.borrow();
+                let original = borrowed
+                    .as_ref()
+                    .ok_or(NativeLiteralUnavailable("retired constant literal slot"))?;
+                original
+                    .adopt_native_expression_number_if_untyped(value.number(), *version)
+                    .map_err(|_| {
+                        NativeLiteralUnavailable("native constant cache transfer unavailable")
+                    })?;
+            }
+            NativeLiteralAction::PrimeCommandName { index, receipt } => {
+                if input.context != Some(&receipt.context)
+                    || self.protocol.tcl_version() != Some(receipt.version)
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native command-name priming context is stale or foreign",
+                    ));
+                }
+                let slot = self.values.get(*index).ok_or(NativeLiteralUnavailable(
+                    "native command-name priming precedes its object allocation",
+                ))?;
+                let borrowed = slot.borrow();
+                let value = borrowed
+                    .as_ref()
+                    .ok_or(NativeLiteralUnavailable("retired native literal slot"))?;
+                effect(NativeLiteralEffect::PrimeCommandName(receipt, value))?;
+            }
+            _ => unreachable!("non-priming literal action"),
+        }
+        Ok(())
+    }
+
+    fn allocate_literal(
+        &mut self,
+        literal: &tcl_bytecode::NativeStringLiteral,
+        input: &LiteralCreation<'_>,
+    ) -> Result<Value, NativeLiteralUnavailable> {
+        Ok(match literal.allocation() {
+            NativeLiteralAllocation::RegisteredData => {
+                self.register(input.world, literal.bytes(), None, self.protocol)?
+            }
+            NativeLiteralAllocation::RegisteredCommand {
+                namespace: selected,
+                fully_qualified,
+            } => {
+                if selected != input.source_namespace {
+                    return Err(NativeLiteralUnavailable(
+                        "native command literal namespace receipt differs from its bytecode owner",
+                    ));
+                }
+                let scope = command_partition(self.protocol, input.namespace, *fully_qualified);
+                self.register(input.world, literal.bytes(), scope, self.protocol)?
+            }
+            NativeLiteralAllocation::RegisteredNativeCommand {
+                context: selected,
+                fully_qualified,
+            } => {
+                if input.context != Some(selected)
+                    || selected.namespace_token != u64::from(input.namespace.0)
+                    || &selected.namespace_path != input.source_namespace
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native command literal has no matching namespace-token authority",
+                    ));
+                }
+                let scope = command_partition(self.protocol, input.namespace, *fully_qualified);
+                self.register(input.world, literal.bytes(), scope, self.protocol)?
+            }
+            _ => self.allocate_private_literal(literal, input)?,
+        })
+    }
+
+    fn allocate_private_literal(
+        &mut self,
+        literal: &tcl_bytecode::NativeStringLiteral,
+        input: &LiteralCreation<'_>,
+    ) -> Result<Value, NativeLiteralUnavailable> {
+        Ok(match literal.allocation() {
+            NativeLiteralAllocation::Unshared => {
+                self.registrations.push(None);
+                Value::new_native_string_bytes(literal.bytes())
+            }
+            NativeLiteralAllocation::PrivateReturnOptions(recipe) => {
+                if recipe.protocol != self.protocol {
+                    return Err(NativeLiteralUnavailable(
+                        "private Return literal origin mismatch",
+                    ));
+                }
+                self.registrations.push(None);
+                crate::native_return_merge::manufacture(recipe)
+                    .map_err(|_| NativeLiteralUnavailable("private Return literal manufacture"))?
+            }
+            NativeLiteralAllocation::PrivateInteger(value) => {
+                if self
+                    .protocol
+                    .tcl_version()
+                    .is_none_or(|version| version < tcl_dialect::TclVersion::V9_1)
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native private Integer compiler recipe is unavailable",
+                    ));
+                }
+                self.registrations.push(None);
+                Value::int(*value)
+            }
+            NativeLiteralAllocation::PrivateOriginal => {
+                return Err(NativeLiteralUnavailable(
+                    "native private original literal has no supplied object producer",
+                ));
+            }
+            NativeLiteralAllocation::PrivateConstantList {
+                members,
+                protocol: selected,
+            } => {
+                if *selected != self.protocol
+                    || self
+                        .protocol
+                        .tcl_version()
+                        .is_none_or(|version| version < tcl_dialect::TclVersion::V8_6)
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native private constant List compiler recipe is unavailable",
+                    ));
+                }
+                self.registrations.push(None);
+                let children = members
+                    .iter()
+                    .map(|bytes| Value::new_native_string_bytes(bytes.clone()))
+                    .collect();
+                Value::native_list_constructor(children, self.protocol)
+            }
+            _ => self.allocate_expression_literal(literal, input)?,
+        })
+    }
+
+    fn allocate_expression_literal(
+        &mut self,
+        literal: &tcl_bytecode::NativeStringLiteral,
+        input: &LiteralCreation<'_>,
+    ) -> Result<Value, NativeLiteralUnavailable> {
+        Ok(match literal.allocation() {
+            NativeLiteralAllocation::PrivateConcatString => {
+                if self.protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1) {
+                    return Err(NativeLiteralUnavailable(
+                        "native constant concat String issuer",
+                    ));
+                }
+                let original = Value::from_native_string_cache(
+                    tcl_syntax::native_object::NativeObjectCacheSnapshot::String {
+                        protocol: self.protocol,
+                        num_chars: None,
+                        unicode: None,
+                    },
+                    tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                    Some((
+                        Rc::from(literal.bytes()),
+                        tcl_syntax::native_string::NativeStringStorageIdentity::Allocated,
+                    )),
+                )
+                .map_err(|_| NativeLiteralUnavailable("native concat String backing"))?;
+                self.registrations.push(None);
+                original
+            }
+            NativeLiteralAllocation::PrivateLogicalBoolean85(_) => {
+                if self.protocol != NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5) {
+                    return Err(NativeLiteralUnavailable("native C85 logical fold origin"));
+                }
+                let key = GlobalKey {
+                    protocol: self.protocol,
+                    namespace: None,
+                    original: literal.bytes().to_vec(),
+                };
+                let (registration, original) =
+                    input.world.borrow_mut().register(key, self.protocol)?;
+                input.world.borrow_mut().release(registration);
+                self.registrations.push(None);
+                original
+            }
+            NativeLiteralAllocation::PrivateExpressionNumber { version, value } => {
+                if *version < tcl_dialect::TclVersion::V8_5
+                    || self.protocol.tcl_version() != Some(*version)
+                {
+                    return Err(NativeLiteralUnavailable(
+                        "native folded expression literal origin",
+                    ));
+                }
+                self.registrations.push(None);
+                Value::from_native_scalar_cache(
+                    tcl_syntax::scalar_getter::NativeScalarCache::Number(value.number()),
+                    None,
+                    tcl_registry::InvocationDialect::for_version(*version),
+                )
+                .map_err(|_| NativeLiteralUnavailable("native folded expression header"))?
+            }
+            _ => unreachable!("non-expression private literal"),
+        })
     }
 
     fn register(
@@ -593,23 +652,7 @@ impl NativeLiteralPool {
                 .pools
                 .iter()
                 .any(|pool| Weak::ptr_eq(pool, &this_pool));
-            let registrations = world.shared.borrow();
-            let source_slots_registered =
-                self.values
-                    .iter()
-                    .zip(&self.registrations)
-                    .all(|(slot, index)| {
-                        let slot = slot.borrow();
-                        let Some(value) = slot.as_ref() else {
-                            return false;
-                        };
-                        !value.is_same_object(source)
-                            || index.is_some_and(|index| {
-                                registrations
-                                    .registration_value(index)
-                                    .is_some_and(|registered| registered.is_same_object(value))
-                            })
-                    });
+            let source_slots_registered = self.source_slots_registered(&world, source);
             if cleanup_retains_pool && source_slots_registered {
                 return Ok(self.clone());
             }
@@ -669,6 +712,25 @@ impl NativeLiteralPool {
         let prepared = Rc::new(prepared);
         world.borrow_mut().pools.push(Rc::downgrade(&prepared));
         Ok(prepared)
+    }
+
+    fn source_slots_registered(&self, world: &NativeLiteralWorld, source: &Value) -> bool {
+        let registrations = world.shared.borrow();
+        self.values
+            .iter()
+            .zip(&self.registrations)
+            .all(|(slot, index)| {
+                let slot = slot.borrow();
+                let Some(value) = slot.as_ref() else {
+                    return false;
+                };
+                !value.is_same_object(source)
+                    || index.is_some_and(|index| {
+                        registrations
+                            .registration_value(index)
+                            .is_some_and(|registered| registered.is_same_object(value))
+                    })
+            })
     }
 
     pub(crate) fn value(&self, index: usize) -> Option<Value> {
@@ -1040,8 +1102,8 @@ impl NativeDirectSourceOperands {
         })
     }
 
-    pub(crate) fn is_current(self, policy: crate::compiled::NativeCompilerPolicy) -> bool {
-        self.execution_policy == Some(policy)
+    pub(crate) fn is_current(self, policy: &crate::compiled::NativeCompilerPolicy) -> bool {
+        self.execution_policy.as_ref() == Some(policy)
     }
 
     /// Each reached source word creates its own original string, with no pool cache donation.

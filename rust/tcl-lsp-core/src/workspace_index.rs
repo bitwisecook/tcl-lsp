@@ -1711,7 +1711,7 @@ impl DocumentRecords {
                 (!imp.conjectured)
                     .then_some(source_ns)
                     .map(|source_ns| WorkspaceImportGate {
-                        source_ns: global_rooted(&source_ns).to_owned(),
+                        source_ns: global_rooted(source_ns).to_owned(),
                         name: tail.clone(),
                         at: imp.range.start(),
                         enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
@@ -1719,7 +1719,7 @@ impl DocumentRecords {
                     });
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: tcl_syntax::naming::qualify(&imp.ns, &tail),
+                linked_qname: tcl_syntax::naming::qualify(&imp.ns, tail),
                 linked_source_name: None,
                 target_qname: source.constructed_pattern(),
                 target_source_name: None,

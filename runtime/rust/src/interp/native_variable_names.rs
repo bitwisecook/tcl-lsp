@@ -37,1244 +37,6 @@ pub(crate) struct NativeProcedureNameTable {
     table: Rc<NativeLocalNameTable<Owned>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    thread_local! {
-        static ALIAS_SIMPLE_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-
-    fn alias_simple_probe(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
-        for (case, name) in [b"v".as_slice(), b"d", b"n\0(k)"].into_iter().enumerate() {
-            let local = if case == 2 {
-                Owned::fresh(obj::new_string_bytes(name))
-            } else {
-                let member = Owned::fresh(obj::new_string_bytes(name));
-                Owned::fresh(crate::list::new_list_obj(&[member.as_ptr()]))
-            };
-            let kind = if case == 2 { "NULL" } else { "list" };
-            // SAFETY: local retains the original object throughout this callback.
-            let references = unsafe { (*local.as_ptr()).ref_count };
-            ALIAS_SIMPLE_ROWS.with(|rows| {
-                rows.borrow_mut()
-                    .push(format!("before{case}|{kind}|{references}"))
-            });
-            let original_type = obj::obj_type_ptr(local.as_ptr());
-            let target = Owned::fresh(obj::new_string_bytes(b"x"));
-            let mut link = match interp.prepare_original_c_link_target(target.as_ptr(), 0) {
-                Ok(Some(link)) => link,
-                Ok(None) => panic!("actual C target unavailable"),
-                Err(code) => return code,
-            };
-            interp.prepare_upvar_target(&mut link).unwrap();
-            let code = interp.bind_original_c_alias_local(local.as_ptr(), link);
-            if code != Code::Ok {
-                return code;
-            }
-            assert_eq!(obj::obj_type_ptr(local.as_ptr()), original_type);
-            // SAFETY: local retains the original object after alias installation.
-            let references = unsafe { (*local.as_ptr()).ref_count };
-            ALIAS_SIMPLE_ROWS.with(|rows| {
-                rows.borrow_mut()
-                    .push(format!("after{case}|0|{kind}|{references}"))
-            });
-        }
-        interp.set_result_bytes(b"");
-        Code::Ok
-    }
-
-    thread_local! {
-        static GLOBAL_CACHE_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-    fn global_cache_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-        let original = argv[1];
-        let value = match interp.read_original_named_variable(original) {
-            Ok(value) => value,
-            Err(code) => return code,
-        };
-        let kind = obj::obj_type_ptr(original);
-        assert!(
-            !kind.is_null(),
-            "successful original-name lookup owns a cache"
-        );
-        // SAFETY: original owns its selected descriptor throughout this callback.
-        let name = unsafe { std::ffi::CStr::from_ptr((*kind).name).to_str().unwrap() };
-        let bytes = interp.native_string_bytes(&value).unwrap();
-        GLOBAL_CACHE_ROWS.with(|rows| {
-            rows.borrow_mut().push(format!(
-                "{name}|{}",
-                String::from_utf8(bytes.to_vec()).unwrap(),
-            ))
-        });
-        interp.set_result_bytes(b"");
-        Code::Ok
-    }
-    #[test]
-    fn dynamic_global_uses_original_compiler_token_tail_and_name_cache() {
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_str!("../../tests/data/native_global_cache_token/8.4.20.txt"),
-            ),
-            (
-                "tcl8.5",
-                include_str!("../../tests/data/native_global_cache_token/8.5.19.txt"),
-            ),
-            (
-                "tcl8.6",
-                include_str!("../../tests/data/native_global_cache_token/8.6.18.txt"),
-            ),
-            (
-                "tcl9.0",
-                include_str!("../../tests/data/native_global_cache_token/9.0.4.txt"),
-            ),
-            (
-                "tcl9.1",
-                include_str!("../../tests/data/native_global_cache_token/9.1.0.txt"),
-            ),
-        ] {
-            crate::counters::reset();
-            GLOBAL_CACHE_ROWS.with(|rows| rows.borrow_mut().clear());
-            {
-                let mut interp = Interp::with_native_core(
-                    super::super::default_host(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                interp.register_builtin(b"probe", global_cache_probe);
-                let original = Owned::fresh(obj::new_string_bytes(b"v"));
-                interp.var_set(b"name", original.as_ptr()).unwrap();
-                drop(original);
-                for (label, source) in [
-                    ("simple", b"set v GLOBAL;proc p {} {set v LOCAL;probe $::name;unset v;global $::name;probe $::name;return $v};p".as_slice()),
-                    ("qualified", b"namespace eval N {variable v QUALIFIED};set name ::N::v;p".as_slice()),
-                ] {
-                    let code = interp.eval_str(source);
-                    GLOBAL_CACHE_ROWS.with(|rows| rows.borrow_mut().push(format!(
-                        "{label}|{}|{}", code.as_int(), String::from_utf8(interp.result_bytes()).unwrap(),
-                    )));
-                    assert!(!interp.host_refusal_pending(), "{engine}");
-                }
-                let rows = GLOBAL_CACHE_ROWS.with(|rows| rows.borrow().join("\n") + "\n");
-                assert_eq!(rows, expected, "{engine}");
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    #[test]
-    fn alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners() {
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_str!("../../tests/data/native_alias_simple/8.4.20.txt"),
-            ),
-            (
-                "tcl8.5",
-                include_str!("../../tests/data/native_alias_simple/8.5.19.txt"),
-            ),
-            (
-                "tcl8.6",
-                include_str!("../../tests/data/native_alias_simple/8.6.18.txt"),
-            ),
-            (
-                "tcl9.0",
-                include_str!("../../tests/data/native_alias_simple/9.0.4.txt"),
-            ),
-            (
-                "tcl9.1",
-                include_str!("../../tests/data/native_alias_simple/9.1.0.txt"),
-            ),
-        ] {
-            crate::counters::reset();
-            ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow_mut().clear());
-            {
-                let mut interp = Interp::with_native_core(
-                    super::super::default_host(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                interp.register_builtin(b"alias_probe", alias_simple_probe);
-                let code = interp.eval_str(b"set x X; proc p {} {alias_probe; return $v}; p");
-                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
-                assert_eq!(interp.result_bytes(), b"X");
-                ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow_mut().push("completion|0|X".into()));
-                let rows = ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow().join("\n") + "\n");
-                assert_eq!(rows, expected, "{engine}");
-                assert!(!interp.host_refusal_pending());
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    struct NamespaceOutputHost {
-        inner: Rc<dyn tcl_platform::Host>,
-        output: std::cell::RefCell<Vec<u8>>,
-    }
-    impl tcl_platform::StdIo for NamespaceOutputHost {
-        fn write_stdout(&self, bytes: &[u8]) {
-            self.output.borrow_mut().extend_from_slice(bytes);
-        }
-        fn write_stderr(&self, bytes: &[u8]) {
-            self.inner.stdio().write_stderr(bytes);
-        }
-    }
-    impl tcl_platform::Host for NamespaceOutputHost {
-        fn capabilities(&self) -> tcl_platform::Capabilities {
-            self.inner.capabilities()
-        }
-        fn clock(&self) -> &dyn tcl_platform::Clock {
-            self.inner.clock()
-        }
-        fn stdio(&self) -> &dyn tcl_platform::StdIo {
-            self
-        }
-        fn env(&self) -> &dyn tcl_platform::Env {
-            self.inner.env()
-        }
-        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
-            self.inner.numeric_environment()
-        }
-        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
-            self.inner.native_integer_formatter()
-        }
-        fn system_encoding(&self) -> tcl_platform::SystemEncoding {
-            self.inner.system_encoding()
-        }
-        fn filesystem(&self) -> Option<&dyn tcl_platform::Filesystem> {
-            self.inner.filesystem()
-        }
-        fn sockets(&self) -> Option<&dyn tcl_platform::Sockets> {
-            self.inner.sockets()
-        }
-        fn process(&self) -> Option<&dyn tcl_platform::Process> {
-            self.inner.process()
-        }
-    }
-
-    #[test]
-    fn generic_namespace_declarations_match_all_25_native_execution_results() {
-        let source = include_bytes!(
-            "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/source.tcl"
-        );
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_bytes!(
-                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.4.txt"
-                )
-                .as_slice(),
-            ),
-            (
-                "tcl8.5",
-                include_bytes!(
-                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.5.txt"
-                )
-                .as_slice(),
-            ),
-            (
-                "tcl8.6",
-                include_bytes!(
-                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.6.txt"
-                )
-                .as_slice(),
-            ),
-            (
-                "tcl9.0",
-                include_bytes!(
-                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl9.0.txt"
-                )
-                .as_slice(),
-            ),
-            (
-                "tcl9.1",
-                include_bytes!(
-                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl9.1.txt"
-                )
-                .as_slice(),
-            ),
-        ] {
-            crate::counters::reset();
-            {
-                let host = Rc::new(NamespaceOutputHost {
-                    inner: super::super::default_host(),
-                    output: std::cell::RefCell::new(Vec::new()),
-                });
-                let mut interp = Interp::with_native_core(
-                    host.clone(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                let code = interp.eval_str(source);
-                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
-                assert!(!interp.host_refusal_pending(), "{engine}");
-                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    #[test]
-    fn namespace_alias_settlement_matches_all_15_native_callback_and_error_results() {
-        let source =
-            include_bytes!("../../tests/data/native_namespace_alias_settlement/source.tcl");
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.4.20.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl8.5",
-                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.5.19.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl8.6",
-                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.6.18.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl9.0",
-                include_bytes!("../../tests/data/native_namespace_alias_settlement/9.0.4.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl9.1",
-                include_bytes!("../../tests/data/native_namespace_alias_settlement/9.1.0.txt")
-                    .as_slice(),
-            ),
-        ] {
-            crate::counters::reset();
-            {
-                let host = Rc::new(NamespaceOutputHost {
-                    inner: super::super::default_host(),
-                    output: std::cell::RefCell::new(Vec::new()),
-                });
-                let mut interp = Interp::with_native_core(
-                    host.clone(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                let code = interp.eval_str(source);
-                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
-                assert!(!interp.host_refusal_pending(), "{engine}");
-                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    #[test]
-    fn qualified_variable_scope_matches_all_six_native_sequences() {
-        let source = include_bytes!("../../tests/data/native_variable_qualified_target/source.tcl");
-        for (engine, expected) in [
-            (
-                "tcl8.4",
-                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.4.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl8.5",
-                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.5.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl8.6",
-                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.6.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl9.0",
-                include_bytes!("../../tests/data/native_variable_qualified_target/tcl9.0.txt")
-                    .as_slice(),
-            ),
-            (
-                "tcl9.1",
-                include_bytes!("../../tests/data/native_variable_qualified_target/tcl9.1.txt")
-                    .as_slice(),
-            ),
-            (
-                "jim",
-                include_bytes!("../../tests/data/native_variable_qualified_target/jim.txt")
-                    .as_slice(),
-            ),
-        ] {
-            crate::counters::reset();
-            {
-                let host = Rc::new(NamespaceOutputHost {
-                    inner: super::super::default_host(),
-                    output: std::cell::RefCell::new(Vec::new()),
-                });
-                let mut interp = Interp::with_native_core(
-                    host.clone(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                let code = interp.eval_str(source);
-                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
-                assert!(!interp.host_refusal_pending(), "{engine}");
-                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    fn namespace_cache_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-        let original = argv[1];
-        assert_eq!(
-            super::super::obj_bytes(interp.read_original_c_variable(original).unwrap()),
-            b"LOCAL"
-        );
-        let local_slot = interp.original_c_local_index(original).unwrap();
-        let before = interp
-            .frames
-            .borrow()
-            .native_compiled_cell_identity(local_slot)
-            .unwrap();
-        let level = interp.current_level();
-        let alias_slot = interp
-            .frames
-            .borrow()
-            .native_compiled_name_index(level, b"alias")
-            .unwrap();
-        let code = interp.link_original_compiled_namespace_variable(
-            original,
-            crate::namespace::GLOBAL,
-            alias_slot,
-            true,
-        );
-        assert_eq!(code, Code::Ok, "{:?}", interp.result_bytes());
-        assert!(obj::native_variable_name::with_local(original, |_| ()).is_none());
-        assert!(
-            obj::native_variable_name::with_parsed(original, |cache| cache.array.is_none())
-                .unwrap()
-        );
-        assert_eq!(
-            interp
-                .frames
-                .borrow()
-                .native_compiled_cell_identity(local_slot),
-            Some(before)
-        );
-        assert_eq!(
-            super::super::obj_bytes(interp.var_get(b"v").unwrap()),
-            b"LOCAL"
-        );
-        let selected = interp
-            .prepare_original_c_name_in(
-                original,
-                NativeVariableNameLookupPurpose::Read,
-                Some(crate::namespace::GLOBAL),
-            )
-            .unwrap()
-            .unwrap();
-        let (receiver, _) = interp
-            .capture_original_c_selection(
-                original,
-                &selected,
-                NativeVariableNameLookupPurpose::Read,
-            )
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            super::super::obj_bytes(receiver.read().unwrap().unwrap()),
-            b"GLOBAL"
-        );
-        interp.set_result_bytes(b"");
-        Code::Ok
-    }
-
-    #[test]
-    fn namespace_opcodes_bypass_original_local_cache_and_retain_the_namespace_cell() {
-        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            crate::counters::reset();
-            {
-                let mut interp = Interp::with_native_core(
-                    super::super::default_host(),
-                    crate::environment::profile_for_dialect(engine),
-                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
-                )
-                .unwrap();
-                interp.register_builtin(b"namespace_cache_probe", namespace_cache_probe);
-                let original = Owned::fresh(obj::new_string_bytes(b"v"));
-                interp.var_set(b"name", original.as_ptr()).unwrap();
-                let code = interp.eval_str(b"set v GLOBAL; proc p {} {set v LOCAL; namespace_cache_probe $::name; return $alias}; p");
-                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
-                assert_eq!(interp.result_bytes(), b"GLOBAL", "{engine}");
-                assert!(
-                    obj::native_variable_name::with_parsed(original.as_ptr(), |cache| cache
-                        .array
-                        .is_none())
-                    .unwrap()
-                );
-                assert!(!interp.host_refusal_pending(), "{engine}");
-            }
-            assert_eq!(crate::counters::finalize(), 0, "{engine}");
-            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
-        }
-    }
-
-    thread_local! {
-        static CACHE_LOOKUP_CASE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-        static CACHE_LOOKUP_CALLBACKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-        static CACHE_LOOKUP_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-    }
-    struct CacheLookupObserver;
-    impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
-        for CacheLookupObserver
-    {
-        type Error = tcl_cmd_core::CmdError;
-        fn observe(
-            &self,
-            _interp: &mut Interp,
-            _access: tcl_runtime_api::native_variable_trace::NativeVariableTraceAccess<'_>,
-        ) -> Result<(), Self::Error> {
-            CACHE_LOOKUP_CALLBACKS.with(|count| count.set(count.get() + 1));
-            Ok(())
-        }
-    }
-    fn cache_lookup_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-        use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation as Op;
-        let original = argv[1];
-        let case = CACHE_LOOKUP_CASE.with(std::cell::Cell::get);
-        let version = interp.native_c_variable_name_protocol().unwrap().version();
-        interp.read_original_c_variable(original).unwrap();
-        let before = interp
-            .original_c_local_index(original)
-            .expect("genuine local cache");
-        let before_slot_cell = interp
-            .frames
-            .borrow()
-            .native_compiled_cell_identity(before)
-            .expect("actual installed compiled cell");
-        let selection = interp.prepare_original_c_name(original, false).unwrap();
-        let before_cell = interp
-            .capture_original_c_selection(
-                original,
-                &selection,
-                NativeVariableNameLookupPurpose::Read,
-            )
-            .unwrap()
-            .unwrap()
-            .1
-            .binding_id;
-        if matches!(case, 2 | 3) {
-            interp
-                .add_native_variable_observer(
-                    original,
-                    &[Op::Read, Op::Write],
-                    Rc::new(CacheLookupObserver),
-                )
-                .unwrap();
-        }
-        if case == 4 {
-            assert!(interp.var_unset(b"x"));
-        }
-        obj::invalidate_string(original);
-        let result = if matches!(case, 1 | 3) {
-            let next = Owned::fresh(obj::new_string_bytes(b"NEXT"));
-            interp.store_original_c_variable(original, next.as_ptr())
-        } else {
-            interp.read_original_c_variable(original).map(|_| ())
-        };
-        assert_eq!(interp.original_c_local_index(original), Some(before));
-        assert_eq!(
-            interp.frames.borrow().native_compiled_cell_identity(before),
-            Some(before_slot_cell),
-            "same original cell after {version:?}/{case}"
-        );
-        // Unset removes the visible binding; the retained original cache above
-        // still identifies the same compiled slot rather than a replacement.
-        assert_eq!(
-            interp.trace_identity(b"x").binding_id,
-            if case == 4 { None } else { before_cell }
-        );
-        if version >= tcl_dialect::TclVersion::V8_5 && case >= 2 {
-            assert!(result.is_err());
-            assert!(
-                interp.host_refusal_pending(),
-                "native updater abort must remain a host refusal"
-            );
-            assert!(!obj::has_string_rep(original));
-            assert_eq!(CACHE_LOOKUP_CALLBACKS.with(std::cell::Cell::get), 0);
-        } else {
-            assert_eq!(result.is_err(), case == 4);
-            assert_eq!(
-                obj::has_string_rep(original),
-                version == tcl_dialect::TclVersion::V8_4
-            );
-            assert_eq!(
-                CACHE_LOOKUP_CALLBACKS.with(std::cell::Cell::get),
-                usize::from(matches!(case, 2 | 3))
-            );
-        }
-        let version_label = match version {
-            tcl_dialect::TclVersion::V8_4 => "8.4.20",
-            tcl_dialect::TclVersion::V8_5 => "8.5.19",
-            tcl_dialect::TclVersion::V8_6 => "8.6.18",
-            tcl_dialect::TclVersion::V9_0 => "9.0.4",
-            tcl_dialect::TclVersion::V9_1 => "9.1.0",
-        };
-        let row = if interp.host_refusal_pending() {
-            format!("{version_label}|{case}|updater-unavailable")
-        } else {
-            format!(
-                "{version_label}|{case}|{}|{}|localVarName|1",
-                usize::from(result.is_err()),
-                usize::from(obj::has_string_rep(original))
-            )
-        };
-        CACHE_LOOKUP_ROWS.with(|rows| rows.borrow_mut().push(row));
-        if case != 4 {
-            assert_eq!(
-                super::super::obj_bytes(interp.var_get(b"x").unwrap()),
-                if matches!(case, 1 | 3) {
-                    b"NEXT".as_slice()
-                } else {
-                    b"VALUE".as_slice()
-                }
-            );
-        }
-        result.map_or_else(|code| code, |()| Code::Ok)
-    }
-
-    #[test]
-    fn original_local_cache_getter_order_matches_all_25_native_paths() {
-        use super::*;
-        let expected = include_str!(
-            "../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt"
-        );
-        assert_eq!(expected.lines().count(), 25);
-        CACHE_LOOKUP_ROWS.with(|rows| rows.borrow_mut().clear());
-        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            for case in 0..5 {
-                CACHE_LOOKUP_CASE.with(|mode| mode.set(case));
-                CACHE_LOOKUP_CALLBACKS.with(|count| count.set(0));
-                let mut interp = Interp::with_native_core(
-                    super::super::default_host(),
-                    crate::environment::profile_for_dialect(environment),
-                    tcl_registry::special_vars::NativeBootstrapInputs {
-                        package_path: Vec::new(),
-                        default_library: None,
-                    },
-                )
-                .unwrap();
-                interp.register_builtin(b"probe", cache_lookup_probe);
-                let code = interp.eval_str(b"proc p {} {set x VALUE;probe x};p");
-                assert_eq!(
-                    code == Code::Ok,
-                    case < 2 || (environment == "tcl8.4" && case < 4),
-                    "{environment}/{case}"
-                );
-            }
-        }
-        CACHE_LOOKUP_ROWS.with(|rows| {
-            assert_eq!(
-                rows.borrow().as_slice(),
-                expected.lines().collect::<Vec<_>>()
-            )
-        });
-    }
-
-    #[test]
-    fn original_link_lookup_and_unset_preserve_target_name_cache() {
-        use super::*;
-        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let mut interp = Interp::new();
-            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-            let target = Owned::fresh(obj::new_string_bytes(b"target"));
-            let prepared = interp
-                .prepare_original_c_link_target(target.as_ptr(), 0)
-                .unwrap();
-            let prepared = prepared.expect("actual selected target");
-            assert_eq!(prepared.name, b"target");
-            assert_eq!(prepared.elem, None);
-            assert!(
-                obj::native_variable_name::with_parsed(target.as_ptr(), |cache| cache
-                    .array
-                    .is_none())
-                .unwrap()
-            );
-            let value = Owned::fresh(obj::new_string_bytes(b"7"));
-            interp
-                .assign_original_named_variable(target.as_ptr(), value.as_ptr())
-                .unwrap();
-            interp
-                .unset_original_c_variable(target.as_ptr(), true)
-                .unwrap();
-            assert!(
-                obj::native_variable_name::with_parsed(target.as_ptr(), |cache| cache
-                    .array
-                    .is_none())
-                .unwrap()
-            );
-            assert!(interp
-                .read_original_named_variable(target.as_ptr())
-                .is_err());
-        }
-    }
-
-    #[test]
-    fn element_table_and_var_roles_match_all_25_actual_callback_windows() {
-        use super::*;
-        use crate::frame::NativeElementEntryObserver;
-        use crate::namespace::GLOBAL;
-        use std::cell::RefCell;
-        use tcl_runtime_api::native_variable_trace::{
-            NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-        };
-        struct Windows {
-            version: &'static str,
-            index_k: *mut TclObj,
-            index_j: *mut TclObj,
-            old_k: NativeElementEntryObserver,
-            old_j: NativeElementEntryObserver,
-            object_table: bool,
-            rows: Rc<RefCell<Vec<String>>>,
-            sequence: Rc<RefCell<usize>>,
-        }
-        impl Windows {
-            fn record(&self, interp: &Interp, phase: &str) {
-                let current = interp
-                    .namespaces
-                    .borrow()
-                    .var_table(GLOBAL)
-                    .capture_array_cell(b"arr");
-                let (present_k, _, defined_k, dead_k, refs_k) =
-                    self.old_k.observe(current.as_ref(), self.object_table);
-                let (present_j, _, defined_j, dead_j, refs_j) =
-                    self.old_j.observe(current.as_ref(), self.object_table);
-                // SAFETY: the probe's two original index owners outlive every callback.
-                let (key_k, key_j) =
-                    unsafe { ((*self.index_k).ref_count, (*self.index_j).ref_count) };
-                self.rows.borrow_mut().push(format!("{}|window|{phase}|{key_k}|{key_j}|{dead_k}|{dead_j}|{defined_k}|{defined_j}|{refs_k}|{refs_j}|{present_k}|{present_j}", self.version));
-            }
-        }
-        impl NativeVariableObserver<Interp> for Windows {
-            type Error = tcl_cmd_core::CmdError;
-            fn observe(
-                &self,
-                interp: &mut Interp,
-                access: NativeVariableTraceAccess<'_>,
-            ) -> Result<(), Self::Error> {
-                let phase = if access.name2.is_empty() {
-                    "root".to_owned()
-                } else {
-                    *self.sequence.borrow_mut() += 1;
-                    format!(
-                        "element{}-{}",
-                        *self.sequence.borrow(),
-                        std::str::from_utf8(access.name2).unwrap()
-                    )
-                };
-                self.record(interp, &phase);
-                Ok(())
-            }
-        }
-        let rows = Rc::new(RefCell::new(Vec::new()));
-        for (environment, version) in [
-            ("tcl8.4", "8.4.20"),
-            ("tcl8.5", "8.5.19"),
-            ("tcl8.6", "8.6.18"),
-            ("tcl9.0", "9.0.4"),
-            ("tcl9.1", "9.1.0"),
-        ] {
-            let mut interp = Interp::new();
-            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-            let root = Owned::fresh(obj::new_string_bytes(b"arr"));
-            let index_k = Owned::fresh(obj::new_string_bytes(b"k"));
-            let index_j = Owned::fresh(obj::new_string_bytes(b"j"));
-            let one = Owned::fresh(obj::new_string_bytes(b"ONE"));
-            for index in [&index_k, &index_j] {
-                let capture = interp
-                    .capture_original_c_parts_report(
-                        root.as_ptr(),
-                        Some(index.as_ptr()),
-                        NativeVariableNameLookupPurpose::Write,
-                    )
-                    .unwrap()
-                    .unwrap();
-                capture.receiver.store(one.as_ptr()).unwrap();
-            }
-            let array = interp
-                .namespaces
-                .borrow()
-                .var_table(GLOBAL)
-                .capture_array_cell(b"arr")
-                .unwrap();
-            let names = [
-                Owned::fresh(obj::new_string_bytes(b"arr(k)")),
-                Owned::fresh(obj::new_string_bytes(b"arr(j)")),
-            ];
-            let mut aliases = Vec::new();
-            for name in &names {
-                let mut target = interp
-                    .prepare_original_c_link_target(name.as_ptr(), 0)
-                    .unwrap()
-                    .unwrap();
-                crate::vars::prepare_upvar_target(
-                    &mut interp.frames.borrow_mut(),
-                    &mut interp.namespaces.borrow_mut(),
-                    &mut target,
-                )
-                .unwrap();
-                aliases.push(target);
-            }
-            let windows = Rc::new(Windows {
-                version,
-                index_k: index_k.as_ptr(),
-                index_j: index_j.as_ptr(),
-                old_k: array.observe_element_entry(b"k").unwrap(),
-                old_j: array.observe_element_entry(b"j").unwrap(),
-                object_table: interp
-                    .native_c_variable_name_protocol()
-                    .unwrap()
-                    .element_table_retains_original(),
-                rows: Rc::clone(&rows),
-                sequence: Rc::new(RefCell::new(0)),
-            });
-            for name in std::iter::once(&root).chain(names.iter()) {
-                interp
-                    .add_native_variable_observer(
-                        name.as_ptr(),
-                        &[NativeVariableTraceOperation::Unset],
-                        windows.clone(),
-                    )
-                    .unwrap();
-            }
-            windows.record(&interp, "before");
-            assert!(interp.var_unset(b"arr"));
-            windows.record(&interp, "after");
-            drop(aliases);
-        }
-        let expected = include_str!("../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt").lines().filter(|line| line.contains("|window|")).collect::<Vec<_>>();
-        assert_eq!(rows.borrow().len(), 25);
-        assert_eq!(*rows.borrow(), expected);
-    }
-
-    #[test]
-    fn element_entry_lifecycle_matches_all_70_actual_c_windows() {
-        use super::*;
-        use crate::namespace::GLOBAL;
-        let mut rows = Vec::new();
-        for (environment, version) in [
-            ("tcl8.4", "8.4.20"),
-            ("tcl8.5", "8.5.19"),
-            ("tcl8.6", "8.6.18"),
-            ("tcl9.0", "9.0.4"),
-            ("tcl9.1", "9.1.0"),
-        ] {
-            for whole in [false, true] {
-                let mut interp = Interp::new();
-                interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-                let protocol = interp.native_c_variable_name_protocol().unwrap();
-                let original = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
-                let fresh = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
-                let one = Owned::fresh(obj::new_string_bytes(b"ONE"));
-                let two = Owned::fresh(obj::new_string_bytes(b"TWO"));
-                interp
-                    .assign_original_named_variable(original.as_ptr(), one.as_ptr())
-                    .unwrap();
-                let array = interp
-                    .namespaces
-                    .borrow()
-                    .var_table(GLOBAL)
-                    .capture_array_cell(b"arr")
-                    .unwrap();
-                let observer = array.observe_element_entry(b"k").unwrap();
-                let root = obj::native_variable_name::with_parsed(original.as_ptr(), |cache| {
-                    cache.array.as_ref().unwrap().0.as_ptr()
-                })
-                .unwrap();
-                let key = observer.key();
-                // This is the native probe's declared external key observer,
-                // needed only for the separately allocated C85/86 table key.
-                let _key_pin = (protocol.version() >= tcl_dialect::TclVersion::V8_5
-                    && protocol.version() < tcl_dialect::TclVersion::V9_0)
-                    .then(|| Owned::retain(key.unwrap()));
-                let observe = |interp: &Interp, phase: &str, rows: &mut Vec<String>| {
-                    let current = interp
-                        .namespaces
-                        .borrow()
-                        .var_table(GLOBAL)
-                        .capture_array_cell(b"arr");
-                    let (present, same, defined, dead, refs) = observer
-                        .observe(current.as_ref(), protocol.element_table_retains_original());
-                    // SAFETY: original parser storage or the declared observer pin owns each header.
-                    let (name_refs, root_refs, key_refs) = unsafe {
-                        (
-                            (*original.as_ptr()).ref_count,
-                            (*root).ref_count,
-                            key.map_or(-1, |key| (*key).ref_count),
-                        )
-                    };
-                    rows.push(format!("{version}|window|{}|{phase}|{name_refs}|{root_refs}|{key_refs}|{present}|{same}|{defined}|{dead}|{refs}", if whole { "whole" } else { "element" }));
-                };
-                observe(&interp, "created", &mut rows);
-                let mut first = interp
-                    .prepare_original_c_link_target(original.as_ptr(), 0)
-                    .unwrap()
-                    .unwrap();
-                crate::vars::prepare_upvar_target(
-                    &mut interp.frames.borrow_mut(),
-                    &mut interp.namespaces.borrow_mut(),
-                    &mut first,
-                )
-                .unwrap();
-                let mut second = interp
-                    .prepare_original_c_link_target(original.as_ptr(), 0)
-                    .unwrap()
-                    .unwrap();
-                crate::vars::prepare_upvar_target(
-                    &mut interp.frames.borrow_mut(),
-                    &mut interp.namespaces.borrow_mut(),
-                    &mut second,
-                )
-                .unwrap();
-                observe(&interp, "linked", &mut rows);
-                let target: &[u8] = if whole { b"arr" } else { b"arr(k)" };
-                assert!(interp.var_unset(target));
-                observe(&interp, "unset-target", &mut rows);
-                interp
-                    .assign_original_named_variable(fresh.as_ptr(), two.as_ptr())
-                    .unwrap();
-                observe(&interp, "recreated", &mut rows);
-                assert!(interp.var_unset(target));
-                observe(&interp, "unset-recreated", &mut rows);
-                drop(second);
-                observe(&interp, "one-alias", &mut rows);
-                drop(first);
-                observe(&interp, "no-alias", &mut rows);
-            }
-        }
-        let expected = include_str!("../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt").lines().filter(|line| line.contains("|window|") && !line.starts_with("Jim|")).collect::<Vec<_>>();
-        assert_eq!(rows.len(), 70);
-        assert_eq!(rows, expected);
-    }
-
-    #[test]
-    fn search_free_slots_match_all_20_actual_c_windows() {
-        use super::*;
-        use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
-        let mut rows = Vec::new();
-        for (environment, version) in [
-            ("tcl8.4", "8.4.20"),
-            ("tcl8.5", "8.5.19"),
-            ("tcl8.6", "8.6.18"),
-            ("tcl9.0", "9.0.4"),
-            ("tcl9.1", "9.1.0"),
-        ] {
-            let mut interp = Interp::new();
-            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-            let protocol = interp.array_search_protocol().unwrap();
-            let name = Owned::fresh(obj::new_string_bytes(b"a(k)"));
-            let member = Owned::fresh(obj::new_string_bytes(b"v"));
-            interp
-                .assign_original_named_variable(name.as_ptr(), member.as_ptr())
-                .unwrap();
-            let array = Owned::fresh(obj::new_string_bytes(b"a"));
-            let command = Owned::fresh(obj::new_string_bytes(b"array"));
-            let start = Owned::fresh(obj::new_string_bytes(b"startsearch"));
-            assert_eq!(
-                interp.dispatch(&[command.as_ptr(), start.as_ptr(), array.as_ptr()]),
-                Code::Ok
-            );
-            let handle = Owned::retain(interp.get_obj_result());
-            let anymore = Owned::fresh(obj::new_string_bytes(b"anymore"));
-            assert_eq!(
-                interp.dispatch(&[
-                    command.as_ptr(),
-                    anymore.as_ptr(),
-                    array.as_ptr(),
-                    handle.as_ptr()
-                ]),
-                Code::Ok
-            );
-            let observe = |phase: &str, original: &Owned| {
-                let kind = obj::obj_type_ptr(original.as_ptr());
-                // SAFETY: the test owns this original header and live descriptor.
-                let free = !kind.is_null() && unsafe { (*kind).free_int_rep_proc.is_some() };
-                format!(
-                    "{version}|{phase}|{}|{}|{}",
-                    if obj::native_array_search_cache_in(original.as_ptr(), protocol)
-                        .unwrap()
-                        .is_some()
-                    {
-                        "array search"
-                    } else if matches!(
-                        obj::native_object_snapshot(original.as_ptr())
-                            .unwrap()
-                            .cache,
-                        tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
-                    ) {
-                        "string"
-                    } else {
-                        "none"
-                    },
-                    usize::from(free),
-                    usize::from(obj::has_string_rep(original.as_ptr()))
-                )
-            };
-            rows.push(observe("converted", &handle));
-            let copy = Owned::fresh(obj::duplicate(handle.as_ptr()));
-            rows.push(observe("duplicate", &copy));
-            assert!(interp
-                .read_original_named_variable(handle.as_ptr())
-                .is_err());
-            rows.push(observe("missing", &handle));
-            assert!(interp.read_original_named_variable(copy.as_ptr()).is_err());
-            rows.push(observe("duplicate-missing", &copy));
-        }
-        let expected = include_str!(
-            "../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt"
-        )
-        .lines()
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 20);
-        assert_eq!(rows, expected);
-    }
-    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
-
-    #[test]
-    fn scalar_alias_entries_and_array_parts_match_all_95_native_windows() {
-        use crate::namespace::GLOBAL;
-        let mut rows = Vec::new();
-        for (environment, version) in [
-            ("tcl8.4", "8.4.20"),
-            ("tcl8.5", "8.5.19"),
-            ("tcl8.6", "8.6.18"),
-            ("tcl9.0", "9.0.4"),
-            ("tcl9.1", "9.1.0"),
-        ] {
-            let mut interp = Interp::new();
-            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-            for mode in 0..2 {
-                let name = Owned::fresh(obj::new_string_bytes(b"k"));
-                let value = Owned::fresh(obj::new_string_bytes(b"ONE"));
-                interp
-                    .assign_original_named_variable(name.as_ptr(), value.as_ptr())
-                    .unwrap();
-                let before = interp
-                    .namespaces
-                    .borrow()
-                    .var_table(GLOBAL)
-                    .native_name_cell_identity(b"k")
-                    .unwrap();
-                let observe = |interp: &Interp, phase: &str, fresh: Option<&Owned>| {
-                    let namespaces = interp.namespaces.borrow();
-                    let table = namespaces.var_table(GLOBAL);
-                    let found = table.native_name_cell_identity(b"k");
-                    assert!(matches!(
-                        obj::native_object_snapshot(name.as_ptr()).unwrap().cache,
-                        Cache::ParsedVariableName { .. }
-                    ));
-                    // SAFETY: these original object headers are owned throughout each window.
-                    let (references, fresh_references) = unsafe {
-                        (
-                            (*name.as_ptr()).ref_count,
-                            fresh.map_or(-1, |fresh| (*fresh.as_ptr()).ref_count),
-                        )
-                    };
-                    format!(
-                        "{version}|alias|{mode}|{phase}|parsedVarName|{references}|{fresh_references}|{}|{}|{}",
-                        usize::from(found.is_some()),
-                        usize::from(found == Some(before)),
-                        usize::from(table.original_native_key_is(b"k", name.as_ptr()))
-                    )
-                };
-                rows.push(observe(&interp, "created", None));
-                interp.frames.borrow_mut().push(GLOBAL);
-                let target = crate::vars::link_target_at(
-                    &interp.frames.borrow(),
-                    &interp.namespaces.borrow(),
-                    b"k",
-                    None,
-                    0,
-                )
-                .unwrap();
-                interp.make_upvar(target, b"a");
-                rows.push(observe(&interp, "linked", None));
-                assert!(interp.var_unset(b"::k"));
-                rows.push(observe(&interp, "unset-target", None));
-                let fresh = Owned::fresh(obj::new_string_bytes(b"k"));
-                let written =
-                    Owned::fresh(obj::new_string_bytes(if mode == 0 { b"::k" } else { b"a" }));
-                interp
-                    .assign_original_named_variable(written.as_ptr(), value.as_ptr())
-                    .unwrap();
-                rows.push(observe(&interp, "recreated", Some(&fresh)));
-                assert!(interp.var_unset(b"::k"));
-                rows.push(observe(&interp, "unset-recreated-target", Some(&fresh)));
-                assert!(!interp.var_unset(b"a"));
-                rows.push(observe(&interp, "unset-alias", Some(&fresh)));
-                interp.frames.borrow_mut().pop();
-                rows.push(observe(&interp, "frame-popped", Some(&fresh)));
-                assert!(interp.read_original_named_variable(fresh.as_ptr()).is_err());
-                rows.push(observe(&interp, "fresh-read", Some(&fresh)));
-            }
-            let name = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
-            let value = Owned::fresh(obj::new_string_bytes(b"VALUE"));
-            interp
-                .assign_original_named_variable(name.as_ptr(), value.as_ptr())
-                .unwrap();
-            let observe = |phase: &str| {
-                obj::native_variable_name::with_parsed(name.as_ptr(), |cache| {
-                    let (root, element) = cache.array.as_ref().unwrap();
-                    // SAFETY: cache children remain owned by the original parsed name.
-                    let (root_refs, element_refs) = unsafe {
-                        (
-                            (*root.as_ptr()).ref_count,
-                            match element {
-                                NativeParsedVariableElement::Object(element) => {
-                                    (*element.as_ptr()).ref_count
-                                }
-                                NativeParsedVariableElement::Bytes(_) => -1,
-                            },
-                        )
-                    };
-                    format!("{version}|parts|{phase}|{root_refs}|{element_refs}")
-                })
-                .unwrap()
-            };
-            rows.push(observe("stored"));
-            let copy = Owned::fresh(obj::duplicate(name.as_ptr()));
-            rows.push(observe("duplicated"));
-            drop(copy);
-            assert!(interp.var_unset(b"arr"));
-            rows.push(observe("unset"));
-        }
-        let expected = include_str!(
-            "../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt"
-        )
-        .lines()
-        .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 95);
-        assert_eq!(rows, expected);
-    }
-
-    fn observe(version: &str, case: &str, phase: &str, original: &Owned) -> String {
-        let snapshot = obj::native_object_snapshot(original.as_ptr()).unwrap();
-        let kind = match snapshot.cache {
-            Cache::None => "none",
-            Cache::Numeric(_) => "int",
-            Cache::List { .. } => "list",
-            Cache::ByteArray { .. } => "bytearray",
-            Cache::ParsedVariableName { .. } => "parsedVarName",
-            other => panic!("unexpected actual original primary: {other:?}"),
-        };
-        let descriptor = obj::obj_type_ptr(original.as_ptr());
-        // SAFETY: both the retained original header and its descriptor are live.
-        let (references, free_hook) = unsafe {
-            (
-                (*original.as_ptr()).ref_count,
-                !descriptor.is_null() && (*descriptor).free_int_rep_proc.is_some(),
-            )
-        };
-        let hex = snapshot
-            .resident
-            .as_deref()
-            .map_or_else(String::new, |bytes| {
-                bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-            });
-        format!(
-            "{version}|{case}|{phase}|{kind}|{references}|{}|{}|{hex}",
-            usize::from(free_hook),
-            usize::from(snapshot.resident.is_some())
-        )
-    }
-
-    #[test]
-    fn original_parsed_headers_match_all_150_actual_c_windows() {
-        let mut rows = Vec::new();
-        for (environment, version) in [
-            ("tcl8.4", "8.4.20"),
-            ("tcl8.5", "8.5.19"),
-            ("tcl8.6", "8.6.18"),
-            ("tcl9.0", "9.0.4"),
-            ("tcl9.1", "9.1.0"),
-        ] {
-            let mut interp = Interp::new();
-            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
-            let dialect = interp.native_invocation_dialect();
-            let protocol = dialect.native_string_protocol().unwrap();
-            for case in ["string", "int", "list", "bytearray", "array"] {
-                let original = match case {
-                    "string" => Owned::fresh(obj::new_string_bytes(b"missing")),
-                    "int" => {
-                        let original = Owned::fresh(obj::new_wide_int_obj(42));
-                        if version == "8.4.20" {
-                            obj::adopt_native_scalar_cache(
-                                original.as_ptr(),
-                                tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(42),
-                                dialect.native_scalar_getter_protocol().unwrap(),
-                            )
-                            .unwrap();
-                        }
-                        original
-                    }
-                    "list" => {
-                        let member = Owned::fresh(obj::new_string_bytes(b"missing"));
-                        Owned::fresh(crate::list::new_list_obj_native(
-                            &[member.as_ptr()],
-                            protocol,
-                        ))
-                    }
-                    "bytearray" => Owned::fresh(interp.new_native_byte_array(b"missing").unwrap()),
-                    "array" => Owned::fresh(obj::new_string_bytes(b"arr(k\0z)")),
-                    _ => unreachable!(),
-                };
-                rows.push(observe(version, case, "before", &original));
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
-                rows.push(observe(version, case, "missing", &original));
-                let value = Owned::fresh(obj::new_string_bytes(b"VALUE"));
-                interp
-                    .store_original_named_variable(original.as_ptr(), value.as_ptr())
-                    .unwrap();
-                rows.push(observe(version, case, "stored", &original));
-                assert_eq!(
-                    interp
-                        .read_original_named_variable(original.as_ptr())
-                        .unwrap(),
-                    value.as_ptr()
-                );
-                rows.push(observe(version, case, "read", &original));
-                let copy = Owned::fresh(obj::duplicate(original.as_ptr()));
-                rows.push(observe(version, case, "duplicate", &copy));
-                drop(copy);
-                for name in [b"missing".as_slice(), b"42".as_slice(), b"arr".as_slice()] {
-                    interp.var_unset(name);
-                }
-                assert!(interp
-                    .read_original_named_variable(original.as_ptr())
-                    .is_err());
-                rows.push(observe(version, case, "after-unset-missing", &original));
-            }
-        }
-        let expected = include_str!(
-            "../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt"
-        )
-        .lines()
-        .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 150);
-        assert_eq!(rows, expected);
-    }
-}
-
 impl Interp {
     pub(crate) fn native_c_variable_name_protocol(
         &self,
@@ -2793,5 +1555,1243 @@ impl Interp {
             false,
             NativeVariableNameLookupPurpose::Write,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    thread_local! {
+        static ALIAS_SIMPLE_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn alias_simple_probe(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
+        for (case, name) in [b"v".as_slice(), b"d", b"n\0(k)"].into_iter().enumerate() {
+            let local = if case == 2 {
+                Owned::fresh(obj::new_string_bytes(name))
+            } else {
+                let member = Owned::fresh(obj::new_string_bytes(name));
+                Owned::fresh(crate::list::new_list_obj(&[member.as_ptr()]))
+            };
+            let kind = if case == 2 { "NULL" } else { "list" };
+            // SAFETY: local retains the original object throughout this callback.
+            let references = unsafe { (*local.as_ptr()).ref_count };
+            ALIAS_SIMPLE_ROWS.with(|rows| {
+                rows.borrow_mut()
+                    .push(format!("before{case}|{kind}|{references}"))
+            });
+            let original_type = obj::obj_type_ptr(local.as_ptr());
+            let target = Owned::fresh(obj::new_string_bytes(b"x"));
+            let mut link = match interp.prepare_original_c_link_target(target.as_ptr(), 0) {
+                Ok(Some(link)) => link,
+                Ok(None) => panic!("actual C target unavailable"),
+                Err(code) => return code,
+            };
+            interp.prepare_upvar_target(&mut link).unwrap();
+            let code = interp.bind_original_c_alias_local(local.as_ptr(), link);
+            if code != Code::Ok {
+                return code;
+            }
+            assert_eq!(obj::obj_type_ptr(local.as_ptr()), original_type);
+            // SAFETY: local retains the original object after alias installation.
+            let references = unsafe { (*local.as_ptr()).ref_count };
+            ALIAS_SIMPLE_ROWS.with(|rows| {
+                rows.borrow_mut()
+                    .push(format!("after{case}|0|{kind}|{references}"))
+            });
+        }
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    thread_local! {
+        static GLOBAL_CACHE_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    fn global_cache_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        let original = argv[1];
+        let value = match interp.read_original_named_variable(original) {
+            Ok(value) => value,
+            Err(code) => return code,
+        };
+        let kind = obj::obj_type_ptr(original);
+        assert!(
+            !kind.is_null(),
+            "successful original-name lookup owns a cache"
+        );
+        // SAFETY: original owns its selected descriptor throughout this callback.
+        let name = unsafe { std::ffi::CStr::from_ptr((*kind).name).to_str().unwrap() };
+        let bytes = interp.native_string_bytes(&value).unwrap();
+        GLOBAL_CACHE_ROWS.with(|rows| {
+            rows.borrow_mut().push(format!(
+                "{name}|{}",
+                String::from_utf8(bytes.to_vec()).unwrap(),
+            ))
+        });
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+    #[test]
+    fn dynamic_global_uses_original_compiler_token_tail_and_name_cache() {
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_str!("../../tests/data/native_global_cache_token/8.4.20.txt"),
+            ),
+            (
+                "tcl8.5",
+                include_str!("../../tests/data/native_global_cache_token/8.5.19.txt"),
+            ),
+            (
+                "tcl8.6",
+                include_str!("../../tests/data/native_global_cache_token/8.6.18.txt"),
+            ),
+            (
+                "tcl9.0",
+                include_str!("../../tests/data/native_global_cache_token/9.0.4.txt"),
+            ),
+            (
+                "tcl9.1",
+                include_str!("../../tests/data/native_global_cache_token/9.1.0.txt"),
+            ),
+        ] {
+            crate::counters::reset();
+            GLOBAL_CACHE_ROWS.with(|rows| rows.borrow_mut().clear());
+            {
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interp.register_builtin(b"probe", global_cache_probe);
+                let original = Owned::fresh(obj::new_string_bytes(b"v"));
+                interp.var_set(b"name", original.as_ptr()).unwrap();
+                drop(original);
+                for (label, source) in [
+                    ("simple", b"set v GLOBAL;proc p {} {set v LOCAL;probe $::name;unset v;global $::name;probe $::name;return $v};p".as_slice()),
+                    ("qualified", b"namespace eval N {variable v QUALIFIED};set name ::N::v;p".as_slice()),
+                ] {
+                    let code = interp.eval_str(source);
+                    GLOBAL_CACHE_ROWS.with(|rows| rows.borrow_mut().push(format!(
+                        "{label}|{}|{}", code.as_int(), String::from_utf8(interp.result_bytes()).unwrap(),
+                    )));
+                    assert!(!interp.host_refusal_pending(), "{engine}");
+                }
+                let rows = GLOBAL_CACHE_ROWS.with(|rows| rows.borrow().join("\n") + "\n");
+                assert_eq!(rows, expected, "{engine}");
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    #[test]
+    fn alias_local_simple_lookup_matches_all_15_native_primary_and_key_owners() {
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_str!("../../tests/data/native_alias_simple/8.4.20.txt"),
+            ),
+            (
+                "tcl8.5",
+                include_str!("../../tests/data/native_alias_simple/8.5.19.txt"),
+            ),
+            (
+                "tcl8.6",
+                include_str!("../../tests/data/native_alias_simple/8.6.18.txt"),
+            ),
+            (
+                "tcl9.0",
+                include_str!("../../tests/data/native_alias_simple/9.0.4.txt"),
+            ),
+            (
+                "tcl9.1",
+                include_str!("../../tests/data/native_alias_simple/9.1.0.txt"),
+            ),
+        ] {
+            crate::counters::reset();
+            ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow_mut().clear());
+            {
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interp.register_builtin(b"alias_probe", alias_simple_probe);
+                let code = interp.eval_str(b"set x X; proc p {} {alias_probe; return $v}; p");
+                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert_eq!(interp.result_bytes(), b"X");
+                ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow_mut().push("completion|0|X".into()));
+                let rows = ALIAS_SIMPLE_ROWS.with(|rows| rows.borrow().join("\n") + "\n");
+                assert_eq!(rows, expected, "{engine}");
+                assert!(!interp.host_refusal_pending());
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    struct NamespaceOutputHost {
+        inner: Rc<dyn tcl_platform::Host>,
+        output: std::cell::RefCell<Vec<u8>>,
+    }
+    impl tcl_platform::StdIo for NamespaceOutputHost {
+        fn write_stdout(&self, bytes: &[u8]) {
+            self.output.borrow_mut().extend_from_slice(bytes);
+        }
+        fn write_stderr(&self, bytes: &[u8]) {
+            self.inner.stdio().write_stderr(bytes);
+        }
+    }
+    impl tcl_platform::Host for NamespaceOutputHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            self.inner.capabilities()
+        }
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            self.inner.clock()
+        }
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            self
+        }
+        fn env(&self) -> &dyn tcl_platform::Env {
+            self.inner.env()
+        }
+        fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+            self.inner.numeric_environment()
+        }
+        fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+            self.inner.native_integer_formatter()
+        }
+        fn system_encoding(&self) -> tcl_platform::SystemEncoding {
+            self.inner.system_encoding()
+        }
+        fn filesystem(&self) -> Option<&dyn tcl_platform::Filesystem> {
+            self.inner.filesystem()
+        }
+        fn sockets(&self) -> Option<&dyn tcl_platform::Sockets> {
+            self.inner.sockets()
+        }
+        fn process(&self) -> Option<&dyn tcl_platform::Process> {
+            self.inner.process()
+        }
+    }
+
+    #[test]
+    fn generic_namespace_declarations_match_all_25_native_execution_results() {
+        let source = include_bytes!(
+            "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/source.tcl"
+        );
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!(
+                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.4.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!(
+                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.5.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!(
+                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl8.6.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!(
+                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl9.0.txt"
+                )
+                .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!(
+                    "../../../../rust/tcl-vm/tests/data/native_namespace_handler_order/tcl9.1.txt"
+                )
+                .as_slice(),
+            ),
+        ] {
+            crate::counters::reset();
+            {
+                let host = Rc::new(NamespaceOutputHost {
+                    inner: super::super::default_host(),
+                    output: std::cell::RefCell::new(Vec::new()),
+                });
+                let mut interp = Interp::with_native_core(
+                    host.clone(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let code = interp.eval_str(source);
+                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert!(!interp.host_refusal_pending(), "{engine}");
+                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    #[test]
+    fn namespace_alias_settlement_matches_all_15_native_callback_and_error_results() {
+        let source =
+            include_bytes!("../../tests/data/native_namespace_alias_settlement/source.tcl");
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.4.20.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.5.19.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_namespace_alias_settlement/8.6.18.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_namespace_alias_settlement/9.0.4.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_namespace_alias_settlement/9.1.0.txt")
+                    .as_slice(),
+            ),
+        ] {
+            crate::counters::reset();
+            {
+                let host = Rc::new(NamespaceOutputHost {
+                    inner: super::super::default_host(),
+                    output: std::cell::RefCell::new(Vec::new()),
+                });
+                let mut interp = Interp::with_native_core(
+                    host.clone(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let code = interp.eval_str(source);
+                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert!(!interp.host_refusal_pending(), "{engine}");
+                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    #[test]
+    fn qualified_variable_scope_matches_all_six_native_sequences() {
+        let source = include_bytes!("../../tests/data/native_variable_qualified_target/source.tcl");
+        for (engine, expected) in [
+            (
+                "tcl8.4",
+                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.4.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.5",
+                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.5.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl8.6",
+                include_bytes!("../../tests/data/native_variable_qualified_target/tcl8.6.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.0",
+                include_bytes!("../../tests/data/native_variable_qualified_target/tcl9.0.txt")
+                    .as_slice(),
+            ),
+            (
+                "tcl9.1",
+                include_bytes!("../../tests/data/native_variable_qualified_target/tcl9.1.txt")
+                    .as_slice(),
+            ),
+            (
+                "jim",
+                include_bytes!("../../tests/data/native_variable_qualified_target/jim.txt")
+                    .as_slice(),
+            ),
+        ] {
+            crate::counters::reset();
+            {
+                let host = Rc::new(NamespaceOutputHost {
+                    inner: super::super::default_host(),
+                    output: std::cell::RefCell::new(Vec::new()),
+                });
+                let mut interp = Interp::with_native_core(
+                    host.clone(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                let code = interp.eval_str(source);
+                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert!(!interp.host_refusal_pending(), "{engine}");
+                assert_eq!(host.output.borrow().as_slice(), expected, "{engine}");
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    fn namespace_cache_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        let original = argv[1];
+        assert_eq!(
+            super::super::obj_bytes(interp.read_original_c_variable(original).unwrap()),
+            b"LOCAL"
+        );
+        let local_slot = interp.original_c_local_index(original).unwrap();
+        let before = interp
+            .frames
+            .borrow()
+            .native_compiled_cell_identity(local_slot)
+            .unwrap();
+        let level = interp.current_level();
+        let alias_slot = interp
+            .frames
+            .borrow()
+            .native_compiled_name_index(level, b"alias")
+            .unwrap();
+        let code = interp.link_original_compiled_namespace_variable(
+            original,
+            crate::namespace::GLOBAL,
+            alias_slot,
+            true,
+        );
+        assert_eq!(code, Code::Ok, "{:?}", interp.result_bytes());
+        assert!(obj::native_variable_name::with_local(original, |_| ()).is_none());
+        assert!(
+            obj::native_variable_name::with_parsed(original, |cache| cache.array.is_none())
+                .unwrap()
+        );
+        assert_eq!(
+            interp
+                .frames
+                .borrow()
+                .native_compiled_cell_identity(local_slot),
+            Some(before)
+        );
+        assert_eq!(
+            super::super::obj_bytes(interp.var_get(b"v").unwrap()),
+            b"LOCAL"
+        );
+        let selected = interp
+            .prepare_original_c_name_in(
+                original,
+                NativeVariableNameLookupPurpose::Read,
+                Some(crate::namespace::GLOBAL),
+            )
+            .unwrap()
+            .unwrap();
+        let (receiver, _) = interp
+            .capture_original_c_selection(
+                original,
+                &selected,
+                NativeVariableNameLookupPurpose::Read,
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            super::super::obj_bytes(receiver.read().unwrap().unwrap()),
+            b"GLOBAL"
+        );
+        interp.set_result_bytes(b"");
+        Code::Ok
+    }
+
+    #[test]
+    fn namespace_opcodes_bypass_original_local_cache_and_retain_the_namespace_cell() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            crate::counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(engine),
+                    tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                interp.register_builtin(b"namespace_cache_probe", namespace_cache_probe);
+                let original = Owned::fresh(obj::new_string_bytes(b"v"));
+                interp.var_set(b"name", original.as_ptr()).unwrap();
+                let code = interp.eval_str(b"set v GLOBAL; proc p {} {set v LOCAL; namespace_cache_probe $::name; return $alias}; p");
+                assert_eq!(code, Code::Ok, "{engine}: {:?}", interp.result_bytes());
+                assert_eq!(interp.result_bytes(), b"GLOBAL", "{engine}");
+                assert!(
+                    obj::native_variable_name::with_parsed(original.as_ptr(), |cache| cache
+                        .array
+                        .is_none())
+                    .unwrap()
+                );
+                assert!(!interp.host_refusal_pending(), "{engine}");
+            }
+            assert_eq!(crate::counters::finalize(), 0, "{engine}");
+            assert_eq!(crate::counters::double_free_count(), 0, "{engine}");
+        }
+    }
+
+    thread_local! {
+        static CACHE_LOOKUP_CASE: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static CACHE_LOOKUP_CALLBACKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static CACHE_LOOKUP_ROWS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+    struct CacheLookupObserver;
+    impl tcl_runtime_api::native_variable_trace::NativeVariableObserver<Interp>
+        for CacheLookupObserver
+    {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            _interp: &mut Interp,
+            _access: tcl_runtime_api::native_variable_trace::NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            CACHE_LOOKUP_CALLBACKS.with(|count| count.set(count.get() + 1));
+            Ok(())
+        }
+    }
+    fn cache_lookup_probe(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        use tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation as Op;
+        let original = argv[1];
+        let case = CACHE_LOOKUP_CASE.with(std::cell::Cell::get);
+        let version = interp.native_c_variable_name_protocol().unwrap().version();
+        interp.read_original_c_variable(original).unwrap();
+        let before = interp
+            .original_c_local_index(original)
+            .expect("genuine local cache");
+        let before_slot_cell = interp
+            .frames
+            .borrow()
+            .native_compiled_cell_identity(before)
+            .expect("actual installed compiled cell");
+        let selection = interp.prepare_original_c_name(original, false).unwrap();
+        let before_cell = interp
+            .capture_original_c_selection(
+                original,
+                &selection,
+                NativeVariableNameLookupPurpose::Read,
+            )
+            .unwrap()
+            .unwrap()
+            .1
+            .binding_id;
+        if matches!(case, 2 | 3) {
+            interp
+                .add_native_variable_observer(
+                    original,
+                    &[Op::Read, Op::Write],
+                    Rc::new(CacheLookupObserver),
+                )
+                .unwrap();
+        }
+        if case == 4 {
+            assert!(interp.var_unset(b"x"));
+        }
+        obj::invalidate_string(original);
+        let result = if matches!(case, 1 | 3) {
+            let next = Owned::fresh(obj::new_string_bytes(b"NEXT"));
+            interp.store_original_c_variable(original, next.as_ptr())
+        } else {
+            interp.read_original_c_variable(original).map(|_| ())
+        };
+        assert_eq!(interp.original_c_local_index(original), Some(before));
+        assert_eq!(
+            interp.frames.borrow().native_compiled_cell_identity(before),
+            Some(before_slot_cell),
+            "same original cell after {version:?}/{case}"
+        );
+        // Unset removes the visible binding; the retained original cache above
+        // still identifies the same compiled slot rather than a replacement.
+        assert_eq!(
+            interp.trace_identity(b"x").binding_id,
+            if case == 4 { None } else { before_cell }
+        );
+        if version >= tcl_dialect::TclVersion::V8_5 && case >= 2 {
+            assert!(result.is_err());
+            assert!(
+                interp.host_refusal_pending(),
+                "native updater abort must remain a host refusal"
+            );
+            assert!(!obj::has_string_rep(original));
+            assert_eq!(CACHE_LOOKUP_CALLBACKS.with(std::cell::Cell::get), 0);
+        } else {
+            assert_eq!(result.is_err(), case == 4);
+            assert_eq!(
+                obj::has_string_rep(original),
+                version == tcl_dialect::TclVersion::V8_4
+            );
+            assert_eq!(
+                CACHE_LOOKUP_CALLBACKS.with(std::cell::Cell::get),
+                usize::from(matches!(case, 2 | 3))
+            );
+        }
+        let version_label = match version {
+            tcl_dialect::TclVersion::V8_4 => "8.4.20",
+            tcl_dialect::TclVersion::V8_5 => "8.5.19",
+            tcl_dialect::TclVersion::V8_6 => "8.6.18",
+            tcl_dialect::TclVersion::V9_0 => "9.0.4",
+            tcl_dialect::TclVersion::V9_1 => "9.1.0",
+        };
+        let row = if interp.host_refusal_pending() {
+            format!("{version_label}|{case}|updater-unavailable")
+        } else {
+            format!(
+                "{version_label}|{case}|{}|{}|localVarName|1",
+                usize::from(result.is_err()),
+                usize::from(obj::has_string_rep(original))
+            )
+        };
+        CACHE_LOOKUP_ROWS.with(|rows| rows.borrow_mut().push(row));
+        if case != 4 {
+            assert_eq!(
+                super::super::obj_bytes(interp.var_get(b"x").unwrap()),
+                if matches!(case, 1 | 3) {
+                    b"NEXT".as_slice()
+                } else {
+                    b"VALUE".as_slice()
+                }
+            );
+        }
+        result.map_or_else(|code| code, |()| Code::Ok)
+    }
+
+    #[test]
+    fn original_local_cache_getter_order_matches_all_25_native_paths() {
+        use super::*;
+        let expected = include_str!(
+            "../../../../rust/tcl-syntax/tests/data/native_variable_name/cache_lookup/paths.txt"
+        );
+        assert_eq!(expected.lines().count(), 25);
+        CACHE_LOOKUP_ROWS.with(|rows| rows.borrow_mut().clear());
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for case in 0..5 {
+                CACHE_LOOKUP_CASE.with(|mode| mode.set(case));
+                CACHE_LOOKUP_CALLBACKS.with(|count| count.set(0));
+                let mut interp = Interp::with_native_core(
+                    super::super::default_host(),
+                    crate::environment::profile_for_dialect(environment),
+                    tcl_registry::special_vars::NativeBootstrapInputs {
+                        package_path: Vec::new(),
+                        default_library: None,
+                    },
+                )
+                .unwrap();
+                interp.register_builtin(b"probe", cache_lookup_probe);
+                let code = interp.eval_str(b"proc p {} {set x VALUE;probe x};p");
+                assert_eq!(
+                    code == Code::Ok,
+                    case < 2 || (environment == "tcl8.4" && case < 4),
+                    "{environment}/{case}"
+                );
+            }
+        }
+        CACHE_LOOKUP_ROWS.with(|rows| {
+            assert_eq!(
+                rows.borrow().as_slice(),
+                expected.lines().collect::<Vec<_>>()
+            )
+        });
+    }
+
+    #[test]
+    fn original_link_lookup_and_unset_preserve_target_name_cache() {
+        use super::*;
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            let target = Owned::fresh(obj::new_string_bytes(b"target"));
+            let prepared = interp
+                .prepare_original_c_link_target(target.as_ptr(), 0)
+                .unwrap();
+            let prepared = prepared.expect("actual selected target");
+            assert_eq!(prepared.name, b"target");
+            assert_eq!(prepared.elem, None);
+            assert!(
+                obj::native_variable_name::with_parsed(target.as_ptr(), |cache| cache
+                    .array
+                    .is_none())
+                .unwrap()
+            );
+            let value = Owned::fresh(obj::new_string_bytes(b"7"));
+            interp
+                .assign_original_named_variable(target.as_ptr(), value.as_ptr())
+                .unwrap();
+            interp
+                .unset_original_c_variable(target.as_ptr(), true)
+                .unwrap();
+            assert!(
+                obj::native_variable_name::with_parsed(target.as_ptr(), |cache| cache
+                    .array
+                    .is_none())
+                .unwrap()
+            );
+            assert!(interp
+                .read_original_named_variable(target.as_ptr())
+                .is_err());
+        }
+    }
+
+    #[test]
+    fn element_table_and_var_roles_match_all_25_actual_callback_windows() {
+        use super::*;
+        use crate::frame::NativeElementEntryObserver;
+        use crate::namespace::GLOBAL;
+        use std::cell::RefCell;
+        use tcl_runtime_api::native_variable_trace::{
+            NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+        };
+        struct Windows {
+            version: &'static str,
+            index_k: *mut TclObj,
+            index_j: *mut TclObj,
+            old_k: NativeElementEntryObserver,
+            old_j: NativeElementEntryObserver,
+            object_table: bool,
+            rows: Rc<RefCell<Vec<String>>>,
+            sequence: Rc<RefCell<usize>>,
+        }
+        impl Windows {
+            fn record(&self, interp: &Interp, phase: &str) {
+                let current = interp
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .capture_array_cell(b"arr");
+                let (present_k, _, defined_k, dead_k, refs_k) =
+                    self.old_k.observe(current.as_ref(), self.object_table);
+                let (present_j, _, defined_j, dead_j, refs_j) =
+                    self.old_j.observe(current.as_ref(), self.object_table);
+                // SAFETY: the probe's two original index owners outlive every callback.
+                let (key_k, key_j) =
+                    unsafe { ((*self.index_k).ref_count, (*self.index_j).ref_count) };
+                self.rows.borrow_mut().push(format!("{}|window|{phase}|{key_k}|{key_j}|{dead_k}|{dead_j}|{defined_k}|{defined_j}|{refs_k}|{refs_j}|{present_k}|{present_j}", self.version));
+            }
+        }
+        impl NativeVariableObserver<Interp> for Windows {
+            type Error = tcl_cmd_core::CmdError;
+            fn observe(
+                &self,
+                interp: &mut Interp,
+                access: NativeVariableTraceAccess<'_>,
+            ) -> Result<(), Self::Error> {
+                let phase = if access.name2.is_empty() {
+                    "root".to_owned()
+                } else {
+                    *self.sequence.borrow_mut() += 1;
+                    format!(
+                        "element{}-{}",
+                        *self.sequence.borrow(),
+                        std::str::from_utf8(access.name2).unwrap()
+                    )
+                };
+                self.record(interp, &phase);
+                Ok(())
+            }
+        }
+        let rows = Rc::new(RefCell::new(Vec::new()));
+        for (environment, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            let root = Owned::fresh(obj::new_string_bytes(b"arr"));
+            let index_k = Owned::fresh(obj::new_string_bytes(b"k"));
+            let index_j = Owned::fresh(obj::new_string_bytes(b"j"));
+            let one = Owned::fresh(obj::new_string_bytes(b"ONE"));
+            for index in [&index_k, &index_j] {
+                let capture = interp
+                    .capture_original_c_parts_report(
+                        root.as_ptr(),
+                        Some(index.as_ptr()),
+                        NativeVariableNameLookupPurpose::Write,
+                    )
+                    .unwrap()
+                    .unwrap();
+                capture.receiver.store(one.as_ptr()).unwrap();
+            }
+            let array = interp
+                .namespaces
+                .borrow()
+                .var_table(GLOBAL)
+                .capture_array_cell(b"arr")
+                .unwrap();
+            let names = [
+                Owned::fresh(obj::new_string_bytes(b"arr(k)")),
+                Owned::fresh(obj::new_string_bytes(b"arr(j)")),
+            ];
+            let mut aliases = Vec::new();
+            for name in &names {
+                let mut target = interp
+                    .prepare_original_c_link_target(name.as_ptr(), 0)
+                    .unwrap()
+                    .unwrap();
+                crate::vars::prepare_upvar_target(
+                    &mut interp.frames.borrow_mut(),
+                    &mut interp.namespaces.borrow_mut(),
+                    &mut target,
+                )
+                .unwrap();
+                aliases.push(target);
+            }
+            let windows = Rc::new(Windows {
+                version,
+                index_k: index_k.as_ptr(),
+                index_j: index_j.as_ptr(),
+                old_k: array.observe_element_entry(b"k").unwrap(),
+                old_j: array.observe_element_entry(b"j").unwrap(),
+                object_table: interp
+                    .native_c_variable_name_protocol()
+                    .unwrap()
+                    .element_table_retains_original(),
+                rows: Rc::clone(&rows),
+                sequence: Rc::new(RefCell::new(0)),
+            });
+            for name in std::iter::once(&root).chain(names.iter()) {
+                interp
+                    .add_native_variable_observer(
+                        name.as_ptr(),
+                        &[NativeVariableTraceOperation::Unset],
+                        windows.clone(),
+                    )
+                    .unwrap();
+            }
+            windows.record(&interp, "before");
+            assert!(interp.var_unset(b"arr"));
+            windows.record(&interp, "after");
+            drop(aliases);
+        }
+        let expected = include_str!("../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_callbacks.txt").lines().filter(|line| line.contains("|window|")).collect::<Vec<_>>();
+        assert_eq!(rows.borrow().len(), 25);
+        assert_eq!(*rows.borrow(), expected);
+    }
+
+    #[test]
+    fn element_entry_lifecycle_matches_all_70_actual_c_windows() {
+        use super::*;
+        use crate::namespace::GLOBAL;
+        let mut rows = Vec::new();
+        for (environment, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            for whole in [false, true] {
+                let mut interp = Interp::new();
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+                let protocol = interp.native_c_variable_name_protocol().unwrap();
+                let original = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
+                let fresh = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
+                let one = Owned::fresh(obj::new_string_bytes(b"ONE"));
+                let two = Owned::fresh(obj::new_string_bytes(b"TWO"));
+                interp
+                    .assign_original_named_variable(original.as_ptr(), one.as_ptr())
+                    .unwrap();
+                let array = interp
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .capture_array_cell(b"arr")
+                    .unwrap();
+                let observer = array.observe_element_entry(b"k").unwrap();
+                let root = obj::native_variable_name::with_parsed(original.as_ptr(), |cache| {
+                    cache.array.as_ref().unwrap().0.as_ptr()
+                })
+                .unwrap();
+                let key = observer.key();
+                // This is the native probe's declared external key observer,
+                // needed only for the separately allocated C85/86 table key.
+                let _key_pin = (protocol.version() >= tcl_dialect::TclVersion::V8_5
+                    && protocol.version() < tcl_dialect::TclVersion::V9_0)
+                    .then(|| Owned::retain(key.unwrap()));
+                let observe = |interp: &Interp, phase: &str, rows: &mut Vec<String>| {
+                    let current = interp
+                        .namespaces
+                        .borrow()
+                        .var_table(GLOBAL)
+                        .capture_array_cell(b"arr");
+                    let (present, same, defined, dead, refs) = observer
+                        .observe(current.as_ref(), protocol.element_table_retains_original());
+                    // SAFETY: original parser storage or the declared observer pin owns each header.
+                    let (name_refs, root_refs, key_refs) = unsafe {
+                        (
+                            (*original.as_ptr()).ref_count,
+                            (*root).ref_count,
+                            key.map_or(-1, |key| (*key).ref_count),
+                        )
+                    };
+                    rows.push(format!("{version}|window|{}|{phase}|{name_refs}|{root_refs}|{key_refs}|{present}|{same}|{defined}|{dead}|{refs}", if whole { "whole" } else { "element" }));
+                };
+                observe(&interp, "created", &mut rows);
+                let mut first = interp
+                    .prepare_original_c_link_target(original.as_ptr(), 0)
+                    .unwrap()
+                    .unwrap();
+                crate::vars::prepare_upvar_target(
+                    &mut interp.frames.borrow_mut(),
+                    &mut interp.namespaces.borrow_mut(),
+                    &mut first,
+                )
+                .unwrap();
+                let mut second = interp
+                    .prepare_original_c_link_target(original.as_ptr(), 0)
+                    .unwrap()
+                    .unwrap();
+                crate::vars::prepare_upvar_target(
+                    &mut interp.frames.borrow_mut(),
+                    &mut interp.namespaces.borrow_mut(),
+                    &mut second,
+                )
+                .unwrap();
+                observe(&interp, "linked", &mut rows);
+                let target: &[u8] = if whole { b"arr" } else { b"arr(k)" };
+                assert!(interp.var_unset(target));
+                observe(&interp, "unset-target", &mut rows);
+                interp
+                    .assign_original_named_variable(fresh.as_ptr(), two.as_ptr())
+                    .unwrap();
+                observe(&interp, "recreated", &mut rows);
+                assert!(interp.var_unset(target));
+                observe(&interp, "unset-recreated", &mut rows);
+                drop(second);
+                observe(&interp, "one-alias", &mut rows);
+                drop(first);
+                observe(&interp, "no-alias", &mut rows);
+            }
+        }
+        let expected = include_str!("../../../../rust/tcl-syntax/tests/data/native_variable_name/element_alias_lifecycle.txt").lines().filter(|line| line.contains("|window|") && !line.starts_with("Jim|")).collect::<Vec<_>>();
+        assert_eq!(rows.len(), 70);
+        assert_eq!(rows, expected);
+    }
+
+    #[test]
+    fn search_free_slots_match_all_20_actual_c_windows() {
+        use super::*;
+        use tcl_cmd_core::native_array_search::NativeArraySearchBackend;
+        let mut rows = Vec::new();
+        for (environment, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            let protocol = interp.array_search_protocol().unwrap();
+            let name = Owned::fresh(obj::new_string_bytes(b"a(k)"));
+            let member = Owned::fresh(obj::new_string_bytes(b"v"));
+            interp
+                .assign_original_named_variable(name.as_ptr(), member.as_ptr())
+                .unwrap();
+            let array = Owned::fresh(obj::new_string_bytes(b"a"));
+            let command = Owned::fresh(obj::new_string_bytes(b"array"));
+            let start = Owned::fresh(obj::new_string_bytes(b"startsearch"));
+            assert_eq!(
+                interp.dispatch(&[command.as_ptr(), start.as_ptr(), array.as_ptr()]),
+                Code::Ok
+            );
+            let handle = Owned::retain(interp.get_obj_result());
+            let anymore = Owned::fresh(obj::new_string_bytes(b"anymore"));
+            assert_eq!(
+                interp.dispatch(&[
+                    command.as_ptr(),
+                    anymore.as_ptr(),
+                    array.as_ptr(),
+                    handle.as_ptr()
+                ]),
+                Code::Ok
+            );
+            let observe = |phase: &str, original: &Owned| {
+                let kind = obj::obj_type_ptr(original.as_ptr());
+                // SAFETY: the test owns this original header and live descriptor.
+                let free = !kind.is_null() && unsafe { (*kind).free_int_rep_proc.is_some() };
+                format!(
+                    "{version}|{phase}|{}|{}|{}",
+                    if obj::native_array_search_cache_in(original.as_ptr(), protocol)
+                        .unwrap()
+                        .is_some()
+                    {
+                        "array search"
+                    } else if matches!(
+                        obj::native_object_snapshot(original.as_ptr())
+                            .unwrap()
+                            .cache,
+                        tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
+                    ) {
+                        "string"
+                    } else {
+                        "none"
+                    },
+                    usize::from(free),
+                    usize::from(obj::has_string_rep(original.as_ptr()))
+                )
+            };
+            rows.push(observe("converted", &handle));
+            let copy = Owned::fresh(obj::duplicate(handle.as_ptr()));
+            rows.push(observe("duplicate", &copy));
+            assert!(interp
+                .read_original_named_variable(handle.as_ptr())
+                .is_err());
+            rows.push(observe("missing", &handle));
+            assert!(interp.read_original_named_variable(copy.as_ptr()).is_err());
+            rows.push(observe("duplicate-missing", &copy));
+        }
+        let expected = include_str!(
+            "../../../../rust/tcl-syntax/tests/data/native_variable_name/array_search_free_slot.txt"
+        )
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 20);
+        assert_eq!(rows, expected);
+    }
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+
+    #[test]
+    fn scalar_alias_entries_and_array_parts_match_all_95_native_windows() {
+        use crate::namespace::GLOBAL;
+        let mut rows = Vec::new();
+        for (environment, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            for mode in 0..2 {
+                let name = Owned::fresh(obj::new_string_bytes(b"k"));
+                let value = Owned::fresh(obj::new_string_bytes(b"ONE"));
+                interp
+                    .assign_original_named_variable(name.as_ptr(), value.as_ptr())
+                    .unwrap();
+                let before = interp
+                    .namespaces
+                    .borrow()
+                    .var_table(GLOBAL)
+                    .native_name_cell_identity(b"k")
+                    .unwrap();
+                let observe = |interp: &Interp, phase: &str, fresh: Option<&Owned>| {
+                    let namespaces = interp.namespaces.borrow();
+                    let table = namespaces.var_table(GLOBAL);
+                    let found = table.native_name_cell_identity(b"k");
+                    assert!(matches!(
+                        obj::native_object_snapshot(name.as_ptr()).unwrap().cache,
+                        Cache::ParsedVariableName { .. }
+                    ));
+                    // SAFETY: these original object headers are owned throughout each window.
+                    let (references, fresh_references) = unsafe {
+                        (
+                            (*name.as_ptr()).ref_count,
+                            fresh.map_or(-1, |fresh| (*fresh.as_ptr()).ref_count),
+                        )
+                    };
+                    format!(
+                        "{version}|alias|{mode}|{phase}|parsedVarName|{references}|{fresh_references}|{}|{}|{}",
+                        usize::from(found.is_some()),
+                        usize::from(found == Some(before)),
+                        usize::from(table.original_native_key_is(b"k", name.as_ptr()))
+                    )
+                };
+                rows.push(observe(&interp, "created", None));
+                interp.frames.borrow_mut().push(GLOBAL);
+                let target = crate::vars::link_target_at(
+                    &interp.frames.borrow(),
+                    &interp.namespaces.borrow(),
+                    b"k",
+                    None,
+                    0,
+                )
+                .unwrap();
+                interp.make_upvar(target, b"a");
+                rows.push(observe(&interp, "linked", None));
+                assert!(interp.var_unset(b"::k"));
+                rows.push(observe(&interp, "unset-target", None));
+                let fresh = Owned::fresh(obj::new_string_bytes(b"k"));
+                let written =
+                    Owned::fresh(obj::new_string_bytes(if mode == 0 { b"::k" } else { b"a" }));
+                interp
+                    .assign_original_named_variable(written.as_ptr(), value.as_ptr())
+                    .unwrap();
+                rows.push(observe(&interp, "recreated", Some(&fresh)));
+                assert!(interp.var_unset(b"::k"));
+                rows.push(observe(&interp, "unset-recreated-target", Some(&fresh)));
+                assert!(!interp.var_unset(b"a"));
+                rows.push(observe(&interp, "unset-alias", Some(&fresh)));
+                interp.frames.borrow_mut().pop();
+                rows.push(observe(&interp, "frame-popped", Some(&fresh)));
+                assert!(interp.read_original_named_variable(fresh.as_ptr()).is_err());
+                rows.push(observe(&interp, "fresh-read", Some(&fresh)));
+            }
+            let name = Owned::fresh(obj::new_string_bytes(b"arr(k)"));
+            let value = Owned::fresh(obj::new_string_bytes(b"VALUE"));
+            interp
+                .assign_original_named_variable(name.as_ptr(), value.as_ptr())
+                .unwrap();
+            let observe = |phase: &str| {
+                obj::native_variable_name::with_parsed(name.as_ptr(), |cache| {
+                    let (root, element) = cache.array.as_ref().unwrap();
+                    // SAFETY: cache children remain owned by the original parsed name.
+                    let (root_refs, element_refs) = unsafe {
+                        (
+                            (*root.as_ptr()).ref_count,
+                            match element {
+                                NativeParsedVariableElement::Object(element) => {
+                                    (*element.as_ptr()).ref_count
+                                }
+                                NativeParsedVariableElement::Bytes(_) => -1,
+                            },
+                        )
+                    };
+                    format!("{version}|parts|{phase}|{root_refs}|{element_refs}")
+                })
+                .unwrap()
+            };
+            rows.push(observe("stored"));
+            let copy = Owned::fresh(obj::duplicate(name.as_ptr()));
+            rows.push(observe("duplicated"));
+            drop(copy);
+            assert!(interp.var_unset(b"arr"));
+            rows.push(observe("unset"));
+        }
+        let expected = include_str!(
+            "../../../../rust/tcl-syntax/tests/data/native_variable_name/scalar_alias_entries.txt"
+        )
+        .lines()
+        .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 95);
+        assert_eq!(rows, expected);
+    }
+
+    fn observe(version: &str, case: &str, phase: &str, original: &Owned) -> String {
+        let snapshot = obj::native_object_snapshot(original.as_ptr()).unwrap();
+        let kind = match snapshot.cache {
+            Cache::None => "none",
+            Cache::Numeric(_) => "int",
+            Cache::List { .. } => "list",
+            Cache::ByteArray { .. } => "bytearray",
+            Cache::ParsedVariableName { .. } => "parsedVarName",
+            other => panic!("unexpected actual original primary: {other:?}"),
+        };
+        let descriptor = obj::obj_type_ptr(original.as_ptr());
+        // SAFETY: both the retained original header and its descriptor are live.
+        let (references, free_hook) = unsafe {
+            (
+                (*original.as_ptr()).ref_count,
+                !descriptor.is_null() && (*descriptor).free_int_rep_proc.is_some(),
+            )
+        };
+        let hex = snapshot
+            .resident
+            .as_deref()
+            .map_or_else(String::new, |bytes| {
+                bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+            });
+        format!(
+            "{version}|{case}|{phase}|{kind}|{references}|{}|{}|{hex}",
+            usize::from(free_hook),
+            usize::from(snapshot.resident.is_some())
+        )
+    }
+
+    #[test]
+    fn original_parsed_headers_match_all_150_actual_c_windows() {
+        let mut rows = Vec::new();
+        for (environment, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(environment));
+            let dialect = interp.native_invocation_dialect();
+            let protocol = dialect.native_string_protocol().unwrap();
+            for case in ["string", "int", "list", "bytearray", "array"] {
+                let original = match case {
+                    "string" => Owned::fresh(obj::new_string_bytes(b"missing")),
+                    "int" => {
+                        let original = Owned::fresh(obj::new_wide_int_obj(42));
+                        if version == "8.4.20" {
+                            obj::adopt_native_scalar_cache(
+                                original.as_ptr(),
+                                tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(42),
+                                dialect.native_scalar_getter_protocol().unwrap(),
+                            )
+                            .unwrap();
+                        }
+                        original
+                    }
+                    "list" => {
+                        let member = Owned::fresh(obj::new_string_bytes(b"missing"));
+                        Owned::fresh(crate::list::new_list_obj_native(
+                            &[member.as_ptr()],
+                            protocol,
+                        ))
+                    }
+                    "bytearray" => Owned::fresh(interp.new_native_byte_array(b"missing").unwrap()),
+                    "array" => Owned::fresh(obj::new_string_bytes(b"arr(k\0z)")),
+                    _ => unreachable!(),
+                };
+                rows.push(observe(version, case, "before", &original));
+                assert!(interp
+                    .read_original_named_variable(original.as_ptr())
+                    .is_err());
+                rows.push(observe(version, case, "missing", &original));
+                let value = Owned::fresh(obj::new_string_bytes(b"VALUE"));
+                interp
+                    .store_original_named_variable(original.as_ptr(), value.as_ptr())
+                    .unwrap();
+                rows.push(observe(version, case, "stored", &original));
+                assert_eq!(
+                    interp
+                        .read_original_named_variable(original.as_ptr())
+                        .unwrap(),
+                    value.as_ptr()
+                );
+                rows.push(observe(version, case, "read", &original));
+                let copy = Owned::fresh(obj::duplicate(original.as_ptr()));
+                rows.push(observe(version, case, "duplicate", &copy));
+                drop(copy);
+                for name in [b"missing".as_slice(), b"42".as_slice(), b"arr".as_slice()] {
+                    interp.var_unset(name);
+                }
+                assert!(interp
+                    .read_original_named_variable(original.as_ptr())
+                    .is_err());
+                rows.push(observe(version, case, "after-unset-missing", &original));
+            }
+        }
+        let expected = include_str!(
+            "../../../../rust/tcl-syntax/tests/data/native_variable_name/parsed_headers.txt"
+        )
+        .lines()
+        .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 150);
+        assert_eq!(rows, expected);
     }
 }

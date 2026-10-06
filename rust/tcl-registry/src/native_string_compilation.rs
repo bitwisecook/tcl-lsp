@@ -34,7 +34,7 @@ pub enum NativeStringMatchOperation {
 }
 
 impl NativeStringMatchOperation {
-    /// Only C84 STR_MATCH reuses an unshared pattern; STR_EQ creates a new Int.
+    /// Only C84 `STR_MATCH` reuses an unshared pattern; `STR_EQ` creates a new Int.
     #[must_use]
     pub const fn reuses_unshared_pattern(self, version: TclVersion) -> bool {
         matches!((self, version), (Self::Glob { .. }, TclVersion::V8_4))
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn private_match_registration_does_not_reparse_invoked_name_or_binary_pattern() {
-        let source = b"renamed A\0B $subject";
+        let source: &[u8] = b"renamed A\0B $subject";
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let mut parsed = native_script_words_in(
             SourceImage::native(source),

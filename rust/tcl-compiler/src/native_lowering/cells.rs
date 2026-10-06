@@ -365,7 +365,9 @@ mod tests {
         );
         assert_eq!(
             variable_word_place("${}", &site(3), config()),
-            Ok(CellPlace::Named { name: "".into() })
+            Ok(CellPlace::Named {
+                name: String::new()
+            })
         );
         assert_eq!(
             variable_word_place("$a($i)", &site(6), config()),

@@ -42,7 +42,7 @@ use tcl_syntax::raw_string::{RawString, UnicodeAccessError};
 use tcl_syntax::scalar_getter::{
     NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterProtocol, NativeScalarGetterValue,
 };
-use tcl_syntax::value::canonical_dict_slots;
+use tcl_syntax::value::{ValueError, canonical_dict_slots};
 
 use crate::error::TclError;
 
@@ -506,7 +506,7 @@ enum IntRep {
     NativeCommandNameUnresolved(tcl_dialect::TclVersion),
     /// Pinned Jim command descriptor, owning only its original namespace object.
     JimCommand(JimCommandCache),
-    /// Pinned Jim variable descriptor with a weak actual VarVal birth receipt.
+    /// Pinned Jim variable descriptor with a weak actual `VarVal` birth receipt.
     JimVariable(JimVariableCache),
     /// Actual Jim Enum or immediate-string cache, with no updater.
     JimOption(tcl_core_types::NativeJimOptionCache),
@@ -847,7 +847,11 @@ impl tcl_cmd_core::native_append::NativeAppendObjects for VmAppendObjects {
         receiver.0.string_storage.set(source.0.string_storage.get());
         *receiver.0.intrep.borrow_mut() = cache;
         *receiver.0.double_format.borrow_mut() = format;
-        *receiver.0.source_location.borrow_mut() = source.0.source_location.borrow().clone();
+        receiver
+            .0
+            .source_location
+            .borrow_mut()
+            .clone_from(&source.0.source_location.borrow());
     }
 
     fn string(
@@ -1102,18 +1106,51 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
         string_mutation: tcl_core_types::ResidentStringMutation,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        use tcl_syntax::native_string::NativeStringProtocol;
         self.check_native_header()?;
         donor.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         let protocol =
             dialect
                 .native_string_protocol()
                 .ok_or(ValueError::CommandProtocolUnavailable(
                     "native object mirror issuer",
                 ))?;
+        donor.validate_native_mirror_primary(protocol)?;
+        let string = match string_mutation {
+            tcl_core_types::ResidentStringMutation::Preserve => {
+                if self.resident_string_bytes() != donor.resident_string_bytes()
+                    || self.0.string_storage.get() != donor.0.string_storage.get()
+                {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native object mirror preserved string receipt",
+                    ));
+                }
+                self.0.string.borrow().clone()
+            }
+            tcl_core_types::ResidentStringMutation::Replace => donor.0.string.borrow().clone(),
+            tcl_core_types::ResidentStringMutation::Discard => {
+                if donor.0.string.borrow().is_some() {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "native object mirror discarded string receipt",
+                    ));
+                }
+                None
+            }
+        };
+        let cache = donor.0.intrep.borrow().clone();
+        let format = donor.0.double_format.borrow().clone();
+        *self.0.string.borrow_mut() = string;
+        self.0.string_storage.set(donor.0.string_storage.get());
+        *self.0.intrep.borrow_mut() = cache;
+        *self.0.double_format.borrow_mut() = format;
+        Ok(())
+    }
+
+    fn validate_native_mirror_primary(
+        &self,
+        protocol: NativeStringProtocol,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
         {
-            let cache = donor.0.intrep.borrow();
+            let cache = self.0.intrep.borrow();
             match &*cache {
                 IntRep::NativeString {
                     protocol: origin, ..
@@ -1151,7 +1188,7 @@ impl Value {
                 IntRep::NativeNamespaceName(cache)
                     if protocol != NativeStringProtocol::C(cache.version())
                         || (!tcl_syntax::native_namespace_name::NativeNamespaceNameRecipe::for_tcl_version(cache.version()).has_string_updater()
-                            && donor.resident_string_bytes().is_none()) =>
+                            && self.resident_string_bytes().is_none()) =>
                 {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "native namespace-name mirror origin or storage",
@@ -1165,7 +1202,7 @@ impl Value {
                     ));
                 }
                 IntRep::NativeCommandName(_) | IntRep::NativeCommandNameUnresolved(_)
-                    if donor.resident_string_bytes().is_none() =>
+                    if self.resident_string_bytes().is_none() =>
                 {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "native command-name mirror resident storage",
@@ -1197,37 +1234,11 @@ impl Value {
                 _ => {}
             }
         }
-        let string = match string_mutation {
-            tcl_core_types::ResidentStringMutation::Preserve => {
-                if self.resident_string_bytes() != donor.resident_string_bytes()
-                    || self.0.string_storage.get() != donor.0.string_storage.get()
-                {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "native object mirror preserved string receipt",
-                    ));
-                }
-                self.0.string.borrow().clone()
-            }
-            tcl_core_types::ResidentStringMutation::Replace => donor.0.string.borrow().clone(),
-            tcl_core_types::ResidentStringMutation::Discard => {
-                if donor.0.string.borrow().is_some() {
-                    return Err(ValueError::CommandProtocolUnavailable(
-                        "native object mirror discarded string receipt",
-                    ));
-                }
-                None
-            }
-        };
-        let cache = donor.0.intrep.borrow().clone();
-        let format = donor.0.double_format.borrow().clone();
-        *self.0.string.borrow_mut() = string;
-        self.0.string_storage.set(donor.0.string_storage.get());
-        *self.0.intrep.borrow_mut() = cache;
-        *self.0.double_format.borrow_mut() = format;
         Ok(())
     }
 
     /// Duplicate under the selected native object recipe without string generation.
+    #[must_use]
     pub fn duplicate_native_object_in(
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
@@ -1239,7 +1250,11 @@ impl Value {
         ) == tcl_syntax::native_string::NativeObjectHeaderDuplicateAction::CanonicalEmptyString
         {
             let duplicate = Self::new_native_string_bytes(b"".as_slice());
-            *duplicate.0.jim_context.borrow_mut() = self.0.jim_context.borrow().clone();
+            duplicate
+                .0
+                .jim_context
+                .borrow_mut()
+                .clone_from(&self.0.jim_context.borrow());
             return duplicate;
         }
         if protocol.is_jim084()
@@ -1252,7 +1267,11 @@ impl Value {
                 .resident_string_bytes()
                 .expect("native parsed source retains resident bytes");
             let duplicate = Self::new_native_string_bytes(resident.as_ref());
-            *duplicate.0.jim_context.borrow_mut() = self.0.jim_context.borrow().clone();
+            duplicate
+                .0
+                .jim_context
+                .borrow_mut()
+                .clone_from(&self.0.jim_context.borrow());
             return duplicate;
         }
         if matches!(&*self.0.intrep.borrow(), IntRep::NativeBytecode(_)) {
@@ -1269,11 +1288,10 @@ impl Value {
             num_chars,
             ..
         } = &*self.0.intrep.borrow()
+            && !protocol.string_primary_survives_duplicate(*num_chars)
         {
-            if !protocol.string_primary_survives_duplicate(*num_chars) {
-                *duplicate.0.intrep.borrow_mut() = IntRep::Str;
-                return duplicate;
-            }
+            *duplicate.0.intrep.borrow_mut() = IntRep::Str;
+            return duplicate;
         }
         self.copy_native_variable_primary_to(&duplicate);
         let cache = self.0.intrep.borrow();
@@ -1609,7 +1627,7 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
-        policy: crate::compiled::NativeCompilerPolicy,
+        policy: &crate::compiled::NativeCompilerPolicy,
         preparation: tcl_syntax::expr::parser::ExpressionSourceCachePreparation,
     ) -> Result<Rc<[u8]>, tcl_syntax::value::ValueError> {
         let bytes = self.native_string_bytes(protocol).map_err(|error| {
@@ -1618,7 +1636,7 @@ impl Value {
             )
         })?;
         let matches = matches!(&*self.0.intrep.borrow(), IntRep::Expression(cache)
-            if cache.dialect == dialect && &cache.profile == profile && cache.policy == policy);
+            if cache.dialect == dialect && &cache.profile == profile && cache.policy == *policy);
         if !matches
             && preparation
                 == tcl_syntax::expr::parser::ExpressionSourceCachePreparation::BeforeParsing
@@ -1632,12 +1650,12 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
         profile: tcl_dialect::DialectProfileKey,
-        policy: crate::compiled::NativeCompilerPolicy,
+        policy: &crate::compiled::NativeCompilerPolicy,
     ) {
         self.replace_primary(IntRep::Expression(Rc::new(ExpressionCache {
             profile,
             dialect,
-            policy,
+            policy: *policy,
             node: None,
             jim: None,
         })));
@@ -1647,13 +1665,13 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
-        policy: crate::compiled::NativeCompilerPolicy,
+        policy: &crate::compiled::NativeCompilerPolicy,
     ) -> Option<tcl_syntax::expr::NativeExprNode> {
         match &*self.0.intrep.borrow() {
             IntRep::Expression(cache)
                 if cache.dialect == dialect
                     && &cache.profile == profile
-                    && cache.policy == policy =>
+                    && cache.policy == *policy =>
             {
                 cache.node.clone()
             }
@@ -1678,14 +1696,14 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
         profile: &tcl_dialect::DialectProfileKey,
-        policy: crate::compiled::NativeCompilerPolicy,
+        policy: &crate::compiled::NativeCompilerPolicy,
     ) -> bool {
-        matches!(&*self.0.intrep.borrow(), IntRep::Expression(cache) if cache.dialect == dialect && &cache.profile == profile && cache.policy == policy && cache.node.is_none())
+        matches!(&*self.0.intrep.borrow(), IntRep::Expression(cache) if cache.dialect == dialect && &cache.profile == profile && cache.policy == *policy && cache.node.is_none())
     }
 
     pub(crate) fn install_jim_expression(
         &self,
-        input: JimExpressionInstall<'_>,
+        input: &JimExpressionInstall<'_>,
     ) -> Result<(), tcl_syntax::value::ValueError> {
         use tcl_syntax::expr::native_objects::{JimExpressionObjects, JimExpressionTermValue};
         let context = self.native_jim_context()?;
@@ -1729,7 +1747,7 @@ impl Value {
         };
         let original = self.clone();
         Some(Box::new(move || {
-            original.replace_primary(IntRep::Expression(cache))
+            original.replace_primary(IntRep::Expression(cache));
         }))
     }
 
@@ -1737,7 +1755,7 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
         profile: tcl_dialect::DialectProfileKey,
-        policy: crate::compiled::NativeCompilerPolicy,
+        policy: &crate::compiled::NativeCompilerPolicy,
         node: &tcl_syntax::expr::NativeExprNode,
     ) {
         if self.native_jim_expression_objects().is_some()
@@ -1748,7 +1766,7 @@ impl Value {
         self.replace_primary(IntRep::Expression(Rc::new(ExpressionCache {
             profile,
             dialect,
-            policy,
+            policy: *policy,
             node: Some(node.clone()),
             jim: None,
         })));
@@ -1940,6 +1958,13 @@ impl Value {
         ) {
             return self.materialize_native_compound(protocol, formatter);
         }
+        self.materialize_native_cache_string(protocol)
+    }
+
+    fn materialize_native_cache_string(
+        &self,
+        protocol: NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
         if let IntRep::JimIndex(index) = &*self.0.intrep.borrow() {
             if protocol != NativeStringProtocol::Jim084 {
                 return Err(
@@ -2012,6 +2037,13 @@ impl Value {
         ) {
             return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
         }
+        self.materialize_native_bytearray_string(protocol)
+    }
+
+    fn materialize_native_bytearray_string(
+        &self,
+        protocol: NativeStringProtocol,
+    ) -> Result<Rc<[u8]>, tcl_syntax::native_string::NativeStringUnavailable> {
         let backing = match &*self.0.intrep.borrow() {
             IntRep::ByteArray(backing) => Some(Rc::clone(backing)),
             _ => None,
@@ -2061,7 +2093,7 @@ impl Value {
                     Self::List(items) => &items[index],
                     Self::Dictionary(pairs) => {
                         let (key, value) = &pairs[index / 2];
-                        if index % 2 == 0 { key } else { value }
+                        if index.is_multiple_of(2) { key } else { value }
                     }
                 }
             }
@@ -2201,7 +2233,6 @@ impl Value {
         number: Number,
         version: tcl_dialect::TclVersion,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         self.check_native_header()?;
         if version < tcl_dialect::TclVersion::V8_5 || self.resident_string_bytes().is_none() {
             return Err(ValueError::CommandProtocolUnavailable(
@@ -2256,7 +2287,6 @@ impl Value {
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
-        use tcl_syntax::value::ValueError;
         let selected =
             dialect
                 .native_string_protocol()
@@ -2340,7 +2370,7 @@ impl Value {
 
     /// Install a descriptor on this same original resident-string object.
     /// Live command-world validation remains the caller's responsibility.
-    /// Compiler priming uses the separate native SetCmdName early-return operation.
+    /// Compiler priming uses the separate native `SetCmdName` early-return operation.
     ///
     /// # Errors
     /// Refuses foreign origins or absent original resident spelling.
@@ -2362,7 +2392,7 @@ impl Value {
         Ok(())
     }
 
-    /// Execute compile-time SetCmdName's independently selected early-return rule.
+    /// Execute compile-time `SetCmdName`'s independently selected early-return rule.
     ///
     /// # Errors
     /// Refuses unsupported origins or absent resident spelling.
@@ -2498,7 +2528,6 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
         resident: Option<(Rc<[u8]>, NativeStringStorageIdentity)>,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         if dialect.native_string_protocol()
             != Some(tcl_syntax::native_string::NativeStringProtocol::C(origin))
         {
@@ -2815,6 +2844,20 @@ impl Value {
                 self.native_scalar_cache()
                     .expect("matched numeric primary representation"),
             ),
+            _ => self.native_named_primary_snapshot(),
+        };
+        NativeObjectSnapshot {
+            storage: self.resident_string_storage_identity(),
+            resident,
+            cache,
+        }
+    }
+
+    fn native_named_primary_snapshot(
+        &self,
+    ) -> tcl_syntax::native_object::NativeObjectCacheSnapshot {
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        match &*self.0.intrep.borrow() {
             IntRep::NativeCommandName(cache) => Cache::CommandName {
                 version: cache.version,
                 resolved: true,
@@ -2860,17 +2903,6 @@ impl Value {
             },
             IntRep::JimDictionarySubstitution { .. } => Cache::JimDictionarySubstitution,
             IntRep::JimInterpolated(_) => Cache::JimInterpolated,
-            IntRep::JimSource(_)
-            | IntRep::JimScriptLine { .. }
-            | IntRep::Expression(_)
-            | IntRep::CompletionCode(_)
-            | IntRep::NativeArraySearch { .. }
-            | IntRep::FrameLevel { .. }
-            | IntRep::NativePropertyName(_)
-            | IntRep::NativeMethodName(_)
-            | IntRep::NativeRegexp(_)
-            | IntRep::JimRegexp(_)
-            | IntRep::JimIndex(_) => Cache::Other,
             IntRep::NativeInstructionName(name) => Cache::InstructionName {
                 version: name.version(),
                 opcode: name.opcode(),
@@ -2880,11 +2912,7 @@ impl Value {
                 index: cache.index(),
                 stride: cache.stride(),
             },
-        };
-        NativeObjectSnapshot {
-            storage: self.resident_string_storage_identity(),
-            resident,
-            cache,
+            _ => Cache::Other,
         }
     }
 
@@ -2965,15 +2993,14 @@ impl Value {
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
-        let admitted = match (protocol.tcl_version(), protocol.is_jim084(), &cache) {
+        let admitted = matches!(
+            (protocol.tcl_version(), protocol.is_jim084(), &cache),
             (
                 Some(tcl_dialect::TclVersion::V8_4),
                 false,
-                NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_)),
-            ) => true,
-            (None, true, NativeScalarCache::Number(Number::Int(_))) => true,
-            _ => false,
-        };
+                NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_))
+            ) | (None, true, NativeScalarCache::Number(Number::Int(_)))
+        );
         if !admitted {
             return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
         }
@@ -2992,7 +3019,6 @@ impl Value {
         protocol: NativeScalarGetterProtocol,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         let rep = match cache {
             NativeScalarCache::Tcl84Long(value) => {
                 if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
@@ -3073,7 +3099,6 @@ impl Value {
         tcl_syntax::value::ValueError,
     > {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .ok_or(ValueError::ScalarNumericInputUnavailable)?;
@@ -3146,7 +3171,6 @@ impl Value {
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<bool, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
@@ -3216,7 +3240,7 @@ impl Value {
         Ok(true)
     }
 
-    /// Withdraw a reached numeric string after C8.4 TRY_CVT_TO_NUMERIC.
+    /// Withdraw a reached numeric string after C8.4 `TRY_CVT_TO_NUMERIC`.
     /// Shared resident headers copy only their physical numeric cache; absent
     /// resident storage keeps the original header and its real owners.
     pub(crate) fn normalize_native_expression_number84(
@@ -3224,9 +3248,9 @@ impl Value {
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
-        if !dialect
+        if dialect
             .native_scalar_getter_protocol()
-            .is_some_and(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
+            .is_none_or(|protocol| protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4))
         {
             return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
         }
@@ -3308,7 +3332,6 @@ impl Value {
         tcl_syntax::value::ValueError,
     > {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         let protocol = dialect
             .native_scalar_getter_protocol()
             .filter(|protocol| protocol.supports_number_getter())
@@ -3418,7 +3441,6 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         let protocol = dialect
             .native_frame_level_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
@@ -3444,7 +3466,6 @@ impl Value {
         cache: tcl_registry::NativeFrameLevelCache,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         let protocol = dialect
             .native_frame_level_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
@@ -3478,7 +3499,6 @@ impl Value {
         kind: NativeScalarGetterKind,
         environment: Option<&dyn tcl_platform::NumericEnvironment>,
     ) -> Result<NativeScalarGetterValue, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         match self.native_scalar_probe_with_environment(dialect, kind, environment)? {
             Ok(value) => Ok(value),
             Err(failure) => {
@@ -3638,7 +3658,7 @@ impl Value {
         Self::from_parts(None, IntRep::Int(n))
     }
 
-    /// Set a genuinely unshared compiled-loop counter through Tcl_SetLongObj.
+    /// Set a genuinely unshared compiled-loop counter through `Tcl_SetLongObj`.
     /// The same header remains owned by its anonymous local; conversion caches
     /// and integer getters do not implement this mutation boundary.
     pub(crate) fn set_native_loop_counter(
@@ -3649,7 +3669,7 @@ impl Value {
         self.set_native_unshared_integer(count, version)
     }
 
-    /// Tcl_SetInt/LongObj on an actual unshared header, preserving its identity.
+    /// `Tcl_SetInt/LongObj` on an actual unshared header, preserving its identity.
     pub(crate) fn set_native_unshared_integer(
         &self,
         count: i64,
@@ -3775,7 +3795,6 @@ impl Value {
         unicode: Rc<[u32]>,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         let protocol =
             dialect
                 .native_string_protocol()
@@ -3947,7 +3966,7 @@ impl Value {
         *self.0.source_location.borrow_mut() = None;
     }
 
-    /// LAPPEND_LIST validates/converts its original receiver before header COW.
+    /// `LAPPEND_LIST` validates/converts its original receiver before header COW.
     pub(crate) fn native_list_append_list_elements(
         &self,
         elements: &[Self],
@@ -3963,7 +3982,7 @@ impl Value {
         Ok(value)
     }
 
-    /// LIST_CONCAT duplicates the target before source List conversion.
+    /// `LIST_CONCAT` duplicates the target before source List conversion.
     pub(crate) fn native_list_concatenate(
         &self,
         source: &Self,
@@ -3984,9 +4003,9 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
-        if !protocol
+        if protocol
             .tcl_version()
-            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+            .is_none_or(|version| version < tcl_dialect::TclVersion::V9_0)
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "C9 full List range",
@@ -4028,7 +4047,7 @@ impl Value {
         }
     }
 
-    /// Reach TclListObjCopy: convert the original, then create a fresh header
+    /// Reach `TclListObjCopy`: convert the original, then create a fresh header
     /// with absent string storage sharing the authentic whole List backing.
     /// This purpose belongs to C Tcl 8.5 and later, independently of ordinary
     /// header duplication and the lifetime-only inspection view.
@@ -4036,9 +4055,9 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
     ) -> Result<Self, tcl_syntax::value::ValueError> {
-        if !protocol
+        if protocol
             .tcl_version()
-            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
+            .is_none_or(|version| version < tcl_dialect::TclVersion::V8_5)
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "TclListObjCopy",
@@ -4184,6 +4203,11 @@ impl Value {
         Self::dict_with_hash_bucket_count(pairs, buckets)
     }
 
+    /// Retain a dictionary member's existing native header after its view closes.
+    pub(crate) fn retain_borrowed_member(original: Option<&Self>) -> Option<Self> {
+        original.cloned()
+    }
+
     /// Borrow an original cached dictionary member before acquiring a working value handle.
     pub(crate) fn with_cached_dictionary_member<R>(
         &self,
@@ -4312,9 +4336,9 @@ impl Value {
         self,
         protocol: NativeStringProtocol,
     ) -> Result<NativeDictionarySearch, tcl_syntax::value::ValueError> {
-        if !protocol
+        if protocol
             .tcl_version()
-            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_5)
+            .is_none_or(|version| version < tcl_dialect::TclVersion::V8_5)
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native C Dictionary search",
@@ -4354,7 +4378,6 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Vec<(Value, Value)>, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         if let Some(pairs) = self.cached_dictionary_representation() {
             return Ok(pairs);
         }
@@ -4473,16 +4496,15 @@ impl Value {
             }
         }
         if end < bytes.len() {
-            if !self.native_object_is_shared() {
-                // Decide physical uniqueness before creating a return handle.
-                // The native suffix cut retains an already cached Jim count.
-                *self.0.string.borrow_mut() = Some(RawString::from_bytes(&bytes[..end]));
-                self.0
-                    .string_storage
-                    .set(NativeStringStorageIdentity::Allocated);
-            } else {
+            if self.native_object_is_shared() {
                 return Self::new_native_string_bytes(&bytes[..end]);
             }
+            // Decide physical uniqueness before creating a return handle.
+            // The native suffix cut retains an already cached Jim count.
+            *self.0.string.borrow_mut() = Some(RawString::from_bytes(&bytes[..end]));
+            self.0
+                .string_storage
+                .set(NativeStringStorageIdentity::Allocated);
         }
         self.clone()
     }
@@ -4582,7 +4604,6 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
     ) -> Result<usize, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         if representation.preserves_short_string()
             && let Some(bytes) = self.resident_string_bytes()
             && bytes.len() < 2
@@ -4646,7 +4667,6 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<Rc<[u32]>, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         let version = protocol
             .tcl_version()
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -4796,6 +4816,67 @@ impl Value {
                 ),
                 false,
             ),
+            cache @ (IntRep::Int(_)
+            | IntRep::Tcl84Long(_)
+            | IntRep::CoercedDouble(_)
+            | IntRep::Big { .. }
+            | IntRep::Double(_)
+            | IntRep::Bool(_)
+            | IntRep::WordBoolean { .. }
+            | IntRep::NativeIndex { .. }
+            | IntRep::NativeNamespaceName(_)
+            | IntRep::JimIndex(_)
+            | IntRep::NativeInstructionName(_)) => (self.render_native_cache_bytes(cache), false),
+            IntRep::CompletionCode(_)
+            | IntRep::NativeArraySearch { .. }
+            | IntRep::FrameLevel { .. }
+            | IntRep::NativePropertyName(_)
+            | IntRep::NativeMethodName(_)
+            | IntRep::NativeRegexp(_)
+            | IntRep::JimRegexp(_)
+            | IntRep::NativeCommandName(_)
+            | IntRep::NativeCommandNameUnresolved(_)
+            | IntRep::JimCommand(_)
+            | IntRep::JimVariable(_)
+            | IntRep::JimOption(_)
+            | IntRep::NativeParsedVariableName(_)
+            | IntRep::NativeLocalVariableName(_) => {
+                panic!(
+                    "completion-code cache has no native string updater; use checked native string access"
+                )
+            }
+            IntRep::List { items, .. } => Self::render_list_bytes(items.iter(), depth),
+            IntRep::Dict(dict) => Self::render_list_bytes(
+                dict.pairs_backing()
+                    .iter()
+                    .flat_map(|(key, value)| [key, value]),
+                depth,
+            ),
+        };
+        if !past_cap {
+            self.cache_generated_raw_string(&generated);
+        }
+        (generated, past_cap)
+    }
+
+    fn cache_generated_raw_string(&self, generated: &RawString) {
+        *self.0.string.borrow_mut() = Some(generated.clone());
+        if let IntRep::List { canonical, .. } = &mut *self.0.intrep.borrow_mut() {
+            canonical.set(true);
+        }
+        self.0.string_storage.set(
+            if generated.bytes().is_empty()
+                && matches!(*self.0.intrep.borrow(), IntRep::NativeNamespaceName(_))
+            {
+                NativeStringStorageIdentity::CanonicalEmpty
+            } else {
+                NativeStringStorageIdentity::Allocated
+            },
+        );
+    }
+
+    fn render_native_cache_bytes(&self, cache: &IntRep) -> RawString {
+        let (bytes, _) = match cache {
             IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => {
                 (RawString::from_unicode(n.to_string()), false)
             }
@@ -4854,48 +4935,9 @@ impl Value {
                 RawString::from_bytes(Rc::<[u8]>::from(name.string_bytes())),
                 false,
             ),
-            IntRep::CompletionCode(_)
-            | IntRep::NativeArraySearch { .. }
-            | IntRep::FrameLevel { .. }
-            | IntRep::NativePropertyName(_)
-            | IntRep::NativeMethodName(_)
-            | IntRep::NativeRegexp(_)
-            | IntRep::JimRegexp(_)
-            | IntRep::NativeCommandName(_)
-            | IntRep::NativeCommandNameUnresolved(_)
-            | IntRep::JimCommand(_)
-            | IntRep::JimVariable(_)
-            | IntRep::JimOption(_)
-            | IntRep::NativeParsedVariableName(_)
-            | IntRep::NativeLocalVariableName(_) => {
-                panic!(
-                    "completion-code cache has no native string updater; use checked native string access"
-                )
-            }
-            IntRep::List { items, .. } => Self::render_list_bytes(items.iter(), depth),
-            IntRep::Dict(dict) => Self::render_list_bytes(
-                dict.pairs_backing()
-                    .iter()
-                    .flat_map(|(key, value)| [key, value]),
-                depth,
-            ),
+            _ => unreachable!("scalar cache renderer selected for another primary"),
         };
-        if !past_cap {
-            *self.0.string.borrow_mut() = Some(generated.clone());
-            if let IntRep::List { canonical, .. } = &mut *self.0.intrep.borrow_mut() {
-                canonical.set(true);
-            }
-            self.0.string_storage.set(
-                if generated.bytes().is_empty()
-                    && matches!(*self.0.intrep.borrow(), IntRep::NativeNamespaceName(_))
-                {
-                    NativeStringStorageIdentity::CanonicalEmpty
-                } else {
-                    NativeStringStorageIdentity::Allocated
-                },
-            );
-        }
-        (generated, past_cap)
+        bytes
     }
 
     fn render_list_bytes<'a>(
@@ -4988,7 +5030,6 @@ impl Value {
         input: number::NativeScalarNumericInputPolicy,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<i64, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         if let Some(value) = self.restore_coerced_integer() {
             return Ok(value);
         }
@@ -5018,7 +5059,6 @@ impl Value {
         input: number::NativeScalarNumericInputPolicy,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<bool, tcl_syntax::value::ValueError> {
-        use tcl_syntax::value::ValueError;
         match *self.0.intrep.borrow() {
             IntRep::Int(value) | IntRep::Tcl84Long(value) => return Ok(value != 0),
             IntRep::Bool(value) => return Ok(value),
@@ -5309,7 +5349,6 @@ impl Value {
         protocol: tcl_syntax::native_string::NativeStringProtocol,
     ) -> Result<crate::NativeListItems, tcl_syntax::value::ValueError> {
         self.check_native_header()?;
-        use tcl_syntax::value::ValueError;
         self.seal_compound_string_protocol(protocol)
             .map_err(|error| {
                 ValueError::NativeStringAccess(

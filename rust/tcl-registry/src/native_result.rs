@@ -335,7 +335,10 @@ mod tests {
                 None
             );
             assert_eq!(
-                selected.created_representation(dialect, Default::default()),
+                selected.created_representation(
+                    dialect,
+                    crate::native_compilation::NativeCompilationContext::default(),
+                ),
                 ValueRepresentation::Unknown
             );
             let empty = InvocationArguments::literals(&["prefix", "a b c", "3", "end"])
@@ -585,7 +588,10 @@ mod tests {
                 expected
             );
             assert_eq!(
-                selection.created_representation(dialect, Default::default()),
+                selection.created_representation(
+                    dialect,
+                    crate::native_compilation::NativeCompilationContext::default(),
+                ),
                 tcl_syntax::value::ValueRepresentation::Unknown
             );
         }

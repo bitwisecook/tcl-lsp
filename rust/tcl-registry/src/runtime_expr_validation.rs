@@ -785,7 +785,7 @@ mod tests {
         ] {
             let outcomes = rows.split("ROW ").skip(1).collect::<Vec<_>>();
             assert_eq!(outcomes.len(), 10);
-            for pair in outcomes.chunks_exact(2) {
+            for pair in outcomes.as_chunks::<2>().0 {
                 assert_eq!(
                     pair[0].replace("original", "procedure"),
                     pair[1].replace("rewritten", "procedure")

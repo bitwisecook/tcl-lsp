@@ -156,7 +156,7 @@ impl CompiledUnit {
         source_namespace: tcl_core_types::ByteNamespacePath,
         profile_generation: u64,
         command_epoch: u64,
-        native_cache: Option<NativeCompilerCacheStamp>,
+        native_cache: Option<&NativeCompilerCacheStamp>,
         interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
         compiler: CompilerProvenance,
     ) -> Self {
@@ -183,7 +183,7 @@ impl CompiledUnit {
             source_namespace,
             profile_generation,
             command_epoch,
-            native_cache,
+            native_cache: native_cache.copied(),
             interpreter,
             compiler,
             fatal_tail: None,

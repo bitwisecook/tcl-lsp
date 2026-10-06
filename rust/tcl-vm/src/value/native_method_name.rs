@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Original TclOO method-name primary owning its actual shared call chain.
-use super::*;
+//! Original `TclOO` method-name primary owning its actual shared call chain.
+use super::{IntRep, Rc, Value};
 use crate::cmd_oo::native_method_cache::NativeMethodChain;
 impl Value {
     pub(crate) fn native_method_name_chain(&self) -> Option<Rc<NativeMethodChain>> {

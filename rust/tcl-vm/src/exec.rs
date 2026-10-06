@@ -410,6 +410,15 @@ pub(crate) struct EachLoopGroup {
     pub(crate) value_items: Option<crate::NativeListItems>,
 }
 /// Original argv, selected header/iterator receipts, and delayed body activation.
+#[derive(Clone, Copy)]
+struct NativeWordDispatch<'a> {
+    selected_key: &'a Option<String>,
+    sidecar_handle: Option<&'a CommandSidecarHandle>,
+    entered: Option<&'a EnteredCommand>,
+    context: tcl_core_types::NsId,
+    usage: &'a [crate::command::NativeArgumentUsageRewrite],
+}
+
 pub(crate) struct EachLoopReq {
     pub(crate) protocol: tcl_registry::native_each_loop::NativeEachLoopProtocol,
     pub(crate) groups: Vec<EachLoopGroup>,
@@ -587,7 +596,7 @@ impl Frame {
         &self,
         current_profile: u64,
         current_compiler: u64,
-        current_policy: crate::compiled::NativeCompilerPolicy,
+        current_policy: &crate::compiled::NativeCompilerPolicy,
     ) -> Option<&'static str> {
         if self.each_loop.is_some() {
             None
@@ -600,7 +609,7 @@ impl Frame {
             Some("cannot continue direct source after native invocation policy changed")
         } else if self
             .native_policy
-            .is_some_and(|policy| policy != current_policy)
+            .is_some_and(|policy| &policy != current_policy)
         {
             Some("cannot continue bytecode after native invocation policy changed")
         } else if self
@@ -1262,7 +1271,7 @@ fn cmp(vm: &mut Vm, f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
 fn land_lor(vm: &mut Vm, f: &mut Frame, is_and: bool) -> Result<(), Completion<Value>> {
     let b = pop(f);
     let a = pop(f);
-    let value = expr::native_logical_in(vm.numeric_context(), a, b, is_and)
+    let value = expr::native_logical_in(vm.numeric_context(), a, &b, is_and)
         .map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;
     f.stack.push(value);
     Ok(())
@@ -1726,7 +1735,7 @@ impl Vm {
                 frame.cleanup_proc = cleanup_proc;
                 frame.fatal_tail = fatal_tail.or(frame.fatal_tail);
                 if let ScriptNamespace::CommandBoundary(namespace) = namespace {
-                    match self.enter_replay_namespace(namespace) {
+                    match self.enter_replay_namespace(&namespace) {
                         Ok(previous) => frame.replay_namespace_restore = previous,
                         Err(message) => {
                             if let Some(name) = frame.cleanup_proc.take() {
@@ -2003,7 +2012,7 @@ impl Vm {
                 frame.stale_compilation_message(
                     current_profile,
                     current_compiler,
-                    self.native_compiler_policy(),
+                    &self.native_compiler_policy(),
                 )
             })
             .or_else(|| {
@@ -2031,7 +2040,7 @@ impl Vm {
                 .stale_compilation_message(
                     current_profile,
                     current_compiler,
-                    self.native_compiler_policy(),
+                    &self.native_compiler_policy(),
                 )
                 .or_else(|| frame.namespace_stale_message(current_namespace))
         })
@@ -2371,6 +2380,54 @@ impl Vm {
         tailcall
     }
 
+    fn settle_unwound_activation(
+        &mut self,
+        act: &mut Frame,
+        acts: &mut Vec<Frame>,
+        mut c: Completion<Value>,
+    ) -> Result<(Completion<Value>, Option<TailcallReq>), ()> {
+        let tailcall = self.unwind_activation_state(act, acts, &mut c);
+        // `catch` and `try` still have command-owned completion work below:
+        // catch absorbs its body's completion, while try may advance through
+        // several handler/finally phase activations. Their execution-trace
+        // leave contexts therefore settle only after that work is complete.
+        // Every other activation settles here, preserving the established
+        // proc-boundary and apply-cleanup ordering.
+        let defer_exec_leave = act.catch.is_some()
+            || act.try_ctx.is_some()
+            || act.control.is_some()
+            || act.expression.is_some();
+        if !defer_exec_leave && !act.exec_leave.is_empty() {
+            c = self.settle_exec_leaves(&mut act.exec_leave, c);
+        }
+        // `apply`'s temporary lambda proc is torn down here, once its script
+        // activation completes — on every completion code, matching a
+        // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
+        // `eval_source` returns.
+        if let Some(name) = act.cleanup_proc.take() {
+            self.take_command_unchecked(&name);
+        }
+        // A `catch` activation absorbs the body's completion of *any* code:
+        // its epilogue binds the result / options variables and yields the
+        // status code as an integer, delivered to the parent as this `catch`
+        // command's result (`exit` stays uncatchable — `finish_catch` passes
+        // it straight through).
+        c = match self.settle_control_activation(act, acts, c) {
+            Ok(completion) => completion,
+            Err(()) => return Err(()),
+        };
+        // Settle a traced catch only after its body completion has been
+        // absorbed into catch's successful integer result. A traced try
+        // reaches here only for its final delivered phase; intermediate
+        // phases transferred these contexts above. A leave-trace failure
+        // now escapes the completed control command instead of being
+        // caught or handled by that same command.
+        if defer_exec_leave && !act.exec_leave.is_empty() {
+            c = self.settle_exec_leaves(&mut act.exec_leave, c);
+        }
+        Ok((c, tailcall))
+    }
+
     fn unwind(
         &mut self,
         acts: &mut Vec<Frame>,
@@ -2398,45 +2455,10 @@ impl Vm {
             // runtime error in the same position.  An earlier command's own
             // completion wins, exactly as in `catch`/`try`.
             act.close_native_script();
-            let tailcall = self.unwind_activation_state(&mut act, acts, &mut c);
-            // `catch` and `try` still have command-owned completion work below:
-            // catch absorbs its body's completion, while try may advance through
-            // several handler/finally phase activations. Their execution-trace
-            // leave contexts therefore settle only after that work is complete.
-            // Every other activation settles here, preserving the established
-            // proc-boundary and apply-cleanup ordering.
-            let defer_exec_leave = act.catch.is_some()
-                || act.try_ctx.is_some()
-                || act.control.is_some()
-                || act.expression.is_some();
-            if !defer_exec_leave && !act.exec_leave.is_empty() {
-                c = self.settle_exec_leaves(&mut act.exec_leave, c);
-            }
-            // `apply`'s temporary lambda proc is torn down here, once its script
-            // activation completes — on every completion code, matching a
-            // nested-drive `cmd_apply`'s unconditional `vm.take_command` after
-            // `eval_source` returns.
-            if let Some(name) = act.cleanup_proc.take() {
-                self.take_command_unchecked(&name);
-            }
-            // A `catch` activation absorbs the body's completion of *any* code:
-            // its epilogue binds the result / options variables and yields the
-            // status code as an integer, delivered to the parent as this `catch`
-            // command's result (`exit` stays uncatchable — `finish_catch` passes
-            // it straight through).
-            c = match self.settle_control_activation(&mut act, acts, c) {
-                Ok(completion) => completion,
-                Err(()) => return None,
+            let Ok((settled, tailcall)) = self.settle_unwound_activation(&mut act, acts, c) else {
+                return None;
             };
-            // Settle a traced catch only after its body completion has been
-            // absorbed into catch's successful integer result. A traced try
-            // reaches here only for its final delivered phase; intermediate
-            // phases transferred these contexts above. A leave-trace failure
-            // now escapes the completed control command instead of being
-            // caught or handled by that same command.
-            if defer_exec_leave && !act.exec_leave.is_empty() {
-                c = self.settle_exec_leaves(&mut act.exec_leave, c);
-            }
+            c = settled;
             // Crossing an activation boundary is itself a provenance
             // consumption point. In particular, a freshly compiled computed-
             // head try handler/finally must not return through a proc made stale
@@ -2471,7 +2493,7 @@ impl Vm {
             // unwinding (an error, or an uncaught `return`).
             if acts.last().is_some_and(|p| p.each_loop.is_some()) {
                 let parent = acts.last_mut().expect("each_loop parent present");
-                match self.fold_each_loop(parent, c) {
+                match Self::fold_each_loop(parent, c) {
                     EachLoopFold::Resume => return None,
                     EachLoopFold::Unwind(nc) => {
                         c = nc;
@@ -2935,21 +2957,20 @@ impl Vm {
         if !skip_bindings && self.recursion_depth() >= self.recursion_limit() {
             return Err(err("too many nested evaluations (infinite loop?)"));
         }
-        let call_argv = proc
-            .call_identity
-            .as_ref()
-            .map(|words| {
-                words
-                    .iter()
-                    .map(|word| word.native_lifetime_lease().into_value())
-                    .collect()
-            })
-            .unwrap_or_else(|| {
+        let call_argv = proc.call_identity.as_ref().map_or_else(
+            || {
                 let mut words = Vec::with_capacity(argv.len() + 1);
                 words.push(invoked.clone());
                 words.extend(argv.iter().cloned());
                 words
-            });
+            },
+            |words| {
+                words
+                    .iter()
+                    .map(|word| word.native_lifetime_lease().into_value())
+                    .collect()
+            },
+        );
         self.push_call_frame(Some(proc.actual_name()), call_argv);
         if let Some(namespace) = proc.retained_jim_namespace() {
             self.install_jim_procedure_namespace_owner(proc.actual_namespace_id(), namespace);
@@ -3036,7 +3057,7 @@ impl Vm {
             };
             match proc.parameter_grammar {
                 tcl_dialect::ParameterGrammar::Tcl => {
-                    self.bind_compiled_formal_slot(parameter_slot, value)?
+                    self.bind_compiled_formal_slot(parameter_slot, value)?;
                 }
                 tcl_dialect::ParameterGrammar::Jim => self.set_var_bytes(name, value)?,
             }
@@ -3117,48 +3138,8 @@ impl Vm {
                     group.value_items = Some(items);
                 }
                 EachLoopAction::Refresh(index) => {
-                    let group = &mut st.request.groups[index];
-                    group.variable_items = None;
-                    let variables = match self
-                        .native_object_list_elements_in(group.variables.value(), strings)
-                    {
-                        Ok(items) => items,
-                        Err(error) if recipe.refetches_groups() => {
-                            return Tick::Return(self.refuse_host_command(format!("native Tcl 8.4 each-loop variable-list refetch fatal boundary: {error}")));
-                        }
-                        Err(error) => {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
-                            ));
-                        }
-                    };
-                    let count = variables.len();
-                    group.variable_items = Some(variables);
-                    if !recipe.live_iterators() || st.request.cursor.variable_cursor() < count {
-                        group.value_items = None;
-                        let values = match self
-                            .native_object_list_elements_in(group.values.value(), strings)
-                        {
-                            Ok(items) => items,
-                            Err(error) if recipe.refetches_groups() => {
-                                return Tick::Return(self.refuse_host_command(format!("native Tcl 8.4 each-loop value-list refetch fatal boundary: {error}")));
-                            }
-                            Err(error) => {
-                                return Tick::Return(crate::command::completion_from_cmd_error(
-                                    self,
-                                    error.into(),
-                                ));
-                            }
-                        };
-                        st.request.cursor.set_lengths(index, count, values.len());
-                        group.value_items = Some(values);
-                    } else {
-                        st.request.cursor.set_lengths(
-                            index,
-                            count,
-                            group.value_items.as_ref().map_or(0, |items| items.len()),
-                        );
+                    if let Err(tick) = self.refresh_each_loop_group(st, index, strings) {
+                        return *tick;
                     }
                 }
                 EachLoopAction::Assign {
@@ -3196,45 +3177,8 @@ impl Vm {
                     }
                 }
                 EachLoopAction::Body => {
-                    let body = st.request.body.value();
-                    match crate::command::original_script_list(
-                        self,
-                        body,
-                        tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
-                    ) {
-                        Ok(Some(words)) => {
-                            return Tick::PushControl {
-                                state: crate::cmd_control::ControlState::object_body_eval(
-                                    body.clone(),
-                                    words,
-                                ),
-                                placeholder: self.current_placeholder_unit(),
-                            };
-                        }
-                        Err(completion) => return Tick::Return(completion),
-                        Ok(None) => {}
-                    }
-                    if !recipe.live_iterators() {
-                        st.body_owner = Some(body.clone());
-                    }
-                    let completion = match self.prepare_script_commands_value(body) {
-                        Ok(prepared) if prepared.prefix.is_some() => {
-                            return Tick::PushScript {
-                                script: prepared.prefix.expect("selected prefix"),
-                                label: None,
-                                cleanup_proc: None,
-                                fatal_tail: prepared.fatal_tail,
-                                namespace: ScriptNamespace::Inherit,
-                            };
-                        }
-                        Ok(prepared) => prepared
-                            .fatal_tail
-                            .map_or_else(|| ok(Value::empty()), |tail| self.raise_fatal_tail(tail)),
-                        Err(error) => crate::command::completion_from_tcl_error(self, error),
-                    };
-                    match self.fold_each_loop(f, completion) {
-                        EachLoopFold::Resume => {}
-                        EachLoopFold::Unwind(completion) => return Tick::Return(completion),
+                    if let Err(tick) = self.enter_each_loop_body(f) {
+                        return *tick;
                     }
                 }
                 EachLoopAction::Finish => {
@@ -3264,6 +3208,105 @@ impl Vm {
                 }
             }
         }
+    }
+
+    fn refresh_each_loop_group(
+        &mut self,
+        st: &mut EachLoopState,
+        index: usize,
+        strings: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<(), Box<Tick>> {
+        let recipe = st.request.protocol.recipe();
+
+        let group = &mut st.request.groups[index];
+        group.variable_items = None;
+        let variables = match self.native_object_list_elements_in(group.variables.value(), strings)
+        {
+            Ok(items) => items,
+            Err(error) if recipe.refetches_groups() => {
+                return Err(Box::new(Tick::Return(self.refuse_host_command(format!(
+                    "native Tcl 8.4 each-loop variable-list refetch fatal boundary: {error}"
+                )))));
+            }
+            Err(error) => {
+                return Err(Box::new(Tick::Return(
+                    crate::command::completion_from_cmd_error(self, error.into()),
+                )));
+            }
+        };
+        let count = variables.len();
+        group.variable_items = Some(variables);
+        if !recipe.live_iterators() || st.request.cursor.variable_cursor() < count {
+            group.value_items = None;
+            let values = match self.native_object_list_elements_in(group.values.value(), strings) {
+                Ok(items) => items,
+                Err(error) if recipe.refetches_groups() => {
+                    return Err(Box::new(Tick::Return(self.refuse_host_command(format!(
+                        "native Tcl 8.4 each-loop value-list refetch fatal boundary: {error}"
+                    )))));
+                }
+                Err(error) => {
+                    return Err(Box::new(Tick::Return(
+                        crate::command::completion_from_cmd_error(self, error.into()),
+                    )));
+                }
+            };
+            st.request.cursor.set_lengths(index, count, values.len());
+            group.value_items = Some(values);
+        } else {
+            st.request.cursor.set_lengths(
+                index,
+                count,
+                group.value_items.as_ref().map_or(0, |items| items.len()),
+            );
+        }
+
+        Ok(())
+    }
+
+    fn enter_each_loop_body(&mut self, f: &mut Frame) -> Result<(), Box<Tick>> {
+        let st = f.each_loop.as_mut().expect("each-loop state");
+        let recipe = st.request.protocol.recipe();
+
+        let body = st.request.body.value();
+        match crate::command::original_script_list(
+            self,
+            body,
+            tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+        ) {
+            Ok(Some(words)) => {
+                return Err(Box::new(Tick::PushControl {
+                    state: crate::cmd_control::ControlState::object_body_eval(body.clone(), words),
+                    placeholder: self.current_placeholder_unit(),
+                }));
+            }
+            Err(completion) => return Err(Box::new(Tick::Return(completion))),
+            Ok(None) => {}
+        }
+        if !recipe.live_iterators() {
+            st.body_owner = Some(body.clone());
+        }
+        let completion = match self.prepare_script_commands_value(body) {
+            Ok(prepared) if prepared.prefix.is_some() => {
+                return Err(Box::new(Tick::PushScript {
+                    script: prepared.prefix.expect("selected prefix"),
+                    label: None,
+                    cleanup_proc: None,
+                    fatal_tail: prepared.fatal_tail,
+                    namespace: ScriptNamespace::Inherit,
+                }));
+            }
+            Ok(prepared) => prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| self.raise_fatal_tail(tail)),
+            Err(error) => crate::command::completion_from_tcl_error(self, error),
+        };
+        match Self::fold_each_loop(f, completion) {
+            EachLoopFold::Resume => {}
+            EachLoopFold::Unwind(completion) => return Err(Box::new(Tick::Return(completion))),
+        }
+
+        Ok(())
     }
 
     fn each_loop_setter_failure(
@@ -3317,31 +3360,7 @@ impl Vm {
                     return Tick::Return(crate::command::completion_from_tcl_error(self, error));
                 }
                 Ok(ExprEvalStep::Complete(value)) => {
-                    let value = if frame
-                        .expression
-                        .as_ref()
-                        .expect("expression state present")
-                        .normalize
-                    {
-                        match crate::expr::cvt_to_numeric_in(self.numeric_context(), value) {
-                            Ok(value) => {
-                                value.with_native_double_format(self.native_invocation_dialect())
-                            }
-                            Err(error) => {
-                                return Tick::Return(crate::command::completion_from_tcl_error(
-                                    self,
-                                    error.into(),
-                                ));
-                            }
-                        }
-                    } else {
-                        value
-                    };
-                    return Tick::Return(Completion::new(
-                        Code::Ok,
-                        value,
-                        frame.last_options.clone(),
-                    ));
+                    return self.complete_expression(frame, value);
                 }
                 Ok(ExprEvalStep::Request(request)) => request,
             };
@@ -3351,43 +3370,11 @@ impl Vm {
                     start,
                     end,
                 } => {
-                    if let Some(objects) = frame
-                        .expression
-                        .as_ref()
-                        .and_then(|state| state.jim_objects.as_ref())
+                    if let Some(tick) = self.expression_quoted_request(frame, template, start, end)
                     {
-                        let Some((term, original)) = objects.at(start, Some(end)) else {
-                            return Tick::Return(
-                                self.refuse_host_command("original Jim quoted term extent".into()),
-                            );
-                        };
-                        if term.kind == tcl_lexer::ExprTermKind::String {
-                            let value = original.clone();
-                            frame
-                                .expression
-                                .as_mut()
-                                .expect("expression state present")
-                                .state
-                                .resume(value);
-                            continue;
-                        }
+                        return tick;
                     }
-                    let Some(policy) = self.expression_quote_control() else {
-                        return Tick::Return(self.refuse_host_command(
-                            "native expression quote settlement is unavailable".into(),
-                        ));
-                    };
-                    return Tick::PushSubst {
-                        req: SubstReq {
-                            original: None,
-                            control: crate::subst::SubstitutionControl::Expression(policy),
-                            template: template.into(),
-                            backslashes: true,
-                            commands: true,
-                            variables: true,
-                        },
-                        placeholder: self.current_placeholder_unit(),
-                    };
+                    continue;
                 }
                 ExprEvalRequest::Variable { reference, .. } => {
                     match self.expression_variable_reference(frame, &reference) {
@@ -3399,38 +3386,10 @@ impl Vm {
                     text: script,
                     start,
                     end,
-                } => {
-                    let original = match frame
-                        .expression
-                        .as_ref()
-                        .and_then(|state| state.jim_objects.as_ref())
-                    {
-                        Some(objects) => match objects.at(start, Some(end)) {
-                            Some((_, original)) => original.clone(),
-                            None => {
-                                return Tick::Return(self.refuse_host_command(
-                                    "original Jim command term extent".into(),
-                                ));
-                            }
-                        },
-                        None => Value::from_string_bytes(script),
-                    };
-                    match self.prepare_script_commands_value(&original) {
-                        Ok(prepared) if prepared.prefix.is_some() => {
-                            return Tick::PushScript {
-                                script: prepared.prefix.expect("prefix present"),
-                                label: None,
-                                cleanup_proc: None,
-                                fatal_tail: prepared.fatal_tail,
-                                namespace: ScriptNamespace::Inherit,
-                            };
-                        }
-                        Ok(prepared) => prepared
-                            .fatal_tail
-                            .map_or_else(|| ok(Value::empty()), |tail| self.raise_fatal_tail(tail)),
-                        Err(error) => crate::command::completion_from_tcl_error(self, error),
-                    }
-                }
+                } => match self.expression_command_request(frame, script, start, end) {
+                    Ok(completion) => completion,
+                    Err(tick) => return *tick,
+                },
                 ExprEvalRequest::Call { function, args, .. } => {
                     match self.expression_math_call(
                         frame,
@@ -3453,6 +3412,112 @@ impl Vm {
                 .state
                 .resume(completion.result);
         }
+    }
+
+    fn expression_quoted_request(
+        &mut self,
+        frame: &mut Frame,
+        template: Vec<u8>,
+        start: u32,
+        end: u32,
+    ) -> Option<Tick> {
+        if let Some(objects) = frame
+            .expression
+            .as_ref()
+            .and_then(|state| state.jim_objects.as_ref())
+        {
+            let Some((term, original)) = objects.at(start, Some(end)) else {
+                return Some(Tick::Return(
+                    self.refuse_host_command("original Jim quoted term extent".into()),
+                ));
+            };
+            if term.kind == tcl_lexer::ExprTermKind::String {
+                let value = original.clone();
+                frame
+                    .expression
+                    .as_mut()
+                    .expect("expression state present")
+                    .state
+                    .resume(value);
+                return None;
+            }
+        }
+        let Some(policy) = self.expression_quote_control() else {
+            return Some(Tick::Return(self.refuse_host_command(
+                "native expression quote settlement is unavailable".into(),
+            )));
+        };
+        Some(Tick::PushSubst {
+            req: SubstReq {
+                original: None,
+                control: crate::subst::SubstitutionControl::Expression(policy),
+                template: template.into(),
+                backslashes: true,
+                commands: true,
+                variables: true,
+            },
+            placeholder: self.current_placeholder_unit(),
+        })
+    }
+
+    fn expression_command_request(
+        &mut self,
+        frame: &Frame,
+        script: Vec<u8>,
+        start: u32,
+        end: u32,
+    ) -> Result<Completion<Value>, Box<Tick>> {
+        Ok({
+            let original = match frame
+                .expression
+                .as_ref()
+                .and_then(|state| state.jim_objects.as_ref())
+            {
+                Some(objects) => match objects.at(start, Some(end)) {
+                    Some((_, original)) => original.clone(),
+                    None => {
+                        return Err(Box::new(Tick::Return(
+                            self.refuse_host_command("original Jim command term extent".into()),
+                        )));
+                    }
+                },
+                None => Value::from_string_bytes(script),
+            };
+            match self.prepare_script_commands_value(&original) {
+                Ok(prepared) if prepared.prefix.is_some() => {
+                    return Err(Box::new(Tick::PushScript {
+                        script: prepared.prefix.expect("prefix present"),
+                        label: None,
+                        cleanup_proc: None,
+                        fatal_tail: prepared.fatal_tail,
+                        namespace: ScriptNamespace::Inherit,
+                    }));
+                }
+                Ok(prepared) => prepared
+                    .fatal_tail
+                    .map_or_else(|| ok(Value::empty()), |tail| self.raise_fatal_tail(tail)),
+                Err(error) => crate::command::completion_from_tcl_error(self, error),
+            }
+        })
+    }
+
+    fn complete_expression(&mut self, frame: &Frame, value: Value) -> Tick {
+        let value = if frame
+            .expression
+            .as_ref()
+            .expect("expression state present")
+            .normalize
+        {
+            match crate::expr::cvt_to_numeric_in(self.numeric_context(), value) {
+                Ok(value) => value.with_native_double_format(self.native_invocation_dialect()),
+                Err(error) => {
+                    return Tick::Return(crate::command::completion_from_tcl_error(self, error));
+                }
+            }
+        } else {
+            value
+        };
+        Tick::Return(Completion::new(Code::Ok, value, frame.last_options.clone()))
     }
 
     fn expression_variable_reference(
@@ -3646,11 +3711,7 @@ impl Vm {
     }
 
     /// Keep the original body completion and its selected error metadata.
-    fn fold_each_loop(
-        &mut self,
-        parent: &mut Frame,
-        completion: Completion<Value>,
-    ) -> EachLoopFold {
+    fn fold_each_loop(parent: &mut Frame, completion: Completion<Value>) -> EachLoopFold {
         use tcl_cmd_core::native_each_loop::BodyDecision;
         let st = parent.each_loop.as_mut().expect("each-loop state");
         st.body_owner = None;
@@ -4027,8 +4088,7 @@ impl Vm {
                     Ok(asm) => asm,
                     Err(error) => {
                         return Tick::Return(crate::command::completion_from_tcl_error(
-                            self,
-                            error.into(),
+                            self, error,
                         ));
                     }
                 };
@@ -4307,8 +4367,7 @@ impl Vm {
                             Ok(asm) => asm,
                             Err(error) => {
                                 return Tick::Return(crate::command::completion_from_tcl_error(
-                                    self,
-                                    error.into(),
+                                    self, error,
                                 ));
                             }
                         };
@@ -4921,8 +4980,7 @@ impl Vm {
                     Ok(value) => f.stack.push(value),
                     Err(error) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
+                            self, error,
                         ));
                     }
                 }
@@ -5448,8 +5506,7 @@ impl Vm {
                     Ok(value) => f.stack.push(value),
                     Err(error) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
+                            self, error,
                         ));
                     }
                 }
@@ -5537,16 +5594,7 @@ impl Vm {
                 ));
                 let lowered = tcl_syntax::native_glob::lower_c_string_bytes(version, &bytes);
                 let value = Value::new_native_string_bytes(lowered);
-                if !original.native_object_is_shared() {
-                    try_core!(
-                        original.adopt_native_object_representation_with_string_mutation(
-                            &value,
-                            self.native_invocation_dialect(),
-                            tcl_core_types::ResidentStringMutation::Replace
-                        )
-                    );
-                    f.stack.push(original);
-                } else {
+                if original.native_object_is_shared() {
                     let materialization = self
                         .native_invocation_dialect()
                         .native_string_materialization(None)
@@ -5556,6 +5604,15 @@ impl Vm {
                     let materialization = try_core!(materialization);
                     try_core!(value.retain_native_string_representation(materialization));
                     f.stack.push(value);
+                } else {
+                    try_core!(
+                        original.adopt_native_object_representation_with_string_mutation(
+                            &value,
+                            self.native_invocation_dialect(),
+                            tcl_core_types::ResidentStringMutation::Replace
+                        )
+                    );
+                    f.stack.push(original);
                 }
             }
             Op::STR_UPPER | Op::STR_LOWER => {
@@ -5784,7 +5841,7 @@ impl Vm {
                 let native_context = self
                     .native_invocation_dialect()
                     .native_return_options_application(application)
-                    .and_then(|recipe| recipe.inner_context_name())
+                    .and_then(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name)
                     .map(|name| {
                         (
                             name,
@@ -5802,7 +5859,7 @@ impl Vm {
                         application,
                         imm0(instr),
                         i64::from(imm_at(instr, 1)),
-                        options,
+                        &options,
                         result,
                     )
                 } else {
@@ -5851,7 +5908,7 @@ impl Vm {
                     )
                     .is_some()
                 {
-                    crate::native_return_merge::process_stack(self, opts, result)
+                    crate::native_return_merge::process_stack(self, &opts, result)
                 } else {
                     crate::command::apply_return_options(
                         self,
@@ -5908,8 +5965,8 @@ impl Vm {
                         "original fixed math-function handler is unavailable".into(),
                     ));
                 };
-                let args = f.stack.split_off(f.stack.len() - argc);
-                let completion = self.invoke_native_fixed_math_call(&selected, &args);
+                let arguments = f.stack.split_off(f.stack.len() - argc);
+                let completion = self.invoke_native_fixed_math_call(&selected, &arguments);
                 if let Err(completion) = Self::deliver_sync(f, completion) {
                     return Tick::Return(completion);
                 }
@@ -6580,11 +6637,9 @@ impl Vm {
             Op::RESOLVE_CMD => {
                 let original = pop(f);
                 match self.native_namespace_command_name(&original, false) {
-                    Ok(bytes) => f.stack.push(
-                        bytes
-                            .map(Value::from_native_string_bytes)
-                            .unwrap_or_else(Value::empty),
-                    ),
+                    Ok(bytes) => f
+                        .stack
+                        .push(bytes.map_or_else(Value::empty, Value::from_native_string_bytes)),
                     Err(error) => return Tick::Return(self.refuse_host_command(error.to_string())),
                 }
             }
@@ -6736,7 +6791,7 @@ impl Vm {
             }
             Op::TCLOO_NEXT | Op::TCLOO_NEXT4 => try_op!(self.tcloo_next(f, instr, false)),
             Op::TCLOO_NEXT_CLASS | Op::TCLOO_NEXT_CLASS4 => {
-                try_op!(self.tcloo_next(f, instr, true))
+                try_op!(self.tcloo_next(f, instr, true));
             }
             Op::TCLOO_NEXT_LIST => try_op!(self.tcloo_next_list(f, false)),
             Op::TCLOO_NEXT_CLASS_LIST => try_op!(self.tcloo_next_list(f, true)),
@@ -7063,6 +7118,60 @@ impl Vm {
     /// command's own step scopes, dispatch, then settle the leave side — for
     /// synchronous completions here, for deferred bodies when their frame
     /// unwinds (the context rides on the frame via `pending_exec_leave`).
+    fn settle_traced_word_dispatch(
+        &mut self,
+        f: &mut Frame,
+        mut ctx: ExecLeaveCtx,
+        dispatched: Result<Option<Tick>, Completion<Value>>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        match dispatched {
+            Ok(Some(tick)) => {
+                match &tick {
+                    // The body runs on a pushed frame: the context rides
+                    // along and settles when that frame completes.
+                    Tick::Call { .. }
+                    | Tick::PushScript { .. }
+                    | Tick::PushCatch(_)
+                    | Tick::PushEval(_)
+                    | Tick::PushSubst { .. }
+                    | Tick::PushEachLoop { .. }
+                    | Tick::PushControl { .. }
+                    | Tick::PushExpression { .. }
+                    | Tick::PushTry { .. } => {
+                        if let Some(mut prior) = self.pending_exec_leave.take() {
+                            ctx.jim_commands.append(&mut prior.jim_commands);
+                        }
+                        self.pending_exec_leave = Some(ctx);
+                    }
+                    // Control shapes with no owning frame (a traced `yield` /
+                    // `tailcall` builtin itself): settle with an empty ok —
+                    // their real result forms elsewhere.
+                    Tick::Continue | Tick::Return(_) | Tick::Tailcall(_) | Tick::Suspend(_) => {
+                        let _ = self.finish_exec_leave(&ctx, &ok(Value::empty()));
+                    }
+                }
+                Ok(Some(tick))
+            }
+            Ok(None) => {
+                // Synchronous completion: the result is on top of `f`'s stack.
+                let result = f.stack.last().cloned().unwrap_or_else(Value::empty);
+                match self.finish_exec_leave(&ctx, &ok(result)) {
+                    None => Ok(None),
+                    Some(replacement) => {
+                        // A leave-trace error replaces the command's result
+                        // (tclsh-pinned: LEAVEFAIL).
+                        f.stack.pop();
+                        Err(replacement)
+                    }
+                }
+            }
+            Err(c) => match self.finish_exec_leave(&ctx, &c) {
+                None => Err(c),
+                Some(replacement) => Err(replacement),
+            },
+        }
+    }
+
     fn dispatch_words_traced(
         &mut self,
         f: &mut Frame,
@@ -7136,7 +7245,7 @@ impl Vm {
             (!own_at_entry.is_empty() && post_enter.is_some()).then(|| sidecar.clone());
         let pushed =
             self.push_exec_step_scopes(&sidecar, post_enter.as_deref().unwrap_or_default());
-        let mut ctx = ExecLeaveCtx {
+        let ctx = ExecLeaveCtx {
             jim_commands: Vec::new(),
             cmd_string,
             leave_owner,
@@ -7147,52 +7256,9 @@ impl Vm {
         } else {
             &[]
         };
-        match self.dispatch_words_inner(f, words, Some(&sidecar), entered, context, usage) {
-            Ok(Some(tick)) => {
-                match &tick {
-                    // The body runs on a pushed frame: the context rides
-                    // along and settles when that frame completes.
-                    Tick::Call { .. }
-                    | Tick::PushScript { .. }
-                    | Tick::PushCatch(_)
-                    | Tick::PushEval(_)
-                    | Tick::PushSubst { .. }
-                    | Tick::PushEachLoop { .. }
-                    | Tick::PushControl { .. }
-                    | Tick::PushExpression { .. }
-                    | Tick::PushTry { .. } => {
-                        if let Some(mut prior) = self.pending_exec_leave.take() {
-                            ctx.jim_commands.append(&mut prior.jim_commands);
-                        }
-                        self.pending_exec_leave = Some(ctx);
-                    }
-                    // Control shapes with no owning frame (a traced `yield` /
-                    // `tailcall` builtin itself): settle with an empty ok —
-                    // their real result forms elsewhere.
-                    Tick::Continue | Tick::Return(_) | Tick::Tailcall(_) | Tick::Suspend(_) => {
-                        let _ = self.finish_exec_leave(&ctx, &ok(Value::empty()));
-                    }
-                }
-                Ok(Some(tick))
-            }
-            Ok(None) => {
-                // Synchronous completion: the result is on top of `f`'s stack.
-                let result = f.stack.last().cloned().unwrap_or_else(Value::empty);
-                match self.finish_exec_leave(&ctx, &ok(result)) {
-                    None => Ok(None),
-                    Some(replacement) => {
-                        // A leave-trace error replaces the command's result
-                        // (tclsh-pinned: LEAVEFAIL).
-                        f.stack.pop();
-                        Err(replacement)
-                    }
-                }
-            }
-            Err(c) => match self.finish_exec_leave(&ctx, &c) {
-                None => Err(c),
-                Some(replacement) => Err(replacement),
-            },
-        }
+        let dispatched =
+            self.dispatch_words_inner(f, words, Some(&sidecar), entered, context, usage);
+        self.settle_traced_word_dispatch(f, ctx, dispatched)
     }
 
     /// Settle the leave side of one traced dispatch: pop the step scopes it
@@ -7206,7 +7272,11 @@ impl Vm {
         ctx: &ExecLeaveCtx,
         c: &Completion<Value>,
     ) -> Option<Completion<Value>> {
-        debug_assert!(ctx.jim_commands.iter().all(|lease| lease.is_active()));
+        debug_assert!(
+            ctx.jim_commands
+                .iter()
+                .all(super::interp::native_jim_lookup::JimCommandLease::is_active)
+        );
         self.pop_exec_step_scopes(ctx.step_scopes);
         if let Some(refused) = self.refused_completion() {
             return Some(refused);
@@ -7464,7 +7534,7 @@ impl Vm {
         let selected = if let Some(entered) = entered {
             let key = entered.sidecar.key().and_then(|key| match key {
                 CommandSidecarKey::Visible(key) => Some(key),
-                _ => None,
+                CommandSidecarKey::Hidden(_) => None,
             });
             (key, Some(entered.command.clone()))
         } else {
@@ -7488,90 +7558,18 @@ impl Vm {
         let saved_handler = self.take_native_handler_metadata();
         let usage_scope = self.enter_native_usage_scope(usage);
         self.set_invoked_name_value(original, selected_key.as_deref().unwrap_or(""));
-        let result = (|| match command {
-            Some(Command::Proc(p)) => {
-                if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
-                    Self::deliver_sync(f, result)?;
-                    return Ok(None);
-                }
-                let p = self.prepare_dispatch_procedure(
-                    p,
-                    entered,
-                    sidecar_handle,
-                    selected_key.clone().map(CommandSidecarKey::visible),
-                )?;
-                Ok(Some(Tick::Call {
-                    proc: p,
-                    invoked: words[0].clone(),
-                    argv: words[1..].to_vec(),
-                }))
-            }
-            Some(Command::Builtin(bf)) => {
-                self.dispatch_builtin_words(f, words, bf, entered, context)
-            }
-            Some(Command::Native(cmd)) => {
-                let res = cmd.invoke(self, &words[1..]);
-                self.settle_native_dispatch(f, res)
-            }
-            Some(Command::CallerAlias(target)) => {
-                let mut argv = (*target).clone();
-                argv.extend_from_slice(&words[1..]);
-                let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                self.dispatch_alias_words(
-                    f,
-                    &crate::NativeListItems::invocation_view(Rc::new(argv)),
-                    context,
-                    &usage,
-                )
-            }
-            Some(Command::Alias(target)) => {
-                let mut argv = (*target).clone();
-                argv.extend_from_slice(&words[1..]);
-                let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                self.dispatch_alias_words(
-                    f,
-                    &crate::NativeListItems::invocation_view(Rc::new(argv)),
-                    tcl_core_types::ROOT_NS,
-                    &usage,
-                )
-            }
-            Some(Command::CrossAlias {
-                target: target_interp,
-                words: target,
-            }) => {
-                let mut argv = (*target).clone();
-                argv.extend_from_slice(&words[1..]);
-                let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                let res = self.invoke_alias_words_with_usage(
-                    target_interp,
-                    &argv,
-                    tcl_registry::AliasTargetLookup::Global,
-                    &usage,
-                );
-                self.settle_native_dispatch(f, res)
-            }
-            Some(Command::ChildInterp(child)) => {
-                let res = self.dispatch_child(original, child, &words[1..]);
-                self.settle_native_dispatch(f, res)
-            }
-            Some(Command::Ensemble(e)) => {
-                let res = self.dispatch_ensemble("", &e, &words[1..]);
-                self.settle_native_dispatch(f, res)
-            }
-            Some(Command::Object(key)) => {
-                let res = crate::cmd_oo::oo_dispatch(self, key, original, &words[1..]);
-                self.settle_native_dispatch(f, res)
-            }
-            None => {
-                let result = self.invoke_missing_command_value(
-                    context,
-                    original,
-                    &words[1..],
-                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-                );
-                self.settle_native_dispatch(f, result)
-            }
-        })();
+        let result = self.dispatch_selected_words(
+            f,
+            words,
+            command,
+            NativeWordDispatch {
+                selected_key: &selected_key,
+                sidecar_handle,
+                entered,
+                context,
+                usage,
+            },
+        );
         self.leave_native_usage_scope(usage_scope);
         self.restore_native_handler_metadata(saved_handler);
         if matches!(
@@ -7598,6 +7596,103 @@ impl Vm {
             context.jim_commands.push(lease);
         }
         result
+    }
+
+    fn dispatch_selected_words(
+        &mut self,
+        f: &mut Frame,
+        words: &crate::NativeListItems,
+        command: Option<Command>,
+        dispatch: NativeWordDispatch<'_>,
+    ) -> Result<Option<Tick>, Completion<Value>> {
+        let original = &words[0];
+        match command {
+            Some(Command::Proc(p)) => {
+                if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
+                    Self::deliver_sync(f, result)?;
+                    return Ok(None);
+                }
+                let p = self.prepare_dispatch_procedure(
+                    p,
+                    dispatch.entered,
+                    dispatch.sidecar_handle,
+                    dispatch
+                        .selected_key
+                        .clone()
+                        .map(CommandSidecarKey::visible),
+                )?;
+                Ok(Some(Tick::Call {
+                    proc: p,
+                    invoked: words[0].clone(),
+                    argv: words[1..].to_vec(),
+                }))
+            }
+            Some(Command::Builtin(bf)) => {
+                self.dispatch_builtin_words(f, words, bf, dispatch.entered, dispatch.context)
+            }
+            Some(Command::Native(cmd)) => {
+                let res = cmd.invoke(self, &words[1..]);
+                self.settle_native_dispatch(f, res)
+            }
+            Some(Command::CallerAlias(target)) => {
+                let mut argv = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
+                self.dispatch_alias_words(
+                    f,
+                    &crate::NativeListItems::invocation_view(Rc::new(argv)),
+                    dispatch.context,
+                    &usage,
+                )
+            }
+            Some(Command::Alias(target)) => {
+                let mut argv = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
+                self.dispatch_alias_words(
+                    f,
+                    &crate::NativeListItems::invocation_view(Rc::new(argv)),
+                    tcl_core_types::ROOT_NS,
+                    &usage,
+                )
+            }
+            Some(Command::CrossAlias {
+                target: target_interp,
+                words: target,
+            }) => {
+                let mut argv = (*target).clone();
+                argv.extend_from_slice(&words[1..]);
+                let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
+                let res = self.invoke_alias_words_with_usage(
+                    target_interp,
+                    &argv,
+                    tcl_registry::AliasTargetLookup::Global,
+                    &usage,
+                );
+                self.settle_native_dispatch(f, res)
+            }
+            Some(Command::ChildInterp(child)) => {
+                let res = self.dispatch_child(original, child, &words[1..]);
+                self.settle_native_dispatch(f, res)
+            }
+            Some(Command::Ensemble(e)) => {
+                let res = self.dispatch_ensemble("", &e, &words[1..]);
+                self.settle_native_dispatch(f, res)
+            }
+            Some(Command::Object(key)) => {
+                let res = crate::cmd_oo::oo_dispatch(self, key, original, &words[1..]);
+                self.settle_native_dispatch(f, res)
+            }
+            None => {
+                let result = self.invoke_missing_command_value(
+                    dispatch.context,
+                    original,
+                    &words[1..],
+                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+                );
+                self.settle_native_dispatch(f, result)
+            }
+        }
     }
 
     fn dispatch_builtin_words(
@@ -7776,6 +7871,39 @@ impl Vm {
         self.invoke_command_value_entry_at(context, original, arguments, usage, origin, false)
     }
 
+    fn prepare_command_value_entry(
+        &mut self,
+        context: tcl_core_types::NsId,
+        original: &Value,
+        ordinary: bool,
+    ) -> Result<(Option<String>, u64), Completion<Value>> {
+        use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
+        if ordinary
+            && let Err(refusal) = self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)
+        {
+            return Err(refusal);
+        }
+        let key = match self.resolve_original_command_key_at(context, original) {
+            Ok(key) => key,
+            Err(error) => return Err(self.refuse_host_command(error.to_string())),
+        };
+        if ordinary
+            && key.is_some()
+            && let Err(refusal) =
+                self.reset_native_ensemble_rewrite(Event::AfterSuccessfulOrdinaryLookup)
+        {
+            return Err(refusal);
+        }
+        let usage_revision = self.native_invocation.usage_revision;
+        if let Some(refused) = self.refused_completion() {
+            return Err(refused);
+        }
+        if let Some(exceeded) = self.charge_command() {
+            return Err(exceeded);
+        }
+        Ok((key, usage_revision))
+    }
+
     fn invoke_command_value_entry_at(
         &mut self,
         context: tcl_core_types::NsId,
@@ -7785,30 +7913,11 @@ impl Vm {
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
         ordinary: bool,
     ) -> Completion<Value> {
-        use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
-        if ordinary
-            && let Err(refusal) = self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)
-        {
-            return refusal;
-        }
-        let key = match self.resolve_original_command_key_at(context, original) {
-            Ok(key) => key,
-            Err(error) => return self.refuse_host_command(error.to_string()),
-        };
-        if ordinary
-            && key.is_some()
-            && let Err(refusal) =
-                self.reset_native_ensemble_rewrite(Event::AfterSuccessfulOrdinaryLookup)
-        {
-            return refusal;
-        }
-        let usage_revision = self.native_invocation.usage_revision;
-        if let Some(refused) = self.refused_completion() {
-            return refused;
-        }
-        if let Some(exceeded) = self.charge_command() {
-            return exceeded;
-        }
+        let (key, usage_revision) =
+            match self.prepare_command_value_entry(context, original, ordinary) {
+                Ok(key) => key,
+                Err(completion) => return completion,
+            };
         if !self.exec_traces_can_fire() {
             let result =
                 self.invoke_command_value_inner(context, original, arguments, None, usage, origin);

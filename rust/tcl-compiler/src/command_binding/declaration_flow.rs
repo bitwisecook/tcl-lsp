@@ -1964,7 +1964,7 @@ mod tests {
         let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
         let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
         let original = "set anchor 1";
-        let offset = source.find(original).unwrap() as u32;
+        let offset = u32::try_from(source.find(original).unwrap()).unwrap();
         let segment =
             crate::segmenter::segment_commands_with_offset_and_config(original, offset, config)
                 .remove(0);
@@ -2277,7 +2277,7 @@ mod tests {
             let result = report(source);
             let site = CommandAllocationSite {
                 source: Arc::clone(&result.source),
-                offset: source.find("puts AFTER").unwrap() as u32,
+                offset: u32::try_from(source.find("puts AFTER").unwrap()).unwrap(),
             };
             assert_eq!(
                 result.invocation_may_be_reached(&site),
@@ -2305,7 +2305,7 @@ mod tests {
         assert_eq!(
             result.invocation_may_be_reached(&CommandAllocationSite {
                 source: Arc::clone(&result.source),
-                offset: source.rfind("puts").unwrap() as u32,
+                offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
             }),
             None
         );
@@ -2378,7 +2378,7 @@ mod tests {
         let result = report(source);
         let site = CommandAllocationSite {
             source: Arc::clone(&result.source),
-            offset: source.rfind("puts").unwrap() as u32,
+            offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
         };
         assert!(result.declared_argument_entry(&site));
         assert_eq!(result.invocation_may_be_reached(&site), None);
@@ -2395,7 +2395,7 @@ mod tests {
         assert!(result.potential_declared_reads().contains_key("x"));
         let after_loop = CommandAllocationSite {
             source: Arc::clone(&result.source),
-            offset: source.rfind("puts").unwrap() as u32,
+            offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
         };
         assert_eq!(result.invocation_may_be_reached(&after_loop), None);
         assert!(!result.local_store_may_be_unread(&after_loop, "x"));
@@ -2411,7 +2411,7 @@ mod tests {
         assert!(!result.potential_declared_reads().contains_key("x"));
         let after_loop = CommandAllocationSite {
             source: Arc::clone(&result.source),
-            offset: source.rfind("puts").unwrap() as u32,
+            offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
         };
         assert_eq!(result.invocation_may_be_reached(&after_loop), Some(false));
         assert!(!result.declared_argument_entry(&after_loop));
@@ -2429,7 +2429,7 @@ mod tests {
         assert!(!result.potential_missing_reads().contains_key("x"));
         let site = CommandAllocationSite {
             source: Arc::clone(&result.source),
-            offset: source.rfind("puts").unwrap() as u32,
+            offset: u32::try_from(source.rfind("puts").unwrap()).unwrap(),
         };
         assert!(result.owns_invocation(&site));
         assert_eq!(result.invocation_may_be_reached(&site), None);
@@ -2449,7 +2449,7 @@ mod tests {
             assert!(!result.local_store_may_be_unread(
                 &CommandAllocationSite {
                     source: Arc::clone(&result.source),
-                    offset: source.find("regexp").unwrap() as u32,
+                    offset: u32::try_from(source.find("regexp").unwrap()).unwrap(),
                 },
                 "v"
             ));
@@ -2514,7 +2514,7 @@ mod tests {
             assert_eq!(
                 result.invocation_may_be_reached(&CommandAllocationSite {
                     source: Arc::clone(&result.source),
-                    offset: source.find(command).unwrap() as u32,
+                    offset: u32::try_from(source.find(command).unwrap()).unwrap(),
                 }),
                 expected,
                 "{command}"
@@ -2525,7 +2525,7 @@ mod tests {
         assert_eq!(
             result.invocation_may_be_reached(&CommandAllocationSite {
                 source: Arc::clone(&result.source),
-                offset: source.find("run notacommand").unwrap() as u32,
+                offset: u32::try_from(source.find("run notacommand").unwrap()).unwrap(),
             }),
             None
         );

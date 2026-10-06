@@ -5893,6 +5893,14 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn regexp_options_preserve_original_operand_layout() {
+        let registry = crate::CommandRegistry::build_default();
+        let native = registry.get("regexp").unwrap().native_compilation.unwrap();
+        let dialect = Some(InvocationDialect::for_version(TclVersion::V9_1));
+        let compilation = context(NativeCompilationFrame::ProcedureCode);
         let options = [
             crate::InvocationWord::Literal("-nocase"),
             crate::InvocationWord::Dynamic,
@@ -6387,7 +6395,7 @@ mod tests {
                 );
             }
             let shapes = [NativeCompilationWordShape::Literal; 2];
-            assert!(
+            assert_eq!(
                 matches!(
                     spec.select(
                         InvocationWords::literals("info", &["extra", "args"]),
@@ -6396,7 +6404,8 @@ mod tests {
                         context
                     ),
                     NativeCompilationSelection::Generic
-                ) == (version < TclVersion::V8_6)
+                ),
+                (version < TclVersion::V8_6)
             );
             assert_eq!(
                 spec.select(

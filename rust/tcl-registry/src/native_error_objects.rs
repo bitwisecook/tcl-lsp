@@ -100,7 +100,7 @@ mod tests {
                     "stack-before" => assert_eq!(&fields[1..], &["list", "1", "2", "none", "1"]),
                     "options-saved" | "stack-saved" => assert_eq!(&fields[1..], &["2", "1"]),
                     "options-mutated" | "stack-mutated" | "options-restored" | "stack-restored" => {
-                        assert_eq!(&fields[1..], &["1", "1", "1"])
+                        assert_eq!(&fields[1..], &["1", "1", "1"]);
                     }
                     _ => panic!("unexpected native header stage"),
                 }

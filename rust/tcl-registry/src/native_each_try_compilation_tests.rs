@@ -47,7 +47,11 @@ fn context() -> NativeCompilationContext {
     }
 }
 fn hex(value: &[u8]) -> String {
-    value.iter().map(|byte| format!("{byte:02x}")).collect()
+    use std::fmt::Write;
+    value.iter().fold(String::new(), |mut text, byte| {
+        write!(text, "{byte:02x}").unwrap();
+        text
+    })
 }
 fn declarations(steps: &[NativeControlPreparationStep]) -> Vec<String> {
     let mut named = std::collections::HashSet::new();
@@ -137,11 +141,7 @@ fn original_each_and_try_recipes_match_190_native_selection_and_local_windows() 
             if !reservations.is_empty() {
                 // Source commands before the iterator/try already own their
                 // slots. Recipe declarations retain their relative native order.
-                let prior = if matches!(index, 8 | 9 | 30 | 31 | 32 | 33) {
-                    1
-                } else {
-                    0
-                };
+                let prior = usize::from(matches!(index, 8 | 9 | 30 | 31 | 32 | 33));
                 assert_eq!(
                     reservations,
                     native_locals[prior..prior + reservations.len()],

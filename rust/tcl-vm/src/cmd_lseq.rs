@@ -31,7 +31,10 @@ pub(crate) fn register(vm: &mut Vm) {
 
 fn cmd_lseq(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let bytes = args.iter().map(Value::string_bytes).collect::<Vec<_>>();
-    let refs = bytes.iter().map(|bytes| bytes.as_ref()).collect::<Vec<_>>();
+    let refs = bytes
+        .iter()
+        .map(std::convert::AsRef::as_ref)
+        .collect::<Vec<_>>();
     let plan = match lseq::decode(&refs) {
         Ok(plan) => plan,
         Err(LseqError::WrongArguments) => {

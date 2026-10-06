@@ -121,7 +121,7 @@ fn stock_length_native_same_object_matrix() {
                 .unwrap()
             {
                 NativeStockListCacheDisposition::List => {
-                    assert_eq!(field(row, "after"), "list", "{environment}: {row}")
+                    assert_eq!(field(row, "after"), "list", "{environment}: {row}");
                 }
                 NativeStockListCacheDisposition::Preserved => assert_eq!(
                     field(row, "before"),

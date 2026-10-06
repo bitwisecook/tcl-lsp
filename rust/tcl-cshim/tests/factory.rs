@@ -276,10 +276,10 @@ unsafe extern "C" fn original_getter(
         }
         let code = if client_data.is_null() {
             let mut value = 0_i64;
-            ffi::tcl_get_wide_int_from_obj(interp, first, &mut value)
+            ffi::tcl_get_wide_int_from_obj(interp, first, &raw mut value)
         } else {
             let mut value = 0;
-            ffi::tcl_get_int_from_obj(interp, first, &mut value)
+            ffi::tcl_get_int_from_obj(interp, first, &raw mut value)
         };
         ffi::tcl_set_obj_result(interp, ffi::tcl_new_int_obj(code));
         // The test observes failure-cache publication while the C caller handles
@@ -358,7 +358,8 @@ unsafe extern "C" fn original_member(
     unsafe {
         let mut count = 0;
         let mut members = std::ptr::null_mut();
-        let code = ffi::tcl_list_obj_get_elements(interp, *words.add(1), &mut count, &mut members);
+        let code =
+            ffi::tcl_list_obj_get_elements(interp, *words.add(1), &raw mut count, &raw mut members);
         if code != ffi::TCL_OK {
             return code;
         }
@@ -366,7 +367,7 @@ unsafe extern "C" fn original_member(
             return ffi::TCL_ERROR;
         }
         let mut number = 0;
-        let code = ffi::tcl_get_wide_int_from_obj(interp, *members, &mut number);
+        let code = ffi::tcl_get_wide_int_from_obj(interp, *members, &raw mut number);
         if code != ffi::TCL_OK {
             return code;
         }

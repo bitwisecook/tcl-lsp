@@ -254,7 +254,7 @@ mod tests {
             assert!(
                 context
                     .context()
-                    .resolve_spec_in_realm(&registry, command, InvocationRealm::InterpreterRuntime,)
+                    .resolve_spec_in_realm(registry, command, InvocationRealm::InterpreterRuntime,)
                     .is_some(),
                 "{command}: contextual runtime"
             );
@@ -276,7 +276,7 @@ mod tests {
             assert!(
                 context
                     .context()
-                    .resolve_spec_in_realm(&registry, command, InvocationRealm::InterpreterRuntime,)
+                    .resolve_spec_in_realm(registry, command, InvocationRealm::InterpreterRuntime,)
                     .is_none(),
                 "{command}: contextual absence"
             );

@@ -39,8 +39,8 @@ impl NativeReturnOps {
     }
 
     pub(crate) fn selected(vm: &Vm) -> Result<(Self, ReturnOptionsProtocol), CmdError> {
-        let dialect = vm.native_invocation_dialect();
         use tcl_registry::native_return_options::LogicalReturnOptionsProvider;
+        let dialect = vm.native_invocation_dialect();
         let actual = dialect.return_options_protocol();
         let protocol = actual
             .or_else(|| {
@@ -222,13 +222,13 @@ pub(crate) fn publish(
             match pair.name_in(ops.protocol) {
                 b"-errorinfo" => match ops.bytes(&pair.value) {
                     Ok(bytes) if !bytes.is_empty() => {
-                        vm.seed_error_info_original(&pair.value, &bytes)
+                        vm.seed_error_info_original(&pair.value, &bytes);
                     }
                     Ok(_) => {}
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 },
                 b"-errorstack" if vm.supports_error_stack() => match ops.list(&pair.value) {
-                    Ok(parts) => vm.seed_error_stack_parts(parts),
+                    Ok(parts) => vm.seed_error_stack_parts(&parts),
                     Err(error) => return crate::command::completion_from_cmd_error(vm, error),
                 },
                 _ => {}
@@ -264,10 +264,10 @@ pub(crate) fn publish(
         // Legacy command grammar recognizes CString names; its completion
         // metadata uses the canonical standard key rather than a custom alias.
         let name = pair.name_in(ops.protocol);
-        let key = if name != pair.key_bytes.as_slice() {
-            Value::from_string_bytes(name)
-        } else {
+        let key = if name == pair.key_bytes.as_slice() {
             pair.key
+        } else {
+            Value::from_string_bytes(name)
         };
         options.extend([key, pair.value]);
     }

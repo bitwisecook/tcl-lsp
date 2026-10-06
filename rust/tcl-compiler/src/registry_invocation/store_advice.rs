@@ -402,7 +402,8 @@ mod tests {
             let bindings =
                 crate::command_binding::SourceCommandBindings::analyse(source, config, registry);
             let command = "set unusedvar 1";
-            let offset = source.find(command).unwrap() as u32;
+            let offset =
+                u32::try_from(source.find(command).unwrap()).expect("fixture source offset");
             let segment =
                 crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
                     .remove(0);
@@ -419,21 +420,22 @@ mod tests {
             let advice = report.as_ref().and_then(|report| {
                 super::conditional_unread_local_store_advice(registry, &tokens, report)
             });
-            if expected && advice.is_none() {
-                if let Some(binding) = &tokens.source_binding {
+            if expected
+                && advice.is_none()
+                && let Some(binding) = &tokens.source_binding
+            {
+                eprintln!(
+                    "conditional unread setter: unobserved={} local_literal={}",
+                    binding.unobserved_native_dispatch(),
+                    super::original_literal_store(registry, &tokens).is_some()
+                );
+                if let Some(site) = binding.invocation_site()
+                    && let Some(report) = &report
+                {
                     eprintln!(
-                        "conditional unread setter: unobserved={} local_literal={}",
-                        binding.unobserved_native_dispatch(),
-                        super::original_literal_store(registry, &tokens).is_some()
+                        "conditional unread graph: {}",
+                        report.unread_gate_summary(site, "unusedvar")
                     );
-                    if let Some(site) = binding.invocation_site()
-                        && let Some(report) = &report
-                    {
-                        eprintln!(
-                            "conditional unread graph: {}",
-                            report.unread_gate_summary(site, "unusedvar")
-                        );
-                    }
                 }
             }
             assert_eq!(advice.is_some(), expected, "{source}");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Genuine C91 property-name primary; fields own original accessor headers.
-use super::*;
+use super::{IntRep, NativeObjectLifetimeLease, Value};
 #[derive(Clone)]
 pub(super) struct NativePropertyName {
     pub(super) reader: Value,

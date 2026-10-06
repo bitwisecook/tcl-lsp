@@ -284,6 +284,15 @@ impl std::fmt::Debug for NativeListBacking {
     }
 }
 
+/// Original cached List children and its canonical flag, without conversion.
+pub type OriginalListMembers = (Vec<Rc<dyn OriginalObject>>, bool);
+
+/// Original cached Dictionary children and optional native bucket capacity.
+pub type OriginalDictionaryMembers = (
+    Vec<(Rc<dyn OriginalObject>, Rc<dyn OriginalObject>)>,
+    Option<usize>,
+);
+
 /// An owned capability for one original engine object.
 ///
 /// The engine retains the object for this capability's lifetime. Its identity
@@ -344,17 +353,9 @@ pub trait OriginalObject {
         ))
     }
     /// Original cached List members and canonical flag, without conversion.
-    fn list_members(&self) -> Result<Option<(Vec<Rc<dyn OriginalObject>>, bool)>, EngineError>;
+    fn list_members(&self) -> Result<Option<OriginalListMembers>, EngineError>;
     /// Original cached Dictionary members and bucket capacity, without conversion.
-    fn dictionary_members(
-        &self,
-    ) -> Result<
-        Option<(
-            Vec<(Rc<dyn OriginalObject>, Rc<dyn OriginalObject>)>,
-            Option<usize>,
-        )>,
-        EngineError,
-    >;
+    fn dictionary_members(&self) -> Result<Option<OriginalDictionaryMembers>, EngineError>;
     /// Commit a physical cache/string change retaining original compound members.
     fn apply(
         &self,

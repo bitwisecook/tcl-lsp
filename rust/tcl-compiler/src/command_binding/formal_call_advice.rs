@@ -304,7 +304,7 @@ mod tests {
             ),
         ] {
             let bindings = super::SourceCommandBindings::analyse(source, config, registry);
-            let offset = source.rfind(call).unwrap() as u32;
+            let offset = u32::try_from(source.rfind(call).unwrap()).unwrap();
             let segment =
                 crate::segmenter::segment_commands_with_offset_and_config(call, offset, config)
                     .remove(0);

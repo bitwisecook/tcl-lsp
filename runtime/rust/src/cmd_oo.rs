@@ -9001,7 +9001,7 @@ mod original_call_argv_tests {
             .lines()
             .find_map(|row| {
                 let fields: Vec<_> = row.split('\t').collect();
-                if fields.get(0) == Some(&release)
+                if fields.first() == Some(&release)
                     && fields.get(1) == Some(&purpose)
                     && fields.get(2) == Some(&stage)
                 {
@@ -9030,7 +9030,7 @@ mod original_call_argv_tests {
             refs.borrow_mut().push(
                 original
                     .last()
-                    .map_or(0, |value| unsafe { (**value).ref_count as isize }),
+                    .map_or(0, |value| unsafe { (**value).ref_count }),
             )
         });
         Code::Ok

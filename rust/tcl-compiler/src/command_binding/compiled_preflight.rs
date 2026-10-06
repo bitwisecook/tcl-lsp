@@ -630,12 +630,13 @@ impl CompilerTraversal<'_> {
     }
 
     fn original_head_has_compilation(&mut self, words: &[WordExpr]) -> bool {
-        match head_compilation_capability(words, self.state.baseline.compilation_dialect()) {
-            Some(capability) => capability,
-            None => {
-                self.require_provider();
-                false
-            }
+        if let Some(capability) =
+            head_compilation_capability(words, self.state.baseline.compilation_dialect())
+        {
+            capability
+        } else {
+            self.require_provider();
+            false
         }
     }
 

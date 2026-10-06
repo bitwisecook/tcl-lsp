@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original Jim update lookup, with root publication before member conversion.
 
-use super::*;
+use super::{Completion, Local, PreparedIncrementAmount, Value, Vm};
 use crate::NativeObjectLifetimeLease;
 use tcl_syntax::native_string::NativeStringProtocol;
 
 impl Vm {
-    pub(super) fn is_original_jim_dictionary_name(&self, original: &Value, bytes: &[u8]) -> bool {
+    pub(super) fn is_original_jim_dictionary_name(original: &Value, bytes: &[u8]) -> bool {
         original
             .with_native_jim_dictionary_substitution(|_, _| ())
             .is_some()
@@ -42,12 +42,10 @@ impl Vm {
         if let Some(cell) = self
             .current_jim_variable_cell(original)
             .map_err(|error| self.refuse_host_command(error.to_string()))?
-        {
-            if let Some(Local::Scalar(value)) =
+            && let Some(Local::Scalar(value)) =
                 self.var_arena.get(cell).map(crate::vars::VarCell::state)
-            {
-                return Ok(Some(value.native_lifetime_lease()));
-            }
+        {
+            return Ok(Some(value.native_lifetime_lease()));
         }
         if let Some((target, level)) = self.original_jim_alias_target(original) {
             let frame = self.select_execution_frame(level).map_err(super::err)?;
@@ -58,7 +56,7 @@ impl Vm {
         let bytes = self
             .native_name_operand_bytes(original)
             .map_err(|error| self.refuse_host_command(error.to_string()))?;
-        if self.is_original_jim_dictionary_name(original, &bytes) {
+        if Self::is_original_jim_dictionary_name(original, &bytes) {
             let (name, key) = self.original_jim_dictionary_children(original)?;
             let found = match self.read_native_jim_dictionary_member(name.value(), key.value()) {
                 Ok(found) => found,

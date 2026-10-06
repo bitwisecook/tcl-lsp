@@ -607,6 +607,23 @@ unsafe fn write_index(index_ptr: *mut c_void, flags: c_int, index: isize) {
     }
 }
 
+/// Report a rejected table geometry before accessing its object or entries.
+/// The interpreter pointer follows the enclosing live-or-NULL ABI contract.
+unsafe fn report_invalid_struct_index_offset(interp_ptr: *mut InterpState, offset: isize) -> c_int {
+    // SAFETY: guaranteed by this internal helper's caller.
+    unsafe {
+        report(
+            interp_ptr,
+            &TclError {
+                message: format!("Invalid struct offset value {offset}.").into_bytes(),
+                code: None,
+                getter: None,
+                host: None,
+            },
+        )
+    }
+}
+
 /// `Tcl_GetIndexFromObjStruct`, and through the header's macro
 /// `Tcl_GetIndexFromObj`: resolve a word against an option table with C's
 /// unique-prefix rule and C's messages.
@@ -631,18 +648,8 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
 ) -> c_int {
     guarded(TCL_ERROR, || {
         if offset < isize::try_from(size_of::<*const c_char>()).unwrap_or(isize::MAX) {
-            // SAFETY: as documented on the function.
-            return unsafe {
-                report(
-                    interp_ptr,
-                    &TclError {
-                        message: format!("Invalid struct offset value {offset}.").into_bytes(),
-                        code: None,
-                        getter: None,
-                        host: None,
-                    },
-                )
-            };
+            // SAFETY: interp_ptr has the live-or-NULL contract of this API.
+            return unsafe { report_invalid_struct_index_offset(interp_ptr, offset) };
         }
         if !raw.is_null() && flags & TCL_INDEX_TEMP_TABLE == 0 {
             // SAFETY: a non-null raw object is live by the ABI contract.

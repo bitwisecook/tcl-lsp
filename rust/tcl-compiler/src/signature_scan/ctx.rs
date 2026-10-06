@@ -267,7 +267,7 @@ impl ScanCtx<'_> {
     }
 
     #[cfg(test)]
-    pub(super) fn command_keys(&self, namespace: &str, written: &str) -> Vec<String> {
+    pub(super) fn command_keys(namespace: &str, written: &str) -> Vec<String> {
         let local = crate::naming::qualify(namespace, written);
         let global = crate::naming::qualify("::", written);
         if local == global || written.starts_with("::") {

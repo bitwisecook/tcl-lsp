@@ -281,6 +281,19 @@ impl NativeErrorStack {
     }
 }
 
+impl super::Interp {
+    /// Duplicate the actual private return-options header before overlaying live
+    /// metadata. Retaining its members alone loses dictionary storage history.
+    pub(crate) fn duplicate_original_return_options(
+        &self,
+    ) -> Option<(obj::Owned, NativeStringProtocol)> {
+        let options = self.return_options.borrow();
+        let original = options.header()?;
+        let protocol = options.protocol?;
+        Some((obj::Owned::fresh(obj::duplicate(original)), protocol))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,18 +403,5 @@ mod tests {
         let parts =
             crate::list::list_elements_native_checked(getter.as_ptr(), recipe.strings()).unwrap();
         assert_eq!(parts[1], member.as_ptr());
-    }
-}
-
-impl super::Interp {
-    /// Duplicate the actual private return-options header before overlaying live
-    /// metadata. Retaining its members alone loses dictionary storage history.
-    pub(crate) fn duplicate_original_return_options(
-        &self,
-    ) -> Option<(obj::Owned, NativeStringProtocol)> {
-        let options = self.return_options.borrow();
-        let original = options.header()?;
-        let protocol = options.protocol?;
-        Some((obj::Owned::fresh(obj::duplicate(original)), protocol))
     }
 }

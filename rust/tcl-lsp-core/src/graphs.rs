@@ -344,7 +344,7 @@ fn find_call_sites_in_scope(
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some(caller) = ir_module.procedures.get(containing_proc) else {
+    let Some(containing_body) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
     let Some(callee) = analysis.all_procs.get(callee_qname) else {
@@ -352,7 +352,9 @@ fn find_call_sites_in_scope(
     };
     let mut sites = Vec::new();
     for inv in &analysis.command_invocations {
-        if inv.range.start() < caller.span.start() || inv.range.end() > caller.span.end() {
+        if inv.range.start() < containing_body.span.start()
+            || inv.range.end() > containing_body.span.end()
+        {
             continue;
         }
         if !crate::references::invocation_calls_proc(analysis, inv, callee_qname, callee, source) {

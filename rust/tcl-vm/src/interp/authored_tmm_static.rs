@@ -1,6 +1,9 @@
 //! Authored static publication over enrolled, live worker namespace cells.
 
-use super::*;
+use super::{
+    Completion, HashSet, InterpId, Local, NameBytes, Namespaces, NsId, ROOT_INTERP, ROOT_NS, Value,
+    VarBinding, VarId, VarTable, VarTableOwner, Vm, err, ok,
+};
 use tcl_runtime_api::authored_tmm::{
     AuthoredTmmStaticPolicy, AuthoredTmmWorkerTopology, TmmStaticExecutionContext,
 };
@@ -107,7 +110,7 @@ impl Vm {
             let state = self.st_of(recipient.interpreter)?;
             recipients.push(AuthoredTmmStaticRecipient {
                 namespace: selected,
-                observer_epoch: state.trace_deopt_epoch.get(),
+                observer_epoch: state.compilation_epochs.trace_deopt_epoch.get(),
             });
             // Table attachment, not a name prefix or an alias spelling, selects
             // the actual callback roots in the enrolled recipient namespace.
@@ -245,7 +248,7 @@ impl Vm {
         // A journal entry is an explicit owning role; no materialisation or
         // serialisation supplies this original value.
         let value = value.clone().into_native_reference();
-        self.publish_authored_static(address, Mutation::Store(value))
+        self.publish_authored_static(&address, &Mutation::Store(value))
     }
 
     pub(super) fn publish_authored_static_array(
@@ -255,7 +258,7 @@ impl Vm {
         let Some(address) = self.static_address(id) else {
             return Ok(());
         };
-        self.publish_authored_static(address, Mutation::EnsureArray)
+        self.publish_authored_static(&address, &Mutation::EnsureArray)
     }
 
     pub(super) fn authored_static_unset_address(&self, id: VarId) -> Option<StaticAddress> {
@@ -267,23 +270,23 @@ impl Vm {
         address: Option<StaticAddress>,
     ) -> Result<(), Completion<Value>> {
         match address {
-            Some(address) => self.publish_authored_static(address, Mutation::Unset),
+            Some(address) => self.publish_authored_static(&address, &Mutation::Unset),
             None => Ok(()),
         }
     }
 
     fn publish_authored_static(
         &mut self,
-        address: StaticAddress,
-        mutation: Mutation,
+        address: &StaticAddress,
+        mutation: &Mutation,
     ) -> Result<(), Completion<Value>> {
-        if self.authored_tmm_static.replay.as_ref() == Some(&address) {
+        if self.authored_tmm_static.replay.as_ref() == Some(address) {
             // Only this replicated primitive is suppressed. Its trace callbacks
             // run with ordinary publication semantics restored.
             self.authored_tmm_static.replay = None;
             return Ok(());
         }
-        let configured = self.authored_tmm_static.configuration.as_ref() == Some(&address);
+        let configured = self.authored_tmm_static.configuration.as_ref() == Some(address);
         if configured {
             self.authored_tmm_static.configuration = None;
         }
@@ -352,7 +355,7 @@ impl Vm {
                 worker,
                 &address.name,
                 address.element.as_ref(),
-                &mutation,
+                mutation,
                 !configured,
             )?;
         }
@@ -442,7 +445,7 @@ impl Vm {
                 let captured = self.capture_selected_update(
                     &reported,
                     element.map(NameBytes::as_bytes),
-                    resolved,
+                    &resolved,
                 )?;
                 self.select_static_primitive_address(
                     namespace,

@@ -179,7 +179,7 @@ impl Vm {
                             ));
                         }
                     };
-                    return Ok(vm.variable_update_result(value, &options));
+                    return Ok(Vm::variable_update_result(value, &options));
                 }
                 let next = original.native_list_append_list_elements(members, protocol);
                 next.map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
@@ -192,7 +192,7 @@ impl Vm {
                 }
             };
             let value = vm.store_captured_update(name, key, captured, next)?;
-            Ok(vm.variable_update_result(value, &options))
+            Ok(Vm::variable_update_result(value, &options))
         })
     }
 }

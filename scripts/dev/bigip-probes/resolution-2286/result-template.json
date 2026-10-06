@@ -1,9 +1,68 @@
 {
   "run": "REPLACE_WITH_UNIQUE_RUN",
-  "appliance": {"version_build": null, "platform": null, "active_device": null, "active_tmm_roster": [], "cmp_requested": null, "cmp_observed": null},
-  "sources": {"branch": null, "commit": null, "manifest_sha256": null, "appliance_hashes_match": null},
+  "appliance": {
+    "version_build": null,
+    "platform": null,
+    "active_device": null,
+    "active_tmm_roster": [],
+    "cmp_requested": null,
+    "cmp_observed": null,
+    "version": null,
+    "build": null,
+    "hotfix": null,
+    "raw_version_inventory": null
+  },
+  "sources": {
+    "branch": null,
+    "commit": null,
+    "manifest_sha256": null,
+    "appliance_hashes_match": null
+  },
+  "traffic_topology": {
+    "client_host": "dev.bragi0.com",
+    "server_host": "dev.bragi0.com",
+    "protocol": null,
+    "vip": null,
+    "pool_endpoint": null,
+    "loopback_forwarding_endpoint": null,
+    "snat_required": "automap",
+    "snat_observed": null,
+    "backend_observed_peer": null,
+    "forwarder_ingress": null,
+    "forwarder_egress": null,
+    "backend_connection_reuse": null
+  },
   "cases": [],
-  "case_record_schema": {"case": "case-id", "event": "exact event", "context": "TMM_iRule", "load_exit": null, "load_verdict": "UNMEASURED", "load_log": "raw path", "source_sha256": null, "actual_units": [], "traffic_file": "raw JSONL path", "ltm_log": "raw path", "result": "UNMEASURED", "limits": []},
-  "cleanup": {"runtime_cleanup_units": [], "exact_objects_absent": null, "errors": []},
-  "unmeasured": []
+  "case_record_schema": {
+    "case": "case-id",
+    "event": "exact event",
+    "context": "TMM_iRule",
+    "load_exit": null,
+    "load_verdict": "UNMEASURED",
+    "load_log": "raw path",
+    "source_sha256": null,
+    "actual_units": [],
+    "traffic_file": "raw JSONL path",
+    "ltm_log": "raw path",
+    "result": "UNMEASURED",
+    "limits": [],
+    "appliance_version": null,
+    "appliance_build": null,
+    "appliance_hotfix": null,
+    "protocol": null,
+    "vip_profiles": [],
+    "backend_receipt": null
+  },
+  "cleanup": {
+    "runtime_cleanup_units": [],
+    "exact_objects_absent": null,
+    "errors": []
+  },
+  "unmeasured": [],
+  "report": {
+    "branch": "work",
+    "path": "scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md",
+    "report_commit": null,
+    "raw_evidence_location": null
+  }
 }

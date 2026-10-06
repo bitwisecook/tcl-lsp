@@ -1520,9 +1520,11 @@ mod original_object_tests {
         }
     }
 
+    type Observation = (bool, i64, bool, i64, bool);
+
     thread_local! {
         static SEED: std::cell::Cell<*mut TclObj> = const { std::cell::Cell::new(std::ptr::null_mut()) };
-        static OBSERVATIONS: std::cell::RefCell<Vec<(bool, i64, bool, i64, bool)>> = const { std::cell::RefCell::new(Vec::new()) };
+        static OBSERVATIONS: std::cell::RefCell<Vec<Observation>> = const { std::cell::RefCell::new(Vec::new()) };
     }
     fn keep(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let seed = SEED.with(std::cell::Cell::get);

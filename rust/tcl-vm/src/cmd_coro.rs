@@ -300,6 +300,35 @@ fn coro_resume(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     resume(vm, &key, args, &invoked)
 }
 
+fn validate_resume_arity(
+    vm: &mut Vm,
+    key: &CommandSidecarKey,
+    args: &[Value],
+    display_name: &str,
+) -> Result<(), Completion<Value>> {
+    match vm.coro.live.get(key) {
+        None => return Err(err(format!("invalid command name \"{}\"", key.name()))),
+        Some(s) if s.status == CoroStatus::Running => {
+            return Err(err(format!(
+                "coroutine \"{}\" is already running",
+                key.name()
+            )));
+        }
+        Some(s)
+            if s.status == CoroStatus::Suspended
+                && s.last_suspend == SuspendKind::Yield
+                && args.len() > 1 =>
+        {
+            return Err(crate::command::native_wrong_arguments_message(
+                vm,
+                format!("wrong # args: should be \"{display_name} ?arg?\""),
+            ));
+        }
+        Some(_) => {}
+    }
+    Ok(())
+}
+
 /// Resume the coroutine `fqn`, delivering `args` as the result of the parked
 /// suspend point. A `yield`-suspended coroutine takes at most one value; a
 /// `yieldto`-suspended one accepts any number, delivered as a list. `args` is
@@ -314,22 +343,8 @@ fn resume(
 ) -> Completion<Value> {
     // Validate the resume arity against how the coroutine last suspended, before
     // the borrow choreography, so an error leaves the coroutine untouched.
-    match vm.coro.live.get(key) {
-        None => return err(format!("invalid command name \"{}\"", key.name())),
-        Some(s) if s.status == CoroStatus::Running => {
-            return err(format!("coroutine \"{}\" is already running", key.name()));
-        }
-        Some(s)
-            if s.status == CoroStatus::Suspended
-                && s.last_suspend == SuspendKind::Yield
-                && args.len() > 1 =>
-        {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                format!("wrong # args: should be \"{display_name} ?arg?\""),
-            );
-        }
-        Some(_) => {}
+    if let Err(error) = validate_resume_arity(vm, key, args, display_name) {
+        return error;
     }
     // Snapshot whole-stack freshness before moving the state. Rejection below
     // happens only after installing the frozen flow, so ordinary unwind fires

@@ -239,6 +239,30 @@ fn array_default_command(vm: &mut Vm, args: &[Value], member: Option<&Value>) ->
     })
 }
 
+fn settle_array_read_result(
+    vm: &Vm,
+    result: tcl_cmd_core::array::ArrayCommandResult<Value>,
+) -> Completion<Value> {
+    let Some(miss) = result.read_miss else {
+        return ok(result.value);
+    };
+    let carried =
+        shared_options::retained_array_read_options(&miss, |bytes| Value::from_string_bytes(bytes));
+    let rows = shared_options::plan(vm.runtime_version(), Code::Ok, 0, &carried, None);
+    let options = Value::list(
+        rows.into_iter()
+            .flat_map(|(key, value)| {
+                let value = match value {
+                    OptionValue::Integer(value) => Value::int(value),
+                    OptionValue::Value(value) => value,
+                };
+                [Value::from_string_bytes(key), value]
+            })
+            .collect(),
+    );
+    Completion::new(Code::Ok, result.value, options)
+}
+
 fn array_op_after_trace(
     vm: &mut Vm,
     sub: &str,
@@ -254,27 +278,7 @@ fn array_op_after_trace(
     // The read-side + `unset` live in the shared core.
     if let Some(result) = tcl_cmd_core::array::dispatch_at(vm, sub, rest, target) {
         return match result {
-            Ok(result) => {
-                let Some(miss) = result.read_miss else {
-                    return ok(result.value);
-                };
-                let carried = shared_options::retained_array_read_options(&miss, |bytes| {
-                    Value::from_string_bytes(bytes)
-                });
-                let rows = shared_options::plan(vm.runtime_version(), Code::Ok, 0, &carried, None);
-                let options = Value::list(
-                    rows.into_iter()
-                        .flat_map(|(key, value)| {
-                            let value = match value {
-                                OptionValue::Integer(value) => Value::int(value),
-                                OptionValue::Value(value) => value,
-                            };
-                            [Value::from_string_bytes(key), value]
-                        })
-                        .collect(),
-                );
-                Completion::new(Code::Ok, result.value, options)
-            }
+            Ok(result) => settle_array_read_result(vm, result),
             Err(e) => completion_from_cmd_error(vm, e),
         };
     }

@@ -166,12 +166,12 @@ fn proc_return_param_loads_and_dones() {
     let mut cfg = CfgFunction::new("::f", "entry_0");
     let entry = cfg.entry;
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
-        expr_base: None,
-        tokens: None,
         value: Some("${x}".into()),
         value_word: None,
         span: None,
         expr: None,
+        expr_base: None,
+        tokens: None,
         braced: false,
     });
     let registry = CommandRegistry::build_default();
@@ -382,6 +382,8 @@ fn registry_barrier_after_if_arm_call_keeps_the_arm_value() {
         value_word: None,
         span: None,
         expr: None,
+        expr_base: None,
+        tokens: None,
         braced: false,
     });
 
@@ -977,12 +979,12 @@ fn codegen_module_with_no_procs() {
     };
     let ir_mod = IrModule {
         retained_source_bindings: None,
-        lexer_config: Default::default(),
-        source_entry: Default::default(),
+        lexer_config: tcl_lexer::LexerConfig::default(),
+        source_entry: tcl_compiler::command_binding::SourceAnalysisEntry::default(),
         future_call_sites: Vec::new(),
-        installed_procedure_body_units: Default::default(),
-        original_declaration_body_units: Default::default(),
-        procedure_implementation_bodies: Default::default(),
+        installed_procedure_body_units: std::collections::BTreeMap::new(),
+        original_declaration_body_units: std::collections::BTreeMap::new(),
+        procedure_implementation_bodies: std::sync::Arc::default(),
         top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
         plain_command_dispatch: false,
         source: tcl_lexer::SourceImage::default(),

@@ -1923,8 +1923,8 @@ mod tests {
             let frame = actual.variable_frame.clone();
             let namespace = frame.namespace_identity().cloned();
             let context = SourceExecutionContext {
-                realm: Default::default(),
-                compilation: Default::default(),
+                realm: tcl_dialect::model::InvocationRealm::default(),
+                compilation: tcl_registry::native_compilation::NativeCompilationContext::default(),
                 compilation_snapshot: None,
                 selected_compilation: None,
                 namespace: "::",

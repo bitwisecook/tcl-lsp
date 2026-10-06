@@ -94,7 +94,7 @@ mod tests {
         root.cell = Some(place::CellIdentity {
             owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(native))),
             name: root.name.clone(),
-            generation: Default::default(),
+            generation: place::CellGeneration::default(),
             interpreter: None,
             storage_domain: None,
             execution: None,

@@ -37,7 +37,7 @@
 //!   object → the class MRO), so a diamond defers a shared base until after
 //!   everything deriving from it — the same order `next` follows.
 //!
-//! Declaration objects retain counted byte keys independently of CString
+//! Declaration objects retain counted byte keys independently of `CString`
 //! validation. Constructed command slots remain separate from reporting names.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -85,7 +85,7 @@ struct Method {
 }
 
 impl Method {
-    /// A new native method declaration invokes DetailsCloner; reached snapshots
+    /// A new native method declaration invokes `DetailsCloner`; reached snapshots
     /// use ordinary Clone and never acquire another clientData object role.
     fn duplicate_native_payload(&self) -> Self {
         let mut duplicate = self.clone();
@@ -142,7 +142,7 @@ struct Class {
 /// The object facet of an entity: its own (per-instance) state.
 #[derive(Clone)]
 struct Object {
-    /// The original per-object TclOO name header, retired on rename/destruction.
+    /// The original per-object `TclOO` name header, retired on rename/destruction.
     cached_name: Rc<RefCell<Option<Value>>>,
     /// FQN of the object's class (canonical).
     class: OoId,
@@ -759,8 +759,7 @@ fn apply_property(
         vm,
         is_class,
         target,
-        name.as_bytes(),
-        None,
+        (name.as_bytes(), None),
         kind,
         getter,
         setter,
@@ -771,34 +770,18 @@ fn apply_property_bytes(
     vm: &mut Vm,
     is_class: bool,
     target: OoId,
-    name: &[u8],
-    original: Option<&Value>,
+    property_name: (&[u8], Option<&Value>),
     kind: TclOoPropertyKind,
     getter: Option<Value>,
     setter: Option<Value>,
 ) -> Result<(), Completion<Value>> {
-    let mut dashed_bytes = b"-".to_vec();
-    dashed_bytes.extend_from_slice(tcl_core_types::c_string_extent(name));
-    let dashed = vm
-        .oo
-        .intern_method_key(tcl_core_types::NameBytes::from(dashed_bytes.clone()));
+    let (name, original) = property_name;
+    let (dashed, read_method, write_method) = property_accessor_keys(vm, name);
     let (readable, writable) = match kind {
         TclOoPropertyKind::Readable => (true, false),
         TclOoPropertyKind::Writable => (false, true),
         TclOoPropertyKind::ReadWrite => (true, true),
     };
-    let mut read_bytes = b"<ReadProp".to_vec();
-    read_bytes.extend_from_slice(&dashed_bytes);
-    read_bytes.push(b'>');
-    let mut write_bytes = b"<WriteProp".to_vec();
-    write_bytes.extend_from_slice(&dashed_bytes);
-    write_bytes.push(b'>');
-    let read_method = vm
-        .oo
-        .intern_method_key(tcl_core_types::NameBytes::from(read_bytes));
-    let write_method = vm
-        .oo
-        .intern_method_key(tcl_core_types::NameBytes::from(write_bytes));
     let get_m = match getter {
         Some(body) => Some(build_method(vm, &Value::empty(), &body, false)?),
         None if readable => {
@@ -877,6 +860,27 @@ fn apply_property_bytes(
 /// The `configure` instance method of a configurable object. Forms:
 /// `configure` (list every readable property as `-name value`), `configure
 /// -name` (read one), `configure -name value …` (write pairs).
+fn property_accessor_keys(vm: &mut Vm, name: &[u8]) -> (String, String, String) {
+    let mut dashed_bytes = b"-".to_vec();
+    dashed_bytes.extend_from_slice(tcl_core_types::c_string_extent(name));
+    let dashed = vm
+        .oo
+        .intern_method_key(tcl_core_types::NameBytes::from(dashed_bytes.clone()));
+    let mut read_bytes = b"<ReadProp".to_vec();
+    read_bytes.extend_from_slice(&dashed_bytes);
+    read_bytes.push(b'>');
+    let mut write_bytes = b"<WriteProp".to_vec();
+    write_bytes.extend_from_slice(&dashed_bytes);
+    write_bytes.push(b'>');
+    let read_method = vm
+        .oo
+        .intern_method_key(tcl_core_types::NameBytes::from(read_bytes));
+    let write_method = vm
+        .oo
+        .intern_method_key(tcl_core_types::NameBytes::from(write_bytes));
+    (dashed, read_method, write_method)
+}
+
 fn configure_method(vm: &mut Vm, obj_key: OoId, args: &[Value]) -> Completion<Value> {
     if vm
         .actual_native_invocation_dialect()
@@ -1396,12 +1400,13 @@ fn oo_new(
                 .is_some_and(|c| c.constructor.is_some())
         })
         .collect();
-    let chain = native_method_cache::retain_owners(&vm.oo, chain, "");
+    let chain: native_method_cache::ReachedMethodChain =
+        native_method_cache::retain_owners(&vm.oo, chain, "").into();
     if !chain.is_empty() {
         let res = run_step(
             vm,
             object_id,
-            chain.into(),
+            &chain,
             0,
             String::new(),
             ctor_args,
@@ -1410,6 +1415,7 @@ fn oo_new(
             ctor_usage.to_vec(),
             ctor_identity,
         );
+        drop(chain);
         if !res.code.is_ok() && res.code != Code::Return {
             // Tear the half-built object down and re-raise.
             teardown(vm, object_id);
@@ -1631,8 +1637,7 @@ fn oo_invoke_value(
         original_method,
         args,
         external,
-        invoked,
-        None,
+        (invoked, None),
     )
 }
 
@@ -1643,9 +1648,9 @@ fn oo_invoke_value_with_head(
     original_method: &Value,
     args: &[Value],
     external: bool,
-    invoked: &Value,
-    private_head: Option<&Value>,
+    invocation_heads: (&Value, Option<&Value>),
 ) -> Completion<Value> {
+    let (invoked, private_head) = invocation_heads;
     if !vm.oo.objects.contains_key(&obj_key) {
         return err(object_message(
             vm,
@@ -1724,7 +1729,7 @@ fn oo_invoke_value_with_head(
     run_step(
         vm,
         obj_key,
-        chain,
+        &chain,
         0,
         method.to_string(),
         args,
@@ -1781,7 +1786,7 @@ fn unknown_method(vm: &Vm, obj_key: OoId, method: &str, external: bool) -> Compl
 fn run_step(
     vm: &mut Vm,
     obj_key: OoId,
-    chain: native_method_cache::ReachedMethodChain,
+    chain: &native_method_cache::ReachedMethodChain,
     index: usize,
     method: String,
     args: &[Value],
@@ -1813,7 +1818,7 @@ fn run_step(
 fn run_step_inner(
     vm: &mut Vm,
     obj_key: OoId,
-    chain: native_method_cache::ReachedMethodChain,
+    chain: &native_method_cache::ReachedMethodChain,
     index: usize,
     method: String,
     args: &[Value],
@@ -2076,9 +2081,9 @@ fn builtin_method(
                 .collect::<Vec<_>>()
                 .join(" ");
             let namespace = vm.definition_namespace_token(&ns);
-            let argv =
+            let invocation =
                 original_call_words([invoked, original_method].into_iter().chain(args.iter()));
-            vm.push_ns_eval_token_frame(namespace, argv);
+            vm.push_ns_eval_token_frame(namespace, invocation);
             let frame = OoFrame {
                 name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
                 activation: Some(vm.native_oo_variable_activation()),
@@ -2268,7 +2273,7 @@ pub(crate) fn cmd_next_original(vm: &mut Vm, head: &Value, args: &[Value]) -> Co
     run_step(
         vm,
         obj,
-        chain.into(),
+        &chain,
         index + 1,
         method,
         args,
@@ -2316,7 +2321,7 @@ pub(crate) fn cmd_nextto_original(vm: &mut Vm, head: &Value, args: &[Value]) -> 
         return run_step(
             vm,
             obj,
-            chain.into(),
+            &chain,
             pos,
             method,
             rest,
@@ -2380,14 +2385,15 @@ fn oo_destroy(vm: &mut Vm, obj_key: OoId) -> Completion<Value> {
                     .is_some_and(|c| c.destructor.is_some())
             })
             .collect();
-        let chain = native_method_cache::retain_owners(&vm.oo, chain, "<destructor>");
+        let chain: native_method_cache::ReachedMethodChain =
+            native_method_cache::retain_owners(&vm.oo, chain, "<destructor>").into();
         if !chain.is_empty() {
             let d = Value::from_native_string_bytes(display_oo_bytes(vm, obj_key));
             let call_identity = Vec::new();
             let res = run_step(
                 vm,
                 obj_key,
-                chain.into(),
+                &chain,
                 0,
                 "<destructor>".to_string(),
                 &[],
@@ -2396,6 +2402,7 @@ fn oo_destroy(vm: &mut Vm, obj_key: OoId) -> Completion<Value> {
                 vec![d, Value::string("destroy")],
                 call_identity,
             );
+            drop(chain);
             if !res.code.is_ok() && res.code != Code::Return {
                 result = res;
             }
@@ -2520,12 +2527,12 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
     };
     let caller = vm.current_ns_id();
     let caller_activation = vm.native_oo_variable_activation();
-    let mut argv = vec![
+    let mut invocation = vec![
         vm.invoked_name_value()
             .unwrap_or_else(|| Value::string(verb)),
     ];
-    argv.extend_from_slice(args);
-    if let Err(completion) = native_context::enter_definition(vm, is_class, argv) {
+    invocation.extend_from_slice(args);
+    if let Err(completion) = native_context::enter_definition(vm, is_class, invocation) {
         return completion;
     }
     let activation = vm.native_oo_variable_activation();
@@ -2543,10 +2550,8 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
             match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
                 Ok(c) if c.code == Code::Return => ok(c.result),
                 Ok(c) if c.code == Code::Error => {
-                    match append_define_frame(vm, is_class, target, &c.result.string_bytes()) {
-                        Ok(()) => c,
-                        Err(refusal) => vm.refuse_host_command(refusal.to_string()),
-                    }
+                    append_define_frame(vm, is_class, target, &c.result.string_bytes());
+                    c
                 }
                 Ok(c) => c,
                 Err(e) => definition_error(vm, is_class, target, e),
@@ -2566,12 +2571,7 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
 /// to `errorInfo` as an error unwinds out of an `oo::define`/`oo::objdefine`
 /// *script* body — the context frame C's `TclOODefineObjCmd` adds. `line` is the
 /// body-relative source line of the failing directive (C's `iPtr->errorLine`).
-fn append_define_frame(
-    vm: &mut Vm,
-    is_class: bool,
-    target: OoId,
-    msg: &[u8],
-) -> Result<(), tcl_syntax::raw_string::UnicodeAccessError> {
+fn append_define_frame(vm: &mut Vm, is_class: bool, target: OoId, msg: &[u8]) {
     let kind = if is_class { "class" } else { "object" };
     let line = vm.error_line();
     let mut frame = format!("\n    (in definition script for {kind} ").into_bytes();
@@ -2579,7 +2579,6 @@ fn append_define_frame(
     frame.extend_from_slice(&display_oo_bytes(vm, target));
     frame.extend_from_slice(format!("\" line {line})").as_bytes());
     vm.seed_error_info_frame(msg, &frame);
-    Ok(())
 }
 
 fn definition_error(
@@ -2590,10 +2589,8 @@ fn definition_error(
 ) -> Completion<Value> {
     if let Some(completion) = error.guest_completion()
         && completion.code == Code::Error
-        && let Err(refusal) =
-            append_define_frame(vm, is_class, target, &completion.result.string_bytes())
     {
-        return vm.refuse_host_command(refusal.to_string());
+        append_define_frame(vm, is_class, target, &completion.result.string_bytes());
     }
     crate::command::completion_from_tcl_error(vm, error)
 }
@@ -2668,24 +2665,7 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
     {
         return ok(Value::empty());
     }
-    let existing = if is_class {
-        vm.oo.classes.get(&target).map(|class| {
-            if private {
-                &class.private_variables
-            } else {
-                &class.variables
-            }
-        })
-    } else {
-        vm.oo.objects.get(&target).map(|object| {
-            if private {
-                &object.private_variables
-            } else {
-                &object.variables
-            }
-        })
-    }
-    .cloned();
+    let existing = declared_variable_snapshot(vm, is_class, target, private);
     let Some(mut existing) = existing else {
         return ok(Value::empty());
     };
@@ -2709,6 +2689,17 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
             Err(error) => return vm.refuse_host_command(format!("{error:?}")),
         }
     }
+    publish_declared_variables(vm, is_class, target, private, updated);
+    ok(Value::empty())
+}
+
+fn publish_declared_variables(
+    vm: &mut Vm,
+    is_class: bool,
+    target: OoId,
+    private: bool,
+    updated: Vec<DeclaredVariable>,
+) {
     let slot = if is_class {
         vm.oo.classes.get_mut(&target).map(|class| {
             if private {
@@ -2729,7 +2720,32 @@ fn declare_variable(vm: &mut Vm, args: &[Value], private: bool) -> Completion<Va
     if let Some(slot) = slot {
         *slot = updated;
     }
-    ok(Value::empty())
+}
+
+fn declared_variable_snapshot(
+    vm: &Vm,
+    is_class: bool,
+    target: OoId,
+    private: bool,
+) -> Option<Vec<DeclaredVariable>> {
+    if is_class {
+        vm.oo.classes.get(&target).map(|class| {
+            if private {
+                &class.private_variables
+            } else {
+                &class.variables
+            }
+        })
+    } else {
+        vm.oo.objects.get(&target).map(|object| {
+            if private {
+                &object.private_variables
+            } else {
+                &object.variables
+            }
+        })
+    }
+    .cloned()
 }
 
 /// `private variable name …` inside a definition body.
@@ -3276,42 +3292,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 names.iter().map(|entry| entry.original.clone()).collect(),
             ))
         }
-        "vars" => {
-            let namespace = vm.definition_namespace_token(&vm.oo.objects[&obj].ns.clone());
-            let pattern = match extra
-                .first()
-                .map(|value| vm.native_name_operand_bytes(value))
-                .transpose()
-            {
-                Ok(pattern) => pattern,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            let Some(policy) = vm.name_policy_protocol() else {
-                return vm.refuse_host_command(
-                    "TclOO variable enumeration protocol is unavailable".to_owned(),
-                );
-            };
-            let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
-            let mut names = Vec::new();
-            for name in tcl_runtime_api::Namespaces::vars_in_bytes(vm, namespace) {
-                if !vm.tcloo_storage_variable_is_defined(namespace, &name) {
-                    continue;
-                }
-                if let Some(pattern) = pattern.as_ref() {
-                    match matcher.match_name_pattern(
-                        tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
-                        pattern,
-                        &name,
-                    ) {
-                        Ok(true) => {}
-                        Ok(false) => continue,
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
-                    }
-                }
-                names.push(Value::from_native_string_bytes(name));
-            }
-            ok(Value::list(names))
-        }
+        "vars" => info_object_variable_names(vm, obj, extra),
         "methods" => {
             let all = extra.iter().any(|v| v.to_str().as_ref() == "-all");
             let mut names: BTreeSet<String> = vm.oo.objects[&obj].methods.keys().cloned().collect();
@@ -3326,6 +3307,42 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "properties" => info_object_properties(vm, obj, extra),
         _ => err(format!("unsupported info object subcommand \"{sub}\"")),
     }
+}
+
+fn info_object_variable_names(vm: &mut Vm, obj: OoId, extra: &[Value]) -> Completion<Value> {
+    let namespace = vm.definition_namespace_token(&vm.oo.objects[&obj].ns.clone());
+    let pattern = match extra
+        .first()
+        .map(|value| vm.native_name_operand_bytes(value))
+        .transpose()
+    {
+        Ok(pattern) => pattern,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let Some(policy) = vm.name_policy_protocol() else {
+        return vm
+            .refuse_host_command("TclOO variable enumeration protocol is unavailable".to_owned());
+    };
+    let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
+    let mut names = Vec::new();
+    for name in tcl_runtime_api::Namespaces::vars_in_bytes(vm, namespace) {
+        if !vm.tcloo_storage_variable_is_defined(namespace, &name) {
+            continue;
+        }
+        if let Some(pattern) = pattern.as_ref() {
+            match matcher.match_name_pattern(
+                tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
+                pattern,
+                &name,
+            ) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            }
+        }
+        names.push(Value::from_native_string_bytes(name));
+    }
+    ok(Value::list(names))
 }
 
 /// `info object properties object ?-all? ?-readable|-writable?` (TIP 558).
@@ -3422,10 +3439,10 @@ fn info_object_isa(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     // `isa object` on a non-object is a plain false, not an error — the same
     // test the `tclooIsObject` opcode this form compiles to performs.
-    if obj.is_none() {
-        if let Err(completion) = object_lookup_failure(vm, obj_arg) {
-            return completion;
-        }
+    if obj.is_none()
+        && let Err(completion) = object_lookup_failure(vm, obj_arg)
+    {
+        return completion;
     }
     if kind == "object" {
         return ok(Value::int(i64::from(obj.is_some())));
@@ -3501,61 +3518,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(|m| Value::from_native_string_bytes(display_oo_bytes(vm, *m)))
                 .collect(),
         )),
-        "subclasses" | "instances" => {
-            let pattern = match extra.first() {
-                Some(original) => match vm.native_name_operand_bytes(original) {
-                    Ok(bytes) => Some(bytes),
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                },
-                None => None,
-            };
-            let tokens: Vec<_> = if sub == "subclasses" {
-                vm.oo
-                    .classes
-                    .iter()
-                    .filter(|(key, class)| **key != cls && class.supers.contains(&cls))
-                    .map(|(key, _)| *key)
-                    .collect()
-            } else {
-                vm.oo
-                    .objects
-                    .iter()
-                    .filter(|(key, object)| {
-                        object.class == cls && !vm.oo.classes.contains_key(*key)
-                    })
-                    .map(|(key, _)| *key)
-                    .collect()
-            };
-            let Some(policy) = vm.name_policy_protocol() else {
-                return vm.refuse_host_command(
-                    "native TclOO enumeration protocol unavailable".to_owned(),
-                );
-            };
-            let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
-            let mut names = Vec::new();
-            for token in tokens {
-                let name = display_oo_bytes(vm, token);
-                if let Some(pattern) = pattern.as_ref() {
-                    match matcher.match_name_pattern(
-                        tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
-                        pattern,
-                        &name,
-                    ) {
-                        Ok(true) => {}
-                        Ok(false) => continue,
-                        Err(error) => return vm.refuse_host_command(error.to_string()),
-                    }
-                }
-                names.push(name);
-            }
-            names.sort();
-            ok(Value::list(
-                names
-                    .into_iter()
-                    .map(Value::from_native_string_bytes)
-                    .collect(),
-            ))
-        }
+        "subclasses" | "instances" => info_class_related_names(vm, cls, extra, sub),
         "methods" => info_class_methods(vm, cls, extra),
         "constructor" => match vm.oo.classes[&cls].constructor.get() {
             Some(m) => ok(Value::list(vec![
@@ -3584,6 +3547,63 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "properties" => info_class_properties(vm, cls, extra),
         _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
+}
+
+fn info_class_related_names(
+    vm: &mut Vm,
+    cls: OoId,
+    extra: &[Value],
+    sub: &str,
+) -> Completion<Value> {
+    let pattern = match extra.first() {
+        Some(original) => match vm.native_name_operand_bytes(original) {
+            Ok(bytes) => Some(bytes),
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        },
+        None => None,
+    };
+    let tokens: Vec<_> = if sub == "subclasses" {
+        vm.oo
+            .classes
+            .iter()
+            .filter(|(key, class)| **key != cls && class.supers.contains(&cls))
+            .map(|(key, _)| *key)
+            .collect()
+    } else {
+        vm.oo
+            .objects
+            .iter()
+            .filter(|(key, object)| object.class == cls && !vm.oo.classes.contains_key(*key))
+            .map(|(key, _)| *key)
+            .collect()
+    };
+    let Some(policy) = vm.name_policy_protocol() else {
+        return vm.refuse_host_command("native TclOO enumeration protocol unavailable".to_owned());
+    };
+    let matcher = tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy);
+    let mut names = Vec::new();
+    for token in tokens {
+        let name = display_oo_bytes(vm, token);
+        if let Some(pattern) = pattern.as_ref() {
+            match matcher.match_name_pattern(
+                tcl_syntax::native_glob::NativeNameGlobPurpose::OoObjectNamesSearch,
+                pattern,
+                &name,
+            ) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => return vm.refuse_host_command(error.to_string()),
+            }
+        }
+        names.push(name);
+    }
+    names.sort();
+    ok(Value::list(
+        names
+            .into_iter()
+            .map(Value::from_native_string_bytes)
+            .collect(),
+    ))
 }
 
 /// `info class properties class ?-all? ?-readable|-writable?` (TIP 558).
@@ -3775,54 +3795,57 @@ fn make_class_bytes(
         .command_keys
         .insert(class_id, CommandSidecarKey::visible(command_key));
     if let Some(body) = body {
-        let caller = vm.current_ns_id();
-        let caller_activation = vm.native_oo_variable_activation();
-        let argv = vec![
-            vm.oo
-                .define_name
-                .as_ref()
-                .expect("native OO Foundation define head")
-                .clone(),
-            native_context::object_name(vm, class_id),
-            body.clone(),
-        ];
-        if let Err(completion) = native_context::enter_definition(vm, true, argv) {
-            return completion;
-        }
-        let activation = vm.native_oo_variable_activation();
-        vm.oo.def_stack.push((
-            DefTarget::Class(class_id),
-            activation,
-            caller,
-            caller_activation,
-        ));
-        let source = match vm.native_name_operand_bytes(body) {
-            Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
-            Err(error) => {
-                vm.oo.def_stack.pop();
-                native_context::leave_definition(vm);
-                return vm.refuse_host_command(error.to_string());
-            }
-        };
-        let res = match vm.eval_source_image_at_internal(&source, body.source_location()) {
-            Ok(c) if c.code == Code::Return => ok(c.result),
-            Ok(c) if c.code == Code::Error => {
-                match append_define_frame(vm, true, class_id, &c.result.string_bytes()) {
-                    Ok(()) => c,
-                    Err(refusal) => vm.refuse_host_command(refusal.to_string()),
-                }
-            }
-            Ok(c) => c,
-            Err(e) => definition_error(vm, true, class_id, e),
-        };
-        vm.oo.def_stack.pop();
-        native_context::leave_definition(vm);
+        let res = evaluate_class_definition(vm, class_id, body);
         if !res.code.is_ok() && res.code != Code::Return {
             teardown(vm, class_id);
             return res;
         }
     }
     ok(native_context::object_name(vm, class_id))
+}
+
+fn evaluate_class_definition(vm: &mut Vm, class_id: OoId, body: &Value) -> Completion<Value> {
+    let caller = vm.current_ns_id();
+    let caller_activation = vm.native_oo_variable_activation();
+    let argv = vec![
+        vm.oo
+            .define_name
+            .as_ref()
+            .expect("native OO Foundation define head")
+            .clone(),
+        native_context::object_name(vm, class_id),
+        body.clone(),
+    ];
+    if let Err(completion) = native_context::enter_definition(vm, true, argv) {
+        return completion;
+    }
+    let activation = vm.native_oo_variable_activation();
+    vm.oo.def_stack.push((
+        DefTarget::Class(class_id),
+        activation,
+        caller,
+        caller_activation,
+    ));
+    let source = match vm.native_name_operand_bytes(body) {
+        Ok(bytes) => tcl_lexer::SourceImage::native(bytes.as_ref()),
+        Err(error) => {
+            vm.oo.def_stack.pop();
+            native_context::leave_definition(vm);
+            return vm.refuse_host_command(error.to_string());
+        }
+    };
+    let res = match vm.eval_source_image_at_internal(&source, body.source_location()) {
+        Ok(c) if c.code == Code::Return => ok(c.result),
+        Ok(c) if c.code == Code::Error => {
+            append_define_frame(vm, true, class_id, &c.result.string_bytes());
+            c
+        }
+        Ok(c) => c,
+        Err(e) => definition_error(vm, true, class_id, e),
+    };
+    vm.oo.def_stack.pop();
+    native_context::leave_definition(vm);
+    res
 }
 
 #[cfg(test)]

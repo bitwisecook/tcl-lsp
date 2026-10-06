@@ -57,7 +57,7 @@ fn original_c91_uplevel_emits_native_frame_operation_and_defers_body_compilation
         let image = tcl_lexer::SourceImage::native(source.as_bytes());
         let parsed = tcl_lexer::native_script_words_in(
             image,
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         )
         .unwrap();

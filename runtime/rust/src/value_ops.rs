@@ -1429,7 +1429,7 @@ mod tests {
                 };
                 let value = match class(before) {
                     Class::String => {
-                        obj::new_string_bytes(if index == 0 && matches!(mode, 11 | 12 | 13) {
+                        obj::new_string_bytes(if index == 0 && matches!(mode, 11..=13) {
                             b""
                         } else {
                             string

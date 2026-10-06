@@ -121,6 +121,9 @@ use crate::host_native::NativeHost as DefaultHost;
 use crate::host_wasm::BrowserHost as DefaultHost;
 use crate::value::Value;
 use crate::vars::{NameLink, VarArena, VarState as Local, VarState, VarTable};
+use tcl_registry::native_rmw::{NativeRmwAmountError, NativeRmwOperation};
+use tcl_runtime_api::error_stack::{ErrorStackFrame, ShiftedErrorStackFrame};
+use tcl_syntax::naming::NativeVariableFailureSite::ValueWrite;
 
 use native_name_world::NativeNameWorld;
 pub use native_name_world::{
@@ -1026,6 +1029,118 @@ struct NativeTraceInterpreterState {
     stack: Option<NativeErrorStack>,
 }
 
+/// C interpreter error roots and their publication/logging state. Field order
+/// retains the original native owner release order.
+struct NativeErrorState {
+    error_info: Option<Vec<u8>>,
+    native_error_info: Option<Value>,
+    native_error_info_len: usize,
+    native_error_result: Option<crate::value::WeakNativeObject>,
+    native_return_options: Option<Value>,
+    native_c_return_state: NativeCReturnState,
+    native_error_legacy_copy: bool,
+    /// Primitive interpreter error-code state, separate from guest globals.
+    /// None is the fresh interpreter's native NONE state.
+    primitive_error_code: Option<Value>,
+    /// C's `ERR_ALREADY_LOGGED`: set once the current command level has logged
+    /// its frame (so the same bytecode frame is not re-logged), cleared at a
+    /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
+    /// the enclosing command logs its own `invoked from within` frame.
+    error_logged: bool,
+    /// TIP 348's interpreter-local structured error stack. Its lazy reset
+    /// keeps the last caught stack introspectable until a new error is logged.
+    error_stack: NativeErrorStack,
+    error_line: u32,
+}
+
+impl Default for NativeErrorState {
+    fn default() -> Self {
+        Self {
+            error_info: None,
+            native_error_info: None,
+            native_error_info_len: 0,
+            native_error_result: None,
+            native_return_options: None,
+            native_c_return_state: NativeCReturnState::default(),
+            native_error_legacy_copy: false,
+            primitive_error_code: None,
+            error_logged: false,
+            error_stack: NativeErrorStack::default(),
+            error_line: 1,
+        }
+    }
+}
+
+/// Explicit authored simulation providers, independent of actual native
+/// interpreter registration and object issuers.
+#[derive(Default)]
+struct LogicalProviders {
+    /// Explicit simulation capability. It never contributes a native compiler
+    /// or hardware result receipt; native policy remains independently selected.
+    quote: Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
+    source_words: Option<tcl_registry::invocation_words::LogicalSourceWordProvider>,
+    eval_object: Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
+    expression_parse: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
+    numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
+    /// Explicit authored name/string simulation, independent of the host engine.
+    names: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    /// Explicit compiler-local simulation, separate from name and host authority.
+    compiled_variables:
+        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NativeBootstrapPurpose {
+    Distribution,
+    Core,
+}
+
+/// Native cache epochs and command-semantic disposition, updated together at
+/// original interpreter mutation boundaries.
+struct NativeCompilationEpochs {
+    trace_deopt_epoch: std::cell::Cell<u64>,
+    /// Actual native compilation invalidation, independent of lookup guards.
+    native_compiler_epoch: std::cell::Cell<NativeCompilerCacheEpoch>,
+    /// Resolver epoch keyed by actual namespace incarnation.
+    native_namespace_epochs: HashMap<NsId, u64>,
+    native_ensemble_namespace_epochs: RefCell<HashMap<NsId, u64>>,
+    /// Whether command-binding generation tracking has passed bootstrap.
+    command_semantics: std::cell::Cell<CommandSemantics>,
+    cmd_resolve_cache: RefCell<CommandResolveCache>,
+    cmd_epoch: std::cell::Cell<u64>,
+}
+
+impl Default for NativeCompilationEpochs {
+    fn default() -> Self {
+        Self {
+            cmd_resolve_cache: RefCell::new((0, HashMap::new())),
+            cmd_epoch: std::cell::Cell::new(0),
+            trace_deopt_epoch: std::cell::Cell::new(0),
+            native_compiler_epoch: std::cell::Cell::new(NativeCompilerCacheEpoch::default()),
+            native_namespace_epochs: HashMap::new(),
+            native_ensemble_namespace_epochs: RefCell::new(HashMap::new()),
+            command_semantics: std::cell::Cell::new(CommandSemantics::Bootstrapping),
+        }
+    }
+}
+
+struct NamespaceResolutionStacks {
+    ns_stack: Vec<NameBytes>,
+    ns_id_stack: Vec<NsId>,
+}
+
+impl Default for NamespaceResolutionStacks {
+    fn default() -> Self {
+        Self {
+            ns_stack: vec![NameBytes::default()],
+            ns_id_stack: vec![ROOT_NS],
+        }
+    }
+}
+
+type CommandResolveCache = (u64, HashMap<(NsId, NameBytes, bool), Option<String>>);
+type ImportedSourceCommand = (NameBytes, Command, Option<String>, CommandTokenIdentity);
+
 /// One interpreter's command table, namespaces, frames and execution state.
 /// The engine swaps this state at interpreter boundaries.
 pub struct InterpState {
@@ -1061,21 +1176,7 @@ pub struct InterpState {
     /// Actual interpreter execution-environment Boolean constant roots.
     native_execution_booleans: Option<[Value; 2]>,
     jim_teardown_started: bool,
-    /// Explicit simulation capability. It never contributes a native compiler
-    /// or hardware result receipt; native policy remains independently selected.
-    logical_quote_provider: Option<tcl_registry::invocation_words::LogicalExpressionQuoteProvider>,
-    logical_source_word_provider: Option<tcl_registry::invocation_words::LogicalSourceWordProvider>,
-    logical_eval_object_provider:
-        Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
-    logical_expression_parse_provider:
-        Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
-    logical_numeric_provider:
-        Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
-    /// Explicit authored name/string simulation, independent of the host engine.
-    logical_name_provider: Option<tcl_syntax::naming::NamePolicyProtocol>,
-    /// Explicit compiler-local simulation, separate from name and host authority.
-    logical_compiled_variable_provider:
-        Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+    logical_providers: LogicalProviders,
     /// The availability registry for [`Self::command_surface_profile`] —
     /// its environment's registry generation, resolved once at pin time
     /// through the ingress seam ([`crate::environment::store_for_profile`];
@@ -1134,12 +1235,12 @@ pub struct InterpState {
     /// Current-namespace stack (canonical, no leading `::`; `""` = global). The
     /// top governs `proc`/command/variable name resolution. `namespace eval`
     /// and proc activation push/pop it.
-    ns_stack: Vec<NameBytes>,
+    resolution_stacks: NamespaceResolutionStacks,
     /// Stable token identity parallel to `ns_stack`. Names cease to be interned
     /// when their namespace is deleted, but an activation in that namespace
     /// retains the old token until it returns. Keeping the id on the execution
     /// stack also distinguishes that dead token from a same-named recreation.
-    ns_id_stack: Vec<NsId>,
+
     /// Existing namespaces (canonical names; `""` global is implicit).
     /// Namespace tokens currently inside `TclTeardownNamespace`. Each exact
     /// namespace is already non-existent to Tcl callbacks, but its command
@@ -1156,7 +1257,7 @@ pub struct InterpState {
     /// Captured real Jim library generations; Some(empty) retains intentional deletion.
     scripted_dictionary_wrappers: Option<Vec<(String, NativeRegisteredCommandToken)>>,
     /// Actual core-constructor purpose excludes subsequently loaded library scripts.
-    native_core_bootstrap: bool,
+    bootstrap: NativeBootstrapPurpose,
     native_literal_world: Rc<RefCell<crate::literal_pool::NativeLiteralWorld>>,
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
@@ -1264,14 +1365,7 @@ pub struct InterpState {
     /// Runtime lookup/observer guard generation, separate from the actual
     /// native compiler and namespace resolver cache epochs. Active chunks use
     /// it to revalidate their retained command selection boundaries.
-    trace_deopt_epoch: std::cell::Cell<u64>,
-    /// Actual native compilation invalidation, independent of lookup guards.
-    native_compiler_epoch: std::cell::Cell<NativeCompilerCacheEpoch>,
-    /// Resolver epoch keyed by actual namespace incarnation.
-    native_namespace_epochs: HashMap<NsId, u64>,
-    native_ensemble_namespace_epochs: RefCell<HashMap<NsId, u64>>,
-    /// Whether command-binding generation tracking has passed bootstrap.
-    command_semantics: std::cell::Cell<CommandSemantics>,
+    compilation_epochs: NativeCompilationEpochs,
     /// Set for the duration of [`Vm::run_cmd_trace_callback`]'s evaluation:
     /// C's `INTERP_TRACE_IN_PROGRESS` (`tclTrace.c` 9.0.4:1765, set only by
     /// `TraceExecutionProc`) — while an **execution** trace callback is
@@ -1301,15 +1395,10 @@ pub struct InterpState {
     /// epoch (`cmdRefEpoch`); the VM has no per-object intreps, so the memo
     /// lives here, valid only while its stored epoch equals
     /// [`Self::cmd_epoch`].  Interior-mutable because resolution is `&self`.
-    cmd_resolve_cache: std::cell::RefCell<(
-        u64,
-        HashMap<(NsId, tcl_core_types::NameBytes, bool), Option<String>>,
-    )>,
     /// Bumped by every mutation that can change what a name resolves to:
     /// command registration/removal (any path), `namespace path` writes,
     /// namespace deletion sweeps, and runtime-version flips (the 8.4 path-
     /// tier gate).  See `bump_cmd_epoch`.
-    cmd_epoch: std::cell::Cell<u64>,
     /// Runtime-issued speculative guard tokens and mutation-domain snapshots.
     guards: std::cell::RefCell<VmCommandGuards>,
     /// Stable semantic identities explicitly attached to guardable builtins.
@@ -1379,29 +1468,11 @@ pub struct InterpState {
     /// frames, built up as the error unwinds through commands. `None` until the
     /// first frame is logged (which selects `while executing`). Consumed and
     /// reset when an error is caught (`catch`) or published.
-    error_info: Option<Vec<u8>>,
-    native_error_info: Option<Value>,
-    native_error_info_len: usize,
-    native_error_result: Option<crate::value::WeakNativeObject>,
-    native_return_options: Option<Value>,
-    native_c_return_state: NativeCReturnState,
-    native_error_legacy_copy: bool,
-    /// Primitive interpreter error-code state, separate from guest globals.
-    /// None is the fresh interpreter's native NONE state.
-    primitive_error_code: Option<Value>,
-    /// C's `ERR_ALREADY_LOGGED`: set once the current command level has logged
-    /// its frame (so the same bytecode frame is not re-logged), cleared at a
-    /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
-    /// the enclosing command logs its own `invoked from within` frame.
-    error_logged: bool,
-    /// TIP 348's interpreter-local structured error stack. Its lazy reset
-    /// keeps the last caught stack introspectable until a new error is logged.
-    error_stack: NativeErrorStack,
+    native_errors: NativeErrorState,
     pub(crate) jim_errors: JimEvaluationState,
     /// The 1-based source line of the innermost command logged into the current
     /// `errorInfo` trace (C's `iPtr->errorLine`) — the line the `(procedure …
     /// line N)` / `("while" body line N)` frames report.
-    error_line: u32,
     /// The word a builtin was invoked under (the source `objv[0]`, before
     /// namespace-path resolution). Lets a builtin report its invocation name in
     /// error messages — e.g. `::tcl::mathop::!` reached via `namespace path` says
@@ -1946,7 +2017,7 @@ impl Vm {
         let recipe = self
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
-        self.error_stack.configure(recipe);
+        self.native_errors.error_stack.configure(recipe);
         self.select_dictionary_containers();
         self.install_native_precision_trace();
         // Standard channels are VM-wide handles shared by the interpreter
@@ -2007,7 +2078,7 @@ impl Vm {
         let recipe = self
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
-        self.error_stack.configure(recipe);
+        self.native_errors.error_stack.configure(recipe);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2032,10 +2103,10 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_quote_provider == Some(provider) {
+        if self.logical_providers.quote == Some(provider) {
             return true;
         }
-        self.logical_quote_provider = Some(provider);
+        self.logical_providers.quote = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2059,8 +2130,8 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_eval_object_provider != Some(provider) {
-            self.logical_eval_object_provider = Some(provider);
+        if self.logical_providers.eval_object != Some(provider) {
+            self.logical_providers.eval_object = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
             self.eval_cache.clear();
@@ -2074,7 +2145,7 @@ impl Vm {
         &self,
     ) -> Option<tcl_registry::native_eval_object::NativeEvalObjectProtocol> {
         self.native_invocation_dialect()
-            .invocation_eval_object_protocol(self.logical_eval_object_provider)
+            .invocation_eval_object_protocol(self.logical_providers.eval_object)
     }
 
     /// Install source-word byte materialisation supplied explicitly by the host.
@@ -2091,8 +2162,8 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_source_word_provider != Some(provider) {
-            self.logical_source_word_provider = Some(provider);
+        if self.logical_providers.source_words != Some(provider) {
+            self.logical_providers.source_words = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
             self.eval_cache.clear();
@@ -2112,7 +2183,7 @@ impl Vm {
             .native_source_string_protocol()
             .filter(|protocol| protocol.escape_syntax() == self.lexer_config().escapes)
             .or_else(|| {
-                self.logical_source_word_provider.and_then(|provider| {
+                self.logical_providers.source_words.and_then(|provider| {
                     tcl_registry::InvocationDialect::of_profile(self.expression_source_profile())
                         .logical_source_string_protocol(provider, self.expression_source_profile())
                 })
@@ -2134,8 +2205,8 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_expression_parse_provider != Some(provider) {
-            self.logical_expression_parse_provider = Some(provider);
+        if self.logical_providers.expression_parse != Some(provider) {
+            self.logical_providers.expression_parse = Some(provider);
             self.bump_cmd_epoch();
             self.profile_generation = self.profile_generation.wrapping_add(1);
             self.eval_cache.clear();
@@ -2150,9 +2221,11 @@ impl Vm {
     ) -> Option<tcl_registry::substitution::TemplateParseErrors> {
         let dialect = self.native_invocation_dialect();
         tcl_registry::substitution::TemplateParseErrors::for_dialect(dialect).or_else(|| {
-            self.logical_expression_parse_provider.and_then(|provider| {
-                dialect.logical_expression_template_policy(provider, self.dialect_profile)
-            })
+            self.logical_providers
+                .expression_parse
+                .and_then(|provider| {
+                    dialect.logical_expression_template_policy(provider, self.dialect_profile)
+                })
         })
     }
 
@@ -2170,10 +2243,10 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_numeric_provider == Some(provider) {
+        if self.logical_providers.numeric == Some(provider) {
             return true;
         }
-        self.logical_numeric_provider = Some(provider);
+        self.logical_providers.numeric = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2198,10 +2271,10 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_compiled_variable_provider == Some(provider) {
+        if self.logical_providers.compiled_variables == Some(provider) {
             return true;
         }
-        self.logical_compiled_variable_provider = Some(provider);
+        self.logical_providers.compiled_variables = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2227,10 +2300,10 @@ impl Vm {
         {
             return false;
         }
-        if self.logical_name_provider == Some(provider) {
+        if self.logical_providers.names == Some(provider) {
             return true;
         }
-        self.logical_name_provider = Some(provider);
+        self.logical_providers.names = Some(provider);
         self.bump_cmd_epoch();
         self.profile_generation = self.profile_generation.wrapping_add(1);
         self.eval_cache.clear();
@@ -2245,7 +2318,8 @@ impl Vm {
             environment: self.host.numeric_environment(),
             dialect,
             simulation: self
-                .logical_numeric_provider
+                .logical_providers
+                .numeric
                 .and_then(|provider| dialect.authored_logical_numeric_simulation(provider)),
         }
     }
@@ -2433,7 +2507,7 @@ impl Vm {
             source_namespace,
             self.profile_generation,
             self.trace_deopt_epoch(),
-            native_cache,
+            native_cache.as_ref(),
             self.native_interpreter_identity(),
             compiler,
         );
@@ -2508,7 +2582,7 @@ impl Vm {
             tcl_runtime_api::native_compilation::NativeInterpreterIdentity::fresh_owner();
         let mut state = Box::new(InterpState::fresh(out, owner_nonce, 0));
         if let Some((host, profile, _, _)) = &native {
-            state.native_core_bootstrap = true;
+            state.bootstrap = NativeBootstrapPurpose::Core;
             state.host = Rc::clone(host);
             state.runtime_version = profile.vm_runtime_version;
             state.dialect_profile = *profile;
@@ -2548,7 +2622,7 @@ impl Vm {
         let recipe = vm
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
-        vm.error_stack.configure(recipe);
+        vm.native_errors.error_stack.configure(recipe);
         crate::command::register_builtins_with_native_core(
             &mut vm,
             native.as_ref().map(|(_, _, protocol, _)| *protocol),
@@ -2587,7 +2661,7 @@ impl InterpState {
     }
 
     /// Physical engine provenance at bootstrap and compilation ingress. Logical
-    /// invocation policies continue to use native_execution_profile separately.
+    /// invocation policies continue to use `native_execution_profile` separately.
     pub(crate) fn actual_native_execution_profile(&self) -> &'static tcl_dialect::DialectProfile {
         self.active_native_profile
             .or(self.actual_engine_profile)
@@ -2659,7 +2733,7 @@ impl InterpState {
                 .with_result_object(observer));
         }
         if protocol
-            .and_then(|protocol| protocol.tcl_version())
+            .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_none()
         {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
@@ -2682,7 +2756,7 @@ impl InterpState {
             let context = self.native_jim_object_context()?;
             context.publish_result(&context.empty_object());
         } else if protocol
-            .and_then(|protocol| protocol.tcl_version())
+            .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_some()
         {
             let reuse = self.with_native_interp_result(|result| {
@@ -2714,7 +2788,7 @@ impl InterpState {
             self.native_jim_object_context()?.publish_result(&value);
             drop(value);
         } else if protocol
-            .and_then(|protocol| protocol.tcl_version())
+            .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_some()
         {
             let retired = self.native_c_result.replace(Some(value));
@@ -2741,10 +2815,10 @@ impl InterpState {
         if self
             .actual_native_invocation_dialect()
             .native_string_protocol()
-            .and_then(|protocol| protocol.tcl_version())
+            .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
             .is_some()
         {
-            self.native_c_return_state = NativeCReturnState { code, level };
+            self.native_errors.native_c_return_state = NativeCReturnState { code, level };
         }
     }
 
@@ -2752,7 +2826,7 @@ impl InterpState {
         let code = if level == 0 {
             0
         } else {
-            self.native_c_return_state.code
+            self.native_errors.native_c_return_state.code
         };
         self.set_native_c_return_state(code, level);
     }
@@ -2792,7 +2866,7 @@ impl InterpState {
     /// native authority; publication-time slots retain their original identity.
     #[must_use]
     pub fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
-        if let Some(provider) = self.logical_name_provider
+        if let Some(provider) = self.logical_providers.names
             && let Some(selected) = self
                 .native_invocation_dialect()
                 .authored_logical_name_simulation(provider)
@@ -2819,7 +2893,8 @@ impl InterpState {
             invocation.family(),
             Some(tcl_dialect::model::Family::F5Tcl | tcl_dialect::model::Family::F5Irules)
         ) {
-            return invocation.compiled_variable_protocol(self.logical_compiled_variable_provider);
+            return invocation
+                .compiled_variable_protocol(self.logical_providers.compiled_variables);
         }
         self.actual_native_invocation_dialect()
             .native_compiled_variable_protocol()
@@ -2849,17 +2924,22 @@ impl InterpState {
     ) -> Option<tcl_registry::invocation_words::ExpressionQuoteControl> {
         let dialect = self.native_invocation_dialect();
         dialect.expression_quote_control().or_else(|| {
-            self.logical_quote_provider
+            self.logical_providers
+                .quote
                 .and_then(|provider| dialect.logical_expression_quote_control(provider))
         })
     }
 
     fn current_ns_id(&self) -> NsId {
-        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+        self.resolution_stacks
+            .ns_id_stack
+            .last()
+            .copied()
+            .unwrap_or(ROOT_NS)
     }
 
     fn current_ns(&self) -> &str {
-        self.ns_stack.last().map_or("", |name| {
+        self.resolution_stacks.ns_stack.last().map_or("", |name| {
             name.try_utf8()
                 .expect("Unicode namespace compatibility view requires checked native bytes")
         })
@@ -2990,6 +3070,12 @@ impl InterpState {
         Self::fresh_in_environment(out, Self::fresh_semantic_environment(), owner, interpreter)
     }
 
+    fn fresh_literal_world() -> Rc<RefCell<crate::literal_pool::NativeLiteralWorld>> {
+        Rc::new(RefCell::new(
+            crate::literal_pool::NativeLiteralWorld::default(),
+        ))
+    }
+
     fn fresh_in_environment(
         out: OutputWriter,
         environment: FreshSemanticEnvironment,
@@ -3007,13 +3093,7 @@ impl InterpState {
             native_c_result: RefCell::new(None),
             native_execution_booleans: None,
             jim_teardown_started: false,
-            logical_quote_provider: None,
-            logical_expression_parse_provider: None,
-            logical_source_word_provider: None,
-            logical_eval_object_provider: None,
-            logical_numeric_provider: None,
-            logical_name_provider: None,
-            logical_compiled_variable_provider: None,
+            logical_providers: LogicalProviders::default(),
             command_surface_point: Some(environment.surface),
             profile_registry: None,
             profile_generation: 0,
@@ -3028,14 +3108,11 @@ impl InterpState {
             name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
             fixed_math: FixedMathTable::default(),
             module_procs: HashMap::new(),
-            ns_stack: vec![NameBytes::default()],
-            ns_id_stack: vec![ROOT_NS],
+            resolution_stacks: NamespaceResolutionStacks::default(),
             namespace_ensembles: HashMap::new(),
             scripted_dictionary_wrappers: None,
-            native_core_bootstrap: false,
-            native_literal_world: Rc::new(RefCell::new(
-                crate::literal_pool::NativeLiteralWorld::default(),
-            )),
+            bootstrap: NativeBootstrapPurpose::Distribution,
+            native_literal_world: Self::fresh_literal_world(),
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
             builtin_identities: HashMap::new(),
@@ -3051,16 +3128,10 @@ impl InterpState {
             rename_windows: Vec::new(),
             active_sidecar_handles: Vec::new(),
             exec_step_scopes: Vec::new(),
-            trace_deopt_epoch: std::cell::Cell::new(0),
-            native_compiler_epoch: std::cell::Cell::new(NativeCompilerCacheEpoch::default()),
-            native_namespace_epochs: HashMap::new(),
-            native_ensemble_namespace_epochs: RefCell::new(HashMap::new()),
-            command_semantics: std::cell::Cell::new(CommandSemantics::Bootstrapping),
+            compilation_epochs: NativeCompilationEpochs::default(),
             trace_in_progress: std::cell::Cell::new(false),
             firing_cmd_traces: Vec::new(),
             pending_exec_leave: None,
-            cmd_resolve_cache: std::cell::RefCell::new((0, HashMap::new())),
-            cmd_epoch: std::cell::Cell::new(0),
             guards: std::cell::RefCell::new(VmCommandGuards::new(environment.guards)),
             guarded_commands: std::cell::RefCell::new(HashMap::new()),
             active_traces: Vec::new(),
@@ -3073,18 +3144,8 @@ impl InterpState {
             pending_exit: None,
             eval_cache: HashMap::new(),
             eval_cache_plain: HashMap::new(),
-            error_info: None,
-            native_error_info: None,
-            native_error_info_len: 0,
-            native_error_result: None,
-            native_return_options: None,
-            native_c_return_state: NativeCReturnState::default(),
-            native_error_legacy_copy: false,
-            primitive_error_code: None,
-            error_logged: false,
-            error_stack: NativeErrorStack::default(),
+            native_errors: NativeErrorState::default(),
             jim_errors: JimEvaluationState::default(),
-            error_line: 1,
             native_invocation: NativeInvocationState::default(),
             channels: HashMap::new(),
             chan_counter: 2,
@@ -3169,13 +3230,13 @@ impl Vm {
             error: self
                 .save_native_error_trace_state()
                 .expect("selected C interpreter error state"),
-            return_state: self.native_c_return_state,
+            return_state: self.native_errors.native_c_return_state,
             stack: self
                 .actual_native_invocation_dialect()
                 .native_string_protocol()
-                .and_then(|protocol| protocol.tcl_version())
+                .and_then(tcl_syntax::native_string::NativeStringProtocol::tcl_version)
                 .is_some_and(tcl_dialect::TclVersion::has_error_stack)
-                .then(|| self.error_stack.clone()),
+                .then(|| self.native_errors.error_stack.clone()),
         };
         self.with_native_interp_result(|result| {
             Some(NativeTraceResultState {
@@ -3193,10 +3254,10 @@ impl Vm {
             self.clear_error_logged();
         }
         if let Some(saved) = state.interpreter {
-            self.native_c_return_state = saved.return_state;
+            self.native_errors.native_c_return_state = saved.return_state;
             self.restore_native_error_trace_state(saved.error);
             if let Some(stack) = saved.stack {
-                self.error_stack = stack;
+                self.native_errors.error_stack = stack;
             }
         }
         let retired = self.native_c_result.replace(Some(state.result));
@@ -3349,14 +3410,13 @@ impl Vm {
         if self.interps.get(id.0).is_none_or(|s| s.dying) {
             return;
         }
-        if let Some(state) = self.st_of(id) {
-            if state
+        if let Some(state) = self.st_of(id)
+            && state
                 .actual_native_invocation_dialect()
                 .native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
-            {
-                state.name_world.borrow_mut().retire();
-            }
+        {
+            state.name_world.borrow_mut().retire();
         }
         let child_ids: Vec<InterpId> = self
             .st_of(id)
@@ -3647,7 +3707,7 @@ impl Vm {
                     ),
                 ),
                 V::Interactive => {
-                    self.write_scalar_raw(name, Value::new_native_string_bytes(b"0".as_slice()))
+                    self.write_scalar_raw(name, Value::new_native_string_bytes(b"0".as_slice()));
                 }
                 V::Argv0 | V::Argc | V::Argv => {
                     unreachable!("constructor plan excludes main arguments")
@@ -4040,7 +4100,7 @@ impl Vm {
             map: map.clone(),
         });
         let mut definition = EnsembleDef {
-            originals: Default::default(),
+            originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
             native: Some(native),
             namespace,
             map: map
@@ -4473,7 +4533,12 @@ impl Vm {
             return proc.declaration().actual_command_slot();
         }
 
-        let current = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
+        let current = self
+            .resolution_stacks
+            .ns_id_stack
+            .last()
+            .copied()
+            .unwrap_or(ROOT_NS);
         let current_name = self.ns_name(current);
         let current_tail = if current_name.is_empty() {
             (!display.contains("::")).then_some(display)
@@ -4576,7 +4641,11 @@ impl Vm {
             let path = self.command_namespace_path_from_written(written);
             self.definition_namespace_token_at_path(&path, written.starts_with("::"))
         } else {
-            self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+            self.resolution_stacks
+                .ns_id_stack
+                .last()
+                .copied()
+                .unwrap_or(ROOT_NS)
         };
         CommandSlot { namespace, simple }
     }
@@ -5093,6 +5162,31 @@ impl Vm {
         self.register_command_in_slot(slot, cmd)
     }
 
+    fn retire_command_replaced_by_callback(
+        &mut self,
+        token: &CommandTokenIdentity,
+        command: &Command,
+        replacing_retained: bool,
+        replacing_real_command: bool,
+    ) {
+        // Delete callbacks are arbitrary Tcl. If one moves the old
+        // generation, replacing the original slot still has to retire
+        // that exact command before the new generation is published.
+        // An unchanged non-retained command uses Tcl's atomic
+        // replacement lifecycle so its imports retarget below.
+        if let Some(live_token) = self.command_token_at_generation(token.generation) {
+            if replacing_retained && replacing_real_command {
+                self.retire_registered_real_command(&live_token, command);
+            } else if replacing_retained {
+                self.retire_downstream_imports(&live_token);
+            } else if replacing_real_command && live_token.key == token.key {
+                self.retire_replaced_real_command(&live_token, command);
+            } else if replacing_real_command {
+                self.retire_registered_real_command(&live_token, command);
+            }
+        }
+    }
+
     pub(crate) fn register_command_in_slot(&mut self, slot: CommandSlot, cmd: Command) -> String {
         if self.uses_native_jim_lookup() && self.name_world.borrow().jim_local_depth != 0 {
             return self.register_jim_local_command(slot, cmd);
@@ -5103,7 +5197,7 @@ impl Vm {
         let invalidates_path_before_create = self
             .native_scalar_carrier_dialect()
             .native_command_name_protocol()
-            .is_some_and(|protocol| protocol.invalidates_path_before_object_create());
+            .is_some_and(tcl_registry::native_command_literal::NativeCommandNameProtocol::invalidates_path_before_object_create);
         if invalidates_path_before_create {
             self.note_native_command_path_dependents(slot.namespace);
         }
@@ -5128,22 +5222,12 @@ impl Vm {
             self.detach_active_sidecars(&CommandSidecarKey::visible(name));
             self.on_command_removed(name);
             if let (Some(token), Some(command)) = (&replaced_token, &replaced_command) {
-                // Delete callbacks are arbitrary Tcl. If one moves the old
-                // generation, replacing the original slot still has to retire
-                // that exact command before the new generation is published.
-                // An unchanged non-retained command uses Tcl's atomic
-                // replacement lifecycle so its imports retarget below.
-                if let Some(live_token) = self.command_token_at_generation(token.generation) {
-                    if replacing_retained && replacing_real_command {
-                        self.retire_registered_real_command(&live_token, command);
-                    } else if replacing_retained {
-                        self.retire_downstream_imports(&live_token);
-                    } else if replacing_real_command && live_token.key == token.key {
-                        self.retire_replaced_real_command(&live_token, command);
-                    } else if replacing_real_command {
-                        self.retire_registered_real_command(&live_token, command);
-                    }
-                }
+                self.retire_command_replaced_by_callback(
+                    token,
+                    command,
+                    replacing_retained,
+                    replacing_real_command,
+                );
             }
         }
         // A callback above may have renamed the dying command, which moves the
@@ -5408,13 +5492,13 @@ impl Vm {
             let absolute = original.starts_with(b"::")
                 || matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(v)
                     if v <= tcl_dialect::TclVersion::V8_5);
-            let token = match self.namespace_token_at_path(&selected.namespace, absolute) {
-                Some(token) => token,
-                None => {
+            let token =
+                if let Some(token) = self.namespace_token_at_path(&selected.namespace, absolute) {
+                    token
+                } else {
                     self.declare_namespace_path_with_origin(selected.namespace.clone(), absolute);
                     self.definition_namespace_token_at_path(&selected.namespace, absolute)
-                }
-            };
+                };
             (token, token)
         };
         let slot = CommandSlot {
@@ -5444,12 +5528,11 @@ impl Vm {
             ROOT_NS
         } else {
             let absolute = original.starts_with(b"::") || selected.namespace.is_root();
-            match self.namespace_token_at_path(&selected.namespace, absolute) {
-                Some(token) => token,
-                None => {
-                    self.declare_namespace_path_with_origin(selected.namespace.clone(), absolute);
-                    self.definition_namespace_token_at_path(&selected.namespace, absolute)
-                }
+            if let Some(token) = self.namespace_token_at_path(&selected.namespace, absolute) {
+                token
+            } else {
+                self.declare_namespace_path_with_origin(selected.namespace.clone(), absolute);
+                self.definition_namespace_token_at_path(&selected.namespace, absolute)
             }
         };
         Ok(CommandSlot {
@@ -5458,7 +5541,7 @@ impl Vm {
         })
     }
 
-    /// Resolve a TclOO declaration using its own name purpose and actual token context.
+    /// Resolve a `TclOO` declaration using its own name purpose and actual token context.
     pub(crate) fn native_object_publication_slot(
         &mut self,
         original: &[u8],
@@ -5473,13 +5556,13 @@ impl Vm {
             .oo_object_publication_slot(tcl_syntax::naming::NativeNameContext::new(&path), original)
             .map_err(|_| NativeCommandLookupUnavailable::NamespaceContextUnavailable)?;
         let absolute = original.starts_with(b"::");
-        let namespace = match self.namespace_token_at_path(&selected.namespace, absolute) {
-            Some(token) => token,
-            None => {
+        let namespace =
+            if let Some(token) = self.namespace_token_at_path(&selected.namespace, absolute) {
+                token
+            } else {
                 self.declare_namespace_path_with_origin(selected.namespace.clone(), absolute);
                 self.definition_namespace_token_at_path(&selected.namespace, absolute)
-            }
-        };
+            };
         Ok(CommandSlot {
             namespace,
             simple: selected.simple,
@@ -6173,13 +6256,13 @@ impl Vm {
         child.runtime_version = self.runtime_version;
         child.dialect_profile = self.dialect_profile;
         child.actual_engine_profile = self.actual_engine_profile;
-        child.logical_quote_provider = self.logical_quote_provider;
-        child.logical_expression_parse_provider = self.logical_expression_parse_provider;
-        child.logical_source_word_provider = self.logical_source_word_provider;
-        child.logical_eval_object_provider = self.logical_eval_object_provider;
-        child.logical_numeric_provider = self.logical_numeric_provider;
-        child.logical_name_provider = self.logical_name_provider;
-        child.logical_compiled_variable_provider = self.logical_compiled_variable_provider;
+        child.logical_providers.quote = self.logical_providers.quote;
+        child.logical_providers.expression_parse = self.logical_providers.expression_parse;
+        child.logical_providers.source_words = self.logical_providers.source_words;
+        child.logical_providers.eval_object = self.logical_providers.eval_object;
+        child.logical_providers.numeric = self.logical_providers.numeric;
+        child.logical_providers.names = self.logical_providers.names;
+        child.logical_providers.compiled_variables = self.logical_providers.compiled_variables;
         child.command_surface_profile = self.command_surface_profile;
         child
             .framework_builtins
@@ -7116,13 +7199,13 @@ impl Vm {
             name.extend_from_slice(token_name.as_bytes());
             ensemble.rename(NameBytes::from(name));
         }
-        self.hidden_commands.insert(token.to_owned(), command);
+        self.hidden_commands.insert(token.clone(), command);
         if let Some(object) = object {
-            crate::cmd_oo::oo_command_hidden(self, object, token.to_owned());
+            crate::cmd_oo::oo_command_hidden(self, object, token.clone());
         }
         if let Some(generation) = source_generation {
             self.hidden_command_generations
-                .insert(token.to_owned(), generation);
+                .insert(token.clone(), generation);
         }
         crate::cmd_coro::on_command_hidden(self, &source, &token);
         self.move_command_traces(
@@ -7130,12 +7213,11 @@ impl Vm {
             CommandSidecarKey::hidden(&token),
         );
         if let Some(origin) = import_origin {
-            self.hidden_imported_commands
-                .insert(token.to_owned(), origin);
+            self.hidden_imported_commands.insert(token.clone(), origin);
         }
         if let Some(identity) = builtin_identity {
             self.hidden_builtin_identities
-                .insert(token.to_owned(), identity);
+                .insert(token.clone(), identity);
         }
         // Hiding does not change the Tcl-visible origin. Retarget the internal
         // reference into the hidden domain so the lineage remains traversable
@@ -7187,7 +7269,7 @@ impl Vm {
             NameBytes::from(tcl_syntax::naming::written_command_tail(token.as_bytes()));
         let destination_slot = CommandSlot {
             namespace: ROOT_NS,
-            simple: destination_display.clone().into(),
+            simple: destination_display.clone(),
         };
         if self
             .command_storage_key_at_slot(&destination_slot)
@@ -7658,6 +7740,80 @@ impl Vm {
         crate::command::native_wrong_args_bytes(self, &usage)
     }
 
+    fn dispatch_resolved_ensemble(
+        &mut self,
+        ens_name: &str,
+        e: &EnsembleDef,
+        argv: &[Value],
+        layout: &tcl_cmd_core::ensemble::InvocationLayout,
+        selection: (&[NameBytes], usize),
+    ) -> Completion<Value> {
+        let (subs, index) = selection;
+        let resolved = &subs[index];
+        let params = &argv[layout.parameters.clone()];
+        let rest = &argv[layout.arguments..];
+        if let Err(error) = self.build_original_ensemble_table(e, subs) {
+            return self.refuse_host_command(error.to_string());
+        }
+        let Some((prefix, mapped)) = e.originals.table.prefix(resolved) else {
+            return self.refuse_host_command("ensemble selected original prefix".into());
+        };
+        let prefix_len = match self
+            .native_invocation_dialect()
+            .native_string_materialization(None)
+        {
+            Some(recipe) => match prefix.native_object_list_elements(recipe.protocol()) {
+                Ok(members) => members.len(),
+                Err(error) => return self.refuse_host_command(error.to_string()),
+            },
+            None => {
+                return self.refuse_host_command("ensemble selected List recipe".into());
+            }
+        };
+        let mut usage = Self::borrow_native_argument_usage(&self.native_invocation.usage_rewrites);
+        if self.native_invocation_dialect().argument_usage_rewriting() == Some(true) {
+            let head = self
+                .invoked_name_value()
+                .unwrap_or_else(|| Value::string(ens_name));
+            let mut original_prefix = vec![head.native_lifetime_lease().into_value()];
+            drop(head);
+            original_prefix.extend(
+                params
+                    .iter()
+                    .map(|word| word.native_lifetime_lease().into_value()),
+            );
+            original_prefix.push(argv[layout.subcommand].native_lifetime_lease().into_value());
+            usage.push(crate::command::NativeArgumentUsageRewrite {
+                original_prefix,
+                removed_words: prefix_len + params.len(),
+            });
+        }
+        let (mut completion, target_was_missing) = self.invoke_original_ensemble_prefix(
+            prefix,
+            native_ensemble_objects::OriginalEnsembleInvocation {
+                namespace: e.namespace,
+                parameters: params,
+                arguments: rest,
+                original_word_count: argv.len() + 1,
+                usage: &usage,
+                default_target: !mapped,
+            },
+        );
+        if target_was_missing && completion.code == Code::Error {
+            // The default target's fully-qualified spelling is an
+            // ensemble implementation detail. C rewrites only the
+            // result seen by the caller; the `unknown` command owns
+            // the completion options (including a custom errorCode).
+            // Do not classify the error by matching user-controlled
+            // message text.
+            let mut message = b"invalid command name \"".to_vec();
+            message.extend_from_slice(tcl_core_types::c_string_extent(resolved.as_bytes()));
+            message.push(b'"');
+            completion.result = Value::from_native_string_bytes(message);
+        }
+        completion
+    }
+
     pub(crate) fn dispatch_ensemble(
         &mut self,
         ens_name: &str,
@@ -7677,7 +7833,6 @@ impl Vm {
             else {
                 return self.ensemble_wrong_args(ens_name, &e.parameters);
             };
-            let params = &argv[layout.parameters];
             let Some(configuration) = self
                 .native_invocation_dialect()
                 .native_ensemble_configuration_protocol()
@@ -7689,7 +7844,6 @@ impl Vm {
                 Err(error) => return self.refuse_host_command(error.to_string()),
             };
             let sub = configuration.member_name(&original_sub);
-            let rest = &argv[layout.arguments..];
             let exports = match self.exported_command_tails(e.namespace) {
                 Ok(names) => names,
                 Err(error) => return self.refuse_host_command(error.to_string()),
@@ -7701,67 +7855,7 @@ impl Vm {
                 .map(|entry| NameBytes::from(entry.member))
                 .collect();
             if let Some(index) = configuration.resolve_member(&subs, &original_sub, e.prefixes) {
-                let resolved = &subs[index];
-                if let Err(error) = self.build_original_ensemble_table(e, &subs) {
-                    return self.refuse_host_command(error.to_string());
-                }
-                let Some((prefix, mapped)) = e.originals.table.prefix(resolved) else {
-                    return self.refuse_host_command("ensemble selected original prefix".into());
-                };
-                let prefix_len = match self
-                    .native_invocation_dialect()
-                    .native_string_materialization(None)
-                {
-                    Some(recipe) => match prefix.native_object_list_elements(recipe.protocol()) {
-                        Ok(members) => members.len(),
-                        Err(error) => return self.refuse_host_command(error.to_string()),
-                    },
-                    None => {
-                        return self.refuse_host_command("ensemble selected List recipe".into());
-                    }
-                };
-                let mut usage =
-                    Self::borrow_native_argument_usage(&self.native_invocation.usage_rewrites);
-                if self.native_invocation_dialect().argument_usage_rewriting() == Some(true) {
-                    let head = self
-                        .invoked_name_value()
-                        .unwrap_or_else(|| Value::string(ens_name));
-                    let mut original_prefix = vec![head.native_lifetime_lease().into_value()];
-                    drop(head);
-                    original_prefix.extend(
-                        params
-                            .iter()
-                            .map(|word| word.native_lifetime_lease().into_value()),
-                    );
-                    original_prefix
-                        .push(argv[layout.subcommand].native_lifetime_lease().into_value());
-                    usage.push(crate::command::NativeArgumentUsageRewrite {
-                        original_prefix,
-                        removed_words: prefix_len + params.len(),
-                    });
-                }
-                let (mut completion, target_was_missing) = self.invoke_original_ensemble_prefix(
-                    prefix,
-                    e.namespace,
-                    params,
-                    rest,
-                    argv.len() + 1,
-                    &usage,
-                    !mapped,
-                );
-                if target_was_missing && completion.code == Code::Error {
-                    // The default target's fully-qualified spelling is an
-                    // ensemble implementation detail. C rewrites only the
-                    // result seen by the caller; the `unknown` command owns
-                    // the completion options (including a custom errorCode).
-                    // Do not classify the error by matching user-controlled
-                    // message text.
-                    let mut message = b"invalid command name \"".to_vec();
-                    message.extend_from_slice(tcl_core_types::c_string_extent(resolved.as_bytes()));
-                    message.push(b'"');
-                    completion.result = Value::from_native_string_bytes(message);
-                }
-                return completion;
+                return self.dispatch_resolved_ensemble(ens_name, e, argv, &layout, (&subs, index));
             }
             if e.unknown.is_some() && !reparsed {
                 reparsed = true;
@@ -7789,23 +7883,25 @@ impl Vm {
                 return self
                     .invoke_original_ensemble_prefix(
                         replacement,
-                        current.namespace,
-                        &argv[live_layout.parameters],
-                        &argv[live_layout.arguments..],
-                        argv.len() + 1,
-                        &[],
-                        false,
+                        native_ensemble_objects::OriginalEnsembleInvocation {
+                            namespace: current.namespace,
+                            parameters: &argv[live_layout.parameters],
+                            arguments: &argv[live_layout.arguments..],
+                            original_word_count: argv.len() + 1,
+                            usage: &[],
+                            default_target: false,
+                        },
                     )
                     .0;
             }
             let message = tcl_cmd_core::ensemble::unknown_subcommand_message(
                 &subs,
-                &sub,
+                sub,
                 e.prefixes,
                 &Namespaces::name_bytes(self, e.namespace),
             );
             let mut code = b"TCL LOOKUP SUBCOMMAND ".to_vec();
-            tcl_syntax::list::append_list_element(&mut code, &sub, false);
+            tcl_syntax::list::append_list_element(&mut code, sub, false);
             return crate::command::completion_from_cmd_error(
                 self,
                 tcl_cmd_core::CmdError::with_error_code_bytes(message, code),
@@ -8546,10 +8642,20 @@ impl Vm {
         context: NsId,
     ) -> (NameBytes, NsId, NsId) {
         let name = self.ns_name_bytes(context);
-        let previous_name =
-            std::mem::replace(self.ns_stack.last_mut().expect("root namespace"), name);
-        let previous_token =
-            std::mem::replace(self.ns_id_stack.last_mut().expect("root token"), context);
+        let previous_name = std::mem::replace(
+            self.resolution_stacks
+                .ns_stack
+                .last_mut()
+                .expect("root namespace"),
+            name,
+        );
+        let previous_token = std::mem::replace(
+            self.resolution_stacks
+                .ns_id_stack
+                .last_mut()
+                .expect("root token"),
+            context,
+        );
         let previous_frame =
             std::mem::replace(&mut self.frames.last_mut().expect("root frame").ns, context);
         (previous_name, previous_token, previous_frame)
@@ -8557,14 +8663,22 @@ impl Vm {
 
     /// Restore the variable frame after the reached missing-handler invocation.
     pub(crate) fn leave_missing_handler_namespace(&mut self, previous: (NameBytes, NsId, NsId)) {
-        *self.ns_stack.last_mut().expect("root namespace") = previous.0;
-        *self.ns_id_stack.last_mut().expect("root token") = previous.1;
+        *self
+            .resolution_stacks
+            .ns_stack
+            .last_mut()
+            .expect("root namespace") = previous.0;
+        *self
+            .resolution_stacks
+            .ns_id_stack
+            .last_mut()
+            .expect("root token") = previous.1;
         self.frames.last_mut().expect("root frame").ns = previous.2;
     }
 
     /// The current namespace (canonical, no leading `::`; `""` = global).
     pub(crate) fn current_ns(&self) -> &str {
-        self.ns_stack.last().map_or("", |name| {
+        self.resolution_stacks.ns_stack.last().map_or("", |name| {
             name.try_utf8()
                 .expect("Unicode namespace compatibility view requires checked native bytes")
         })
@@ -8996,7 +9110,11 @@ impl Vm {
     }
 
     pub(crate) fn current_ns_id(&self) -> NsId {
-        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+        self.resolution_stacks
+            .ns_id_stack
+            .last()
+            .copied()
+            .unwrap_or(ROOT_NS)
     }
 
     fn retained_token_at_path(&self, path: &NamespacePath) -> Option<NsId> {
@@ -9042,10 +9160,12 @@ impl Vm {
     /// command-table mutation participates in compiled-command invalidation.
     fn enable_command_semantics_tracking(&self) {
         debug_assert_eq!(
-            self.command_semantics.get(),
+            self.compilation_epochs.command_semantics.get(),
             CommandSemantics::Bootstrapping
         );
-        self.command_semantics.set(CommandSemantics::Tracking);
+        self.compilation_epochs
+            .command_semantics
+            .set(CommandSemantics::Tracking);
     }
 
     /// Whether new dynamic units must retain ordinary command dispatch.
@@ -9064,7 +9184,7 @@ impl Vm {
     /// Advance the compilation generation after a non-table mutation changes
     /// command resolution (for example, `namespace path`).
     fn invalidate_compiled_command_semantics(&self) {
-        if self.command_semantics.get() != CommandSemantics::Tracking {
+        if self.compilation_epochs.command_semantics.get() != CommandSemantics::Tracking {
             return;
         }
         self.bump_trace_deopt_epoch();
@@ -9072,8 +9192,12 @@ impl Vm {
 
     /// Bump the shared compilation-deopt epoch.
     pub(crate) fn bump_trace_deopt_epoch(&self) {
-        self.trace_deopt_epoch
-            .set(self.trace_deopt_epoch.get().wrapping_add(1));
+        self.compilation_epochs.trace_deopt_epoch.set(
+            self.compilation_epochs
+                .trace_deopt_epoch
+                .get()
+                .wrapping_add(1),
+        );
     }
 
     /// Invalidate every offline guard that depends on `domain`.
@@ -9086,29 +9210,30 @@ impl Vm {
 
     /// The current shared compilation-deopt epoch.
     pub(crate) fn trace_deopt_epoch(&self) -> u64 {
-        self.trace_deopt_epoch.get()
+        self.compilation_epochs.trace_deopt_epoch.get()
     }
 
     pub(crate) fn native_compiler_policy(&self) -> crate::compiled::NativeCompilerPolicy {
         crate::compiled::NativeCompilerPolicy {
-            expression_provider: self.logical_expression_parse_provider,
-            source_word_provider: self.logical_source_word_provider,
-            eval_object_provider: self.logical_eval_object_provider,
-            name_provider: self.logical_name_provider,
-            compiled_variable_provider: self.logical_compiled_variable_provider,
+            expression_provider: self.logical_providers.expression_parse,
+            source_word_provider: self.logical_providers.source_words,
+            eval_object_provider: self.logical_providers.eval_object,
+            name_provider: self.logical_providers.names,
+            compiled_variable_provider: self.logical_providers.compiled_variables,
             engine: self.actual_native_execution_profile().cache_key(),
             invocation: self.native_execution_profile().cache_key(),
-            quote_provider: self.logical_quote_provider,
-            numeric_provider: self.logical_numeric_provider,
+            quote_provider: self.logical_providers.quote,
+            numeric_provider: self.logical_providers.numeric,
         }
     }
 
     fn native_cache_stamp(&self, namespace: NsId) -> NativeCompilerCacheStamp {
         NativeCompilerCacheStamp {
             policy: self.native_compiler_policy(),
-            interpreter_epoch: self.native_compiler_epoch.get(),
+            interpreter_epoch: self.compilation_epochs.native_compiler_epoch.get(),
             namespace,
             resolver_epoch: self
+                .compilation_epochs
                 .native_namespace_epochs
                 .get(&namespace)
                 .copied()
@@ -9137,7 +9262,7 @@ impl Vm {
         namespace: NsId,
         mutation: tcl_registry::native_procedure::NativeCompilerCacheMutation,
     ) {
-        if self.command_semantics.get() != CommandSemantics::Tracking
+        if self.compilation_epochs.command_semantics.get() != CommandSemantics::Tracking
             || tcl_registry::native_procedure::native_compiler_cache_invalidated(
                 self.native_invocation_dialect(),
                 mutation,
@@ -9145,7 +9270,11 @@ impl Vm {
         {
             return;
         }
-        let epoch = self.native_namespace_epochs.entry(namespace).or_default();
+        let epoch = self
+            .compilation_epochs
+            .native_namespace_epochs
+            .entry(namespace)
+            .or_default();
         *epoch = epoch
             .checked_add(1)
             .expect("namespace compiler epoch exhausted");
@@ -9216,7 +9345,7 @@ impl Vm {
         &self,
         mutation: tcl_registry::native_procedure::NativeCompilerCacheMutation,
     ) {
-        if self.command_semantics.get() != CommandSemantics::Tracking {
+        if self.compilation_epochs.command_semantics.get() != CommandSemantics::Tracking {
             return;
         }
         if tcl_registry::native_procedure::native_compiler_cache_invalidated(
@@ -9224,13 +9353,15 @@ impl Vm {
             mutation,
         ) != Some(false)
         {
-            let current = self.native_compiler_epoch.get();
-            self.native_compiler_epoch.set(NativeCompilerCacheEpoch(
-                current
-                    .0
-                    .checked_add(1)
-                    .expect("native compiler epoch exhausted"),
-            ));
+            let current = self.compilation_epochs.native_compiler_epoch.get();
+            self.compilation_epochs
+                .native_compiler_epoch
+                .set(NativeCompilerCacheEpoch(
+                    current
+                        .0
+                        .checked_add(1)
+                        .expect("native compiler epoch exhausted"),
+                ));
         }
     }
 
@@ -9270,7 +9401,7 @@ impl Vm {
                 ),
                 _ => Implementation::Opaque,
             };
-            return self.native_hook_for_implementation(&implementation, &command);
+            self.native_hook_for_implementation(&implementation, &command)
         }
     }
 
@@ -9464,8 +9595,14 @@ impl InterpState {
         // Clearing on every mutation makes the resolution memo safe even if its
         // diagnostic epoch saturates. Guard epochs use their own checked,
         // poison-on-exhaustion counters.
-        self.cmd_resolve_cache.borrow_mut().1.clear();
-        self.cmd_epoch.set(self.cmd_epoch.get().saturating_add(1));
+        self.compilation_epochs
+            .cmd_resolve_cache
+            .borrow_mut()
+            .1
+            .clear();
+        self.compilation_epochs
+            .cmd_epoch
+            .set(self.compilation_epochs.cmd_epoch.get().saturating_add(1));
         self.guarded_commands.borrow_mut().clear();
         let mut guards = self.guards.borrow_mut();
         guards.invalidate(GuardDomain::CommandEnvironment);
@@ -9518,10 +9655,10 @@ impl InterpState {
         {
             return self.resolve_command_bytes_uncached(cxt, original, filter_public_surface);
         }
-        let epoch = self.cmd_epoch.get();
+        let epoch = self.compilation_epochs.cmd_epoch.get();
         let memo_key = (cxt, original.into(), filter_public_surface);
         {
-            let cache = self.cmd_resolve_cache.borrow();
+            let cache = self.compilation_epochs.cmd_resolve_cache.borrow();
             if cache.0 == epoch
                 && let Some(hit) = cache.1.get(&memo_key)
             {
@@ -9529,7 +9666,7 @@ impl InterpState {
             }
         }
         let result = self.resolve_command_bytes_uncached(cxt, original, filter_public_surface);
-        let mut cache = self.cmd_resolve_cache.borrow_mut();
+        let mut cache = self.compilation_epochs.cmd_resolve_cache.borrow_mut();
         if cache.0 != epoch {
             cache.0 = epoch;
             cache.1.clear();
@@ -9574,7 +9711,7 @@ impl InterpState {
     }
 
     fn retained_current_record(&self) -> Option<std::cell::Ref<'_, RetainedNamespace>> {
-        self.retained_record_of(*self.ns_id_stack.last()?)
+        self.retained_record_of(*self.resolution_stacks.ns_id_stack.last()?)
     }
 
     /// Walk exact namespace arena edges below `base`. Namespace-path entries
@@ -9789,14 +9926,14 @@ impl Vm {
     /// Copy an interned token without retaining either of the shared table guards.
     fn interned_command_token(&self, id: u32) -> Option<u64> {
         let world = self.name_world.borrow();
-        let token = world
+
+        world
             .command_identity
             .handles
             .borrow()
             .tokens
             .get(id as usize)
-            .copied();
-        token
+            .copied()
     }
 
     /// The current private placement of an interned command token. A rename can
@@ -9915,8 +10052,8 @@ impl Vm {
             .counts
             .entry(id)
             .or_insert(0) += 1;
-        self.ns_stack.push(name.into());
-        self.ns_id_stack.push(id);
+        self.resolution_stacks.ns_stack.push(name.into());
+        self.resolution_stacks.ns_id_stack.push(id);
     }
 
     /// Enter a transparent stale-command replay's resolution namespace without
@@ -9928,10 +10065,10 @@ impl Vm {
     /// Tcl frame (which would change variable and `info level` semantics).
     pub(crate) fn enter_replay_namespace(
         &mut self,
-        context: tcl_runtime_api::CompiledNamespaceContext,
+        context: &tcl_runtime_api::CompiledNamespaceContext,
     ) -> Result<Option<(NameBytes, NsId)>, &'static str> {
         let id = self
-            .resolve_compiled_namespace_context(&context)
+            .resolve_compiled_namespace_context(context)
             .ok_or("native replay namespace context is unavailable")?;
         if self.current_ns_id() == id {
             return Ok(None);
@@ -9941,13 +10078,15 @@ impl Vm {
         }
         let name = self.ns_name_bytes(id);
         let previous_ns = std::mem::replace(
-            self.ns_stack
+            self.resolution_stacks
+                .ns_stack
                 .last_mut()
                 .expect("global namespace frame exists"),
             name,
         );
         let previous_id = std::mem::replace(
-            self.ns_id_stack
+            self.resolution_stacks
+                .ns_id_stack
                 .last_mut()
                 .expect("global namespace token exists"),
             id,
@@ -9958,10 +10097,12 @@ impl Vm {
     /// Restore the namespace saved by [`Self::enter_replay_namespace`].
     pub(crate) fn leave_replay_namespace(&mut self, previous: (NameBytes, NsId)) {
         *self
+            .resolution_stacks
             .ns_stack
             .last_mut()
             .expect("global namespace frame exists") = previous.0;
         *self
+            .resolution_stacks
             .ns_id_stack
             .last_mut()
             .expect("global namespace token exists") = previous.1;
@@ -9991,9 +10132,9 @@ impl Vm {
     /// deleted coroutine's parked stack, whose namespace C therefore never
     /// tears down at all.
     pub(crate) fn pop_ns_token(&mut self) -> Option<NsId> {
-        if self.ns_stack.len() > 1 {
-            self.ns_stack.pop();
-            return self.ns_id_stack.pop();
+        if self.resolution_stacks.ns_stack.len() > 1 {
+            self.resolution_stacks.ns_stack.pop();
+            return self.resolution_stacks.ns_id_stack.pop();
         }
         None
     }
@@ -10315,7 +10456,12 @@ impl Vm {
     /// DeleteImportedCmd`. Sorted, since the VM's table has no hash order to
     /// reproduce.
     pub(crate) fn imported_command_tails(&self) -> Vec<NameBytes> {
-        let ns = self.ns_id_stack.last().copied().unwrap_or(ROOT_NS);
+        let ns = self
+            .resolution_stacks
+            .ns_id_stack
+            .last()
+            .copied()
+            .unwrap_or(ROOT_NS);
         let mut names: Vec<NameBytes> = Vec::new();
         for key in self.imported_commands.keys().cloned().chain(
             self.retained_record_of(ns)
@@ -10359,13 +10505,13 @@ impl Vm {
         origin: CommandTokenIdentity,
     ) -> ImportBinding {
         let compiler_hook = self.native_hook_at_sidecar(&origin.key);
-        let procedure_header = self
-            .import_binding_at_sidecar_key(&origin.key)
-            .map(|binding| binding.procedure_header)
-            .unwrap_or_else(|| match self.command_at_sidecar_key(&origin.key) {
+        let procedure_header = self.import_binding_at_sidecar_key(&origin.key).map_or_else(
+            || match self.command_at_sidecar_key(&origin.key) {
                 Some(Command::Proc(procedure)) => Some(procedure.native_header),
                 _ => None,
-            });
+            },
+            |binding| binding.procedure_header,
+        );
         let compiler = (compiler_hook
             == tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Present)
             .then(|| {
@@ -10398,8 +10544,7 @@ impl Vm {
         source: NsId,
         glob: &[u8],
         exports: &[NameBytes],
-    ) -> Result<Vec<(NameBytes, Command, Option<String>, CommandTokenIdentity)>, NamespaceImportError>
-    {
+    ) -> Result<Vec<ImportedSourceCommand>, NamespaceImportError> {
         let candidates = self
             .commands
             .iter()
@@ -10523,7 +10668,12 @@ impl Vm {
                 simple: tail.clone(),
             }));
             let destination = CommandSlot {
-                namespace: self.ns_id_stack.last().copied().unwrap_or(ROOT_NS),
+                namespace: self
+                    .resolution_stacks
+                    .ns_id_stack
+                    .last()
+                    .copied()
+                    .unwrap_or(ROOT_NS),
                 simple: tail.clone(),
             };
             let existing_key = self.command_storage_key_at_slot(&destination);
@@ -10589,6 +10739,53 @@ impl Vm {
 
     /// Jim's namespace helper imports by full-name glob and installs ordinary
     /// aliases. Export lists and C import-token retirement do not participate.
+    fn check_jim_import_alias_cycle(
+        &mut self,
+        source: &NameBytes,
+        destination: &CommandSlot,
+        original: &[u8],
+    ) -> Result<(), Completion<Value>> {
+        let mut visited = HashSet::new();
+        let mut next = source.clone();
+        loop {
+            if next == destination.simple {
+                let mut message = b"import pattern \"".to_vec();
+                message.extend_from_slice(original);
+                message.extend_from_slice(b"\" would create a loop");
+                return Err(crate::command::completion_from_cmd_error(
+                    self,
+                    tcl_cmd_core::CmdError::new_bytes(message),
+                ));
+            }
+            if !visited.insert(next.clone()) {
+                break;
+            }
+            let key = match self.command_at_exact_slot_checked(
+                &CommandSlot {
+                    namespace: ROOT_NS,
+                    simple: next.clone(),
+                },
+                true,
+            ) {
+                Ok(Some(key)) => key,
+                Ok(None) => break,
+                Err(error) => return Err(self.refuse_host_command(error.to_string())),
+            };
+            let Some(Command::Alias(words)) = self.visible_command_at_key(&key) else {
+                break;
+            };
+            let Some(head) = words.first() else {
+                break;
+            };
+            let bytes = match self.native_name_operand_bytes(head) {
+                Ok(bytes) => bytes,
+                Err(error) => return Err(self.refuse_host_command(error.to_string())),
+            };
+            next = NameBytes::from(bytes.as_ref());
+        }
+        Ok(())
+    }
+
     pub(crate) fn import_source_names(&mut self, original: &[u8]) -> Completion<Value> {
         let context = self.current_ns_id();
         let Some(policy) = self.name_policy_protocol() else {
@@ -10673,43 +10870,8 @@ impl Vm {
                 namespace: ROOT_NS,
                 simple: publication,
             };
-            let mut visited = HashSet::new();
-            let mut next = source.clone();
-            loop {
-                if next == destination.simple {
-                    let mut message = b"import pattern \"".to_vec();
-                    message.extend_from_slice(original);
-                    message.extend_from_slice(b"\" would create a loop");
-                    return crate::command::completion_from_cmd_error(
-                        self,
-                        tcl_cmd_core::CmdError::new_bytes(message),
-                    );
-                }
-                if !visited.insert(next.clone()) {
-                    break;
-                }
-                let key = match self.command_at_exact_slot_checked(
-                    &CommandSlot {
-                        namespace: ROOT_NS,
-                        simple: next.clone(),
-                    },
-                    true,
-                ) {
-                    Ok(Some(key)) => key,
-                    Ok(None) => break,
-                    Err(error) => return self.refuse_host_command(error.to_string()),
-                };
-                let Some(Command::Alias(words)) = self.visible_command_at_key(&key) else {
-                    break;
-                };
-                let Some(head) = words.first() else {
-                    break;
-                };
-                let bytes = match self.native_name_operand_bytes(head) {
-                    Ok(bytes) => bytes,
-                    Err(error) => return self.refuse_host_command(error.to_string()),
-                };
-                next = NameBytes::from(bytes.as_ref());
+            if let Err(error) = self.check_jim_import_alias_cycle(&source, &destination, original) {
+                return error;
             }
             let mut rooted_source = b"::".to_vec();
             rooted_source.extend_from_slice(source.as_bytes());
@@ -11590,7 +11752,7 @@ impl Vm {
             };
             let binding = VarBinding {
                 owner: VarTableOwner::Namespace(id),
-                name: (simple.clone()).into(),
+                name: (simple.clone()),
             };
             let raw = self
                 .var_table(binding.owner)
@@ -11783,6 +11945,61 @@ impl Vm {
     /// whole subtree out of the live tables into a record only its frames can
     /// reach, unpublish its name, and return. Reports whether the teardown was
     /// deferred.
+    fn retain_namespace_commands(&mut self, record: &mut RetainedNamespace) {
+        let keys: Vec<String> = self
+            .commands
+            .keys()
+            .filter(|key| {
+                self.command_slot(key).is_some_and(|slot| {
+                    record
+                        .subtree
+                        .values()
+                        .any(|namespace| *namespace == slot.namespace)
+                })
+            })
+            .cloned()
+            .collect();
+        for key in keys {
+            if let Some(command) = self.commands.remove(&key) {
+                record.commands.insert(key.clone(), command);
+            }
+            let generation = self
+                .name_world
+                .borrow_mut()
+                .command_identity
+                .generations
+                .remove(&key);
+            if let Some(generation) = generation {
+                record.generations.insert(key.clone(), generation);
+            }
+            if let Some(binding) = self.imported_commands.remove(&key) {
+                record.imported.insert(key.clone(), binding);
+            }
+            if let Some(identity) = self.builtin_identities.remove(&key) {
+                record.builtin_identities.insert(key, identity);
+            }
+        }
+    }
+
+    fn retire_deferred_namespace_coroutines(&mut self, id: NsId) {
+        let retained_keys: Vec<String> = self
+            .name_world
+            .borrow()
+            .ns_deferral
+            .retained
+            .get(&id)
+            .map(|record| record.commands.keys().cloned().collect())
+            .unwrap_or_default();
+        let coroutine_keys: Vec<String> = retained_keys
+            .into_iter()
+            .filter(|key| crate::cmd_coro::is_coroutine(self, key))
+            .collect();
+        for key in coroutine_keys {
+            self.materialise_retained_binding(&key);
+            self.retire_command_lifecycle_key(&CommandSidecarKey::visible(key));
+        }
+    }
+
     fn defer_namespace_token(&mut self, id: NsId) -> bool {
         if !self.namespace_token_is_active(id) {
             return false;
@@ -11853,39 +12070,7 @@ impl Vm {
             // to the retained token and is kept in the record.
             self.ns_unknowns.remove(&member);
         }
-        let keys: Vec<String> = self
-            .commands
-            .keys()
-            .filter(|key| {
-                self.command_slot(key).is_some_and(|slot| {
-                    record
-                        .subtree
-                        .values()
-                        .any(|namespace| *namespace == slot.namespace)
-                })
-            })
-            .cloned()
-            .collect();
-        for key in keys {
-            if let Some(command) = self.commands.remove(&key) {
-                record.commands.insert(key.clone(), command);
-            }
-            let generation = self
-                .name_world
-                .borrow_mut()
-                .command_identity
-                .generations
-                .remove(&key);
-            if let Some(generation) = generation {
-                record.generations.insert(key.clone(), generation);
-            }
-            if let Some(binding) = self.imported_commands.remove(&key) {
-                record.imported.insert(key.clone(), binding);
-            }
-            if let Some(identity) = self.builtin_identities.remove(&key) {
-                record.builtin_identities.insert(key, identity);
-            }
-        }
+        self.retain_namespace_commands(&mut record);
         // The parent edge goes at once — the spelling is free for a wholly
         // separate token straight away (C nulls `parentPtr`).
         let mut parent_path = canonical;
@@ -11912,22 +12097,7 @@ impl Vm {
         // cycle while deferring the namespace. Route those commands through
         // the same real-command lifecycle as every other deletion so parked
         // unset traces and nested implementation state are not skipped.
-        let retained_keys: Vec<String> = self
-            .name_world
-            .borrow()
-            .ns_deferral
-            .retained
-            .get(&id)
-            .map(|record| record.commands.keys().cloned().collect())
-            .unwrap_or_default();
-        let coroutine_keys: Vec<String> = retained_keys
-            .into_iter()
-            .filter(|key| crate::cmd_coro::is_coroutine(self, key))
-            .collect();
-        for key in coroutine_keys {
-            self.materialise_retained_binding(&key);
-            self.retire_command_lifecycle_key(&CommandSidecarKey::visible(key));
-        }
+        self.retire_deferred_namespace_coroutines(id);
         self.bump_cmd_epoch();
         true
     }
@@ -12166,7 +12336,9 @@ impl Vm {
         if self
             .native_invocation_dialect()
             .native_package_protocol()
-            .is_some_and(|protocol| protocol.retains_version_object())
+            .is_some_and(
+                tcl_registry::native_package::NativePackageProtocol::retains_version_object,
+            )
         {
             self.package_state
                 .version_objects
@@ -12308,7 +12480,7 @@ impl Vm {
         if self
             .native_invocation_dialect()
             .native_package_protocol()
-            .is_some_and(|p| p.tracks_files())
+            .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
         {
             self.package_state.package_file_inventory_active = true;
             self.package_state
@@ -12339,7 +12511,7 @@ impl Vm {
             if self
                 .native_invocation_dialect()
                 .native_package_protocol()
-                .is_some_and(|p| p.tracks_files())
+                .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
             {
                 self.package_state.package_file_scopes.pop();
             }
@@ -13643,7 +13815,7 @@ impl Vm {
             if let Some((name, _)) = frame.local_bindings().find(|(_, raw)| **raw == id) {
                 return Some(ArrayOperationBinding::Variable(VarBinding {
                     owner: VarTableOwner::Frame(level),
-                    name: (name.clone()).into(),
+                    name: (name.clone()),
                 }));
             }
         }
@@ -13651,7 +13823,7 @@ impl Vm {
             if let Some((name, _)) = table.iter().find(|(_, raw)| **raw == id) {
                 return Some(ArrayOperationBinding::Variable(VarBinding {
                     owner: VarTableOwner::Namespace(ns),
-                    name: (name.clone()).into(),
+                    name: (name.clone()),
                 }));
             }
         }
@@ -13889,15 +14061,14 @@ impl Vm {
             {
                 groups.push(TraceGroup::Live(array));
             }
-        } else if self.runtime_version.traces_recover_linked_array_element() && cell.elem.is_some()
+        } else if self.runtime_version.traces_recover_linked_array_element()
+            && cell.elem.is_some()
+            && op != "array"
+            && include_array
+            && !array_active
+            && let Some(array) = cell.array_id()
         {
-            if op != "array"
-                && include_array
-                && !array_active
-                && let Some(array) = cell.array_id()
-            {
-                groups.push(TraceGroup::Live(array));
-            }
+            groups.push(TraceGroup::Live(array));
         }
         match taken {
             Some(taken) => groups.push(TraceGroup::Taken(taken.entries)),
@@ -13913,6 +14084,167 @@ impl Vm {
     /// Inner firing loop for [`Self::fire_var_traces`]: run the whole-array
     /// traces, then the element-specific ones, with the variable already
     /// marked active by the caller.
+    fn invoke_variable_trace_callback(
+        &mut self,
+        trace: VarTrace,
+        invocation: VarTraceInvocation<'_>,
+        cell: &VarTraceCell,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> Result<(Completion<Value>, Option<Value>), Completion<Value>> {
+        let VarTraceInvocation {
+            op,
+            reported: (name1, elem),
+            ..
+        } = invocation;
+        let command = trace.command;
+        let old_style = trace.old_style;
+        let explicit_unset_element = (op == "unset"
+            && policy
+                .recipe()
+                .tcl_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0))
+        .then_some(cell.elem.as_deref())
+        .flatten();
+        let reported = tcl_syntax::naming::report_native_variable_access_trace_names(
+            policy.recipe(),
+            tcl_syntax::naming::NativeVariableTraceReportingInput {
+                original_part1: name1,
+                original_part2: elem.or(explicit_unset_element),
+                actual_element_key: cell.elem.as_deref(),
+            },
+        )
+        .map_err(|error| {
+            self.refuse_host_command(format!(
+                "variable trace reporting is unavailable: {error:?}"
+            ))
+        })?;
+        let completion = if let Some((_, observer)) = trace.native {
+            use tcl_runtime_api::native_variable_trace::{
+                NativeVariableTraceAccess, NativeVariableTraceOperation,
+            };
+            let operation =
+                NativeVariableTraceOperation::from_name(op).expect("selected trace operation");
+            match observer.observe(
+                self,
+                NativeVariableTraceAccess {
+                    operation,
+                    name1: reported.name1,
+                    name2: reported.name2,
+                    destroyed: operation == NativeVariableTraceOperation::Unset,
+                },
+            ) {
+                Ok(()) => ok(Value::empty()),
+                Err(error) => crate::command::completion_from_cmd_error(self, error),
+            }
+        } else {
+            let command = command.as_ref().expect("script trace owns its command");
+            let mut script = match self.native_name_operand_bytes(command) {
+                Ok(bytes) => bytes.to_vec(),
+                Err(error) => {
+                    return Err(self.refuse_host_command(format!(
+                        "variable trace prefix string is unavailable: {error:?}"
+                    )));
+                }
+            };
+            for argument in [
+                reported.name1,
+                reported.name2,
+                tcl_cmd_core::trace::callback_op_word(op, old_style).as_bytes(),
+            ] {
+                script.push(b' ');
+                tcl_syntax::list::append_list_element(&mut script, argument, false);
+            }
+            let source = Value::from_string_bytes(script);
+            let saved = self
+                .save_native_script_trace_result()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            self.reset_native_error_objects_before_trace_script();
+            let mut completion = self.eval_value_at_level(self.current_level(), &source);
+            if !completion.code.is_ok()
+                && self
+                    .actual_native_invocation_dialect()
+                    .native_variable_trace_protocol()
+                    .is_some()
+            {
+                // TraceVarProc returns its original error object with a
+                // real reference until CallVarTraces disposes it.
+                completion.result = completion.result.into_native_reference();
+            }
+            if let Some(saved) = saved {
+                self.restore_native_interp_trace_result(saved);
+            }
+            completion
+        };
+        Ok((completion, command))
+    }
+
+    fn present_variable_trace_failure(
+        &mut self,
+        mut failure: Completion<Value>,
+        command: Option<&Value>,
+        op: &str,
+        name: &[u8],
+    ) -> Result<(), Completion<Value>> {
+        let was_error = failure.code == Code::Error;
+        if !was_error && let Some(command) = command {
+            self.error_stack_restart_with_inner(command.clone());
+        }
+        // C's `TclCallVarTraces` logs a `(write|read trace
+        // on "name")` frame, then clears ERR_ALREADY_LOGGED
+        // so the command that triggered the trace logs its
+        // own `invoked from within` frame as the error
+        // unwinds (set-2.4 / set-4.4).
+        self.append_var_trace_frame_bytes(op, name);
+        let verb = match op {
+            "write" => "set",
+            "array" => "trace array",
+            _ => "read",
+        };
+        let mut message = format!("can't {verb} \"").into_bytes();
+        message.extend_from_slice(name);
+        message.extend_from_slice(b"\": ");
+        message.extend_from_slice(&failure.result.string_bytes());
+        failure.code = Code::Error;
+        failure.result = Value::from_string_bytes(message);
+        if self
+            .native_c_variable_name_protocol()
+            .and_then(tcl_syntax::native_variable_name::NativeVariableNameProtocol::diagnostic_string_protocol)
+            .is_some()
+        {
+            let recipe = self
+                .actual_native_invocation_dialect()
+                .native_string_materialization(None)
+                .ok_or_else(|| {
+                    self.refuse_host_command(
+                        "actual variable-trace String producer".into(),
+                    )
+                })?;
+            failure
+                .result
+                .retain_native_string_representation(recipe)
+                .map_err(|error| self.refuse_host_command(error.to_string()))?;
+        }
+
+        if op != "array" {
+            let kind = if op == "write" { "WRITE" } else { "READ" };
+            let mut words = vec![
+                Value::string("TCL"),
+                Value::string(kind),
+                Value::string("VARNAME"),
+            ];
+            if self.native_c_variable_name_protocol().is_none() {
+                words.push(Value::from_string_bytes(name));
+            }
+            let code = Value::list(words);
+            failure.options = crate::command::with_return_option(
+                &crate::command::completion_options(&failure),
+                "-errorcode",
+                code,
+            );
+        }
+        Err(failure)
+    }
+
     fn fire_var_traces_inner(
         &mut self,
         invocation: VarTraceInvocation<'_>,
@@ -13927,7 +14259,7 @@ impl Vm {
             leave_error_message,
             name,
             op,
-            reported: (name1, elem),
+            reported: _,
             element_access,
         } = invocation;
         // For an element access C walks the containing array's trace list
@@ -13985,87 +14317,10 @@ impl Vm {
                 let Some(trace) = entry else {
                     continue;
                 };
-                let command = trace.command;
-                let old_style = trace.old_style;
-                let explicit_unset_element = (op == "unset"
-                    && policy
-                        .recipe()
-                        .tcl_version()
-                        .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0))
-                .then_some(cell.elem.as_deref())
-                .flatten();
-                let names = tcl_syntax::naming::report_native_variable_access_trace_names(
-                    policy.recipe(),
-                    tcl_syntax::naming::NativeVariableTraceReportingInput {
-                        original_part1: name1,
-                        original_part2: elem.or(explicit_unset_element),
-                        actual_element_key: cell.elem.as_deref(),
-                    },
-                )
-                .map_err(|error| {
-                    self.refuse_host_command(format!(
-                        "variable trace reporting is unavailable: {error:?}"
-                    ))
-                })?;
-                let completion = if let Some((_, observer)) = trace.native {
-                    use tcl_runtime_api::native_variable_trace::{
-                        NativeVariableTraceAccess, NativeVariableTraceOperation,
-                    };
-                    let operation = NativeVariableTraceOperation::from_name(op)
-                        .expect("selected trace operation");
-                    match observer.observe(
-                        self,
-                        NativeVariableTraceAccess {
-                            operation,
-                            name1: names.name1,
-                            name2: names.name2,
-                            destroyed: operation == NativeVariableTraceOperation::Unset,
-                        },
-                    ) {
-                        Ok(()) => ok(Value::empty()),
-                        Err(error) => crate::command::completion_from_cmd_error(self, error),
-                    }
-                } else {
-                    let command = command.as_ref().expect("script trace owns its command");
-                    let mut script = match self.native_name_operand_bytes(command) {
-                        Ok(bytes) => bytes.to_vec(),
-                        Err(error) => {
-                            return Err(self.refuse_host_command(format!(
-                                "variable trace prefix string is unavailable: {error:?}"
-                            )));
-                        }
-                    };
-                    for argument in [
-                        names.name1,
-                        names.name2,
-                        tcl_cmd_core::trace::callback_op_word(op, old_style).as_bytes(),
-                    ] {
-                        script.push(b' ');
-                        tcl_syntax::list::append_list_element(&mut script, argument, false);
-                    }
-                    let source = Value::from_string_bytes(script);
-                    let saved = self.save_native_script_trace_result().map_err(|error| {
-                        crate::command::completion_from_cmd_error(self, error.into())
-                    })?;
-                    self.reset_native_error_objects_before_trace_script();
-                    let mut completion = self.eval_value_at_level(self.current_level(), &source);
-                    if !completion.code.is_ok()
-                        && self
-                            .actual_native_invocation_dialect()
-                            .native_variable_trace_protocol()
-                            .is_some()
-                    {
-                        // TraceVarProc returns its original error object with a
-                        // real reference until CallVarTraces disposes it.
-                        completion.result = completion.result.into_native_reference();
-                    }
-                    if let Some(saved) = saved {
-                        self.restore_native_interp_trace_result(saved);
-                    }
-                    completion
-                };
+                let (completion, command) =
+                    self.invoke_variable_trace_callback(trace, invocation, cell, policy)?;
                 let failed = (!completion.code.is_ok()).then_some(completion);
-                if let Some(mut failure) = failed {
+                if let Some(failure) = failed {
                     if !leave_error_message {
                         if let Some(saved) = saved_native_result {
                             self.restore_native_interp_trace_result(saved);
@@ -14073,68 +14328,14 @@ impl Vm {
                         return Err(err(""));
                     }
 
-                    let was_error = failure.code == Code::Error;
                     match op {
                         "write" | "read" | "array" => {
-                            if !was_error {
-                                if let Some(command) = &command {
-                                    self.error_stack_restart_with_inner(command.clone());
-                                }
-                            }
-                            // C's `TclCallVarTraces` logs a `(write|read trace
-                            // on "name")` frame, then clears ERR_ALREADY_LOGGED
-                            // so the command that triggered the trace logs its
-                            // own `invoked from within` frame as the error
-                            // unwinds (set-2.4 / set-4.4).
-                            self.append_var_trace_frame_bytes(op, name);
-                            let verb = match op {
-                                "write" => "set",
-                                "array" => "trace array",
-                                _ => "read",
-                            };
-                            let mut message = format!("can't {verb} \"").into_bytes();
-                            message.extend_from_slice(name);
-                            message.extend_from_slice(b"\": ");
-                            message.extend_from_slice(&failure.result.string_bytes());
-                            failure.code = Code::Error;
-                            failure.result = Value::from_string_bytes(message);
-                            if self
-                                .native_c_variable_name_protocol()
-                                .and_then(|protocol| protocol.diagnostic_string_protocol())
-                                .is_some()
-                            {
-                                let recipe = self
-                                    .actual_native_invocation_dialect()
-                                    .native_string_materialization(None)
-                                    .ok_or_else(|| {
-                                        self.refuse_host_command(
-                                            "actual variable-trace String producer".into(),
-                                        )
-                                    })?;
-                                failure
-                                    .result
-                                    .retain_native_string_representation(recipe)
-                                    .map_err(|error| self.refuse_host_command(error.to_string()))?;
-                            }
-
-                            if op != "array" {
-                                let kind = if op == "write" { "WRITE" } else { "READ" };
-                                let mut words = vec![
-                                    Value::string("TCL"),
-                                    Value::string(kind),
-                                    Value::string("VARNAME"),
-                                ];
-                                if self.native_c_variable_name_protocol().is_none() {
-                                    words.push(Value::from_string_bytes(name));
-                                }
-                                let code = Value::list(words);
-                                failure.options = crate::command::with_return_option(
-                                    &crate::command::completion_options(&failure),
-                                    "-errorcode",
-                                    code,
-                                );
-                            }
-                            return Err(failure);
+                            return self.present_variable_trace_failure(
+                                failure,
+                                command.as_ref(),
+                                op,
+                                name,
+                            );
                         }
                         _ => {} // unset trace errors are ignored
                     }
@@ -14248,6 +14449,28 @@ impl Vm {
         Ok(unit)
     }
 
+    fn validate_procedure_plain_dispatch(
+        module: &ModuleAsm,
+        dispatch: ProcedureDispatch,
+    ) -> Result<(), TclError> {
+        if (dispatch == ProcedureDispatch::Plain || module.top_level.plain_command_dispatch)
+            && (!module.plain_command_dispatch
+                || !module.top_level.plain_command_dispatch
+                || !module.top_level.command_bindings.is_empty()
+                || !module.top_level.procedure_bindings.is_empty()
+                || module.procedures.values().any(|asm| {
+                    !asm.plain_command_dispatch
+                        || !asm.command_bindings.is_empty()
+                        || !asm.procedure_bindings.is_empty()
+                }))
+        {
+            return Err(TclError::new(
+                "CompileService procedure plain-dispatch capability returned optimised bytecode",
+            ));
+        }
+        Ok(())
+    }
+
     fn prepare_procedure_body_with_entry(
         &mut self,
         admission: Option<(&str, &str)>,
@@ -14343,21 +14566,7 @@ impl Vm {
                 ProcedureBody,
             ));
         }
-        if (dispatch == ProcedureDispatch::Plain || module.top_level.plain_command_dispatch)
-            && (!module.plain_command_dispatch
-                || !module.top_level.plain_command_dispatch
-                || !module.top_level.command_bindings.is_empty()
-                || !module.top_level.procedure_bindings.is_empty()
-                || module.procedures.values().any(|asm| {
-                    !asm.plain_command_dispatch
-                        || !asm.command_bindings.is_empty()
-                        || !asm.procedure_bindings.is_empty()
-                }))
-        {
-            return Err(TclError::new(
-                "CompileService procedure plain-dispatch capability returned optimised bytecode",
-            ));
-        }
+        Self::validate_procedure_plain_dispatch(&module, dispatch)?;
         self.merge_procs(&module);
         let mut unit = self
             .compiled_unit(Rc::new(module.top_level), module.source_namespace)
@@ -14666,7 +14875,7 @@ impl Vm {
                 .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "native procedure source duplication issuer",
                 ))?;
-            let replacement = proc.duplicate_for_native_recompilation(strings)?;
+            let replacement = proc.duplicate_for_native_recompilation(strings);
             command.replace_declaration(&replacement);
         }
         self.ensure_proc_traced(command)
@@ -14674,8 +14883,8 @@ impl Vm {
 
     // Frames.
 
-    /// Install the original shared native TclOO unknown-handler header.
-    pub(crate) fn install_native_oo_unknown(&mut self, original: Value) {
+    /// Install the original shared native `TclOO` unknown-handler header.
+    pub(crate) fn install_native_oo_unknown(&mut self, original: &Value) {
         for name in ["::oo::define", "::oo::objdefine"] {
             if let Ok(Some(namespace)) = Namespaces::find_namespace_bytes_checked(
                 self,
@@ -14738,8 +14947,8 @@ impl Vm {
         parameters: Option<Value>,
     ) {
         let frame = self.frames.last_mut().expect("procedure frame exists");
-        frame._procedure_body = Some(body);
-        frame._procedure_parameters = parameters;
+        frame.procedure_body = Some(body);
+        frame.procedure_parameters = parameters;
     }
 
     /// Attach the persistent bindings before the selected formal plan writes arguments.
@@ -14761,15 +14970,19 @@ impl Vm {
             // Tcl switches to the caller before firing a departing frame's
             // unset callbacks. The namespace stacks are retired separately by
             // the activation owner, so hide their top entry only for this walk.
-            let has_departing_ns = self.ns_stack.len() > self.frames.len();
-            let departing_ns = has_departing_ns.then(|| self.ns_stack.pop()).flatten();
-            let departing_ns_id = has_departing_ns.then(|| self.ns_id_stack.pop()).flatten();
+            let has_departing_ns = self.resolution_stacks.ns_stack.len() > self.frames.len();
+            let departing_ns = has_departing_ns
+                .then(|| self.resolution_stacks.ns_stack.pop())
+                .flatten();
+            let departing_ns_id = has_departing_ns
+                .then(|| self.resolution_stacks.ns_id_stack.pop())
+                .flatten();
             self.destroy_call_frame(frame);
             if let Some(ns) = departing_ns {
-                self.ns_stack.push(ns);
+                self.resolution_stacks.ns_stack.push(ns);
             }
             if let Some(ns_id) = departing_ns_id {
-                self.ns_id_stack.push(ns_id);
+                self.resolution_stacks.ns_id_stack.push(ns_id);
             }
         }
     }
@@ -14999,45 +15212,54 @@ impl Vm {
         let mut ftail = self.frames.split_off(1);
         std::mem::swap(&mut ftail, &mut p.frames);
         self.frames.append(&mut ftail);
-        let ns_cut = 1.min(self.ns_stack.len());
-        let mut nstail = self.ns_stack.split_off(ns_cut);
+        let ns_cut = 1.min(self.resolution_stacks.ns_stack.len());
+        let mut nstail = self.resolution_stacks.ns_stack.split_off(ns_cut);
         std::mem::swap(&mut nstail, &mut p.ns_stack);
-        self.ns_stack.append(&mut nstail);
-        let mut ns_id_tail = self.ns_id_stack.split_off(ns_cut);
+        self.resolution_stacks.ns_stack.append(&mut nstail);
+        let mut ns_id_tail = self.resolution_stacks.ns_id_stack.split_off(ns_cut);
         std::mem::swap(&mut ns_id_tail, &mut p.ns_id_stack);
-        self.ns_id_stack.append(&mut ns_id_tail);
+        self.resolution_stacks.ns_id_stack.append(&mut ns_id_tail);
         std::mem::swap(&mut self.timer_anchor, &mut p.timer_anchor);
         // Scalars / stacks: plain exchange.
         std::mem::swap(&mut self.ns_script_frames, &mut p.ns_script_frames);
         std::mem::swap(&mut self.recursion_depth, &mut p.recursion_depth);
-        std::mem::swap(&mut self.error_info, &mut p.error_info);
-        std::mem::swap(&mut self.native_error_info, &mut p.native_error_info);
+        std::mem::swap(&mut self.native_errors.error_info, &mut p.error_info);
         std::mem::swap(
-            &mut self.native_error_info_len,
+            &mut self.native_errors.native_error_info,
+            &mut p.native_error_info,
+        );
+        std::mem::swap(
+            &mut self.native_errors.native_error_info_len,
             &mut p.native_error_info_len,
         );
-        std::mem::swap(&mut self.native_error_result, &mut p.native_error_result);
         std::mem::swap(
-            &mut self.native_return_options,
+            &mut self.native_errors.native_error_result,
+            &mut p.native_error_result,
+        );
+        std::mem::swap(
+            &mut self.native_errors.native_return_options,
             &mut p.native_return_options,
         );
         std::mem::swap(
-            &mut self.native_c_return_state,
+            &mut self.native_errors.native_c_return_state,
             &mut p.native_c_return_state,
         );
         std::mem::swap(
-            &mut self.native_error_legacy_copy,
+            &mut self.native_errors.native_error_legacy_copy,
             &mut p.native_error_legacy_copy,
         );
-        std::mem::swap(&mut self.primitive_error_code, &mut p.primitive_error_code);
-        std::mem::swap(&mut self.error_logged, &mut p.error_logged);
-        std::mem::swap(&mut self.error_stack, &mut p.error_stack);
+        std::mem::swap(
+            &mut self.native_errors.primitive_error_code,
+            &mut p.primitive_error_code,
+        );
+        std::mem::swap(&mut self.native_errors.error_logged, &mut p.error_logged);
+        std::mem::swap(&mut self.native_errors.error_stack, &mut p.error_stack);
         let recipe = self
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
-        self.error_stack.configure(recipe);
+        self.native_errors.error_stack.configure(recipe);
         std::mem::swap(&mut self.jim_errors, &mut p.jim_errors);
-        std::mem::swap(&mut self.error_line, &mut p.error_line);
+        std::mem::swap(&mut self.native_errors.error_line, &mut p.error_line);
         std::mem::swap(&mut self.native_invocation.name, &mut p.invoked_name);
         std::mem::swap(
             &mut self.native_invocation.original_name,
@@ -15395,7 +15617,12 @@ impl Vm {
             })
         } else {
             let id = self
-                .ensure_target_var_at_binding(&binding, parts.element().map(|part| part.selected()))
+                .ensure_target_var_at_binding(
+                    &binding,
+                    parts
+                        .element()
+                        .map(tcl_syntax::naming::NativeNameProjection::selected),
+                )
                 .ok_or(UpvarLinkError::TargetNamespace)?;
             if parts.element().is_none() && self.native_c_variable_name_protocol().is_some() {
                 self.var_arena.record_native_entry(id, binding.clone());
@@ -15455,7 +15682,12 @@ impl Vm {
             })
         } else {
             let id = self
-                .ensure_target_var_at_binding(&binding, parts.element().map(|part| part.selected()))
+                .ensure_target_var_at_binding(
+                    &binding,
+                    parts
+                        .element()
+                        .map(tcl_syntax::naming::NativeNameProjection::selected),
+                )
                 .ok_or(UpvarLinkError::TargetNamespace)?;
             VariableLinkTarget::Cell(id)
         };
@@ -15720,33 +15952,37 @@ impl Vm {
         self.var_binding_from_bytes(name.as_bytes(), start)
     }
 
+    fn jim_var_binding_from_bytes(&self, name: &[u8], start: usize) -> VarBinding {
+        let global = name.starts_with(b"::") || start == 0;
+        let global_key =
+            global.then(|| tcl_syntax::naming::jim_global_variable_key_bytes(b"::", name));
+        let selected = global_key.as_deref().unwrap_or(name);
+        let owner = if global {
+            VarTableOwner::Namespace(ROOT_NS)
+        } else if self.frames.get(start).is_some_and(|frame| {
+            !frame.locals.contains_key(selected)
+                && frame
+                    .statics
+                    .as_ref()
+                    .is_some_and(|statics| statics.table.contains_key(selected))
+        }) {
+            VarTableOwner::ProcedureStatics(start)
+        } else {
+            VarTableOwner::Frame(start)
+        };
+        VarBinding {
+            owner,
+            name: NameBytes::from(selected),
+        }
+    }
+
     fn var_binding_from_bytes(&self, original: &[u8], start: usize) -> Option<VarBinding> {
         use tcl_core_types::NameBytes;
         let protocol = self.name_policy_protocol()?.recipe();
         let projection = protocol.variable_root_input(original);
         let name = projection.selected();
         if protocol.is_jim084() {
-            let global = name.starts_with(b"::") || start == 0;
-            let global_key =
-                global.then(|| tcl_syntax::naming::jim_global_variable_key_bytes(b"::", name));
-            let selected = global_key.as_deref().unwrap_or(name);
-            let owner = if global {
-                VarTableOwner::Namespace(ROOT_NS)
-            } else if self.frames.get(start).is_some_and(|frame| {
-                !frame.locals.contains_key(selected)
-                    && frame
-                        .statics
-                        .as_ref()
-                        .is_some_and(|statics| statics.table.contains_key(selected))
-            }) {
-                VarTableOwner::ProcedureStatics(start)
-            } else {
-                VarTableOwner::Frame(start)
-            };
-            return Some(VarBinding {
-                owner,
-                name: NameBytes::from(selected),
-            });
+            return Some(self.jim_var_binding_from_bytes(name, start));
         }
         if projection.qualification() != tcl_syntax::naming::NativeNameQualification::Unqualified {
             let absolute =
@@ -15759,7 +15995,11 @@ impl Vm {
             let context = if absolute {
                 ROOT_NS
             } else {
-                self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS)
+                self.resolution_stacks
+                    .ns_id_stack
+                    .get(start)
+                    .copied()
+                    .unwrap_or(ROOT_NS)
             };
             let walk = |mut token: NsId| {
                 for segment in &segments {
@@ -15799,7 +16039,12 @@ impl Vm {
                         VarTableOwner::CompiledLocal { level: start, slot }
                     })
             } else if frame.ns_eval.is_some() {
-                let token = self.ns_id_stack.get(start).copied().unwrap_or(ROOT_NS);
+                let token = self
+                    .resolution_stacks
+                    .ns_id_stack
+                    .get(start)
+                    .copied()
+                    .unwrap_or(ROOT_NS);
                 let local = self
                     .var_table(VarTableOwner::Namespace(token))
                     .is_some_and(|table| table.contains_key(name));
@@ -16047,7 +16292,9 @@ impl Vm {
         let binding = self.var_binding_from_bytes(projection.root().selected(), start)?;
         self.ensure_target_var_at_binding(
             &binding,
-            projection.element().map(|part| part.selected()),
+            projection
+                .element()
+                .map(tcl_syntax::naming::NativeNameProjection::selected),
         )
     }
 
@@ -16130,7 +16377,7 @@ impl Vm {
         let dialect = self.actual_native_invocation_dialect();
         if !dialect
             .native_scalar_getter_protocol()
-            .is_some_and(|protocol| protocol.is_jim084())
+            .is_some_and(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::is_jim084)
         {
             return Err(
                 self.refuse_host_command("native procedure statics protocol is unavailable".into())
@@ -16583,6 +16830,51 @@ impl Vm {
         self.unset_resolved_checked(name, resolved).unwrap_or(false)
     }
 
+    fn retire_unset_array_elements(
+        &mut self,
+        name: &[u8],
+        parent: Option<VarId>,
+        elements: VarTable,
+        preserve_definition: bool,
+        table_holds_vars: bool,
+    ) -> Vec<VarId> {
+        let mut retired_bindings = Vec::new();
+        for (element, raw_id) in elements {
+            let Some(id) = self.var_arena.resolve(raw_id) else {
+                self.var_arena.retire_array_element_key(raw_id);
+                self.var_arena.unbind(raw_id);
+                continue;
+            };
+            self.var_arena
+                .invalidate_destroyed_element(id, preserve_definition);
+            let _ = self.var_arena.take_state(id);
+            let cell = VarTraceCell {
+                id: Some(id),
+                array: parent,
+                elem: Some(element.clone()),
+            };
+            let mut spelling = name.to_vec();
+            spelling.push(b'(');
+            spelling.extend_from_slice(element.as_bytes());
+            spelling.push(b')');
+            self.fire_taken_unset(&spelling, Some(name), cell, false);
+            self.var_arena.finish_destroyed_element_trace(id);
+            // A whole-array destruction retires the old element even when
+            // its callback wrote through an alias. A surviving alias keeps
+            // this identity as a detached, undefined element; it cannot
+            // retarget a later same-name element.
+            let _ = self.var_arena.replace_state(id, Local::Undefined);
+            self.const_vars.remove(&id);
+            self.var_arena.retire_array_element_key(raw_id);
+            if table_holds_vars {
+                retired_bindings.push(raw_id);
+            } else {
+                self.var_arena.unbind(raw_id);
+            }
+        }
+        retired_bindings
+    }
+
     fn unset_resolved_checked(
         &mut self,
         name: impl AsRef<[u8]>,
@@ -16644,10 +16936,10 @@ impl Vm {
         };
         let table_holds_vars = self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_table_retains_original());
+            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
         let preserve_definition = self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_unset_preserves_definition_during_trace());
+            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
         let mut retired_bindings = Vec::new();
         if let Some(cell) = traced_cell {
             self.fire_taken_unset(name, None, cell, true);
@@ -16658,39 +16950,13 @@ impl Vm {
         // live while an earlier callback runs, and callback-created elements
         // belong to the revived array rather than this destruction pass.
         if let Local::Array(elements) = old_state {
-            for (element, raw_id) in elements {
-                let Some(id) = self.var_arena.resolve(raw_id) else {
-                    self.var_arena.retire_array_element_key(raw_id);
-                    self.var_arena.unbind(raw_id);
-                    continue;
-                };
-                self.var_arena
-                    .invalidate_destroyed_element(id, preserve_definition);
-                let _ = self.var_arena.take_state(id);
-                let cell = VarTraceCell {
-                    id: Some(id),
-                    array: resolved.id,
-                    elem: Some(element.clone()),
-                };
-                let mut spelling = name.to_vec();
-                spelling.push(b'(');
-                spelling.extend_from_slice(element.as_bytes());
-                spelling.push(b')');
-                self.fire_taken_unset(&spelling, Some(name), cell, false);
-                self.var_arena.finish_destroyed_element_trace(id);
-                // A whole-array destruction retires the old element even when
-                // its callback wrote through an alias. A surviving alias keeps
-                // this identity as a detached, undefined element; it cannot
-                // retarget a later same-name element.
-                let _ = self.var_arena.replace_state(id, Local::Undefined);
-                self.const_vars.remove(&id);
-                self.var_arena.retire_array_element_key(raw_id);
-                if table_holds_vars {
-                    retired_bindings.push(raw_id);
-                } else {
-                    self.var_arena.unbind(raw_id);
-                }
-            }
+            retired_bindings = self.retire_unset_array_elements(
+                name,
+                resolved.id,
+                elements,
+                preserve_definition,
+                table_holds_vars,
+            );
         }
         for id in retired_bindings {
             self.var_arena.unbind(id);
@@ -16757,10 +17023,10 @@ impl Vm {
         };
         let table_holds_vars = self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_table_retains_original());
+            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original);
         let preserve_definition = self
             .native_c_variable_name_protocol()
-            .is_some_and(|protocol| protocol.element_unset_preserves_definition_during_trace());
+            .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_unset_preserves_definition_during_trace);
         let mut retired_bindings = Vec::new();
         self.fire_taken_unset(name, reported_name1, cell, true);
 
@@ -16960,7 +17226,7 @@ impl Vm {
             );
         }
         let resolved = self.resolve_var_from_bytes(name, self.current_level());
-        self.unset_selected_original_variable(name, resolved, complain)
+        self.unset_selected_original_variable(name, resolved.as_ref(), complain)
     }
 
     /// Unset the already selected original-object receiver without replaying
@@ -16968,7 +17234,7 @@ impl Vm {
     fn unset_selected_original_variable(
         &mut self,
         name: &[u8],
-        resolved: Option<ResolvedVar>,
+        resolved: Option<&ResolvedVar>,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
         if resolved
@@ -17062,7 +17328,7 @@ impl Vm {
     /// Frame-addressed scalar write (the storage half of
     /// [`write_scalar_raw`](Self::write_scalar_raw)).
     pub(crate) fn write_scalar_from(&mut self, start: usize, name: &str, value: Value) {
-        self.write_scalar_bytes_from(start, name.as_bytes(), value)
+        self.write_scalar_bytes_from(start, name.as_bytes(), value);
     }
 
     fn write_scalar_bytes_from(&mut self, start: usize, name: &[u8], value: Value) {
@@ -17471,17 +17737,17 @@ impl Vm {
             let read_only = current.is_some() && additions.is_empty();
             let value = self.lappend_list_value(current, additions)?;
             if read_only {
-                return Ok(self.variable_update_result(value, &Value::empty()));
+                return Ok(Self::variable_update_result(value, &Value::empty()));
             }
             let value = if let Some(key) = key {
                 self.store_elem_result_bytes(name, key, value)?
             } else {
                 self.store_var_result_bytes(name, value)?
             };
-            return Ok(self.variable_update_result(value, &Value::empty()));
+            return Ok(Self::variable_update_result(value, &Value::empty()));
         }
         let captured = match selected {
-            Some(resolved) => self.capture_selected_update(name, key, resolved)?,
+            Some(resolved) => self.capture_selected_update(name, key, &resolved)?,
             None => self.capture_update_cell(name, key)?,
         };
         self.with_variable_operation(&captured.cell, |vm| {
@@ -17535,14 +17801,14 @@ impl Vm {
         .ok_or_else(|| {
             self.variable_access_error_input("set", input, "parent namespace doesn't exist")
         })?;
-        self.capture_selected_update(name, key, resolved)
+        self.capture_selected_update(name, key, &resolved)
     }
 
     fn capture_selected_update(
         &mut self,
         name: &[u8],
         key: Option<&[u8]>,
-        resolved: ResolvedVar,
+        resolved: &ResolvedVar,
     ) -> Result<CapturedVariableUpdate, Completion<Value>> {
         self.capture_selected_update_with_errors(name, key, resolved, true)
     }
@@ -17551,7 +17817,7 @@ impl Vm {
         &mut self,
         name: &[u8],
         key: Option<&[u8]>,
-        resolved: ResolvedVar,
+        resolved: &ResolvedVar,
         leave_error_message: bool,
     ) -> Result<CapturedVariableUpdate, Completion<Value>> {
         use tcl_syntax::naming::NativeVariableInputForm as Input;
@@ -17633,7 +17899,6 @@ impl Vm {
     }
 
     pub(crate) fn variable_update_result(
-        &self,
         value: Value,
         read_options: &Value,
     ) -> tcl_runtime_api::VariableUpdateResult<Value> {
@@ -17734,10 +17999,10 @@ impl Vm {
         let read_only = current.is_some() && additions.is_empty();
         let value = self.lappend_list_value(current, additions)?;
         if read_only {
-            return Ok(self.variable_update_result(value, &read_options));
+            return Ok(Self::variable_update_result(value, &read_options));
         }
         let stored = self.store_captured_update(name, key, captured, value)?;
-        Ok(self.variable_update_result(stored, &read_options))
+        Ok(Self::variable_update_result(stored, &read_options))
     }
 
     fn check_captured_update_with_errors(
@@ -17759,7 +18024,6 @@ impl Vm {
                 element: Some(element),
             },
         );
-        use tcl_syntax::naming::NativeVariableFailureSite::ValueWrite;
         if !self.var_arena.element_is_attached(id) {
             if !leave_error_message {
                 return Err(err(""));
@@ -17896,17 +18160,17 @@ impl Vm {
         self.increment_selected_bytes(name, key, amount, None)
     }
 
-    fn increment_selected_bytes(
+    fn prepare_increment_read_phase(
         &mut self,
-        name: &[u8],
-        key: Option<&[u8]>,
         amount: &Value,
-        selected: Option<ResolvedVar>,
-    ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+    ) -> Result<
+        (
+            tcl_registry::native_rmw::NativeRmwReadPolicy,
+            Option<PreparedIncrementAmount>,
+        ),
+        Completion<Value>,
+    > {
         use tcl_registry::native_rmw::{NativeRmwAmountValidation, NativeRmwOperation};
-        use tcl_syntax::naming::{
-            NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
-        };
         let policy = self
             .native_invocation_dialect()
             .native_rmw_read_policy(NativeRmwOperation::Increment)
@@ -17924,6 +18188,20 @@ impl Vm {
         } else {
             None
         };
+        Ok((policy, prepared))
+    }
+
+    fn increment_selected_bytes(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        amount: &Value,
+        selected: Option<ResolvedVar>,
+    ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+        use tcl_syntax::naming::{
+            NativeVariableFailureSite as Site, NativeVariableInputForm as Input,
+        };
+        let (policy, prepared) = self.prepare_increment_read_phase(amount)?;
         let selected = selected.or_else(|| {
             if key.is_some() {
                 self.resolve_var_parts_from_bytes(name, key, self.current_level())
@@ -17963,7 +18241,7 @@ impl Vm {
             } else {
                 self.store_var_result_bytes(name, next)?
             };
-            return Ok(self.variable_update_result(stored, &Value::empty()));
+            return Ok(Self::variable_update_result(stored, &Value::empty()));
         }
         let input = key.map_or(Input::Combined(name), |element| Input::Separate {
             root: name,
@@ -17994,7 +18272,7 @@ impl Vm {
                 Site::NameLookup,
             ));
         }
-        let captured = self.capture_selected_update(name, key, resolved)?;
+        let captured = self.capture_selected_update(name, key, &resolved)?;
         if captured
             .cell
             .id
@@ -18059,7 +18337,6 @@ impl Vm {
             return Err(self
                 .refuse_host_command("native increment amount conversion is not selected".into()));
         }
-        use tcl_registry::native_rmw::{NativeRmwAmountError, NativeRmwOperation};
         let grammar = dialect
             .native_rmw_amount_grammar(NativeRmwOperation::Increment)
             .ok_or_else(|| {
@@ -18081,15 +18358,13 @@ impl Vm {
             })
     }
 
-    fn increment_captured_cell(
+    fn read_captured_increment(
         &mut self,
         name: &[u8],
         key: Option<&[u8]>,
         captured: &CapturedVariableUpdate,
-        amount: &Value,
-        prepared_amount: Option<&PreparedIncrementAmount>,
         policy: tcl_registry::native_rmw::NativeRmwReadPolicy,
-    ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+    ) -> Result<(bool, Value, bool), Completion<Value>> {
         use tcl_registry::native_rmw::NativeRmwReadPolicy;
         let cell = &captured.cell;
         let trace = if let Some(key) = key {
@@ -18103,7 +18378,9 @@ impl Vm {
         let modern = self
             .native_invocation_dialect()
             .native_scalar_getter_protocol()
-            .is_some_and(|protocol| protocol.supports_number_getter());
+            .is_some_and(
+                tcl_syntax::scalar_getter::NativeScalarGetterProtocol::supports_number_getter,
+            );
         let (has_current, read_options) = match trace {
             Ok(()) => {
                 let has_current = match self.initial_value_at_cell(
@@ -18119,7 +18396,9 @@ impl Vm {
                     }
                 }
                 .is_some();
-                if !has_current {
+                if has_current {
+                    (true, Value::empty())
+                } else {
                     let missing = self.captured_read_missing(name, key, cell);
                     if let Some(refusal) = self.refused_completion() {
                         return Err(refusal);
@@ -18128,8 +18407,6 @@ impl Vm {
                         return Err(missing);
                     }
                     (false, missing.options)
-                } else {
-                    (true, Value::empty())
                 }
             }
             Err(error) if policy == NativeRmwReadPolicy::RequireContents => return Err(error),
@@ -18139,6 +18416,21 @@ impl Vm {
                 (false, options)
             }
         };
+        Ok((has_current, read_options, modern))
+    }
+
+    fn increment_captured_cell(
+        &mut self,
+        name: &[u8],
+        key: Option<&[u8]>,
+        captured: &CapturedVariableUpdate,
+        amount: &Value,
+        prepared_amount: Option<&PreparedIncrementAmount>,
+        policy: tcl_registry::native_rmw::NativeRmwReadPolicy,
+    ) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+        let cell = &captured.cell;
+        let (has_current, read_options, modern) =
+            self.read_captured_increment(name, key, captured, policy)?;
         self.retain_variable_read_error_code(&read_options);
         let next = if modern {
             let objects =
@@ -18195,7 +18487,7 @@ impl Vm {
             );
         };
         let stored = self.store_captured_update(name, key, captured, next)?;
-        Ok(self.variable_update_result(stored, &read_options))
+        Ok(Self::variable_update_result(stored, &read_options))
     }
 
     /// Publish the `errorInfo` a read trace left behind when the
@@ -18649,7 +18941,7 @@ impl Vm {
         msg: impl AsRef<[u8]>,
         line: u32,
     ) {
-        if self.execution_refusal.is_some() || self.error_logged {
+        if self.execution_refusal.is_some() || self.native_errors.error_logged {
             return;
         }
         self.error_stack_log_value(context);
@@ -18668,7 +18960,7 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        if self.execution_refusal.is_some() || self.error_logged {
+        if self.execution_refusal.is_some() || self.native_errors.error_logged {
             return;
         }
         let source = cmd_text.as_ref();
@@ -18689,13 +18981,16 @@ impl Vm {
         // The innermost logged command's line drives the enclosing `(procedure …
         // line N)` / `("while" body line N)` frames (C's `iPtr->errorLine`).
         if line != 0 {
-            self.error_line = line;
+            self.native_errors.error_line = line;
         }
-        let started = self.error_info.is_some();
+        let started = self.native_errors.error_info.is_some();
         if !started {
             self.seed_native_error_result_object(msg.as_ref());
         }
-        let info = self.error_info.get_or_insert_with(|| msg.as_ref().to_vec());
+        let info = self
+            .native_errors
+            .error_info
+            .get_or_insert_with(|| msg.as_ref().to_vec());
         let verb = if started {
             "invoked from within"
         } else {
@@ -18709,7 +19004,7 @@ impl Vm {
             info.extend_from_slice(("...").as_bytes());
         }
         info.push(b'"');
-        self.error_logged = true;
+        self.native_errors.error_logged = true;
         self.update_native_error_info();
         self.publish_traced_native_error_info();
     }
@@ -18720,7 +19015,7 @@ impl Vm {
     /// innermost logged command's line. Clears `error_logged` so the enclosing
     /// command then logs its own `invoked from within` frame.
     pub(crate) fn append_body_frame(&mut self, label: &str) {
-        self.append_body_frame_line(label, self.error_line);
+        self.append_body_frame_line(label, self.native_errors.error_line);
     }
 
     /// Append a `("<label>" body line N)` frame with an explicit `line` — for an
@@ -18732,13 +19027,13 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        let info = self.error_info.get_or_insert_with(Vec::new);
+        let info = self.native_errors.error_info.get_or_insert_with(Vec::new);
         info.extend_from_slice(("\n    (\"").as_bytes());
         info.extend_from_slice((label).as_bytes());
         info.extend_from_slice(("\" body line ").as_bytes());
-        info.extend_from_slice((&line.to_string()).as_bytes());
+        info.extend_from_slice(line.to_string().as_bytes());
         info.push(b')');
-        self.error_logged = false;
+        self.native_errors.error_logged = false;
         self.update_native_error_info();
     }
 
@@ -18751,15 +19046,23 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        if self.error_info.as_ref().is_some_and(Vec::is_empty) {
-            self.error_info = None;
+        if self
+            .native_errors
+            .error_info
+            .as_ref()
+            .is_some_and(Vec::is_empty)
+        {
+            self.native_errors.error_info = None;
         }
-        if self.error_info.is_none() {
+        if self.native_errors.error_info.is_none() {
             self.seed_native_error_result_object(msg.as_ref());
         }
-        let info = self.error_info.get_or_insert_with(|| msg.as_ref().to_vec());
+        let info = self
+            .native_errors
+            .error_info
+            .get_or_insert_with(|| msg.as_ref().to_vec());
         info.extend_from_slice(frame.as_ref());
-        self.error_logged = false;
+        self.native_errors.error_logged = false;
         self.update_native_error_info();
     }
 
@@ -18781,13 +19084,13 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        let info = self.error_info.get_or_insert_with(Vec::new);
+        let info = self.native_errors.error_info.get_or_insert_with(Vec::new);
         info.extend_from_slice(("\n    (procedure \"").as_bytes());
         info.extend_from_slice((name).as_bytes());
         info.extend_from_slice(("\" line ").as_bytes());
-        info.extend_from_slice((&line.to_string()).as_bytes());
+        info.extend_from_slice(line.to_string().as_bytes());
         info.push(b')');
-        self.error_logged = false;
+        self.native_errors.error_logged = false;
         self.update_native_error_info();
     }
 
@@ -18795,26 +19098,26 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        let info = self.error_info.get_or_insert_with(Vec::new);
+        let info = self.native_errors.error_info.get_or_insert_with(Vec::new);
         info.extend_from_slice(("\n    (").as_bytes());
         info.extend_from_slice((op).as_bytes());
         info.extend_from_slice((" trace on \"").as_bytes());
         info.extend_from_slice(name);
         info.extend_from_slice(("\")").as_bytes());
-        self.error_logged = false;
+        self.native_errors.error_logged = false;
         self.update_native_error_info();
     }
 
     /// The innermost logged command's source line (C's `iPtr->errorLine`).
     pub(crate) fn error_line(&self) -> u32 {
-        self.error_line
+        self.native_errors.error_line
     }
 
     /// Set the innermost error line directly — the proc epilogue's
     /// break/continue→error transform pins the offending command's line before
     /// the `(procedure …)` frame is appended.
     pub(crate) fn set_error_line(&mut self, line: u32) {
-        self.error_line = line;
+        self.native_errors.error_line = line;
     }
 
     pub(crate) fn schedule_tailcall(
@@ -18877,7 +19180,7 @@ impl Vm {
         &mut self,
         event: tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent,
     ) -> Result<(), Completion<Value>> {
-        let logical = self.logical_name_provider.and_then(|provider| {
+        let logical = self.logical_providers.names.and_then(|provider| {
             (provider.authority() == tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation)
                 .then_some(tcl_registry::native_ensemble_rewrite::LogicalEnsembleRewriteProvider::Tcl84CoreSimulation)
         });
@@ -18951,11 +19254,11 @@ impl Vm {
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn command_error_is_logged(&self) -> bool {
-        self.error_logged
+        self.native_errors.error_logged
     }
 
     pub(crate) fn clear_error_logged(&mut self) {
-        self.error_logged = false;
+        self.native_errors.error_logged = false;
     }
 
     /// Seed the `errorInfo` trace with an explicit value and mark it logged —
@@ -19126,11 +19429,11 @@ impl Vm {
         }
         let mut receipt = self.jim_return_receipt();
         receipt.error_code = captured;
-        Ok(Self::jim_receipt_options(receipt, exit))
+        Ok(Self::jim_receipt_options(&receipt, exit))
     }
 
     fn jim_receipt_options(
-        receipt: tcl_runtime_api::jim_return_state::JimReturnReceipt<Value>,
+        receipt: &tcl_runtime_api::jim_return_state::JimReturnReceipt<Value>,
         exit: Code,
     ) -> Value {
         use tcl_runtime_api::completion_options::OptionValue;
@@ -19152,7 +19455,7 @@ impl Vm {
     }
 
     pub(crate) fn jim_return_options(&self, exit: Code) -> Value {
-        Self::jim_receipt_options(self.jim_return_receipt(), exit)
+        Self::jim_receipt_options(&self.jim_return_receipt(), exit)
     }
 
     pub(crate) fn uses_jim_error_stack(&self) -> bool {
@@ -19277,31 +19580,34 @@ impl Vm {
                 .stack
                 .adopt_explicit(Value::from_string_bytes(info.as_ref()));
         }
-        self.error_info = Some(info.as_ref().to_vec());
-        self.native_error_info_len = info.as_ref().len();
-        self.error_logged = true;
-        self.native_error_info = self
+        self.native_errors.error_info = Some(info.as_ref().to_vec());
+        self.native_errors.native_error_info_len = info.as_ref().len();
+        self.native_errors.error_logged = true;
+        self.native_errors.native_error_info = self
             .native_invocation_dialect()
             .native_error_variable_protocol()
             .map(|_| Value::new_native_string_bytes(info.as_ref()));
-        self.native_error_legacy_copy = self.native_error_info.is_some();
+        self.native_errors.native_error_legacy_copy =
+            self.native_errors.native_error_info.is_some();
     }
 
     /// Borrow the accumulated `errorInfo` without consuming the error episode.
     pub(crate) fn error_info_value(&self) -> Option<&[u8]> {
-        self.error_info.as_deref()
+        self.native_errors.error_info.as_deref()
     }
 
     /// Whether the selected Tcl release exposes TIP 348 error stacks.
     pub(crate) fn supports_error_stack(&self) -> bool {
         self.actual_native_invocation_dialect()
             .native_error_objects_protocol()
-            .is_some_and(|recipe| recipe.has_error_stack())
+            .is_some_and(
+                tcl_registry::native_error_objects::NativeErrorObjectsProtocol::has_error_stack,
+            )
     }
 
     /// Adopt an explicit, already-validated `return -errorstack` list.
-    pub(crate) fn seed_error_stack_parts(&mut self, parts: Vec<Value>) {
-        let _ = self.error_stack.adopt(parts);
+    pub(crate) fn seed_error_stack_parts(&mut self, parts: &[Value]) {
+        let _ = self.native_errors.error_stack.adopt(parts);
     }
 
     /// Adopt an explicit stack stored in a completion options dictionary.
@@ -19319,14 +19625,15 @@ impl Vm {
         ) else {
             return;
         };
-        self.seed_error_stack_parts(parts);
+        self.seed_error_stack_parts(&parts);
     }
 
     /// Add the innermost command context for a new Tcl 8.6+ error episode.
     #[cfg(test)]
     pub(crate) fn begin_error_stack_context(&mut self, context: Value) {
-        if self.supports_error_stack() && !self.error_logged {
+        if self.supports_error_stack() && !self.native_errors.error_logged {
             let _ = self
+                .native_errors
                 .error_stack
                 .begin_inner(Value::string("INNER"), context);
         }
@@ -19342,14 +19649,16 @@ impl Vm {
         let recipe = self
             .actual_native_invocation_dialect()
             .native_return_options_application(purpose);
-        if recipe.and_then(|recipe| recipe.inner_context_name()) != Some(name) {
+        if recipe.and_then(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::inner_context_name) != Some(name) {
             return;
         }
-        if recipe.is_some_and(|recipe| recipe.clears_logged_after_result()) {
-            self.error_logged = false;
+        if recipe.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result) {
+            self.native_errors.error_logged = false;
         }
-        if !self.error_logged {
-            self.error_stack.begin_instruction(name, operands);
+        if !self.native_errors.error_logged {
+            self.native_errors
+                .error_stack
+                .begin_instruction(name, operands);
         }
     }
 
@@ -19359,32 +19668,38 @@ impl Vm {
             return;
         }
         let _ = self
+            .native_errors
             .error_stack
             .begin_inner(Value::string("INNER"), context);
-        use tcl_runtime_api::error_stack::{ErrorStackFrame, ShiftedErrorStackFrame};
-        let frame =
-            if let Some(original) = self.error_stack.shifted_context_frame(self.frames.len()) {
-                match original {
-                    ShiftedErrorStackFrame::Unreported => ErrorStackFrame::Unreported,
-                    ShiftedErrorStackFrame::Redirect(delta) => ErrorStackFrame::Redirect(
-                        Value::int(i64::try_from(delta).unwrap_or(i64::MAX)),
-                    ),
+        let frame = if let Some(original) = self
+            .native_errors
+            .error_stack
+            .shifted_context_frame(self.frames.len())
+        {
+            match original {
+                ShiftedErrorStackFrame::Unreported => ErrorStackFrame::Unreported,
+                ShiftedErrorStackFrame::Redirect(delta) => {
+                    ErrorStackFrame::Redirect(Value::int(i64::try_from(delta).unwrap_or(i64::MAX)))
                 }
-            } else if let Some(frame) = self
-                .frames
-                .last()
-                .filter(|frame| !frame.call_argv.is_empty())
-            {
-                ErrorStackFrame::Call(Value::native_list_constructor(
-                    frame.call_argv.iter().map(Value::clone).collect(),
-                    self.actual_native_invocation_dialect()
-                        .native_string_protocol()
-                        .expect("selected C error stack"),
-                ))
-            } else {
-                ErrorStackFrame::Unreported
-            };
-        let _ = self.error_stack.log_frame(frame, |tag| Value::string(tag));
+            }
+        } else if let Some(frame) = self
+            .frames
+            .last()
+            .filter(|frame| !frame.call_argv.is_empty())
+        {
+            ErrorStackFrame::Call(Value::native_list_constructor(
+                frame.call_argv.iter().map(Value::clone).collect(),
+                self.actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .expect("selected C error stack"),
+            ))
+        } else {
+            ErrorStackFrame::Unreported
+        };
+        let _ = self
+            .native_errors
+            .error_stack
+            .log_frame(frame, |tag| Value::string(tag));
     }
 
     /// Replace the current episode when a non-error trace completion is
@@ -19393,42 +19708,43 @@ impl Vm {
         if !self.supports_error_stack() {
             return;
         }
-        self.error_stack
+        self.native_errors
+            .error_stack
             .restart_inner(Value::string("INNER"), context);
     }
 
     /// Return the last TIP 348 stack as a Tcl list value.
     pub(crate) fn error_stack_value(&self) -> Value {
-        self.error_stack.value()
+        self.native_errors.error_stack.value()
     }
 
     /// Native error return-options overlays always retain the live private List,
     /// including while its next error episode is waiting for lazy reset.
     pub(crate) fn error_stack_for_completion(&self, _carried: Option<Value>) -> Value {
-        self.error_stack.value()
+        self.native_errors.error_stack.value()
     }
 
     /// Reset transient metadata for a distinct nested evaluation. The error
     /// stack itself resets lazily so `info errorstack` retains the last value.
     fn reset_error_state_for_eval(&mut self) {
         self.jim_errors.stack.mark_reset();
-        self.error_stack.mark_reset();
-        self.error_info = None;
-        self.native_error_info = None;
-        self.native_error_info_len = 0;
-        self.native_error_result = None;
-        self.native_return_options = None;
-        self.native_error_legacy_copy = false;
-        self.error_logged = false;
-        self.error_line = 1;
+        self.native_errors.error_stack.mark_reset();
+        self.native_errors.error_info = None;
+        self.native_errors.native_error_info = None;
+        self.native_errors.native_error_info_len = 0;
+        self.native_errors.native_error_result = None;
+        self.native_errors.native_return_options = None;
+        self.native_errors.native_error_legacy_copy = false;
+        self.native_errors.error_logged = false;
+        self.native_errors.error_line = 1;
     }
 
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
     pub(crate) fn take_error_info(&mut self) -> Option<Vec<u8>> {
-        self.error_logged = false;
-        self.error_stack.mark_reset();
-        self.error_info.take()
+        self.native_errors.error_logged = false;
+        self.native_errors.error_stack.mark_reset();
+        self.native_errors.error_info.take()
     }
 
     /// Apply a primitive getter's authored action to interpreter error state.
@@ -19440,10 +19756,11 @@ impl Vm {
         match update {
             tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(bytes) => {
                 let value = self.native_default_error_code(&bytes);
-                self.primitive_error_code = Some(value.clone());
+                self.native_errors.primitive_error_code = Some(value.clone());
                 value
             }
             tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Unchanged => self
+                .native_errors
                 .primitive_error_code
                 .clone()
                 .unwrap_or_else(|| self.native_default_error_code(b"NONE")),
@@ -19458,7 +19775,7 @@ impl Vm {
         reset_to_none: bool,
     ) -> Value {
         if let Some(original) = original {
-            self.primitive_error_code = Some(original.clone());
+            self.native_errors.primitive_error_code = Some(original.clone());
             return original.clone();
         }
         if reset_to_none {
@@ -19679,7 +19996,7 @@ impl Vm {
     /// Bootstrap each real scripted dictionary worker once per selected library.
     /// Replacement and deletion remain visible through subsequent profile repinning.
     pub(crate) fn refresh_scripted_dictionary_wrappers(&mut self) {
-        if self.native_core_bootstrap {
+        if self.bootstrap == NativeBootstrapPurpose::Core {
             return;
         }
         let wrappers = tcl_registry::dictionary_scope::stock_scripted_wrappers(
@@ -19803,9 +20120,10 @@ impl Vm {
             Ok(result) => {
                 result.bind_native_jim_context(&context)?;
                 context.publish_result(&result);
-                match result.native_scalar_probe(dialect, NativeScalarGetterKind::Wide)? {
-                    Ok(NativeScalarGetterValue::Wide(value)) => return Ok(value),
-                    Ok(_) | Err(_) => {}
+                if let Ok(NativeScalarGetterValue::Wide(value)) =
+                    result.native_scalar_probe(dialect, NativeScalarGetterKind::Wide)?
+                {
+                    return Ok(value);
                 }
             }
             Err(error) if error.is_host() => {
@@ -19864,7 +20182,7 @@ impl Vm {
             None
         };
         if protocol.is_jim084()
-            && source.expression_rejected(dialect, &profile, self.native_compiler_policy())
+            && source.expression_rejected(dialect, &profile, &self.native_compiler_policy())
         {
             let context = self.native_jim_object_context()?;
             return Err(TclError::from_completion(Completion::new(
@@ -19892,7 +20210,7 @@ impl Vm {
             dialect,
             &profile,
             protocol,
-            self.native_compiler_policy(),
+            &self.native_compiler_policy(),
             preparation,
         )?;
         // Fixed-function preparation validates the actual installed table on
@@ -19900,7 +20218,7 @@ impl Vm {
         if !tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(
             &self.expression_parse_context(),
         ) && let Some(node) =
-            source.cached_expression(dialect, &profile, self.native_compiler_policy())
+            source.cached_expression(dialect, &profile, &self.native_compiler_policy())
         {
             return Ok(node);
         }
@@ -19920,7 +20238,7 @@ impl Vm {
                 tcl_registry::native_expression_error::ExpressionErrorPublication::Eval,
             )?
         };
-        source.cache_expression(dialect, profile, self.native_compiler_policy(), &node);
+        source.cache_expression(dialect, profile, &self.native_compiler_policy(), &node);
         Ok(node)
     }
 
@@ -19984,7 +20302,7 @@ impl Vm {
                     );
                     return Err(self.expression_syntax_error(
                         diagnostic.message,
-                        diagnostic.error_code,
+                        diagnostic.error_code.as_deref(),
                         context.native_syntax,
                         publication,
                     ));
@@ -20035,41 +20353,39 @@ impl Vm {
                     Some(Installed::Unknown) | None => Prepared::Unknown,
                 }
             });
-        if let Some(original) = original {
-            if prepared.jim.as_ref().is_some_and(|receipt| {
+        if let Some(original) = original
+            && prepared.jim.as_ref().is_some_and(|receipt| {
                 receipt.action
                     == tcl_syntax::expr::native_objects::JimExpressionCacheAction::Rejected
-            }) {
-                original.reject_expression(
-                    self.native_invocation_dialect(),
-                    self.expression_source_profile().cache_key(),
-                    self.native_compiler_policy(),
-                );
-            }
+            })
+        {
+            original.reject_expression(
+                self.native_invocation_dialect(),
+                self.expression_source_profile().cache_key(),
+                &self.native_compiler_policy(),
+            );
         }
         match prepared.tree {
             RuntimeExpressionPreparation::Parsed(node) => {
                 if let (Some(original), Some(info), Some(receipt)) =
                     (original, source_info, prepared.jim.as_ref())
-                {
-                    if original
+                    && original
                         .cached_expression(
                             self.native_invocation_dialect(),
                             &self.expression_source_profile().cache_key(),
-                            self.native_compiler_policy(),
+                            &self.native_compiler_policy(),
                         )
                         .is_none()
-                    {
-                        original.install_jim_expression(crate::value::JimExpressionInstall {
-                            dialect: self.native_invocation_dialect(),
-                            profile: self.expression_source_profile().cache_key(),
-                            policy: self.native_compiler_policy(),
-                            node: &node,
-                            source,
-                            preparation: receipt,
-                            info,
-                        })?;
-                    }
+                {
+                    original.install_jim_expression(&crate::value::JimExpressionInstall {
+                        dialect: self.native_invocation_dialect(),
+                        profile: self.expression_source_profile().cache_key(),
+                        policy: self.native_compiler_policy(),
+                        node: &node,
+                        source,
+                        preparation: receipt,
+                        info,
+                    })?;
                 }
                 Ok(node)
             }
@@ -20080,7 +20396,7 @@ impl Vm {
                 );
                 Err(self.expression_syntax_error(
                     diagnostic.message,
-                    diagnostic.error_code,
+                    diagnostic.error_code.as_deref(),
                     context.native_syntax,
                     publication,
                 ))
@@ -20095,14 +20411,13 @@ impl Vm {
     fn expression_syntax_error(
         &mut self,
         message: impl AsRef<[u8]>,
-        code: Option<impl AsRef<[u8]>>,
+        code: Option<&[u8]>,
         syntax: tcl_syntax::expr::parser::NativeExprSyntax,
         publication: tcl_registry::native_expression_error::ExpressionErrorPublication,
     ) -> TclError {
-        let Some(stage) = tcl_registry::native_expression_error::NativeExpressionErrorStage::syntax(
-            syntax,
-            code.as_ref().map(AsRef::as_ref),
-        ) else {
+        let Some(stage) =
+            tcl_registry::native_expression_error::NativeExpressionErrorStage::syntax(syntax, code)
+        else {
             return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native expression syntax error state",
             )
@@ -20205,7 +20520,7 @@ impl Vm {
                 self.seed_parsing_expression_frame(src, &diagnostic.message);
                 return Err(self.expression_syntax_error(
                     diagnostic.message,
-                    diagnostic.error_code,
+                    diagnostic.error_code.as_deref().map(str::as_bytes),
                     context.native_syntax,
                     tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
                 ));
@@ -20225,10 +20540,16 @@ impl Vm {
     fn expression_parse_context(&self) -> tcl_syntax::expr::parser::ExprParseContext {
         use tcl_syntax::expr::parser::ExprParseContext;
         if self.active_native_profile.is_none()
-            && let Some(context) = self.logical_expression_parse_provider.and_then(|provider| {
-                tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
-                    .logical_expression_parse_context(provider, self.expression_source_profile())
-            })
+            && let Some(context) = self
+                .logical_providers
+                .expression_parse
+                .and_then(|provider| {
+                    tcl_registry::InvocationDialect::of_profile(self.dialect_profile)
+                        .logical_expression_parse_context(
+                            provider,
+                            self.expression_source_profile(),
+                        )
+                })
         {
             return context;
         }
@@ -20264,7 +20585,7 @@ impl Vm {
                 self.seed_parsing_expression_frame(source, &diagnostic.message);
                 Err(self.expression_syntax_error(
                     diagnostic.message,
-                    diagnostic.error_code,
+                    diagnostic.error_code.as_deref().map(str::as_bytes),
                     context.native_syntax,
                     tcl_registry::native_expression_error::ExpressionErrorPublication::Direct,
                 ))
@@ -20656,9 +20977,10 @@ impl Vm {
                 tcl_registry::VariableAliasFrame::Unknown => NativeCompilationFrame::Unknown,
             }
         };
-        let entry = NativeCompilationEntry {
+
+        NativeCompilationEntry {
             interpreter,
-            epoch: self.trace_deopt_epoch.get(),
+            epoch: self.compilation_epochs.trace_deopt_epoch.get(),
             profile: self.source_profile().cache_key(),
             execution_point: self.actual_native_invocation_dialect().execution_point(),
             name_protocol: self.name_policy_protocol(),
@@ -20697,8 +21019,7 @@ impl Vm {
             },
             namespace_variable_tables: self.native_namespace_variable_tables(interpreter),
             frame,
-        };
-        entry
+        }
     }
 
     fn native_namespace_variable_tables(
@@ -20868,7 +21189,7 @@ impl Vm {
                 .cloned(),
             token: u64::from(token.0),
             visible: !self.name_world.borrow().dead_namespaces.contains(&token),
-            exports: exports.into_iter().map(Into::into).collect(),
+            exports: exports.into_iter().collect(),
             command_path,
             unknown_handler,
         }
@@ -21040,7 +21361,7 @@ impl Vm {
                 .commands();
                 if registry
                     .native_compilation_for_registration(native.identity, dialect)
-                    .is_some_and(|spec| spec.is_named_invocation_compiler())
+                    .is_some_and(tcl_registry::native_compilation::NativeCompilationSpec::is_named_invocation_compiler)
                 {
                     return Some(NativeCommandCompiler {
                         registry_identity: native.identity.to_owned(),
@@ -21076,12 +21397,9 @@ impl Vm {
             ensemble: Some(NativeEnsembleCompiler {
                 namespace_token: u64::from(config.namespace.0),
                 map: config.map.clone(),
-                subcommands: config
-                    .subcommands
-                    .as_ref()
-                    .map(|names| names.iter().cloned().map(Into::into).collect()),
+                subcommands: config.subcommands.clone(),
                 prefixes: config.prefixes,
-                parameters: config.parameters.iter().cloned().map(Into::into).collect(),
+                parameters: config.parameters.clone(),
                 unknown_handler: config
                     .unknown
                     .as_ref()
@@ -21162,7 +21480,7 @@ impl Vm {
                 slot: self.command_slot(source).map(|slot| {
                     tcl_core_types::NativeByteCommandSlot::new(
                         self.ns_path(slot.namespace),
-                        tcl_core_types::NameBytes::from(slot.simple.clone()),
+                        slot.simple.clone(),
                     )
                 }),
             }
@@ -21225,7 +21543,7 @@ impl Vm {
         Some(NativeCompilationBinding {
             slot: tcl_core_types::NativeByteCommandSlot::new(
                 self.ns_path(slot.namespace),
-                tcl_core_types::NameBytes::from(slot.simple.clone()),
+                slot.simple.clone(),
             ),
             namespace_token: u64::from(slot.namespace.0),
             token,
@@ -21958,6 +22276,72 @@ impl Vm {
     }
 
     /// Prepare original source under the actual caller's evaluation purpose.
+    fn native_script_command_plan(
+        &mut self,
+        source: &tcl_runtime_api::SourceImage,
+        namespace: &NamespacePath,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, TclError> {
+        let entry =
+            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
+        let Some(compiler) = self.compiler.as_ref() else {
+            return Err(self.compile_service_error_bytes(
+                tcl_runtime_api::CompileError::Unsupported(
+                    "native script preparation requires a byte CompileService".into(),
+                ),
+                source,
+                namespace,
+                tcl_runtime_api::NativeCompilationAdmissionScope::Script,
+            ));
+        };
+        let plan = match compiler.script_command_plan_bytes_with_entry(
+            source,
+            self.source_profile(),
+            &entry,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => {
+                return Err(self.compile_service_error_bytes(
+                    error,
+                    source,
+                    namespace,
+                    tcl_runtime_api::NativeCompilationAdmissionScope::Script,
+                ));
+            }
+        };
+        if plan.complete_prefix_len > source.len() {
+            let message = "CompileService returned an invalid native byte command boundary";
+            let _ = self.refuse_host_command(message.to_owned());
+            return Err(TclError::new(message));
+        }
+        Ok(plan)
+    }
+
+    fn direct_script_prefix(
+        &mut self,
+        admitted_source: &tcl_runtime_api::SourceImage,
+        namespace: &NamespacePath,
+        strings: tcl_syntax::native_string::NativeStringProtocol,
+        evaluation: tcl_registry::native_eval_object::NativeEvalObjectProtocol,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+    ) -> Result<CompiledUnit, TclError> {
+        let module = self.compile_module_bytes(admitted_source, namespace, true)?;
+        self.merge_procs(&module);
+        Ok(self
+            .direct_source_unit(
+                Rc::new(module.top_level.clone()),
+                module.source_namespace.clone(),
+                strings,
+                evaluation,
+                purpose,
+            )?
+            .with_source_location(self.script_stack.last().map(|file| {
+                tcl_runtime_api::script_source_location::ScriptSourceLocation {
+                    file: file.clone(),
+                    line: 1,
+                }
+            })))
+    }
+
     pub(crate) fn prepare_script_commands_value_for(
         &mut self,
         value: &Value,
@@ -22013,38 +22397,7 @@ impl Vm {
         let source = self.native_script_source_image(value)?;
         self.jim_errors.stack.mark_reset();
         let namespace = self.source_namespace_path();
-        let entry =
-            self.native_compilation_entry_for_namespace_token(Some(self.current_ns_id()), false);
-        let Some(compiler) = self.compiler.as_ref() else {
-            return Err(self.compile_service_error_bytes(
-                tcl_runtime_api::CompileError::Unsupported(
-                    "native script preparation requires a byte CompileService".into(),
-                ),
-                &source,
-                &namespace,
-                tcl_runtime_api::NativeCompilationAdmissionScope::Script,
-            ));
-        };
-        let plan = match compiler.script_command_plan_bytes_with_entry(
-            &source,
-            self.source_profile(),
-            &entry,
-        ) {
-            Ok(plan) => plan,
-            Err(error) => {
-                return Err(self.compile_service_error_bytes(
-                    error,
-                    &source,
-                    &namespace,
-                    tcl_runtime_api::NativeCompilationAdmissionScope::Script,
-                ));
-            }
-        };
-        if plan.complete_prefix_len > source.len() {
-            let message = "CompileService returned an invalid native byte command boundary";
-            let _ = self.refuse_host_command(message.to_owned());
-            return Err(TclError::new(message));
-        }
+        let plan = self.native_script_command_plan(&source, &namespace)?;
         if evaluation.parse_failure_precedes_commands(purpose) && plan.fatal_tail.is_some() {
             return Ok(PreparedScript {
                 prefix: None,
@@ -22062,21 +22415,13 @@ impl Vm {
             let mut unit = if compiles_source {
                 self.compile_script_cached_bytes(&admitted_source)?
             } else {
-                let module = self.compile_module_bytes(&admitted_source, &namespace, true)?;
-                self.merge_procs(&module);
-                self.direct_source_unit(
-                    Rc::new(module.top_level.clone()),
-                    module.source_namespace.clone(),
+                self.direct_script_prefix(
+                    &admitted_source,
+                    &namespace,
                     strings,
                     evaluation,
                     purpose,
                 )?
-                .with_source_location(self.script_stack.last().map(|file| {
-                    tcl_runtime_api::script_source_location::ScriptSourceLocation {
-                        file: file.clone(),
-                        line: 1,
-                    }
-                }))
             };
             if compiles_source {
                 unit = unit
@@ -22714,7 +23059,7 @@ impl Vm {
             Err(failure) => {
                 let info = self
                     .take_error_info()
-                    .map_or_else(|| failure.result.string_bytes().to_vec(), |info| info);
+                    .unwrap_or_else(|| failure.result.string_bytes().to_vec());
                 let line = i64::from(self.error_line());
                 self.publish_error_bytes(&info, &Value::string("TCL READ VARNAME"));
                 ArrayElementRead::Missing(ArrayReadMiss::trace_error(Some(info), line))
@@ -22943,8 +23288,8 @@ impl Frames for Vm {
     fn push(&mut self, ns: NsId) -> FrameId {
         let name = self.ns_name_bytes(ns);
         let level = self.push_call_frame(None, Vec::new());
-        self.ns_stack.push(name.into());
-        self.ns_id_stack.push(ns);
+        self.resolution_stacks.ns_stack.push(name);
+        self.resolution_stacks.ns_id_stack.push(ns);
         FrameId(level)
     }
 
@@ -23083,7 +23428,11 @@ impl Namespaces for Vm {
     }
 
     fn current(&self) -> NsId {
-        self.ns_id_stack.last().copied().unwrap_or(ROOT_NS)
+        self.resolution_stacks
+            .ns_id_stack
+            .last()
+            .copied()
+            .unwrap_or(ROOT_NS)
     }
 
     fn name(&self, ns: NsId) -> String {
@@ -23476,7 +23825,8 @@ mod family_b_tests {
             assert_eq!(result.code, Code::Error, "{engine}");
             assert!(crate::command::opt_get(&result.options, "-errorcode").is_none());
             assert_eq!(
-                vm.primitive_error_code
+                vm.native_errors
+                    .primitive_error_code
                     .as_ref()
                     .unwrap()
                     .string_bytes()
@@ -23908,7 +24258,7 @@ mod family_b_tests {
         let parent_policy = vm.native_compiler_policy();
         let child_id = vm.new_interp_slot(child, vm.cur);
         vm.in_interp(child_id, |child| {
-            assert_eq!(child.logical_numeric_provider, Some(provider));
+            assert_eq!(child.logical_providers.numeric, Some(provider));
             assert_eq!(child.numeric_context().simulation, Some(provider));
             assert_eq!(child.native_compiler_policy(), parent_policy);
         });
@@ -23984,7 +24334,7 @@ mod family_b_tests {
         let child = vm.fork_child_state();
         let child_id = vm.new_interp_slot(child, vm.cur);
         vm.in_interp(child_id, |child| {
-            assert_eq!(child.logical_numeric_provider, Some(provider));
+            assert_eq!(child.logical_providers.numeric, Some(provider));
             assert_eq!(child.numeric_context().simulation, Some(provider));
             assert_eq!(child.native_compiler_policy(), user_policy);
         });
@@ -24014,7 +24364,7 @@ mod family_b_tests {
         );
         assert!(vm.native_invocation_dialect().execution_point().is_none());
         let child = vm.fork_child_state();
-        assert_eq!(child.logical_source_word_provider, Some(provider));
+        assert_eq!(child.logical_providers.source_words, Some(provider));
         vm.set_dialect_profile(host);
         assert!(!vm.set_logical_source_word_provider(provider));
         assert_eq!(
@@ -24072,7 +24422,7 @@ mod family_b_tests {
             .expect("explicit logical parser");
         assert_eq!(object.string_bytes().as_ref(), b"{\xff\0tail}");
         let child = vm.fork_child_state();
-        assert_eq!(child.logical_expression_parse_provider, Some(provider));
+        assert_eq!(child.logical_providers.expression_parse, Some(provider));
         let policy = vm.native_compiler_policy();
         let child_id = vm.new_interp_slot(child, vm.cur);
         vm.in_interp(child_id, |child| {
@@ -24150,12 +24500,12 @@ mod family_b_tests {
             user_entry
         );
         let child = vm.fork_child_state();
-        assert_eq!(child.logical_quote_provider, vm.logical_quote_provider);
+        assert_eq!(child.logical_providers.quote, vm.logical_providers.quote);
         assert_eq!(
             (
                 child.actual_native_execution_profile().cache_key(),
                 child.native_execution_profile().cache_key(),
-                child.logical_quote_provider
+                child.logical_providers.quote
             ),
             (
                 vm.native_compiler_policy().engine,
@@ -24310,7 +24660,8 @@ mod family_b_tests {
             vm.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Unchanged);
         assert!(unchanged.is_same_object(&original));
         assert!(
-            vm.primitive_error_code
+            vm.native_errors
+                .primitive_error_code
                 .as_ref()
                 .expect("original state")
                 .is_same_object(&original)
@@ -26949,7 +27300,7 @@ mod compiled_variable_provider_tests {
             ))
         );
         let child = vm.fork_child_state();
-        assert_eq!(child.logical_compiled_variable_provider, Some(provider));
+        assert_eq!(child.logical_providers.compiled_variables, Some(provider));
         assert_eq!(child.compiled_variable_protocol(), Some(policy));
         vm.active_native_profile = Some(host);
         let actual = vm.compiled_variable_protocol().unwrap();
@@ -27007,20 +27358,29 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Vm {
                 .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "original array search cell",
                 ))?;
-        let result = self
-            .var_arena
-            .native_array_search(id, sub, name, handle, bytes, cache, protocol)?;
-        if sub == "startsearch" && protocol.start_handle_has_string_primary() {
-            if let Ok(value) = &result {
-                let materialization = self
-                    .actual_native_invocation_dialect()
-                    .native_string_materialization(None)
-                    .filter(|issuer| issuer.protocol().tcl_version() == Some(protocol.version()))
-                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                        "native array search String producer",
-                    ))?;
-                value.retain_native_string_representation(materialization)?;
-            }
+        let result = self.var_arena.native_array_search(
+            id,
+            sub,
+            name,
+            crate::vars::NativeArraySearchHandle {
+                original: handle,
+                bytes,
+                cache,
+            },
+            protocol,
+        )?;
+        if sub == "startsearch"
+            && protocol.start_handle_has_string_primary()
+            && let Ok(value) = &result
+        {
+            let materialization = self
+                .actual_native_invocation_dialect()
+                .native_string_materialization(None)
+                .filter(|issuer| issuer.protocol().tcl_version() == Some(protocol.version()))
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native array search String producer",
+                ))?;
+            value.retain_native_string_representation(materialization)?;
         }
         if sub == "anymore" && protocol.version() == tcl_dialect::TclVersion::V8_4 {
             if let Ok(value) = result {
@@ -27038,9 +27398,8 @@ impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Vm {
                     None,
                     self.native_invocation_dialect(),
                 )?));
-            } else {
-                return Ok(result);
             }
+            return Ok(result);
         }
         Ok(result)
     }

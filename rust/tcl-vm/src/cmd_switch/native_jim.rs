@@ -69,7 +69,7 @@ impl NativeJimSwitchObjects for Vm {
         subject.jim084_matches(&pattern, false).map_err(Into::into)
     }
     fn switch_callback_code(&self, callback: &Completion<Value>) -> i32 {
-        callback.code.as_int() as i32
+        i32::try_from(callback.code.as_int()).expect("native callback completion code")
     }
     fn switch_negative_match(&mut self, code: i32) -> Completion<Value> {
         match self.with_native_interp_result(|value| value.native_lifetime_lease().into_value()) {
@@ -87,13 +87,12 @@ impl NativeJimSwitchObjects for Vm {
         option_end: bool,
     ) -> Result<i64, Completion<Value>> {
         let head;
-        let original = match command {
-            Some(command) => command,
-            None => {
-                head = Value::new_native_string_bytes(b"regexp".as_slice())
-                    .into_native_unowned_lifetime();
-                &head
-            }
+        let original = if let Some(command) = command {
+            command
+        } else {
+            head =
+                Value::new_native_string_bytes(b"regexp".as_slice()).into_native_unowned_lifetime();
+            &head
         };
         crate::cmd_regexp::invoke_jim_match_command(
             self, original, pattern, subject, false, option_end,

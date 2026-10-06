@@ -299,7 +299,11 @@ mod tests {
         include_str!("../tests/data/native_interpreter_enum/9.1.0.tsv"),
     ];
     fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        use std::fmt::Write;
+        bytes.iter().fold(String::new(), |mut text, byte| {
+            write!(text, "{byte:02x}").unwrap();
+            text
+        })
     }
     #[test]
     fn original_root_and_child_declarations_match_every_native_entry() {

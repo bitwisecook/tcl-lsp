@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Retirement of the actual Jim interpreter's physical owners.
 
-use super::*;
+use super::{Code, InterpId, Vm};
 use tcl_runtime_api::jim_interpreter::{JimInterpreterObjectRole as Role, JimInterpreterTeardown};
 
 impl Vm {
@@ -28,9 +28,8 @@ impl Vm {
         let Ok(context) = self.native_jim_object_context() else {
             return;
         };
-        let name = match self.native_name_operand_bytes(&context.defer_object()) {
-            Ok(name) => name,
-            Err(_) => return,
+        let Ok(name) = self.native_name_operand_bytes(&context.defer_object()) else {
+            return;
         };
         // JimInvokeDefer checks this exact frame table before name lookup.
         let present = if level == 0 {

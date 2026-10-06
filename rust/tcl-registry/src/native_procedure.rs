@@ -827,7 +827,9 @@ mod tests {
         let decode = |input: &str| {
             input
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect::<Vec<_>>()
         };
@@ -853,14 +855,7 @@ mod tests {
             )
             .unwrap();
             let result = decode(fields[7]);
-            let line = u32::try_from(
-                source[..start]
-                    .iter()
-                    .filter(|&&byte| byte == b'\n')
-                    .count()
-                    + 1,
-            )
-            .unwrap();
+            let line = u32::try_from(source[..start].split(|&byte| byte == b'\n').count()).unwrap();
             let mut information = protocol
                 .parse_failure_information(&result, command, line, b"p")
                 .unwrap();

@@ -510,11 +510,11 @@ fn cmd_thread_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `thread::errorproc ?cmd?` — get/set the background-error handler name. Stored
 /// for parity; a minimal package reports uncaught worker errors to the shared
 /// output rather than dispatching here.
-fn cmd_thread_errorproc(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_thread_errorproc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [] | [_] => ok(Value::empty()),
         _ => crate::command::native_wrong_arguments_message(
-            _vm,
+            vm,
             "wrong # args: should be \"thread::errorproc ?cmdName?\"",
         ),
     }

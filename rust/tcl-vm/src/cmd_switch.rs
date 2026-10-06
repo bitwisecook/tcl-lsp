@@ -43,6 +43,55 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register_stock_builtin("switch", cmd_switch);
 }
 
+fn original_switch_pairs(
+    vm: &mut Vm,
+    rest: &[Value],
+    version: tcl_dialect::TclVersion,
+) -> Result<Vec<(Value, Value)>, Completion<Value>> {
+    let pairs = if rest.len() == 1 {
+        let items = match rest[0].as_list() {
+            Ok(i) => i,
+            Err(e) => return Err(crate::command::completion_from_tcl_error(vm, e)),
+        };
+        if items.is_empty() {
+            return Err(crate::command::native_wrong_arguments_message(
+                vm,
+                format!(
+                    "wrong # args: should be \"{}\"",
+                    core_switch::usage(version, true)
+                ),
+            ));
+        }
+        if !items.len().is_multiple_of(2) {
+            // The "misplaced comment" heuristic: a pattern beginning with `#`.
+            let hint = items.iter().step_by(2).any(|p| p.to_str().starts_with('#'));
+            return Err(crate::command::completion_from_cmd_error(
+                vm,
+                core_switch::extra_pattern_error(hint),
+            ));
+        }
+        items
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| (c[0].clone(), c[1].clone()))
+            .collect()
+    } else {
+        if !rest.len().is_multiple_of(2) {
+            return Err(crate::command::completion_from_cmd_error(
+                vm,
+                core_switch::extra_pattern_error(false),
+            ));
+        }
+        rest.as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| (c[0].clone(), c[1].clone()))
+            .collect()
+    };
+    Ok(pairs)
+}
+
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(protocol) = vm
         .actual_native_invocation_dialect()
@@ -63,46 +112,9 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let rest = &args[opts.value_index + 1..];
 
     // Pattern/body pairs: a single trailing argument is the brace-list form.
-    let pairs: Vec<(Value, Value)> = if rest.len() == 1 {
-        let items = match rest[0].as_list() {
-            Ok(i) => i,
-            Err(e) => return crate::command::completion_from_tcl_error(vm, e),
-        };
-        if items.is_empty() {
-            return crate::command::native_wrong_arguments_message(
-                vm,
-                format!(
-                    "wrong # args: should be \"{}\"",
-                    core_switch::usage(version, true)
-                ),
-            );
-        }
-        if !items.len().is_multiple_of(2) {
-            // The "misplaced comment" heuristic: a pattern beginning with `#`.
-            let hint = items.iter().step_by(2).any(|p| p.to_str().starts_with('#'));
-            return crate::command::completion_from_cmd_error(
-                vm,
-                core_switch::extra_pattern_error(hint),
-            );
-        }
-        items
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|c| (c[0].clone(), c[1].clone()))
-            .collect()
-    } else {
-        if !rest.len().is_multiple_of(2) {
-            return crate::command::completion_from_cmd_error(
-                vm,
-                core_switch::extra_pattern_error(false),
-            );
-        }
-        rest.as_chunks::<2>()
-            .0
-            .iter()
-            .map(|c| (c[0].clone(), c[1].clone()))
-            .collect()
+    let pairs = match original_switch_pairs(vm, rest, version) {
+        Ok(pairs) => pairs,
+        Err(error) => return error,
     };
 
     // A trailing `-` fall-through body has nothing to fall through to.

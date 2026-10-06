@@ -78,7 +78,7 @@ impl Vm {
     }
 
     /// Assign an original foreach member through its actual auxiliary slot.
-    /// Only C8.4's traced PtrSetVar call owns the additional transient reference.
+    /// Only C8.4's traced `PtrSetVar` call owns the additional transient reference.
     pub(crate) fn native_compiled_each_assign(
         &mut self,
         slot: usize,
@@ -86,7 +86,7 @@ impl Vm {
         storage: tcl_registry::native_each_compilation::NativeCompiledEachStorage,
     ) -> Result<(), Completion<Value>> {
         let (name, resolved) = self.compiled_operand(slot, None)?;
-        let captured = self.capture_selected_update(name.as_bytes(), None, resolved)?;
+        let captured = self.capture_selected_update(name.as_bytes(), None, &resolved)?;
         let pin = (storage
             == tcl_registry::native_each_compilation::NativeCompiledEachStorage::LocalRefetch
             && self.original_variable_trace_requires_name(&captured.cell, false, "write"))
@@ -167,7 +167,7 @@ impl Vm {
                 Some(id)
             };
         }
-        self.declare_constant_resolved(name, resolved, value)
+        self.declare_constant_resolved(name, &resolved, value)
     }
 
     pub(crate) fn declare_compiled_constant(
@@ -177,7 +177,7 @@ impl Vm {
     ) -> Result<(), Completion<Value>> {
         self.require_constant_protocol()?;
         let (name, resolved) = self.compiled_operand(slot, None)?;
-        self.declare_constant_resolved(name.as_bytes(), resolved, value)
+        self.declare_constant_resolved(name.as_bytes(), &resolved, value)
     }
 
     fn constant_failure(
@@ -225,7 +225,7 @@ impl Vm {
     fn declare_constant_resolved(
         &mut self,
         name: &[u8],
-        resolved: super::ResolvedVar,
+        resolved: &super::ResolvedVar,
         value: Value,
     ) -> Result<(), Completion<Value>> {
         let id = resolved.id.ok_or_else(|| {
@@ -499,7 +499,7 @@ impl Vm {
         value: Value,
     ) -> Result<Value, Completion<Value>> {
         let (name, resolved) = self.compiled_operand(slot, element)?;
-        let captured = self.capture_selected_update(name.as_bytes(), element, resolved)?;
+        let captured = self.capture_selected_update(name.as_bytes(), element, &resolved)?;
         self.with_variable_operation(&captured.cell, |vm| {
             vm.store_captured_update(name.as_bytes(), element, &captured, value)
         })
@@ -628,7 +628,7 @@ impl Vm {
         element: Option<&[u8]>,
     ) -> Result<(NameBytes, CapturedVariableUpdate), Completion<Value>> {
         let (name, resolved) = self.compiled_operand(slot, element)?;
-        let captured = self.capture_selected_update(name.as_bytes(), element, resolved)?;
+        let captured = self.capture_selected_update(name.as_bytes(), element, &resolved)?;
         Ok((name, captured))
     }
     pub(crate) fn increment_compiled_variable(

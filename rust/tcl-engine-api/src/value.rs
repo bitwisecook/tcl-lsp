@@ -249,8 +249,8 @@ impl Value {
     #[must_use]
     pub fn as_int(&self) -> Option<i64> {
         match self {
-            Self::Int(value) => Some(*value),
-            Self::NativeScalar(
+            Self::Int(value)
+            | Self::NativeScalar(
                 NativeScalarCache::Integer(value) | NativeScalarCache::Tcl84Long(value),
             ) => Some(*value),
             Self::Resident { value, .. } => value.as_int(),

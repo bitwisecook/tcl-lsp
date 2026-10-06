@@ -69,7 +69,7 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         module_for_entry(
             source,
-            Some(std::sync::Arc::new(
+            Some(&std::sync::Arc::new(
                 crate::environment_ingress::captured_native_entry(profile),
             )),
         )
@@ -77,7 +77,7 @@ mod tests {
 
     fn module_for_entry(
         source: &str,
-        native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
+        native_entry: Option<&std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
     ) -> (
         crate::ir::Module,
         std::sync::Arc<tcl_registry::CommandRegistry>,
@@ -94,7 +94,7 @@ mod tests {
             Some(profile),
             false,
             Some(SourceAnalysisOptions {
-                native_entry: native_entry.as_deref(),
+                native_entry: native_entry.map(std::sync::Arc::as_ref),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
@@ -202,7 +202,7 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let entry = crate::environment_ingress::captured_native_entry(profile);
         let (module, registry) =
-            module_for_entry("set x extra bad", Some(std::sync::Arc::new(entry.clone())));
+            module_for_entry("set x extra bad", Some(&std::sync::Arc::new(entry.clone())));
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
         let function = super::super::codegen_module(&execution, &module, &registry).top_level;
@@ -212,7 +212,7 @@ mod tests {
                 .matches_registration_with(|namespace, word| {
                     candidate
                         .lookup_command_bytes(namespace, word.as_bytes())
-                        .map(|binding| binding.cloned())
+                        .map(Option::<&tcl_runtime_api::native_compilation::NativeCompilationBinding>::cloned)
                 })
                 .unwrap()
         };
@@ -233,14 +233,14 @@ mod tests {
                 0 => binding.token = binding.token.wrapping_add(1),
                 1 => {
                     binding.implementation_generation =
-                        binding.implementation_generation.wrapping_add(1)
+                        binding.implementation_generation.wrapping_add(1);
                 }
                 2 => binding.compiler_hook = NativeCompilerHookPresence::Absent,
                 3 => binding.compiler_hook = NativeCompilerHookPresence::Unknown,
                 4 => binding.compiler = None,
                 5 => {
                     binding.compiler.as_mut().unwrap().registry_identity =
-                        "different compiler".into()
+                        "different compiler".into();
                 }
                 6 => binding.has_execution_trace = true,
                 _ => unreachable!(),
@@ -272,7 +272,7 @@ mod tests {
         );
         let (module, registry) = module_for_entry(
             "expr {future_function(1)}; catch {error CHILD} result options; list ignored",
-            Some(std::sync::Arc::clone(&entry)),
+            Some(&entry),
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
@@ -343,7 +343,7 @@ mod tests {
         let entry = std::sync::Arc::new(crate::environment_ingress::captured_native_entry(profile));
         let (module, registry) = module_for_entry(
             "expr {abs(1)}; catch {error CHILD} result options",
-            Some(std::sync::Arc::clone(&entry)),
+            Some(&entry),
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
@@ -370,7 +370,7 @@ mod tests {
         entry.math_functions.as_mut().unwrap().closed = false;
         let (module, registry) = module_for_entry(
             "expr {future_function(1)}; catch {error CHILD} result options; list ignored",
-            Some(std::sync::Arc::new(entry)),
+            Some(&std::sync::Arc::new(entry)),
         );
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);

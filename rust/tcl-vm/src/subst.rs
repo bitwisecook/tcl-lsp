@@ -293,7 +293,7 @@ pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
             ExecutablePart::Text(_) => {
                 let text = vm
                     .source_string_protocol()
-                    .ok_or_else(|| {
+                    .ok_or({
                         tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                             "native executable text recipe",
                         )
@@ -421,10 +421,10 @@ pub fn subst_word_bytes(word: &[u8], vm: &mut Vm) -> Result<Value, TclError> {
     }
     // Literal PUSH bytes already have their source escapes decoded. Only a
     // retained substitution causes the compiled-word scanner to run again.
-    if !word.windows(2).any(|pair| pair == b"${")
-        && !word.contains(&b'[')
-        && !(vm.lexer_config().var_syntax.has_expr_sugar()
-            && word.windows(2).any(|pair| pair == b"$("))
+    if !(word.windows(2).any(|pair| pair == b"${")
+        || word.contains(&b'[')
+        || (vm.lexer_config().var_syntax.has_expr_sugar()
+            && word.windows(2).any(|pair| pair == b"$(")))
     {
         return Ok(Value::from_native_string_bytes(word));
     }

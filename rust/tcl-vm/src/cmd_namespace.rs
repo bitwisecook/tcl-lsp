@@ -461,9 +461,7 @@ fn cmd_namespace_in(
                 }
             };
             match result {
-                Ok(bytes) => ok(bytes
-                    .map(Value::from_native_string_bytes)
-                    .unwrap_or_else(Value::empty)),
+                Ok(bytes) => ok(bytes.map_or_else(Value::empty, Value::from_native_string_bytes)),
                 Err(error) => vm.refuse_host_command(error.to_string()),
             }
         }
@@ -562,7 +560,7 @@ fn cmd_namespace_in(
                 // installing the path (`NamespacePathCmd`), so an unresolvable
                 // entry errors and leaves the old path in place.
                 let mut path = Vec::with_capacity(elems.len());
-                for e in elems.iter() {
+                for e in &elems {
                     match vm.namespace_object_lookup(e) {
                         Ok(Some(namespace)) => path.push(namespace),
                         Ok(None) => {
@@ -805,15 +803,12 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         let Some(policy) = vm.name_policy_protocol() else {
             return vm.refuse_host_command("native import protocol is unavailable".into());
         };
-        let projection = match policy.recipe().namespace_pattern_input(
+        let Ok(projection) = policy.recipe().namespace_pattern_input(
             pattern,
             tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
-        ) {
-            Ok(projection) => projection,
-            Err(_) => {
-                return vm
-                    .refuse_host_command("native import pattern projection is unavailable".into());
-            }
+        ) else {
+            return vm
+                .refuse_host_command("native import pattern projection is unavailable".into());
         };
         let selected = projection.selected();
         let qualifier = tcl_cmd_core::namespace::qualifiers(selected);
@@ -828,7 +823,7 @@ fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         if let Err(problem) = tcl_cmd_core::namespace::import_pattern(vm, destination, selected) {
             return err(problem.message());
         }
-        if let Err(problem) = vm.import_commands(&pattern, allow_overwrite) {
+        if let Err(problem) = vm.import_commands(pattern, allow_overwrite) {
             return problem.completion(vm);
         }
     }
@@ -934,90 +929,7 @@ fn apply_shared_option(
         .ok_or_else(|| vm.refuse_host_command("ensemble original configured objects".into()))?
         .protocol();
     match which {
-        SharedOption::Map => {
-            let mut search = val
-                .native_lifetime_lease()
-                .into_value()
-                .into_native_dictionary_search(protocol)
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-            let mut patched = None;
-            let mut map = Vec::new();
-            while let Some((key, value)) = search
-                .next_original_pair()
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
-            {
-                let elements = value
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
-                if elements.is_empty() {
-                    return Err(err_with_code(
-                        "ensemble subcommand implementations must be non-empty lists",
-                        "TCL ENSEMBLE EMPTY_TARGET",
-                    ));
-                }
-                let original = vm
-                    .native_name_operand_bytes(&elements[0])
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-                let mut prefix = None;
-                if !original.starts_with(b"::") {
-                    let qualified = vm
-                        .qualify_native_command_prefix_bytes(
-                            tcl_runtime_api::Namespaces::current(vm),
-                            &original,
-                        )
-                        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-                    let mut words = elements.to_vec();
-                    words[0] = Value::from_native_string_bytes(qualified);
-                    let copy = if creating {
-                        Value::native_list_constructor(elements.to_vec(), protocol)
-                    } else {
-                        value.duplicate_native_object_in(protocol)
-                    };
-                    let replacement = Value::native_list_replace_elements(&copy, &words, protocol)
-                        .map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
-                    let root =
-                        patched.get_or_insert_with(|| val.duplicate_native_object_in(protocol));
-                    let updated = root
-                        .native_dictionary_set_member(key.clone(), replacement.clone(), protocol)
-                        .map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?;
-                    *root = updated;
-                    prefix = Some(replacement);
-                }
-                let name = vm
-                    .native_name_operand_bytes(&key)
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-                let words = if let Some(prefix) = prefix {
-                    prefix
-                        .native_object_list_elements(protocol)
-                        .map_err(|error| {
-                            crate::command::completion_from_cmd_error(vm, error.into())
-                        })?
-                } else {
-                    elements
-                };
-                let words = words
-                    .iter()
-                    .map(|word| {
-                        vm.native_name_operand_bytes(word)
-                            .map(|bytes| Some(tcl_core_types::NameBytes::from(bytes.as_ref())))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-                    .map_err(|error| vm.refuse_host_command(error.to_string()))?;
-                map.push((tcl_core_types::NameBytes::from(name.as_ref()), words));
-            }
-            drop(search);
-            opts.map = map;
-            opts.originals.map = (!opts.map.is_empty()).then(|| {
-                EnsembleObjectRole::new(patched.map_or_else(
-                    || NativeEnsembleRoot::pending(val),
-                    NativeEnsembleRoot::owned,
-                ))
-            });
-        }
+        SharedOption::Map => apply_ensemble_map(opts, val, vm, creating, protocol)?,
         SharedOption::Subcommands => {
             let elems = val
                 .native_object_list_elements(protocol)
@@ -1077,6 +989,93 @@ fn apply_shared_option(
     Ok(())
 }
 
+fn apply_ensemble_map(
+    opts: &mut EnsembleOptions,
+    val: &Value,
+    vm: &mut Vm,
+    creating: bool,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<(), Completion<Value>> {
+    use crate::command::native_ensemble_objects::NativeEnsembleRoot;
+    use tcl_cmd_core::ensemble::EnsembleObjectRole;
+    let mut search = val
+        .native_lifetime_lease()
+        .into_value()
+        .into_native_dictionary_search(protocol)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    let mut patched = None;
+    let mut map = Vec::new();
+    while let Some((key, value)) = search
+        .next_original_pair()
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+    {
+        let elements = value
+            .native_object_list_elements(protocol)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        if elements.is_empty() {
+            return Err(err_with_code(
+                "ensemble subcommand implementations must be non-empty lists",
+                "TCL ENSEMBLE EMPTY_TARGET",
+            ));
+        }
+        let original = vm
+            .native_name_operand_bytes(&elements[0])
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        let mut prefix = None;
+        if !original.starts_with(b"::") {
+            let qualified = vm
+                .qualify_native_command_prefix_bytes(
+                    tcl_runtime_api::Namespaces::current(vm),
+                    &original,
+                )
+                .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+            let mut words = elements.to_vec();
+            words[0] = Value::from_native_string_bytes(qualified);
+            let copy = if creating {
+                Value::native_list_constructor(elements.to_vec(), protocol)
+            } else {
+                value.duplicate_native_object_in(protocol)
+            };
+            let replacement = Value::native_list_replace_elements(&copy, &words, protocol)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            let root = patched.get_or_insert_with(|| val.duplicate_native_object_in(protocol));
+            let updated = root
+                .native_dictionary_set_member(key.clone(), replacement.clone(), protocol)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+            *root = updated;
+            prefix = Some(replacement);
+        }
+        let name = vm
+            .native_name_operand_bytes(&key)
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        let words = if let Some(prefix) = prefix {
+            prefix
+                .native_object_list_elements(protocol)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?
+        } else {
+            elements
+        };
+        let words = words
+            .iter()
+            .map(|word| {
+                vm.native_name_operand_bytes(word)
+                    .map(|bytes| Some(tcl_core_types::NameBytes::from(bytes.as_ref())))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        map.push((tcl_core_types::NameBytes::from(name.as_ref()), words));
+    }
+    drop(search);
+    opts.map = map;
+    opts.originals.map = (!opts.map.is_empty()).then(|| {
+        EnsembleObjectRole::new(patched.map_or_else(
+            || NativeEnsembleRoot::pending(val),
+            NativeEnsembleRoot::owned,
+        ))
+    });
+    Ok(())
+}
+
 /// `namespace ensemble create ?option value ...?` — build the ensemble command.
 ///
 /// C checks the pair arity *before* looking at any option word (`if (objc & 1)`
@@ -1118,6 +1117,7 @@ pub(crate) fn namespace_command_lookup_error(
 }
 
 fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use crate::command::EnsembleDef;
     let Some(options) = vm
         .native_invocation_dialect()
         .native_ensemble_configuration_protocol()
@@ -1125,7 +1125,6 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return vm.refuse_host_command("ensemble configuration options".into());
     };
 
-    use crate::command::EnsembleDef;
     if !args.len().is_multiple_of(2) {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -1136,7 +1135,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut command: Option<std::rc::Rc<[u8]>> = None;
     let mut opts = EnsembleOptions {
         map: Vec::new(),
-        originals: Default::default(),
+        originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(),
         subcommands: None,
         prefixes: true,
         parameters: Vec::new(),
@@ -1201,6 +1200,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `ensembleConfigOptions` differs from the create table — it carries
 /// `-namespace` (readable, never writable) and has no `-command`.
 fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
     let Some(options) = vm
         .native_invocation_dialect()
         .native_ensemble_configuration_protocol()
@@ -1208,7 +1208,6 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return vm.refuse_host_command("ensemble configuration options".into());
     };
 
-    const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
     let Some((cmd_val, rest)) = args.split_first() else {
         return crate::command::native_wrong_arguments_message(vm, USAGE);
     };
@@ -1254,22 +1253,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let def = token.config();
     if rest.is_empty() {
-        let Some(recipe) = vm
-            .native_invocation_dialect()
-            .native_string_materialization(None)
-        else {
-            return vm.refuse_host_command("ensemble configuration List recipe".into());
-        };
-        let mut pairs = Vec::new();
-        for option in options.configuration_options() {
-            let value = match ensemble_option_value(vm, &def, option) {
-                Ok(value) => value,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
-            };
-            pairs.push(Value::string(option.name()));
-            pairs.push(value);
-        }
-        return ok(Value::native_list_constructor(pairs, recipe.protocol()));
+        return ensemble_configuration_snapshot(vm, &def, options);
     }
     if let [only] = rest {
         return match vm.native_static_option_index(
@@ -1324,6 +1308,29 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     });
     vm.note_ensemble_configuration_changed(&token);
     ok(Value::empty())
+}
+
+fn ensemble_configuration_snapshot(
+    vm: &mut Vm,
+    def: &crate::command::EnsembleDef,
+    options: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
+) -> Completion<Value> {
+    let Some(recipe) = vm
+        .native_invocation_dialect()
+        .native_string_materialization(None)
+    else {
+        return vm.refuse_host_command("ensemble configuration List recipe".into());
+    };
+    let mut pairs = Vec::new();
+    for option in options.configuration_options() {
+        let value = match ensemble_option_value(vm, def, option) {
+            Ok(value) => value,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        };
+        pairs.push(Value::string(option.name()));
+        pairs.push(value);
+    }
+    ok(Value::native_list_constructor(pairs, recipe.protocol()))
 }
 
 /// One `namespace ensemble configure` option's value.

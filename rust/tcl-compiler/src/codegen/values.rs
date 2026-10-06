@@ -1793,7 +1793,7 @@ mod tests {
                 ctx.compiled_variable_protocol = entry.compiled_variable_protocol;
                 ctx.set_source_image(image);
                 ctx.with_invocation_tokens(Some(&tokens), |ctx| {
-                    ctx.emit_incr("arr($key)", false, Some("ignored"))
+                    ctx.emit_incr("arr($key)", false, Some("ignored"));
                 });
                 assert_eq!(
                     ctx.instructions.last().unwrap().op,

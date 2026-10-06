@@ -653,16 +653,27 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
     }
+    finish_glob_results(filesystem, &base, dir.is_some(), &types, tails, results)
+}
+
+fn finish_glob_results(
+    filesystem: &dyn Filesystem,
+    base: &str,
+    qualified: bool,
+    types: &[char],
+    tails: bool,
+    mut results: Vec<String>,
+) -> Completion<Value> {
     // `-types` filters on the entry's real path; `-tails` then reports each hit
     // relative to the `-directory`/`-path` root, as C does.
     let prefix = format!("{}/", base.trim_end_matches('/'));
     results.retain(|r| {
-        let probe = if dir.is_some() {
+        let probe = if qualified {
             r.clone()
         } else {
-            file_join(&[Value::string(base.clone()), Value::string(r.clone())])
+            file_join(&[Value::string(base), Value::string(r.clone())])
         };
-        glob_types_match(filesystem, &probe, &types)
+        glob_types_match(filesystem, &probe, types)
     });
     if tails {
         for r in &mut results {

@@ -127,16 +127,17 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
         let info = Value::string("ORIGINAL INFO");
         let code = Value::string("ORIGINAL CODE");
         let options = Value::list(vec![Value::string("-custom"), Value::string("ORIGINAL")]);
-        vm.native_error_info = Some(info.clone());
-        vm.native_error_info_len = 13;
-        vm.primitive_error_code = Some(code.clone());
-        vm.native_return_options = Some(options.clone());
-        vm.error_logged = true;
+        vm.native_errors.native_error_info = Some(info.clone());
+        vm.native_errors.native_error_info_len = 13;
+        vm.native_errors.primitive_error_code = Some(code.clone());
+        vm.native_errors.native_return_options = Some(options.clone());
+        vm.native_errors.error_logged = true;
         let context = Value::string("ORIGINAL CONTEXT");
         if release.has_error_stack() {
-            vm.error_stack
+            vm.native_errors
+                .error_stack
                 .begin_inner(Value::string("INNER"), context.clone());
-            vm.error_stack.mark_reset();
+            vm.native_errors.error_stack.mark_reset();
         }
         let saved = vm.save_native_interp_trace_result().unwrap().unwrap();
         assert_eq!(info.native_object_reference_count(), 3);
@@ -147,36 +148,45 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
             usize::from(release.has_error_stack()) + 1
         );
         vm.set_native_c_return_state(1, 0);
-        vm.native_error_info = None;
-        vm.native_error_info_len = 0;
-        vm.primitive_error_code = None;
-        vm.native_return_options = None;
-        vm.error_logged = false;
+        vm.native_errors.native_error_info = None;
+        vm.native_errors.native_error_info_len = 0;
+        vm.native_errors.primitive_error_code = None;
+        vm.native_errors.native_return_options = None;
+        vm.native_errors.error_logged = false;
         if release.has_error_stack() {
-            vm.error_stack
+            vm.native_errors
+                .error_stack
                 .begin_inner(Value::string("INNER"), Value::string("CALLBACK"));
         }
         vm.restore_native_interp_trace_result(saved);
-        assert_eq!(vm.native_c_return_state.code, 7);
-        assert_eq!(vm.native_c_return_state.level, 3);
-        assert!(vm.native_error_info.as_ref().unwrap().is_same_object(&info));
-        assert_eq!(vm.native_error_info_len, 13);
+        assert_eq!(vm.native_errors.native_c_return_state.code, 7);
+        assert_eq!(vm.native_errors.native_c_return_state.level, 3);
         assert!(
-            vm.primitive_error_code
+            vm.native_errors
+                .native_error_info
+                .as_ref()
+                .unwrap()
+                .is_same_object(&info)
+        );
+        assert_eq!(vm.native_errors.native_error_info_len, 13);
+        assert!(
+            vm.native_errors
+                .primitive_error_code
                 .as_ref()
                 .unwrap()
                 .is_same_object(&code)
         );
         assert!(
-            vm.native_return_options
+            vm.native_errors
+                .native_return_options
                 .as_ref()
                 .unwrap()
                 .is_same_object(&options)
         );
-        assert!(vm.error_logged);
+        assert!(vm.native_errors.error_logged);
         if release.has_error_stack() {
-            assert!(vm.error_stack.is_reset());
-            assert!(vm.error_stack.entries()[1].is_same_object(&context));
+            assert!(vm.native_errors.error_stack.is_reset());
+            assert!(vm.native_errors.error_stack.entries()[1].is_same_object(&context));
         }
     }
 }

@@ -478,11 +478,10 @@ mod policy_tests {
                 };
                 match index {
                     0 => assert!(matches!(recipe.outcome, NativeControlOutcome::Inline(_))),
-                    1 => assert!(matches!(recipe.outcome, NativeControlOutcome::Generic)),
                     2 if name == "tcl8.4" => {
-                        assert!(matches!(recipe.outcome, NativeControlOutcome::Rejected(_)))
+                        assert!(matches!(recipe.outcome, NativeControlOutcome::Rejected(_)));
                     }
-                    2 => assert!(matches!(recipe.outcome, NativeControlOutcome::Generic)),
+                    1 | 2 => assert!(matches!(recipe.outcome, NativeControlOutcome::Generic)),
                     _ => unreachable!(),
                 }
                 let mut changed = tokens.clone();
@@ -512,6 +511,96 @@ mod policy_tests {
         }
     }
 
+    fn assert_original_switch_preflight(name: &str, row: &str) {
+        let fields: Vec<_> = row.split('\t').collect();
+        let case: usize = fields[0].parse().unwrap();
+        let source = SWITCH_SOURCES[case];
+        let (inventory, config) = namespace_analysis(source, name);
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+            .into_iter()
+            .next()
+            .unwrap();
+        let map = tcl_lexer::SourceMap::new(source);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, &segment);
+        tokens.source_binding = Some(inventory.invocation_at_source("switch", 0));
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let original_recipe = binding
+            .original_switch_compilation(&tokens)
+            .expect("same original switch compiler vector");
+        let mut changed = tokens.clone();
+        changed.argv_texts[1] = "CHANGED".into();
+        assert!(binding.original_switch_compilation(&changed).is_none());
+        let mut withdrawn = binding.clone();
+        withdrawn.join(&SourceInvocationBinding::default());
+        assert!(withdrawn.original_switch_compilation(&tokens).is_none());
+        withdrawn.join(binding);
+        assert!(withdrawn.original_switch_compilation(&tokens).is_none());
+        let origin = Arc::clone(inventory.source_origin().unwrap());
+        let site = CommandAllocationSite {
+            source: Arc::clone(&origin),
+            offset: 0,
+        };
+        let recipe = inventory
+            .switch_compilation_at(&site)
+            .expect("retained original switch compiler recipe");
+        assert_eq!(original_recipe, recipe);
+        assert_eq!(
+            recipe.arms.len(),
+            if case == 3 { 4 } else { 3 },
+            "{name}/{case}"
+        );
+        let expected: Vec<_> = fields[3]
+            .split(',')
+            .map(|hex| {
+                let bytes: Vec<_> = hex
+                    .as_bytes()
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| {
+                        u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap()
+                    })
+                    .collect();
+                String::from_utf8(bytes).unwrap()
+            })
+            .collect();
+        for variable in ["visited", "kept", "masked", "forced", "done"] {
+            let needle = format!("set {variable}");
+            let Some(position) = source.find(&needle) else {
+                continue;
+            };
+            let child = CommandAllocationSite {
+                source: Arc::clone(&origin),
+                offset: u32::try_from(position).unwrap(),
+            };
+            assert_eq!(
+                inventory.compiler_invocations.contains_key(&child),
+                expected.iter().any(|name| name == variable),
+                "{name}/{case}/{variable}"
+            );
+            if expected.iter().any(|name| name == variable) {
+                assert!(
+                    inventory
+                        .invocation_at_source("set", child.offset)
+                        .admitted_inline_invocation()
+                        .is_some(),
+                    "{name}/{case}/{variable}: original child admission"
+                );
+            }
+        }
+        assert!(
+            !inventory.native_compilation_provider_required_at(0),
+            "{name}/{case}"
+        );
+        let relocated = CommandAllocationSite {
+            source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(format!(
+                "{source}\n"
+            )))),
+            offset: 0,
+        };
+        assert!(inventory.switch_compilation_at(&relocated).is_none());
+    }
+
     #[test]
     fn original_switch_preflight_uses_native_arm_spans_and_duplicate_masking() {
         let fixtures = [
@@ -534,92 +623,7 @@ mod policy_tests {
         ];
         for (name, table) in fixtures {
             for row in table.lines().skip(1) {
-                let fields: Vec<_> = row.split('\t').collect();
-                let case: usize = fields[0].parse().unwrap();
-                let source = SWITCH_SOURCES[case];
-                let (inventory, config) = namespace_analysis(source, name);
-                let segment =
-                    crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
-                        .into_iter()
-                        .next()
-                        .unwrap();
-                let map = tcl_lexer::SourceMap::new(source);
-                let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, &segment);
-                tokens.source_binding = Some(inventory.invocation_at_source("switch", 0));
-                let binding = tokens.source_binding.as_ref().unwrap();
-                let original_recipe = binding
-                    .original_switch_compilation(&tokens)
-                    .expect("same original switch compiler vector");
-                let mut changed = tokens.clone();
-                changed.argv_texts[1] = "CHANGED".into();
-                assert!(binding.original_switch_compilation(&changed).is_none());
-                let mut withdrawn = binding.clone();
-                withdrawn.join(&SourceInvocationBinding::default());
-                assert!(withdrawn.original_switch_compilation(&tokens).is_none());
-                withdrawn.join(binding);
-                assert!(withdrawn.original_switch_compilation(&tokens).is_none());
-                let origin = Arc::clone(inventory.source_origin().unwrap());
-                let site = CommandAllocationSite {
-                    source: Arc::clone(&origin),
-                    offset: 0,
-                };
-                let recipe = inventory
-                    .switch_compilation_at(&site)
-                    .expect("retained original switch compiler recipe");
-                assert_eq!(original_recipe, recipe);
-                assert_eq!(
-                    recipe.arms.len(),
-                    if case == 3 { 4 } else { 3 },
-                    "{name}/{case}"
-                );
-                let expected: Vec<_> = fields[3]
-                    .split(',')
-                    .map(|hex| {
-                        let bytes: Vec<_> = hex
-                            .as_bytes()
-                            .chunks_exact(2)
-                            .map(|pair| {
-                                u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap()
-                            })
-                            .collect();
-                        String::from_utf8(bytes).unwrap()
-                    })
-                    .collect();
-                for variable in ["visited", "kept", "masked", "forced", "done"] {
-                    let needle = format!("set {variable}");
-                    let Some(position) = source.find(&needle) else {
-                        continue;
-                    };
-                    let child = CommandAllocationSite {
-                        source: Arc::clone(&origin),
-                        offset: u32::try_from(position).unwrap(),
-                    };
-                    assert_eq!(
-                        inventory.compiler_invocations.contains_key(&child),
-                        expected.iter().any(|name| name == variable),
-                        "{name}/{case}/{variable}"
-                    );
-                    if expected.iter().any(|name| name == variable) {
-                        assert!(
-                            inventory
-                                .invocation_at_source("set", child.offset)
-                                .admitted_inline_invocation()
-                                .is_some(),
-                            "{name}/{case}/{variable}: original child admission"
-                        );
-                    }
-                }
-                assert!(
-                    !inventory.native_compilation_provider_required_at(0),
-                    "{name}/{case}"
-                );
-                let relocated = CommandAllocationSite {
-                    source: Arc::new(super::super::SourceOriginId::authored(&Arc::from(format!(
-                        "{source}\n"
-                    )))),
-                    offset: 0,
-                };
-                assert!(inventory.switch_compilation_at(&relocated).is_none());
+                assert_original_switch_preflight(name, row);
             }
         }
         for name in ["tcl8.4", "jim"] {

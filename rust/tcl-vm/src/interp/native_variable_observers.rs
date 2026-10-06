@@ -1,6 +1,6 @@
 //! Direct native callbacks share the stable-cell variable trace coordinator.
 
-use super::*;
+use super::{Completion, GuardDomain, Rc, Value, VarTrace, Vm};
 use tcl_runtime_api::native_variable_trace::{
     NativeVariableObserver, NativeVariableTraceOperation, NativeVariableTraceToken,
 };

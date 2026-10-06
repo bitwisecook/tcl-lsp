@@ -333,7 +333,8 @@ pub(crate) fn register_builtins_with_native_core(
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
     crate::cmd_math::register(vm);
-    if native.is_none_or(|protocol| protocol.registers_core_binary()) {
+    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_binary)
+    {
         crate::cmd_binary::register(vm);
     }
     crate::cmd_mathop::register(vm);
@@ -349,7 +350,7 @@ pub(crate) fn register_builtins_with_native_core(
     } else {
         crate::cmd_try::register(vm);
     }
-    if native.is_none_or(|protocol| protocol.initializes_tcl_oo()) {
+    if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::initializes_tcl_oo) {
         crate::cmd_oo::register(vm);
     }
     crate::cmd_coro::register(vm);
@@ -875,28 +876,10 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     // Tcl rejects a rename onto an existing command (leaving both intact), so
     // check the destination before removing the source.
-    if !new_name.is_empty() {
-        match vm.rename_destination_exists(&new_name) {
-            Ok(true) => {
-                let reported = match vm.native_rename_reported_operand(&new_name) {
-                    Ok(name) => name,
-                    Err(error) => return vm.refuse_host_command(error.to_string()),
-                };
-                return completion_from_cmd_error(
-                    vm,
-                    tcl_cmd_core::CmdError::new_bytes(
-                        [
-                            b"can't rename to \"".as_slice(),
-                            reported.as_slice(),
-                            b"\": command already exists",
-                        ]
-                        .concat(),
-                    ),
-                );
-            }
-            Ok(false) => {}
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        }
+    if !new_name.is_empty()
+        && let Some(completion) = rename_destination_failure(vm, &new_name)
+    {
+        return completion;
     }
     let prepared = match vm.prepare_command_rename(&old_name) {
         Ok(prepared) => prepared,
@@ -962,105 +945,12 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // the command's `nsPtr`). `namespace current` inside the body then
         // reports the destination namespace (proc-3.4). The key is canonical,
         // so the shared qualifier split yields its namespace directly.
-        let cmd = match cmd {
-            Command::Proc(def) => {
-                let (new_ns_id, simple_name) = vm
-                    .command_slot_parts(&key)
-                    .expect("rename destination carries an exact command slot");
-                let new_ns = vm.namespace_path_for_token(new_ns_id);
-                let declaration = def.declaration();
-                let current = declaration.actual_command_slot();
-                if new_ns_id != current.namespace || simple_name != current.simple {
-                    let (body_namespace_id, new_ns, jim_namespace) = if vm.uses_native_jim_lookup()
-                    {
-                        let holder = vm
-                            .name_policy_protocol()
-                            .expect("actual Jim names")
-                            .recipe()
-                            .jim_procedure_relocation_namespace(simple_name.as_bytes())
-                            .expect("actual Jim namespace recipe");
-                        if let Some(holder) = holder {
-                            let token = vm.intern_jim_namespace_object(holder);
-                            (
-                                token,
-                                vm.namespace_path_for_token(token),
-                                Some(vm.new_jim_declaration_namespace(token)),
-                            )
-                        } else {
-                            (
-                                declaration.actual_namespace_id(),
-                                declaration.actual_namespace(),
-                                declaration.retained_jim_namespace(),
-                            )
-                        }
-                    } else {
-                        (new_ns_id, new_ns, None)
-                    };
-                    def.relocate_with_body_namespace(
-                        display_key,
-                        new_ns_id,
-                        simple_name,
-                        new_ns,
-                        body_namespace_id,
-                        jim_namespace,
-                    );
-                }
-                Command::Proc(def)
-            }
-            other => other,
-        };
+        let cmd = relocate_renamed_procedure(vm, cmd, &key, display_key);
         // C creates the destination's hash entry before `TclPreventAliasLoop`
         // and deletes it again on a refusal, so the resize that transient entry
         // triggers outlives the rejected rename.
-        let is_alias = matches!(
-            &cmd,
-            Command::Alias(_) | Command::CallerAlias(_) | Command::CrossAlias { .. }
-        );
-        // C's `TclPreventAliasLoop` guards *rename* too: moving an alias onto
-        // a name its own target chain resolves back to is refused, with the
-        // command left untouched (tclsh-pinned: `interp alias {} a {} b;
-        // rename a b` errors, `a` survives, `b` stays free).  This logical
-        // check must precede registration: a hidden destination can carry
-        // delete callbacks and trace/deoptimisation state that cannot be
-        // rolled back after `register_command` observes an overwrite.
-        let loops = if is_alias {
-            match vm.alias_chain_loops_for_rename(&key, &cmd) {
-                Ok(loops) => loops,
-                Err(error) => {
-                    vm.forget_rename_destination(&key);
-                    return vm.refuse_host_command(error.to_string());
-                }
-            }
-        } else {
-            false
-        };
-        if loops {
-            let reported = vm
-                .actual_native_invocation_dialect()
-                .native_name_protocol()
-                .and_then(|recipe| {
-                    let (_, source) = vm.command_slot_parts(&old_key)?;
-                    let (_, destination) = vm.command_slot_parts(&key)?;
-                    recipe
-                        .rename_alias_loop_name(source.as_bytes(), destination.as_bytes())
-                        .map(<[u8]>::to_vec)
-                });
-            vm.forget_rename_destination(&key);
-            let Some(reported) = reported else {
-                return vm
-                    .refuse_host_command("alias rename diagnostic binding is unavailable".into());
-            };
-            return completion_from_cmd_error(
-                vm,
-                tcl_cmd_core::CmdError::new_bytes(
-                    [
-                        &b"cannot define or rename alias \""[..],
-                        reported.as_slice(),
-                        b"\": would create a loop",
-                    ]
-                    .concat(),
-                ),
-            );
+        if let Err(completion) = check_renamed_alias_loop(vm, &key, &old_key, &cmd) {
+            return completion;
         }
         vm.install_renamed_command(&mut rename, &key, cmd);
         vm.commit_renamed_command(&rename);
@@ -1076,6 +966,137 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         vm.retire_renamed_command_source(&rename);
     }
     ok(Value::empty())
+}
+
+fn check_renamed_alias_loop(
+    vm: &mut Vm,
+    key: &str,
+    old_key: &str,
+    cmd: &Command,
+) -> Result<(), Completion<Value>> {
+    let is_alias = matches!(
+        cmd,
+        Command::Alias(_) | Command::CallerAlias(_) | Command::CrossAlias { .. }
+    );
+    let loops = if is_alias {
+        match vm.alias_chain_loops_for_rename(key, cmd) {
+            Ok(loops) => loops,
+            Err(error) => {
+                vm.forget_rename_destination(key);
+                return Err(vm.refuse_host_command(error.to_string()));
+            }
+        }
+    } else {
+        false
+    };
+    if loops {
+        let reported = vm
+            .actual_native_invocation_dialect()
+            .native_name_protocol()
+            .and_then(|recipe| {
+                let (_, source) = vm.command_slot_parts(old_key)?;
+                let (_, destination) = vm.command_slot_parts(key)?;
+                recipe
+                    .rename_alias_loop_name(source.as_bytes(), destination.as_bytes())
+                    .map(<[u8]>::to_vec)
+            });
+        vm.forget_rename_destination(key);
+        let Some(reported) = reported else {
+            return Err(
+                vm.refuse_host_command("alias rename diagnostic binding is unavailable".into())
+            );
+        };
+        return Err(completion_from_cmd_error(
+            vm,
+            tcl_cmd_core::CmdError::new_bytes(
+                [
+                    &b"cannot define or rename alias \""[..],
+                    reported.as_slice(),
+                    b"\": would create a loop",
+                ]
+                .concat(),
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn rename_destination_failure(vm: &mut Vm, new_name: &[u8]) -> Option<Completion<Value>> {
+    match vm.rename_destination_exists(new_name) {
+        Ok(true) => {
+            let reported = match vm.native_rename_reported_operand(new_name) {
+                Ok(name) => name,
+                Err(error) => return Some(vm.refuse_host_command(error.to_string())),
+            };
+            Some(completion_from_cmd_error(
+                vm,
+                tcl_cmd_core::CmdError::new_bytes(
+                    [
+                        b"can't rename to \"".as_slice(),
+                        reported.as_slice(),
+                        b"\": command already exists",
+                    ]
+                    .concat(),
+                ),
+            ))
+        }
+        Ok(false) => None,
+        Err(error) => Some(vm.refuse_host_command(error.to_string())),
+    }
+}
+
+fn relocate_renamed_procedure(
+    vm: &mut Vm,
+    cmd: Command,
+    key: &str,
+    display_key: String,
+) -> Command {
+    match cmd {
+        Command::Proc(def) => {
+            let (new_ns_id, simple_name) = vm
+                .command_slot_parts(key)
+                .expect("rename destination carries an exact command slot");
+            let new_ns = vm.namespace_path_for_token(new_ns_id);
+            let declaration = def.declaration();
+            let current = declaration.actual_command_slot();
+            if new_ns_id != current.namespace || simple_name != current.simple {
+                let (body_namespace_id, new_ns, jim_namespace) = if vm.uses_native_jim_lookup() {
+                    let holder = vm
+                        .name_policy_protocol()
+                        .expect("actual Jim names")
+                        .recipe()
+                        .jim_procedure_relocation_namespace(simple_name.as_bytes())
+                        .expect("actual Jim namespace recipe");
+                    if let Some(holder) = holder {
+                        let token = vm.intern_jim_namespace_object(holder);
+                        (
+                            token,
+                            vm.namespace_path_for_token(token),
+                            Some(vm.new_jim_declaration_namespace(token)),
+                        )
+                    } else {
+                        (
+                            declaration.actual_namespace_id(),
+                            declaration.actual_namespace(),
+                            declaration.retained_jim_namespace(),
+                        )
+                    }
+                } else {
+                    (new_ns_id, new_ns, None)
+                };
+                def.relocate_with_body_namespace(
+                    display_key,
+                    new_ns_id,
+                    simple_name,
+                    new_ns,
+                    body_namespace_id,
+                    jim_namespace,
+                );
+            }
+            Command::Proc(def)
+        }
+        other => other,
+    }
 }
 
 /// `interp create`'s option words (`createOptions[]`, `tclInterp.c`), resolved
@@ -1688,7 +1709,7 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         template: if vm
             .actual_native_invocation_dialect()
             .native_string_protocol()
-            .is_some_and(|protocol| protocol.is_jim084())
+            .is_some_and(tcl_syntax::native_string::NativeStringProtocol::is_jim084)
         {
             Vec::<u8>::new().into()
         } else {
@@ -1806,7 +1827,7 @@ fn cmd_expr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
         }
         Value::from_string_bytes(tcl_syntax::list::concat_bytes(
-            parts.iter().map(|part| part.as_ref()),
+            parts.iter().map(std::convert::AsRef::as_ref),
         ))
     };
     match vm.prepare_expression_value(&source) {
@@ -1874,7 +1895,7 @@ pub(crate) fn parse_params_in(
 }
 
 /// Parse original formal objects under the interpreter's selected native policy.
-/// Old C releases use CString list input at both levels; modern engines keep
+/// Old C releases use `CString` list input at both levels; modern engines keep
 /// native list element objects, including the original default value.
 fn split_formal_values(
     vm: &Vm,
@@ -1948,12 +1969,11 @@ pub(crate) fn parse_params_value(
         for parameter in &parsed {
             if parameter.name == b"args"
                 && let Some(default) = &parameter.default
+                && let Err(error) = vm.native_name_operand_bytes(default)
             {
-                if let Err(error) = vm.native_name_operand_bytes(default) {
-                    return Err(vm.refuse_host_command(format!(
-                        "variadic local name is unavailable: {error}"
-                    )));
-                }
+                return Err(
+                    vm.refuse_host_command(format!("variadic local name is unavailable: {error}"))
+                );
             }
         }
     }
@@ -1996,56 +2016,8 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(bytes) => bytes,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    match vm.native_procedure_holder_exists(&written) {
-        Ok(true) => {}
-        Ok(false) => {
-            let Some((message, code)) =
-                tcl_registry::native_procedure::procedure_unknown_namespace_error(
-                    vm.native_invocation_dialect(),
-                    &written,
-                )
-            else {
-                return vm.refuse_host_command(
-                    "native procedure namespace diagnostic is unavailable".into(),
-                );
-            };
-            let error = match code {
-                Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(message, code),
-                None => tcl_cmd_core::CmdError::new_bytes(message),
-            };
-            return completion_from_cmd_error(vm, error);
-        }
-        Err(error) => return vm.refuse_host_command(error.to_string()),
-    }
-    let Some(policy) = vm.name_policy_protocol() else {
-        return vm.refuse_host_command("procedure name validation is unavailable".into());
-    };
-    if !policy.recipe().is_jim084() {
-        let path = vm.namespace_path_for_token(vm.current_ns_id());
-        let slot = match policy
-            .recipe()
-            .command_lookup_slot(tcl_syntax::naming::NativeNameContext::new(&path), &written)
-        {
-            Ok(slot) => slot,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        match tcl_registry::native_procedure::procedure_name_creation_error(
-            dialect,
-            slot.namespace.as_segments().is_empty(),
-            slot.simple.as_bytes(),
-        ) {
-            Some(Ok(())) => {}
-            Some(Err(message)) => {
-                return completion_from_cmd_error(
-                    vm,
-                    tcl_cmd_core::CmdError::new_bytes(message)
-                        .with_native_string_result(policy.recipe().string_protocol()),
-                );
-            }
-            None => {
-                return vm.refuse_host_command("procedure name validation is unavailable".into());
-            }
-        }
+    if let Err(completion) = validate_procedure_publication_name(vm, &written, dialect) {
+        return completion;
     }
     let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
         return err("native parameter grammar is not selected");
@@ -2071,43 +2043,10 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
     let namespace = vm.namespace_path_for_token(ns_id);
-    // Native header registration only reaches the body updater for bare args.
-    // Inspecting other declarations must leave pure List/ByteArray bodies pure.
-    let mut native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
-        dialect,
-        None,
-        None,
-        Some(false),
-    );
-    if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
-        let parameter_bytes = match vm.native_name_operand_bytes(params) {
-            Ok(bytes) => bytes,
-            Err(error) => return vm.refuse_host_command(error.to_string()),
-        };
-        native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
-            dialect,
-            Some(&parameter_bytes),
-            None,
-            Some(false),
-        );
-        if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
-            let Some(protocol) = dialect.native_string_protocol() else {
-                return vm.refuse_host_command(
-                    "native procedure header string producer is unavailable".into(),
-                );
-            };
-            let body_bytes = match body_text.native_string_bytes(protocol) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
-            native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
-                dialect,
-                Some(&parameter_bytes),
-                Some(&body_bytes),
-                Some(false),
-            );
-        }
-    }
+    let native_header = match procedure_header_compilation(vm, params, body_text, dialect) {
+        Ok(header) => header,
+        Err(completion) => return completion,
+    };
     vm.define_proc(ProcDef {
         native_resources: Rc::default(),
         name: reg_name,
@@ -2133,6 +2072,112 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         ProcedureDefinitionResult::Empty => Value::empty(),
         ProcedureDefinitionResult::NameArgument => name.clone(),
     })
+}
+
+/// Reach native header getters only when the original compiler needs them.
+fn procedure_header_compilation(
+    vm: &mut Vm,
+    params: &Value,
+    body_text: &Value,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<tcl_dialect::NativeProcedureHeaderCompilation, Completion<Value>> {
+    let mut native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
+        dialect,
+        None,
+        None,
+        Some(false),
+    );
+    if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
+        let parameter_bytes = match vm.native_name_operand_bytes(params) {
+            Ok(bytes) => bytes,
+            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+        };
+        native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
+            dialect,
+            Some(&parameter_bytes),
+            None,
+            Some(false),
+        );
+        if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
+            let Some(protocol) = dialect.native_string_protocol() else {
+                return Err(vm.refuse_host_command(
+                    "native procedure header string producer is unavailable".into(),
+                ));
+            };
+            let body_bytes = match body_text.native_string_bytes(protocol) {
+                Ok(bytes) => bytes,
+                Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+            };
+            native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
+                dialect,
+                Some(&parameter_bytes),
+                Some(&body_bytes),
+                Some(false),
+            );
+        }
+    }
+    Ok(native_header)
+}
+
+fn validate_procedure_publication_name(
+    vm: &mut Vm,
+    written: &[u8],
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), Completion<Value>> {
+    match vm.native_procedure_holder_exists(written) {
+        Ok(true) => {}
+        Ok(false) => {
+            let Some((message, code)) =
+                tcl_registry::native_procedure::procedure_unknown_namespace_error(
+                    vm.native_invocation_dialect(),
+                    written,
+                )
+            else {
+                return Err(vm.refuse_host_command(
+                    "native procedure namespace diagnostic is unavailable".into(),
+                ));
+            };
+            let error = match code {
+                Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(message, code),
+                None => tcl_cmd_core::CmdError::new_bytes(message),
+            };
+            return Err(completion_from_cmd_error(vm, error));
+        }
+        Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+    }
+    let Some(policy) = vm.name_policy_protocol() else {
+        return Err(vm.refuse_host_command("procedure name validation is unavailable".into()));
+    };
+    if !policy.recipe().is_jim084() {
+        let path = vm.namespace_path_for_token(vm.current_ns_id());
+        let slot = match policy
+            .recipe()
+            .command_lookup_slot(tcl_syntax::naming::NativeNameContext::new(&path), written)
+        {
+            Ok(slot) => slot,
+            Err(error) => return Err(vm.refuse_host_command(error.to_string())),
+        };
+        match tcl_registry::native_procedure::procedure_name_creation_error(
+            dialect,
+            slot.namespace.as_segments().is_empty(),
+            slot.simple.as_bytes(),
+        ) {
+            Some(Ok(())) => {}
+            Some(Err(message)) => {
+                return Err(completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::new_bytes(message)
+                        .with_native_string_result(policy.recipe().string_protocol()),
+                ));
+            }
+            None => {
+                return Err(
+                    vm.refuse_host_command("procedure name validation is unavailable".into())
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Build an options dict value `-code N -level L [-errorcode ..] [-errorinfo ..]`.
@@ -2201,10 +2246,10 @@ pub(crate) fn completion_from_cmd_error(vm: &mut Vm, error: CmdError) -> Complet
             getter.eval_result_bytes(&details.message)
         });
     let result = Value::from_string_bytes(message);
-    if let Some(materialization) = string_result {
-        if let Err(error) = result.retain_native_string_representation(materialization) {
-            return vm.refuse_host_command(error.to_string());
-        }
+    if let Some(materialization) = string_result
+        && let Err(error) = result.retain_native_string_representation(materialization)
+    {
+        return vm.refuse_host_command(error.to_string());
     }
     let mut extra = Vec::with_capacity(3);
     extra.push(("-errorcode", code));
@@ -2577,7 +2622,7 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `ERR_ALREADY_LOGGED`). An empty (or absent) `info` is treated as absent —
     // the trace seeds from the message and the invoke site logs the frame as for
     // any other command error (error-4.2/4.3).
-    let info = args.get(1).map(|v| v.string_bytes());
+    let info = args.get(1).map(super::value::Value::string_bytes);
     let info_nonempty = info.as_deref().is_some_and(|s| !s.is_empty());
     if info_nonempty {
         vm.seed_error_info(info.clone().unwrap_or_default());
@@ -2599,17 +2644,17 @@ fn cmd_error(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `break`.
-fn cmd_break(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_break(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !args.is_empty() {
-        return native_wrong_arguments_message(_vm, "wrong # args: should be \"break\"");
+        return native_wrong_arguments_message(vm, "wrong # args: should be \"break\"");
     }
     Completion::new(Code::Break, Value::empty(), Value::empty())
 }
 
 /// `continue`.
-fn cmd_continue(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn cmd_continue(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !args.is_empty() {
-        return native_wrong_arguments_message(_vm, "wrong # args: should be \"continue\"");
+        return native_wrong_arguments_message(vm, "wrong # args: should be \"continue\"");
     }
     Completion::new(Code::Continue, Value::empty(), Value::empty())
 }
@@ -2711,55 +2756,7 @@ impl Vm {
             }),
         };
         if let Some((options, code, level)) = merged {
-            let strings = self
-                .native_invocation_dialect()
-                .native_string_protocol()
-                .expect("merged C return origin");
-            // Tcl_GetReturnOptions always duplicates the retained private header.
-            let original = options.duplicate_native_object_in(strings);
-            let mut copied = original
-                .prepare_native_dictionary(strings)
-                .expect("original merged Dictionary");
-            drop(original);
-            let active_error = comp.code == Code::Error && level == 0;
-            let error = (code == 1).then(|| ErrorOptions {
-                error_code: Some(
-                    self.native_return_error_code()
-                        .cloned()
-                        .unwrap_or_else(|| resolved_error_code(comp)),
-                ),
-                error_stack: (active_error && self.supports_error_stack()).then(|| {
-                    self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))
-                }),
-                error_info: active_error.then(|| {
-                    self.native_return_error_info().cloned().unwrap_or_else(|| {
-                        self.error_info_value()
-                            .map_or_else(|| comp.result.clone(), Value::new_native_string_bytes)
-                    })
-                }),
-                error_line: active_error.then(|| i64::from(self.error_line())),
-                during: None,
-            });
-            // Apply the shared native overlay to the duplicate. Existing keys
-            // keep their positions; new errorStack precedes errorCode/info/line.
-            let overlay = shared_options::plan_with_origin(
-                self.runtime_version(),
-                Code::from_int(code),
-                level,
-                tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
-                &[],
-                error.as_ref(),
-            );
-            for (key, value) in overlay {
-                let value = match value {
-                    OptionValue::Integer(value) => Value::int(value),
-                    OptionValue::Value(value) => value,
-                };
-                copied
-                    .set_member(Value::new_native_string_bytes(key), value)
-                    .expect("native return-options overlay");
-            }
-            return copied.into_value();
+            return self.merged_completion_options_snapshot(comp, options, code, level);
         }
         if self.uses_jim_error_stack() {
             return self.jim_return_options(comp.code);
@@ -2842,6 +2839,63 @@ impl Vm {
                 })
                 .collect(),
         )
+    }
+
+    fn merged_completion_options_snapshot(
+        &self,
+        comp: &Completion<Value>,
+        options: &Value,
+        code: i32,
+        level: i64,
+    ) -> Value {
+        let strings = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .expect("merged C return origin");
+        // Tcl_GetReturnOptions always duplicates the retained private header.
+        let original = options.duplicate_native_object_in(strings);
+        let mut copied = original
+            .prepare_native_dictionary(strings)
+            .expect("original merged Dictionary");
+        drop(original);
+        let active_error = comp.code == Code::Error && level == 0;
+        let error = (code == 1).then(|| ErrorOptions {
+            error_code: Some(
+                self.native_return_error_code()
+                    .cloned()
+                    .unwrap_or_else(|| resolved_error_code(comp)),
+            ),
+            error_stack: (active_error && self.supports_error_stack())
+                .then(|| self.error_stack_for_completion(opt_get(&comp.options, "-errorstack"))),
+            error_info: active_error.then(|| {
+                self.native_return_error_info().cloned().unwrap_or_else(|| {
+                    self.error_info_value()
+                        .map_or_else(|| comp.result.clone(), Value::new_native_string_bytes)
+                })
+            }),
+            error_line: active_error.then(|| i64::from(self.error_line())),
+            during: None,
+        });
+        // Apply the shared native overlay to the duplicate. Existing keys
+        // keep their positions; new errorStack precedes errorCode/info/line.
+        let overlay = shared_options::plan_with_origin(
+            self.runtime_version(),
+            Code::from_int(code),
+            level,
+            tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
+            &[],
+            error.as_ref(),
+        );
+        for (key, value) in overlay {
+            let value = match value {
+                OptionValue::Integer(value) => Value::int(value),
+                OptionValue::Value(value) => value,
+            };
+            copied
+                .set_member(Value::new_native_string_bytes(key), value)
+                .expect("native return-options overlay");
+        }
+        copied.into_value()
     }
 
     /// Restore a frozen error completion after a successful `finally` body so
@@ -3002,7 +3056,7 @@ pub(crate) fn upvar_link_error(
     match error {
         crate::interp::UpvarLinkError::TargetNamespace => err_with_code(
             format!("can't access \"{other}\": parent namespace doesn't exist"),
-            &lookup_var_error_code(other),
+            lookup_var_error_code(other),
         ),
         crate::interp::UpvarLinkError::Inverted => err_with_code(
             format!(
@@ -3013,7 +3067,7 @@ pub(crate) fn upvar_link_error(
         crate::interp::UpvarLinkError::LocalElement => bad_link_name(local),
         crate::interp::UpvarLinkError::LocalNamespace => err_with_code(
             format!("can't create \"{local}\": parent namespace doesn't exist"),
-            &lookup_var_error_code(local),
+            lookup_var_error_code(local),
         ),
         crate::interp::UpvarLinkError::Exists => err_with_code(
             format!("variable \"{local}\" already exists"),

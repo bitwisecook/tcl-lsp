@@ -2,7 +2,10 @@
 //! Actual Jim previous-command owners and frame-owned original cleanup names.
 
 use super::native_jim_lookup::{JimCommandLease, JimCommandNode};
-use super::*;
+use super::{
+    Command, CommandSlot, Completion, NameBytes, ROOT_NS, Rc, RefCell, Value, Vm, err,
+    native_name_world,
+};
 use tcl_syntax::value::ValueError;
 
 struct LocalScope(Rc<RefCell<native_name_world::NativeNameWorld>>);
@@ -96,8 +99,8 @@ impl Vm {
 
     pub(crate) fn jim_original_builtin_identity(&self, original: &Value) -> Option<String> {
         let node = self.selected_original_jim_node(original)?;
-        let identity = node.builtin_identity.borrow().clone();
-        identity
+
+        node.builtin_identity.borrow().clone()
     }
 
     pub(super) fn register_jim_local_command(
@@ -203,7 +206,7 @@ impl Vm {
                         .jim_command_nodes
                         .insert(previous.token, Rc::clone(&previous));
                 }
-                *previous.storage_key.borrow_mut() = restored_key.clone();
+                (*previous.storage_key.borrow_mut()).clone_from(&restored_key);
                 if let Some(identity) = previous.builtin_identity.borrow().clone() {
                     self.builtin_identities
                         .insert(restored_key.clone(), identity);

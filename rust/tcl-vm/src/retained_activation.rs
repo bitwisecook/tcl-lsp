@@ -341,64 +341,72 @@ fn timer_id(value: &Value) -> Option<u64> {
     std::str::from_utf8(tail).ok()?.parse().ok()
 }
 
+fn cancel_authored_timers(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [_, targets @ ..] = args else {
+        unreachable!()
+    };
+    if targets.is_empty() {
+        return err("after cancel requires a timer identifier or -current");
+    }
+    let interpreter = vm.cur_interp();
+    for target in targets {
+        let id = if target.string_bytes().as_ref() == b"-current" {
+            vm.authored_timers
+                .running
+                .last()
+                .filter(|(owner, _)| *owner == interpreter)
+                .map(|(_, id)| *id)
+        } else {
+            timer_id(target)
+        };
+        if let Some(id) = id {
+            vm.authored_timers
+                .queue
+                .retain(|timer| timer.id != id || timer.activation.interpreter != interpreter);
+            if vm.authored_timers.running.contains(&(interpreter, id)) {
+                vm.authored_timers.cancelled.insert(id);
+            }
+        }
+    }
+    ok(Value::empty())
+}
+
+fn authored_timer_info(vm: &Vm, args: &[Value]) -> Completion<Value> {
+    match args {
+        [_] => ok(Value::list(
+            vm.authored_timers
+                .queue
+                .iter()
+                .filter(|timer| timer.activation.interpreter == vm.cur_interp())
+                .map(|timer| Value::string(format!("after#{}", timer.id)))
+                .collect(),
+        )),
+        [_, id] => match timer_id(id).and_then(|id| {
+            vm.authored_timers
+                .queue
+                .iter()
+                .find(|timer| timer.id == id && timer.activation.interpreter == vm.cur_interp())
+        }) {
+            Some(timer) => ok(Value::list(vec![
+                timer.script.clone(),
+                Value::string("timer"),
+            ])),
+            None => err("event does not exist"),
+        },
+        _ => err("after info takes at most one timer identifier"),
+    }
+}
+
 fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(first) = args.first() else {
         return err("after requires a delay or subcommand");
     };
     let first_bytes = first.string_bytes();
     if first_bytes.as_ref() == b"cancel" {
-        let [_, targets @ ..] = args else {
-            unreachable!()
-        };
-        if targets.is_empty() {
-            return err("after cancel requires a timer identifier or -current");
-        }
-        let interpreter = vm.cur_interp();
-        for target in targets {
-            let id = if target.string_bytes().as_ref() == b"-current" {
-                vm.authored_timers
-                    .running
-                    .last()
-                    .filter(|(owner, _)| *owner == interpreter)
-                    .map(|(_, id)| *id)
-            } else {
-                timer_id(target)
-            };
-            if let Some(id) = id {
-                vm.authored_timers
-                    .queue
-                    .retain(|timer| timer.id != id || timer.activation.interpreter != interpreter);
-                if vm.authored_timers.running.contains(&(interpreter, id)) {
-                    vm.authored_timers.cancelled.insert(id);
-                }
-            }
-        }
-        return ok(Value::empty());
+        return cancel_authored_timers(vm, args);
     }
     if first_bytes.as_ref() == b"info" {
-        return match args {
-            [_] => ok(Value::list(
-                vm.authored_timers
-                    .queue
-                    .iter()
-                    .filter(|timer| timer.activation.interpreter == vm.cur_interp())
-                    .map(|timer| Value::string(format!("after#{}", timer.id)))
-                    .collect(),
-            )),
-            [_, id] => match timer_id(id).and_then(|id| {
-                vm.authored_timers
-                    .queue
-                    .iter()
-                    .find(|timer| timer.id == id && timer.activation.interpreter == vm.cur_interp())
-            }) {
-                Some(timer) => ok(Value::list(vec![
-                    timer.script.clone(),
-                    Value::string("timer"),
-                ])),
-                None => err("event does not exist"),
-            },
-            _ => err("after info takes at most one timer identifier"),
-        };
+        return authored_timer_info(vm, args);
     }
     let delay = first;
     let (periodic, script) = if args

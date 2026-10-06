@@ -181,7 +181,9 @@ mod tests {
 
     fn unhex(text: &str) -> Vec<u8> {
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
@@ -204,7 +206,7 @@ mod tests {
             let source = unhex(columns[2]);
             let parsed = native_script_words_in(
                 SourceImage::native(source.as_slice()),
-                Span::new(0, source.len() as u32),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
                 LexerConfig::from_grammar(profile.grammar),
             )
             .unwrap();

@@ -318,14 +318,13 @@ impl PackEvalCtx<'_> {
                 Code::Ok | Code::Return => Ok(()),
                 _ => {
                     let bytes = completion.result.string_bytes();
-                    match std::str::from_utf8(&bytes) {
-                        Ok(message) => Err(message.to_owned()),
-                        Err(_) => {
-                            let _ = self.vm.refuse_host_command(
-                                "SpecTcl declaration errors require Unicode".into(),
-                            );
-                            Err("SpecTcl declaration errors require Unicode".into())
-                        }
+                    if let Ok(message) = std::str::from_utf8(&bytes) {
+                        Err(message.to_owned())
+                    } else {
+                        let _ = self.vm.refuse_host_command(
+                            "SpecTcl declaration errors require Unicode".into(),
+                        );
+                        Err("SpecTcl declaration errors require Unicode".into())
                     }
                 }
             },

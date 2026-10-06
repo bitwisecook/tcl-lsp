@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C9.1 property metadata and borrowed native List table ownership.
-use super::*;
+use super::{
+    BTreeMap, BTreeSet, Code, Completion, Method, OoId, OoState, Rc, TclOoPropertyKind, Value, Vm,
+    apply_property_bytes, display_oo_bytes, native_context, native_method_key, ok,
+    oo_invoke_value_with_head, private_storage_name_bytes, slot_ref_class, slot_ref_obj,
+};
 use tcl_registry::native_property_lookup::{
     NativePropertyGraphDependents, NativePropertyInvalidation,
 };
@@ -25,7 +29,7 @@ impl OoState {
                 self.property_foundation_epoch = self
                     .property_foundation_epoch
                     .checked_add(1)
-                    .expect("Foundation epoch exhausted")
+                    .expect("Foundation epoch exhausted");
             }
             NativePropertyInvalidation::Instance => {
                 self.property_caches.remove(&(target, false));
@@ -177,16 +181,15 @@ impl Vm {
                 "native property List issuer",
             ))?;
         let epoch = self.oo.property_foundation_epoch;
-        if let Some(cache) = self.oo.property_caches.get(&(target, class)) {
-            if cache.epoch == epoch {
-                if let Some(header) = if writable {
-                    &cache.writable
-                } else {
-                    &cache.readable
-                } {
-                    return Ok(header.native_lifetime_lease());
-                }
+        if let Some(cache) = self.oo.property_caches.get(&(target, class))
+            && cache.epoch == epoch
+            && let Some(header) = if writable {
+                &cache.writable
+            } else {
+                &cache.readable
             }
+        {
+            return Ok(header.native_lifetime_lease());
         }
         let members =
             {
@@ -346,24 +349,9 @@ pub(super) fn lookup_property(
         })
         .collect::<Result<_, _>>()
         .map_err(|e| crate::command::completion_from_cmd_error(vm, ValueError::from(e).into()))?;
-    let borrowed: Vec<_> = words.iter().map(|word| word.as_ref()).collect();
+    let borrowed: Vec<_> = words.iter().map(std::convert::AsRef::as_ref).collect();
     match recipe.lookup(&bytes, &borrowed) {
-        Ok(index) => {
-            let current = header
-                .value()
-                .native_object_list_elements(recipe.strings())
-                .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
-            let selected = current.get(index).ok_or_else(|| {
-                crate::command::completion_from_cmd_error(
-                    vm,
-                    ValueError::CommandProtocolUnavailable(
-                        "property callback changed native table extent",
-                    )
-                    .into(),
-                )
-            })?;
-            Ok(selected.native_lifetime_lease())
-        }
+        Ok(index) => selected_property_member(vm, header.value(), recipe.strings(), index),
         Err(message) => {
             let other = vm
                 .native_all_property_header(target, false, !writable)
@@ -382,7 +370,10 @@ pub(super) fn lookup_property(
                 .map_err(|e| {
                     crate::command::completion_from_cmd_error(vm, ValueError::from(e).into())
                 })?;
-            let other_borrowed: Vec<_> = other_words.iter().map(|word| word.as_ref()).collect();
+            let other_borrowed: Vec<_> = other_words
+                .iter()
+                .map(std::convert::AsRef::as_ref)
+                .collect();
             let mut error = message;
             if let Ok(index) = recipe.lookup(&bytes, &other_borrowed) {
                 error = b"property \"".to_vec();
@@ -407,6 +398,25 @@ pub(super) fn lookup_property(
             ))
         }
     }
+}
+
+fn selected_property_member(
+    vm: &mut Vm,
+    header: &Value,
+    strings: tcl_syntax::native_string::NativeStringProtocol,
+    index: usize,
+) -> Result<crate::value::NativeObjectLifetimeLease, Completion<Value>> {
+    let current = header
+        .native_object_list_elements(strings)
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+    let selected = current.get(index).ok_or_else(|| {
+        crate::command::completion_from_cmd_error(
+            vm,
+            ValueError::CommandProtocolUnavailable("property callback changed native table extent")
+                .into(),
+        )
+    })?;
+    Ok(selected.native_lifetime_lease())
 }
 
 pub(super) fn register_property(
@@ -452,13 +462,13 @@ pub(super) fn register_property(
             slot.remove(&dashed);
             changed = true;
         }
-        if present != adding {
-            if let Some(cache) = vm.oo.property_caches.get_mut(&(target, class)) {
-                if direction {
-                    cache.writable = None;
-                } else {
-                    cache.readable = None;
-                }
+        if present != adding
+            && let Some(cache) = vm.oo.property_caches.get_mut(&(target, class))
+        {
+            if direction {
+                cache.writable = None;
+            } else {
+                cache.readable = None;
             }
         }
     }
@@ -554,10 +564,10 @@ fn compare_original_members(
     }
     if let (Cache::ByteArray { bytes: a, .. }, Cache::ByteArray { bytes: b, .. }) =
         (&sa.cache, &sb.cache)
+        && sa.resident.is_none()
+        && sb.resident.is_none()
     {
-        if sa.resident.is_none() && sb.resident.is_none() {
-            return Ok(a.cmp(b));
-        }
+        return Ok(a.cmp(b));
     }
     let a = a
         .native_string_bytes(protocol)
@@ -977,7 +987,7 @@ pub(super) fn configure_native(vm: &mut Vm, target: OoId, args: &[Value]) -> Com
     if args.is_empty() {
         return configure_all(vm, target);
     }
-    if args.len() > 1 && args.len() % 2 != 0 {
+    if args.len() > 1 && !args.len().is_multiple_of(2) {
         return crate::command::native_wrong_args(vm, "configure ?-option value ...?");
     }
     let mut table = None;
@@ -991,7 +1001,7 @@ pub(super) fn configure_native(vm: &mut Vm, target: OoId, args: &[Value]) -> Com
             Err(error) => error,
         };
     }
-    for pair in args.chunks_exact(2) {
+    for pair in args.as_chunks::<2>().0 {
         let property = match lookup_property(vm, target, &pair[0], true, &mut table, true) {
             Ok(property) => property,
             Err(error) => return error,
@@ -1018,7 +1028,7 @@ fn invoke_original_accessor(
         .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
     // TclOO property thunks own the same my and accessor objects for the call.
     let accessor = accessor.value().clone();
-    let Some(head) = vm.oo.property_my_name.as_ref().cloned() else {
+    let Some(head) = vm.oo.property_my_name.clone() else {
         return Err(crate::command::completion_from_cmd_error(
             vm,
             ValueError::CommandProtocolUnavailable("Foundation original my name").into(),
@@ -1041,8 +1051,7 @@ fn invoke_original_accessor(
             &accessor,
             &args,
             false,
-            &invoked,
-            Some(&head),
+            (&invoked, Some(&head)),
         )
     };
     match result.code {
@@ -1175,8 +1184,7 @@ pub(super) fn define_original_properties(
             vm,
             class,
             target,
-            &name,
-            Some(original),
+            (&name, Some(original)),
             kind,
             getter,
             setter,

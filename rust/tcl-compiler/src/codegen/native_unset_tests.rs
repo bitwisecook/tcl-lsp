@@ -11,7 +11,7 @@ fn emit<'a>(
     let dialect = tcl_registry::InvocationDialect::of_point(entry.execution_point.unwrap());
     let parsed = tcl_lexer::native_script_words_in(
         tcl_lexer::SourceImage::native(source),
-        tcl_lexer::Span::new(0, source.len() as u32),
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
         tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
     )
     .unwrap();

@@ -404,10 +404,10 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Ok(context) => context,
                 Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
             };
-            if let Some(value) = rest.first() {
-                if let Err(error) = context.replace_current_filename(value) {
-                    return crate::command::completion_from_tcl_error(vm, error.into());
-                }
+            if let Some(value) = rest.first()
+                && let Err(error) = context.replace_current_filename(value)
+            {
+                return crate::command::completion_from_tcl_error(vm, error.into());
             }
             let result = context.current_filename_object();
             context.publish_result(&result);

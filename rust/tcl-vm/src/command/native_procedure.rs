@@ -112,6 +112,11 @@ impl Clone for NativeProcedureCommand {
     }
 }
 
+fn retain_procedure_original(original: &mut Value, objects: &mut Vec<Value>) {
+    let lifetime = original.native_lifetime_lease().into_value();
+    objects.push(std::mem::replace(original, lifetime).into_native_reference());
+}
+
 impl NativeProcedureCommand {
     pub(crate) fn new(mut declaration: ProcDef) -> Self {
         declaration.native_resources = Rc::new(NativeProcedureResources::default());
@@ -127,25 +132,21 @@ impl NativeProcedureCommand {
         *declaration.native_resources.jim_namespace.borrow_mut() =
             declaration.native_jim_namespace.take();
         let mut objects = Vec::new();
-        fn retain(original: &mut Value, objects: &mut Vec<Value>) {
-            let lifetime = original.native_lifetime_lease().into_value();
-            objects.push(std::mem::replace(original, lifetime).into_native_reference());
-        }
-        retain(&mut declaration.body_src, &mut objects);
+        retain_procedure_original(&mut declaration.body_src, &mut objects);
         for parameter in &mut declaration.params {
             if let Some(default) = &mut parameter.default {
-                retain(default, &mut objects);
+                retain_procedure_original(default, &mut objects);
             }
         }
         if let Some(parameters) = &mut declaration.native_parameters {
-            retain(parameters, &mut objects);
+            retain_procedure_original(parameters, &mut objects);
         }
         for words in [&mut declaration.usage_name, &mut declaration.call_identity]
             .into_iter()
             .flatten()
         {
             for word in words {
-                retain(word, &mut objects);
+                retain_procedure_original(word, &mut objects);
             }
         }
         *declaration.native_resources.objects.borrow_mut() = Some(objects);
@@ -299,7 +300,7 @@ impl ProcDef {
     pub(crate) fn duplicate_for_native_recompilation(
         &self,
         strings: tcl_syntax::native_string::NativeStringProtocol,
-    ) -> Result<NativeProcedureCommand, tcl_syntax::value::ValueError> {
+    ) -> NativeProcedureCommand {
         let mut duplicate = self.clone();
         duplicate.name = self.actual_name();
         let slot = self.actual_command_slot();
@@ -309,7 +310,7 @@ impl ProcDef {
         duplicate.ns_id = self.actual_namespace_id();
         duplicate.body_src = self.body_src.duplicate_native_object_in(strings);
         duplicate.body = None;
-        Ok(NativeProcedureCommand::new(duplicate))
+        NativeProcedureCommand::new(duplicate)
     }
 }
 
@@ -446,9 +447,8 @@ mod tests {
                 })
             );
         }
-        let replacement = old
-            .duplicate_for_native_recompilation(NativeStringProtocol::C(TclVersion::V8_5))
-            .unwrap();
+        let replacement =
+            old.duplicate_for_native_recompilation(NativeStringProtocol::C(TclVersion::V8_5));
         let fresh = replacement.declaration();
         command.replace_declaration(&replacement);
         assert!(Rc::ptr_eq(&import.declaration(), &fresh));

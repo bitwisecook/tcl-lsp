@@ -843,6 +843,45 @@ fn possible_body_conditions(
         .collect()
 }
 
+fn possible_body_operands(
+    topology: &tcl_registry::native_compilation::PossibleBodyTopology,
+) -> Vec<BodyOperand> {
+    use tcl_registry::native_compilation::PossibleBodyTopology;
+    match topology {
+        PossibleBodyTopology::Captured(selected) => vec![BodyOperand {
+            argument: selected.script_at,
+            list_element: None,
+        }],
+        PossibleBodyTopology::Sequence(indices) | PossibleBodyTopology::Alternatives(indices) => {
+            indices
+                .iter()
+                .map(|&argument| BodyOperand {
+                    argument,
+                    list_element: None,
+                })
+                .collect()
+        }
+        PossibleBodyTopology::Conditional(branches) => branches
+            .iter()
+            .map(|&(_, argument)| BodyOperand {
+                argument,
+                list_element: None,
+            })
+            .collect(),
+        PossibleBodyTopology::CaseAlternatives(operands) => operands.clone(),
+        PossibleBodyTopology::Loop {
+            initial, repeated, ..
+        } => initial
+            .iter()
+            .chain(repeated)
+            .map(|&argument| BodyOperand {
+                argument,
+                list_element: None,
+            })
+            .collect(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1410,44 +1449,5 @@ mod tests {
     fn repetition_value_contract_does_not_license_new_private_observers() {
         let source = "package require tcltest\ntrace add variable ::tcltest::Option(-iterations) read {apply {{args} {proc ::tcltest::EvalTest {args} {}}}}\nproc p {} {tcltest::test n d -setup {set x 1} -body {puts $x}}";
         assert!(region(&lower_stock_version(source, true, "2.6.0")).is_none());
-    }
-}
-
-fn possible_body_operands(
-    topology: &tcl_registry::native_compilation::PossibleBodyTopology,
-) -> Vec<BodyOperand> {
-    use tcl_registry::native_compilation::PossibleBodyTopology;
-    match topology {
-        PossibleBodyTopology::Captured(selected) => vec![BodyOperand {
-            argument: selected.script_at,
-            list_element: None,
-        }],
-        PossibleBodyTopology::Sequence(indices) | PossibleBodyTopology::Alternatives(indices) => {
-            indices
-                .iter()
-                .map(|&argument| BodyOperand {
-                    argument,
-                    list_element: None,
-                })
-                .collect()
-        }
-        PossibleBodyTopology::Conditional(branches) => branches
-            .iter()
-            .map(|&(_, argument)| BodyOperand {
-                argument,
-                list_element: None,
-            })
-            .collect(),
-        PossibleBodyTopology::CaseAlternatives(operands) => operands.clone(),
-        PossibleBodyTopology::Loop {
-            initial, repeated, ..
-        } => initial
-            .iter()
-            .chain(repeated)
-            .map(|&argument| BodyOperand {
-                argument,
-                list_element: None,
-            })
-            .collect(),
     }
 }

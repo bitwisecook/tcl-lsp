@@ -49,7 +49,7 @@ impl Vm {
         let Some(name) = self
             .native_invocation_dialect()
             .native_package_protocol()
-            .and_then(|p| p.initialization_package())
+            .and_then(tcl_registry::native_package::NativePackageProtocol::initialization_package)
         else {
             return false;
         };
@@ -104,7 +104,7 @@ impl Vm {
         if !self
             .native_invocation_dialect()
             .native_package_protocol()
-            .is_some_and(|p| p.tracks_files())
+            .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
         {
             return Ok(());
         }
@@ -154,17 +154,18 @@ impl Vm {
             )
         } else {
             (
-                self.native_c_return_state.code,
-                self.native_c_return_state.level,
+                self.native_errors.native_c_return_state.code,
+                self.native_errors.native_c_return_state.level,
             )
         };
         let route = Route::Return(ReturnCompletionRoute {
             eventual_code: CompletionCode::from_int(code),
-            remaining_level: level.max(0) as u64,
+            remaining_level: u64::try_from(level.max(0)).expect("nonnegative pending return level"),
         });
         match tcl_registry::source_file::completion_route(self.native_invocation_dialect(), route) {
             Route::Return(pending) => {
-                let level = pending.remaining_level as i64;
+                let level = i64::try_from(pending.remaining_level)
+                    .expect("source route preserves initial signed level");
                 if jim {
                     self.jim_errors.pending_return.level = level;
                 } else {
@@ -173,7 +174,9 @@ impl Vm {
                 completion.options = crate::command::with_return_level(&completion.options, level);
             }
             Route::Tcl(code) => {
-                completion.code = tcl_core_types::Code::from_int(code.as_int() as i32);
+                completion.code = tcl_core_types::Code::from_int(
+                    tcl_syntax::number::native_int32_low_bits(code.as_int()),
+                );
                 if jim {
                     self.jim_errors.pending_return.code = 0;
                     self.jim_errors.pending_return.level = 0;

@@ -365,6 +365,25 @@ mod tests {
         }
     }
 
+    fn assert_substituted_template_declines(
+        spec: &crate::native_compilation::NativeCompilationSpec,
+        invocation: crate::InvocationWords<'_>,
+        dialect: crate::InvocationDialect,
+        entry: crate::native_compilation::NativeCompilationContext,
+        profile: &str,
+    ) {
+        use crate::native_compilation::{
+            NativeCompilationSelection as Selection, NativeCompilationWordShape as Shape,
+        };
+        for shape in [Shape::Substituted, Shape::BackslashLiteral] {
+            assert_eq!(
+                spec.select(invocation, &[Shape::Literal, shape], Some(dialect), entry),
+                Selection::Generic,
+                "{profile}: {shape:?}"
+            );
+        }
+    }
+
     #[test]
     fn native_template_compiler_requires_original_simple_operand() {
         use crate::native_compilation::{
@@ -393,13 +412,7 @@ mod tests {
                 frame: NativeCompilationFrame::ScriptCode,
                 ..Default::default()
             };
-            for shape in [Shape::Substituted, Shape::BackslashLiteral] {
-                assert_eq!(
-                    spec.select(invocation, &[Shape::Literal, shape], Some(dialect), entry),
-                    Selection::Generic,
-                    "{profile}: {shape:?}"
-                );
-            }
+            assert_substituted_template_declines(&spec, invocation, dialect, entry, profile);
             if spec.compiler_hook_presence(dialect) == Some(true) {
                 let scalar = [
                     crate::InvocationWord::Literal("-noc"),

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Native C8.5 completions and target-side-effect observations.
-pub const EXECUTIONS: &[(&str, &[u8], i32, &[u8], bool)] = &[
+pub type ExecutionCase = (&'static str, &'static [u8], i32, &'static [u8], bool);
+pub const EXECUTIONS: &[ExecutionCase] = &[
     ("simple-result", b"namespace upvar ::N x local; set local", 0, b"X", false),
     ("original-namespace", b"namespace upvar [set ns ::N] [set name x] local; set local", 0, b"X", false),
     ("multiple-pairs", b"namespace upvar ::N x first y second; list $first $second", 0, b"X Y", false),

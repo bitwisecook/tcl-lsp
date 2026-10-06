@@ -29,7 +29,7 @@ impl NativeErrorStack {
     ) {
         let protocol = recipe
             .filter(|recipe| recipe.has_error_stack())
-            .map(|recipe| recipe.strings());
+            .map(tcl_registry::native_error_objects::NativeErrorObjectsProtocol::strings);
         if self.protocol != protocol {
             self.protocol = protocol;
             self.header =
@@ -58,11 +58,11 @@ impl NativeErrorStack {
             );
         }
     }
-    pub(super) fn adopt(&mut self, values: Vec<Value>) -> Result<(), ErrorStackValueError> {
+    pub(super) fn adopt(&mut self, values: &[Value]) -> Result<(), ErrorStackValueError> {
         if !values.len().is_multiple_of(2) {
             return Err(ErrorStackValueError::OddSized);
         }
-        self.replace(&values);
+        self.replace(values);
         self.metadata.adopt(vec![(); values.len()])
     }
     pub(super) fn begin_inner(&mut self, tag: Value, context: Value) -> bool {
@@ -240,7 +240,7 @@ mod tests {
         let member =
             Value::native_list_constructor(vec![Value::string("original")], recipe.strings());
         stack
-            .adopt(vec![Value::string("INNER"), member.clone()])
+            .adopt(&[Value::string("INNER"), member.clone()])
             .unwrap();
         assert_eq!(
             stack.header.as_ref().unwrap().native_object_identity(),
@@ -251,7 +251,7 @@ mod tests {
         let getter = stack.value();
         assert!(getter.is_same_object(stack.header.as_ref().unwrap()));
         stack
-            .adopt(vec![Value::string("INNER"), Value::string("second")])
+            .adopt(&[Value::string("INNER"), Value::string("second")])
             .unwrap();
         assert!(!getter.is_same_object(stack.header.as_ref().unwrap()));
         assert!(getter.cached_list_representation().unwrap().0[1].is_same_object(&member));
@@ -273,7 +273,7 @@ mod tests {
             drop(snapshot);
             drop(original);
             vm.begin_error_stack_context(Value::string("private"));
-            vm.error_stack.mark_reset();
+            vm.native_errors.error_stack.mark_reset();
             let original = vm.error_stack_value();
             let snapshot = vm.error_stack_for_completion(Some(carried.clone()));
             assert!(snapshot.is_same_object(&original));
@@ -283,7 +283,7 @@ mod tests {
                     .as_ref(),
                 b"private"
             );
-            assert!(vm.error_stack.is_reset());
+            assert!(vm.native_errors.error_stack.is_reset());
         }
     }
 }

@@ -703,7 +703,7 @@ pub(crate) fn report_interval_operand_gates(
                     tokens
                         .source_binding
                         .as_ref()
-                        .map(|b| b.execution_is_unknown())
+                        .map(crate::command_binding::SourceInvocationBinding::execution_is_unknown)
                 );
             }
             for candidate in candidates {

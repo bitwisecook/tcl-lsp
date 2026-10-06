@@ -564,7 +564,10 @@ mod tests {
         ] {
             let parsed = native_script_words_in(
                 SourceImage::native(source),
-                tcl_lexer::Span::new(0, source.len() as u32),
+                tcl_lexer::Span::new(
+                    0,
+                    u32::try_from(source.len()).expect("fixture source fits Span"),
+                ),
                 LexerConfig::from_grammar(profile.grammar),
             )
             .unwrap();
@@ -576,7 +579,10 @@ mod tests {
         let source = b"namespace upvar N x y";
         let parsed = native_script_words_in(
             SourceImage::native(source.as_slice()),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(
+                0,
+                u32::try_from(source.len()).expect("fixture source fits Span"),
+            ),
             LexerConfig::from_grammar(profile.grammar),
         )
         .unwrap();
@@ -610,7 +616,10 @@ mod tests {
             ] {
                 let parsed = native_script_words_in(
                     SourceImage::native(source),
-                    tcl_lexer::Span::new(0, source.len() as u32),
+                    tcl_lexer::Span::new(
+                        0,
+                        u32::try_from(source.len()).expect("fixture source fits Span"),
+                    ),
                     LexerConfig::from_grammar(profile.grammar),
                 )
                 .unwrap();
@@ -629,7 +638,10 @@ mod tests {
             let source = b"concat $a $b";
             let parsed = native_script_words_in(
                 SourceImage::native(source.as_slice()),
-                tcl_lexer::Span::new(0, source.len() as u32),
+                tcl_lexer::Span::new(
+                    0,
+                    u32::try_from(source.len()).expect("fixture source fits Span"),
+                ),
                 LexerConfig::from_grammar(profile.grammar),
             )
             .unwrap();
@@ -685,7 +697,10 @@ mod tests {
         ] {
             let parsed = native_script_words_in(
                 SourceImage::native(source),
-                Span::new(0, source.len() as u32),
+                Span::new(
+                    0,
+                    u32::try_from(source.len()).expect("fixture source fits Span"),
+                ),
                 LexerConfig::from_grammar(profile.grammar),
             )
             .unwrap();
@@ -746,7 +761,10 @@ mod tests {
             ] {
                 let parsed = native_script_words_in(
                     SourceImage::native(source),
-                    Span::new(0, source.len() as u32),
+                    Span::new(
+                        0,
+                        u32::try_from(source.len()).expect("fixture source fits Span"),
+                    ),
                     LexerConfig::from_grammar(profile.grammar),
                 )
                 .unwrap();
@@ -793,7 +811,10 @@ mod tests {
         let source = b"llength $items";
         let parsed = native_script_words_in(
             SourceImage::native(source.as_slice()),
-            tcl_lexer::Span::new(0, source.len() as u32),
+            tcl_lexer::Span::new(
+                0,
+                u32::try_from(source.len()).expect("fixture source fits Span"),
+            ),
             LexerConfig::from_grammar(profile.grammar),
         )
         .unwrap();
@@ -1312,14 +1333,106 @@ mod tests {
         }
     }
 
+    fn configured_collision_fixture(
+        version: tcl_dialect::TclVersion,
+        target: &str,
+    ) -> (
+        NativeCompilationEntry,
+        NativeCompilationBinding,
+        NativeCompilationBinding,
+    ) {
+        let mut entry = entry(version);
+        entry.namespaces.push(namespace(
+            2,
+            ByteNamespacePath::from_segments([b"a:".as_slice()]),
+            true,
+        ));
+        entry.namespaces.push(namespace(
+            3,
+            ByteNamespacePath::from_segments([b"a".as_slice()]),
+            true,
+        ));
+        let mut worker = binding(
+            &entry.namespaces[1],
+            b"w",
+            NativeCompilerHookPresence::Absent,
+        );
+        worker.token = 12;
+        let mut collision = binding(
+            &entry.namespaces[2],
+            b"w",
+            NativeCompilerHookPresence::Absent,
+        );
+        collision.token = 13;
+        let mut public = binding(
+            &entry.namespaces[0],
+            b"ensemble",
+            NativeCompilerHookPresence::Present,
+        );
+        public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
+            registry_identity: "custom-ensemble".into(),
+            ensemble: Some(
+                tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
+                    namespace_token: 2,
+                    map: vec![("member".into(), vec![Some(target.into())])],
+                    subcommands: None,
+                    prefixes: true,
+                    parameters: vec![],
+                    unknown_handler: None,
+                },
+            ),
+        });
+        entry
+            .commands
+            .extend([public, worker.clone(), collision.clone()]);
+        install_original_target_fixture(&mut entry);
+        (entry, worker, collision)
+    }
+
+    fn cached_worker_target(
+        entry: &NativeCompilationEntry,
+        version: tcl_dialect::TclVersion,
+        worker: &NativeCompilationBinding,
+    ) -> tcl_runtime_api::native_compilation::NativeEnsembleTargetPrimary {
+        use tcl_runtime_api::native_command_name::{
+            NativeCommandNameCache, NativeCommandNameLookupState, NativeCommandNameReference,
+            NativeCommandNameTarget,
+        };
+        let cache = NativeCommandNameCache {
+            interpreter: entry.interpreter,
+            version,
+            slot: worker.slot.clone(),
+            namespace_token: 2,
+            token: worker.token,
+            implementation_generation: worker.implementation_generation,
+            command_epoch: 4,
+            reference: None,
+        };
+        let lookup = NativeCommandNameLookupState {
+            interpreter: entry.interpreter,
+            reference: NativeCommandNameReference {
+                namespace_token: 2,
+                command_reference_epoch: 1,
+            },
+            target: Some(NativeCommandNameTarget {
+                token: worker.token,
+                implementation_generation: worker.implementation_generation,
+                command_epoch: 4,
+                namespace_token: 2,
+                namespace_dying: false,
+            }),
+        };
+        tcl_runtime_api::native_compilation::NativeEnsembleTargetPrimary::CommandName {
+            origin: version,
+            cache: Some(cache),
+            lookup: Some(lookup),
+        }
+    }
+
     #[test]
     fn original_map_cache_selects_its_node_and_missing_evidence_stays_unknown() {
         use tcl_registry::native_ensemble::{
             NativeEnsembleWorkerSelection, select_worker_in_entry,
-        };
-        use tcl_runtime_api::native_command_name::{
-            NativeCommandNameCache, NativeCommandNameLookupState, NativeCommandNameReference,
-            NativeCommandNameTarget,
         };
         use tcl_runtime_api::native_compilation::NativeEnsembleTargetPrimary;
         for version in [
@@ -1327,82 +1440,10 @@ mod tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let mut entry = entry(version);
-            entry.namespaces.push(namespace(
-                2,
-                ByteNamespacePath::from_segments([b"a:".as_slice()]),
-                true,
-            ));
-            entry.namespaces.push(namespace(
-                3,
-                ByteNamespacePath::from_segments([b"a".as_slice()]),
-                true,
-            ));
-            let mut worker = binding(
-                &entry.namespaces[1],
-                b"w",
-                NativeCompilerHookPresence::Absent,
-            );
-            worker.token = 12;
-            let mut collision = binding(
-                &entry.namespaces[2],
-                b"w",
-                NativeCompilerHookPresence::Absent,
-            );
-            collision.token = 13;
-            let mut public = binding(
-                &entry.namespaces[0],
-                b"ensemble",
-                NativeCompilerHookPresence::Present,
-            );
-            public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
-                registry_identity: "custom-ensemble".into(),
-                ensemble: Some(
-                    tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
-                        namespace_token: 2,
-                        map: vec![("member".into(), vec![Some("::a:::w".into())])],
-                        subcommands: None,
-                        prefixes: true,
-                        parameters: vec![],
-                        unknown_handler: None,
-                    },
-                ),
-            });
-            entry
-                .commands
-                .extend([public, worker.clone(), collision.clone()]);
-            install_original_target_fixture(&mut entry);
+            let (mut entry, worker, collision) = configured_collision_fixture(version, "::a:::w");
             let before = entry.clone();
-            let cache = NativeCommandNameCache {
-                interpreter: entry.interpreter,
-                version,
-                slot: worker.slot.clone(),
-                namespace_token: 2,
-                token: worker.token,
-                implementation_generation: worker.implementation_generation,
-                command_epoch: 4,
-                reference: None,
-            };
-            let lookup = NativeCommandNameLookupState {
-                interpreter: entry.interpreter,
-                reference: NativeCommandNameReference {
-                    namespace_token: 2,
-                    command_reference_epoch: 1,
-                },
-                target: Some(NativeCommandNameTarget {
-                    token: worker.token,
-                    implementation_generation: worker.implementation_generation,
-                    command_epoch: 4,
-                    namespace_token: 2,
-                    namespace_dying: false,
-                }),
-            };
             entry.ensemble_target_objects.as_mut().unwrap()[0].primary =
-                NativeEnsembleTargetPrimary::CommandName {
-                    origin: version,
-                    cache: Some(cache),
-                    lookup: Some(lookup),
-                };
+                cached_worker_target(&entry, version, &worker);
             assert_ne!(entry, before);
             assert!(entry.same_compilation_world(&before));
             let configuration = entry.commands[0]
@@ -1556,51 +1597,7 @@ mod tests {
             tcl_dialect::TclVersion::V9_0,
             tcl_dialect::TclVersion::V9_1,
         ] {
-            let mut entry = entry(version);
-            entry.namespaces.push(namespace(
-                2,
-                ByteNamespacePath::from_segments([b"a:".as_slice()]),
-                true,
-            ));
-            entry.namespaces.push(namespace(
-                3,
-                ByteNamespacePath::from_segments([b"a".as_slice()]),
-                true,
-            ));
-            let mut worker = binding(
-                &entry.namespaces[1],
-                b"w",
-                NativeCompilerHookPresence::Absent,
-            );
-            worker.token = 12;
-            let mut collision = binding(
-                &entry.namespaces[2],
-                b"w",
-                NativeCompilerHookPresence::Absent,
-            );
-            collision.token = 13;
-            let mut public = binding(
-                &entry.namespaces[0],
-                b"ensemble",
-                NativeCompilerHookPresence::Present,
-            );
-            public.compiler = Some(tcl_runtime_api::native_compilation::NativeCommandCompiler {
-                registry_identity: "custom-ensemble".into(),
-                ensemble: Some(
-                    tcl_runtime_api::native_compilation::NativeEnsembleCompiler {
-                        namespace_token: 2,
-                        map: vec![("member".into(), vec![Some("w".into())])],
-                        subcommands: None,
-                        prefixes: true,
-                        parameters: vec![],
-                        unknown_handler: None,
-                    },
-                ),
-            });
-            entry
-                .commands
-                .extend([public, worker.clone(), collision.clone()]);
-            install_original_target_fixture(&mut entry);
+            let (entry, worker, collision) = configured_collision_fixture(version, "w");
             let module = source_module(b"ensemble mem VALUE", &entry);
             let crate::ir::Statement::NativeCall { words, .. } = &module.top_level.statements[0]
             else {

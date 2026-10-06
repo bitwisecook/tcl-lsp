@@ -231,12 +231,12 @@ fn import_cache(
             ));
         }
     };
-    if let Number::Big { radix, digits, .. } = &number {
-        if num_bigint::BigInt::parse_bytes(digits.as_bytes(), *radix as u32).is_none() {
-            return Err(EngineError::ExecutionRefusal(
-                "invalid transported integer magnitude".into(),
-            ));
-        }
+    if let Number::Big { radix, digits, .. } = &number
+        && num_bigint::BigInt::parse_bytes(digits.as_bytes(), *radix as u32).is_none()
+    {
+        return Err(EngineError::ExecutionRefusal(
+            "invalid transported integer magnitude".into(),
+        ));
     }
     Ok(NativeScalarCache::Number(number))
 }
@@ -436,18 +436,17 @@ impl Obj {
                 unicode: Some(units),
                 ..
             }) => {
-                match tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(
+                if let Some(bytes) = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(
                     tcl_dialect::TclVersion::V9_0,
                 )
                 .encode_units(units)
                 {
-                    Some(bytes) => bytes,
-                    None => {
-                        self.refuse_original(EngineError::ExecutionRefusal(
-                            "native String Unicode units are unavailable".into(),
-                        ));
-                        Vec::new()
-                    }
+                    bytes
+                } else {
+                    self.refuse_original(EngineError::ExecutionRefusal(
+                        "native String Unicode units are unavailable".into(),
+                    ));
+                    Vec::new()
                 }
             }
             Rep::String(_) => {
@@ -468,15 +467,16 @@ impl Obj {
                 ));
                 Vec::new()
             }
-            Rep::Index(cache) => match cache.word() {
-                Ok(word) => word.to_vec(),
-                Err(_) => {
+            Rep::Index(cache) => {
+                if let Ok(word) = cache.word() {
+                    word.to_vec()
+                } else {
                     self.refuse_original(EngineError::ExecutionRefusal(
                         "retained native Index table entry is unavailable".into(),
                     ));
                     Vec::new()
                 }
-            },
+            }
             Rep::Scalar(cache) => match cache {
                 NativeScalarCache::Number(Number::Int(value))
                 | NativeScalarCache::Tcl84Long(value)
@@ -506,28 +506,59 @@ impl Obj {
     }
 
     fn refuse_original(&self, error: EngineError) {
-        if let Some((_, state)) = &self.original {
-            if let Some(state) = state.upgrade() {
-                state.refuse_host(error.clone());
-            }
+        if let Some((_, state)) = &self.original
+            && let Some(state) = state.upgrade()
+        {
+            state.refuse_host(error.clone());
         }
         *self.refusal.borrow_mut() = Some(error);
     }
 
     fn publish_original(&self) {
-        if let Some((original, _)) = &self.original {
-            if self.refusal.borrow().is_none() {
-                match self
-                    .representation_result()
-                    .and_then(|result| original.apply(&result, self.string_mutation.get()))
-                {
-                    Ok(()) => self
-                        .string_mutation
-                        .set(tcl_engine_api::ResidentStringMutation::Preserve),
-                    Err(error) => self.refuse_original(error),
-                }
+        if let Some((original, _)) = &self.original
+            && self.refusal.borrow().is_none()
+        {
+            match self
+                .representation_result()
+                .and_then(|result| original.apply(&result, self.string_mutation.get()))
+            {
+                Ok(()) => self
+                    .string_mutation
+                    .set(tcl_engine_api::ResidentStringMutation::Preserve),
+                Err(error) => self.refuse_original(error),
             }
         }
+    }
+
+    fn from_original_string_cache(
+        original: &dyn tcl_engine_api::OriginalObject,
+        cache: tcl_engine_api::NativeStringCache,
+    ) -> Result<Self, EngineError> {
+        if !matches!(
+            &cache,
+            tcl_engine_api::NativeStringCache::C {
+                origin: tcl_engine_api::NativeCVersion::V9_0,
+                ..
+            }
+        ) {
+            return Err(EngineError::ExecutionRefusal(
+                "foreign native String descriptor".into(),
+            ));
+        }
+        if original.resident_string().is_none()
+            && !matches!(
+                &cache,
+                tcl_engine_api::NativeStringCache::C {
+                    unicode: Some(_),
+                    ..
+                }
+            )
+        {
+            return Err(EngineError::ExecutionRefusal(
+                "native String updater storage is unavailable".into(),
+            ));
+        }
+        Ok(Self::with_rep(Rep::String(cache), None, false))
     }
 
     /// Bind a supported scalar/string/binary snapshot to its original object.
@@ -571,31 +602,7 @@ impl Obj {
             }
             Self::with_rep(Rep::Index(cache), None, false)
         } else if let Some(cache) = original.string_cache() {
-            if !matches!(
-                &cache,
-                tcl_engine_api::NativeStringCache::C {
-                    origin: tcl_engine_api::NativeCVersion::V9_0,
-                    ..
-                }
-            ) {
-                return Err(EngineError::ExecutionRefusal(
-                    "foreign native String descriptor".into(),
-                ));
-            }
-            if original.resident_string().is_none()
-                && !matches!(
-                    &cache,
-                    tcl_engine_api::NativeStringCache::C {
-                        unicode: Some(_),
-                        ..
-                    }
-                )
-            {
-                return Err(EngineError::ExecutionRefusal(
-                    "native String updater storage is unavailable".into(),
-                ));
-            }
-            Self::with_rep(Rep::String(cache), None, false)
+            Self::from_original_string_cache(original.as_ref(), cache)?
         } else if let Some((members, canonical)) = original.list_members()? {
             let items = members
                 .into_iter()
@@ -806,10 +813,10 @@ impl Obj {
         if let Some(cache) = cache {
             match cache {
                 NativeScalarCache::Number(Number::Int(value)) => {
-                    self.set_parsed_rep(Rep::Int(value))
+                    self.set_parsed_rep(Rep::Int(value));
                 }
                 NativeScalarCache::Number(Number::Double(value)) => {
-                    self.set_parsed_rep(Rep::Double(value))
+                    self.set_parsed_rep(Rep::Double(value));
                 }
                 cache => self.set_parsed_rep(Rep::Scalar(cache)),
             }
@@ -914,26 +921,26 @@ impl Obj {
             .map(|element| ObjRef::new(Obj::from_bytes(&element)))
             .collect();
         self.set_parsed_rep(Rep::List(ListHeader::new(items, false)));
-        if let Some((original, state)) = &self.original {
-            if let (Some(state), Some((members, _))) = (
+        if let Some((original, state)) = &self.original
+            && let (Some(state), Some((members, _))) = (
                 state.upgrade(),
                 original.list_members().map_err(TclError::host)?,
-            ) {
-                let members = members
-                    .into_iter()
-                    .map(|member| state.import_original(member))
-                    .collect::<Result<_, _>>()
-                    .map_err(TclError::host)?;
-                let authority = original
-                    .list_backing()
-                    .map_err(TclError::host)?
-                    .ok_or_else(|| {
-                        TclError::host(EngineError::ExecutionRefusal(
-                            "converted original List backing unavailable".into(),
-                        ))
-                    })?;
-                *self.rep.borrow_mut() = Rep::List(ListHeader::retained(members, authority));
-            }
+            )
+        {
+            let members = members
+                .into_iter()
+                .map(|member| state.import_original(member))
+                .collect::<Result<_, _>>()
+                .map_err(TclError::host)?;
+            let authority = original
+                .list_backing()
+                .map_err(TclError::host)?
+                .ok_or_else(|| {
+                    TclError::host(EngineError::ExecutionRefusal(
+                        "converted original List backing unavailable".into(),
+                    ))
+                })?;
+            *self.rep.borrow_mut() = Rep::List(ListHeader::retained(members, authority));
         }
         if let Some(error) = self.refusal.borrow().clone() {
             return Err(TclError::host(error));
@@ -954,9 +961,8 @@ impl Obj {
             Rep::List(_) => Class::List,
             Rep::Dictionary { .. } => Class::Dictionary,
             Rep::ByteArray(_) => Class::ByteArray,
-            Rep::Int(_) | Rep::Double(_) => Class::Numeric,
             Rep::Scalar(NativeScalarCache::WordBoolean(_)) => Class::Boolean,
-            Rep::Scalar(_) => Class::Numeric,
+            Rep::Int(_) | Rep::Double(_) | Rep::Scalar(_) => Class::Numeric,
             Rep::Index(_) => Class::Unknown,
             Rep::CommandName(_) => Class::CommandName,
             Rep::NamespaceName(_) => Class::NamespaceName,
@@ -977,8 +983,7 @@ impl Obj {
         }
         match protocol.action(class, canonical) {
             Some(Action::Constant(length)) => Ok(length),
-            Some(Action::CachedList) => self.with_list(<[ObjRef]>::len),
-            Some(Action::ConvertToList) => self.with_list(<[ObjRef]>::len),
+            Some(Action::CachedList | Action::ConvertToList) => self.with_list(<[ObjRef]>::len),
             None => {
                 let error = EngineError::ExecutionRefusal(
                     "native object Length cache capability is unavailable".into(),
@@ -1069,15 +1074,16 @@ impl Obj {
     #[must_use]
     pub fn index_entry(&self) -> Option<Vec<u8>> {
         match &*self.rep.borrow() {
-            Rep::Index(cache) => match cache.word() {
-                Ok(word) => Some(word.to_vec()),
-                Err(_) => {
+            Rep::Index(cache) => {
+                if let Ok(word) = cache.word() {
+                    Some(word.to_vec())
+                } else {
                     self.refuse_original(EngineError::ExecutionRefusal(
                         "retained native Index word is unavailable".into(),
                     ));
                     None
                 }
-            },
+            }
             Rep::None
             | Rep::CommandName(_)
             | Rep::NamespaceName(_)
@@ -1279,11 +1285,9 @@ impl OriginalObjectGraph {
                 "cyclic native callback object graph".into(),
             ));
         }
-        if !force_representation {
-            if let Some((original, _)) = &object.original {
-                values.push(R::Original(Rc::clone(original)));
-                return Ok(());
-            }
+        if !force_representation && let Some((original, _)) = &object.original {
+            values.push(R::Original(Rc::clone(original)));
+            return Ok(());
         }
         if let Some(value) = self.memo.get(&identity) {
             values.push(R::Shared(Rc::clone(value)));
@@ -1378,7 +1382,7 @@ impl OriginalObjectGraph {
         while let Some(next) = work.pop() {
             match next {
                 ExportWork::Visit(object) => {
-                    self.visit(object.get(), false, &mut active, &mut work, &mut values)?
+                    self.visit(object.get(), false, &mut active, &mut work, &mut values)?;
                 }
                 ExportWork::Build(identity, shape, resident) => {
                     let value = match shape {
@@ -1653,8 +1657,8 @@ mod tests {
         let original = Obj::list(vec![ObjRef::new(Obj::int(7))]);
         let duplicate = original.duplicate();
         duplicate.append_element(ObjRef::new(Obj::int(8))).unwrap();
-        assert_eq!(original.with_list(|items| items.len()).unwrap(), 1);
-        assert_eq!(duplicate.with_list(|items| items.len()).unwrap(), 2);
+        assert_eq!(original.with_list(<[ObjRef]>::len).unwrap(), 1);
+        assert_eq!(duplicate.with_list(<[ObjRef]>::len).unwrap(), 2);
         assert_eq!(
             original
                 .with_list(|items| items[0].get().refcount())
@@ -1862,7 +1866,7 @@ mod tests {
         let resident = word.with_resident_string(&b"yes\xFF"[..]);
         let object = Obj::from_value(&resident).unwrap();
         assert_eq!(object.bytes(), b"yes\xFF");
-        assert_eq!(object.get_boolean().unwrap(), true);
+        assert!(object.get_boolean().unwrap());
         let foreign = Value::NativeScalar(Carrier::WordBoolean {
             value: true,
             origin: NativeCVersion::V8_6,

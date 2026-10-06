@@ -5,8 +5,11 @@
 //! produces a new image, and its separate digest is supplied to the ABI loader.
 
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::{path::Path, process::Command};
 use tcl_host_c_abi::LoadedNativeIntegerFormatter;
+
+static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 const ARCHIVE: &str = "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011";
 const HEADER: &str = "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf";
@@ -16,7 +19,11 @@ fn digest(path: &Path) -> Result<[u8; 32], String> {
     Ok(Sha256::digest(bytes).into())
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(out, "{byte:02x}").expect("writing to String");
+    }
+    out
 }
 
 /// Load the actual pinned C84 build for a positive original-object comparison.
@@ -33,7 +40,6 @@ pub fn load_pinned_c84_integer_formatter(
     if hex(&digest(&archive)?) != ARCHIVE || hex(&digest(&header)?) != HEADER {
         return Err("C84 native formatter reference build identity mismatch".to_owned());
     }
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let directory = std::env::temp_dir().join(format!(
         "tcl-native-integer-formatter-{}-{}",
         std::process::id(),

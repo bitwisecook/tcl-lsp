@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Actual TclOO private info ensemble registrations and original operands.
+//! Actual `TclOO` private info ensemble registrations and original operands.
 
 use crate::interp::Vm;
 use crate::value::Value;

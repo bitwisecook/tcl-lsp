@@ -184,7 +184,7 @@ impl std::fmt::Debug for NativeListItems {
             .field("len", &self.len())
             .field("canonical", &self.canonical())
             .field("header", &self.header)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

@@ -175,6 +175,11 @@ fn index_conversion_keeps_grouped_objects_and_immediate_indices_separate() {
             );
         }
     }
+}
+
+#[test]
+fn jim_index_conversion_declines_c_numeric_operand_production() {
+    let registry = CommandRegistry::build_default();
     let context = crate::model::ingress::static_context_for("jim");
     let dialect = InvocationDialect::of_profile(context.commands().profile().unwrap());
     let values = [InvocationWord::Literal("a b"), InvocationWord::Dynamic];

@@ -478,6 +478,8 @@ fn ret(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `unset varName ...` — remove variables (scalars or array elements).
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    use tcl_syntax::value::ValueOps;
+
     let Some(protocol) = interp.native_invocation_dialect().unset_option_protocol() else {
         return interp.report_cmd_error(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("unset option grammar")

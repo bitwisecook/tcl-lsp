@@ -3985,26 +3985,10 @@ pub fn document_highlights_in_program(
     let line_index = LineIndex::new(source);
 
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(selected) =
-        crate::receiver_identity::method_at_cursor(analysis, source, byte_offset)
+    if let Some(highlights) =
+        selected_method_highlights(source, dialect, analysis, &line_index, byte_offset)
     {
-        let (declaration, references) = method_references_for_declaration(
-            source,
-            dialect,
-            analysis,
-            selected.class,
-            selected.method,
-            selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
-        );
-        return std::iter::once(declaration)
-            .chain(references)
-            .map(|span| {
-                (
-                    span_to_range(source, &line_index, span),
-                    HighlightKind::Text,
-                )
-            })
-            .collect();
+        return highlights;
     }
     if crate::receiver_identity::definition_reference_at_cursor(analysis, source, byte_offset)
         .is_some()
@@ -4097,6 +4081,30 @@ pub fn document_highlights_in_program(
     }
 
     Vec::new()
+}
+
+fn selected_method_highlights(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    byte_offset: u32,
+) -> Option<Vec<(LspRange, HighlightKind)>> {
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, byte_offset)?;
+    let (declaration, references) = method_references_for_declaration(
+        source,
+        dialect,
+        analysis,
+        selected.class,
+        selected.method,
+        selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+    );
+    Some(
+        std::iter::once(declaration)
+            .chain(references)
+            .map(|span| (span_to_range(source, line_index, span), HighlightKind::Text))
+            .collect(),
+    )
 }
 
 /// Deduplicate kinded highlight spans by (start, end) — keeps

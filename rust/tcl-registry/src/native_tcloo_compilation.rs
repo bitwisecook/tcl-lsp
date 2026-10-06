@@ -285,14 +285,54 @@ pub fn select_original(
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn original_nested_object_info_projection_matches_native_specialized_words() {
+    fn assert_original_object_info_case(
+        version: TclVersion,
+        source: &[u8],
+        helper: NativeTclOoHelper,
+        from: usize,
+        index: usize,
+        inline: bool,
+    ) {
         use crate::native_compiler_word_projection::NativeCompilerWordOperand as Operand;
         use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
         use tcl_syntax::native_string::NativeStringProtocol;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+        let mut parsed = native_script_words_in(
+            SourceImage::native(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap();
+        let words = parsed.commands.remove(0).words;
+        let captured =
+            NativeCompilerWords::capture(&words, NativeStringProtocol::C(version)).unwrap();
+        let selected = select_original(
+            helper,
+            &captured,
+            from,
+            version,
+            SemanticOperationId::Invoke,
+        );
+        assert_eq!(
+            matches!(selected, NativeCompilationSelection::Inline { .. }),
+            inline,
+            "{version:?} {source:?}"
+        );
+        let plan = instruction(
+            helper,
+            &captured,
+            from,
+            InvocationDialect::for_version(version),
+        );
+        assert_eq!(plan.is_some(), inline, "{version:?} {source:?}");
+        if let Some(NativeTclOoInstruction::ObjectInfo { operand, .. }) = plan {
+            assert_eq!(operand, Operand::Original(index), "{version:?} {source:?}");
+        }
+    }
+
+    #[test]
+    fn original_nested_object_info_projection_matches_native_specialized_words() {
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
-            let profile =
-                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
             for (source, helper, from, index, inline) in [
                 (
                     b"info object class $x".as_slice(),
@@ -358,37 +398,7 @@ mod tests {
                     false,
                 ),
             ] {
-                let mut parsed = native_script_words_in(
-                    SourceImage::native(source),
-                    Span::new(0, u32::try_from(source.len()).unwrap()),
-                    LexerConfig::from_grammar(profile.grammar),
-                )
-                .unwrap();
-                let words = parsed.commands.remove(0).words;
-                let captured =
-                    NativeCompilerWords::capture(&words, NativeStringProtocol::C(version)).unwrap();
-                let selected = select_original(
-                    helper,
-                    &captured,
-                    from,
-                    version,
-                    SemanticOperationId::Invoke,
-                );
-                assert_eq!(
-                    matches!(selected, NativeCompilationSelection::Inline { .. }),
-                    inline,
-                    "{version:?} {source:?}"
-                );
-                let plan = instruction(
-                    helper,
-                    &captured,
-                    from,
-                    InvocationDialect::for_version(version),
-                );
-                assert_eq!(plan.is_some(), inline, "{version:?} {source:?}");
-                if let Some(NativeTclOoInstruction::ObjectInfo { operand, .. }) = plan {
-                    assert_eq!(operand, Operand::Original(index), "{version:?} {source:?}");
-                }
+                assert_original_object_info_case(version, source, helper, from, index, inline);
             }
         }
         for version in [TclVersion::V8_4, TclVersion::V8_5] {
