@@ -103,7 +103,6 @@ impl Vm {
 mod tests {
     use super::super::DefaultHost;
     use super::*;
-    use crate::interp::DefaultHost;
     use std::cell::RefCell;
     struct Record {
         events: Rc<RefCell<Vec<(u8, NativeVariableTraceOperation)>>>,

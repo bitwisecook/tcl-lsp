@@ -1990,7 +1990,6 @@ mod tests {
     #[test]
     fn cpp_table_and_var_roles_match_all_25_original_callback_windows() {
         use std::cell::RefCell;
-        use tcl_core_types::VarId;
         let rows = Rc::new(RefCell::new(Vec::new()));
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
