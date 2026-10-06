@@ -33,6 +33,7 @@ part_b="${part_root}/${prefix}_fb"
 part_nested="${part_a}/${prefix}_nested"
 common_vip="/Common/${prefix}_vs"
 common_pool="/Common/${prefix}_pool"
+common_node="/Common/${prefix}_node"
 part_vip="${part_root}/${prefix}_vs"
 part_pool="${part_root}/${prefix}_pool"
 port=30000
@@ -120,10 +121,8 @@ trigger() {
         printf 'RULE %s\n' "$object"
         tmsh list ltm rule "$object" 2>&1 || true
     done < "$fixtures/rules.tsv"
-    printf 'NODE /Common/192.168.9.80\n'
-    tmsh list ltm node /Common/192.168.9.80 2>&1 || true
-    printf 'NODE %s/192.168.9.80\n' "$part_root"
-    tmsh list ltm node "$part_root/192.168.9.80" 2>&1 || true
+    printf 'NODE %s\n' "$common_node"
+    tmsh list ltm node "$common_node" 2>&1 || true
 } > "$evidence/precreate-absence.txt"
 
 if tmsh list auth partition "$partition" >/dev/null 2>&1; then
@@ -132,7 +131,7 @@ if tmsh list auth partition "$partition" >/dev/null 2>&1; then
 fi
 if tmsh list ltm virtual "$common_vip" >/dev/null 2>&1 || \
     tmsh list ltm pool "$common_pool" >/dev/null 2>&1 || \
-    tmsh list ltm node /Common/192.168.9.80 >/dev/null 2>&1 || \
+    tmsh list ltm node "$common_node" >/dev/null 2>&1 || \
     tmsh list sys folder "$common_a" >/dev/null 2>&1 || \
     tmsh list sys folder "$common_b" >/dev/null 2>&1; then
     echo "owned lab object already exists" >&2
@@ -244,11 +243,8 @@ tmsh delete ltm virtual "$part_vip" > "$evidence/delete-partition-virtual.log" 2
 tmsh delete ltm pool "$common_pool" > "$evidence/delete-common-pool.log" 2>&1
 tmsh delete ltm pool "$part_pool" > "$evidence/delete-partition-pool.log" 2>&1
 while IFS=$'\t' read -r file _; do delete_case "${file%.conf}"; done < "$fixtures/rules.tsv"
-if tmsh list ltm node /Common/192.168.9.80 >/dev/null 2>&1; then
-    tmsh delete ltm node /Common/192.168.9.80 > "$evidence/delete-node.log" 2>&1
-fi
-if tmsh list ltm node "$part_root/192.168.9.80" >/dev/null 2>&1; then
-    tmsh delete ltm node "$part_root/192.168.9.80" >> "$evidence/delete-node.log" 2>&1
+if tmsh list ltm node "$common_node" >/dev/null 2>&1; then
+    tmsh delete ltm node "$common_node" > "$evidence/delete-node.log" 2>&1
 fi
 for folder in "$part_nested" "$part_b" "$part_a" "$common_b" "$common_a"; do
     tmsh delete sys folder "$folder" >> "$evidence/delete-folders.log" 2>&1
@@ -267,8 +263,6 @@ tmsh delete auth partition "$partition" > "$evidence/delete-partition.log" 2>&1
         printf 'RULE %s\n' "$object"
         tmsh list ltm rule "$object" 2>&1 || true
     done < "$fixtures/rules.tsv"
-    printf 'NODE /Common/192.168.9.80\n'
-    tmsh list ltm node /Common/192.168.9.80 2>&1 || true
-    printf 'NODE %s/192.168.9.80\n' "$part_root"
-    tmsh list ltm node "$part_root/192.168.9.80" 2>&1 || true
+    printf 'NODE %s\n' "$common_node"
+    tmsh list ltm node "$common_node" 2>&1 || true
 } > "$evidence/cleanup-verification.txt"

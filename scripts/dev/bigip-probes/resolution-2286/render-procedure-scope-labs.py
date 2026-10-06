@@ -42,10 +42,11 @@ prefix = f"__tcl_lsp_probe_2286_{args.run}"
 partition = f"R2286_{args.run}"
 common_pool = f"/Common/{prefix}_pool"
 common_virtual = f"/Common/{prefix}_vs"
+common_node = f"/Common/{prefix}_node"
 partition_pool = f"/{partition}/{prefix}_pool"
 partition_virtual = f"/{partition}/{prefix}_vs"
 text = f'''ltm pool {common_pool} {{
-    members {{ {backend}:{args.backend_port} {{ address {backend} }} }}
+    members {{ {common_node}:{args.backend_port} {{ address {backend} }} }}
 }}
 ltm virtual {common_virtual} {{
     destination {vip}:{args.common_vip_port}
@@ -59,7 +60,7 @@ ltm virtual {common_virtual} {{
     cmp-enabled yes
 }}
 ltm pool {partition_pool} {{
-    members {{ {backend}:{args.backend_port} {{ address {backend} }} }}
+    members {{ {common_node}:{args.backend_port} {{ address {backend} }} }}
 }}
 ltm virtual {partition_virtual} {{
     destination {vip}:{args.partition_vip_port}
@@ -79,6 +80,7 @@ print(
         {
             "common_pool": common_pool,
             "common_virtual": common_virtual,
+            "common_node": common_node,
             "partition_pool": partition_pool,
             "partition_virtual": partition_virtual,
             "sha256": hashlib.sha256(text).hexdigest(),
