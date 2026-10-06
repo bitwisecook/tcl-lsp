@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/r2286_20261006de/r2286_20261006e-nul/literal_embedded_nul.conf
+Syntax Error:(/var/tmp/r2286_20261006de/r2286_20261006e-nul/literal_embedded_nul.conf at line: 1) can't parse TCL script beginning with
+when HTTP_REQUEST {
+    set x "A

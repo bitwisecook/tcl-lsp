@@ -1,0 +1,28 @@
+{
+  "label": "global-cmp-yes-unset",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-global-cmp-yes-unset",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "22446",
+    "--requests",
+    "128",
+    "--path",
+    "/?action=unset&target=0",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-global-cmp-yes-unset.jsonl",
+    "--expect-units",
+    "0,1,2,3"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"0\": 128\n  },\n  \"expected_active_roster\": [\n    \"0\",\n    \"1\",\n    \"2\",\n    \"3\"\n  ],\n  \"missing_units\": [\n    \"1\",\n    \"2\",\n    \"3\"\n  ],\n  \"coverage\": \"INCOMPLETE_OR_ROSTER_UNSPECIFIED\"\n}\n",
+  "stderr": ""
+}

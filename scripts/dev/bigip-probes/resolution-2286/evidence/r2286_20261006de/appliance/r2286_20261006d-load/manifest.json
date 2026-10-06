@@ -1,0 +1,53 @@
+{
+  "run": "r2286_20261006d",
+  "kind": "additional_loader_controls",
+  "encoding": "UTF-8",
+  "expected_appliance_results": "UNMEASURED",
+  "fixtures": [
+    {
+      "case": "ascii_binary",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006d_ascii_binary",
+      "file": "ascii_binary.conf",
+      "sha256": "ae43d52fb70874aee63254bbd96ef0011039e567a0da4052be3396f0b80d630b",
+      "size": 250,
+      "line_endings": "lf",
+      "purpose": "ASCII control for the binary scan form used by rejected supplied fixtures"
+    },
+    {
+      "case": "unicode_precomposed",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006d_unicode_precomposed",
+      "file": "unicode_precomposed.conf",
+      "sha256": "3305392a902077b5004716804c37c997f72f32ede3d8d3e9e0a1edef2717c4de",
+      "size": 238,
+      "line_endings": "lf",
+      "purpose": "literal precomposed U+00E9 without binary scan"
+    },
+    {
+      "case": "unicode_decomposed",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006d_unicode_decomposed",
+      "file": "unicode_decomposed.conf",
+      "sha256": "4aae0373c396d3ed0601c9f896b2b20d5e3ba6bc9611376b4431bc48df781c2a",
+      "size": 237,
+      "line_endings": "lf",
+      "purpose": "literal U+0065 U+0301 without binary scan"
+    },
+    {
+      "case": "physical_ascii_lf",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006d_physical_ascii_lf",
+      "file": "physical_ascii_lf.conf",
+      "sha256": "c41c4375c4c95281ae579c0afdb8a4e02e2100ff870f74a14f7a9f0be5b8297f",
+      "size": 329,
+      "line_endings": "lf",
+      "purpose": "physical backslash-LF and literal backslash-n without Unicode or binary scan"
+    },
+    {
+      "case": "physical_ascii_crlf",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006d_physical_ascii_crlf",
+      "file": "physical_ascii_crlf.conf",
+      "sha256": "be4978b8d5378fd4eb8a9fcb6cc8872be60610f3321333e6379362ba3df72ff5",
+      "size": 343,
+      "line_endings": "crlf",
+      "purpose": "physical backslash-CRLF and literal backslash-n without Unicode or binary scan"
+    }
+  ]
+}

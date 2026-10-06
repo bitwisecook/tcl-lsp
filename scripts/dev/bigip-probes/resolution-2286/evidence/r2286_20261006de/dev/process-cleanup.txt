@@ -1,0 +1,3 @@
+stopped artifact-http pid=2066588 cmd=python3 -m http.server 18081 --bind 192.168.9.80 
+stopped traffic-control pid=2066589 cmd=python3 /tmp/traffic-control.py --bind 192.168.9.80 --port 18082 --traffic /tmp/traffic.py --out-dir /tmp/r2286_20261006de-dev --vip 192.168.9.24 --vip-port 18086 --source-ip 192.168.9.80 --run r2286_20261006de 
+ports-18081-18083-absent

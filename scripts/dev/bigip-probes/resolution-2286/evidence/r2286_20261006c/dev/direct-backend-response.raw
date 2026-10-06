@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Server: BaseHTTP/0.6 Python/3.14.4
+Date: Tue, 06 Oct 2026 11:44:03 GMT
+Content-Type: application/json
+Content-Length: 186
+Connection: close
+
+{"backend": ["192.168.9.80", 18080], "client": ["192.168.9.80", 32824], "path": "/?probe_id=r2286_20261006c-direct", "probe_id": "r2286_20261006c-direct", "utc": "2026-10-06T11:44:03Z"}

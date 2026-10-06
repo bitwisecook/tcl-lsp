@@ -1,0 +1,3 @@
+set static::__tcl_lsp_probe_2286_r2286_20261006c_x STATIC
+proc __tcl_lsp_probe_2286_r2286_20261006c_read {} {global static::__tcl_lsp_probe_2286_r2286_20261006c_x; return $__tcl_lsp_probe_2286_r2286_20261006c_x}
+__tcl_lsp_probe_2286_r2286_20261006c_read

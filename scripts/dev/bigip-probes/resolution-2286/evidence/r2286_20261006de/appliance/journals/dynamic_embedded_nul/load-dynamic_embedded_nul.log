@@ -1,0 +1,7 @@
+Loading configuration...
+  /var/tmp/r2286_20261006de/r2286_20261006e-nul/dynamic_embedded_nul.conf
+There were warnings:
+/Common/__tcl_lsp_probe_2286_r2286_20261006e_dynamic_embedded_nul:5: warning: [variable reference used where variable name expected][$name]
+/Common/__tcl_lsp_probe_2286_r2286_20261006e_dynamic_embedded_nul:6: warning: [variable reference used where variable name expected][$name]
+/Common/__tcl_lsp_probe_2286_r2286_20261006e_dynamic_embedded_nul:7: warning: [variable reference used where variable name expected][$name]
+

@@ -1,0 +1,3 @@
+"GET /run?label=initial-a-b&requests=128&source_port=37000&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=after-recreate-a&requests=128&source_port=37200&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -
+"GET /run?label=after-recreate-b&requests=128&source_port=37400&expect=0,1,2,3&path=/%3Faction%3Dread HTTP/1.1" 200 -

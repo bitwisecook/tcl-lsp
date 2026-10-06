@@ -1,0 +1,15 @@
+{
+  "run": "r2286_20261006c",
+  "kind": "additional_ascii_runtime_cleanup",
+  "fixtures": [
+    {
+      "case": "runtime_cleanup_ascii",
+      "object": "/Common/__tcl_lsp_probe_2286_r2286_20261006c_runtime_cleanup_ascii",
+      "file": "runtime_cleanup_ascii.conf",
+      "sha256": "e1fe68c1e1c925e87176c8ac353a7e3521dce5a36b5788de1084b82b7ede33bd",
+      "size": 4345,
+      "line_endings": "lf"
+    }
+  ],
+  "excluded": "Unicode-name cleanup is excluded because those supplied outer iRules reject at load on the tested appliance."
+}

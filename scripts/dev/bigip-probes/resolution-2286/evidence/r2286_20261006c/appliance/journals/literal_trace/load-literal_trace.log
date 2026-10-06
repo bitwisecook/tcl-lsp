@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/r2286_20261006c/r2286_20261006c-fixtures/literal_trace.conf
+01070151:3: Rule [/Common/__tcl_lsp_probe_2286_r2286_20261006c_literal_trace] error: /Common/__tcl_lsp_probe_2286_r2286_20261006c_literal_trace:2: error: [wrong # args][trace info variable x]
+
+Unexpected Error: Loading configuration process failed.

@@ -1,0 +1,26 @@
+{
+  "label": "physical_ascii_lf-cmp-no",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006de-physical_ascii_lf-cmp-no",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "36026",
+    "--requests",
+    "2",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286_20261006de-dev/traffic-physical_ascii_lf-cmp-no.jsonl"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {},\n  \"expected_active_roster\": [],\n  \"missing_units\": [],\n  \"coverage\": \"INCOMPLETE_OR_ROSTER_UNSPECIFIED\"\n}\n",
+  "stderr": ""
+}

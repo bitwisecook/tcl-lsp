@@ -1,0 +1,37 @@
+Tue Oct  6 12:00:05 UTC 2026
+### software update
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    check-status none
+    errors 0
+    frequency weekly
+}
+### services
+sys service f5_update_checker {
+    Boot off
+    Default yes
+}
+f5_update_checker     down, No action required
+Couldn't find service: telemd
+### process
+### cron
+MAILTO=""
+1-59/10 * * * * /usr/bin/diskmonitor
+0 */4 * * * /usr/bin/diskwearoutstat
+35 11 * * * /usr/bin/updatecheck -a   
+0 */6 * * * /usr/bin/coreexpiration
+3 * * * * /usr/bin/copy_rrd save
+### executable paths
+-rwxrwxr-x. 1 root root 2149208 Aug 26 04:43 /usr/bin/phonehome_upload
+-rwxr-xr-x. 1 root root  495516 Aug 26 04:43 /usr/bin/telemd
+### disabled artifacts
+-rw-rw-r--. 1 root root 2149208 Jul 14 04:50 /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9
+-rw-r--r--. 1 root root  495516 Jul 14 05:00 /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb
+5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9  /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9
+1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb  /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb
+### mount
+TARGET SOURCE                             FSTYPE OPTIONS
+/usr   /dev/mapper/vg--db--vda-set.1._usr ext4   ro,noatime,seclabel,discard,data=ordered
+### phonehome config
+401:    auto-phonehome disabled

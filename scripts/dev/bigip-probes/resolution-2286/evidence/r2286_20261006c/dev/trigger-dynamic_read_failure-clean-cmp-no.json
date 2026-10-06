@@ -1,0 +1,28 @@
+{
+  "label": "dynamic_read_failure-clean-cmp-no",
+  "command": [
+    "python3",
+    "/tmp/traffic.py",
+    "--vip",
+    "192.168.9.24",
+    "--port",
+    "18086",
+    "--run",
+    "r2286_20261006c-dynamic_read_failure-clean-cmp-no",
+    "--source-ip",
+    "192.168.9.80",
+    "--source-port-start",
+    "29832",
+    "--requests",
+    "1",
+    "--path",
+    "/?action=read",
+    "--out",
+    "/tmp/r2286_20261006c-dev/traffic-dynamic_read_failure-clean-cmp-no.jsonl",
+    "--expect-units",
+    "0:0"
+  ],
+  "returncode": 0,
+  "stdout": "{\n  \"actual_response_unit_counts\": {\n    \"0:0\": 1\n  },\n  \"expected_active_roster\": [\n    \"0:0\"\n  ],\n  \"missing_units\": [],\n  \"coverage\": \"COMPLETE_FOR_SUPPLIED_ROSTER\"\n}\n",
+  "stderr": ""
+}
