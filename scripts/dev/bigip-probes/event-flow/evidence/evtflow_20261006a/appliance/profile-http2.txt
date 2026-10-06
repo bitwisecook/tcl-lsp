@@ -1,0 +1,15 @@
+[api-status-warning] ltm/profile/http2, properties : deprecated : include-content-length
+ltm profile http2 http2 {
+    activation-modes { alpn }
+    app-service none
+    concurrent-streams-per-connection 10
+    connection-idle-timeout 300
+    enforce-tls-requirements enabled
+    frame-size 2048
+    header-table-size 4096
+    include-content-length disabled
+    insert-header disabled
+    insert-header-name X-HTTP2
+    receive-window 32
+    write-size 16384
+}

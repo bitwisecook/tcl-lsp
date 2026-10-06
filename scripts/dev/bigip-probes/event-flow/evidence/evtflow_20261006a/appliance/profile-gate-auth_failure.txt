@@ -1,0 +1,1 @@
+01071912:3: AUTH_FAILURE event in rule (/Common/__tcl_lsp_evtflow_EFA_load_auth_failure) requires an associated AUTH profile on the virtual-server (/EVTFLOW_EFB/__tcl_lsp_evtflow_EFB_http_vs).

@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/suppression-EFC/respond-safe.conf
+There were warnings:
+/Common/__tcl_lsp_evtflow_EFC_respond_safe:4: warning: [The following errors were not caught before. Please correct the script in order to avoid future disruption. "invalid argument Connection; expected syntax spec: -ifile "276 70][HTTP::respond 204 -version 1.1 -content "" Connection close -noserver]
+

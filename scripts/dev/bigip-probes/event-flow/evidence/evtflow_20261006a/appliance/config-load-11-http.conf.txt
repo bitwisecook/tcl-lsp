@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/config/11-http.conf
+01071912:3: CLIENTSSL_CLIENTHELLO event in rule (/Common/__tcl_lsp_evtflow_EFA_http_trace) requires an associated CLIENTSSL or PERSIST profile on the virtual-server (/EVTFLOW_EFA/__tcl_lsp_evtflow_EFA_http_vs).
+Unexpected Error: Loading configuration process failed.

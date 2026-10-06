@@ -1,0 +1,6 @@
+ltm profile quic quic {
+    app-service none
+    bidi-concurrent-streams-per-connection 100
+    spin-bit enabled
+    uni-concurrent-streams-per-connection 10
+}

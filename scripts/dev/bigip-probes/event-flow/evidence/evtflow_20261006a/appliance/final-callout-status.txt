@@ -1,0 +1,9 @@
+f5_update_checker     down, No action required
+updated               down 1 hours, normally up
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+}
+checker_down_file=0
+update_action_exists=1
+4546 bash -c  echo telemd-service; ls -ld /service/telemd /var/service/telemd 2>/dev/null || true; bigstart status telemd 2>&1 || true echo scheduler-refs; grep -RIn -E "/usr/bin/(telemd|phonehome_upload|updatecheck)|(^|[[:space:]])(telemd|phonehome_upload|updatecheck)([[:space:]]|$)" /etc/cron* /var/spool/cron /config 2>/dev/null | head -160 

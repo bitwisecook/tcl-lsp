@@ -1,0 +1,2 @@
+{"bind":"192.168.9.80","port":18614,"role":"tls-server-start","utc_ns":1791309049672534665}
+{"body":{"base64":"","bytes":0,"sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},"headers":[["Host","192.168.9.24:18514"],["User-Agent","curl/8.18.0"],["Accept","*/*"],["X-Evtflow-Request","serverssl-ok"]],"local":["192.168.9.80",18614],"method":"GET","path":"/ok","peer":["192.168.9.24",35649],"request":"serverssl-ok","role":"http-backend","utc_ns":1791309093415371807,"version":"HTTP/1.1"}

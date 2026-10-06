@@ -1,0 +1,2 @@
+curl: option --http3-only: the installed libcurl version does not support this
+curl: try 'curl --help' or 'curl --manual' for more information

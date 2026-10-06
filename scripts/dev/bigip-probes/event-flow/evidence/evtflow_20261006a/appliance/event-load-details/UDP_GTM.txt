@@ -1,0 +1,7 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/event-load/UDP_GTM.conf
+01070151:3: Rule [/Common/__tcl_lsp_evtflow_EFA_load_udp_gtm] error: /Common/__tcl_lsp_evtflow_EFA_load_udp_gtm:1: error: [unknown event (UDP_GTM)][when UDP_GTM priority 500 {
+        log local0. "EVTFLOW|run=EFA|probe=event_load|event=UDP_GTM|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }]
+
+Unexpected Error: Loading configuration process failed.

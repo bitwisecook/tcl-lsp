@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/rules/event-disable-request.conf
+01070151:3: Rule [/Common/__tcl_lsp_evtflow_EFA_event_disable_request] error: /Common/__tcl_lsp_evtflow_EFA_event_disable_request:3: error: ["invalid 'HTTP_REQUEST'; expected:all"][event disable HTTP_REQUEST]
+
+Unexpected Error: Loading configuration process failed.

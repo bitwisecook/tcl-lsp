@@ -1,0 +1,4 @@
+ltm profile http3 http3 {
+    app-service none
+    header-table-size 4096
+}

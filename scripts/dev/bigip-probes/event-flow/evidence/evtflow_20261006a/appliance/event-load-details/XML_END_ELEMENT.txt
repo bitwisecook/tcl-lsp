@@ -1,0 +1,7 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/event-load/XML_END_ELEMENT.conf
+01070151:3: Rule [/Common/__tcl_lsp_evtflow_EFA_load_xml_end_element] error: /Common/__tcl_lsp_evtflow_EFA_load_xml_end_element:1: error: [unknown event (XML_END_ELEMENT)][when XML_END_ELEMENT priority 500 {
+        log local0. "EVTFLOW|run=EFA|probe=event_load|event=XML_END_ELEMENT|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }]
+
+Unexpected Error: Loading configuration process failed.

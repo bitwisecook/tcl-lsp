@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures-EFB/rules/event-disable-response.conf
+01070151:3: Rule [/Common/__tcl_lsp_evtflow_EFB_event_disable_response] error: /Common/__tcl_lsp_evtflow_EFB_event_disable_response:3: error: ["invalid 'HTTP_RESPONSE'; expected:all"][event disable HTTP_RESPONSE]
+
+Unexpected Error: Loading configuration process failed.

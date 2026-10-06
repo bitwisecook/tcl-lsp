@@ -1,0 +1,17 @@
+sys provision afm { }
+sys provision apm { }
+sys provision asm { }
+sys provision avr { }
+sys provision cgnat { }
+sys provision dos { }
+sys provision fps { }
+sys provision gtm { }
+sys provision ilx { }
+sys provision lc { }
+sys provision ltm {
+    level nominal
+}
+sys provision pem { }
+sys provision sslo { }
+sys provision swg { }
+sys provision urldb { }

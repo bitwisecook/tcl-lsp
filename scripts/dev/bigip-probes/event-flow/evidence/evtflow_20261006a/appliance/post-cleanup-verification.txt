@@ -1,0 +1,3 @@
+Tue Oct  6 18:04:16 UTC 2026
+01020036:3: The requested partition (EVTFLOW_EFB) was not found.
+net self self_1nic { address 192.168.9.24/24 allow-service { default } traffic-group traffic-group-local-only vlan internal }

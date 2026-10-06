@@ -1,0 +1,10 @@
+
+-------------------------------------------
+CM::Failover Status
+-------------------------------------------
+Color    green
+Status   ACTIVE
+Summary  1/1 active
+Details
+         active for /Common/traffic-group-1
+

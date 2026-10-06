@@ -1,0 +1,4 @@
+ltm profile dns dns {
+    app-service none
+    enable-gtm yes
+}

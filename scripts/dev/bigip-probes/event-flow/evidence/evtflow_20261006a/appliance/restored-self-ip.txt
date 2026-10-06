@@ -1,0 +1,16 @@
+net self self_1nic {
+    address 192.168.9.24/24
+    address-source from-user
+    allow-service {
+        default
+    }
+    app-service none
+    description none
+    floating disabled
+    inherited-traffic-group false
+    partition Common
+    service-policy none
+    traffic-group traffic-group-local-only
+    unit 0
+    vlan internal
+}

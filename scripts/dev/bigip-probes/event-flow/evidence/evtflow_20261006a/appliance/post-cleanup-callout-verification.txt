@@ -1,0 +1,8 @@
+Tue Oct  6 18:03:54 UTC 2026
+f5_update_checker     down, No action required
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+}
+checker_down_file_rc=0
+update_action_exists_rc=1

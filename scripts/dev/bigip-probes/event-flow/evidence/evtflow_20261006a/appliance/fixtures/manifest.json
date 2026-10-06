@@ -1,0 +1,1984 @@
+{
+  "backend": "192.168.9.80",
+  "backend_port_base": 18400,
+  "encoding": "ASCII",
+  "events": [
+    "ACCESS2_POLICY_EXPRESSION_EVAL",
+    "ACCESS_ACL_ALLOWED",
+    "ACCESS_ACL_DENIED",
+    "ACCESS_PER_REQUEST_AGENT_EVENT",
+    "ACCESS_POLICY_AGENT_EVENT",
+    "ACCESS_POLICY_COMPLETED",
+    "ACCESS_SAML_ASSERTION",
+    "ACCESS_SAML_AUTHN",
+    "ACCESS_SAML_SLO_REQ",
+    "ACCESS_SAML_SLO_RESP",
+    "ACCESS_SESSION_CLOSED",
+    "ACCESS_SESSION_STARTED",
+    "ADAPT_REQUEST_HEADERS",
+    "ADAPT_REQUEST_RESULT",
+    "ADAPT_RESPONSE_HEADERS",
+    "ADAPT_RESPONSE_RESULT",
+    "ANTIFRAUD_ALERT",
+    "ANTIFRAUD_LOGIN",
+    "ASM_REQUEST_BLOCKING",
+    "ASM_REQUEST_DONE",
+    "ASM_REQUEST_VIOLATION",
+    "ASM_RESPONSE_LOGIN",
+    "ASM_RESPONSE_VIOLATION",
+    "AUTH_ERROR",
+    "AUTH_FAILURE",
+    "AUTH_RESULT",
+    "AUTH_SUCCESS",
+    "AUTH_WANTCREDENTIAL",
+    "AVR_CSPM_INJECTION",
+    "BOTDEFENSE_ACTION",
+    "BOTDEFENSE_REQUEST",
+    "CACHE_REQUEST",
+    "CACHE_RESPONSE",
+    "CACHE_UPDATE",
+    "CATEGORY_MATCHED",
+    "CLASSIFICATION_DETECTED",
+    "CLIENTSSL_CLIENTCERT",
+    "CLIENTSSL_CLIENTHELLO",
+    "CLIENTSSL_DATA",
+    "CLIENTSSL_HANDSHAKE",
+    "CLIENTSSL_PASSTHROUGH",
+    "CLIENTSSL_SERVERHELLO_SEND",
+    "CLIENT_ACCEPTED",
+    "CLIENT_CLOSED",
+    "CLIENT_DATA",
+    "CONNECTOR_OPEN",
+    "DIAMETER_EGRESS",
+    "DIAMETER_INGRESS",
+    "DIAMETER_RETRANSMISSION",
+    "DNS_REQUEST",
+    "DNS_RESPONSE",
+    "ECA_REQUEST_ALLOWED",
+    "ECA_REQUEST_DENIED",
+    "EPI_NA_CHECK_HTTP_REQUEST",
+    "FIX_HEADER",
+    "FIX_MESSAGE",
+    "FLOW_INIT",
+    "GENERICMESSAGE_EGRESS",
+    "GENERICMESSAGE_INGRESS",
+    "GTP_GPDU_EGRESS",
+    "GTP_GPDU_INGRESS",
+    "GTP_PRIME_EGRESS",
+    "GTP_PRIME_INGRESS",
+    "GTP_SIGNALLING_EGRESS",
+    "GTP_SIGNALLING_INGRESS",
+    "HTML_COMMENT_MATCHED",
+    "HTML_TAG_MATCHED",
+    "HTTP_CLASS_FAILED",
+    "HTTP_CLASS_SELECTED",
+    "HTTP_DISABLED",
+    "HTTP_PROXY_CONNECT",
+    "HTTP_PROXY_REQUEST",
+    "HTTP_PROXY_RESPONSE",
+    "HTTP_REJECT",
+    "HTTP_REQUEST",
+    "HTTP_REQUEST_DATA",
+    "HTTP_REQUEST_RELEASE",
+    "HTTP_REQUEST_SEND",
+    "HTTP_RESPONSE",
+    "HTTP_RESPONSE_CONTINUE",
+    "HTTP_RESPONSE_DATA",
+    "HTTP_RESPONSE_RELEASE",
+    "ICAP_REQUEST",
+    "ICAP_RESPONSE",
+    "IN_DOSL7_ATTACK",
+    "IP_GTM",
+    "IVS_ENTRY_REQUEST",
+    "IVS_ENTRY_RESPONSE",
+    "JSON_REQUEST",
+    "JSON_REQUEST_ERROR",
+    "JSON_REQUEST_MISSING",
+    "JSON_RESPONSE",
+    "JSON_RESPONSE_ERROR",
+    "JSON_RESPONSE_MISSING",
+    "L7CHECK_CLIENT_DATA",
+    "L7CHECK_SERVER_DATA",
+    "LB_FAILED",
+    "LB_QUEUED",
+    "LB_SELECTED",
+    "MQTT_CLIENT_DATA",
+    "MQTT_CLIENT_EGRESS",
+    "MQTT_CLIENT_INGRESS",
+    "MQTT_CLIENT_SHUTDOWN",
+    "MQTT_SERVER_DATA",
+    "MQTT_SERVER_EGRESS",
+    "MQTT_SERVER_INGRESS",
+    "MR_DATA",
+    "MR_EGRESS",
+    "MR_FAILED",
+    "MR_INGRESS",
+    "NAME_RESOLVED",
+    "PCP_REQUEST",
+    "PCP_RESPONSE",
+    "PEM_POLICY",
+    "PEM_SUBS_SESS_CREATED",
+    "PEM_SUBS_SESS_DELETED",
+    "PEM_SUBS_SESS_UPDATED",
+    "PERSIST_DOWN",
+    "PING_REQUEST_READY",
+    "PING_RESPONSE_READY",
+    "PROTOCOL_INSPECTION_MATCH",
+    "QOE_PARSE_DONE",
+    "RADIUS_AAA_ACCT_REQUEST",
+    "RADIUS_AAA_ACCT_RESPONSE",
+    "RADIUS_AAA_AUTH_REQUEST",
+    "RADIUS_AAA_AUTH_RESPONSE",
+    "REWRITE_REQUEST",
+    "REWRITE_REQUEST_DONE",
+    "REWRITE_RESPONSE",
+    "REWRITE_RESPONSE_DONE",
+    "RTSP_REQUEST",
+    "RTSP_REQUEST_DATA",
+    "RTSP_RESPONSE",
+    "RTSP_RESPONSE_DATA",
+    "RULE_INIT",
+    "SA_PICKED",
+    "SERVERSSL_CLIENTHELLO_SEND",
+    "SERVERSSL_DATA",
+    "SERVERSSL_HANDSHAKE",
+    "SERVERSSL_SERVERCERT",
+    "SERVERSSL_SERVERHELLO",
+    "SERVER_CLOSED",
+    "SERVER_CONNECTED",
+    "SERVER_DATA",
+    "SERVER_INIT",
+    "SIP_REQUEST",
+    "SIP_REQUEST_DONE",
+    "SIP_REQUEST_SEND",
+    "SIP_RESPONSE",
+    "SIP_RESPONSE_DONE",
+    "SIP_RESPONSE_SEND",
+    "SOCKS_REQUEST",
+    "SSE_RESPONSE",
+    "STREAM_MATCHED",
+    "TAP_REQUEST",
+    "TCP_GTM",
+    "TDS_REQUEST",
+    "TDS_RESPONSE",
+    "UDP_GTM",
+    "USER_REQUEST",
+    "USER_RESPONSE",
+    "WS_CLIENT_DATA",
+    "WS_CLIENT_FRAME",
+    "WS_CLIENT_FRAME_DONE",
+    "WS_REQUEST",
+    "WS_RESPONSE",
+    "WS_SERVER_DATA",
+    "WS_SERVER_FRAME",
+    "WS_SERVER_FRAME_DONE",
+    "XML_BEGIN_DOCUMENT",
+    "XML_BEGIN_ELEMENT",
+    "XML_CDATA",
+    "XML_CONTENT_BASED_ROUTING",
+    "XML_END_DOCUMENT",
+    "XML_END_ELEMENT",
+    "XML_EVENT"
+  ],
+  "files": [
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS2_POLICY_EXPRESSION_EVAL.conf",
+      "kind": "event-load",
+      "sha256": "ae1e79fc3c503e090ac7e53801b786ad0e29f4abc2ee6fcf28ac54dc58e14ac4",
+      "size": 269
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_ACL_ALLOWED.conf",
+      "kind": "event-load",
+      "sha256": "9caa6ac071180c2ffe7c2632bc040aea0d92f2f68933c30ac97f5b29896bf250",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_ACL_DENIED.conf",
+      "kind": "event-load",
+      "sha256": "c6eb42546b3206ead1ca8eab7814ebfa18d3e0df7d796f1ec4149e0419a80ebe",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_PER_REQUEST_AGENT_EVENT.conf",
+      "kind": "event-load",
+      "sha256": "6233ff35558f3194a567eb36ae634a760a67760f358eb7a3bc37c56150f06e2d",
+      "size": 269
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_POLICY_AGENT_EVENT.conf",
+      "kind": "event-load",
+      "sha256": "bf0c191a07d5d18346cad889b3d2ef576d2763eea1b0334834f3dbf37fcba4da",
+      "size": 254
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_POLICY_COMPLETED.conf",
+      "kind": "event-load",
+      "sha256": "db070c4d3a851ea4bf7ac93c3c5d11a71bbf8f53525b661899073173ab5130a0",
+      "size": 248
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SAML_ASSERTION.conf",
+      "kind": "event-load",
+      "sha256": "a4fb60b8fd185cd185702813cb65002fbcfd507f8431f4ae2225aa7154fd955c",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SAML_AUTHN.conf",
+      "kind": "event-load",
+      "sha256": "e80c8921a0b2604076e8ee160298700ebef812872ed1b383fbc30286f4a86c36",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SAML_SLO_REQ.conf",
+      "kind": "event-load",
+      "sha256": "6057ee473d60eb4a906dee9472a3187ad1940c4b0b28d06f2e98950629a78a3f",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SAML_SLO_RESP.conf",
+      "kind": "event-load",
+      "sha256": "314c560ddaedbd56d8e46fb7fb8fc8579cef782229654d5f67c8f748ffd09006",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SESSION_CLOSED.conf",
+      "kind": "event-load",
+      "sha256": "72cbcf96ffb3e231999519bb7c4b71d02f99360cf47d39d130063adf6f875e50",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ACCESS_SESSION_STARTED.conf",
+      "kind": "event-load",
+      "sha256": "f30af2ee3313f4897c88a793ccbe2eb4bf3d10b1904b15019a6b155ed75d9962",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ADAPT_REQUEST_HEADERS.conf",
+      "kind": "event-load",
+      "sha256": "93317970a84a628aca1d544c9c47f868de5f583ad542974804415aa6fd4bac2d",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ADAPT_REQUEST_RESULT.conf",
+      "kind": "event-load",
+      "sha256": "4aa10febf0fb3a9e4b3a26513736df2580147d50ba236b7b1f1e33e7ba8b8360",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ADAPT_RESPONSE_HEADERS.conf",
+      "kind": "event-load",
+      "sha256": "d548fb78c5d18358c88705f0811afafd7a47f6822ad7d5195faedb96258e3af7",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ADAPT_RESPONSE_RESULT.conf",
+      "kind": "event-load",
+      "sha256": "df97d1145a6b9f51569aa88277ddeb276de3ac52d090f9cdefca4bfd1ef417b2",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ANTIFRAUD_ALERT.conf",
+      "kind": "event-load",
+      "sha256": "1fb8b45c0edcf61ac80ca060285e1df851ee116d03c5e5ac8ad84922c742dd77",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ANTIFRAUD_LOGIN.conf",
+      "kind": "event-load",
+      "sha256": "d92a6ee37afa49fed10c9dd68d4e976102671042b9e018565b41fbf63d53c95d",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ASM_REQUEST_BLOCKING.conf",
+      "kind": "event-load",
+      "sha256": "e12b00fdbf680a1ddbb7ed7056d3d06448198cfcbc762c81697d7df600ae0b68",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ASM_REQUEST_DONE.conf",
+      "kind": "event-load",
+      "sha256": "1aeec3a85b2510abb1af5a7dc4478d56f54077af4329476b7c2ca99cd47ab578",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ASM_REQUEST_VIOLATION.conf",
+      "kind": "event-load",
+      "sha256": "a1a3ffe111faf90d7378e66043df5d6f48b09b3626f0a54d57e12bfe66492802",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ASM_RESPONSE_LOGIN.conf",
+      "kind": "event-load",
+      "sha256": "7d7b4ae00f9420e27ea11582f0a260fc44caeaec89af42f2c0b7efc90f677480",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ASM_RESPONSE_VIOLATION.conf",
+      "kind": "event-load",
+      "sha256": "8e05666e5ea98586164c568835d20b14c4527145918f01043634a31f426fd321",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AUTH_ERROR.conf",
+      "kind": "event-load",
+      "sha256": "7ba1161fcf4828a26f311a92691e1dfdcfb51886e044ccd9551f42058b5212fc",
+      "size": 209
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AUTH_FAILURE.conf",
+      "kind": "event-load",
+      "sha256": "6adb80bca5fd4e74dcd0811623b6c00bd2ee3685525988061b307c5d8e3bb55f",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AUTH_RESULT.conf",
+      "kind": "event-load",
+      "sha256": "83fb579d0b73d6d18a3a2a30c727d62d33f76bf0ee7614bcad24d102b65a2104",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AUTH_SUCCESS.conf",
+      "kind": "event-load",
+      "sha256": "e029ae17ee8f0dc9ae08531e72d730c79237edc7d3fcba25f7d3b61e98eaf87e",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AUTH_WANTCREDENTIAL.conf",
+      "kind": "event-load",
+      "sha256": "5408e86c95172bb8e3cf2e3c068ebe3f22f039e5fc1b5179d40ad44ec7b1765e",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/AVR_CSPM_INJECTION.conf",
+      "kind": "event-load",
+      "sha256": "99cd62c9a15be315d56504de4080883d9af8f7263e07681fdfd44dc71b4fc62d",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/BOTDEFENSE_ACTION.conf",
+      "kind": "event-load",
+      "sha256": "336d09acdb0eb750cb7a9ed55e75ec191d78a704caa0d10489fa247a7dd85b19",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/BOTDEFENSE_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "75cf546527cec34141b24146050aa1d81723f6896da756d395234e495135a9ab",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CACHE_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "2a96d6f572e8c4eb1c6b9814a261dd4e37dbef5c55ca480ead7426e481a024f9",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CACHE_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "3fd7a2f25365bbdd649de71f14672086c97e6fcb72fb4528ea0d7b2ce7edd98d",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CACHE_UPDATE.conf",
+      "kind": "event-load",
+      "sha256": "8784ca7304b129a41bc62c5ca84502f50a1152ca445650c81233c4cf9dbd7657",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CATEGORY_MATCHED.conf",
+      "kind": "event-load",
+      "sha256": "f4ca377f3c4dbdf2b0032346834c392cdcd0ff81e2ce5172b3e718031630e0a4",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLASSIFICATION_DETECTED.conf",
+      "kind": "event-load",
+      "sha256": "5be00b319eaff8c561b4f2c3b7e85fbb16580c795c72dfb085435a4681784dbe",
+      "size": 248
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_CLIENTCERT.conf",
+      "kind": "event-load",
+      "sha256": "d14a291dd9a16b53485c698e30839773f358f06120b230996582bfc658538253",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_CLIENTHELLO.conf",
+      "kind": "event-load",
+      "sha256": "2ca6807e11d464e77b7277264c36738c1c9b80baa34ccd530a919df978e34fef",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_DATA.conf",
+      "kind": "event-load",
+      "sha256": "2cfa4395d35014ade57cb950150e39d7e155afc029769fcd2eeb3a98c9bd03f0",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_HANDSHAKE.conf",
+      "kind": "event-load",
+      "sha256": "2b00d2e85767553ca4524770bb00f488132f4480f6ce113a8b2421b8a1f5b8b4",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_PASSTHROUGH.conf",
+      "kind": "event-load",
+      "sha256": "6a0891a22cb70a544f456b9c774d4aabc23baff3e2b96bdad7e6d2ae17725dad",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENTSSL_SERVERHELLO_SEND.conf",
+      "kind": "event-load",
+      "sha256": "703b197bb385f23e4c59366f3ede0d3ad764c981e65e11a056301bdc9719db61",
+      "size": 257
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENT_ACCEPTED.conf",
+      "kind": "event-load",
+      "sha256": "e2f3ba479adc453813532e6b83f93c1bc8d66d1e832d2a845394d4226424bcdf",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENT_CLOSED.conf",
+      "kind": "event-load",
+      "sha256": "3eb6dd912868ef72977a34014d67f5289f0eacb2de2e2ca44c0b59bf91707f99",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CLIENT_DATA.conf",
+      "kind": "event-load",
+      "sha256": "0cc37e44aa8f0f79b131bc86ed4a45f10e4b2ca79c352f4c07f9e00e62513a39",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/CONNECTOR_OPEN.conf",
+      "kind": "event-load",
+      "sha256": "0ef4bc65193be64abbc25c082fb13c14de415d5ff23e2352be21e9bed2757a46",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/DIAMETER_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "300790c6eb26550f6e202b47b750b12170df203c51d2f61f2260ee1c9f5e6893",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/DIAMETER_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "4a57a476dcace33c2d7a22370911e7580d9f46eccb8241abdd91303ffdc05ac7",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/DIAMETER_RETRANSMISSION.conf",
+      "kind": "event-load",
+      "sha256": "709e55130f191cb6bc401cb40f6ca3cf9d3ab3eea2d6192a5b36a3c116ef6c13",
+      "size": 248
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/DNS_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "4028fa3416b8d447563f83f381ee3dab6690020b80f7e4692d3576dd1d511c23",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/DNS_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "5ea5454f69ba84f0bd364ded2ca1d0079476b886b9053c12bc114c12c796aa47",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ECA_REQUEST_ALLOWED.conf",
+      "kind": "event-load",
+      "sha256": "119dd878cc6ce051921300bcb6fbf4d83b4c51c48521a57aeef5a7ad1b87e310",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ECA_REQUEST_DENIED.conf",
+      "kind": "event-load",
+      "sha256": "196eaf8225a037802f3af4715adb8bce8b12e7db6c762f99074e7aa8e4518c3a",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/EPI_NA_CHECK_HTTP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "53724b001a1a277799d46e0cb5b119cf4e67ed4a7afa122f1308859091036a9d",
+      "size": 254
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/FIX_HEADER.conf",
+      "kind": "event-load",
+      "sha256": "efa67597486bbc828beb20505244c9a2419ffb7b2697d0611c6f7687e6b43145",
+      "size": 209
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/FIX_MESSAGE.conf",
+      "kind": "event-load",
+      "sha256": "1a0cffce272b062b29d75efecb4161bbacdd3f8aff30a9619d222924775e4fbb",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/FLOW_INIT.conf",
+      "kind": "event-load",
+      "sha256": "912e3466be548759116d66d95eb239415602ec076c4ca21309e5a1a6cac06949",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GENERICMESSAGE_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "9611a09fed1fb19934964636aeb40d3a1da9b243ed25c26f01ffce1f702faa89",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GENERICMESSAGE_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "c8b5d2a1311ae07d65ffa496308dd17d98af1d5b65bdc4294acc8a8d0d4be39f",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_GPDU_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "1e68932552f4fc1dc77ae072e8e8efb0c59b3869ae2126c7440b67c99b9ccca7",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_GPDU_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "2338782b16ad058fd2fd7b20eb0ece9741514e3f22762bfe205c063bd5e040fd",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_PRIME_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "2b6ff72e8057786d41783e860e360291e4535fdc8c8ce69443b10c0f8e40000b",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_PRIME_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "b1ff85fac599a9ed0e74da3565484881bd8af7906fa1708e8b7dc8ff9b08d935",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_SIGNALLING_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "789714313e3b5159471e323186728a77b21b20ab2349f91a8bf54a21f86d18a4",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/GTP_SIGNALLING_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "bd30c6471562bbde6c958470ad6f3167112912d3f621984fdfc5bdd5ad2e15d7",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTML_COMMENT_MATCHED.conf",
+      "kind": "event-load",
+      "sha256": "28b7ffd8ebc3b4f45082f5aa2059ac86010389175b191cfce812a8f9f6a1201d",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTML_TAG_MATCHED.conf",
+      "kind": "event-load",
+      "sha256": "bc3dee8013282a3b00d7fffe06880fed50f464e48b26b694061652464e67757a",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_CLASS_FAILED.conf",
+      "kind": "event-load",
+      "sha256": "f3ed954d82011cf8144cc37bd64922f4040f3b13311ce8f014739dc973f1e69d",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_CLASS_SELECTED.conf",
+      "kind": "event-load",
+      "sha256": "4c3266ffac48b3a85f62f491c6caaf10fafffbb68ae04f10f3e0ed6856b69f24",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_DISABLED.conf",
+      "kind": "event-load",
+      "sha256": "950c8f52fdd3b62e2eef4b62b9a1de14e46894686ba198ff0668d6f88f3bcb95",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_PROXY_CONNECT.conf",
+      "kind": "event-load",
+      "sha256": "9d19f03d34376d3a87b473b6b1db42be90e2b41fdb802d4ff37e309bb6c2422a",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_PROXY_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "1c6d8470e8df0ecfe23f8ba9d093280a008cc561f9bb56d61536682007bfa225",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_PROXY_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "47e7499979f2b6ab8bf2a66b32d40a75fd14d7849340cdf5d5104ba008e97a7f",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_REJECT.conf",
+      "kind": "event-load",
+      "sha256": "273e7cb8585c222617ce5d48a70a2d4febb88e81b1325e367bd02dabd235fe9c",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "75772ef494afc73cb33081edd702b65b572e72997d51ce3cce39093c5e8806d1",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_REQUEST_DATA.conf",
+      "kind": "event-load",
+      "sha256": "cfd216486318f84788eb19e9f8c87b3731ab892ed27ca603b28691164e77fb5e",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_REQUEST_RELEASE.conf",
+      "kind": "event-load",
+      "sha256": "2f00ac6cdac744675d50ae0fa731d4c172eb6499e10abd2e079f84650748a291",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_REQUEST_SEND.conf",
+      "kind": "event-load",
+      "sha256": "36ad314ff5414758ee114dcd288a2bb4fd60aac027c7c2ae518dd11e53d0c23e",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "33be7d96684d69f4fb86132d4501fe30b05920c0fa08b05fccc86a50da2f892a",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_RESPONSE_CONTINUE.conf",
+      "kind": "event-load",
+      "sha256": "3aaabe892d980e4834e445b996c251137e09f564606b75c91b9a0fbb15e96d44",
+      "size": 245
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_RESPONSE_DATA.conf",
+      "kind": "event-load",
+      "sha256": "f798f213616db68a1d7fd5d751f27a31db8dbfe6c9911096476ec3feaed29b8a",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/HTTP_RESPONSE_RELEASE.conf",
+      "kind": "event-load",
+      "sha256": "bc5d5f6bb89092e14e00c90a6fd7c937dddbf11b4a20c6776cc71dea643f7905",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ICAP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "dab2371046f2c5ccb06c84ac768cf808cf0719dbe399bd58e3dded2e337a4975",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/ICAP_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "d195e1d8bf5c02bab221b3ba0f3527831e6b1109e3b37ef87705739ec9f541e0",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/IN_DOSL7_ATTACK.conf",
+      "kind": "event-load",
+      "sha256": "e2dcd0e15335a901dc9490159f9a990611cbf3d6ad396894a0aed84d43dc2b4c",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/IP_GTM.conf",
+      "kind": "event-load",
+      "sha256": "3a50ac495f0c5401b02ca5d433ffb999cfbc67b29d392aec98ff9c1bf5e1d868",
+      "size": 197
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/IVS_ENTRY_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "fb0702d9655194d3f6bf3351fbf2be796f47ecf5a76d77d08e289c753b416186",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/IVS_ENTRY_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "59ef37e5e62d2c6dbcd67d4887b8d5c5efad21db4c6a164d3a78c5c26eb27b3c",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "ff81a4c67f855c4112f09d6bc08ee55731aff996236f9cc14d9f42cd885bedbd",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_REQUEST_ERROR.conf",
+      "kind": "event-load",
+      "sha256": "86c50f974761b36df66839cc57e315237e136f001a23fc7bf9de2ac4cd8dc995",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_REQUEST_MISSING.conf",
+      "kind": "event-load",
+      "sha256": "877374970c9a87563a2ab99c57e27d3ad098064e9bc612c98cc35a2a786f9aed",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "835d2e4865fadd17f4a61ed44a5cc7bedb05711c1d9ffd40396bfdddaf43cbd4",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_RESPONSE_ERROR.conf",
+      "kind": "event-load",
+      "sha256": "050e17f7790f9c5317095b06b16e18d5720be69868deab1ac65ff2c8c18a991e",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/JSON_RESPONSE_MISSING.conf",
+      "kind": "event-load",
+      "sha256": "8ecd5957ea216f35ccb39544c331f66e8c8be7923d128af5b50a8752b364319c",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/L7CHECK_CLIENT_DATA.conf",
+      "kind": "event-load",
+      "sha256": "1f9956bc87c4a002e61de7585eff65521756be335bf98af75dae63fa699d49af",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/L7CHECK_SERVER_DATA.conf",
+      "kind": "event-load",
+      "sha256": "b77097f5f06efc3fd19ebac4180f4bfd89cfed8edbb69a9543e590329063c8bc",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/LB_FAILED.conf",
+      "kind": "event-load",
+      "sha256": "13256566ac17ef407d225324f3a5b25ab932a48351a2d54f89f156a0f7b696ee",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/LB_QUEUED.conf",
+      "kind": "event-load",
+      "sha256": "7fa29dfc1a896f4af5526b8a83c583ef1fabcd6d4e9ae84bd03e50c1fd3b0a87",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/LB_SELECTED.conf",
+      "kind": "event-load",
+      "sha256": "b77bfa8e5ada8f2f005b12abd4be3b5c576126def1992a90a62850c3e82576ef",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_CLIENT_DATA.conf",
+      "kind": "event-load",
+      "sha256": "ac74ab710a243e96d9ada79209a4891e5591e861edd7de4604a06b4a2656c13a",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_CLIENT_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "d1160169e25a3ec8fd491f96dc90c524d1f731f30a77819169806160f1260cce",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_CLIENT_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "17f3ddf2cec84d11f873caca1b09affa6feb17f55bf6c4ed772556413a9180d8",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_CLIENT_SHUTDOWN.conf",
+      "kind": "event-load",
+      "sha256": "5b037e8eaee77b23bb76d103233be3d9cac0aecd6c3050f065e3a9f1b8646d64",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_SERVER_DATA.conf",
+      "kind": "event-load",
+      "sha256": "dd52ac117e8b425cd71be75695545d514b47e5d8efb2ec589f09ec03262c52a0",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_SERVER_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "263537e83727cdb896fe261e3de013c9c040a3cfce3852655fab23db63e824e7",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MQTT_SERVER_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "841e66c6647d3942762129c40fe7b0d7836310e695882df2f46571b230d95c90",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MR_DATA.conf",
+      "kind": "event-load",
+      "sha256": "bc2ff7e90e1cfa403146df93fce35c67f5b7861964e0dbba2c771d2ed6b9a033",
+      "size": 200
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MR_EGRESS.conf",
+      "kind": "event-load",
+      "sha256": "25e549100c48b90a72601098d50c0195dee9733f3defab820e0580375b2d20c3",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MR_FAILED.conf",
+      "kind": "event-load",
+      "sha256": "12b849c4799f8af6a2551a551e65356ba9a1d405b56815decebfb459103aa8fe",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/MR_INGRESS.conf",
+      "kind": "event-load",
+      "sha256": "8ff757a9cfa32cb7e8a437f3b5c68d18570489c3ef63a9ff68b2e546a38a344c",
+      "size": 209
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/NAME_RESOLVED.conf",
+      "kind": "event-load",
+      "sha256": "5e096fbcf0089c3d780959fe21194e06e5f356ff0e465d9466fc167a63a36ffe",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PCP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "d5311b98c3d63a550c28f6e5df7963b2d27570f22ed3c5163271895f5e0d88f6",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PCP_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "e3856d6af0bbad86c28722eba1b2174bb287b450f2ce60cfc88e6cee7ae9f469",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PEM_POLICY.conf",
+      "kind": "event-load",
+      "sha256": "c24501538cbba214e8648ca0809da3ea3dcdc489a657ea70f413ae83d6d6e3c9",
+      "size": 209
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PEM_SUBS_SESS_CREATED.conf",
+      "kind": "event-load",
+      "sha256": "597a51d0ccad05691aa2c86d0fed80c61acc97f509e2492501114471f07dd096",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PEM_SUBS_SESS_DELETED.conf",
+      "kind": "event-load",
+      "sha256": "1fabb7a64fad5b1a906ebd053168d941007377f60c57f092038a3e7ca56ad4cb",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PEM_SUBS_SESS_UPDATED.conf",
+      "kind": "event-load",
+      "sha256": "818ab5f23bda3f3696010cb8ad7c078681ab60725f8f78ae4e05fe6b09eac587",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PERSIST_DOWN.conf",
+      "kind": "event-load",
+      "sha256": "8a854b7aedb46d5977d894ef1877018af12191a2689688971dcb1b8483728ec5",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PING_REQUEST_READY.conf",
+      "kind": "event-load",
+      "sha256": "e69a4977dcc294c790c396ba42a09872009fcde38a876e7980ef267de217f6a6",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PING_RESPONSE_READY.conf",
+      "kind": "event-load",
+      "sha256": "880b86d5be54553f3df30ccbcbda7b15b91a0aa0c752a3a51da332a2476fe22c",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/PROTOCOL_INSPECTION_MATCH.conf",
+      "kind": "event-load",
+      "sha256": "c0748e0967a1d5ab1cb1efa3edaf91ce0658e3d6eb1c999bca4b6b113b66ade2",
+      "size": 254
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/QOE_PARSE_DONE.conf",
+      "kind": "event-load",
+      "sha256": "fadb63ae7020993dcb4dcd707ec3ee2204982c5721b3f1f9f387be0c643a56e2",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RADIUS_AAA_ACCT_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "f96e64af4daea3530fdc69df081e0822001b13e4ce393d05698e04345b28a8f3",
+      "size": 248
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RADIUS_AAA_ACCT_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "1e3825bccf046d8fa2ef57d395bb59634c7ef04aeda69500454182a7b40c9302",
+      "size": 251
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RADIUS_AAA_AUTH_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "0f1608ba34762187170f33c3775b7253709e4110348e413e29bf3c65dcb05880",
+      "size": 248
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RADIUS_AAA_AUTH_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "e9e9ed84c38cd2d43852c25b43f015eb1e77a8d34f0cd37f38fff58eda86c05a",
+      "size": 251
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/REWRITE_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "86d7eaf73ab9ef8896e0ad363893efee61466fb07af3613ef3ded74f579d664d",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/REWRITE_REQUEST_DONE.conf",
+      "kind": "event-load",
+      "sha256": "a5561c0f3a195a8e7071ed7877cfdc56ca43791cc1336c0ffa402528395363f9",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/REWRITE_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "d2956f9e433cd041e8e56b8bb8cf558a803528aa01d05a27d5a868a06251d182",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/REWRITE_RESPONSE_DONE.conf",
+      "kind": "event-load",
+      "sha256": "561a67d1df3f0cf7d5902bb5beae90d480b2e49890965862909963087a5dc1c0",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RTSP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "7d490dd562929222b609d07493987904f314ca4d4d792568572d907dec3a4f0e",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RTSP_REQUEST_DATA.conf",
+      "kind": "event-load",
+      "sha256": "7e9d782d03fe801d6c5521d84108c2d2cecd89604680d5647fb5a3cd032a5228",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RTSP_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "6183bb111b920838de829cd0d20fc729192f446b17bcdeeac286a0a22313dbba",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RTSP_RESPONSE_DATA.conf",
+      "kind": "event-load",
+      "sha256": "d1f576136340828c38554d68b1a153237b72c2db50e96b4b2a61f3835df0c5e1",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/RULE_INIT.conf",
+      "kind": "event-load",
+      "sha256": "40609778c6de19269e9177c1ec73f9bbd9590c239029f4d3670b9c3af36cf5a2",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SA_PICKED.conf",
+      "kind": "event-load",
+      "sha256": "a22dbdc59b0f24b6f24e2944e152e3067188182b1b9b02cbf092b727458f2db8",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVERSSL_CLIENTHELLO_SEND.conf",
+      "kind": "event-load",
+      "sha256": "481657d7b8171c9b4a3fcc088e7ed96629af9eca9b8eabbd179b43e9af7cdd1c",
+      "size": 257
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVERSSL_DATA.conf",
+      "kind": "event-load",
+      "sha256": "54b31fd544fc24b0d2e1abab56810a7f3de0b886a0e0ec9592f3df576196167f",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVERSSL_HANDSHAKE.conf",
+      "kind": "event-load",
+      "sha256": "5322f066851c1510a43e10556ea9c52aa55d4aaf07b943d801dec84b60547fb4",
+      "size": 236
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVERSSL_SERVERCERT.conf",
+      "kind": "event-load",
+      "sha256": "844d4f083f3cebd457be5bf6fe458073459b444e34948e3c2f26bf3895a198ce",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVERSSL_SERVERHELLO.conf",
+      "kind": "event-load",
+      "sha256": "719bcc0306ececf8dfebcd14a6589397bb2a1a69af2d9844768f864aa0aacd7a",
+      "size": 242
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVER_CLOSED.conf",
+      "kind": "event-load",
+      "sha256": "f167148902fa60053944758779eb92481533e196a7c680785f096f269ef34837",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVER_CONNECTED.conf",
+      "kind": "event-load",
+      "sha256": "82cc9221ae4502ed0069e5ef3fc451e93d1aa077937e3a82d96fe3a5ee9bdeba",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVER_DATA.conf",
+      "kind": "event-load",
+      "sha256": "e8b2fd3736680ed6f0f03e03b83f39897bdcf53e7b95b402e3dcddc37ed8d0f5",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SERVER_INIT.conf",
+      "kind": "event-load",
+      "sha256": "5776defe79a2b75103839bd387db9def1cd023a92686c672aafeba63cb896824",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "5927adae5c85a6d5373ef73e943189b34ad12446d25e1c499e3d78a4aed91c25",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_REQUEST_DONE.conf",
+      "kind": "event-load",
+      "sha256": "d46b5c6021b856f696c39f0d57b1ad16bec989e9b980a6908be28c24c42692ab",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_REQUEST_SEND.conf",
+      "kind": "event-load",
+      "sha256": "86bae769eec942ab03dbc71b338e480b34bab3575a218bd4ece23a8087a151d0",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "2aaf06b614ce4b1eb5e82e998309076c0fc023239b0539116eb94bb9f4c3b41a",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_RESPONSE_DONE.conf",
+      "kind": "event-load",
+      "sha256": "500c4819fc3c03c047a02240a48ec7327ded362248c3011f33a5cf194cb81104",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SIP_RESPONSE_SEND.conf",
+      "kind": "event-load",
+      "sha256": "5f8b8d2ead0192e0541c2424f44466abcdd060c147b24b07a1aaaba559f45f2a",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SOCKS_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "fb270ff995c7f755b429bb662e3106f9b21e1772b56f3ad5ebb2c19be0f2cf0a",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/SSE_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "877acb759d1bdc394dbaed37d987ebd8ced43dd2f73085507e01ca9ab09deb8e",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/STREAM_MATCHED.conf",
+      "kind": "event-load",
+      "sha256": "be82448adfa636405a8dd6d9d420c4bf442766f95983e9d2789f7bab7e7bb150",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/TAP_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "5766a3a4586d8626cb34114263597ed2a2d601c67100ce41f66d5767277d544f",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/TCP_GTM.conf",
+      "kind": "event-load",
+      "sha256": "e46db601b7e86eb952da4fa500bca58f6f8febaf99d27ea4c628b55f357e5502",
+      "size": 200
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/TDS_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "3b5c962ad1a21ef9b89c73bde73c364817d6b8c65a98eabdda9cb0a15a4897de",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/TDS_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "bcc0fcb6423f5de7adc2c26c91830d60543eac829d9b2847230056e6886c5a82",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/UDP_GTM.conf",
+      "kind": "event-load",
+      "sha256": "ec1ea5142f193ab6ee48c38082b7170fcf731e85348a174f7a16bfd7614d5d26",
+      "size": 200
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/USER_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "304df922dfe70295b70400fa157ca5071d781289d99d962b5e02e4708c0a3361",
+      "size": 215
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/USER_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "0a68cbd5bf5f50d106347d49a21a8a650df36303b4a6816cd15208495791ce33",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_CLIENT_DATA.conf",
+      "kind": "event-load",
+      "sha256": "1c1c07b2c893dee799abeea780f50516661bdb30ac4adcd9b83af3a4a46527bb",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_CLIENT_FRAME.conf",
+      "kind": "event-load",
+      "sha256": "ecae3fe243e73fbf35febb050dbaa4237bf42ee59009bcdb69ed5f8947b7588c",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_CLIENT_FRAME_DONE.conf",
+      "kind": "event-load",
+      "sha256": "122b62cb8bf8e63038aec6120121968f8d1eac3b70632dc9bab8fdac26ab7803",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_REQUEST.conf",
+      "kind": "event-load",
+      "sha256": "7b733db17aa1a26dcdb0b54dd6e8180fa7e2bbb88001ddaf5d2ae69eb3445bae",
+      "size": 209
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_RESPONSE.conf",
+      "kind": "event-load",
+      "sha256": "68e970f84e7e4692c8cc707ebe1df38cd55a6510608140736cf83e3007f3f717",
+      "size": 212
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_SERVER_DATA.conf",
+      "kind": "event-load",
+      "sha256": "6a6092897637e6a291ba8c3df38c2c77ddc4eb629b1a7bc8ed961024ce20a984",
+      "size": 221
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_SERVER_FRAME.conf",
+      "kind": "event-load",
+      "sha256": "c98004e4fc964c4cf7a0bccc1989e177d843d96946e5236109811fd669077ef6",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/WS_SERVER_FRAME_DONE.conf",
+      "kind": "event-load",
+      "sha256": "a2352ad813b86f0cc8b37e71279e692e54dd3cd0fbdcdf6d928de92b5ad997c1",
+      "size": 239
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_BEGIN_DOCUMENT.conf",
+      "kind": "event-load",
+      "sha256": "fc445c66e7a796efe7ace499cc6ea469732960a96742f352661c05ec5055282e",
+      "size": 233
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_BEGIN_ELEMENT.conf",
+      "kind": "event-load",
+      "sha256": "fd4c00978a4a77a3dee63ea77ef8de0a7bce73af38a1eb1a4145b3f6b7bc22f5",
+      "size": 230
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_CDATA.conf",
+      "kind": "event-load",
+      "sha256": "e08768cb936210b4ad7d0a9ce50130ed0eb20f84cf7b54bf40d5864fa6da6687",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_CONTENT_BASED_ROUTING.conf",
+      "kind": "event-load",
+      "sha256": "507758551ee8b8f59e342071b2c6b307854ee0a205107dbe038d1dcb328db959",
+      "size": 254
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_END_DOCUMENT.conf",
+      "kind": "event-load",
+      "sha256": "961b528fe95809a95d038d828b7fba71d2119c35589e4a5be078eafd9f19d762",
+      "size": 227
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_END_ELEMENT.conf",
+      "kind": "event-load",
+      "sha256": "863939d9b2e3f9557fa81d37fd7b6153ccd26b82be342855255d1c9c1ff0d1a0",
+      "size": 224
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "event-load/XML_EVENT.conf",
+      "kind": "event-load",
+      "sha256": "ac67eedc13aee9853ae2996f77f47cc95ab282ed378cf2b20dd8612dfef68844",
+      "size": 206
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/tcp-trace.conf",
+      "kind": "runtime-rule",
+      "sha256": "5ceb65ebbf9f61d16682486346441e5fc534ce33078aeb994fdcf0eff4b6a613",
+      "size": 2615
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/http-trace.conf",
+      "kind": "runtime-rule",
+      "sha256": "48119e36cdd8108109c7eb2ede5b0d0cf95119e5b6890373abf3311213a26ba2",
+      "size": 6802
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/udp-trace.conf",
+      "kind": "runtime-rule",
+      "sha256": "6a3588c2318125c0b28aa4a7891b1be33177eff32b18e3e2d5ab909613a12941",
+      "size": 1985
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/priority-100.conf",
+      "kind": "priority-rule",
+      "sha256": "098359b9080b82e75320bfc0a2f24f9301184f9ad5a2f0a62b722902ef744e3d",
+      "size": 628
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/priority-300.conf",
+      "kind": "priority-rule",
+      "sha256": "d2d32b8e7262cf3d1c32129690e9a1fb9b28d6615776ffbc637e5f12f7b4ace9",
+      "size": 628
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/priority-500.conf",
+      "kind": "priority-rule",
+      "sha256": "4b8082a48b1f60b9e76e5e06a5636bf3ef2218abd96a937c0b2c28e1ab78e113",
+      "size": 628
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/priority-700.conf",
+      "kind": "priority-rule",
+      "sha256": "b3d639d77bfe7b890d6be6638790186cc85a74c5fc1b04ad5b8805aee5efef30",
+      "size": 628
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/priority-900.conf",
+      "kind": "priority-rule",
+      "sha256": "d151540fc3267989f1e5280413b3cdf6038287429aa96d15a7de28fbccd78868",
+      "size": 628
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/event-disable-response.conf",
+      "kind": "suppression-rule",
+      "sha256": "6a2f1d50892114f719dd39c8adc4d2b34e0f5d22d3e6ec1118bd598bc4715a11",
+      "size": 506
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/event-disable-request.conf",
+      "kind": "suppression-rule",
+      "sha256": "80ca46d2b34c320cab73b206edc3ebbfc6c300e27e5b521805365ebd58d46cd0",
+      "size": 502
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/event-disable-all.conf",
+      "kind": "suppression-rule",
+      "sha256": "31512e31c4f03aaace4c8f8950a8b8c7d2e6809b0a121de0e9efadcfc48a1385",
+      "size": 481
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/http-disable-request.conf",
+      "kind": "suppression-rule",
+      "sha256": "6cce0815a02938193bea5200e0bff7dea94c22926c5c24bd7ca760b4d17bc77c",
+      "size": 486
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/reject-only.conf",
+      "kind": "suppression-rule",
+      "sha256": "f4535d45180500c3e259e64b56f11d238f5c39aadbc56b1e40b77460b57a8c91",
+      "size": 452
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/reject-disable-all.conf",
+      "kind": "suppression-rule",
+      "sha256": "a36f0476762ed83f5dad1f1052d59c6eceff0155c86a3236c77d8390216f5a06",
+      "size": 507
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/respond-only.conf",
+      "kind": "suppression-rule",
+      "sha256": "2aa6b496fee8a6857f7f6a0912fa740f56236dd3fc7242c469f6df748e66c589",
+      "size": 506
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "rules/respond-disable-all.conf",
+      "kind": "suppression-rule",
+      "sha256": "b73d683de38dcd5bd53a97d6afc7083a81eb7b04b5c29c4eb0510d839c0a451c",
+      "size": 561
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/00-partition-node.conf",
+      "kind": "configuration",
+      "sha256": "9f01556059aef2c3190feb55671e0b91a8a19a9b99f9d099318373d9b896e0f8",
+      "size": 136
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/10-tcp.conf",
+      "kind": "configuration",
+      "sha256": "8119d4bc11546b0af893fb3170ab543140d892840a5306a3f7a0a5e9fb2b1bc2",
+      "size": 515
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/11-http.conf",
+      "kind": "configuration",
+      "sha256": "dfb36b7be9284682aa54a980cfb32ba1b10120cc1a6bcb0c22643003aaa1f0ef",
+      "size": 759
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/12-https.conf",
+      "kind": "configuration",
+      "sha256": "0cc9e917ca288968d6dfa94fbb5b3b5f26a18afe8c9fa683657b6db3d6bbbfe9",
+      "size": 811
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/13-http2.conf",
+      "kind": "configuration",
+      "sha256": "8c82aa7097e8fa0244399082a8f61ff29bb6b0826c5ebb1f013bbbdfffad95dd",
+      "size": 856
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/14-udp.conf",
+      "kind": "configuration",
+      "sha256": "f925561278e3c7e91ac9b5e8f5e6b652bc0bc1c163e3262fcb486758d2212d04",
+      "size": 515
+    },
+    {
+      "ascii": true,
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "config/15-dns.conf",
+      "kind": "configuration",
+      "sha256": "fdc0b5514ba042b9fd83145bc2c191176c646991e294db0eba5093b5577f5e8f",
+      "size": 539
+    }
+  ],
+  "line_endings": "LF",
+  "partition": "EVTFLOW_EFA",
+  "prefix": "__tcl_lsp_evtflow_EFA",
+  "run": "EFA",
+  "schema": 1,
+  "source_commit": "6d214350b9f899a1399fa841be7f6fc5edbf225a",
+  "vip": "192.168.9.24",
+  "vip_port_base": 18300
+}

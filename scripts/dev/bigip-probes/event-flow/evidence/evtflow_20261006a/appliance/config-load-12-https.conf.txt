@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/config/12-https.conf
+01071912:3: SERVERSSL_CLIENTHELLO_SEND event in rule (/Common/__tcl_lsp_evtflow_EFA_http_trace) requires an associated SERVERSSL profile on the virtual-server (/EVTFLOW_EFA/__tcl_lsp_evtflow_EFA_https_vs).
+Unexpected Error: Loading configuration process failed.

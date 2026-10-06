@@ -1,0 +1,7 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/fixtures/event-load/SIP_RESPONSE_DONE.conf
+01070151:3: Rule [/Common/__tcl_lsp_evtflow_EFA_load_sip_response_done] error: /Common/__tcl_lsp_evtflow_EFA_load_sip_response_done:1: error: [unknown event (SIP_RESPONSE_DONE)][when SIP_RESPONSE_DONE priority 500 {
+        log local0. "EVTFLOW|run=EFA|probe=event_load|event=SIP_RESPONSE_DONE|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }]
+
+Unexpected Error: Loading configuration process failed.

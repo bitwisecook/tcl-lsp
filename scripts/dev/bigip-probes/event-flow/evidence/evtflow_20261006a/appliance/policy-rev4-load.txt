@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/evtflow_20261006a/23-policy-rev4.conf
+010717bc:3: Policy '/EVTFLOW_EFB/__tcl_lsp_evtflow_EFB_policy', rule 'insert_header'; event 'request' is not available, add the appropriate profile type as required.
+Unexpected Error: Loading configuration process failed.

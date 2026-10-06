@@ -1,0 +1,78 @@
+ltm virtual /EVTFLOW_EFB/__tcl_lsp_evtflow_EFB_http_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination /EVTFLOW_EFB/192.168.9.24:18501
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:10:37:16
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition EVTFLOW_EFB
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool /EVTFLOW_EFB/__tcl_lsp_evtflow_EFB_http_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        __tcl_lsp_evtflow_EFB_priority_100
+        __tcl_lsp_evtflow_EFB_priority_300
+        __tcl_lsp_evtflow_EFB_respond_disable_all
+        __tcl_lsp_evtflow_EFB_http_trace
+        __tcl_lsp_evtflow_EFB_priority_500
+        __tcl_lsp_evtflow_EFB_priority_700
+        __tcl_lsp_evtflow_EFB_priority_900
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 9
+}

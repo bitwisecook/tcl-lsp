@@ -1,0 +1,8 @@
+SIP/2.0 200 OK
+Via: SIP/2.0/UDP 192.168.9.80:31610;branch=z9hG4bK-evtflow3
+From: <sip:client@evtflow.invalid>;tag=evtflow3
+To: <sip:service@evtflow.invalid>
+Call-Id: evtflow-sip-3@evtflow.invalid
+Cseq: 1 OPTIONS
+Content-Length: 0
+
