@@ -55,38 +55,68 @@ for path in (args.canonical, args.additional):
         cases.append((case, category, data))
 
 prefix = f"__tcl_lsp_probe_2286_{args.run}_deep"
-rows = " \\\n".join(f"    {{{case}}} {{{category}}} {{{data.hex()}}}" for case, category, data in cases)
-body = f'''set ::probe_cases [list \\
+
+
+def rows_for(selected):
+    return " \\\n".join(
+        f"    {{{case}}} {{{category}}} {{{data.hex()}}}"
+        for case, category, data in selected
+    )
+
+
+def full_body(context: str, emit: str) -> str:
+    rows = rows_for(cases)
+    return f'''set ::probe_cases [list \\
 {rows}]
 foreach {{cid category source_hex}} $::probe_cases {{
     set src [binary format H* $source_hex]
     set ::m unset
     set rc [catch {{uplevel #0 $src}} value]
     binary scan $value H* value_hex
-    EMIT "R2286DEEP|{args.run}|CTX|case=$cid|category=$category|source_hex=$source_hex|rc=$rc|value_hex=$value_hex"
+    {emit} "R2286DEEP|{args.run}|{context}|case=$cid|category=$category|source_hex=$source_hex|rc=$rc|value_hex=$value_hex"
 }}
 set tpl UNSET
 if {{[info exists tcl_patchLevel]}} {{ set tpl $tcl_patchLevel }}
 set tvcmd tmsh::version
 if {{[catch {{eval $tvcmd}} tv]}} {{ set tv n/a }}
 set plat [lsort [array names tcl_platform]]
-EMIT "R2286DEEP|{args.run}|CTX|REPORTED|patchlevel=[info patchlevel]|tclversion=[info tclversion]|tcl_patchLevel=$tpl|tmshversion=$tv|ncommands=[llength [info commands]]|platform_keys=$plat"
+{emit} "R2286DEEP|{args.run}|{context}|REPORTED|patchlevel=[info patchlevel]|tclversion=[info tclversion]|tcl_patchLevel=$tpl|tmshversion=$tv|ncommands=[llength [info commands]]|platform_keys=$plat"
 '''
 
 
-def with_context(context: str, emit: str) -> str:
-    return body.replace("CTX", context).replace("EMIT ", emit + " ")
+def irule_body(selected, chunk: int) -> str:
+    rows = rows_for(selected)
+    return f'''set probe_cases [list \\
+{rows}]
+set acc {{}}
+foreach {{cid category source_hex}} $probe_cases {{
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {{uplevel #0 $src}} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}}
+log local0. "R2286DEEP|{args.run}|TmmIRule|chunk={chunk}|[join $acc ;]"
+'''
 
 
+irule_rules = []
+irule_names = []
+for chunk, start in enumerate(range(0, len(cases), 10)):
+    name = f"/Common/{prefix}_irule_{chunk}"
+    irule_names.append(name)
+    irule_rules.append(
+        f"ltm rule {name} {{\nwhen RULE_INIT {{\n{irule_body(cases[start:start + 10], chunk)}\n}}\n}}\n"
+    )
 files = {
-    "irule.conf": f"ltm rule /Common/{prefix}_irule {{\nwhen RULE_INIT {{\n{with_context('TmmIRule', 'log local0.')}\n}}\n}}\n",
-    "cli.conf": f"cli script /Common/{prefix}_cli {{\nproc script::run {{}} {{\n{with_context('TmshCliScript', 'puts')}\n}}\n}}\n",
-    "iapp.conf": "sys application template /Common/" + prefix + "_iapp {\n  actions {\n    definition {\n      implementation {\n" + with_context("IAppImplementation", "tmsh::log err") + "\n      }\n      presentation {\n      }\n    }\n  }\n}\n",
+    "irule.conf": "".join(irule_rules),
+    "cli.conf": f"cli script /Common/{prefix}_cli {{\nproc script::run {{}} {{\n{full_body('TmshCliScript', 'puts')}\n}}\n}}\n",
+    "iapp.conf": "sys application template /Common/" + prefix + "_iapp {\n  actions {\n    definition {\n      implementation {\n" + full_body("IAppImplementation", "puts") + "\n      }\n      presentation {\n      }\n    }\n  }\n}\n",
     "iapp-service.conf": f"sys application service /Common/{prefix}_iapp_service {{\n  template /Common/{prefix}_iapp\n}}\n",
-    "icall.conf": "sys icall script /Common/" + prefix + "_icall {\n  definition {\n" + with_context("ICallScript", "tmsh::log err") + "\n  }\n}\nsys icall handler triggered /Common/" + prefix + "_icall_handler {\n  script /Common/" + prefix + "_icall\n  status active\n  subscriptions { only { event-name " + args.run.upper() + "_DEEP } }\n}\n",
-    "host.tcl": with_context("HostShellTcl", "puts"),
+    "icall.conf": "sys icall script /Common/" + prefix + "_icall {\n  definition {\n" + full_body("ICallScript", "puts") + "\n  }\n}\nsys icall handler triggered /Common/" + prefix + "_icall_handler {\n  script /Common/" + prefix + "_icall\n  status active\n  subscriptions { only { event-name " + args.run.upper() + "_DEEP } }\n}\n",
+    "host.tcl": full_body("HostShellTcl", "puts"),
 }
-manifest = {"run": args.run, "cases": [], "fixtures": []}
+manifest = {"run": args.run, "cases": [], "fixtures": [], "irule_names": irule_names}
 for case, category, data in cases:
     manifest["cases"].append({"id": case, "category": category, "source_hex": data.hex(), "size": len(data)})
 for name, text in files.items():
