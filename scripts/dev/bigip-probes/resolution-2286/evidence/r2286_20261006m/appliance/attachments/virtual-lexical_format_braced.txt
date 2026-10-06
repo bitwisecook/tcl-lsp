@@ -1,0 +1,72 @@
+ltm virtual /R2286_r2286m/__tcl_lsp_2286_r2286m_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination /R2286_r2286m/192.168.9.24:18101
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:08:17:36
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition R2286_r2286m
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool /R2286_r2286m/__tcl_lsp_2286_r2286m_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        __tcl_lsp_2286_r2286m_lexical_format_braced
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 12
+}

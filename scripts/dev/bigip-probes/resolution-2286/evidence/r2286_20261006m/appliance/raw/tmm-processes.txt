@@ -1,0 +1,2 @@
+20234 /etc/bigstart/scripts/tmm.start /var/run 4 4 0 --platform Z100 -m -s 14072
+28022 tmm.0 -T 4 --tmid 0 --npus 4 --platform Z100 -m -s 14072       

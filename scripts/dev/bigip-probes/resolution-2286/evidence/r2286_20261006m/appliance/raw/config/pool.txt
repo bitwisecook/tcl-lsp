@@ -1,0 +1,8 @@
+ltm pool /R2286_r2286m/__tcl_lsp_2286_r2286m_pool {
+    members {
+        __tcl_lsp_2286_r2286m_node:18100 {
+            address 192.168.9.80
+        }
+    }
+    partition R2286_r2286m
+}

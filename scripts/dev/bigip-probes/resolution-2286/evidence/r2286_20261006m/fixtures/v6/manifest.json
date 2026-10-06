@@ -1,0 +1,472 @@
+{
+  "configs": [
+    {
+      "ascii": true,
+      "case": "nul_counted_last",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_counted_last.conf",
+      "sha256": "1d5a364e3c8e48e0d4e3825b3df00298aff1e6b4071a96a569c573a9e3a47b05",
+      "size": 2799
+    },
+    {
+      "ascii": true,
+      "case": "nul_plain_last",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_plain_last.conf",
+      "sha256": "9921f01c557a7917e0e93975bc9daf5a84b3e40f6e1c3bd3b47ad80c20d5e80b",
+      "size": 2795
+    },
+    {
+      "ascii": true,
+      "case": "nul_plain_unset_first",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_plain_unset_first.conf",
+      "sha256": "421f200e8ff47ce5480ee96178c5c483d76bb3d7c54857978a21d1ac6f37ac96",
+      "size": 2801
+    },
+    {
+      "ascii": true,
+      "case": "nul_array_root",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_array_root.conf",
+      "sha256": "32931180ef11228bac2b8a8922000a83482c44f9994991cb81b375895061ffa7",
+      "size": 5403
+    },
+    {
+      "ascii": true,
+      "case": "nul_array_index",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_array_index.conf",
+      "sha256": "8b01c6367d9d90bab44d43d1044d1311267d16cb025e7ce09e06ef7267a30b0a",
+      "size": 5325
+    },
+    {
+      "ascii": true,
+      "case": "unicode_format_forward",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_format_forward.conf",
+      "sha256": "99b72528d0e6eca1727cdff238443f2b67ef5fc3e6d916486580e298414ddc92",
+      "size": 2701
+    },
+    {
+      "ascii": true,
+      "case": "unicode_format_reverse",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_format_reverse.conf",
+      "sha256": "35d00a28bd3e3c3d3d1735d391166cb3d50a5c43e00ecdf3c763621e80c84f1d",
+      "size": 2701
+    },
+    {
+      "ascii": true,
+      "case": "unicode_bytes_forward",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_bytes_forward.conf",
+      "sha256": "57f57492859bbe116e493555a1b2fc6a677bb31c5db97612bb41d31cc6aa0a75",
+      "size": 2741
+    },
+    {
+      "ascii": true,
+      "case": "unicode_bytes_reverse",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_bytes_reverse.conf",
+      "sha256": "0de395804c938f4f97c1a3d6a1c75810e540303652a7f070652cb67e657a8e3b",
+      "size": 2741
+    },
+    {
+      "ascii": true,
+      "case": "unicode_cross_producer",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_cross_producer.conf",
+      "sha256": "7713e3b1f8e68c19603e386b03a10a8d8e3012a58e1358ddc5c103f9aa1379e1",
+      "size": 5173
+    },
+    {
+      "ascii": true,
+      "case": "lexical_format_unbraced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_format_unbraced.conf",
+      "sha256": "8494917f99809892c986f78dd72cf08749c980604d1bb3a54dc8623fbecdb1ec",
+      "size": 1967
+    },
+    {
+      "ascii": true,
+      "case": "lexical_format_braced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_format_braced.conf",
+      "sha256": "e1ca6c5ccf4e89653457477da4e3f7cbb2d5c821fad28b1274d8faf6f4096787",
+      "size": 2003
+    },
+    {
+      "ascii": true,
+      "case": "lexical_bytes_unbraced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_bytes_unbraced.conf",
+      "sha256": "9a4ad39c0a030674c09db5654412907b04d7578bbecfc9fb9c39e819e8881adc",
+      "size": 1995
+    },
+    {
+      "ascii": true,
+      "case": "lexical_bytes_braced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_bytes_braced.conf",
+      "sha256": "c6f12dede3aedd37b1c031c1c3ec50882948ee34205cb62f6ee8157a4be1919d",
+      "size": 2031
+    },
+    {
+      "ascii": true,
+      "case": "commands_format",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_format.conf",
+      "sha256": "ef598faed0951bd6fe81f794b254481a84e9232d5a5f1b3df280d8fd3364ab61",
+      "size": 3541
+    },
+    {
+      "ascii": true,
+      "case": "commands_bytes",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_bytes.conf",
+      "sha256": "38e64e308931db4f6bff577a4df5cb3de2e448fdc1d50392e882c8d026d686f5",
+      "size": 3569
+    },
+    {
+      "ascii": true,
+      "case": "commands_cross_producer",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_cross_producer.conf",
+      "sha256": "beccb39495c06705244537d4f1f963967b683ea92f1e1a116db6e77e51bda51e",
+      "size": 5041
+    },
+    {
+      "ascii": true,
+      "case": "expressions",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "expressions.conf",
+      "sha256": "df4e3532d0f52c3374e2ed99c7c96740ecc3e59c589037d352dcde9ca979b820",
+      "size": 1237
+    },
+    {
+      "ascii": true,
+      "case": "backend",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "backend.conf",
+      "sha256": "ff0f92ea47d21f82658a3e994cd9034497a321aedcb5de447ef3a1d176dde03a",
+      "size": 368
+    },
+    {
+      "ascii": true,
+      "case": "provider-old-literal",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-old-literal.conf",
+      "sha256": "9acee93f8d748a02db01d1b6e3e251d2cd185c5cea107c44d327266909e53062",
+      "size": 189
+    },
+    {
+      "ascii": true,
+      "case": "provider-new-literal",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-new-literal.conf",
+      "sha256": "5d820f7006a76551d4e96fce20f30b8efe66792488b2c55410d99d01a62b82a9",
+      "size": 218
+    },
+    {
+      "ascii": true,
+      "case": "provider-old-dynamic",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-old-dynamic.conf",
+      "sha256": "83b4a753c7205987d12d89bae0a9417d85c795dfc8ee421c4211dc18a55ba8b8",
+      "size": 276
+    },
+    {
+      "ascii": true,
+      "case": "provider-new-dynamic",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-new-dynamic.conf",
+      "sha256": "2fe069f66922249b4b428c39e8123c8cb4ac926015cf1810d47b4aa11d0520f6",
+      "size": 305
+    },
+    {
+      "ascii": true,
+      "case": "provider-failed-replacement",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-failed-replacement.conf",
+      "sha256": "0ccb2444b5cbd67cd19c961e2185e8d734108469f720d6e77545233172181b3e",
+      "size": 187
+    },
+    {
+      "ascii": true,
+      "case": "caller",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "caller.conf",
+      "sha256": "ddc3d614b74a2ee4dcd941807dc022ca0c0fb2a534c1c81ddd447cf57f68e316",
+      "size": 916
+    },
+    {
+      "ascii": true,
+      "case": "caller-dynamic",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "caller-dynamic.conf",
+      "sha256": "974f15abe9fda3f0b85813a1aec2045d3de9c05fd471a4b5e28d1f1425d6dcfd",
+      "size": 987
+    },
+    {
+      "ascii": true,
+      "case": "caller-header-target",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "caller-header-target.conf",
+      "sha256": "f758ff659fa7858c37dfef9f8e9328edd3f3ff6a075a582eb565a970ac5268fb",
+      "size": 870
+    },
+    {
+      "ascii": true,
+      "case": "provider-fresh-old-dynamic",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-fresh-old-dynamic.conf",
+      "sha256": "5560c0e75bd0f19d7a3a734c611c10a2b6421d4c4d9584cb550374bfe13c9996",
+      "size": 282
+    },
+    {
+      "ascii": true,
+      "case": "provider-fresh-new-dynamic",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-fresh-new-dynamic.conf",
+      "sha256": "57b1f2de62d67ea9758ba1060a7e4054c27a17e56b96f66b6e163a70e9de6825",
+      "size": 311
+    },
+    {
+      "ascii": true,
+      "case": "provider-fresh-failed-replacement",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "provider-fresh-failed-replacement.conf",
+      "sha256": "ac456e70a04868c98ff693c86f4e97e222faabc371da05cc5d63644d7ecf7a40",
+      "size": 193
+    },
+    {
+      "ascii": true,
+      "case": "caller-fresh-header-target",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "caller-fresh-header-target.conf",
+      "sha256": "87029484bbc160627dbade7a6092fa70b8bf894311d757a54490a9f89d9cd82e",
+      "size": 875
+    },
+    {
+      "ascii": true,
+      "case": "lab",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lab.conf",
+      "sha256": "b9fc5fe4079ddfe0eaf0b4f1bc9177129a793d686edce84ee7d819b9e136405e",
+      "size": 585
+    }
+  ],
+  "line_endings": "LF",
+  "objects": {
+    "backend_rule": "/Common/__tcl_lsp_2286_r2286m_backend",
+    "caller": "/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_caller",
+    "folder": "/R2286_r2286m/lifetime",
+    "fresh_caller": "/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_caller_fresh",
+    "fresh_provider": "/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider_fresh",
+    "node": "/Common/__tcl_lsp_2286_r2286m_node",
+    "partition": "R2286_r2286m",
+    "pool": "/R2286_r2286m/__tcl_lsp_2286_r2286m_pool",
+    "provider": "/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider",
+    "virtual": "/R2286_r2286m/__tcl_lsp_2286_r2286m_vs"
+  },
+  "payload_transport": "ASCII payload bytes transported as hex and evaluated dynamically",
+  "payloads": [
+    {
+      "ascii": true,
+      "case": "nul_counted_last",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_counted_last.tcl",
+      "sha256": "cba6f800a9c3e80c17cc08434200fbba2828c413460c91682138879562393df6",
+      "size": 1163
+    },
+    {
+      "ascii": true,
+      "case": "nul_plain_last",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_plain_last.tcl",
+      "sha256": "0d946243ff3331524c0a55a41cc48462fbcdf5b81762025dc75fd499776ce50c",
+      "size": 1163
+    },
+    {
+      "ascii": true,
+      "case": "nul_plain_unset_first",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_plain_unset_first.tcl",
+      "sha256": "fce2466c347362948b78530de8786a7d27111c739b300dac27e3240c312ca04a",
+      "size": 1159
+    },
+    {
+      "ascii": true,
+      "case": "nul_array_root",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_array_root.tcl",
+      "sha256": "ac81e5dbd1ba443199d88d87221fe55f5db9f7474e1c42ef1f2ad174af551fdf",
+      "size": 2467
+    },
+    {
+      "ascii": true,
+      "case": "nul_array_index",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "nul_array_index.tcl",
+      "sha256": "aeaac8f74458ac99a752be410304584703a8a13a071bd4f13fdedd82f4d3b070",
+      "size": 2427
+    },
+    {
+      "ascii": true,
+      "case": "unicode_format_forward",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_format_forward.tcl",
+      "sha256": "3aa03c3acdd0dc093f25f8868e1306b8fd519eb8cda7532a1df3db5362a0a2a3",
+      "size": 1108
+    },
+    {
+      "ascii": true,
+      "case": "unicode_format_reverse",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_format_reverse.tcl",
+      "sha256": "813837e4613d89e36194dbd330d1b81d0b320706e30a73facd39147ec49ec3a0",
+      "size": 1108
+    },
+    {
+      "ascii": true,
+      "case": "unicode_bytes_forward",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_bytes_forward.tcl",
+      "sha256": "65f2f9c46f497a38602168109806652a7415040fbc67959c82fa002ead7ae4b7",
+      "size": 1129
+    },
+    {
+      "ascii": true,
+      "case": "unicode_bytes_reverse",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_bytes_reverse.tcl",
+      "sha256": "0286dad4d8f16ee0963772c5bac720f2254539fe856c3d84e5d31a63c9df3a84",
+      "size": 1129
+    },
+    {
+      "ascii": true,
+      "case": "unicode_cross_producer",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "unicode_cross_producer.tcl",
+      "sha256": "091fcff7300e9c3a1695a8dc575d922a25b2dbb2f459df085a0e42162d2e1bea",
+      "size": 2344
+    },
+    {
+      "ascii": true,
+      "case": "lexical_format_unbraced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_format_unbraced.tcl",
+      "sha256": "c55f583a23fd2e0eae66654e8c54d1f0b0b176aecf44867e5b9809bd648379bf",
+      "size": 740
+    },
+    {
+      "ascii": true,
+      "case": "lexical_format_braced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_format_braced.tcl",
+      "sha256": "6e43ed8c0e18f80195c9fd962d5e424e42a8ea21670dbfe77b650f03a6b9c803",
+      "size": 760
+    },
+    {
+      "ascii": true,
+      "case": "lexical_bytes_unbraced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_bytes_unbraced.tcl",
+      "sha256": "fba2cd37d875209f86cb6f2d83cf315002445076379cfb34928d92fcc3184e35",
+      "size": 755
+    },
+    {
+      "ascii": true,
+      "case": "lexical_bytes_braced",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "lexical_bytes_braced.tcl",
+      "sha256": "611248007d36153d4c6e6559766bcdb9dae130971ee5f2a1e3b8d7089b775643",
+      "size": 775
+    },
+    {
+      "ascii": true,
+      "case": "commands_format",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_format.tcl",
+      "sha256": "0486fe6b1bb3c748a9f23ba1f4e9d302590794d3a5cda179ea1ec184a3940b69",
+      "size": 1535
+    },
+    {
+      "ascii": true,
+      "case": "commands_bytes",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_bytes.tcl",
+      "sha256": "4007963e00029f6263be93956b8f7baabf506039a3eec0072573e50c42436804",
+      "size": 1550
+    },
+    {
+      "ascii": true,
+      "case": "commands_cross_producer",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "commands_cross_producer.tcl",
+      "sha256": "99712a42104c7411ff853e405b1d057cacba271bd50e3ea571fe649834d664ed",
+      "size": 2277
+    },
+    {
+      "ascii": true,
+      "case": "expressions",
+      "contains_cr": false,
+      "contains_nul": false,
+      "file": "expressions.tcl",
+      "sha256": "041daa50f939c68691a98d5a138d54f7256edf8ded0765d151e8077108af58bc",
+      "size": 387
+    }
+  ],
+  "run": "r2286m",
+  "source_commit": "8ee8ad7c0df9eaab539f9663869ef664f20853e0"
+}

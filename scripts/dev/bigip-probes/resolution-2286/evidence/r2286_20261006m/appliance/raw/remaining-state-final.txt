@@ -1,0 +1,15 @@
+PROVIDERnltm rule /R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider {
+    app-service none
+    partition R2286_r2286m
+when RULE_INIT {
+    set static::__tcl_lsp_2286_r2286m_cleanup_only 1
+}
+}
+FOLDERnsys folder /R2286_r2286m/lifetime {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
+PARTITIONnauth partition R2286_r2286m { }
+CAPTURE_PID_15577nABSENTn
