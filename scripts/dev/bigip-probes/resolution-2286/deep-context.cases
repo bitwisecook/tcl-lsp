@@ -23,11 +23,11 @@ n_blank_bound	newline	if {1}\n\n{set m after}
 n_comment_bound	newline	if {1}\n# boundary\n{set m after}
 n_backslash_lf	newline	set m before\nif {1}\\\n{set m after}\nset m
 n_backslash_space_lf	newline	if {1}\\ \n{set m after}
-n_list_absorb	newline	list a b\n{c}
+x_n_list_absorb	newline	list a b\n{c}
 n_else_lf	newline	set m before\nif {0} {set m then}\nelse {set m else}\nset m
 n_elseif_lf	newline	set m before\nif {0} {set m then}\nelseif {1} {set m elseif}\nset m
 e_equals	expr	expr {"abc" equals "abc"}
-e_starts_with	expr	expr {"abcd" starts_with "ab"}
+x_e_starts_with	expr	expr {"abcd" starts_with "ab"}
 e_ends_with	expr	expr {"abcd" ends_with "cd"}
 e_contains_true	expr	expr {"abcd" contains "bc"}
 e_contains_false	expr	expr {"abcd" contains "zz"}
@@ -40,12 +40,12 @@ e_or	expr	expr {0 or 1}
 e_not	expr	expr {not 0}
 e_precedence_matches_or	expr	expr {1 or 0 matches 0}
 e_precedence_not_starts	expr	expr {not "abc" starts_with "a"}
-e_adjacent_eq	expr	expr {"a"eq"a"}
+x_e_adjacent_eq	expr	expr {"a"eq"a"}
 e_invalid_function	expr	expr {SomeInvalidOperator()}
 num_leading_zero	numeral	expr {010}
 num_bad_octal	numeral	expr {09}
-num_hex	numeral	expr {0x10}
-num_binary	numeral	expr {0b101}
+x_num_hex	numeral	expr {0x10}
+x_num_binary	numeral	expr {0b101}
 num_wide	numeral	expr {9223372036854775807}
 l_index_end_plus	core	lindex {a b} end+1
 l_index_integer_plus	core	lindex {a b c} 1+1
