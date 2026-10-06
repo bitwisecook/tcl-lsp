@@ -111,17 +111,16 @@ def main():
 when HTTP_REQUEST {{
     set unit [TMM::cmp_unit]
     set request [HTTP::header value X-R2286-Request]
-    set results [list]
     foreach item [list {rows_tcl}] {{
         set label [lindex $item 0]
         set target [lindex $item 1]
         set rc [catch {{call $target $label}} value]
         set which_script [list [binary format H* 6e616d657370616365] which -command $target]
         set which_rc [catch {{eval $which_script}} which]
-        lappend results $label $target $rc $value $which_rc $which
+        binary scan $value H* value_hex
+        binary scan $which H* which_hex
+        log local0. "R2286|{args.run}|{case}|unit=$unit|request=$request|label=$label|target=$target|rc=$rc|value_hex=$value_hex|which_rc=$which_rc|which_hex=$which_hex"
     }}
-    binary scan $results H* result_hex
-    log local0. "R2286|{args.run}|{case}|unit=$unit|request=$request|result_hex=$result_hex"
     HTTP::header insert X-R2286-Scope "{case}:$unit"
 }}
 when HTTP_RESPONSE {{
@@ -206,12 +205,17 @@ when HTTP_RESPONSE {{
     unicode_values = {
         "precomposed": "é",
         "decomposed": "e\u0301",
+        "bmp_copyright": "©",
+        "bmp_snowman": "☃",
+        "bmp_heart": "❤",
         "emoji_grinning": "😀",
         "emoji_text_vs": "❤\ufe0f",
         "emoji_skin_tone": "👍🏽",
         "emoji_zwj": "👩🏽\u200d💻",
         "emoji_family": "👨\u200d👩\u200d👧\u200d👦",
         "emoji_flag": "🇳🇿",
+        "emoji_rainbow_flag": "🏳️\u200d🌈",
+        "emoji_keycap": "1️⃣",
     }
     for label, value in unicode_values.items():
         object_name = f"/Common/{prefix}_unicode_literal_{label}"
@@ -220,8 +224,15 @@ when HTTP_RESPONSE {{
             f"unicode_literal_{label}",
             object_name,
             f'''when HTTP_REQUEST {{
-    log local0. "R2286|{args.run}|unicode_literal_{label}|value={value}"
-    HTTP::respond 200 content "ok\\n" Connection close
+    set unit [TMM::cmp_unit]
+    set request [HTTP::header value X-R2286-Request]
+    set value "{value}"
+    binary scan $value H* value_hex
+    log local0. "R2286|{args.run}|unicode_literal_{label}|unit=$unit|request=$request|value=$value|value_hex=$value_hex|chars=[string length $value]"
+    HTTP::header insert X-R2286-Scope "unicode_literal_{label}:$unit"
+}}
+when HTTP_RESPONSE {{
+    HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
 }}''',
             f"literal UTF-8 log payload {label}",
         )
@@ -235,19 +246,14 @@ when HTTP_RESPONSE {{
         f'''when HTTP_REQUEST {{
     set unit [TMM::cmp_unit]
     set request [HTTP::header value X-R2286-Request]
-    set convert [binary format H* 656e636f64696e6720636f6e7665727466726f6d207574662d38]
-    set results [list]
     foreach item [list {' '.join(dynamic_rows)}] {{
         set label [lindex $item 0]
         set source_hex [lindex $item 1]
-        set raw [binary format H* $source_hex]
-        set rc [catch {{eval [linsert $convert end $raw]}} value]
+        set value [binary format H* $source_hex]
         binary scan $value H* value_hex
-        lappend results $label $source_hex $rc $value_hex [string length $value]
-        log local0. "R2286|{args.run}|unicode_dynamic|unit=$unit|request=$request|label=$label|source_hex=$source_hex|rc=$rc|value=$value|value_hex=$value_hex|chars=[string length $value]"
+        log local0. "R2286|{args.run}|unicode_dynamic|unit=$unit|request=$request|label=$label|source_hex=$source_hex|value=$value|value_hex=$value_hex|chars=[string length $value]"
     }}
-    binary scan $results H* results_hex
-    HTTP::header insert X-R2286-Scope "unicode_dynamic:$unit:$results_hex"
+    HTTP::header insert X-R2286-Scope "unicode_dynamic:$unit"
 }}
 when HTTP_RESPONSE {{
     HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
