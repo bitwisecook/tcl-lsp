@@ -1752,7 +1752,9 @@ fn const_value_text(cv: &ConstValue) -> String {
 /// `if` condition itself isn't foldable, e.g. it depends on another call's
 /// result, leaves both the `return` and the fall-through paths executable
 /// under SCCP). A void return, an unfoldable return/tail, or disagreeing
-/// exits — return-vs-return **or** return-vs-fall-through — yield `None`.
+/// exits — return-vs-return **or** return-vs-fall-through — yield `None`, and
+/// so does a statement of an executable block that may itself run a `return`
+/// ([`crate::interprocedural::statement_may_return`]).
 fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
@@ -1761,6 +1763,19 @@ fn resolve_return_constant(
     folds: crate::sccp::BuiltinFoldInputs<'_>,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
+    // A `return` run inside a statement the flow graph keeps whole — an
+    // opaque `switch`'s arm — leaves the procedure where no exit block
+    // stands for it, so the exits cannot say what the procedure returns
+    // (#2393).
+    if fu.cfg.blocks.iter().any(|(bn, block)| {
+        result.executable_blocks.contains(bn)
+            && block
+                .statements
+                .iter()
+                .any(|stmt| crate::interprocedural::statement_may_return(stmt, 0))
+    }) {
+        return None;
+    }
     let fold = ExprFold {
         policy,
         grammar,

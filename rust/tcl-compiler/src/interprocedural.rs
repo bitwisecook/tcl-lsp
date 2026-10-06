@@ -2969,6 +2969,59 @@ fn stmt_always_returns(stmt: &crate::ir::Statement, depth: u32) -> bool {
     }
 }
 
+/// Whether running `stmt` may run a `return` that leaves the procedure from
+/// inside it: a `return` itself, or one in a script the statement runs — an
+/// `if`'s, a loop's, a `try`'s body, handlers or `finally`, a `switch`'s arms,
+/// a block's or an `uplevel`'s — but not one in a `catch` body, which the
+/// `catch` absorbs. `depth` is the nesting level of the script holding
+/// `stmt`; past [`MAX_INTERPROCEDURAL_WALK_DEPTH`] it answers that it may.
+pub(crate) fn statement_may_return(stmt: &crate::ir::Statement, depth: u32) -> bool {
+    use crate::ir::Statement;
+    let runs = |script: &crate::ir::Script| script_may_return(script, depth + 1);
+    match stmt {
+        Statement::Return { .. } => true,
+        Statement::If {
+            clauses, else_body, ..
+        } => {
+            clauses.iter().any(|clause| runs(&clause.body)) || else_body.as_ref().is_some_and(runs)
+        }
+        Statement::For {
+            init, next, body, ..
+        } => runs(init) || runs(next) || runs(body),
+        Statement::While { body, .. }
+        | Statement::Foreach { body, .. }
+        | Statement::Block { body, .. }
+        | Statement::UpFrame { body, .. } => runs(body),
+        Statement::Try {
+            body,
+            handlers,
+            finally_body,
+            ..
+        } => {
+            runs(body)
+                || handlers.iter().any(|handler| runs(&handler.body))
+                || finally_body.as_ref().is_some_and(runs)
+        }
+        Statement::Switch {
+            arms, default_body, ..
+        } => {
+            arms.iter().any(|arm| arm.body.as_ref().is_some_and(runs))
+                || default_body.as_ref().is_some_and(runs)
+        }
+        _ => false,
+    }
+}
+
+/// [`statement_may_return`] over every statement of `script`, nested
+/// `depth` levels deep.
+fn script_may_return(script: &crate::ir::Script, depth: u32) -> bool {
+    MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth)
+        || script
+            .statements
+            .iter()
+            .any(|stmt| statement_may_return(stmt, depth))
+}
+
 /// Derive the return-value summary fields from a proc's
 /// collected [`ReturnKind`] list. Returns `(returns_constant,
 /// constant_return, passthrough_param, depends_on_params)`.

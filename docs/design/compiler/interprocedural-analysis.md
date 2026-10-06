@@ -76,7 +76,12 @@ Such a procedure can still be folded at a *constant* call site: O103's
 command-substitution path (`try_o103_proc_fold` in
 `rust/tcl-compiler/src/optimiser/propagation.rs`) falls back to `summary.pure`
 plus `evaluate_proc_with_constants`, re-running the callee body under the
-literal arguments.  `can_fold_static_calls` gates only the
+literal arguments and reading the value every executable exit gives. A
+`return` that runs inside a statement the flow graph keeps whole — an
+opaque `switch`'s arm — leaves the procedure where no exit block stands for
+it, so a block holding such a statement stops the reading
+(`interprocedural::statement_may_return`, #2393); a `catch` body's `return`
+does not count, since the `catch` absorbs it.  `can_fold_static_calls` gates only the
 argument-independent fold, which replaces the call with
 `summary.constant_return` — and only a call the re-run could make: every
 word after the head literal (a `$name` the caller proves constant, or a

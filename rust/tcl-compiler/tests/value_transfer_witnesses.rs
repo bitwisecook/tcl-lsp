@@ -8213,3 +8213,36 @@ fn the_summary_folds_only_a_call_the_rerun_could_make() {
     }
     prints_under_every_release(folded, "foo\n");
 }
+
+/// A `return` run inside a statement the flow graph keeps whole leaves the
+/// procedure from that statement, where no exit block stands for it: an
+/// opaque `switch`'s arm. O103's re-run read the other exits alone and folded
+/// `[p]`, `[p abc]` and `[p q]` to `2`, where tclsh 8.4 to 9.1 print `1`
+/// (#2393). No call folds to `2`, and each program prints what tclsh prints,
+/// before and after `tcl opt`.
+#[test]
+fn a_return_inside_a_statement_kept_whole_stops_the_fold() {
+    let programs = [
+        (
+            "proc p {} {switch -glob -- [clock seconds] {* {return 1}}; return 2}\nputs [p]\n",
+            "1\n",
+        ),
+        (
+            "proc p {x} {switch -glob -- $x {* {return 1}}; return 2}\nputs [p abc]\nputs [p q]\n",
+            "1\n1\n",
+        ),
+    ];
+    for (source, printed) in programs {
+        for dialect in DIALECTS {
+            let folded_to_two: Vec<Optimisation> = rewrites_of(source, dialect)
+                .into_iter()
+                .filter(|rewrite| rewrite.code == DiagCode::O103 && rewrite.replacement == "2")
+                .collect();
+            assert!(
+                folded_to_two.is_empty(),
+                "{dialect}: {folded_to_two:?}\n{source}"
+            );
+        }
+        prints_under_every_release(source, printed);
+    }
+}

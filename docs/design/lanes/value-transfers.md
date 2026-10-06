@@ -9097,6 +9097,53 @@ under this commit's binary what they print under F's for each of the first
 `the_summary_folds_only_a_call_the_rerun_could_make` (`[p [incr n]]` folds);
 answering any number of literal words, the same test (`[p]` folds).
 
+##### #2393: a return inside a statement kept whole stops the return fold
+
+`wip(value-transfers): slice 7a — a return inside a statement kept whole stops
+the return fold`, at the coordinator's ruling ahead of the slice, whose
+summary reads the same exits (D289). Pre-existing: O103's argument-sensitive
+re-run read the value at a procedure's `return` terminators and its
+fall-through, and a `return` run inside a statement the flow graph keeps whole
+— an opaque `switch`'s arm — is neither, so `proc p {} {switch -glob --
+[clock seconds] {* {return 1}}; return 2}; puts [p]` folded to `puts 2`, and
+`proc p {x} {switch -glob -- $x {* {return 1}}; return 2}` folded `[p abc]` and
+`[p q]` to `2`, where tclsh 8.4 to 9.1 print 1. The reading declines where an
+executable block holds a statement that may run a `return` of its own
+(`interprocedural::statement_may_return`): a `return`, or one in an opaque
+`switch`'s arms or default, an `if`'s clauses, a loop's scripts, a `try`'s
+body, handlers or `finally`, a `Block` or an `UpFrame` — by IR statement
+variant, never descending into a `catch` body, which absorbs its `return`.
+
+Tests: `a_return_inside_a_statement_kept_whole_stops_the_fold`
+(`value_transfer_witnesses.rs`, new: no O103 folds a call of either program to
+`2` under the five dialects, and each prints what tclsh 8.4 to 9.1 print,
+before and after `tcl opt`); `o103_folds_implicit_return_proc_cmd_subst` and
+`o103_folds_arg_sensitive_passthrough_cmd_subst` pass unchanged.
+
+Left open, outside the fix: a `return` inside a command substitution, whose
+script neither the IR nor the flow graph holds as statements (#2394): `proc p
+{} {set x [expr {[return 7] + 1}]; return 2}; puts [p]` folds to `puts 2`,
+where tclsh prints 7.
+
+Measured: over the corpus, `tcl diag` and `tcl opt --profile full` print under
+C's binary what they print under F's for every one of the 1120 files, so the
+summary path's new test changes no fold the corpus holds, and F's print what
+the landing's do for every file; under this commit's binary they print what
+C's do for each of the first 577 files compared, the rest recorded with the
+slice's commit. `fumagic/filetypes.tcl` runs past the 300 s limit under every
+binary, as a debug build.
+
+Green at the fix: `make rust-check` passed whole and `dialect-drift` reports
+its 8 sites, none new; the suites one crate at a time, each pruned after —
+`tcl-compiler` 10188 passed, 6 ignored (the new witness among them);
+`tcl-registry` 1428; `tcl-explorer` 112; `tcl-lsp-db` 139, 5 ignored;
+`tcl-lsp-core --lib` 2353; `tcl-cli` 206; `xtask` 275; `tcl-spectcl` 476, 1
+ignored; `tcl-cmd-core` 143. C's suites, which were running when C was
+committed, passed whole on C's tree, each count the same less this commit's
+witness (`tcl-compiler` 10187). Mutations, each reverted: the
+walk not reading a `switch`'s arms, and the reading not asking it at all,
+each fail `a_return_inside_a_statement_kept_whole_stops_the_fold`.
+
 ### Slice 13 — proc-level transfer summaries
 
 #### Goal and exit
@@ -12290,6 +12337,7 @@ Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10
 
 - **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axis — 8.4's twelve-digit `tcl_precision` — is not modelled here (#2395).
 - **D288 — O103's argument-independent fold answers only a call its re-run could make** (#2389, at the coordinator's ruling, ahead of slice 7a). The summary's constant says what the procedure returns, not what evaluating the call's words does: a word that substitutes runs before the call and may raise or write, and a count the parameters do not accept raises. The fold takes the re-run's own test, read once for both paths — every word after the head literal, as `parse_static_call_args` reads them, and a count `arity_from_names(params)` accepts — and the bare-statement hint, which has the lowering's words, their literal kinds. The parameters are read by name, as the re-run reads them: a call that leaves a defaulted parameter out folds on neither path.
+- **D289 — The return reading stops at a statement that may run a `return` of its own** (#2393, at the coordinator's ruling, ahead of slice 7a). The exits the reading reads are the flow graph's `return` terminators and its fall-through; a statement the flow graph keeps whole runs its scripts inside one block, and a `return` there leaves the procedure from that statement. The reading declines when an executable block holds one whose IR scripts can run a `return` — the IR's statement variants decide, with no command spelling, and a `catch` body is not read, since `catch` absorbs the `return`. A `return` in a command substitution's script is no IR statement and stays #2394's.
 
 ### Open questions for the owner
 

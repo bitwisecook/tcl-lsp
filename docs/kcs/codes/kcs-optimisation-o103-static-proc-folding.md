@@ -49,6 +49,9 @@ set r [total 3]   ;# becomes set r 6
   a number of arguments the proc's parameters do not accept: such a call can
   raise, or change a variable, before the proc runs.
 - Skipped when the proc body cannot be summarised by [interprocedural analysis](../../GLOSSARY.md#ipa).
+- Skipped when a `return` runs inside a command the analyser keeps whole — an
+  arm of `switch -glob` or `switch -regexp` — since the value that `return`
+  gives is not read.
 - Skipped when the proc's bare name is anywhere `rename`d over, `rename`d away, or shadowed by an `interp alias` — the call site can no longer be trusted to run that proc's body.
 - A proc with no explicit `return` still folds when it falls through: the value is whatever Tcl's "result of the last command executed" rule would leave (the `double` example above relies on exactly this).
 
