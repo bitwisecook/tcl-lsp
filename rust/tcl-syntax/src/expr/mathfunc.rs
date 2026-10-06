@@ -33,6 +33,27 @@
     clippy::cast_possible_wrap
 )]
 
+/// The selected native implementation's numeric math-function protocol.
+/// Function lookup proof is separate: this policy cannot establish presence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeMathProtocol {
+    /// C Tcl math dispatch, including its separately selected `int` width.
+    Tcl,
+    /// Measured Jim 0.84 fixed operator table and signed-wide conversions.
+    Jim084,
+}
+
+/// Functions authored by the measured Jim 0.84 fixed math implementation.
+/// Actual installation evidence must still be supplied at each dispatch site.
+#[must_use]
+pub const fn jim_fixed_function_names() -> &'static [&'static str] {
+    &[
+        "abs", "int", "wide", "double", "round", "rand", "srand", "sin", "cos", "tan", "asin",
+        "acos", "atan", "atan2", "sinh", "cosh", "tanh", "ceil", "floor", "exp", "log", "log10",
+        "sqrt", "pow", "hypot", "fmod",
+    ]
+}
+
 /// A transient numeric value for math-function dispatch. Integer-preserving
 /// functions keep the arbitrary-precision `B` rung; floating-point functions
 /// widen through [`BigIntOps::to_f64`](crate::number_tower::BigIntOps::to_f64).
@@ -171,6 +192,17 @@ pub enum IntWidth {
 }
 
 impl IntWidth {
+    /// Width of a fixed native arithmetic tower. Bignum Tcl callers must use
+    /// their release's [`Self::for_tcl_version`] policy instead.
+    #[must_use]
+    pub fn for_native_arithmetic(policy: tcl_dialect::NativeArithmetic) -> Self {
+        match policy {
+            tcl_dialect::NativeArithmetic::Tcl84Wide | tcl_dialect::NativeArithmetic::JimWide => {
+                Self::Windowed
+            }
+            tcl_dialect::NativeArithmetic::TclBignum => Self::Unresolved,
+        }
+    }
     /// The `int()` width the given core release uses.
     #[must_use]
     pub fn for_tcl_version(version: tcl_dialect::TclVersion) -> Self {
@@ -211,6 +243,8 @@ pub enum MathFuncError {
     /// (`square root of negative argument`) with the ordinary domain
     /// `-errorcode`.
     NegativeSqrt,
+    /// Jim's integer power rejects zero with a negative integer exponent.
+    JimZeroToNegativePower,
     /// **Not a Tcl error.** There is no answer *this caller* can carry: its
     /// backend has no arbitrary-precision rung ([`Num`], the const-folder's
     /// shape) or it did not resolve a release and `int()`'s width is
@@ -231,6 +265,7 @@ impl MathFuncError {
             MathFuncError::NotANumber => super::errors::NAN_MESSAGE,
             MathFuncError::Domain => super::errors::DOMAIN_MESSAGE,
             MathFuncError::NegativeSqrt => "square root of negative argument",
+            MathFuncError::JimZeroToNegativePower => "exponentiation of zero by negative power",
             _ => "",
         }
     }
@@ -243,6 +278,7 @@ impl MathFuncError {
         match self {
             MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_CODE,
             MathFuncError::NotANumber => super::errors::NAN_CODE,
+            MathFuncError::JimZeroToNegativePower => "NONE",
             MathFuncError::Domain | MathFuncError::NegativeSqrt => super::errors::DOMAIN_CODE,
             _ => "",
         }
@@ -360,6 +396,106 @@ pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigInt
             MathFuncError::Domain
         }
     })
+}
+
+/// Project a number parsed by Jim's selected numeral grammar into the
+/// signed-wide/double pair its fixed operators consume. The caller preserves
+/// source-object representation timing and supplies the actual parsed value.
+#[must_use]
+pub fn jim_numeric_operand<B>(number: &crate::number::Number) -> Option<NumValue<B>> {
+    match number {
+        crate::number::Number::Double(value) => Some(NumValue::Float(*value)),
+        crate::number::Number::Nan { negative, payload } => {
+            let mut bits = f64::NAN.to_bits() | payload.unwrap_or(0);
+            if *negative {
+                bits |= 1_u64 << 63;
+            }
+            Some(NumValue::Float(f64::from_bits(bits)))
+        }
+        _ => super::wide::parsed_literal(tcl_dialect::NativeArithmetic::JimWide, number)
+            .ok()
+            .map(NumValue::Int),
+    }
+}
+
+/// Dispatch under the actual native math implementation protocol.
+/// `args` must already represent the selected engine's numeric coercions;
+/// arbitrary-precision values do not invent a Jim signed-wide operand.
+///
+/// # Errors
+/// Returns the native numeric rejection, unavailable function, or explicit
+/// abstention when the backend/operand protocol has no proved representation.
+pub fn try_dispatch_with_backend_protocol<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
+    protocol: NativeMathProtocol,
+) -> Result<NumValue<B>, MathFuncError> {
+    if protocol == NativeMathProtocol::Tcl {
+        return try_dispatch_with_backend_int_width(name, args, int_width);
+    }
+    if !jim_fixed_function_names().contains(&name) {
+        return Err(MathFuncError::UnknownFunction);
+    }
+    let spec = spec(name).ok_or(MathFuncError::UnknownFunction)?;
+    if args.len() != usize::from(spec.arity.min) {
+        return Err(MathFuncError::WrongArgCount);
+    }
+    if args.iter().any(|value| matches!(value, NumValue::Big(_))) {
+        return Err(MathFuncError::Abstain);
+    }
+    if name == "pow"
+        && let [NumValue::Int(base), NumValue::Int(exponent)] = args
+    {
+        return super::wide::binary(
+            tcl_dialect::NativeArithmetic::JimWide,
+            super::ast::BinOp::Pow,
+            *base,
+            *exponent,
+        )
+        .map(NumValue::Int)
+        .map_err(|_| MathFuncError::JimZeroToNegativePower);
+    }
+    if let [value] = args {
+        let integer = match value {
+            NumValue::Int(value) => Some(*value),
+            _ => None,
+        };
+        match name {
+            "abs" => {
+                return Ok(integer.map_or_else(
+                    || NumValue::Float(value.as_f64().abs()),
+                    |value| NumValue::Int(value.wrapping_abs()),
+                ));
+            }
+            "double" => return Ok(NumValue::Float(value.as_f64())),
+            "int" | "wide" | "round" => {
+                let value = integer.unwrap_or_else(|| {
+                    let mut value = value.as_f64();
+                    if name == "round" {
+                        value += if value < 0.0 { -0.5 } else { 0.5 };
+                    }
+                    jim_math_float_to_wide(value)
+                });
+                return Ok(NumValue::Int(value));
+            }
+            _ => {}
+        }
+    }
+    unary_float_selected(name, args, true)
+        .or_else(|| binary_float_selected(name, args, true))
+        .ok_or(MathFuncError::Abstain)
+}
+
+// Pinned native Jim LP64/x86-64 casts return the signed minimum for NaN,
+// infinity and out-of-range doubles; Rust's saturating `as` has different
+// semantics. This conversion is independent of Jim numeral saturation.
+fn jim_math_float_to_wide(value: f64) -> i64 {
+    if !value.is_finite() || !(I64_MIN_F64..I64_MAX_PLUS_ONE_F64).contains(&value.trunc()) {
+        i64::MIN
+    } else {
+        value as i64
+    }
 }
 
 /// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
@@ -879,9 +1015,9 @@ fn wide_window<B: super::super::number_tower::BigIntOps>(v: NumValue<B>) -> NumV
 /// part by one when the fraction reaches one half in magnitude;
 /// [`f64::round`] is that operation, computed exactly. It is **not**
 /// `floor(d + 0.5)` / `ceil(d - 0.5)`, which rounds twice and so disagrees
-/// wherever `d ± 0.5` itself rounds: `0.49999999999999994 + 0.5` is exactly
-/// `1.0` in binary64 and `4503599627370497.0 + 0.5` ties to even, so that
-/// spelling answered `1` and `4503599627370498` where tclsh 8.6.16/9.0.4
+/// wherever `d ± 0.5` itself rounds: `0.499_999_999_999_999_94 + 0.5` is exactly
+/// `1.0` in binary64 and `4_503_599_627_370_497.0 + 0.5` ties to even, so that
+/// spelling answered `1` and `4_503_599_627_370_498` where tclsh 8.6.16/9.0.4
 /// answer `0` and `4503599627370497`.
 fn round_exact<B: super::super::number_tower::BigIntOps>(f: f64) -> Option<NumValue<B>> {
     if !f.is_finite() {
@@ -969,10 +1105,20 @@ fn unary_float<B: super::super::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
+    unary_float_selected(name, vals, false)
+}
+
+fn unary_float_selected<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+    accepts_nan: bool,
+) -> Option<NumValue<B>> {
     if vals.len() != 1 {
         return None;
     }
     let f: fn(f64) -> f64 = match name {
+        "ceil" => f64::ceil,
+        "floor" => f64::floor,
         "sqrt" => f64::sqrt,
         "exp" => f64::exp,
         "log" => f64::ln,
@@ -1006,14 +1152,14 @@ fn unary_float<B: super::super::number_tower::BigIntOps>(
         _ => return None,
     };
     let arg = vals[0].as_f64();
-    if arg.is_nan() {
+    if arg.is_nan() && !accepts_nan {
         return None;
     }
     let r = f(arg);
     // A NaN result from a non-NaN argument is a domain error (e.g. `sqrt(-1)`,
     // `gamma` at a non-positive integer — `libm::tgamma` already returns NaN
     // there, matching Tcl's own `CheckDoubleResult` domain-error path).
-    if r.is_nan() {
+    if r.is_nan() && !accepts_nan {
         None
     } else {
         Some(NumValue::Float(r))
@@ -1040,10 +1186,18 @@ fn binary_float<B: super::super::number_tower::BigIntOps>(
     name: &str,
     vals: &[NumValue<B>],
 ) -> Option<NumValue<B>> {
+    binary_float_selected(name, vals, false)
+}
+
+fn binary_float_selected<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    vals: &[NumValue<B>],
+    accepts_nan: bool,
+) -> Option<NumValue<B>> {
     if vals.len() != 2 {
         return None;
     }
-    if has_nan(vals) {
+    if has_nan(vals) && !accepts_nan {
         return None;
     }
     let f: fn(f64, f64) -> f64 = match name {
@@ -1060,7 +1214,7 @@ fn binary_float<B: super::super::number_tower::BigIntOps>(
         _ => return None,
     };
     let r = f(vals[0].as_f64(), vals[1].as_f64());
-    if r.is_nan() {
+    if r.is_nan() && !accepts_nan {
         None
     } else {
         Some(NumValue::Float(r))
@@ -1310,7 +1464,7 @@ mod tests {
 
     /// `round()` is half away from zero on the *exact* operand — C's `modf`
     /// form, not `floor(d + 0.5)`, which rounds twice and answers `1` for
-    /// `0.49999999999999994` and `4503599627370498` for `2**52 + 1`. Rows
+    /// `0.499_999_999_999_999_94` and `4_503_599_627_370_498` for `2**52 + 1`. Rows
     /// measured on tclsh 8.6.16 and 9.0.4.
     #[test]
     fn round_is_half_away_from_zero_on_the_exact_value() {
@@ -1889,5 +2043,88 @@ mod tests {
                 assert_eq!(integer_conversion(name, w), None, "{name} {w:?}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod native_protocol_tests {
+    use super::*;
+
+    fn jim(name: &str, args: &[Num]) -> Result<Num, MathFuncError> {
+        try_dispatch_with_backend_protocol(
+            name,
+            args,
+            IntWidth::Windowed,
+            NativeMathProtocol::Jim084,
+        )
+    }
+
+    #[test]
+    fn jim_integer_power_and_conversion_follow_measured_signed_wide_protocol() {
+        for (args, expected) in [
+            ([Num::Int(2), Num::Int(2)], 4),
+            ([Num::Int(2), Num::Int(-1)], 0),
+            ([Num::Int(-1), Num::Int(-3)], -1),
+            ([Num::Int(2), Num::Int(63)], i64::MIN),
+            ([Num::Int(2), Num::Int(64)], 0),
+        ] {
+            assert_eq!(jim("pow", &args), Ok(Num::Int(expected)));
+        }
+        assert_eq!(
+            jim("pow", &[Num::Float(2.0), Num::Int(2)]),
+            Ok(Num::Float(4.0))
+        );
+        assert_eq!(
+            jim("pow", &[Num::Int(0), Num::Int(-1)]),
+            Err(MathFuncError::JimZeroToNegativePower)
+        );
+        assert_eq!(jim("abs", &[Num::Int(i64::MIN)]), Ok(Num::Int(i64::MIN)));
+        for (name, value, expected) in [
+            ("round", 0.499_999_999_999_999_94, 1),
+            ("round", 4_503_599_627_370_497.0, 4_503_599_627_370_498),
+            ("int", 1e20, i64::MIN),
+            ("round", 1e20, i64::MIN),
+            ("int", f64::NAN, i64::MIN),
+            ("int", f64::INFINITY, i64::MIN),
+        ] {
+            assert_eq!(jim(name, &[Num::Float(value)]), Ok(Num::Int(expected)));
+        }
+    }
+
+    #[test]
+    fn jim_float_domain_results_do_not_acquire_c_math_rejections() {
+        for (name, args) in [
+            ("sqrt", vec![Num::Int(-1)]),
+            ("acos", vec![Num::Int(2)]),
+            ("fmod", vec![Num::Int(1), Num::Int(0)]),
+        ] {
+            assert!(matches!(jim(name, &args), Ok(Num::Float(value)) if value.is_nan()));
+            assert_eq!(
+                try_dispatch_with_backend_protocol(
+                    name,
+                    &args,
+                    IntWidth::Windowed,
+                    NativeMathProtocol::Tcl
+                ),
+                Err(MathFuncError::Domain)
+            );
+        }
+        assert_eq!(
+            jim("log", &[Num::Int(0)]),
+            Ok(Num::Float(f64::NEG_INFINITY))
+        );
+        assert_eq!(
+            try_dispatch_with_backend_protocol(
+                "pow",
+                &[Num::Int(2), Num::Int(2)],
+                IntWidth::Windowed,
+                NativeMathProtocol::Tcl
+            ),
+            Ok(Num::Float(4.0))
+        );
+        assert_eq!(
+            jim("future_function", &[Num::Int(1)]),
+            Err(MathFuncError::UnknownFunction)
+        );
     }
 }

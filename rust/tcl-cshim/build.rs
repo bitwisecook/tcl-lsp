@@ -28,6 +28,7 @@
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(cshim_c_tests)");
     println!("cargo:rerun-if-changed=tests/c/pkga.c");
+    println!("cargo:rerun-if-changed=tests/c/index_cache.c");
     println!("cargo:rerun-if-changed=include/tclshim.h");
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os == "windows" {
@@ -35,6 +36,7 @@ fn main() {
     }
     cc::Build::new()
         .file("tests/c/pkga.c")
+        .file("tests/c/index_cache.c")
         .include("include")
         .flag_if_supported("-std=c99")
         .warnings(true)

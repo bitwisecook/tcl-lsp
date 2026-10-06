@@ -1,0 +1,2 @@
+route=compiled kind=scalar code=0 result=MUTATED
+route=generic kind=scalar code=0 result=MUTATED

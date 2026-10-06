@@ -46,11 +46,10 @@ use crate::naming::element_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
-use crate::value_shapes::is_pure_var_ref;
 
 use super::hints::{
-    ShimmerExpectation, arg_shimmer_expectation, arg_shimmer_type, inert_braced_args,
-    is_numeric_compatible, is_uncommitted_first_conversion,
+    ShimmerExpectation, invocation_shimmer_expectation, is_numeric_compatible,
+    is_uncommitted_first_conversion,
 };
 use super::span::def_range_map;
 use super::{ShimmerWarning, type_name};
@@ -86,6 +85,7 @@ pub(crate) fn find_use_site_shimmers(
     let commit_ctx = super::commit::CommitCtx {
         registry,
         ssa,
+        source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
         values,
     };
@@ -103,19 +103,20 @@ pub(crate) fn find_use_site_shimmers(
         // target intrep, the runtime representation has already changed, so a
         // later use to the *same* target in the same block is not a second
         // shimmer.
-        let mut already_coerced: HashSet<(String, u32, TclType)> = HashSet::new();
+        let mut already_coerced: HashSet<(Symbol, u32, TclType)> = HashSet::new();
         // The committed-intrep walker replays the commit transfer function in
         // step with this walk, so each statement's checks see the state *just
         // before* it executes.
         let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
-        for ss in &ssa_block.statements {
+        for (index, ss) in ssa_block.statements.iter().enumerate() {
             let mut ctx = UseSiteCtx {
                 types,
                 registry,
                 def_map: &def_map,
                 values,
                 loop_facts: &loop_facts,
-                ssa,
+
+                source: crate::ssa::SsaSourceView::at_statement(ssa, block_id, index),
                 array_syms: &array_syms,
                 commit: &commit_walker,
                 in_loop,
@@ -139,7 +140,7 @@ struct UseSiteCtx<'a> {
     def_map: &'a HashMap<ValueKey, Span>,
     values: &'a HashMap<ValueKey, LatticeValue>,
     loop_facts: &'a LoopFacts,
-    ssa: &'a SsaFunction,
+    source: crate::ssa::SsaSourceView<'a>,
     /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
     /// conflated `arr(a)`/`arr(b)` symbol can hold either element's intrep.
     array_syms: &'a HashSet<Symbol>,
@@ -148,7 +149,7 @@ struct UseSiteCtx<'a> {
     /// every path (a genuine second conversion, [`super::commit`]).
     commit: &'a super::commit::CommitWalker<'a>,
     in_loop: bool,
-    already_coerced: &'a mut HashSet<(String, u32, TclType)>,
+    already_coerced: &'a mut HashSet<(Symbol, u32, TclType)>,
     out: &'a mut Vec<ShimmerWarning>,
 }
 
@@ -163,11 +164,11 @@ struct UseSiteCtx<'a> {
 /// re-thunk it each pass (genuine S101).
 #[derive(Default)]
 struct LoopFacts {
-    /// Names defined anywhere in a loop block (statement defs + phis).
-    def_names: HashSet<String>,
-    /// Per-name set of expected intreps requested at any use-site in a
+    /// Cells defined anywhere in a loop block (statement defs + phis).
+    def_names: HashSet<Symbol>,
+    /// Per-cell set of expected intreps requested at any use-site in a
     /// loop block.
-    use_targets: HashMap<String, HashSet<TclType>>,
+    use_targets: HashMap<Symbol, HashSet<TclType>>,
 }
 
 impl LoopFacts {
@@ -187,17 +188,19 @@ impl LoopFacts {
             };
             if let Some(sb) = ssa.blocks.get(&id) {
                 for st in &sb.statements {
-                    facts
-                        .def_names
-                        .extend(st.defs.keys().map(|&sym| ssa.var_name(sym).to_owned()));
+                    facts.def_names.extend(st.defs.keys().copied());
                 }
                 for phi in &sb.phis {
-                    facts.def_names.insert(ssa.var_name(phi.name).to_owned());
+                    facts.def_names.insert(phi.name);
                 }
             }
             if let Some(cb) = cfg.blocks.get(&id) {
-                for stmt in &cb.statements {
-                    facts.record_use_targets(stmt, registry);
+                for (index, stmt) in cb.statements.iter().enumerate() {
+                    facts.record_use_targets(
+                        stmt,
+                        registry,
+                        crate::ssa::SsaSourceView::at_statement(ssa, id, index),
+                    );
                 }
             }
         }
@@ -229,17 +232,20 @@ impl LoopFacts {
     /// A lifted call needs no brace gate of its own: its argument words are
     /// raw source with the braces still on, so the `$` test declines them —
     /// the same reasoning [`inert_braced_args`] records for its own scope.
-    fn record_use_targets(&mut self, stmt: &Statement, registry: &CommandRegistry) {
-        if let Statement::Call {
-            command,
-            args,
-            tokens,
-            ..
-        } = stmt
+    fn record_use_targets(
+        &mut self,
+        stmt: &Statement,
+        registry: &CommandRegistry,
+        source: crate::ssa::SsaSourceView<'_>,
+    ) {
+        let context = registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        if let Some(invocation) =
+            crate::registry_invocation::normal_statement_representation(registry, context, stmt)
         {
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let inert = inert_braced_args(registry, command, &arg_refs, tokens.as_ref());
-            self.record_invocation(command, args, &inert, registry);
+            let inert = super::hints::inert_effective_args(registry, &invocation);
+            self.record_invocation(&invocation, &inert, source, registry);
         }
         let tokens = match stmt {
             Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
@@ -251,7 +257,15 @@ impl LoopFacts {
             tokens,
             tcl_lexer::LexerConfig::for_profile(registry.profile()),
         ) {
-            self.record_invocation(&lifted.command, &lifted.args, &[], registry);
+            if let Some(tokens) = &lifted.tokens
+                && let Some(invocation) =
+                    crate::registry_invocation::normal_representation_invocation(
+                        registry, context, tokens,
+                    )
+            {
+                let inert = super::hints::inert_effective_args(registry, &invocation);
+                self.record_invocation(&invocation, &inert, source, registry);
+            }
         }
     }
 
@@ -259,19 +273,40 @@ impl LoopFacts {
     /// argument positions in `inert`.
     fn record_invocation(
         &mut self,
-        command: &str,
-        args: &[String],
+        invocation: &crate::registry_invocation::NormalRepresentationInvocation,
         inert: &[usize],
+        source: crate::ssa::SsaSourceView<'_>,
         registry: &CommandRegistry,
     ) {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        for (i, word) in args.iter().enumerate() {
-            if inert.contains(&i) || !word.trim_start().starts_with('$') {
+        for (i, word) in invocation
+            .effective_words()
+            .words
+            .iter()
+            .skip(1)
+            .enumerate()
+        {
+            if inert.contains(&i) || word.sole_variable_substitution().is_none() {
                 continue;
             }
-            if let Some(expected) = arg_shimmer_type(registry, command, &arg_refs, i) {
-                let var = element_var_name(word.trim()).to_owned();
-                self.use_targets.entry(var).or_default().insert(expected);
+            if super::hints::operand_preserves_captured_cache(
+                invocation,
+                i,
+                source.read_word_representation_advice(word, registry),
+            ) {
+                continue;
+            }
+            if let Some(expected) =
+                invocation_shimmer_expectation(invocation, i).map(|hint| hint.expected)
+                && let Some(read) = invocation
+                    .effective_words()
+                    .words
+                    .get(i + 1)
+                    .and_then(|word| source.read_word(word))
+            {
+                self.use_targets
+                    .entry(read.symbol)
+                    .or_default()
+                    .insert(expected);
             }
         }
     }
@@ -279,44 +314,12 @@ impl LoopFacts {
     /// Refine `in_loop` for a single use of `var`: a loop-invariant variable
     /// coerced to fewer than two distinct intreps inside the loop converts
     /// once and is cached, so it is S100 (not S101).
-    fn effective_in_loop(&self, var: &str, in_loop: bool) -> bool {
-        if in_loop && !self.def_names.contains(var) {
-            self.use_targets.get(var).is_some_and(|t| t.len() >= 2)
+    fn effective_in_loop(&self, var: Symbol, in_loop: bool) -> bool {
+        if in_loop && !self.def_names.contains(&var) {
+            self.use_targets.get(&var).is_some_and(|t| t.len() >= 2)
         } else {
             in_loop
         }
-    }
-}
-
-/// Expected intrep for every list/dict argument of a synthetic loop-header
-/// call: the CFG builder lowers `foreach` / `lmap` / `dict for` / `dict map`
-/// to a `Statement::Call` whose `command` is that keyword (or, for the dict
-/// forms, the two-word compound `"dict for"` / `"dict map"`) and whose
-/// `args` are *only* the list/dict arguments — one per iterator group, in
-/// order (see `cfg_builder::cfg_lower::lower_foreach`; identified by
-/// `Statement::Call::foreach_groups` being `Some`, not by the command name).
-///
-/// Every iterator group's argument expects the *same* intrep, so this reads
-/// the registry once and the caller applies the result uniformly — unlike a
-/// real call's `arg_types`, which is keyed per source-position index and
-/// so can't reach a multi-group loop's later arguments at all.
-///
-/// `dict for` / `dict map` are two-word compound names (AGENTS.md's
-/// compound-command pattern — a base command with a subcommand argument,
-/// like `namespace upvar`): split at the space and dispatch through the
-/// `dict` subcommand table via [`arg_shimmer_type`]'s existing subcommand
-/// path, requesting sub-index 1 (both subcommands declare their dict
-/// argument there).
-pub(super) fn foreach_header_expected_type(
-    registry: &CommandRegistry,
-    command: &str,
-) -> Option<TclType> {
-    if let Some((base, sub)) = command.split_once(' ') {
-        // `arg_shimmer_type`'s subcommand path computes `sub_idx =
-        // arg_index - 1`; requesting `arg_index = 2` reads sub-index 1.
-        arg_shimmer_type(registry, base, &[sub], 2)
-    } else {
-        arg_shimmer_type(registry, command, &[], 0)
     }
 }
 
@@ -327,28 +330,15 @@ pub(super) fn foreach_header_expected_type(
 struct InvocationSite<'a> {
     /// Source spelling, for the warning's `command` field and message.
     command: &'a str,
-    /// Registry lookup key — the *canonical* command name when the call is
-    /// an `interp alias` target (`interp alias {} myindex {} ::lindex;
-    /// myindex $x 0` resolves `lookup_command = "::lindex"`), so an aliased
-    /// call to a shimmering builtin is still recognised, matching
-    /// [`Statement::Call::canonical_command`]'s documented "diagnostics
-    /// read better with the spelling the user wrote" rationale.
-    lookup_command: &'a str,
     /// Argument words.
-    args: &'a [String],
+    invocation: &'a crate::registry_invocation::NormalRepresentationInvocation,
+    /// Effective argument expressions retain each individual reference site.
+    words: &'a [crate::ir::WordExpr],
     /// Per-argument absolute spans, index-aligned with `args`, when
     /// available (see `fallback_span`).
     arg_spans: &'a [Span],
-    /// The statement's word snapshot, when this site is a whole statement.
-    /// `args` is de-braced, so only these token kinds can tell a
-    /// brace-quoted literal from a live substitution — see
-    /// [`inert_braced_args`]. `None` for a lifted `[cmd …]`, whose argument
-    /// words are raw source text with the braces still on.
-    tokens: Option<&'a crate::ir::CommandTokens>,
-    /// True for the synthetic loop-header shape [`foreach_header_expected_type`]
-    /// covers (`foreach` / `lmap` / `dict for` / `dict map`) — every
-    /// argument shares one expected type instead of a per-index one.
-    is_foreach_header: bool,
+    /// Argument positions proved inert after alias origin and callee-role projection.
+    inert_arguments: &'a [usize],
     /// Span used for any argument index `arg_spans` doesn't cover — a
     /// synthetic call built without per-word token spans (some test
     /// fixtures) or a substitution word count `arg_spans` didn't fully
@@ -361,32 +351,17 @@ struct InvocationSite<'a> {
 /// [`Statement::Call`] and a `[cmd …]` substitution lifted out of a
 /// [`Statement::AssignValue`] value (`set b [lindex $x 0]`).
 ///
-/// Two narrower residual gaps remain, both strictly better than today's "no
-/// alias detection at all":
-/// - Argument *indices* are unadjusted, so an alias that prepends fixed
-///   arguments (`interp alias {} foo {} ::bar prefix`) can index-shift the
-///   wrong argument.
-/// - A read-modify-write shimmering argument that is a **bare variable
-///   name**, not a `$`-prefixed read (`incr`/`append`/`lappend`'s target) is
-///   never seen here even when aliased: `is_pure_var_ref` below only matches
-///   `$`-style reads, and `incr`'s own canonical name bypasses this function
-///   entirely via the dedicated [`Statement::Incr`] node (see
-///   [`check_incr_var`]) — a form `lower_command` only builds for the literal
-///   command name, not an alias target.
-fn check_invocation(
-    ctx: &mut UseSiteCtx<'_>,
-    site: &InvocationSite<'_>,
-    uses: &HashMap<Symbol, u32>,
-) {
-    let arg_refs: Vec<&str> = site.args.iter().map(String::as_str).collect();
+/// Effective alias arguments and source origins are projected together by the
+/// shared invocation owner before this function receives any argument indices.
+fn check_invocation(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>) {
     // Positions whose brace-quoted word Tcl never substitutes: their
     // de-braced `args` text spells a live `$x` that is not one.
-    let inert = inert_braced_args(ctx.registry, site.lookup_command, &arg_refs, site.tokens);
-    for (i, word) in site.args.iter().enumerate() {
+    let inert = site.inert_arguments;
+    for i in 0..site.invocation.argument_count() {
         if inert.contains(&i) {
             continue;
         }
-        check_argument(ctx, site, i, word, &arg_refs, uses);
+        check_argument(ctx, site, i);
     }
 }
 
@@ -401,19 +376,17 @@ fn check_invocation(
 /// version 0, and Unknown/Overdefined lattice entries.
 fn resolve_tracked_var_use(
     ctx: &UseSiteCtx<'_>,
-    word: &str,
-    uses: &HashMap<Symbol, u32>,
-) -> Option<(String, Symbol, u32, TclType)> {
-    let stripped = word.trim();
-    if !is_pure_var_ref(stripped) {
-        return None;
-    }
-    let var = element_var_name(stripped).to_owned();
-    let sym = ctx.ssa.var_symbol(&var)?;
+    word: &crate::ir::WordExpr,
+    expected: TclType,
+) -> Option<(String, Symbol, u32, super::commit::RepresentationCost)> {
+    let (spelling, _) = word.sole_variable_substitution()?;
+    let var = element_var_name(spelling).to_owned();
+    let read = ctx.source.read_word(word)?;
+    let sym = read.symbol;
     if ctx.array_syms.contains(&sym) {
         return None;
     }
-    let &ver = uses.get(&sym)?;
+    let ver = read.version?;
     if ver == 0 {
         return None;
     }
@@ -425,34 +398,34 @@ fn resolve_tracked_var_use(
     if lattice.kind() != TypeKind::Known {
         return None;
     }
-    lattice.tcl_type().map(|current| (var, sym, ver, current))
+    let current = lattice.tcl_type()?;
+    let cost = ctx
+        .commit
+        .cost_for_word(ctx.source, word, read, current, expected)?;
+    Some((var, sym, ver, cost))
 }
 
-fn check_argument(
-    ctx: &mut UseSiteCtx<'_>,
-    site: &InvocationSite<'_>,
-    i: usize,
-    word: &str,
-    arg_refs: &[&str],
-    uses: &HashMap<Symbol, u32>,
-) {
-    let expectation = if site.is_foreach_header {
-        foreach_header_expected_type(ctx.registry, site.lookup_command).map(|expected| {
-            ShimmerExpectation {
-                expected,
-                transparent_from: &[],
-            }
-        })
-    } else {
-        arg_shimmer_expectation(ctx.registry, site.lookup_command, arg_refs, i)
-    };
+fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize) {
+    let expectation = invocation_shimmer_expectation(site.invocation, i);
     let Some(expectation) = expectation else {
         return;
     };
     let expected = expectation.expected;
-    let Some((var, sym, ver, current)) = resolve_tracked_var_use(ctx, word, uses) else {
+    let Some((var, sym, ver, cost)) = site
+        .words
+        .get(i)
+        .and_then(|word| resolve_tracked_var_use(ctx, word, expected))
+    else {
         return;
     };
+    if super::hints::operand_preserves_captured_cache(
+        site.invocation,
+        i,
+        ctx.source
+            .read_word_representation_advice(&site.words[i], ctx.registry),
+    ) {
+        return;
+    }
     // The committed-intrep state just before this statement: when a prior use
     // (`expr`, `llength`, …) has committed a different intrep on **every**
     // executable path, this read genuinely re-represents even where the
@@ -460,7 +433,8 @@ fn check_argument(
     // lindex $v 0` shimmers Numeric → List though the lattice types `v` Int
     // (pure literal). Resolved before the lattice-equality skip below so the
     // second conversion is not masked.
-    let commit_state = ctx.commit.state_of(sym, ver);
+    let current = cost.current;
+    let commit_state = cost.commitment;
     if commit_state.must_pay(expected)
         && !is_suppressed_committed(&expectation, expected, commit_state.single_committed())
     {
@@ -525,7 +499,7 @@ fn check_argument(
         && ctx
             .loop_facts
             .use_targets
-            .get(&var)
+            .get(&sym)
             .is_some_and(|targets| targets.len() >= 2);
     if !multi_target_in_loop
         && is_uncommitted_first_conversion(
@@ -609,7 +583,7 @@ fn emit_use_site_warning(
     // A prior use in this block already coerced `(var, ver)` to this
     // intrep — the runtime representation has already changed, so this
     // is not a second shimmer.
-    let coercion_key = (warning.var.to_owned(), warning.ver, warning.expected);
+    let coercion_key = (warning.sym, warning.ver, warning.expected);
     if !ctx.already_coerced.insert(coercion_key) {
         return;
     }
@@ -622,7 +596,7 @@ fn emit_use_site_warning(
     // A loop-invariant variable coerced to a single intrep inside the
     // loop converts once and is cached → S100, not the per-iteration
     // S101.
-    let code = if ctx.loop_facts.effective_in_loop(warning.var, ctx.in_loop) {
+    let code = if ctx.loop_facts.effective_in_loop(warning.sym, ctx.in_loop) {
         DiagCode::S101
     } else {
         DiagCode::S100
@@ -661,22 +635,41 @@ fn check_lifted_calls(
     ctx: &mut UseSiteCtx<'_>,
     tokens: Option<&crate::ir::CommandTokens>,
     fallback_span: Span,
-    uses: &HashMap<Symbol, u32>,
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
+        let Some(tokens) = &lifted.tokens else {
+            continue;
+        };
+        let context = ctx
+            .registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let Some(invocation) = crate::registry_invocation::normal_representation_invocation(
+            ctx.registry,
+            context,
+            tokens,
+        ) else {
+            continue;
+        };
+        let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
+        let spans: Vec<_> = invocation
+            .effective_words()
+            .words
+            .iter()
+            .skip(1)
+            .map(|word| word.source().span)
+            .collect();
         check_invocation(
             ctx,
             &InvocationSite {
                 command: &lifted.command,
-                lookup_command: &lifted.command,
-                args: &lifted.args,
-                arg_spans: &lifted.arg_spans,
-                tokens: None,
-                is_foreach_header: false,
+                invocation: &invocation,
+                words: &invocation.effective_words().words[1..],
+                arg_spans: &spans,
+                inert_arguments: &inert,
                 fallback_span,
             },
-            uses,
         );
     }
 }
@@ -684,39 +677,43 @@ fn check_lifted_calls(
 fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Symbol, u32>) {
     match stmt {
         Statement::Call {
-            command,
-            args,
-            tokens,
-            foreach_groups,
-            ..
+            command, tokens, ..
         } => {
             // A `[cmd …]` in one of this call's words reads its arguments
             // exactly as the same command on its own line would — Tcl runs it
             // before the outer command either way — so check it as the
             // invocation it is.
-            check_lifted_calls(ctx, tokens.as_ref(), stmt.span(), uses);
+            check_lifted_calls(ctx, tokens.as_ref(), stmt.span());
 
-            let lookup = stmt.canonical_command_or_source();
-            // `tokens.argv[0]` is the command word; `argv[1..]` are the
-            // per-argument spans, index-aligned with `args` (both are the
-            // literal source words — alias resolution never reorders or
-            // reparents them, see `check_invocation`'s doc comment).
-            let arg_spans: Vec<Span> = tokens
-                .as_ref()
-                .map(|t| t.argv.iter().skip(1).copied().collect())
-                .unwrap_or_default();
+            let context = ctx
+                .registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+            let Some(invocation) = crate::registry_invocation::normal_statement_representation(
+                ctx.registry,
+                context,
+                stmt,
+            ) else {
+                return;
+            };
+            let inert = super::hints::inert_effective_args(ctx.registry, &invocation);
+            let arg_spans: Vec<_> = invocation
+                .effective_words()
+                .words
+                .iter()
+                .skip(1)
+                .map(|word| word.source().span)
+                .collect();
             check_invocation(
                 ctx,
                 &InvocationSite {
                     command,
-                    lookup_command: lookup,
-                    args,
+                    invocation: &invocation,
+                    words: &invocation.effective_words().words[1..],
                     arg_spans: &arg_spans,
-                    tokens: tokens.as_ref(),
-                    is_foreach_header: foreach_groups.is_some(),
+                    inert_arguments: &inert,
                     fallback_span: stmt.span(),
                 },
-                uses,
             );
         }
 
@@ -728,7 +725,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
         // runs, and the outermost `[cmd …]` is simply its depth-zero case
         // rather than a shape this arm re-derives for itself.
         Statement::AssignValue { tokens, .. } => {
-            check_lifted_calls(ctx, tokens.as_ref(), stmt.span(), uses);
+            check_lifted_calls(ctx, tokens.as_ref(), stmt.span());
         }
 
         Statement::Incr { name, amount, .. } => {
@@ -737,10 +734,21 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
             // an Int target with a String `$amount` still shimmers on the
             // amount — so neither must short-circuit the other.
             check_incr_var(ctx, element_var_name(name), stmt.span(), uses);
-            if let Some(amt) = amount.as_deref().map(str::trim)
-                && amt.starts_with('$')
+            if amount.is_some()
+                && let Some(word) = ctx
+                    .source
+                    .source_tokens()
+                    .and_then(|tokens| tokens.words().get(2))
+                && let Some((spelling, _)) = word.sole_variable_substitution()
+                && let Some(read) = ctx.source.read_word(word)
             {
-                check_incr_var(ctx, element_var_name(amt), stmt.span(), uses);
+                check_incr_read(
+                    ctx,
+                    element_var_name(spelling),
+                    stmt.span(),
+                    read,
+                    Some(word),
+                );
             }
         }
 
@@ -755,14 +763,36 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
 /// non-int, non-numeric type that is not a clean hex/octal/binary integer
 /// literal string (that spelling promotes cleanly to int).
 fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMap<Symbol, u32>) {
-    let Some(sym) = ctx.ssa.var_symbol(var) else {
+    let Some(sym) = ctx.source.symbol(var) else {
         return;
     };
-    // Skip an array base (FP-SH-13) — see `check_invocation`.
+    let Some(&ver) = uses.get(&sym) else { return };
+    check_incr_read(
+        ctx,
+        var,
+        span,
+        crate::ssa::SsaReadReference {
+            symbol: sym,
+            version: Some(ver),
+        },
+        None,
+    );
+}
+
+fn check_incr_read(
+    ctx: &mut UseSiteCtx<'_>,
+    var: &str,
+    span: Span,
+    read: crate::ssa::SsaReadReference,
+    word: Option<&crate::ir::WordExpr>,
+) {
+    let sym = read.symbol;
     if ctx.array_syms.contains(&sym) {
         return;
     }
-    let Some(&ver) = uses.get(&sym) else { return };
+    let Some(ver) = read.version else {
+        return;
+    };
     if ver == 0 {
         return;
     }
@@ -780,7 +810,17 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
     // A prior use that committed a non-numeric intrep on every path makes this
     // `incr` a genuine second conversion — `set v 5; llength $v; incr v`
     // commits List at the `llength`, then re-represents List → Int here.
-    let commit_state = ctx.commit.state_of(sym, ver);
+    let cost = match word {
+        Some(word) => ctx
+            .commit
+            .cost_for_word(ctx.source, word, read, current, TclType::Int),
+        None => ctx
+            .commit
+            .cost_for_native_read(ctx.source, read, current, TclType::Int),
+    };
+    let Some(cost) = cost else { return };
+    let current = cost.current;
+    let commit_state = cost.commitment;
     let must_pay_committed = commit_state.must_pay(TclType::Int);
     if !must_pay_committed {
         if current == TclType::Int || is_numeric_compatible(current, TclType::Int) {
@@ -838,8 +878,168 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
+    fn captured_read_summary(
+        function: &crate::compilation_unit::FunctionUnit,
+        registry: &CommandRegistry,
+    ) -> Vec<String> {
+        let mut summary = Vec::new();
+        for (block, body) in &function.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let view = crate::ssa::SsaSourceView::at_statement(&function.ssa, *block, index);
+                let Some(tokens) = view.source_tokens() else {
+                    summary.push(format!("{block:?}/{index}: no carrier"));
+                    continue;
+                };
+                for access in &tokens.variable_accesses {
+                    let read = view.read_reference(&access.source, &access.original_spelling);
+                    let semantic = read.and_then(|read| {
+                        read.version
+                            .and_then(|version| function.types.get(&(read.symbol, version)))
+                    });
+                    let contexts: Vec<_> = access
+                        .context_alternatives()
+                        .iter()
+                        .map(|context| {
+                            let place = crate::var_resolve::resolve_substitution_access(
+                                &access.original_spelling,
+                                context,
+                                registry,
+                                tcl_registry::TraceOperation::Read,
+                            );
+                            (
+                                context.read_produces_value(&place, registry),
+                                context.contents_representation_at(&place),
+                                context.container_representation_alternatives_at(&place),
+                                context.contents_origin(&place),
+                            )
+                        })
+                        .collect();
+                    summary.push(format!(
+                        "{block:?}/{index} {:?} {:?}: read={read:?}, semantic={semantic:?}, residual={:?}, contexts={contexts:?}",
+                        access.source.span,
+                        access.original_spelling,
+                        access.context_residual(),
+                    ));
+                }
+            }
+        }
+        summary.sort();
+        summary
+    }
+
+    #[test]
+    fn unchanged_store_bytes_do_not_preserve_a_callback_coerced_representation() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (callback, dictionary_shimmer) in [
+            ("", true),
+            (
+                "upvar 1 dictionary destination; llength $destination",
+                false,
+            ),
+        ] {
+            let source = format!(
+                "proc observe args {{{callback}}}; proc f {{}} {{set dictionary [dict create k 1]; upvar 0 dictionary view; trace add variable view write observe; set dictionary [dict create k 2]; llength $view}}"
+            );
+            let unit = CompilationUnit::build_for(&source, registry, false);
+            let function = unit.function("::f").unwrap();
+            let warnings = use_site_shimmers(function, registry);
+            assert_eq!(
+                warnings.iter().any(|warning| warning.variable == "view"
+                    && warning.command == "llength"
+                    && warning.from_type == TclType::Dict),
+                dictionary_shimmer,
+                "callback {callback:?}: {warnings:?}; reads={:?}",
+                captured_read_summary(function, registry),
+            );
+        }
+    }
+
+    #[test]
+    fn reselected_alias_reads_use_the_actual_statement_cell() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc f {} {\nset dictionary [dict create a 1]\nset sequence [list a b]\nupvar 0 dictionary view\nllength $view\nupvar 0 sequence view\nllength $view\n}";
+        let cu = CompilationUnit::build_for(source, registry, false);
+        let function = cu.function("::f").expect("procedure");
+        let mut reads = Vec::new();
+        for (block, body) in &function.ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let Some(invocation) = crate::registry_invocation::normal_statement_representation(
+                    registry,
+                    None,
+                    &statement.statement,
+                ) else {
+                    continue;
+                };
+                if invocation.diagnostic_command() != "llength" {
+                    continue;
+                }
+                let word = &invocation.effective_words().words[1];
+                if word
+                    .sole_variable_substitution()
+                    .is_none_or(|(spelling, _)| {
+                        crate::naming::normalise_var_name(spelling) != "view"
+                    })
+                {
+                    continue;
+                }
+                let read = crate::ssa::SsaSourceView::at_statement(&function.ssa, *block, index)
+                    .read_word(word)
+                    .expect("proved selected alias read");
+                assert!(read.version.is_some_and(|version| version > 0));
+                assert_eq!(statement.uses.get(&read.symbol).copied(), read.version);
+                reads.push((
+                    statement.statement.span().start(),
+                    read.symbol,
+                    read.version,
+                ));
+            }
+        }
+        reads.sort_by_key(|(offset, ..)| *offset);
+        assert_eq!(
+            reads.len(),
+            2,
+            "both original alias reads remain represented",
+        );
+        assert_ne!(reads[0].1, reads[1].1, "retargeting selects distinct cells");
+        let warnings = use_site_shimmers(function, registry);
+        assert!(
+            warnings.iter().any(|warning| warning.command == "llength"
+                && warning.variable == "view"
+                && warning.from_type == TclType::Dict),
+            "the selected dictionary cell retains its producer representation: reads={reads:?}, types={:?}, warnings={warnings:?}",
+            function.types
+        );
+        assert_eq!(
+            warnings
+                .iter()
+                .filter(|warning| warning.command == "llength" && warning.variable == "view")
+                .count(),
+            1
+        );
+    }
+
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn selected_length_cost_distinguishes_conversion_from_preserved_numeric_cache() {
+        let source = "proc f {} {set x 0; incr x; llength $x; incr x}";
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let unit = CompilationUnit::build_for_profile(source, registry, false, profile);
+            let function = unit.function("::f").unwrap();
+            let warnings = use_site_shimmers(function, registry);
+            for command in ["llength", "incr"] {
+                assert_eq!(
+                    warnings.iter().any(|warning| warning.command == command),
+                    name == "tcl8.6",
+                    "{name}: {command}: {warnings:?}"
+                );
+            }
+        }
     }
 
     /// Compute commit facts + run the use-site detector for one function unit
@@ -851,6 +1051,7 @@ mod tests {
         let ctx = super::super::commit::CommitCtx {
             registry,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -1030,23 +1231,118 @@ mod tests {
     /// token kinds plus the registry's argument role.
     #[test]
     fn a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame() {
-        for (body, reads) in [
-            ("set x [llength $lst]\n lindex {$x} 0", false),
-            ("set x [llength $lst]\n lindex \"$x\" 0", true),
-            ("set x [llength $lst]\n lindex $x 0", true),
-            ("set x [lrange $lst 0 1]\n expr {$x} + 1", true),
-            ("set x [lrange $lst 0 1]\n expr \"$x\" + 1", true),
-            ("set x [lrange $lst 0 1]\n expr $x + 1", true),
-        ] {
-            let src = format!("proc f {{lst}} {{\n {body}\n}}");
-            let cu = CompilationUnit::build_for(&src, &registry(), false);
-            let w = super::super::find_shimmer_warnings_for_cu(&cu, &registry());
-            assert_eq!(
-                !w.is_empty(),
-                reads,
-                "expected reads={reads} for {src:?}, got: {w:?}"
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let profile = registry.profile().expect("actual native fixture profile");
+            for (body, reads) in [
+                ("set x [llength $lst]\n lindex {$x} 0", false),
+                ("set x [llength $lst]\n lindex \"$x\" 0", true),
+                ("set x [llength $lst]\n lindex $x 0", true),
+                ("set x [lrange $lst 0 1]\n expr {$x} + 1", true),
+                ("set x [lrange $lst 0 1]\n expr \"$x\" + 1", true),
+                ("set x [lrange $lst 0 1]\n expr $x + 1", true),
+            ] {
+                // Ordinary input closes C 9 abstract-list callbacks, which can
+                // otherwise retarget x before its result store. A nonempty
+                // ordinary range also supplies an actual List result.
+                let input = "set constructor list; set lst [$constructor 7];";
+                let src = format!("proc f {{lst}} {{\n {input} {body}\n}}");
+                let cu = CompilationUnit::build_for_profile(&src, registry, false, profile);
+                let w = super::super::find_shimmer_warnings_for_cu(&cu, registry);
+                assert_eq!(
+                    !w.is_empty(),
+                    reads,
+                    "expected reads={reads} for {src:?}, got: {w:?}; captured={:?}",
+                    captured_read_summary(cu.function("::f").unwrap(), registry)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unknown_range_result_does_not_donate_a_list_conversion_warning() {
+        let unit = CompilationUnit::build_for(
+            "proc f {lst} {set x [lrange $lst 0 1]; expr {$x} + 1}",
+            &registry(),
+            false,
+        );
+        let warnings = super::super::find_shimmer_warnings_for_cu(&unit, &registry());
+        assert!(
+            warnings.is_empty(),
+            "unknown/empty/abstract range: {warnings:?}"
+        );
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let unit = CompilationUnit::build_for_profile(
+                "proc f {lst} {set x [lrange $lst 0 1]; expr {$x} + 1}",
+                registry,
+                false,
+                registry.profile().expect("actual native fixture profile"),
+            );
+            let warnings = super::super::find_shimmer_warnings_for_cu(&unit, registry);
+            assert!(
+                warnings.is_empty(),
+                "{dialect}: unknown range: {warnings:?}"
             );
         }
+    }
+
+    #[test]
+    fn an_unknown_or_replaced_constructor_cannot_donate_native_range_representation() {
+        let source = "proc f {} {set constructor list; set lst [$constructor 7]; set x [lrange $lst 0 1]; expr {$x} + 1}";
+        let registry = registry();
+        // Generic authoring retains an actual selected native entry; the
+        // absence of an explicit profile argument is not an unknown engine.
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        let warnings = super::super::find_shimmer_warnings_for_cu(&unit, &registry);
+        assert!(!warnings.is_empty(), "actual authoring entry: {warnings:?}");
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            unknown_entry: true,
+            ..Default::default()
+        };
+        let unknown = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::default(),
+                dialect: None,
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        );
+        let warnings = super::super::find_shimmer_warnings_for_cu(&unknown, &registry);
+        assert!(warnings.is_empty(), "unknown entry: {warnings:?}");
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let replaced =
+                format!("rename list native_list; proc list args {{return 7}}; {source}");
+            let unit = CompilationUnit::build_for_profile(
+                &replaced,
+                registry,
+                false,
+                registry.profile().expect("actual native fixture profile"),
+            );
+            let warnings = super::super::find_shimmer_warnings_for_cu(&unit, registry);
+            assert!(
+                warnings.is_empty(),
+                "{dialect}: replaced creator: {warnings:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unknown_abstract_input_does_not_close_the_result_store() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.1").commands();
+        let unit = CompilationUnit::build_for_profile(
+            "proc f {lst} {set x [llength $lst]; lindex $x 0}",
+            registry,
+            false,
+            registry.profile().expect("actual native fixture profile"),
+        );
+        let warnings = super::super::find_shimmer_warnings_for_cu(&unit, registry);
+        assert!(warnings.is_empty(), "unknown callback world: {warnings:?}");
     }
 
     /// The same braced word must not move the **committed-intrep state**
@@ -1291,7 +1587,7 @@ mod tests {
     /// *committed* non-list intrep — the CFG builder lowers the header to a
     /// synthetic `Statement::Call` (`command="foreach", args=[list_arg]`) that
     /// never reaches the per-index `arg_types` path, so this is the
-    /// `foreach_header_expected_type` path specifically. A committed `Dict`
+    /// `IterationBindings` input-representation proof path specifically. A committed `Dict`
     /// (from `[dict create]`) genuinely re-represents when foreach reads it as a
     /// list; a *pure* string would be a free first conversion (see the
     /// `no_shimmer_for_foreach_header_with_pure_string` TN below).
@@ -1359,7 +1655,7 @@ mod tests {
 
     /// TP: `dict for`'s dict argument shimmers to Dict — the compound
     /// two-word command name (`"dict for"`) routes through the `dict`
-    /// subcommand table via `foreach_header_expected_type`'s split.
+    /// subcommand table via `IterationBindings` input-representation proof's split.
     #[test]
     fn shimmer_detected_for_dict_for_header_argument() {
         let src = "proc f {} {\n    set d hello\n    dict for {k v} $d { puts $k }\n}\n";
@@ -1394,22 +1690,26 @@ mod tests {
     /// one-time S100, not the per-iteration S101.
     #[test]
     fn loop_invariant_single_target_downgrades_to_s100() {
-        let src = "proc f {} {\n  set data [dict create a 1 b 2]\n  for {set i 0} {$i < 3} {incr i} {\n    set x [lindex $data $i]\n  }\n}\n";
-        let cu = CompilationUnit::build_for(src, &registry(), false);
-        let fu = cu.function("::f").unwrap();
-        let warnings = use_site_shimmers(fu, &registry());
-        let w = warnings
-            .iter()
-            .find(|w| w.command == "lindex" && w.variable == "data");
-        assert!(
-            w.is_some(),
-            "expected lindex shimmer for data: {warnings:?}"
-        );
-        assert_eq!(
-            w.unwrap().code,
-            DiagCode::S100,
-            "loop-invariant single-target use is one-time (S100): {warnings:?}"
-        );
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let profile = registry.profile().expect("actual native fixture profile");
+            let src = "proc f {} {\n  set data [dict create a 1 b 2]\n  for {set i 0} {$i < 3} {incr i} {\n    set x [lindex $data $i]\n  }\n}\n";
+            let cu = CompilationUnit::build_for_profile(src, registry, false, profile);
+            let fu = cu.function("::f").unwrap();
+            let warnings = use_site_shimmers(fu, registry);
+            let w = warnings
+                .iter()
+                .find(|w| w.command == "lindex" && w.variable == "data");
+            assert!(
+                w.is_some(),
+                "expected lindex shimmer for data: {warnings:?}"
+            );
+            assert_eq!(
+                w.unwrap().code,
+                DiagCode::S100,
+                "loop-invariant single-target use is one-time (S100): {warnings:?}"
+            );
+        }
     }
 
     /// A conversion performed by a *nested* `[cmd …]` is paid on
@@ -1423,32 +1723,37 @@ mod tests {
     /// per-iteration conversion was reported S100 instead of S101.
     #[test]
     fn a_nested_conversion_in_a_loop_classifies_as_s101_like_the_direct_one() {
-        for (first, second) in [
-            // Direct statements — the row that was already right.
-            ("llength $x", "dict size $x"),
-            // Nested inside a `Statement::Call`.
-            ("puts [list [llength $x]]", "puts [list [dict size $x]]"),
-            // Nested inside a `Statement::AssignValue`.
-            ("set a [list [llength $x]]", "set b [list [dict size $x]]"),
-        ] {
-            let src = format!(
-                "proc f {{l}} {{\n  set x [dict create a 1 b 2]\n  foreach i $l {{\n    \
+        for dialect in ["tcl8.6", "tcl9.1"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let profile = registry.profile().expect("actual native fixture profile");
+            for (first, second) in [
+                // Direct statements — the row that was already right.
+                ("llength $x", "dict size $x"),
+                // Nested inside a `Statement::Call`.
+                ("puts [list [llength $x]]", "puts [list [dict size $x]]"),
+                // Nested inside a `Statement::AssignValue`.
+                ("set a [list [llength $x]]", "set b [list [dict size $x]]"),
+            ] {
+                let src = format!(
+                    "proc f {{l}} {{\n  set x [dict create a 1 b 2]\n  foreach i $l {{\n    \
                  {first}\n    {second}\n  }}\n  return $x\n}}\n"
-            );
-            let cu = CompilationUnit::build_for(&src, &registry(), false);
-            let fu = cu.function("::f").unwrap();
-            let warnings = use_site_shimmers(fu, &registry());
-            let on_x: Vec<&ShimmerWarning> =
-                warnings.iter().filter(|w| w.variable == "x").collect();
-            assert!(
-                !on_x.is_empty(),
-                "expected shimmer warnings on x for {first:?} / {second:?}: {warnings:?}",
-            );
-            assert!(
-                on_x.iter().all(|w| w.code == DiagCode::S101),
-                "a per-iteration conversion is S101 however it is spelled; \
+                );
+                let cu = CompilationUnit::build_for_profile(&src, registry, false, profile);
+                let fu = cu.function("::f").unwrap();
+                let warnings = use_site_shimmers(fu, registry);
+                let on_x: Vec<&ShimmerWarning> =
+                    warnings.iter().filter(|w| w.variable == "x").collect();
+                assert!(
+                    !on_x.is_empty(),
+                    "expected shimmer warnings on x for {first:?} / {second:?}: {warnings:?}; captured={:?}",
+                    captured_read_summary(fu, registry),
+                );
+                assert!(
+                    on_x.iter().all(|w| w.code == DiagCode::S101),
+                    "a per-iteration conversion is S101 however it is spelled; \
                  {first:?} / {second:?} gave {on_x:?}",
-            );
+                );
+            }
         }
     }
 

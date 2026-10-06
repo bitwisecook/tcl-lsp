@@ -87,26 +87,14 @@ pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'s
     tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
 }
 
-/// The point a dialect **name** is gated under, `None` when the name is not
-/// a declared environment — the fail-closed form.
-///
-/// The decline arm is kept rather than collapsed onto the lenient fallback
-/// [`surface_point`] would give: an intrinsic whose dialect cannot be
-/// established must not enter the guarded fast path under the permissive
-/// point. The acceptance set is the closed release set
-/// [`tcl_dialect::TclVersion::dialect_profile_name`] spells, and the seam's
-/// `the_validator_accepts_every_retired_validators_name` pins that nothing
-/// the retired name validator accepted is rejected here.
-pub(crate) fn known_surface_point_for_dialect(
-    name: &str,
-) -> Option<tcl_registry::model::AuthoringScope> {
-    tcl_registry::model::resolve_known_environment(name)
-        .map(|environment| environment.document_authoring_scope())
-}
-
-/// One memoised answer: `(command, release name, the release's slice of the
-/// engine's table)`.
-type SubcommandCacheEntry = (&'static str, String, &'static [&'static [u8]]);
+/// One memoised answer retains the command, actual release, original handler
+/// table and its availability-filtered projection.
+type SubcommandCacheEntry = (
+    &'static str,
+    String,
+    Vec<&'static [u8]>,
+    &'static [&'static [u8]],
+);
 
 /// The subset of an engine ensemble `table` the emulated release actually
 /// has, in the table's own order — the WASM runtime's half of the rule
@@ -124,10 +112,10 @@ type SubcommandCacheEntry = (&'static str, String, &'static [&'static [u8]]);
 /// extra) is kept, so a table stays the engine's own list of what it
 /// dispatches and its enumeration order.
 ///
-/// Memoised per `(command, release)` for the same reason the VM's is:
-/// resolving the environment by name costs tens of microseconds, which would
-/// dominate a `dict get`. The pair is a closed, tiny set and each command
-/// name has one table, so the leak is bounded by it.
+/// Memoised per `(command, release, original table)`: bootstrap worker rosters
+/// and monolithic dispatch tables can differ for the same command. Reusing a
+/// smaller roster would erase an actual runtime member. The engine's static
+/// rosters and selected releases form a bounded set.
 fn release_subcommand_cache() -> &'static Mutex<Vec<SubcommandCacheEntry>> {
     static CACHE: OnceLock<Mutex<Vec<SubcommandCacheEntry>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(Vec::new()))
@@ -139,11 +127,14 @@ pub(crate) fn release_subcommands(
     table: &[&'static [u8]],
 ) -> &'static [&'static [u8]] {
     let cache = release_subcommand_cache();
-    if let Some((_, _, hit)) = cache
-        .lock()
-        .expect("subcommand cache")
-        .iter()
-        .find(|(cmd, name, _)| *cmd == command && name == dialect_name)
+    if let Some((_, _, _, hit)) =
+        cache
+            .lock()
+            .expect("subcommand cache")
+            .iter()
+            .find(|(cmd, name, input, _)| {
+                *cmd == command && name == dialect_name && input.as_slice() == table
+            })
     {
         return hit;
     }
@@ -154,6 +145,13 @@ pub(crate) fn release_subcommands(
             .iter()
             .copied()
             .filter(|name| {
+                if command == "array"
+                    && tcl_registry::InvocationDialect::of_profile(profile)
+                        .native_array_search_member_present(name)
+                        == Some(false)
+                {
+                    return false;
+                }
                 spec.subcommands
                     .iter()
                     .find(|sub| sub.name.as_bytes() == *name)
@@ -167,9 +165,11 @@ pub(crate) fn release_subcommands(
         None => table.to_vec(),
     };
     let leaked: &'static [&'static [u8]] = Vec::leak(filtered);
-    cache
-        .lock()
-        .expect("subcommand cache")
-        .push((command, dialect_name.to_string(), leaked));
+    cache.lock().expect("subcommand cache").push((
+        command,
+        dialect_name.to_string(),
+        table.to_vec(),
+        leaked,
+    ));
     leaked
 }

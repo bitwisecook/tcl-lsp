@@ -21,9 +21,9 @@
 //! Extends [`CodegenCtx`] with methods for emitting `beginCatch4`/`endCatch`
 //! bytecodes for `catch` and `try` commands.
 
-use tcl_bytecode::ErrorStackContext;
+use tcl_lexer::Span;
 use tcl_registry::hooks::{InlineCodegenHookId, LoweringHookId};
-use tcl_registry::{CommandRegistry, Traits, TryClauseKind, TryCompletionSelector};
+use tcl_registry::{Traits, TryClauseKind, TryCompletionSelector};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cfg::Function as CfgFunction;
@@ -54,43 +54,6 @@ pub fn detect_const_expr_error(node: &ExprNode) -> Option<(String, String)> {
         ));
     }
     None
-}
-
-/// Whether a body script is a straight-line sequence of simple commands the
-/// inline `dict for` emitter can compile — no nested control flow (which needs
-/// its own blocks), no loop jumps (which need loop-exception routing we
-/// don't emit yet), and no nested definitions.
-///
-/// The loop-jump set is the registry's [`Traits::BREAKS_LOOP`] /
-/// [`Traits::CONTINUES_LOOP`] classification, matched against the raw
-/// head word (a `::`-qualified spelling never matched the retired
-/// hardcoded names, so it stays straight-line).
-fn is_straight_line_body(script: &crate::ir::Script, registry: &CommandRegistry) -> bool {
-    script.statements.iter().all(|s| {
-        // Reject nested control flow (needs its own blocks), opaque body
-        // commands, frame shifts, and `break`/`continue` (need loop-exception
-        // routing we don't emit). Everything else — assignments, plain calls,
-        // `return` — is straight-line and emits inline.
-        match s {
-            Statement::If { .. }
-            | Statement::For { .. }
-            | Statement::While { .. }
-            | Statement::Foreach { .. }
-            | Statement::Catch { .. }
-            | Statement::Try { .. }
-            | Statement::Switch { .. }
-            | Statement::Block { .. }
-            | Statement::UpFrame { .. }
-            | Statement::Barrier { .. } => false,
-            Statement::Call { command, .. } => !registry.get(command).is_some_and(|spec| {
-                spec.name == command.as_str()
-                    && spec
-                        .traits
-                        .intersects(Traits::BREAKS_LOOP | Traits::CONTINUES_LOOP)
-            }),
-            _ => true,
-        }
-    })
 }
 
 #[derive(Clone, Copy)]
@@ -195,6 +158,115 @@ impl CodegenCtx<'_> {
             })
     }
 
+    /// Query the retained native protocol before opening a catch range. A
+    /// handler identity alone cannot select the observable output store order.
+    pub(crate) fn catch_output_order(
+        &self,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+    ) -> tcl_registry::catch_invocation::CatchOutputOrder {
+        use tcl_registry::catch_invocation::{CatchInvocation, CatchOutputOrder};
+        use tcl_registry::native_compilation::NativeCompilationSelection;
+        if result_var.is_none() || options_var.is_none() {
+            return CatchOutputOrder::ResultThenOptions;
+        }
+        let binding = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref());
+        let dialect = binding
+            .and_then(crate::command_binding::SourceInvocationBinding::native_compiler_dialect)
+            .unwrap_or_else(|| {
+                crate::environment_ingress::authoring_invocation_dialect(
+                    self.registry,
+                    self.dialect,
+                    self.lexer_config(),
+                )
+            });
+        let selection = binding.map_or(
+            NativeCompilationSelection::Unknown,
+            crate::command_binding::SourceInvocationBinding::native_compilation_admission_selection,
+        );
+        CatchInvocation {
+            result_var_at: Some(1),
+            options_var_at: Some(2),
+            ..CatchInvocation::CAPTURE_TCL_PHASE
+        }
+        .output_order(dialect, selection)
+    }
+
+    /// This emitter handles the positional capture grammar only. In particular,
+    /// Jim's filtering flags are parsed by the central grammar and stay generic.
+    pub(crate) fn catch_inline_shape_is_supported(&self, args: &[(String, bool)]) -> bool {
+        use tcl_registry::catch_invocation::{CatchInvocationSelection, CatchOutputOrder};
+        let dialect = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::native_compiler_dialect)
+            .unwrap_or_else(|| {
+                crate::environment_ingress::authoring_invocation_dialect(
+                    self.registry,
+                    self.dialect,
+                    self.lexer_config(),
+                )
+            });
+        let words: Vec<_> = args.iter().map(|(word, _)| word.as_str()).collect();
+        let CatchInvocationSelection::Valid(capture) =
+            tcl_registry::catch_invocation::select_catch_invocation(
+                tcl_registry::InvocationArguments::literals(&words),
+                dialect,
+            )
+        else {
+            return false;
+        };
+        capture.script_at == 0
+            && capture.ignored_codes == 0
+            && capture.result_var_at == (args.len() >= 2).then_some(1)
+            && capture.options_var_at == (args.len() >= 3).then_some(2)
+            && Self::catch_inline_args_are_static(args)
+            && self.catch_output_order(
+                args.get(1).map(|(s, _)| s.as_str()),
+                args.get(2).map(|(s, _)| s.as_str()),
+            ) != CatchOutputOrder::Unknown
+    }
+
+    /// Consume captured result/options objects while looking up each output
+    /// only at its own write. A preceding write trace may retarget the next name.
+    fn emit_catch_output_stores(
+        &mut self,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+        order: tcl_registry::catch_invocation::CatchOutputOrder,
+    ) {
+        use tcl_registry::catch_invocation::CatchOutputOrder;
+        if let Some(options) = options_var {
+            match order {
+                CatchOutputOrder::ResultThenOptions => {
+                    self.emit(Op::REVERSE, vec![Operand::Imm(3)]);
+                    if let Some(result) = result_var {
+                        self.store_var(result);
+                    }
+                    self.emit(Op::POP, vec![]);
+                    self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+                    self.store_var(options);
+                    self.emit(Op::POP, vec![]);
+                    return;
+                }
+                CatchOutputOrder::OptionsThenResult => {
+                    self.store_var(options);
+                    self.emit(Op::POP, vec![]);
+                }
+                CatchOutputOrder::Unknown => unreachable!("unproved catch output protocol"),
+            }
+        }
+        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        if let Some(result) = result_var {
+            self.store_var(result);
+        }
+        self.emit(Op::POP, vec![]);
+    }
+
     /// Resolve the one `try body on error variableList handler` shape this
     /// inline emitter implements.
     ///
@@ -212,7 +284,7 @@ impl CodegenCtx<'_> {
         let invocation = self.registry.try_control_invocation(
             command,
             &arg_refs,
-            self.registry.own_surface_query(),
+            self.invocation_surface_query(),
         )?;
         let [clause] = invocation.clauses.as_slice() else {
             return None;
@@ -257,16 +329,81 @@ impl CodegenCtx<'_> {
         })
     }
 
+    /// Emit the selected original Try statement using the same exception and
+    /// body-entry owners as a Try nested in a protected command substitution.
+    pub(super) fn emit_selected_try_statement(
+        &mut self,
+        command: &str,
+        values: &[String],
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) -> bool {
+        if self.native_entry.is_some() || !self.compiles_locals() {
+            return false;
+        }
+        // CFG Try calls can omit their local token field while retaining the
+        // original invocation tokens in emit_stmt's source scope.
+        let original = self.invocation_tokens.clone();
+        let source_tokens = tokens.or(original.as_deref());
+        if source_tokens
+            .and_then(|tokens| tokens.expand_word.as_ref())
+            .is_some_and(|words| words.iter().any(|expanded| *expanded))
+        {
+            return false;
+        }
+        let args = values
+            .iter()
+            .enumerate()
+            .map(|(index, argument)| {
+                let braced = source_tokens.is_some_and(|tokens| {
+                    tokens.argv_kinds.get(index + 1) == Some(&tcl_lexer::TokenType::Str)
+                        && tokens
+                            .single_token_word
+                            .get(index + 1)
+                            .copied()
+                            .unwrap_or(false)
+                });
+                (argument.clone(), braced)
+            })
+            .collect::<Vec<_>>();
+        if self.inline_cmd_subst_hook_candidate(command, &args) != Some(InlineCodegenHookId::Try)
+            || self.try_on_error_inline_bindings(command, &args).is_none()
+        {
+            return false;
+        }
+        // Retain the exact command binding only after the source-form guard.
+        if self.inline_cmd_subst_hook(command, &args) != Some(InlineCodegenHookId::Try) {
+            return false;
+        }
+        let exit = self.fresh_label("try_statement_end");
+        self.emit_comment(
+            Op::START_CMD,
+            vec![Operand::Label(exit.clone()), Operand::Imm(1)],
+            "",
+        );
+        self.cmd_index += 1;
+        self.emit_try_on_error_inline(command, &args, &exit);
+        self.place_label(&exit);
+        self.emit(Op::POP, vec![]);
+        self.seen_generic_invoke = true;
+        true
+    }
+
     /// Emit one complete Tcl body without losing its command boundaries.
     ///
-    /// Both inline `catch` and its nested `try` phases use this owner. Each
-    /// command is delegated to the phase's existing one-command emitter, and
-    /// every non-final result is discarded exactly as script evaluation does.
-    /// Fatal/incomplete input takes the runtime evaluator path so the live
-    /// surrounding exception range receives the parse error.
+    /// Catch, try, and dictionary bodies share this owner. Each complete
+    /// command retains its source binding and uses the existing command emitter.
+    /// A malformed tail emits the same parse failure as native bracket scripts
+    /// after the complete prefix, inside the surrounding live exception range.
     fn emit_segmented_inline_body(&mut self, body: &str, emitter: InlineBodyEmitter) {
         let config = self.lexer_config();
-        let segmented = crate::lowering::command_at_time_script_with_config(body, config);
+        let Ok(segmented) = crate::lowering::command_at_time_script_image(
+            &tcl_lexer::SourceImage::native(body.as_bytes()),
+            config,
+        ) else {
+            self.refuse_native_dependency();
+            self.push_lit_bytes_exact(b"");
+            return;
+        };
         if segmented.commands.is_empty() && segmented.fatal_tail.is_none() {
             self.push_lit("");
             return;
@@ -279,39 +416,129 @@ impl CodegenCtx<'_> {
                 .get(execution_span.start() as usize..execution_span.end() as usize)
                 .expect("execution spans index their source body");
             let emitted_start = self.instructions.len();
-            match emitter {
-                InlineBodyEmitter::Catch => self.emit_catch_body(command_text),
-                InlineBodyEmitter::TryHandler => {
-                    self.emit_try_handler_command(command_text);
-                }
-            }
-            let body_prefix = body
-                .get(..command.span.start() as usize)
-                .expect("segment start indexes its source body");
-            let line = self.span_line().saturating_add(
-                u32::try_from(body_prefix.bytes().filter(|byte| *byte == b'\n').count())
-                    .unwrap_or(u32::MAX),
-            );
-            self.restamp_emitted_inline_command_boundaries(emitted_start, command_text, line);
+            let tokens = self.inline_body_command_tokens(command_text, command.span.start());
+            let source_span = self.inline_body_source_base.and_then(|base| {
+                let span = Span::new(
+                    base.checked_add(execution_span.start())?,
+                    base.checked_add(execution_span.end())?,
+                );
+                (self.source.get(span.as_range()) == Some(command_text.as_bytes())).then_some(span)
+            });
+            self.with_inline_command_source(source_span, command_text, |ctx| {
+                ctx.with_invocation_tokens(tokens.as_ref(), |ctx| match emitter {
+                    InlineBodyEmitter::Catch => ctx.emit_catch_body(command_text),
+                    InlineBodyEmitter::TryHandler => ctx.emit_try_handler_command(command_text),
+                });
+                ctx.restamp_emitted_inline_command_boundaries(
+                    emitted_start,
+                    command_text,
+                    ctx.span_line(),
+                );
+            });
             if segmented.fatal_tail.is_some() || index != last_complete {
                 self.emit(Op::POP, vec![]);
             }
         }
 
-        if let Some((tail_start, _, _)) = segmented.fatal_tail {
-            // The enclosing body word was braced and is already a resolved Tcl
-            // value. Push the malformed command suffix verbatim so none of its
-            // substitutions occur before EVAL_STK reports the parse error.
-            let tail = body
-                .get(tail_start..)
-                .expect("fatal command start indexes its source body");
-            self.push_lit_verbatim(tail);
-            self.emit(Op::EVAL_STK, vec![]);
+        if let Some((_, message, _)) = segmented.fatal_tail {
+            self.emit_script_parse_error(message.as_bytes());
         }
     }
 
-    /// Emit `dict map`'s catch error epilogue (dead in our VM; present for
-    /// C-Tcl byte fidelity). Returns the placeholder `unsetScalar` indices for
+    /// Preserve the authored coordinate only for the exact literal body.
+    fn authored_inline_body_base(&self, body: &str, operand: usize) -> Option<u32> {
+        let word = self
+            .invocation_tokens
+            .as_deref()?
+            .words()
+            .get(self.original_hook_argument(operand)?.checked_add(1)?)?;
+        if !matches!(word, crate::ir::WordExpr::BracedLiteral { .. }) {
+            return None;
+        }
+        crate::command_binding::ExecutedScriptSource::literal_word_base(
+            self.source_unicode().ok()?,
+            word,
+            body,
+            self.lexer_config(),
+        )
+    }
+
+    /// Scope a literal script operand's own source coordinates. In particular,
+    /// a try handler cannot inherit the enclosing catch body's first byte.
+    fn with_inline_body_operand<T>(
+        &mut self,
+        body: &str,
+        operand: usize,
+        emit: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let previous = self.inline_body_source_base;
+        let previous_context = self.native_compilation;
+        self.inline_body_source_base = self.authored_inline_body_base(body, operand);
+        let context = self.invocation_tokens.as_deref().and_then(|tokens| {
+            crate::registry_invocation::proved_native_inline_body_context(
+                self.registry,
+                tokens,
+                previous_context,
+                self.original_hook_argument(operand)?,
+            )
+        });
+        if let Some(context) = context {
+            self.native_compilation = context;
+        } else if self.invocation_tokens.as_deref().is_some_and(|tokens| {
+            crate::registry_invocation::proved_native_admitted_inline_operation(tokens).is_some()
+        }) {
+            self.refuse_native_dependency();
+        }
+        let result = emit(self);
+        self.inline_body_source_base = previous;
+        self.native_compilation = previous_context;
+        result
+    }
+
+    /// Each body command receives its own retained proof. An authored parent
+    /// cannot supply its dispatch proof to a child with a missing source site.
+    fn inline_body_command_tokens(
+        &self,
+        command: &str,
+        relative_offset: u32,
+    ) -> Option<crate::ir::CommandTokens> {
+        let offset = self
+            .inline_body_source_base
+            .and_then(|base| base.checked_add(relative_offset));
+        if let Some(tokens) =
+            offset.and_then(|offset| self.source_proofs.as_ref()?.tokens.get(&offset))
+        {
+            return Some(tokens.clone());
+        }
+        if let Some(offset) = offset {
+            let config = self.lexer_config();
+            let segments =
+                crate::segmenter::segment_commands_with_offset_and_config(command, offset, config);
+            if let [segment] = segments.as_slice()
+                && !segment.is_partial
+            {
+                let source = tcl_lexer::SourceMap::new(command).with_base(offset, 0, 0);
+                let mut tokens = crate::ir::CommandTokens::from_segmented(&source, config, segment);
+                if let Some(parent) = self.invocation_tokens.as_deref() {
+                    tokens.inherit_nested_bindings(parent);
+                }
+                return Some(tokens);
+            }
+        }
+        let mut tokens = self.original_inline_syntax(command)?;
+        if self
+            .invocation_tokens
+            .as_deref()
+            .is_some_and(|parent| parent.source_binding.is_some())
+        {
+            tokens.source_binding =
+                Some(crate::command_binding::SourceInvocationBinding::unknown());
+        }
+        Some(tokens)
+    }
+
+    /// Emit `dict map`'s catch cleanup and rethrow. Returns the placeholder
+    /// `unsetScalar` indices for
     /// the iterator and result temps, to be back-patched by the caller.
     fn emit_dict_map_err_epilogue(&mut self, iter_name: &str, result_name: &str) -> (usize, usize) {
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
@@ -331,17 +558,15 @@ impl CodegenCtx<'_> {
         (unset_it, unset_res)
     }
 
-    /// Emit `dict map`'s normal-exit tail: drop the leftover key/value, close
-    /// the catch, unset the iterator, load the accumulated dict as the result,
+    /// Close `dict map` after the key/value stack entries have been consumed,
+    /// unset the iterator, load the accumulated dict as the result,
     /// and unset the result temp. Returns the placeholder indices (iterator
     /// unset, result load, result unset) for the caller to back-patch.
-    fn emit_dict_map_normal_exit(
+    fn emit_dict_map_normal_exit_after_values(
         &mut self,
         iter_name: &str,
         result_name: &str,
     ) -> (usize, usize, usize) {
-        self.emit(Op::POP, vec![]);
-        self.emit(Op::POP, vec![]);
         self.emit(Op::END_CATCH, vec![]);
         let unset_it = self.emit_comment(
             Op::UNSET_SCALAR,
@@ -376,15 +601,14 @@ impl CodegenCtx<'_> {
     /// Emit a compiled `dict for {k v} DICT { body }` inline, matching C Tcl's
     /// low-level bytecode: `beginCatch4` → `dictFirst <iter>` → `jumpTrue`
     /// (skip empty) → store k/v → inline body → `dictNext` → `jumpFalse` (loop)
-    /// → `jump` (normal exit) → catch epilogue → `pop pop`. Returns `false`
-    /// (caller falls back to the runtime invoke) unless this is a proc context
-    /// with exactly two loop vars and a straight-line body.
+    /// → `jump` (normal exit) → catch epilogue → `pop pop` and cleanup. Returns `false`
+    /// unless this is a procedure context with exactly two local targets and
+    /// the original literal body.
     ///
-    /// `vars_text` is the `{k v}` word, `dict_text` the dict expression, and
-    /// `body_text` the braced body. The body is re-lowered and each statement
-    /// emitted inline. The `beginCatch`/epilogue give C Tcl's iterator cleanup
-    /// on error; our VM frees the iterator with the frame, so the epilogue is
-    /// present for byte-fidelity but only reached via C Tcl's exception ranges.
+    /// `vars_text` is the `{k v}` word, `dict_text` the dictionary operand, and
+    /// `body_text` the braced body. Catch, try, and dictionary commands share the
+    /// original command-at-time body compiler. Both exits release the iterator;
+    /// break and continue target the same protected loop activation.
     pub fn emit_dict_for(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
         // Exactly two loop variables, both plain (compilable-local) names. The
         // `{k v}` word is a Tcl list, so split by the list grammar (not
@@ -395,16 +619,15 @@ impl CodegenCtx<'_> {
         let Some(vnames) = vnames else {
             return false;
         };
-        if !self.is_proc {
+        if !self.compiles_locals() {
             return false;
         }
-        // The body must be a straight-line sequence of simple commands.
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
-        if !body_ir.procedures.is_empty()
-            || !body_ir.methods.is_empty()
-            || !is_straight_line_body(&body_ir.top_level, self.registry)
-        {
+        // The original braced operand supplies body coordinates and child
+        // compiler receipts. A separately lowered string supplies neither.
+        if self.invocation_tokens.as_deref().is_some_and(|tokens| {
+            tokens.source_binding.is_some()
+                && self.authored_inline_body_base(body_text, 3).is_none()
+        }) {
             return false;
         }
 
@@ -415,8 +638,14 @@ impl CodegenCtx<'_> {
         // the iterator's allocation, the `dictFirst`/`dictNext`/`unsetScalar`
         // operands are emitted with a placeholder and back-patched once the
         // iterator slot is known.
-        let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
-        let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        let k_slot = bytecode_imm(
+            self.command_variable_slot(vnames[0].as_bytes())
+                .expect("selected native local target"),
+        );
+        let v_slot = bytecode_imm(
+            self.command_variable_slot(vnames[1].as_bytes())
+                .expect("selected native local target"),
+        );
         // C Tcl allocates an unused companion temp right after the loop vars.
         let _spare = self
             .lvt
@@ -424,6 +653,10 @@ impl CodegenCtx<'_> {
         let iter_name = format!("#dictfor{}", self.catch_depth);
         let loop_lbl = self.fresh_label("dict_for_loop");
         let end_lbl = self.fresh_label("dict_for_end");
+        let body_start = self.fresh_label("dict_for_body");
+        let body_end = self.fresh_label("dict_for_body_end");
+        let step_label = self.fresh_label("dict_for_step");
+        let break_label = self.fresh_label("dict_for_break");
 
         // Load the dict value, then begin the iterator under a catch range.
         self.emit_value(dict_text, true);
@@ -454,16 +687,20 @@ impl CodegenCtx<'_> {
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);
-        let mut ugi = false;
-        for stmt in &body_ir.top_level.statements {
-            self.emit_stmt(stmt, &mut ugi);
-        }
+        self.place_label(&body_start);
+        self.with_inline_body_operand(body_text, 3, |ctx| {
+            ctx.emit_segmented_inline_body(body_text, InlineBodyEmitter::Catch);
+        });
+        self.emit(Op::POP, vec![]);
+        self.place_label(&body_end);
+        self.place_label(&step_label);
         let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
         self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
-        // Catch epilogue (C Tcl reaches this via its iterator-cleanup exception
-        // range; our VM frees the iterator with the frame, so it is dead here).
+        let handler = self.fresh_label("dict_for_cleanup");
+        self.instructions[begin_idx].catch_target = Some(handler.clone());
+        self.place_label(&handler);
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::END_CATCH, vec![]);
@@ -487,52 +724,67 @@ impl CodegenCtx<'_> {
         let settle_idx = self.emit(Op::POP, vec![]);
         self.mark_completion_option_scope(settle_idx, ControlOptionPolicy::FRESH_SETTLED);
         self.emit(Op::POP, vec![]);
+        self.place_label(&break_label);
+        self.emit(Op::END_CATCH, vec![]);
+        self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(iter_slot)],
+            &iter_name,
+        );
         // `dict for` yields the empty string.
         self.push_lit("");
+        self.inline_loop_regions.push(super::InlineLoopRegion {
+            start: body_start,
+            end: body_end,
+            continue_target: Some(step_label),
+            break_target: break_label,
+        });
         self.seen_generic_invoke = true;
         true
+    }
+
+    fn dict_map_variable_names(&self, vars_text: &str, body_text: &str) -> Option<[String; 2]> {
+        let names = is_two_plain_names(vars_text)?;
+        if !self.compiles_locals()
+            || self.invocation_tokens.as_deref().is_some_and(|tokens| {
+                tokens.source_binding.is_some()
+                    && self.authored_inline_body_base(body_text, 3).is_none()
+            })
+        {
+            return None;
+        }
+        Some(names)
     }
 
     /// Emit a compiled `dict map {k v} DICT { body }` inline, matching C Tcl:
     /// like `dict for` but accumulating each iteration's body result into a new
     /// dictionary (`dictSet result[k] = body-result`) which becomes the value.
-    /// Returns `false` (runtime-invoke fallback) unless proc context, two loop
-    /// vars, and a straight-line body whose final statement yields a value.
+    /// Requires a procedure-local target pair and the original literal body;
+    /// body commands share the catch/try command-at-time compiler.
     pub fn emit_dict_map(&mut self, vars_text: &str, dict_text: &str, body_text: &str) -> bool {
-        // Parse the `{k v}` word by the Tcl list grammar and require exactly two
-        // plain names (see `emit_dict_for`); anything else bails to the runtime
-        // invoke so malformed / non-simple var lists keep C Tcl's semantics.
-        let Some(vnames) = is_two_plain_names(vars_text) else {
+        let Some(vnames) = self.dict_map_variable_names(vars_text, body_text) else {
             return false;
         };
-        if !self.is_proc {
-            return false;
-        }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
-        if !body_ir.procedures.is_empty()
-            || !body_ir.methods.is_empty()
-            || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level, self.registry)
-        {
-            return false;
-        }
 
         // Slots: the result accumulator and iterator temps are allocated after
         // the loop vars and the body's locals (interned during body emission),
         // so both are back-patched once known.
-        let k_slot = bytecode_imm(self.lvt.intern(&vnames[0]));
-        let v_slot = bytecode_imm(self.lvt.intern(&vnames[1]));
+        let k_slot = bytecode_imm(
+            self.command_variable_slot(vnames[0].as_bytes())
+                .expect("selected native local target"),
+        );
+        let v_slot = bytecode_imm(
+            self.command_variable_slot(vnames[1].as_bytes())
+                .expect("selected native local target"),
+        );
         let result_name = format!("#dictmap_res{}", self.catch_depth);
         let iter_name = format!("#dictmap_it{}", self.catch_depth);
         let loop_lbl = self.fresh_label("dict_map_loop");
         let end_lbl = self.fresh_label("dict_map_end");
-
-        // Snapshot the emit state so a mid-emission bail-out (a body that does
-        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
-        // a pristine context for the caller's runtime-invoke fallback.
-        let insns_mark = self.instructions.len();
-        let catch_mark = self.catch_depth;
+        let body_start = self.fresh_label("dict_map_body");
+        let body_end = self.fresh_label("dict_map_body_end");
+        let step_label = self.fresh_label("dict_map_step");
+        let break_label = self.fresh_label("dict_map_break");
 
         // Initialise the accumulator to the empty dict.
         self.push_lit("");
@@ -563,19 +815,11 @@ impl CodegenCtx<'_> {
         self.emit(Op::POP, vec![]);
         self.emit_comment(Op::STORE_SCALAR1, vec![Operand::Imm(v_slot)], &vnames[1]);
         self.emit(Op::POP, vec![]);
-        // Emit the body; strip the final statement's trailing `pop` so its
-        // result (the mapped value) stays on the stack. If the last statement
-        // left no `pop`, bail out — an unusual body shape we don't model.
-        let mut ugi = false;
-        for stmt in &body_ir.top_level.statements {
-            self.emit_stmt(stmt, &mut ugi);
-        }
-        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
-            self.instructions.truncate(insns_mark);
-            self.catch_depth = catch_mark;
-            return false;
-        }
-        self.instructions.pop();
+        self.place_label(&body_start);
+        self.with_inline_body_operand(body_text, 3, |ctx| {
+            ctx.emit_segmented_inline_body(body_text, InlineBodyEmitter::Catch);
+        });
+        self.place_label(&body_end);
         // Accumulate: result[key] = mapped value.
         self.emit_comment(Op::LOAD_SCALAR1, vec![Operand::Imm(k_slot)], &vnames[0]);
         self.emit(Op::OVER, vec![Operand::Imm(1)]);
@@ -587,11 +831,14 @@ impl CodegenCtx<'_> {
         self.emit(Op::POP, vec![]);
         self.emit(Op::POP, vec![]);
 
+        self.place_label(&step_label);
         let dict_next_idx = self.emit(Op::DICT_NEXT, vec![Operand::Imm(0)]);
         self.emit_comment(Op::JUMP_FALSE4, vec![Operand::Label(loop_lbl)], "dict_for");
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
-        // Error epilogue (dead in our VM; present for C-Tcl fidelity).
+        let handler = self.fresh_label("dict_map_cleanup");
+        self.instructions[begin_idx].catch_target = Some(handler.clone());
+        self.place_label(&handler);
         let (unset_it_err_idx, unset_res_err_idx) =
             self.emit_dict_map_err_epilogue(&iter_name, &result_name);
         self.catch_depth -= 1;
@@ -599,8 +846,11 @@ impl CodegenCtx<'_> {
         // Normal exit: drop the leftover key/value, close the catch, unset the
         // iterator, load the accumulated dict as the result, unset the temp.
         self.place_label(&end_lbl);
+        self.emit(Op::POP, vec![]);
+        self.emit(Op::POP, vec![]);
+        self.place_label(&break_label);
         let (unset_it_exit_idx, res_load_idx, unset_res_exit_idx) =
-            self.emit_dict_map_normal_exit(&iter_name, &result_name);
+            self.emit_dict_map_normal_exit_after_values(&iter_name, &result_name);
 
         // Now intern the result + iterator temps (highest slots) and back-patch.
         let res_slot = bytecode_imm(self.lvt.intern_synthetic(&result_name));
@@ -620,18 +870,21 @@ impl CodegenCtx<'_> {
             res_slot,
             iter_slot,
         );
+        self.inline_loop_regions.push(super::InlineLoopRegion {
+            start: body_start,
+            end: body_end,
+            continue_target: Some(step_label),
+            break_target: break_label,
+        });
 
         self.seen_generic_invoke = true;
         true
     }
 
     /// Emit a compiled `dict update DICTVAR key1 var1 ?key2 var2 …? { body }`
-    /// inline, matching C Tcl: bind each keyed value into its target local under
-    /// a (VM-dead) catch range, run the straight-line body, then write the
-    /// locals back into the dict (`dictUpdateStart`/`dictUpdateEnd`). `rest` is
-    /// `[dictvar, k1, v1, …, body]`. Returns `false` (runtime-invoke fallback)
-    /// unless proc context, a plain-local dict var and targets, and a
-    /// straight-line body whose final statement yields a value.
+    /// Bind keyed values to actual local slots, compile the original body, and
+    /// write the locals back on normal and exceptional exits. `rest` is
+    /// `[dictvar, k1, v1, …, body]`; every target must be a procedure-local scalar.
     pub fn emit_dict_update(&mut self, rest: &[String]) -> bool {
         if !self.compiles_locals() || rest.len() < 4 || !rest.len().is_multiple_of(2) {
             return false;
@@ -647,29 +900,28 @@ impl CodegenCtx<'_> {
         if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
-        if !body_ir.procedures.is_empty()
-            || !body_ir.methods.is_empty()
-            || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level, self.registry)
-        {
+        let body_operand = rest.len();
+        if self.invocation_tokens.as_deref().is_some_and(|tokens| {
+            tokens.source_binding.is_some()
+                && self
+                    .authored_inline_body_base(body_text, body_operand)
+                    .is_none()
+        }) {
             return false;
         }
 
-        let dict_slot = bytecode_imm(self.lvt.intern(dict_var));
-        // Pre-intern the target locals so their slots exist; the names travel
-        // out-of-band in `dict_vars` (the VM stores/reads them by name).
-        for v in &vars {
-            self.lvt.intern(v);
-        }
+        let dict_slot = bytecode_imm(
+            self.command_variable_slot(dict_var.as_bytes())
+                .expect("selected native dictionary local"),
+        );
+        let variable_slots = vars
+            .iter()
+            .map(|name| {
+                self.command_variable_slot(name.as_bytes())
+                    .expect("selected native dictionary target")
+            })
+            .collect::<Vec<_>>();
         let end_lbl = self.fresh_label("dict_update_end");
-
-        // Snapshot the emit state so a mid-emission bail-out (a body that does
-        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
-        // a pristine context for the caller's runtime-invoke fallback.
-        let insns_mark = self.instructions.len();
-        let catch_mark = self.catch_depth;
 
         // Push the key list.
         for k in &keys {
@@ -683,9 +935,9 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(dict_slot), Operand::Imm(0)],
             &format!("var \"{dict_var}\""),
         );
-        self.instructions[start_idx].dict_vars = Some(vars.clone());
+        self.instructions[start_idx].dict_vars = Some(variable_slots.clone());
 
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
@@ -693,18 +945,9 @@ impl CodegenCtx<'_> {
         );
         self.catch_depth += 1;
 
-        // Body; strip the trailing pop so its result stays on the stack (the
-        // `dict update` result). Straight-line statements always end in a pop.
-        let mut ugi = false;
-        for stmt in &body_ir.top_level.statements {
-            self.emit_stmt(stmt, &mut ugi);
-        }
-        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
-            self.instructions.truncate(insns_mark);
-            self.catch_depth = catch_mark;
-            return false;
-        }
-        self.instructions.pop();
+        self.with_inline_body_operand(body_text, body_operand, |ctx| {
+            ctx.emit_segmented_inline_body(body_text, InlineBodyEmitter::Catch);
+        });
 
         // Normal epilogue: swap the key list above the body result and write the
         // locals back into the dict.
@@ -715,10 +958,14 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(dict_slot), Operand::Imm(0)],
             &format!("var \"{dict_var}\""),
         );
-        self.instructions[end_idx].dict_vars = Some(vars.clone());
+        self.instructions[end_idx].dict_vars = Some(variable_slots.clone());
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
-        // Error epilogue (dead in our VM; present for C-Tcl byte fidelity).
+        // Every non-OK body completion still publishes the target locals before
+        // propagating its original result and return options.
+        let handler = self.fresh_label("dict_body_cleanup");
+        self.instructions[begin_idx].catch_target = Some(handler.clone());
+        self.place_label(&handler);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
         self.emit(Op::END_CATCH, vec![]);
@@ -728,7 +975,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(dict_slot), Operand::Imm(0)],
             &format!("var \"{dict_var}\""),
         );
-        self.instructions[err_end_idx].dict_vars = Some(vars);
+        self.instructions[err_end_idx].dict_vars = Some(variable_slots);
         self.emit(Op::RETURN_STK, vec![]);
         self.catch_depth -= 1;
 
@@ -738,36 +985,27 @@ impl CodegenCtx<'_> {
     }
 
     /// Emit a compiled `dict with DICTVAR { body }` inline, matching C Tcl:
-    /// expand every key of the dict into a same-named local (`dictExpand`), run
-    /// the straight-line body, then fold the locals back into the dict
-    /// (`dictRecombineImm`). Returns `false` (runtime-invoke fallback) unless
-    /// proc context, a plain-local dict var, and a straight-line body whose
-    /// final statement yields a value. The path form (`dict with d k … {body}`)
-    /// is left to the runtime invoke.
+    /// Expand keys into same-named locals, compile the original body, and fold
+    /// the locals back on normal and exceptional exits. The path form and
+    /// nonlocal dictionary targets use the runtime command.
     pub fn emit_dict_with(&mut self, dict_var: &str, body_text: &str) -> bool {
         if !self.compiles_locals() || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
-        let body_ir =
-            crate::lowering::lower_to_ir_with_config(body_text, self.registry, self.lexer_config());
-        if !body_ir.procedures.is_empty()
-            || !body_ir.methods.is_empty()
-            || body_ir.top_level.statements.is_empty()
-            || !is_straight_line_body(&body_ir.top_level, self.registry)
-        {
+        if self.invocation_tokens.as_deref().is_some_and(|tokens| {
+            tokens.source_binding.is_some()
+                && self.authored_inline_body_base(body_text, 2).is_none()
+        }) {
             return false;
         }
 
-        let dict_slot = bytecode_imm(self.lvt.intern(dict_var));
+        let dict_slot = bytecode_imm(
+            self.command_variable_slot(dict_var.as_bytes())
+                .expect("selected native dictionary local"),
+        );
         let state_name = format!("#dictwith_state{}", self.catch_depth);
         let state_slot = bytecode_imm(self.lvt.intern_synthetic(&state_name));
         let end_lbl = self.fresh_label("dict_with_end");
-
-        // Snapshot the emit state so a mid-emission bail-out (a body that does
-        // not leave a trailing `pop`, e.g. one ending in `return`) rolls back to
-        // a pristine context for the caller's runtime-invoke fallback.
-        let insns_mark = self.instructions.len();
-        let catch_mark = self.catch_depth;
 
         // Prologue: expand the dict into per-key locals; stash the recombine
         // state in a temp.
@@ -785,7 +1023,7 @@ impl CodegenCtx<'_> {
         );
         self.emit(Op::POP, vec![]);
 
-        self.emit(
+        let begin_idx = self.emit(
             Op::BEGIN_CATCH4,
             vec![Operand::Imm(
                 i32::try_from(self.catch_depth).expect("catch_depth fits in i32"),
@@ -793,16 +1031,9 @@ impl CodegenCtx<'_> {
         );
         self.catch_depth += 1;
 
-        let mut ugi = false;
-        for stmt in &body_ir.top_level.statements {
-            self.emit_stmt(stmt, &mut ugi);
-        }
-        if self.instructions.last().map(|i| i.op) != Some(Op::POP) {
-            self.instructions.truncate(insns_mark);
-            self.catch_depth = catch_mark;
-            return false;
-        }
-        self.instructions.pop();
+        self.with_inline_body_operand(body_text, 2, |ctx| {
+            ctx.emit_segmented_inline_body(body_text, InlineBodyEmitter::Catch);
+        });
 
         // Normal epilogue: recombine the per-key locals into the dict.
         self.emit(Op::END_CATCH, vec![]);
@@ -817,9 +1048,18 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(dict_slot)],
             &format!("var \"{dict_var}\""),
         );
+        self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(state_slot)],
+            &state_name,
+        );
         self.emit_comment(Op::JUMP4, vec![Operand::Label(end_lbl.clone())], "");
 
-        // Error epilogue (dead in our VM; present for C-Tcl byte fidelity).
+        // Every non-OK body completion still publishes the target locals before
+        // propagating its original result and return options.
+        let handler = self.fresh_label("dict_body_cleanup");
+        self.instructions[begin_idx].catch_target = Some(handler.clone());
+        self.place_label(&handler);
         self.emit(Op::PUSH_RETURN_OPTS, vec![]);
         self.emit(Op::PUSH_RESULT, vec![]);
         self.emit(Op::END_CATCH, vec![]);
@@ -834,6 +1074,11 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(dict_slot)],
             &format!("var \"{dict_var}\""),
         );
+        self.emit_comment(
+            Op::UNSET_SCALAR,
+            vec![Operand::Imm(0), Operand::Imm(state_slot)],
+            &state_name,
+        );
         self.emit(Op::RETURN_STK, vec![]);
         self.catch_depth -= 1;
 
@@ -846,8 +1091,29 @@ impl CodegenCtx<'_> {
     ///
     /// Compiles each complete body command inline, then emits the normal/handler
     /// paths and stores result/options variables.
-    /// The catch return code is left on the stack.
+    /// The catch return code is left on the stack. Returns false without
+    /// emitting instructions when the output protocol has not been proved.
     pub fn emit_catch_inline(
+        &mut self,
+        body_text: &str,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+    ) -> bool {
+        if self.catch_output_order(result_var, options_var)
+            == tcl_registry::catch_invocation::CatchOutputOrder::Unknown
+        {
+            return false;
+        }
+        let previous_context = self.native_compilation;
+        self.native_compilation = previous_context.with_inline_exception_range();
+        self.with_inline_body_operand(body_text, 0, |ctx| {
+            ctx.emit_catch_inline_inner(body_text, result_var, options_var);
+        });
+        self.native_compilation = previous_context;
+        true
+    }
+
+    fn emit_catch_inline_inner(
         &mut self,
         body_text: &str,
         result_var: Option<&str>,
@@ -857,13 +1123,11 @@ impl CodegenCtx<'_> {
         // value may legitimately begin and end with braced command words
         // (`catch {{set} x {1}}`), so it must not be stripped a second time.
         let body = body_text;
+        let output_order = self.catch_output_order(result_var, options_var);
 
         // Pre-intern result_var so it gets a lower LVT slot
-        if let Some(rv) = result_var
-            && self.is_proc
-            && !is_qualified(rv)
-        {
-            self.lvt.intern(rv);
+        if let Some(name) = result_var {
+            self.command_variable_slot(name.as_bytes());
         }
 
         // beginCatch4 with current nesting depth. The handler label rides
@@ -924,19 +1188,8 @@ impl CodegenCtx<'_> {
         self.catch_depth -= 1;
         self.emit(Op::END_CATCH, vec![]);
 
-        // Stack: [result, code] (or [result, code, opts] for 3-arg).
-        if let Some(ov) = options_var {
-            self.store_var(ov);
-            self.emit(Op::POP, vec![]);
-        }
-
-        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-
-        // Store result in result_var.
-        if let Some(rv) = result_var {
-            self.store_var(rv);
-        }
-        self.emit(Op::POP, vec![]);
+        // Stack: [result, code], or [result, code, options].
+        self.emit_catch_output_stores(result_var, options_var, output_order);
         // Return code stays on the stack as value of catch.
     }
 
@@ -994,11 +1247,28 @@ impl CodegenCtx<'_> {
             None
         };
 
+        if super::emitter::bytecoded::try_value_bytecoded(self, body_cmd, body_args) {
+            if let Some(label) = sc_label {
+                self.place_label(&label);
+            }
+            return;
+        }
+
         // Hooks this catch-body dispatcher does not specialise
         // (`Incr`, `String`, …, which only the value-position
         // dispatcher in `cmd_subst` emits inline) fall to the generic
         // invoke arm, as do guard failures.
         match self.inline_cmd_subst_hook(body_cmd, body_args) {
+            Some(InlineCodegenHookId::Yield) if body_args.len() <= 1 => {
+                self.emit_inline_yield(body_args);
+            }
+            Some(InlineCodegenHookId::YieldTo) => {
+                self.emit_inline_yield_to(
+                    body_args
+                        .iter()
+                        .map(|(word, braced)| (word.as_str(), *braced, false)),
+                );
+            }
             Some(InlineCodegenHookId::Return) => self.emit_catch_return(body_args),
             Some(InlineCodegenHookId::Error) => self.emit_catch_error(body_cmd, body, body_args),
             Some(InlineCodegenHookId::Break) => {
@@ -1020,7 +1290,7 @@ impl CodegenCtx<'_> {
                     self.emit_expr(&node);
                 }
             }
-            Some(InlineCodegenHookId::Try) if self.is_proc => {
+            Some(InlineCodegenHookId::Try) if self.compiles_locals() => {
                 if self
                     .try_on_error_inline_bindings(body_cmd, body_args)
                     .is_some()
@@ -1123,20 +1393,10 @@ impl CodegenCtx<'_> {
         source_command: &str,
         args: &[(String, bool)],
     ) {
-        if let Some(first) = args.first() {
-            self.emit_cmd_subst_arg(&first.0, first.1);
-        } else {
-            self.push_lit("");
+        if !self.emit_inline_error(args, source_command) {
+            self.emit_generic_cmd_subst(command, args);
+            self.seen_generic_invoke = true;
         }
-        self.push_lit(""); // options
-        let throw = self.emit(
-            Op::RETURN_IMM,
-            vec![Operand::Imm(1), Operand::Imm(0)], // code=error, level=0
-        );
-        self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
-            head: command.to_owned(),
-            error_info_command: source_command.trim().to_owned(),
-        });
     }
 
     // Inline try/on error compilation.
@@ -1249,14 +1509,14 @@ impl CodegenCtx<'_> {
         let handler_body_text = &args[bindings.handler_body_index].0;
 
         // Allocate LVT slots in tclsh order
-        let msg_slot = bindings
-            .result_var
-            .as_ref()
-            .map(|name| bytecode_imm(self.lvt.intern(name)));
-        let handler_opts_slot = bindings
-            .options_var
-            .as_ref()
-            .map(|name| bytecode_imm(self.lvt.intern(name)));
+        let msg_slot = bindings.result_var.as_ref().and_then(|name| {
+            self.command_variable_slot(name.as_bytes())
+                .map(bytecode_imm)
+        });
+        let handler_opts_slot = bindings.options_var.as_ref().and_then(|name| {
+            self.command_variable_slot(name.as_bytes())
+                .map(bytecode_imm)
+        });
         let temp_result_name = format!("#temp{}", self.catch_depth);
         let temp_opts_name = format!("#temp{}", self.catch_depth + 1);
         let temp_result_slot = bytecode_imm(self.lvt.intern_synthetic(&temp_result_name));
@@ -1269,7 +1529,9 @@ impl CodegenCtx<'_> {
 
         // Compile the complete try body in this activation so a yield freezes
         // this phase's live exception range.
-        self.emit_segmented_inline_body(try_body_text, InlineBodyEmitter::Catch);
+        self.with_inline_body_operand(try_body_text, bindings.body_index, |ctx| {
+            ctx.emit_segmented_inline_body(try_body_text, InlineBodyEmitter::Catch);
+        });
 
         // Normal exit from try body
         self.emit(Op::END_CATCH, vec![]);
@@ -1328,7 +1590,9 @@ impl CodegenCtx<'_> {
         let handler_begin_idx = self.begin_inline_catch_range();
 
         // Compile handler body
-        self.emit_try_handler_body(handler_body_text);
+        self.with_inline_body_operand(handler_body_text, bindings.handler_body_index, |ctx| {
+            ctx.emit_try_handler_body(handler_body_text);
+        });
 
         // Normal exit from handler body
         self.emit(Op::END_CATCH, vec![]);
@@ -1402,6 +1666,11 @@ impl CodegenCtx<'_> {
         );
         self.cmd_index += 1;
 
+        if super::emitter::bytecoded::try_value_bytecoded(self, cmd, cmd_args) {
+            self.place_label(&sc_label);
+            return;
+        }
+
         let arg_refs: Vec<&str> = cmd_args.iter().map(|(arg, _)| arg.as_str()).collect();
         let inline_lowering = self.inline_lowering_hook(cmd, &arg_refs);
         match inline_lowering {
@@ -1443,9 +1712,7 @@ impl CodegenCtx<'_> {
         options_var: Option<&str>,
     ) -> (usize, String) {
         for name in [result_var, options_var].into_iter().flatten() {
-            if self.is_proc && !is_qualified(name) {
-                self.lvt.intern(name);
-            }
+            self.command_variable_slot(name.as_bytes());
         }
 
         let begin_idx = self.emit(
@@ -1505,15 +1772,8 @@ impl CodegenCtx<'_> {
         self.catch_depth -= 1;
         self.emit(Op::END_CATCH, vec![]);
 
-        if let Some(ov) = options_var {
-            self.store_var(ov);
-            self.emit(Op::POP, vec![]);
-        }
-        self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
-        if let Some(rv) = result_var {
-            self.store_var(rv);
-        }
-        self.emit(Op::POP, vec![]);
+        let output_order = self.catch_output_order(result_var, options_var);
+        self.emit_catch_output_stores(result_var, options_var, output_order);
 
         // `catch` in statement position: its return code is the statement's
         // value, and every statement's value is popped. In final position
@@ -1541,6 +1801,9 @@ impl CodegenCtx<'_> {
             .expect("catch body block present");
 
         let (begin_idx, handler_label) = self.emit_catch_region_prologue(result_var, options_var);
+        // The captured wrapper is a source command before the body's first
+        // command. Its children use the ordinary command-boundary owner.
+        self.cmd_index += 1;
         // Only the *last* statement's value is `catch`'s result; every earlier
         // one is discarded exactly as ordinary script execution discards it.
         // `emit_try_body_stmt` strips the trailing pop to keep a value on the
@@ -1559,9 +1822,7 @@ impl CodegenCtx<'_> {
             if Some(index) == last {
                 self.emit_try_body_stmt(stmt);
             } else {
-                let mut ugi = false;
-                self.emit_stmt(stmt, &mut ugi);
-                self.cmd_index += 1;
+                self.emit_stmt_with_start_cmd(stmt, None, None);
             }
         }
         if last.is_none() {
@@ -1667,53 +1928,23 @@ impl CodegenCtx<'_> {
         self.catch_depth -= 2;
     }
 
-    /// Emit a statement in try-body context.
-    ///
-    /// A call whose spec carries the [`InlineCodegenHookId::Error`]
-    /// inline hook (i.e. `error`, whose first argument is the message)
-    /// emits the `returnImm 1 0` throw sequence directly; the raw-name
-    /// equality on the spec keeps qualified spellings on the generic
-    /// statement path, as the retired `command == "error"` check did.
+    /// Emit a statement using the same selected native hook and original-word
+    /// protocol inside the try body's protected compiler context.
     pub fn emit_try_body_stmt(&mut self, stmt: &Statement) {
-        if let Statement::Call { command, args, .. } = stmt
-            && self.inline_codegen_hook(
-                command,
-                &args.iter().map(String::as_str).collect::<Vec<_>>(),
-            ) == Some(InlineCodegenHookId::Error)
-        {
-            let error_info_command = self.source_text(stmt.span());
-            if let Some(arg) = args.first() {
-                self.emit_value(arg, false);
-            } else {
-                self.push_lit("");
-            }
-            self.push_lit("");
-            let throw = self.emit(Op::RETURN_IMM, vec![Operand::Imm(1), Operand::Imm(0)]);
-            self.instructions[throw].error_stack_context = Some(ErrorStackContext::CommandResult {
-                head: command.clone(),
-                error_info_command,
-            });
-            self.cmd_index += 1;
-            return;
-        }
-        let mut ugi = false;
-        self.emit_stmt(stmt, &mut ugi);
+        self.emit_stmt_with_start_cmd(stmt, None, None);
         // Remove trailing pop — result stays on stack
         if self.instructions.last().is_some_and(|i| i.op == Op::POP) {
             self.instructions.pop();
         }
-        self.cmd_index += 1;
     }
 
     /// Emit a statement in finally-body context.
     pub fn emit_try_finally_stmt(&mut self, stmt: &Statement) {
-        let mut ugi = false;
-        self.emit_stmt(stmt, &mut ugi);
+        self.emit_stmt_with_start_cmd(stmt, None, None);
         // Remove trailing pop — result stays on stack
         if self.instructions.last().is_some_and(|i| i.op == Op::POP) {
             self.instructions.pop();
         }
-        self.cmd_index += 1;
     }
 }
 
@@ -1724,6 +1955,161 @@ mod tests {
     use super::*;
     use crate::cfg::Block;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn inline_body_instructions_keep_the_inner_command_source_and_restore_the_parent() {
+        let registry = CommandRegistry::build_default();
+        let source = "catch {\nset value READY\nerror BODY\n}";
+        let body = "\nset value READY\nerror BODY\n";
+        for emitter in [InlineBodyEmitter::Catch, InlineBodyEmitter::TryHandler] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.set_source(source);
+            let outer_span = Span::new(0, u32::try_from(source.len()).unwrap());
+            ctx.set_command_source_span(outer_span);
+            ctx.inline_body_source_base = Some(7);
+            ctx.emit_segmented_inline_body(body, emitter);
+            let failures = ctx
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.op, Op::RETURN_IMM | Op::INVOKE_STK1)
+                        && instruction.source_cmd_text.bytes() == b"error BODY"
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(failures.len(), 1);
+            assert_eq!(failures[0].source_span, Some(Span::new(24, 34)));
+            assert_eq!(failures[0].source_line, 3);
+            assert!(ctx.instructions.iter().any(|instruction| {
+                instruction.source_cmd_text.bytes() == b"set value READY"
+                    && instruction.source_span == Some(Span::new(8, 23))
+                    && instruction.source_line == 2
+            }));
+            let trailing = ctx.emit(Op::NOP, vec![]);
+            assert_eq!(ctx.instructions[trailing].source_span, Some(outer_span));
+            assert_eq!(
+                ctx.instructions[trailing].source_cmd_text.bytes(),
+                source.as_bytes()
+            );
+            assert_eq!(ctx.instructions[trailing].source_line, 1);
+        }
+    }
+
+    #[test]
+    fn dictionary_iterations_close_the_same_indexed_search_on_both_exits() {
+        let registry = CommandRegistry::build_default();
+        for map in [false, true] {
+            let mut ctx = CodegenCtx::new(true, &["d"], &registry);
+            let emitted = if map {
+                ctx.emit_dict_map("k v", "$d", "set result $v")
+            } else {
+                ctx.emit_dict_for("k v", "$d", "set result $v")
+            };
+            assert!(emitted);
+            let begin = ctx
+                .instructions
+                .iter()
+                .find(|instruction| instruction.op == Op::BEGIN_CATCH4)
+                .unwrap();
+            assert!(
+                begin
+                    .catch_target
+                    .as_ref()
+                    .is_some_and(|label| ctx.label_positions.contains_key(label))
+            );
+            let slot = ctx
+                .instructions
+                .iter()
+                .find(|instruction| instruction.op == Op::DICT_FIRST)
+                .unwrap()
+                .operands[0]
+                .clone();
+            assert_eq!(
+                ctx.instructions
+                    .iter()
+                    .filter(|instruction| {
+                        instruction.op == Op::UNSET_SCALAR
+                            && instruction.operands == [Operand::Imm(0), slot.clone()]
+                    })
+                    .count(),
+                2
+            );
+            assert_eq!(
+                ctx.instructions
+                    .iter()
+                    .filter(|instruction| instruction.op == Op::END_CATCH)
+                    .count(),
+                2
+            );
+        }
+    }
+
+    #[test]
+    fn dictionary_bodies_keep_abrupt_completions_in_their_original_activation() {
+        let registry = CommandRegistry::build_default();
+        for body in ["error BODY", "break", "continue", "return BODY"] {
+            for map in [false, true] {
+                let mut ctx = CodegenCtx::new(true, &["d"], &registry);
+                assert!(if map {
+                    ctx.emit_dict_map("k v", "$d", body)
+                } else {
+                    ctx.emit_dict_for("k v", "$d", body)
+                });
+                assert_eq!(ctx.inline_loop_regions.len(), 1);
+                assert!(
+                    ctx.instructions
+                        .iter()
+                        .all(|instruction| instruction.op != Op::EVAL_STK)
+                );
+                assert!(
+                    ctx.instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::DICT_FIRST)
+                );
+                assert!(
+                    ctx.instructions
+                        .iter()
+                        .any(|instruction| instruction.op == Op::RETURN_STK)
+                );
+            }
+            for with in [false, true] {
+                let mut ctx = CodegenCtx::new(true, &["d"], &registry);
+                assert!(if with {
+                    ctx.emit_dict_with("d", body)
+                } else {
+                    ctx.emit_dict_update(&["d".into(), "k".into(), "v".into(), body.into()])
+                });
+                assert!(
+                    ctx.instructions
+                        .iter()
+                        .all(|instruction| instruction.op != Op::EVAL_STK)
+                );
+                let protected = ctx
+                    .instructions
+                    .iter()
+                    .find(|i| i.op == Op::BEGIN_CATCH4)
+                    .unwrap();
+                assert!(
+                    protected
+                        .catch_target
+                        .as_ref()
+                        .is_some_and(|label| ctx.label_positions.contains_key(label))
+                );
+                assert_eq!(
+                    ctx.instructions
+                        .iter()
+                        .filter(|i| i.op
+                            == if with {
+                                Op::DICT_RECOMBINE_IMM
+                            } else {
+                                Op::DICT_UPDATE_END
+                            })
+                        .count(),
+                    2
+                );
+                assert!(ctx.instructions.iter().any(|i| i.op == Op::RETURN_STK));
+            }
+        }
+    }
 
     /// The catch-body `expr` re-parse follows the compile's dialect, and its
     /// operator set follows the target release: `catch {expr {2 ** 3}}`
@@ -1785,6 +2171,69 @@ mod tests {
         assert!(ops.contains(&Op::END_CATCH));
     }
 
+    fn assert_captured_body_original_source(
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        let ir = crate::lowering::lower_procedure_target_module_for_bytecode_with_options(
+            target,
+            registry,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            Some(profile),
+            false,
+            None,
+        );
+        let statement = &ir.top_level.statements[0];
+        let selection = statement.tokens().and_then(|tokens| {
+            tokens.source_binding.as_ref().map(|binding| {
+                (
+                    binding.native_compilation_admission_selection(),
+                    binding
+                        .proved_execution_target()
+                        .map(|target| target.command.as_str()),
+                )
+            })
+        });
+        assert!(
+            matches!(statement, crate::ir::Statement::Catch { .. }),
+            "native catch lowering must survive a suspended child: {selection:?}"
+        );
+        if let crate::ir::Statement::Catch { body, .. } = statement {
+            assert_eq!(body.statements.len(), 2, "{body:?}");
+            let words = body.statements[1]
+                .tokens()
+                .expect("original error words")
+                .words();
+            assert!(
+                matches!(words.get(1), Some(crate::ir::WordExpr::Template { parts, .. })
+                if parts.iter().any(|part| matches!(part, crate::ir::WordPart::Variable { source, .. }
+                    if target.source.get(source.span.as_range()) == Some("$x")))),
+                "error operand must retain its own quoted variable read: {words:?}"
+            );
+        }
+        let prepared = crate::cfg_builder::prepare_cfg_context_bundle(&ir, registry);
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_context(
+            &ir,
+            false,
+            registry,
+            &prepared,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        );
+        assert!(
+            cfg.top_level
+                .blocks
+                .values()
+                .any(|block| block.name.starts_with("catch_body_")),
+            "captured native body must reach its own CFG region: {:?}",
+            cfg.top_level
+                .blocks
+                .values()
+                .map(|block| (&block.name, &block.statements))
+                .collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn inline_catch_ignores_a_trailing_registry_barrier() {
         let registry = CommandRegistry::build_default();
@@ -1836,13 +2285,24 @@ mod tests {
 
     #[test]
     fn catch_inline_multicommand_body_preserves_each_command_boundary() {
-        let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.dialect =
-            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile());
-        let body = "set x [yield a]; error \"boom-$x\"";
-
-        ctx.emit_catch_inline(body, Some("result"), None);
+        use tcl_runtime_api::CompileService;
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let target = tcl_runtime_api::ProcedureCompileTarget {
+            source: "catch {set x [yield a]; error \"boom-$x\"} result",
+            namespace: "::",
+            parameters: &[],
+        };
+        assert_captured_body_original_source(target, profile, registry);
+        let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let module = service
+            .compile_procedure_for_profile(
+                target,
+                profile,
+                tcl_runtime_api::ProcedureDispatch::Optimised,
+            )
+            .unwrap();
+        let ctx = &module.top_level_body;
 
         let ops: Vec<Op> = ctx
             .instructions
@@ -1853,8 +2313,24 @@ mod tests {
         assert!(!ops.contains(&Op::EVAL_STK), "{ops:?}");
         assert!(ops.contains(&Op::END_CATCH), "{ops:?}");
         assert!(
-            ops.iter().filter(|&&op| op == Op::INVOKE_STK1).count() >= 2,
-            "the nested yield and enclosing set must retain distinct invokes: {ops:?}"
+            ops.contains(&Op::YIELD)
+                && ops
+                    .iter()
+                    .any(|op| matches!(op, Op::STORE_SCALAR1 | Op::INVOKE_STK1)),
+            "the selected nested yield and enclosing setter must both execute: {ops:?}"
+        );
+        assert!(
+            ops.iter().filter(|&&op| op == Op::START_CMD).count() >= 2,
+            "the setter and subsequent error retain separate command boundaries: {:?}",
+            ctx.instructions
+                .iter()
+                .map(|instruction| (
+                    instruction.op,
+                    &instruction.operands,
+                    &instruction.source_cmd_text,
+                    instruction.source_command_boundary,
+                ))
+                .collect::<Vec<_>>()
         );
         assert!(
             ctx.literals.entries().iter().all(|literal| literal != ";"),
@@ -1870,13 +2346,16 @@ mod tests {
             ctx.instructions
                 .iter()
                 .filter(|instruction| instruction.op == Op::START_CMD)
-                .map(|instruction| instruction.source_cmd_text.as_str())
+                .map(|instruction| instruction
+                    .source_cmd_text
+                    .try_text()
+                    .expect("Unicode fixture source"))
                 .collect::<Vec<_>>()
         );
     }
 
     #[test]
-    fn catch_inline_incomplete_body_uses_catchable_script_path() {
+    fn catch_inline_incomplete_body_uses_the_shared_parse_failure() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         ctx.emit_catch_inline("set x {", Some("result"), None);
@@ -1886,7 +2365,19 @@ mod tests {
             .iter()
             .map(|instruction| instruction.op)
             .collect();
-        assert!(ops.contains(&Op::EVAL_STK), "{ops:?}");
+        assert!(ops.contains(&Op::SYNTAX), "{ops:?}");
+        assert!(!ops.contains(&Op::EVAL_STK), "{ops:?}");
+        let begin = ctx
+            .instructions
+            .iter()
+            .find(|i| i.op == Op::BEGIN_CATCH4)
+            .unwrap();
+        assert!(
+            begin
+                .catch_target
+                .as_ref()
+                .is_some_and(|label| ctx.label_positions.contains_key(label))
+        );
     }
 
     #[test]
@@ -1904,17 +2395,18 @@ mod tests {
             .iter()
             .position(|op| matches!(op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
             .expect("complete prefix command is emitted");
-        let tail_eval = ops
+        let tail_failure = ops
             .iter()
-            .position(|op| *op == Op::EVAL_STK)
-            .expect("malformed tail reaches runtime eval");
-        assert!(prefix_invoke < tail_eval, "{ops:?}");
+            .position(|op| *op == Op::SYNTAX)
+            .expect("malformed tail uses the original script parse failure");
+        assert!(prefix_invoke < tail_failure, "{ops:?}");
+        assert!(!ops.contains(&Op::EVAL_STK), "{ops:?}");
         assert!(
             ctx.literals
                 .entries()
                 .iter()
-                .any(|literal| literal == "set x \""),
-            "only the malformed command suffix reaches runtime eval: {:?}",
+                .any(|literal| literal == "missing \""),
+            "the exact reached parser message is retained: {:?}",
             ctx.literals.entries()
         );
         assert!(
@@ -1922,7 +2414,7 @@ mod tests {
                 .entries()
                 .iter()
                 .all(|literal| literal != "incr side; set x \""),
-            "the complete prefix must not be replayed by runtime eval: {:?}",
+            "the complete prefix must not be replayed: {:?}",
             ctx.literals.entries()
         );
     }
@@ -2050,15 +2542,12 @@ mod tests {
     }
 
     #[test]
-    fn catch_inline_with_options_var() {
+    fn catch_inline_with_options_declines_without_selection() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
-        ctx.emit_catch_inline("set x 1", Some("res"), Some("opts"));
-        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
-        assert!(ops.contains(&Op::PUSH_RETURN_OPTS));
-        // Two stores: one for opts, one for result
-        let store_count = ops.iter().filter(|&&o| o == Op::STORE_SCALAR1).count();
-        assert!(store_count >= 2);
+        assert!(!ctx.emit_catch_inline("set x 1", Some("res"), Some("opts")));
+        assert_eq!(ctx.instructions, [] as [tcl_bytecode::Instruction; 0]);
+        assert_eq!(ctx.lvt.entries(), [] as [tcl_runtime_api::NameBytes; 0]);
     }
 
     #[test]

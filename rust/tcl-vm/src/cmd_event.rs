@@ -146,9 +146,9 @@ impl EventQueue {
 }
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("after", cmd_after);
-    vm.register("vwait", cmd_vwait);
-    vm.register("update", cmd_update);
+    vm.register_stock_builtin("after", cmd_after);
+    vm.register_stock_builtin("vwait", cmd_vwait);
+    vm.register_stock_builtin("update", cmd_update);
 }
 
 /// `after`'s subcommand words, in C table order (`afterSubCmds[]`,
@@ -169,7 +169,10 @@ const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
 /// args are joined with spaces as a command prefix (matching C).
 fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(first) = args.first() else {
-        return err("wrong # args: should be \"after option ?arg ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"after option ?arg ...?\"",
+        );
     };
     let word = first.to_str();
     // C composes this one itself: `Tcl_GetIndexFromObj(NULL, …, afterSubCmds,
@@ -189,7 +192,10 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match first {
         "idle" => {
             if args.len() < 2 {
-                return err("wrong # args: should be \"after idle script\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"after idle script\"",
+                );
             }
             let script = join_args(&args[1..]);
             let id = vm.events.push_idle(script);
@@ -197,7 +203,10 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }
         "cancel" => {
             if args.len() < 2 {
-                return err("wrong # args: should be \"after cancel id|command\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"after cancel id|command\"",
+                );
             }
             let arg = args[1].to_str();
             if let Some(id) = parse_after_id(&arg) {
@@ -234,7 +243,10 @@ fn cmd_after(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// remain and the variable never changes, so a missing event source cannot hang.
 fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name] = args else {
-        return err("wrong # args: should be \"vwait name\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"vwait name\"",
+        );
     };
     let name = name.to_str();
     let before = var_snapshot(vm, &name);
@@ -261,11 +273,23 @@ fn cmd_vwait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let idletasks = match args {
         [] => false,
-        [a] => match UPDATE_OPTIONS.index_of_str(&a.to_str()) {
+        [a] => match vm.native_index_operand(
+            a,
+            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                UPDATE_OPTIONS.names(),
+            ),
+            false,
+            "option",
+        ) {
             Ok(_) => true,
-            Err(e) => return err(e.into_message()),
+            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
         },
-        _ => return err("wrong # args: should be \"update ?idletasks?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"update ?idletasks?\"",
+            );
+        }
     };
     let now = Instant::now();
     loop {
@@ -276,6 +300,9 @@ fn cmd_update(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
         let Some(script) = script else { break };
         run_event(vm, &script);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
     }
     ok(Value::empty())
 }
@@ -287,7 +314,7 @@ fn process_one(vm: &mut Vm) -> Option<Completion<Value>> {
     let now = Instant::now();
     if let Some(script) = vm.events.pop_ready(now) {
         run_event(vm, &script);
-        return None;
+        return vm.refused_completion();
     }
     // Nothing ready: wait until the earliest timer deadline, then retry.
     if let Some(d) = vm.events.earliest_deadline() {
@@ -300,7 +327,7 @@ fn process_one(vm: &mut Vm) -> Option<Completion<Value>> {
             run_event(vm, &script);
         }
     }
-    None
+    vm.refused_completion()
 }
 
 /// Bare `after ms`: block, servicing events, until `ms` has elapsed.
@@ -310,8 +337,8 @@ fn delay(vm: &mut Vm, ms: u64) -> Completion<Value> {
         if vm.events.is_empty() {
             let remaining = end.saturating_duration_since(Instant::now());
             std::thread::sleep(remaining.min(Duration::from_millis(50)));
-        } else {
-            process_one(vm);
+        } else if let Some(refusal) = process_one(vm) {
+            return refusal;
         }
     }
     ok(Value::empty())
@@ -322,10 +349,19 @@ fn delay(vm: &mut Vm, ms: u64) -> Completion<Value> {
 /// propagated out of the loop.
 fn run_event(vm: &mut Vm, script: &str) {
     let failed = match vm.eval_source(script) {
-        Ok(c) if c.code == Code::Error => Some(c.result.to_str().to_string()),
+        Ok(c) if c.code == Code::Error => Some(c.result.string_bytes()),
         Ok(_) => None,
-        Err(e) => Some(e.message),
+        Err(error) => {
+            let completion = crate::command::completion_from_tcl_error(vm, error);
+            if vm.refused_completion().is_some() {
+                return;
+            }
+            (completion.code == Code::Error).then(|| completion.result.string_bytes())
+        }
     };
+    if vm.refused_completion().is_some() {
+        return;
+    }
     if let Some(message) = failed {
         report_bg_error(vm, &message);
     }
@@ -335,15 +371,26 @@ fn run_event(vm: &mut Vm, script: &str) {
 /// `bgerror` handler if one is callable; otherwise print the error's `errorInfo`
 /// to stderr (with the `("after" script)` frame the event raised it under). Any
 /// error from the handler itself is swallowed — it must not escape the loop.
-fn report_bg_error(vm: &mut Vm, message: &str) {
+fn report_bg_error(vm: &mut Vm, message: &[u8]) {
     let handler = vm.bgerror_handler_prefix();
     if !handler.is_empty() {
-        let script = format!("{handler} {}", tcl_syntax::list::list_element(message));
-        let _ = vm.eval_source(&script);
+        let mut prefix = tcl_syntax::list::split_list_lenient(&handler)
+            .into_iter()
+            .map(Value::string)
+            .collect::<Vec<_>>();
+        let head = prefix.remove(0);
+        prefix.push(Value::from_string_bytes(message));
+        let _ = vm.invoke_command(&head.to_str(), &prefix);
         return;
     }
-    let info = vm.take_error_info().unwrap_or_else(|| message.to_string());
-    vm.report_stderr_text(&format!("{info}\n    (\"after\" script)"));
+    let mut info = vm.take_error_info().unwrap_or_else(|| message.to_vec());
+    info.extend_from_slice(b"\n    (\"after\" script)");
+    // Stderr is a text channel boundary; byte diagnostics stay explicit when
+    // its Unicode encoding cannot represent the original native message.
+    match tcl_syntax::raw_string::RawString::from_bytes(info.as_slice()).unicode() {
+        Ok(text) => vm.report_stderr_text(&text),
+        Err(_) => vm.report_stderr_text(&format!("native Tcl error bytes: {info:?}")),
+    }
 }
 
 /// Join the script words with single spaces (a command *prefix*, exactly as C's

@@ -1,0 +1,14 @@
+kind=rawstring case=0 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0
+kind=rawstring case=1 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0
+kind=rawstring case=2 boolcode=0 bool=0 booltype=boolean widecode=1 wide=0
+kind=rawstring case=3 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0
+kind=rawstring case=4 boolcode=0 bool=0 booltype=boolean widecode=1 wide=0
+kind=rawstring case=5 boolcode=0 bool=1 booltype=boolean widecode=0 wide=2
+kind=rawstring case=6 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0
+kind=bytearray case=0 boolcode=1 bool=0 booltype=bytearray widecode=1 wide=0
+kind=bytearray case=1 boolcode=1 bool=0 booltype=bytearray widecode=1 wide=0
+kind=bytearray case=2 boolcode=1 bool=0 booltype=bytearray widecode=1 wide=0
+kind=bytearray case=3 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0
+kind=bytearray case=4 boolcode=0 bool=0 booltype=boolean widecode=1 wide=0
+kind=bytearray case=5 boolcode=0 bool=1 booltype=boolean widecode=0 wide=2
+kind=bytearray case=6 boolcode=0 bool=1 booltype=boolean widecode=1 wide=0

@@ -1,0 +1,10 @@
+double21 0 21.0
+invalid 1 {expected floating-point number but got "invalid"}
+infinity 0 Inf
+negative 0 -21.0
+arity_zero 1 {not enough arguments for math function "double"}
+arity_two 1 {too many arguments for math function "double"}
+argument_return 0 EARLY
+argument_error 1 ARGUMENT
+read_error 1 {can't read "original": READ_ERROR}
+replacement 1 REPLACED

@@ -879,6 +879,11 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         traits: Traits::BYTE_COMPILED,
         // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`
         // entry in the 8.4 command index (confirmed: the 8.4 URL 404s and the

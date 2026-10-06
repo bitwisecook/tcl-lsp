@@ -33,75 +33,25 @@
 //!   (`tclExecute.c:3110-3121`) and fire `write` only. `append` never fires
 //!   `read`.
 //!
-//! Every vector's stdout is compared against the bytecode VM **and** — when
-//! installed — real `tclsh8.6` / `tclsh9.0`; the two releases produce
-//! identical bytes for all of it (measured on 8.6.16 and 9.0.4).
+//! Original vectors run through each matching physical core/source compiler
+//! and all five pinned C interpreters through the strict shared roster.
+//! Measured C8.4 failures and C9.1's lappend path have separate expectations;
+//! the original C8.6/C9.0 stdout assertions remain unchanged.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_vm::{CompileService, Vm};
+use std::fmt::Write as _;
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
+use tcl_dialect::TclVersion;
+use tcl_test_support::required_tclshs;
 
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
+fn vm_output(source: &str) -> String {
+    common::vm_output(source, TclVersion::V9_0.dialect_name())
 }
 
-/// Run `src` in the VM; the script's `puts` output is returned.
-fn vm_output(src: &str) -> String {
-    let service = BytecodeCompileService::default();
-    let asm = service.compile(src).expect("test script compiles");
-
-    let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(service));
-    let completion = vm.run_module(&asm);
-    assert!(
-        completion.code.is_ok(),
-        "VM run failed: {}",
-        completion.result.to_str()
-    );
-    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
-}
-
-/// Run `src` under a real tclsh, or `None` when that binary isn't available.
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write");
-        let out = child.wait_with_output().expect("run");
-        if out.status.success() {
-            return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-        }
-    }
-    None
+fn tclsh_output(source: &str) -> String {
+    let oracles = required_tclshs(&[TclVersion::V9_0]).expect("pinned C9.0 oracle");
+    common::oracle_output(&oracles[0].path, source)
 }
 
 struct Vector {
@@ -502,10 +452,74 @@ const VECTORS: &[Vector] = &[
     },
 ];
 
+// Exact original-source observations from the pinned C8.4–C9.1 roster.
+// A failed whole-script evaluation keeps its prior output and first error.
+fn expected_outcome(
+    case: usize,
+    vector: &Vector,
+    version: TclVersion,
+) -> (&'static str, Option<&'static str>) {
+    match (case, version) {
+        (0, TclVersion::V8_4) => (
+            "<mangled>\n<>|0",
+            Some("can't read \"z\": no such variable"),
+        ),
+        (2, TclVersion::V8_4) => (
+            "incr: read write\nincr5: read write\nappend: write\nset: write",
+            Some("can't read \"nx\": no such variable"),
+        ),
+        (3, TclVersion::V9_1) => (
+            "top-1: read write\ntop-0: read\ntop-2: read write\ntop-eval: read write\ntop-if: read write\nproc-local2: read write\nproc-local0: read\nproc-local1: write\nproc-eval: write\nproc-elem2: read write\nproc-elem1: write",
+            None,
+        ),
+        (4, TclVersion::V8_4) => (
+            "incr: code=1 msg=can't read \"x\": bang x=1\nei-tail: {    invoked from within} {\"incr x\"}\nlappend: code=0 msg=z y=z\nlappend0: code=0 msg= z2=",
+            None,
+        ),
+        _ => (vector.want, None),
+    }
+}
+
+// Catch only the measured failing original scripts: interactive tclsh stdin
+// would otherwise continue past their first error while VM evaluation stops.
+fn outcome_source(source: &str, error: Option<&str>) -> String {
+    if error.is_none() {
+        return source.to_owned();
+    }
+    let mut hex = String::new();
+    for byte in source.as_bytes() {
+        write!(hex, "{byte:02x}").expect("write original source hex");
+    }
+    format!(
+        "set __fixture_code [catch [binary format H* {hex}] __fixture_result]\n\
+         puts \"__FIXTURE_COMPLETION__$__fixture_code:$__fixture_result\"\n"
+    )
+}
+
+fn outcome_output(stdout: &str, error: Option<&str>) -> String {
+    match error {
+        Some(message) => format!("{stdout}\n__FIXTURE_COMPLETION__1:{message}")
+            .trim()
+            .to_owned(),
+        None => stdout.to_owned(),
+    }
+}
+
 #[test]
 fn vm_matches_the_pinned_trace_vectors() {
-    for v in VECTORS {
-        assert_eq!(vm_output(v.script), v.want, "{}", v.name);
+    for (case, vector) in VECTORS.iter().enumerate() {
+        for version in TclVersion::ALL {
+            let (stdout, error) = expected_outcome(case, vector, version);
+            assert_eq!(
+                common::vm_output(
+                    &outcome_source(vector.script, error),
+                    version.dialect_name()
+                ),
+                outcome_output(stdout, error),
+                "[{version:?}] {}",
+                vector.name
+            );
+        }
     }
 }
 
@@ -571,9 +585,11 @@ puts [list $setMessage [dict get $setOptions -errorcode] \
         {unmatched open brace in list} {TCL VALUE LIST BRACE}";
 
     assert_eq!(vm_output(script), expected);
-    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
-        assert_eq!(oracle, expected, "Tcl 9.0 array validation oracle");
-    }
+    assert_eq!(
+        tclsh_output(script),
+        expected,
+        "Tcl 9.0 array validation oracle"
+    );
 }
 
 #[test]
@@ -757,9 +773,11 @@ fn array_get_reads_candidates_through_the_shared_trace_contract() {
         {calls {x traced} {x traced}}";
 
     assert_eq!(vm_output(&script), expected);
-    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
-        assert_eq!(oracle, expected, "Tcl 9.0.4 array-get trace oracle");
-    }
+    assert_eq!(
+        tclsh_output(&script),
+        expected,
+        "Tcl 9.0.4 array-get trace oracle"
+    );
 }
 
 #[test]
@@ -775,9 +793,11 @@ fn control_commands_apply_the_tcl9_completion_option_scope_matrix() {
         {0 0 {}} {0 0 {}} {0 0 {}}";
 
     assert_eq!(vm_output(&script), expected);
-    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
-        assert_eq!(oracle, expected, "Tcl 9.0.4 completion-scope oracle");
-    }
+    assert_eq!(
+        tclsh_output(&script),
+        expected,
+        "Tcl 9.0.4 completion-scope oracle"
+    );
 }
 
 #[test]
@@ -790,9 +810,11 @@ fn alias_wrappers_begin_a_fresh_completion_option_scope() {
         {switch 0 inside 0}} {0 inside 0} {0 value BAR}";
 
     assert_eq!(vm_output(&script), expected);
-    if let Some(oracle) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], &script) {
-        assert_eq!(oracle, expected, "Tcl 9.0.4 alias completion-scope oracle");
-    }
+    assert_eq!(
+        tclsh_output(&script),
+        expected,
+        "Tcl 9.0.4 alias completion-scope oracle"
+    );
 }
 
 #[test]
@@ -1252,22 +1274,19 @@ puts [list $events $code $msg [dict get $opts -errorcode] \
     );
 }
 
-/// The table itself is pinned to C Tcl (8.6.16 and 9.0.4 agree on every line).
+/// Missing or wrongly-versioned native interpreters fail this suite.
 #[test]
 fn vectors_match_real_tclsh() {
-    let mut ran = 0;
-    for v in VECTORS {
-        for (env, names) in [
-            ("TCL_LSP_TCLSH86", &["tclsh8.6"][..]),
-            ("TCL_LSP_TCLSH90", &["tclsh9.0"][..]),
-        ] {
-            if let Some(got) = tclsh_output(env, names, v.script) {
-                assert_eq!(got, v.want, "[{env}] {}", v.name);
-                ran += 1;
-            }
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned C Tcl oracles") {
+        for (case, vector) in VECTORS.iter().enumerate() {
+            let (stdout, error) = expected_outcome(case, vector, oracle.version);
+            assert_eq!(
+                common::oracle_output(&oracle.path, &outcome_source(vector.script, error)),
+                outcome_output(stdout, error),
+                "[{}] {}",
+                oracle.patchlevel,
+                vector.name
+            );
         }
-    }
-    if ran == 0 {
-        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }

@@ -39,8 +39,8 @@ use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
 use tcl_syntax::number::{Number, Numbers};
 
 use super::cells::{
-    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution, variable_word_place,
-    whole_reference,
+    CellPlace, ShadowState, VariableWordDecline, cell_place, has_substitution,
+    variable_reference_place, variable_word_place, whole_reference,
 };
 use super::elide::{BarrierDecision, CellDemotion, TraceLedger};
 use super::ir::{
@@ -128,6 +128,14 @@ pub fn lower_function(
     {
         return Err(FunctionDecline::PassDisabled);
     }
+    if input
+        .function
+        .native_compilation_admission
+        .as_ref()
+        .is_some_and(|admission| admission.requires_native_provider())
+    {
+        return Err(FunctionDecline::NativeCompilationAdmissionRequired);
+    }
     if input.function.validate().is_err() {
         return Err(FunctionDecline::InvalidExecutableIr);
     }
@@ -148,11 +156,22 @@ pub fn lower_function(
 
 /// The first executable instruction kind this lowering does not project.
 fn unlowered_instruction(function: &ExecutableFunction) -> Option<&'static str> {
+    // No partial lowering: the original wrapper would replay phases already
+    // represented by executable edges. Reject before constructing the lowerer.
+    if function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Some(ExecutableTerminator::RegionChoice { .. })
+        )
+    }) {
+        return Some("evaluated-body-region");
+    }
     function
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .find_map(|instruction| match instruction {
+            ExecutableInstruction::CompleteEvaluatedRegion(_) => Some("evaluated-body-region"),
             ExecutableInstruction::IterateLists { .. } => Some("iterate-lists"),
             ExecutableInstruction::MatchPattern { .. } => Some("match-pattern"),
             ExecutableInstruction::JoinCompletion { .. } => Some("join-completion"),
@@ -254,12 +273,9 @@ impl<'a> Lowerer<'a> {
             demotion,
             mutations,
             proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
-            numbers: Numbers::of_dialect_name(environment),
+            numbers: Numbers::Target(module.number_syntax()),
             dialect: profile,
-            // `None` — no semantic context at all — keeps the permissive
-            // fallback grammar, matching what `parse_expr_for_profile` does
-            // with the same `None` on the line below.
-            lexer_config: tcl_lexer::LexerConfig::for_profile(profile),
+            lexer_config: module.native_lexer_config(),
             representation: input
                 .config
                 .is_enabled(SemanticOptimisationPassId::RepresentationInference),
@@ -526,6 +542,7 @@ impl<'a> Lowerer<'a> {
             })
             .collect();
         NativeFunction {
+            native_compilation_admission: function.native_compilation_admission.clone(),
             values: std::mem::take(&mut self.values),
             blocks,
             entry: NativeBlockId(u32::try_from(function.entry.index()).unwrap_or(u32::MAX)),
@@ -593,6 +610,9 @@ impl<'a> Lowerer<'a> {
             .as_ref()
             .expect("a validated executable block is terminated")
         {
+            ExecutableTerminator::RegionChoice { .. } => {
+                unreachable!("the function-level pre-check declines evaluated regions")
+            }
             ExecutableTerminator::Goto(next) => NativeTerminator::Goto(target(*next)),
             ExecutableTerminator::Branch {
                 condition,
@@ -790,7 +810,8 @@ impl<'a> Lowerer<'a> {
                     StatementOutcome::Empty,
                 )
             }
-            ExecutableInstruction::MatchPattern { .. }
+            ExecutableInstruction::CompleteEvaluatedRegion(_)
+            | ExecutableInstruction::MatchPattern { .. }
             | ExecutableInstruction::IterateLists { .. }
             | ExecutableInstruction::JoinCompletion { .. }
             | ExecutableInstruction::WriteCompletionCell { .. } => {
@@ -817,7 +838,8 @@ impl<'a> Lowerer<'a> {
             self.eval_source(&invoke.source, reason);
             return StatementOutcome::EvalSource(reason);
         };
-        if let InvocationResolution::Resolved(facts) = &invoke.resolution
+        if invoke.registry_specialisation_arguments_exact()
+            && let InvocationResolution::Resolved(facts) = &invoke.resolution
             && let Some(spec) = self.input.registry.get(&facts.canonical_command)
         {
             // The site proof's operand-admissibility verdict is conservative
@@ -1169,7 +1191,7 @@ impl<'a> Lowerer<'a> {
             // A retained `$name` word carries no lexical extent here, so the
             // owner's name reading decides it: an element access is not one
             // scalar operand.
-            let place = cell_place(whole_reference(text)?, true)?;
+            let place = cell_place(whole_reference(text, self.lexer_config)?, true)?;
             if matches!(place, CellPlace::Element { .. }) {
                 return None;
             }
@@ -1222,7 +1244,9 @@ impl<'a> Lowerer<'a> {
                     Ok(())
                 }
             }
-            WordExpr::Variable { spelling, source } => variable_place(spelling, source).map(|_| ()),
+            WordExpr::Variable { spelling, source } => {
+                variable_place(spelling, source, self.lexer_config).map(|_| ())
+            }
             WordExpr::CommandSubstitution { spelling, source } => {
                 let inner = nested_words(spelling, source, self.lexer_config)?;
                 self.words_lowerable(&inner, depth + 1)
@@ -1239,7 +1263,7 @@ impl<'a> Lowerer<'a> {
                             }
                         }
                         WordPart::Variable { spelling, source } => {
-                            variable_place(spelling, source)?;
+                            variable_place(spelling, source, self.lexer_config)?;
                         }
                         WordPart::CommandSubstitution { spelling, source } => {
                             let inner = nested_words(spelling, source, self.lexer_config)?;
@@ -1273,7 +1297,7 @@ impl<'a> Lowerer<'a> {
                 Ok(self.const_str(text))
             }
             WordExpr::Variable { spelling, source } => {
-                let place = variable_place(spelling, source)?;
+                let place = variable_place(spelling, source, self.lexer_config)?;
                 let value = self.read_cell(&place);
                 Ok(self.boxed(value))
             }
@@ -1294,7 +1318,7 @@ impl<'a> Lowerer<'a> {
                             self.const_str(text)
                         }
                         WordPart::Variable { spelling, source } => {
-                            let place = variable_place(spelling, source)?;
+                            let place = variable_place(spelling, source, self.lexer_config)?;
                             let value = self.read_cell(&place);
                             self.boxed(value)
                         }
@@ -1410,8 +1434,9 @@ impl<'a> Lowerer<'a> {
                     None => Err(ExprDecline::SubstitutedString),
                 }
             }
-            ExprNode::Var { name, .. } => {
-                let place = expr_variable_place(name).ok_or(ExprDecline::DynamicVariable)?;
+            ExprNode::Var { text, .. } => {
+                let place = variable_reference_place(text, self.lexer_config)
+                    .map_err(|_| ExprDecline::DynamicVariable)?;
                 Ok(self.read_cell(&place))
             }
             ExprNode::Command { .. } => Err(ExprDecline::CommandSubstitution),
@@ -1949,24 +1974,6 @@ fn value_word(tokens: Option<&CommandTokens>) -> Option<&WordExpr> {
     tokens.words().get(2)
 }
 
-/// The cell an expression `$name` / `$arr(key)` reads.
-fn expr_variable_place(name: &str) -> Option<CellPlace> {
-    let (base, key) = tcl_syntax::naming::split_array_name_braced(name, false);
-    if base.is_empty() || has_substitution(base) {
-        return None;
-    }
-    match key {
-        None => Some(CellPlace::Named {
-            name: base.to_owned(),
-        }),
-        Some(key) if !has_substitution(key) => Some(CellPlace::Element {
-            name: base.to_owned(),
-            key: key.to_owned(),
-        }),
-        Some(_) => None,
-    }
-}
-
 /// The cell a variable word reads, in this tier's decline vocabulary.
 ///
 /// [`variable_word_place`] is the one owner of the reading; this only names
@@ -2033,8 +2040,12 @@ fn body_line(source: &str, origin: u32, offset: u32) -> u32 {
         .saturating_add(1)
 }
 
-fn variable_place(spelling: &str, source: &SourceSite) -> Result<CellPlace, NativeLoweringDecline> {
-    variable_word_place(spelling, source).map_err(|decline| match decline {
+fn variable_place(
+    spelling: &str,
+    source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
+) -> Result<CellPlace, NativeLoweringDecline> {
+    variable_word_place(spelling, source, config).map_err(|decline| match decline {
         VariableWordDecline::Dynamic => NativeLoweringDecline::DynamicVariableName,
         VariableWordDecline::Ambiguous => NativeLoweringDecline::AmbiguousVariableSpelling,
     })
@@ -2069,6 +2080,9 @@ fn block_order(function: &ExecutableFunction) -> (Vec<usize>, HashSet<usize>, Ve
         .blocks
         .iter()
         .map(|block| match &block.terminator {
+            Some(ExecutableTerminator::RegionChoice { enter, skip }) => {
+                vec![enter.index(), skip.index()]
+            }
             Some(ExecutableTerminator::Goto(target)) => vec![target.index()],
             Some(ExecutableTerminator::Branch {
                 then_target,
@@ -2164,6 +2178,7 @@ fn instruction_completion(
         ExecutableInstruction::ExecuteLowered(operation) => operation.completion,
         ExecutableInstruction::ExecuteOpaqueRegion(region) => region.completion,
         ExecutableInstruction::CompleteStructuredRegion(region) => region.completion,
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => region.invocation.completion,
     }
 }
 
@@ -2189,5 +2204,18 @@ fn mixed_compare_is_exact(l: &Representation, r: &Representation) -> bool {
             exactly_representable_as_double(*i)
         }
         _ => true,
+    }
+}
+
+#[cfg(test)]
+mod evaluated_region_tests {
+    #[test]
+    fn evaluated_wrapper_is_rejected_before_native_operations_are_emitted() {
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        function.validate().unwrap();
+        assert_eq!(
+            super::unlowered_instruction(&function),
+            Some("evaluated-body-region")
+        );
     }
 }

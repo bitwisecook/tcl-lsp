@@ -334,7 +334,7 @@ mod tests {
         let outcome = register_inherited_surfaces(vec![jim_roster(&[("proc", &["0.76-"])])]);
         assert!(outcome.changed);
         assert_eq!(outcome.rosters, 1);
-        assert!(outcome.rejected.is_empty());
+        assert_eq!(outcome.rejected, [] as [InheritedSurfaceError; 0]);
 
         assert!(admits(Family::Jim, Family::Tcl, "proc", None));
         assert!(

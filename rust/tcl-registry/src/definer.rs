@@ -934,6 +934,109 @@ pub enum MemberCurrentNamespace {
     RuntimeReceiver,
 }
 
+/// Effect of a definition member on a class's default construction path.
+/// Unknown effects cannot justify a bounded constructor execution summary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberConstructionEffect {
+    /// Declares an instance method whose body is deferred until invocation.
+    DeferredInstanceMethod,
+    /// The member may alter or execute a construction hook or class dispatch.
+    Unknown,
+}
+
+/// Native class-method lookup contribution of an original definition member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeInheritedClassKind {
+    /// The superclass follows methods declared by the receiver class.
+    Superclass,
+    /// The mixin precedes methods declared by the receiver class.
+    Mixin,
+}
+
+/// Native definition receiver whose method table a declaration modifies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DefinitionReceiver {
+    /// Methods on manufactured instances.
+    Instance,
+    /// Methods on the class object's own object dispatch table.
+    Class,
+}
+
+/// Audited deferred method layout in original definition words.
+#[derive(Debug, Clone, Copy)]
+pub struct ReceiverMethodLayout {
+    /// Instance or class-object table selected by the native definition handler.
+    pub receiver: DefinitionReceiver,
+    /// Definition worker table, independent of the resulting receiver table.
+    pub worker_receiver: DefinitionReceiver,
+    /// Native classmethod body on the class factory's generated delegate.
+    /// This describes ownership only; the caller must retain the actual
+    /// factory allocation and current delegate dispatch dependencies.
+    pub class_delegate: bool,
+    /// Original word index containing the selected method declaration keyword.
+    pub member_word: usize,
+    /// Exact admitted member descriptor, without executing its body.
+    pub member: &'static MemberSpec,
+}
+
+/// Effect of an admitted instance declaration on the class object's native
+/// manufacture dispatch. This is independent of constructor callback effects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberManufactureDispatchEffect {
+    /// The native declaration changes instances; original class manufacture
+    /// remains selected. Constructor bodies may still execute arbitrary code.
+    PreservesNativeFactory,
+    /// Class dispatch, metaclass configuration or immediate callbacks may change.
+    Unknown,
+}
+
+/// Effect of the original native constructor/destructor body operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeLifecycleBodyDisposition {
+    /// An empty counted body removes the native method record. No formal
+    /// parser or method activation is selected by that declaration.
+    Removed,
+    /// A nonempty body installs the original native method source.
+    Retained,
+}
+
+/// Native allocation boundary around an original constructor activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeConstructorBoundary {
+    /// `TclOO` restores the saved state on success; every failed constructor
+    /// deletes the allocated object and invokes its destruction callbacks.
+    TclOo,
+}
+
+impl NativeConstructorBoundary {
+    /// Completion after the method's own return boundary. Allocation converts
+    /// non-OK method codes into Error; process exit remains outside cleanup.
+    #[must_use]
+    pub fn completion(
+        self,
+        route: crate::completion_route::InvocationCompletionRoute,
+    ) -> crate::completion_route::InvocationCompletionRoute {
+        use crate::completion_route::InvocationCompletionRoute as Route;
+        match self {
+            Self::TclOo => match route {
+                Route::Tcl(crate::CompletionCode::Ok) | Route::ProcessExit => route,
+                Route::Unknown => Route::Unknown,
+                Route::TclAlternatives(_) if route.normal_possible() => Route::Unknown,
+                _ => Route::Tcl(crate::CompletionCode::Error),
+            },
+        }
+    }
+}
+
+/// Native command-table dependency of a definition member.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefinitionMemberLookup {
+    /// Namespace in which the definition script resolves its member head.
+    pub namespace: &'static str,
+    /// Canonical interpreter command implementing this member.
+    pub implementation: String,
+}
+
 impl DefinerFamily {
     /// Whether this grammar defines commands/objects that can be invoked by
     /// the Tcl runtime after the declaration completes.
@@ -1134,6 +1237,66 @@ pub struct DefinitionBodyGrammar {
     pub property_accessor_methods: &'static [&'static str],
 }
 
+/// Conditional command installation described by an actual definer recipe.
+/// This does not prove callback closure, a live receiver, class methods,
+/// native compiler hooks or executable specialization.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DefinitionCommandInstallation {
+    /// Original argument naming the newly defined dispatcher.
+    pub name_at: u8,
+    /// Original argument evaluated as its definition.
+    pub body_at: u8,
+    /// Dispatcher implementation installed by the provider recipe.
+    pub dispatcher: DefinitionDispatcher,
+    /// Returned-name protocol of its admitted manufacturing methods.
+    pub construction_result: ConstructionNameResult,
+}
+
+/// Implementation protocol of an installed definition dispatcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DefinitionDispatcher {
+    /// Snit type-command dispatch; distinct from a native `TclOO` class object.
+    SnitType,
+    /// Itcl's class-name dispatcher, independently installed by its provider.
+    /// This is not a native `TclOO` class or instance receipt.
+    ItclClass,
+}
+
+impl DefinitionDispatcher {
+    /// Native engine axes audited for this installed provider recipe. A live
+    /// attested installation and unchanged dependencies are still required;
+    /// this query grants neither an installed token nor a compiler hook alone.
+    #[must_use]
+    pub fn native_installation_is_audited(self, dialect: crate::InvocationDialect) -> bool {
+        use tcl_dialect::TclVersion;
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
+            return false;
+        }
+        match self {
+            Self::SnitType => dialect
+                .tcl_version
+                .is_some_and(|version| version >= TclVersion::V8_5),
+            Self::ItclClass => matches!(
+                dialect.tcl_version,
+                Some(TclVersion::V8_6 | TclVersion::V9_0 | TclVersion::V9_1)
+            ),
+        }
+    }
+}
+
+/// Name contents returned by a successful manufacturing recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstructionNameResult {
+    /// The qualified instance name, including any provider-generated suffix.
+    /// The return value alone proves neither continued command existence nor
+    /// object class identity after arbitrary callbacks.
+    QualifiedInstanceName,
+    /// The requested instance spelling, replacing `#auto` with a generated
+    /// suffix. Itcl can return a relative name even when the actual installed
+    /// command is qualified. This proves no continued command existence.
+    WrittenInstanceName,
+}
+
 /// One method of a class system's **class command** that manufactures an
 /// instance — see [`DefinitionBodyGrammar::manufacturers`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1172,8 +1335,35 @@ pub struct BuiltinObjectMethod {
     pub visibility: MemberVisibility,
     /// Which receiver actually carries the method.
     pub receiver: BuiltinMethodReceiver,
+    /// Audited native operation of this builtin implementation. A name match
+    /// does not establish that the current receiver still selects the builtin.
+    pub operation: Option<BuiltinObjectMethodOperation>,
     /// One-line description, for hover / completion.
     pub detail: &'static str,
+}
+
+/// Purpose-limited successful operation of an actual native object builtin.
+/// Source consumers must separately retain the receiver, dispatcher identity,
+/// and absence of a current overriding method.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinObjectMethodOperation {
+    /// Link each supplied scalar name from the selected object's namespace
+    /// into the actual calling frame. No operands is a successful no-op.
+    ObjectVariableLinks,
+}
+
+impl BuiltinObjectMethodOperation {
+    /// Whether one frozen operand is a valid scalar name for this operation.
+    /// This supplies no object namespace or local-cell identity.
+    #[must_use]
+    pub fn accepts_variable_link_name(self, name: &str) -> bool {
+        match self {
+            Self::ObjectVariableLinks => {
+                !tcl_syntax::naming::is_qualified(name.as_bytes())
+                    && tcl_syntax::naming::split_array_name(name).1.is_none()
+            }
+        }
+    }
 }
 
 /// Which kind of object a [`BuiltinObjectMethod`] lives on.
@@ -1231,10 +1421,429 @@ pub struct MemberBodyCommand {
 }
 
 impl DefinitionBodyGrammar {
+    /// Provider-authored dispatcher installation and returned-name protocol.
+    /// Snit 2.3.4 and Itcl 4.3.2 evaluate their definitions before installing
+    /// provider dispatchers. Immediate definition members can retire that
+    /// command even on normal completion, so this is conditional metadata.
+    /// Actual handler/provider identity and callback effects remain required.
+    #[must_use]
+    pub const fn command_installation(&self) -> Option<DefinitionCommandInstallation> {
+        match self.family {
+            DefinerFamily::Snit => Some(DefinitionCommandInstallation {
+                name_at: 0,
+                body_at: 1,
+                dispatcher: DefinitionDispatcher::SnitType,
+                construction_result: ConstructionNameResult::QualifiedInstanceName,
+            }),
+            DefinerFamily::Itcl => Some(DefinitionCommandInstallation {
+                name_at: 0,
+                body_at: 1,
+                dispatcher: DefinitionDispatcher::ItclClass,
+                construction_result: ConstructionNameResult::WrittenInstanceName,
+            }),
+            _ => None,
+        }
+    }
+
+    /// Members that install a procedure body without running it during the
+    /// selected provider definition. Immediate initialization and declaration initializers
+    /// remain unknown. This grants no instance-constructor closure.
+    #[must_use]
+    pub fn installation_member_is_deferred(&self, member: &MemberSpec) -> bool {
+        matches!(self.family, DefinerFamily::Snit | DefinerFamily::Itcl)
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+            && match self.family {
+                DefinerFamily::Itcl => {
+                    matches!(
+                        member.keyword,
+                        "method" | "proc" | "constructor" | "destructor"
+                    )
+                }
+                DefinerFamily::Snit => matches!(
+                    member.keyword,
+                    "method"
+                        | "typemethod"
+                        | "proc"
+                        | "constructor"
+                        | "destructor"
+                        | "onconfigure"
+                        | "oncget"
+                ),
+                _ => false,
+            }
+    }
+
+    /// Name operand of a deferred declaration that changes type dispatch.
+    /// The selected member must belong to this exact installation grammar.
+    #[must_use]
+    pub fn installation_dispatch_method_name_at(&self, member: &MemberSpec) -> Option<u8> {
+        (matches!(self.family, DefinerFamily::Snit | DefinerFamily::Itcl)
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+            && match self.family {
+                DefinerFamily::Snit => member.keyword == "typemethod",
+                DefinerFamily::Itcl => member.keyword == "proc",
+                _ => false,
+            })
+        .then_some(0)
+    }
+
+    /// Normal returned-name operand of a selected manufacture call. Bare-word
+    /// Snit construction excludes generated and declared type methods. Itcl's
+    /// class dispatcher always treats its first word as the instance name.
+    /// This grants no receiver existence.
+    #[must_use]
+    pub fn conditional_construction_name_at<'a>(
+        &self,
+        first: &str,
+        declared_type_methods: impl IntoIterator<Item = &'a str>,
+    ) -> Option<usize> {
+        // Itcl class commands construct even when the first word also names
+        // a class-scoped proc; that proc lives at Class::procName instead.
+        if self.family == DefinerFamily::Itcl {
+            return Some(0);
+        }
+        if let Some(method) = self.manufacturer(first) {
+            return method.names_instance_at.map(usize::from);
+        }
+        (self.bare_word_construction
+            && !self.builtin_type_methods.contains(&first)
+            && !declared_type_methods.into_iter().any(|name| name == first))
+        .then_some(0)
+    }
+
     /// Current-namespace policy for executable members of this grammar.
     #[must_use]
     pub const fn member_current_namespace(&self) -> MemberCurrentNamespace {
         self.family.member_current_namespace()
+    }
+
+    /// Root object dispatch dependencies of an audited default constructor.
+    /// Configuration of either object revokes the default construction proof.
+    #[must_use]
+    pub const fn default_construction_lookup_dependencies(
+        &self,
+    ) -> Option<&'static [&'static str]> {
+        match self.family {
+            DefinerFamily::TclOo => Some(&["::oo::class", "::oo::object"]),
+            _ => None,
+        }
+    }
+
+    /// Native `TclOO` definition-member lookup under the active release.
+    /// A descriptor alone does not prove this command table slot is unmodified.
+    #[must_use]
+    pub fn definition_member_lookup(
+        &self,
+        member: &MemberSpec,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<DefinitionMemberLookup> {
+        if self.family != DefinerFamily::TclOo
+            || !self
+                .member(member.keyword)
+                .is_some_and(|admitted| std::ptr::eq(admitted, member))
+            || member
+                .surface
+                .is_some_and(|surface| !surface_admits(surface, dialect.as_ref()))
+        {
+            return None;
+        }
+        Some(DefinitionMemberLookup {
+            namespace: "::oo::define",
+            implementation: format!("::oo::define::{}", member.keyword),
+        })
+    }
+
+    /// Actual private member slot in the selected definition receiver. The
+    /// class-object `self` handler enters `::oo::objdefine`; its member table
+    /// is independent of the outer `::oo::define` table.
+    #[must_use]
+    pub fn definition_member_lookup_for_receiver(
+        &self,
+        member: &MemberSpec,
+        receiver: DefinitionReceiver,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<DefinitionMemberLookup> {
+        let mut lookup = self.definition_member_lookup(member, dialect)?;
+        if receiver == DefinitionReceiver::Class {
+            if self.construction_member_effect(member)
+                != MemberConstructionEffect::DeferredInstanceMethod
+            {
+                return None;
+            }
+            lookup.namespace = "::oo::objdefine";
+            lookup.implementation = format!("::oo::objdefine::{}", member.keyword);
+        }
+        Some(lookup)
+    }
+
+    /// Whether a selected wrapper enters the class object's definition table.
+    /// This is declaration metadata only, not default manufacture preservation.
+    #[must_use]
+    pub fn is_class_receiver_wrapper(&self, member: &MemberSpec) -> bool {
+        self.family == DefinerFamily::TclOo
+            && member.keyword == "self"
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+    }
+
+    /// Direct or prefix-wrapper method declaration in original written words.
+    /// Block wrappers retain a separate body carrier and do not use this query.
+    #[must_use]
+    pub fn receiver_method_layout(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<ReceiverMethodLayout> {
+        let outer = self.member(keyword)?;
+        if self.native_classmethod_declaration(outer, dialect) {
+            return Some(ReceiverMethodLayout {
+                receiver: DefinitionReceiver::Class,
+                worker_receiver: DefinitionReceiver::Instance,
+                class_delegate: true,
+                member_word: 0,
+                member: outer,
+            });
+        }
+        let (receiver, member_word, member) = if self.is_class_receiver_wrapper(outer) {
+            (DefinitionReceiver::Class, 1, self.member(args.first()?)?)
+        } else {
+            (DefinitionReceiver::Instance, 0, outer)
+        };
+        if self.construction_member_effect(member)
+            != MemberConstructionEffect::DeferredInstanceMethod
+        {
+            return None;
+        }
+        self.definition_member_lookup_for_receiver(member, receiver, dialect)?;
+        Some(ReceiverMethodLayout {
+            receiver,
+            worker_receiver: receiver,
+            class_delegate: false,
+            member_word,
+            member,
+        })
+    }
+
+    /// Tcl 9's original classmethod worker creates a delegate procedure and
+    /// an instance forward through myclass. It is distinct from self method;
+    /// declaration identity supplies no delegate allocation or execution.
+    #[must_use]
+    pub fn native_classmethod_declaration(
+        &self,
+        member: &MemberSpec,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
+        self.family == DefinerFamily::TclOo
+            && member.keyword == "classmethod"
+            && dialect.is_some_and(|query| {
+                query.core.nearest().is_some_and(|point| {
+                    point.0 == tcl_dialect::model::Family::Tcl
+                        && point
+                            .1
+                            .and_then(TclVersion::from_version_string)
+                            .is_some_and(|version| version >= TclVersion::V9_0)
+                })
+            })
+            && self.definition_member_lookup(member, dialect).is_some()
+    }
+
+    /// Original native delegate-declaration worker under an explicit release.
+    #[must_use]
+    pub fn native_classmethod_member(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static MemberSpec> {
+        let member = self.member("classmethod")?;
+        self.native_classmethod_declaration(member, dialect)
+            .then_some(member)
+    }
+
+    /// A deferred delegate method whose name cannot replace a default class
+    /// manufacturer or the unknown-method route. This does not prove that
+    /// the owning delegate or the original declaration worker is current.
+    #[must_use]
+    pub fn native_classmethod_preserves_default_manufacturers(
+        &self,
+        member: &MemberSpec,
+        name: &str,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
+        self.native_classmethod_declaration(member, dialect)
+            && self.manufacturer(name).is_none()
+            && self.unknown_dispatch_method != Some(name)
+    }
+
+    /// Registry-owned construction classification of an admitted member.
+    /// Callers must prove the definition command's implementation and validate
+    /// the member's argument roles, parameters and literal body separately.
+    /// This describes ordinary `TclOO` instance declarations only; filters,
+    /// custom superclasses/metaclasses and construction hooks remain unknown.
+    /// The separate single-superclass shape query grants no construction proof.
+    #[must_use]
+    pub fn construction_member_effect(&self, member: &MemberSpec) -> MemberConstructionEffect {
+        if self.family == DefinerFamily::TclOo
+            && member.keyword == "method"
+            && self
+                .member(member.keyword)
+                .is_some_and(|admitted| std::ptr::eq(admitted, member))
+        {
+            MemberConstructionEffect::DeferredInstanceMethod
+        } else {
+            MemberConstructionEffect::Unknown
+        }
+    }
+
+    /// The bare, single-base native superclass assignment. This selects only
+    /// the original declaration shape; callers must prove the slot command,
+    /// base allocation, inherited constructor and dispatch dependencies.
+    #[must_use]
+    pub fn single_native_superclass<'a>(
+        &self,
+        member: &MemberSpec,
+        arguments: &[&'a str],
+        dialect: Option<crate::InvocationDialect>,
+    ) -> Option<&'a str> {
+        let (kind, name) = self.single_native_inherited_class(member, arguments, dialect)?;
+        (kind == NativeInheritedClassKind::Superclass).then_some(name)
+    }
+
+    /// One original superclass or mixin assignment under the actual `TclOO`
+    /// grammar. This selects a layout, not a live base or dispatch proof.
+    #[must_use]
+    pub fn single_native_inherited_class<'a>(
+        &self,
+        member: &MemberSpec,
+        arguments: &[&'a str],
+        dialect: Option<crate::InvocationDialect>,
+    ) -> Option<(NativeInheritedClassKind, &'a str)> {
+        let dialect = dialect?;
+        let kind = match member.keyword {
+            "superclass" => NativeInheritedClassKind::Superclass,
+            "mixin" => NativeInheritedClassKind::Mixin,
+            _ => return None,
+        };
+        if self.family != DefinerFamily::TclOo
+            || !self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+            || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect
+                .tcl_version
+                .is_none_or(|version| version < TclVersion::V8_6)
+        {
+            return None;
+        }
+        let [base] = arguments else { return None };
+        (!base.is_empty() && !base.starts_with('-')).then_some((kind, *base))
+    }
+
+    /// An original instance constructor whose entry can be retained separately
+    /// from its callback effects and the manufactured object's eventual class.
+    #[must_use]
+    pub fn is_instance_constructor(&self, member: &MemberSpec) -> bool {
+        self.family == DefinerFamily::TclOo
+            && member.keyword == "constructor"
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+    }
+
+    /// Original instance destructor declaration, distinct from ordinary methods.
+    #[must_use]
+    pub fn is_instance_destructor(&self, member: &MemberSpec) -> bool {
+        self.family == DefinerFamily::TclOo
+            && member.keyword == "destructor"
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+    }
+
+    /// Original `TclOO` lifecycle declarations remove a method for an empty
+    /// counted body. This describes declaration operands, not handler identity.
+    #[must_use]
+    pub fn native_lifecycle_body_disposition(
+        &self,
+        member: &MemberSpec,
+        body: &[u8],
+    ) -> Option<NativeLifecycleBodyDisposition> {
+        if !self.is_instance_constructor(member) && !self.is_instance_destructor(member) {
+            return None;
+        }
+        Some(if body.is_empty() {
+            NativeLifecycleBodyDisposition::Removed
+        } else {
+            NativeLifecycleBodyDisposition::Retained
+        })
+    }
+
+    /// Actual `TclOO` constructor allocation and failure-cleanup protocol.
+    /// Original handler, class and method-chain selection remain caller obligations.
+    #[must_use]
+    pub fn native_constructor_boundary(
+        &self,
+        dialect: crate::InvocationDialect,
+    ) -> Option<NativeConstructorBoundary> {
+        (self.family == DefinerFamily::TclOo
+            && dialect.native_bootstrap_protocol()?.initializes_tcl_oo())
+        .then_some(NativeConstructorBoundary::TclOo)
+    }
+
+    /// Whether a declaration leaves the selected constructor-entry chain
+    /// unchanged. Inheritance, mixins, filters and wrappers require independent
+    /// entry proofs and cannot borrow the local constructor inventory.
+    #[must_use]
+    pub fn preserves_local_constructor_entry(&self, member: &MemberSpec) -> bool {
+        self.family == DefinerFamily::TclOo
+            && self
+                .member(member.keyword)
+                .is_some_and(|known| std::ptr::eq(known, member))
+            && (matches!(
+                member.keyword,
+                "constructor" | "method" | "destructor" | "variable"
+            ) || member.visibility_effect.is_some())
+    }
+
+    /// Class-result identity on successful native manufacture is independent
+    /// of instance constructor effects. Callers must prove this admitted
+    /// member's native token, argument grammar and instance-definition context.
+    /// Class-object wrappers, class methods and immediate initialisation hooks
+    /// cannot preserve this contract without a separate dispatch proof.
+    #[must_use]
+    pub fn manufacture_member_effect(
+        &self,
+        member: &MemberSpec,
+    ) -> MemberManufactureDispatchEffect {
+        if self.family == DefinerFamily::TclOo
+            && self
+                .member(member.keyword)
+                .is_some_and(|admitted| std::ptr::eq(admitted, member))
+            && matches!(
+                member.keyword,
+                "method"
+                    | "constructor"
+                    | "destructor"
+                    | "variable"
+                    | "superclass"
+                    | "mixin"
+                    | "filter"
+                    | "export"
+                    | "unexport"
+                    | "deletemethod"
+                    | "renamemethod"
+                    | "forward"
+                    | "property"
+            )
+        {
+            MemberManufactureDispatchEffect::PreservesNativeFactory
+        } else {
+            MemberManufactureDispatchEffect::Unknown
+        }
     }
 
     /// The member grammar for `keyword`, if it is a recognised member.
@@ -1370,6 +1979,27 @@ impl DefinitionBodyGrammar {
                     || reach == MethodReach::SelfDispatch)
         })?;
         Some(&self.builtin_object_methods[idx])
+    }
+
+    /// Native builtin operation available through an independently selected
+    /// method reach and interpreter release. This does not select a current
+    /// receiver implementation or grant command/compiler execution authority.
+    #[must_use]
+    pub fn builtin_method_operation(
+        &self,
+        name: &str,
+        reach: MethodReach,
+        dialect: crate::InvocationDialect,
+    ) -> Option<BuiltinObjectMethodOperation> {
+        if self.family != DefinerFamily::TclOo
+            || reach != MethodReach::SelfDispatch
+            || dialect
+                .tcl_version
+                .is_none_or(|version| version < TclVersion::V8_6)
+        {
+            return None;
+        }
+        self.builtin_object_method(name, reach)?.operation
     }
 
     /// Whether the family's built-in implementation always terminates with a
@@ -1606,54 +2236,63 @@ const TCLOO_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
         name: "destroy",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "destroy the object, running its destructors",
     },
     BuiltinObjectMethod {
         name: "eval",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "evaluate a script in the object's own namespace",
     },
     BuiltinObjectMethod {
         name: "unknown",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "handler invoked for an unresolved method name",
     },
     BuiltinObjectMethod {
         name: "variable",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: Some(BuiltinObjectMethodOperation::ObjectVariableLinks),
         detail: "link object-instance variables into the calling scope",
     },
     BuiltinObjectMethod {
         name: "varname",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "fully-qualified name of an object-instance variable",
     },
     BuiltinObjectMethod {
         name: "<cloned>",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "copy hook invoked by oo::copy on the new object",
     },
     BuiltinObjectMethod {
         name: "new",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::ClassObject,
+        operation: None,
         detail: "construct an instance with a generated name",
     },
     BuiltinObjectMethod {
         name: "create",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::ClassObject,
+        operation: None,
         detail: "construct an instance with the given name",
     },
     BuiltinObjectMethod {
         name: "createWithNamespace",
         visibility: MemberVisibility::Unexported,
         receiver: BuiltinMethodReceiver::ClassObject,
+        operation: None,
         detail: "construct an instance in a named namespace",
     },
 ];
@@ -1834,36 +2473,42 @@ const SNIT_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
         name: "configure",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "set one or more of the instance's options",
     },
     BuiltinObjectMethod {
         name: "configurelist",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "set options from an option/value list",
     },
     BuiltinObjectMethod {
         name: "cget",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "retrieve the value of one of the instance's options",
     },
     BuiltinObjectMethod {
         name: "destroy",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "destroy the instance",
     },
     BuiltinObjectMethod {
         name: "info",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "introspect the instance's type, options and components",
     },
     BuiltinObjectMethod {
         name: "create",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::ClassObject,
+        operation: None,
         detail: "construct an instance with the given name",
     },
 ];
@@ -2030,24 +2675,28 @@ const ITCL_BUILTIN_OBJECT_METHODS: &[BuiltinObjectMethod] = &[
         name: "configure",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "set one or more of the object's public variables",
     },
     BuiltinObjectMethod {
         name: "cget",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "retrieve the value of one of the object's public variables",
     },
     BuiltinObjectMethod {
         name: "isa",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "test whether the object belongs to the named class",
     },
     BuiltinObjectMethod {
         name: "info",
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "introspect the object's class, variables and methods",
     },
 ];
@@ -2228,6 +2877,7 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("prefix_matching"),
     MemberSpec::keyword_only("default_form_first_word"),
     MemberSpec::keyword_only("semantic_operation"),
+    MemberSpec::keyword_only("successful_handler"),
     MemberSpec::keyword_only("assigns_variable_at"),
     MemberSpec::keyword_only("safe_on_uninit"),
     MemberSpec::keyword_only("lowering_hook"),
@@ -2319,7 +2969,7 @@ const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("tail"),
 ];
 
-/// The nineteen plain-data fields of a `case_list { … }` block.
+/// The authored rows of a `case_list { … }` block.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("subject_args"),
     MemberSpec::keyword_only("two_arg_optionless_surface"),
@@ -2330,6 +2980,7 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("end_options_option"),
     MemberSpec::keyword_only("fallthrough_body"),
     MemberSpec::keyword_only("value_options_require_regex"),
+    MemberSpec::keyword_only("special_match_options"),
     MemberSpec::keyword_only("clause_flags"),
     MemberSpec::keyword_only("clause_regex_flag"),
     MemberSpec::keyword_only("clause_value_flags"),
@@ -2339,6 +2990,8 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("clause_force_list_shape"),
     MemberSpec::keyword_only("allow_omitted_final_body"),
     MemberSpec::keyword_only("keyword_patterns"),
+    MemberSpec::keyword_only("exhaustive_keyword_patterns"),
+    MemberSpec::keyword_only("optional_subject_separator"),
     MemberSpec::keyword_only("warn_unbraced_bodies"),
 ];
 
@@ -2723,13 +3376,275 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use super::{
-        DeclaredMemberVisibility, DefinerFamily, MemberRetraction, MemberVisibility, SlotOp,
-        SlotSpec, TCLOO_GRAMMAR,
+        BuiltinObjectMethodOperation, DeclaredMemberVisibility, DefinerFamily,
+        MemberConstructionEffect, MemberRetraction, MemberVisibility, MethodReach,
+        NativeConstructorBoundary, NativeLifecycleBodyDisposition, SlotOp, SlotSpec, TCLOO_GRAMMAR,
     };
     use crate::arg_role::ArgRole;
 
+    #[test]
+    fn case_list_block_grammar_names_every_loader_row() {
+        let grammar = &super::SPECTCL_CASE_LIST_GRAMMAR;
+        for name in [
+            "subject_args",
+            "two_arg_optionless_surface",
+            "exact_option",
+            "glob_option",
+            "regex_option",
+            "nocase_option",
+            "end_options_option",
+            "fallthrough_body",
+            "value_options_require_regex",
+            "special_match_options",
+            "clause_flags",
+            "clause_regex_flag",
+            "clause_value_flags",
+            "clause_end_options_flag",
+            "clause_force_inline_flag",
+            "clause_force_list_flag",
+            "clause_force_list_shape",
+            "allow_omitted_final_body",
+            "keyword_patterns",
+            "exhaustive_keyword_patterns",
+            "optional_subject_separator",
+            "warn_unbraced_bodies",
+        ] {
+            assert!(
+                grammar.member(name).is_some(),
+                "missing case_list row {name}"
+            );
+        }
+        assert_eq!(grammar.members.len(), 22);
+    }
+
+    #[test]
+    fn native_object_variable_links_require_self_reach_and_actual_release() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+            );
+            assert_eq!(
+                TCLOO_GRAMMAR.builtin_method_operation(
+                    "variable",
+                    MethodReach::SelfDispatch,
+                    dialect
+                ),
+                (version >= tcl_dialect::TclVersion::V8_6)
+                    .then_some(BuiltinObjectMethodOperation::ObjectVariableLinks),
+            );
+            assert_eq!(
+                TCLOO_GRAMMAR.builtin_method_operation(
+                    "variable",
+                    MethodReach::ObjectCommand,
+                    dialect
+                ),
+                None,
+            );
+            assert_eq!(
+                TCLOO_GRAMMAR.builtin_method_operation(
+                    "varname",
+                    MethodReach::SelfDispatch,
+                    dialect
+                ),
+                None,
+            );
+        }
+        let operation = BuiltinObjectMethodOperation::ObjectVariableLinks;
+        assert!(operation.accepts_variable_link_name("v"));
+        assert!(!operation.accepts_variable_link_name("::v"));
+        assert!(!operation.accepts_variable_link_name("a(k)"));
+    }
+
+    #[test]
+    fn native_constructor_boundary_requires_actual_tcloo_and_preserves_residuals() {
+        use crate::completion_route::InvocationCompletionRoute as Route;
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            assert_eq!(
+                TCLOO_GRAMMAR.native_constructor_boundary(dialect),
+                (version >= tcl_dialect::TclVersion::V8_6)
+                    .then_some(NativeConstructorBoundary::TclOo)
+            );
+        }
+        let boundary = NativeConstructorBoundary::TclOo;
+        for code in [
+            crate::CompletionCode::Error,
+            crate::CompletionCode::Return,
+            crate::CompletionCode::Break,
+            crate::CompletionCode::Continue,
+            crate::CompletionCode::from_int(7),
+        ] {
+            assert_eq!(
+                boundary.completion(Route::Tcl(code)),
+                Route::Tcl(crate::CompletionCode::Error)
+            );
+        }
+        for route in [
+            Route::Tcl(crate::CompletionCode::Ok),
+            Route::Unknown,
+            Route::ProcessExit,
+        ] {
+            assert_eq!(boundary.completion(route), route);
+        }
+    }
+
+    #[test]
+    fn lifecycle_empty_counted_body_removes_only_original_native_records() {
+        for keyword in ["constructor", "destructor"] {
+            let member = TCLOO_GRAMMAR.member(keyword).unwrap();
+            assert_eq!(
+                TCLOO_GRAMMAR.native_lifecycle_body_disposition(member, b""),
+                Some(NativeLifecycleBodyDisposition::Removed)
+            );
+            for bytes in [b" ".as_slice(), b"\0", b"return OK"] {
+                assert_eq!(
+                    TCLOO_GRAMMAR.native_lifecycle_body_disposition(member, bytes),
+                    Some(NativeLifecycleBodyDisposition::Retained)
+                );
+            }
+        }
+        assert_eq!(
+            TCLOO_GRAMMAR
+                .native_lifecycle_body_disposition(TCLOO_GRAMMAR.member("method").unwrap(), b""),
+            None
+        );
+    }
+
     fn strs(words: &[&str]) -> Vec<String> {
         words.iter().map(ToString::to_string).collect()
+    }
+
+    #[test]
+    fn native_classmethod_layout_separates_the_worker_and_delegate_receivers() {
+        for version in ["9.0", "9.1"] {
+            let query = Some(SurfaceQuery::core(Family::Tcl, version));
+            let layout = TCLOO_GRAMMAR
+                .receiver_method_layout("classmethod", &["find", "{}", "{}"], query)
+                .expect("Tcl 9 owns the native classmethod worker");
+            assert_eq!(layout.receiver, super::DefinitionReceiver::Class);
+            assert_eq!(layout.worker_receiver, super::DefinitionReceiver::Instance);
+            assert!(layout.class_delegate);
+            assert_eq!(layout.member_word, 0);
+            assert!(
+                TCLOO_GRAMMAR.native_classmethod_preserves_default_manufacturers(
+                    layout.member,
+                    "find",
+                    query,
+                )
+            );
+            for name in ["new", "create", "unknown"] {
+                assert!(
+                    !TCLOO_GRAMMAR.native_classmethod_preserves_default_manufacturers(
+                        layout.member,
+                        name,
+                        query,
+                    )
+                );
+            }
+            let direct = TCLOO_GRAMMAR
+                .receiver_method_layout("self", &["method", "find", "{}", "{}"], query)
+                .unwrap();
+            assert_eq!(direct.worker_receiver, super::DefinitionReceiver::Class);
+            assert!(!direct.class_delegate);
+        }
+        for query in [
+            None,
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Jim, "0.84")),
+        ] {
+            assert!(TCLOO_GRAMMAR.native_classmethod_member(query).is_none());
+        }
+    }
+
+    #[test]
+    fn native_definition_lookup_has_release_gated_implementation_ownership() {
+        let query86 = tcl_dialect::DialectProfile::find("tcl8.6")
+            .unwrap()
+            .surface_query();
+        let method = TCLOO_GRAMMAR.member("method").unwrap();
+        assert_eq!(
+            TCLOO_GRAMMAR
+                .definition_member_lookup(method, Some(query86))
+                .unwrap()
+                .implementation,
+            "::oo::define::method"
+        );
+        assert!(
+            TCLOO_GRAMMAR
+                .definition_member_lookup(
+                    TCLOO_GRAMMAR.member("classmethod").unwrap(),
+                    Some(query86)
+                )
+                .is_none()
+        );
+        assert_eq!(
+            TCLOO_GRAMMAR.default_construction_lookup_dependencies(),
+            Some(&["::oo::class", "::oo::object"][..])
+        );
+    }
+
+    #[test]
+    fn inherited_class_layout_keeps_mixin_precedence_and_actual_grammar() {
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let dialect = Some(crate::InvocationDialect::for_version(version));
+            for (keyword, kind) in [
+                ("superclass", super::NativeInheritedClassKind::Superclass),
+                ("mixin", super::NativeInheritedClassKind::Mixin),
+            ] {
+                let member = TCLOO_GRAMMAR.member(keyword).unwrap();
+                assert_eq!(
+                    TCLOO_GRAMMAR.single_native_inherited_class(member, &["::Base"], dialect),
+                    Some((kind, "::Base"))
+                );
+                assert!(
+                    TCLOO_GRAMMAR
+                        .single_native_inherited_class(member, &["::A", "::B"], dialect)
+                        .is_none()
+                );
+                assert!(
+                    TCLOO_GRAMMAR
+                        .single_native_inherited_class(member, &["::Base"], None)
+                        .is_none()
+                );
+                assert!(
+                    TCLOO_GRAMMAR
+                        .single_native_inherited_class(
+                            member,
+                            &["::Base"],
+                            Some(crate::InvocationDialect::for_version(
+                                tcl_dialect::TclVersion::V8_4
+                            ))
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn construction_classification_only_accepts_deferred_instance_method_declarations() {
+        assert_eq!(
+            TCLOO_GRAMMAR.construction_member_effect(TCLOO_GRAMMAR.member("method").unwrap()),
+            MemberConstructionEffect::DeferredInstanceMethod
+        );
+        for keyword in [
+            "constructor",
+            "filter",
+            "superclass",
+            "mixin",
+            "self",
+            "initialise",
+            "classmethod",
+        ] {
+            assert_eq!(
+                TCLOO_GRAMMAR.construction_member_effect(TCLOO_GRAMMAR.member(keyword).unwrap()),
+                MemberConstructionEffect::Unknown
+            );
+        }
     }
 
     #[test]

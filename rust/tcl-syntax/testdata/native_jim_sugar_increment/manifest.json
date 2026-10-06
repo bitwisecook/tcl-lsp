@@ -1,0 +1,23 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "compile_exit": 0,
+  "native_exit": 0,
+  "cases": 7,
+  "windows": 18,
+  "compiler": [
+    "cc",
+    "-O2",
+    "-I/tmp/2286-oracles/jimtcl",
+    "probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-ldl",
+    "-lpthread"
+  ],
+  "sha256": {
+    "probe.c": "acafefe8c5e382fa83cf889a6ebbebe5e8776b89247b369d4fe1bcf0e2dd387b",
+    "probe": "a08894d0f01ceee6b2698f34c6056328a84d41438b4a8c96cee694ba6dbce72a",
+    "observations.tsv": "f0768a5e135980568d05e7b03051dc79a24e3542e4787ea94aca9afd607627af"
+  }
+}

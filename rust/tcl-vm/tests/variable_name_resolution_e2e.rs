@@ -49,83 +49,24 @@
 //! element-form target (`array set (x) …`, `array set arr(k) …`) is refused
 //! before the value list is even looked at. The VM must not element-parse it.
 //!
-//! Every vector runs through the VM at `V8_6` and `V9_0` and, when the matching
-//! real tclsh is installed, under it too — so the table cannot drift from C
-//! Tcl. The two `${{}}` vectors are release-parameterised (8.x's first-close
-//! `${…}` rule versus 9.x's nesting rule), which is why the pair of columns is
-//! kept rather than one expectation.
+//! Every vector runs through the matching physical core and source compiler
+//! for all five pinned C releases and through the strict shared native roster.
+//! The `${{}}` columns retain the 8.x first-close versus 9.x nesting rule;
+//! separate measured rows cover older upvar errors and C8.4's catch arity.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
+use std::fmt::Write as _;
+
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_test_support::required_tclshs;
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Run `src` in the VM at `version`, returning its trimmed `puts` output — the
-/// same shape the tclsh leg produces, so the two are directly comparable.
-fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-        .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
-
-    let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
-    let _ = vm.run_module(&asm);
-    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
-}
-
-/// Run `src` under a real tclsh, or `None` when that binary isn't available.
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write");
-        let out = child.wait_with_output().expect("run");
-        if out.status.success() {
-            return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-        }
-    }
-    None
+fn vm_output(source: &str, version: TclVersion) -> String {
+    common::vm_output(source, version.dialect_name())
 }
 
 /// One behaviour vector: the script prints its observations; `want_8x` and
-/// `want_90` are the full expected stdout under each release's semantics.
+/// `want_90` are the original pinned 8.6/9.0 stdout; older overrides follow.
 struct Vector {
     name: &'static str,
     script: &'static str,
@@ -516,6 +457,66 @@ puts [p]
     },
 ];
 
+// Exact original-source observations from the pinned C8.4–C9.1 roster.
+// A failed whole-script evaluation keeps its prior output and first error.
+fn expected_outcome(
+    case: usize,
+    vector: &Vector,
+    version: TclVersion,
+) -> (&'static str, Option<&'static str>) {
+    match (case, version) {
+        (22, TclVersion::V8_4 | TclVersion::V8_5) => (
+            "{AS AE} AS AE B BK\nAS-DEEP AS-DEEP B\nmissing=1:can't access \"rel::x\": parent namespace doesn't exist:NONE",
+            None,
+        ),
+        (23, TclVersion::V8_4) => (
+            "",
+            Some("wrong # args: should be \"catch command ?varName?\""),
+        ),
+        (23, TclVersion::V8_5) => (
+            "control=0:READY\ninverted=1:bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable:NONE\ntarget=1:can't access \"::missing::x\": parent namespace doesn't exist:NONE\ncompiled-target=1:can't access \"::missing::compiled\": parent namespace doesn't exist:NONE\nlocal=1:can't create \"::missing::local\": parent namespace doesn't exist:NONE\nelement=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:NONE",
+            None,
+        ),
+        (24, TclVersion::V8_4 | TclVersion::V8_5) => (
+            "{1 {variable \"x\" already exists} NONE} {1 {variable \"x\" has traces: can't use for upvar} NONE} 2 1",
+            None,
+        ),
+        _ => (
+            if version < TclVersion::V9_0 {
+                vector.want_8x
+            } else {
+                vector.want_90
+            },
+            None,
+        ),
+    }
+}
+
+// Catch only the measured failing original scripts: interactive tclsh stdin
+// would otherwise continue past their first error while VM evaluation stops.
+fn outcome_source(source: &str, error: Option<&str>) -> String {
+    if error.is_none() {
+        return source.to_owned();
+    }
+    let mut hex = String::new();
+    for byte in source.as_bytes() {
+        write!(hex, "{byte:02x}").expect("write original source hex");
+    }
+    format!(
+        "set __fixture_code [catch [binary format H* {hex}] __fixture_result]\n\
+         puts \"__FIXTURE_COMPLETION__$__fixture_code:$__fixture_result\"\n"
+    )
+}
+
+fn outcome_output(stdout: &str, error: Option<&str>) -> String {
+    match error {
+        Some(message) => format!("{stdout}\n__FIXTURE_COMPLETION__1:{message}")
+            .trim()
+            .to_owned(),
+        None => stdout.to_owned(),
+    }
+}
+
 #[test]
 fn vm_matches_the_pinned_variable_name_vectors() {
     for v in VECTORS {
@@ -534,40 +535,35 @@ fn vm_matches_the_pinned_variable_name_vectors() {
     }
 }
 
-/// The release-invariant vectors must also hold at 8.4, 8.5 and 9.1 — the VM is
-/// release-parameterised, and only the two `${{}}` vectors have a per-release
-/// answer (8.x closes the name at the first `}`, 9.x nests).
+/// Check every older/newer release against its native-measured outcome.
 #[test]
 fn release_invariant_vectors_hold_at_every_release() {
-    for v in VECTORS.iter().filter(|v| v.want_8x == v.want_90) {
-        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V9_1] {
+    for (case, vector) in VECTORS.iter().enumerate() {
+        for version in TclVersion::ALL {
+            let (stdout, error) = expected_outcome(case, vector, version);
             assert_eq!(
-                vm_output(v.script, version),
-                v.want_8x,
+                vm_output(&outcome_source(vector.script, error), version),
+                outcome_output(stdout, error),
                 "[{version:?}] {}",
-                v.name
+                vector.name
             );
         }
     }
 }
 
-/// The table itself is pinned to C Tcl: every vector's `want` must match what
-/// the matching real tclsh prints. Skips silently per-binary when not
-/// installed (CI / dev machines with `make ensure-test-deps` have both).
+/// Missing or wrongly-versioned native interpreters fail this suite.
 #[test]
 fn vectors_match_real_tclsh() {
-    let mut ran = 0;
-    for v in VECTORS {
-        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], v.script) {
-            assert_eq!(got, v.want_8x, "[tclsh8.6] {}", v.name);
-            ran += 1;
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned C Tcl oracles") {
+        for (case, vector) in VECTORS.iter().enumerate() {
+            let (stdout, error) = expected_outcome(case, vector, oracle.version);
+            assert_eq!(
+                common::oracle_output(&oracle.path, &outcome_source(vector.script, error)),
+                outcome_output(stdout, error),
+                "[{}] {}",
+                oracle.patchlevel,
+                vector.name
+            );
         }
-        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], v.script) {
-            assert_eq!(got, v.want_90, "[tclsh9.0] {}", v.name);
-            ran += 1;
-        }
-    }
-    if ran == 0 {
-        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }

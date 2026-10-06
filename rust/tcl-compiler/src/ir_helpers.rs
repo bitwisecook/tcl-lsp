@@ -832,6 +832,7 @@ pub(crate) fn evaluated_command_substitution_surfaces<'a>(
     let mut opaque = false;
     let mut conditional = false;
     match stmt {
+        Statement::NativeCall { .. } => opaque = true,
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             collect_expr_command_surface_refs(expr, &mut texts, &mut opaque, &mut conditional, 0);
         }
@@ -1319,10 +1320,14 @@ pub(crate) fn in_frame_expression_arg_indices(
 ) -> Vec<usize> {
     let mut descend: Vec<usize> =
         surface.arg_indices_for_role(lookup, args, tcl_registry::ArgRole::Expr);
-    if surface.commands().get(lookup).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-    }) {
+    if surface
+        .commands()
+        .get_for_surface(lookup, surface.commands().own_surface_query())
+        .is_some_and(|spec| {
+            spec.traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+        })
+    {
         descend.extend(0..args.len());
     }
     descend.sort_unstable();
@@ -1452,9 +1457,10 @@ fn unbraced_words<'a>(
 /// read before it is set` against the caller's frame, on a program tclsh
 /// 9.0.4 runs cleanly (it prints `2`).
 ///
-/// A `Plain` body — `catch`, `eval`, a loop — shares this frame and stays,
-/// exactly where [`crate::ssa::structural_body_indices`] draws the line for
-/// `ssa::scan_command_words`.
+/// Braced words are not argument substitution surfaces, even when they
+/// contain a caller-frame body. Entered body and expression reads retain their
+/// separate evaluation owners; nested scripts are walked at that execution
+/// boundary rather than attributed to this command's argv.
 fn invoked_word_surfaces<'a>(
     lookup: &str,
     args: &'a [String],
@@ -1464,7 +1470,11 @@ fn invoked_word_surfaces<'a>(
     let structural = crate::ssa::structural_body_indices(lookup, args, tokens, registry);
     args.iter()
         .enumerate()
-        .filter(move |(idx, _)| !structural.contains(idx))
+        .filter(move |(idx, _)| {
+            tokens.is_none_or(CommandTokens::evaluates_words)
+                && !structural.contains(idx)
+                && !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(*idx))
+        })
         .map(|(_, arg)| arg.as_str())
 }
 
@@ -1592,9 +1602,38 @@ mod tests {
     use tcl_lexer::Span;
 
     #[test]
+    fn residual_body_wrapper_does_not_repeat_argument_substitutions() {
+        let registry = CommandRegistry::build_default();
+        let mut statement = Statement::Call {
+            span: Span::new(0, 16),
+            command: "puts".to_owned(),
+            canonical_command: None,
+            args: vec!["[set x 1]".to_owned()],
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(
+                crate::ir::SyntheticMarker::EvaluatedArguments,
+            )),
+            foreach_groups: None,
+        };
+        assert_eq!(
+            evaluated_command_substitution_surfaces(&statement, &registry).texts,
+            ["[set x 1]"]
+        );
+        statement.tokens_mut().unwrap().synthetic =
+            Some(crate::ir::SyntheticMarker::EvaluatedWrapper);
+        assert_eq!(
+            evaluated_command_substitution_surfaces(&statement, &registry).texts,
+            [] as [&str; 0]
+        );
+    }
+
+    #[test]
     fn defs_from_empty_script() {
         let script = Script::new();
-        assert!(defs_from_ir_script(&script).is_empty());
+        assert_eq!(defs_from_ir_script(&script), [] as [std::string::String; 0]);
     }
 
     /// `expr_has_command` and
@@ -1826,7 +1865,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let commands = tokenise_command_words("set {*}{x 99}", LexerConfig::default());
         let effects = variable_write_effects_from_commands(&commands, &registry);
-        assert!(effects.names.is_empty());
+        assert_eq!(effects.names, [] as [std::string::String; 0]);
         assert!(effects.opaque);
     }
 
@@ -1871,7 +1910,7 @@ mod tests {
         };
 
         assert_eq!(commands(false)[0][0].text, "set");
-        assert!(commands(true).is_empty());
+        assert_eq!(commands(true).len(), 0);
     }
 
     #[test]
@@ -1935,7 +1974,10 @@ mod tests {
         // Tcl 9.0.4 expands the list into extra `catch` arguments, reports
         // wrong-arity, and creates neither `x` nor `result`. Source positions
         // before expansion therefore cannot be used as registry role indices.
-        assert!(cond_out_vars("catch {*}{set x 1} result").is_empty());
+        assert_eq!(
+            cond_out_vars("catch {*}{set x 1} result"),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// The registry's `ArgRole::VarWrite` query must answer for every command
@@ -2014,7 +2056,7 @@ mod tests {
     #[test]
     fn condition_out_vars_ignores_a_dynamic_target() {
         let got = cond_out_vars("set $n 1");
-        assert!(got.is_empty(), "got {got:?}");
+        assert_eq!(got.len(), 0, "got {got:?}");
     }
 
     /// A command word that is itself a substitution names
@@ -2028,8 +2070,9 @@ mod tests {
     fn condition_out_vars_ignores_a_substituted_command_head() {
         for cmd_text in ["$set length foo", "$catch {error x} msg", "[pick] $fp line"] {
             let got = cond_out_vars(cmd_text);
-            assert!(
-                got.is_empty(),
+            assert_eq!(
+                got.len(),
+                0,
                 "`{cmd_text}` has a computed head; nothing is knowable about \
 what it writes, got {got:?}"
             );

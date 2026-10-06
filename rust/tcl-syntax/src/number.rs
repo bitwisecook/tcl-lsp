@@ -57,6 +57,58 @@ use std::borrow::Cow;
 
 pub use tcl_dialect::NumberSyntax;
 
+/// Retain the low signed 32 bits after an independently selected native integer conversion.
+/// Callers validate the getter, operand range and physical width before this bit projection.
+#[must_use]
+pub const fn native_int32_low_bits(value: i64) -> i32 {
+    let bytes = value.to_le_bytes();
+    i32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+}
+
+/// Byte extent consumed by actual native scalar numeric/boolean getters.
+/// This is separate from expression source, equality and membership grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeScalarNumericInputPolicy {
+    /// C Tcl's numeric parser consumes the complete length-delimited object.
+    LengthDelimited,
+    /// Jim 0.84's scalar getters parse a C-string prefix ending at the first NUL.
+    NulTerminatedJim084,
+}
+
+impl NativeScalarNumericInputPolicy {
+    /// Select only a measured actual native engine point. Unknown or foreign
+    /// engines abstain; a numeral grammar or display profile is not an engine.
+    #[must_use]
+    pub fn for_point(point: Option<tcl_dialect::model::DialectPoint>) -> Option<Self> {
+        use tcl_dialect::model::Release;
+        match point?.release() {
+            Release::TCL_8_4
+            | Release::TCL_8_5
+            | Release::TCL_8_6
+            | Release::TCL_9_0
+            | Release::TCL_9_1 => Some(Self::LengthDelimited),
+            Release::JIM_0_84 => Some(Self::NulTerminatedJim084),
+            _ => None,
+        }
+    }
+
+    /// Borrow the native getter's input before any checked Unicode projection.
+    /// This neither parses nor replaces the original value, bytes or cache.
+    /// Error presentation still receives the complete original object.
+    #[must_use]
+    pub fn input_bytes(self, original: &[u8]) -> &[u8] {
+        match self {
+            Self::LengthDelimited => original,
+            Self::NulTerminatedJim084 => {
+                &original[..original
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap_or(original.len())]
+            }
+        }
+    }
+}
+
 /// Integer radix (base) for a [`Number::Big`]'s digit string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Radix {
@@ -313,6 +365,53 @@ impl Numbers {
         })
         .flatten()
     }
+
+    /// Convert a process-exit status with the selected runtime's integer
+    /// width and overflow rules, preserving the low host `int` bits.
+    #[must_use]
+    pub fn parse_exit_status(
+        self,
+        value: &str,
+        conversion: tcl_dialect::ProcessExitConversion,
+    ) -> Option<i32> {
+        use tcl_dialect::ProcessExitConversion::{Narrow32, SaturatingWide, WholeInteger};
+        let bits = match self.parse_whole(value)? {
+            Number::Int(value) => {
+                if conversion == Narrow32
+                    && !(-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&value)
+                {
+                    return None;
+                }
+                let bytes = value.to_le_bytes();
+                u32::from_le_bytes(bytes[..4].try_into().ok()?)
+            }
+            Number::Big {
+                negative,
+                radix,
+                digits,
+            } => match conversion {
+                Narrow32 => return None,
+                SaturatingWide => {
+                    if negative {
+                        0
+                    } else {
+                        u32::MAX
+                    }
+                }
+                WholeInteger => {
+                    let mut bits = 0_u32;
+                    for digit in digits.chars() {
+                        bits = bits
+                            .wrapping_mul(radix as u32)
+                            .wrapping_add(digit.to_digit(radix as u32)?);
+                    }
+                    if negative { bits.wrapping_neg() } else { bits }
+                }
+            },
+            Number::Double(_) | Number::Nan { .. } => return None,
+        };
+        Some(i32::from_ne_bytes(bits.to_ne_bytes()))
+    }
 }
 
 /// A successful parse: the classified [`Number`] and the byte offset just past
@@ -406,6 +505,206 @@ pub fn format_double(f: f64) -> String {
         }
     };
     if neg { format!("-{out}") } else { out }
+}
+
+/// Parse a write to C Tcl's linked precision variable through its native grammar.
+/// Fixed policies have no linked variable and therefore return `None`.
+#[must_use]
+pub fn parse_double_precision(policy: tcl_dialect::DoubleStringPolicy, text: &str) -> Option<u8> {
+    use tcl_dialect::DoubleStringPolicy;
+    let native_integer = match policy {
+        DoubleStringPolicy::Tcl84Precision => {
+            let text = text.trim_start_matches(|ch: char| ch.is_ascii_whitespace());
+            let (negative, text) = text.strip_prefix('-').map_or_else(
+                || (false, text.strip_prefix('+').unwrap_or(text)),
+                |text| (true, text),
+            );
+            if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+                return None;
+            }
+            // Native 8.4 uses decimal strtoul followed by a C int narrowing.
+            // Overflow saturates ULONG_MAX and is consequently rejected.
+            let magnitude = text.bytes().try_fold(0_u64, |value, byte| {
+                value.checked_mul(10)?.checked_add(u64::from(byte - b'0'))
+            })?;
+            let unsigned = if negative {
+                magnitude.wrapping_neg()
+            } else {
+                magnitude
+            };
+            let low = u32::try_from(unsigned & u64::from(u32::MAX)).ok()?;
+            i32::from_ne_bytes(low.to_ne_bytes())
+        }
+        DoubleStringPolicy::TclPrecision => {
+            match parse_whole_with(text, ParseFlags::for_syntax(NumberSyntax::Tcl85))? {
+                Number::Int(value) if u32::try_from(value.unsigned_abs()).is_ok() => {
+                    let low = u32::try_from(value.rem_euclid(1_i64 << 32)).ok()?;
+                    i32::from_ne_bytes(low.to_ne_bytes())
+                }
+                _ => return None,
+            }
+        }
+        DoubleStringPolicy::Shortest | DoubleStringPolicy::JimTwelve => return None,
+    };
+    let precision = u8::try_from(native_integer).ok()?;
+    policy.format(precision).map(|_| precision)
+}
+
+/// Shared C `%g` rendering, including precision-dependent notation, exponent
+/// padding and alternate-form zero retention. Command formatting and native
+/// legacy double string conversion use this same rounding owner.
+#[must_use]
+pub fn format_general_float(value: f64, precision: usize, alternate: bool, upper: bool) -> String {
+    if !value.is_finite() {
+        let text = if value.is_nan() { "nan" } else { "inf" };
+        let text = if upper {
+            text.to_uppercase()
+        } else {
+            text.to_owned()
+        };
+        return if value.is_sign_negative() {
+            format!("-{text}")
+        } else {
+            text
+        };
+    }
+    let precision = precision.max(1);
+    let magnitude = value.abs();
+    let probe = format!("{magnitude:.*e}", precision - 1);
+    let (mantissa, exponent) = probe
+        .split_once('e')
+        .expect("scientific float has exponent");
+    let exponent: i32 = exponent.parse().expect("scientific exponent is integer");
+    let mut out = if exponent < -4 || exponent >= i32::try_from(precision).unwrap_or(i32::MAX) {
+        let mantissa = if alternate || !mantissa.contains('.') {
+            mantissa
+        } else {
+            mantissa.trim_end_matches('0').trim_end_matches('.')
+        };
+        let point = if alternate && !mantissa.contains('.') {
+            "."
+        } else {
+            ""
+        };
+        format!(
+            "{mantissa}{point}{}{}{:02}",
+            if upper { 'E' } else { 'e' },
+            if exponent < 0 { '-' } else { '+' },
+            exponent.abs()
+        )
+    } else {
+        let fractional =
+            usize::try_from(i32::try_from(precision).unwrap_or(0) - 1 - exponent).unwrap_or(0);
+        let fixed = format!("{magnitude:.fractional$}");
+        if alternate {
+            if fixed.contains('.') {
+                fixed
+            } else {
+                format!("{fixed}.")
+            }
+        } else if fixed.contains('.') {
+            fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
+        } else {
+            fixed
+        }
+    };
+    if value.is_sign_negative() {
+        out.insert(0, '-');
+    }
+    out
+}
+
+/// Conservative byte language of freshly normalised native integer/double
+/// strings, including NaN, infinity and signed zero. This is not a parser:
+/// `true` means only that equality remains possible. Callers must separately
+/// prove a native result setter or fresh numeric constructor; an already
+/// numeric intrep can retain an older noncanonical string.
+#[must_use]
+pub fn canonical_numeric_bytes_may_equal(bytes: &[u8]) -> bool {
+    matches!(
+        bytes.first(),
+        Some(b'0'..=b'9' | b'-' | b'+' | b'.' | b'N' | b'n' | b'I' | b'i')
+    )
+}
+
+/// Render a double using its selected native engine and current digit format.
+/// The engine controls nonfinite spelling independently of significant digits.
+#[must_use]
+pub fn format_double_native_selected(
+    value: f64,
+    policy: tcl_dialect::DoubleStringPolicy,
+    format: tcl_dialect::DoubleFormat,
+) -> String {
+    use tcl_dialect::DoubleStringPolicy;
+    if policy == DoubleStringPolicy::Tcl84Precision && !value.is_finite() {
+        let sign = if value.is_sign_negative() { "-" } else { "" };
+        return format!("{sign}{}", if value.is_nan() { "nan" } else { "inf" });
+    }
+    if value.is_nan() {
+        return if value.is_sign_negative() && policy != DoubleStringPolicy::JimTwelve {
+            "-NaN".into()
+        } else {
+            "NaN".into()
+        };
+    }
+    format_double_selected(value, format)
+}
+
+/// Format a double with the native policy selected at its first lazy string
+/// conversion. Existing string representations must never be reformatted.
+#[must_use]
+pub fn format_double_selected(value: f64, format: tcl_dialect::DoubleFormat) -> String {
+    use tcl_dialect::DoubleFormat;
+    if !value.is_finite() || value == 0.0 || format == DoubleFormat::Shortest {
+        return format_double(value);
+    }
+    let mut out = match format {
+        DoubleFormat::Shortest => unreachable!("handled above"),
+        DoubleFormat::General(precision) => {
+            format_general_float(value, usize::from(precision), false, false)
+        }
+        DoubleFormat::TclSignificant(precision) => {
+            let magnitude = value.abs();
+            let fractional = usize::from(precision.max(1) - 1);
+            let scientific = format!("{magnitude:.fractional$e}");
+            let (mantissa, exponent) = scientific.split_once('e').expect("float exponent");
+            let exponent: i32 = exponent.parse().expect("integer exponent");
+            let mantissa = if mantissa.contains('.') {
+                mantissa.trim_end_matches('0').trim_end_matches('.')
+            } else {
+                mantissa
+            };
+            let digits: String = mantissa.chars().filter(|&ch| ch != '.').collect();
+            let mut rendered = if !(-4..=16).contains(&exponent) {
+                format!(
+                    "{mantissa}e{}{:02}",
+                    if exponent < 0 { '-' } else { '+' },
+                    exponent.abs()
+                )
+            } else if exponent < 0 {
+                format!(
+                    "0.{}{digits}",
+                    "0".repeat(usize::try_from(-exponent - 1).unwrap_or(0))
+                )
+            } else {
+                let point = usize::try_from(exponent + 1).unwrap_or(0);
+                if point >= digits.len() {
+                    format!("{digits}{}.0", "0".repeat(point - digits.len()))
+                } else {
+                    let (integer, fraction) = digits.split_at(point);
+                    format!("{integer}.{fraction}")
+                }
+            };
+            if value.is_sign_negative() {
+                rendered.insert(0, '-');
+            }
+            rendered
+        }
+    };
+    if !out.contains(['.', 'e', 'E']) {
+        out.push_str(".0");
+    }
+    out
 }
 
 /// Exactly compare an integer against a double, the way C Tcl's
@@ -547,6 +846,9 @@ pub fn is_expr_number(
     syntax: NumberSyntax,
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
 ) -> bool {
+    if matches!(syntax, NumberSyntax::Jim | NumberSyntax::Jim080) {
+        return crate::scalar_getter::jim_expression_number(text.as_bytes()).is_some();
+    }
     tcl_dialect::scan_expr_number(text.as_bytes(), 0, syntax, expr_grammar_base)
         .is_some_and(|lexeme| lexeme.end() == text.len())
         && is_whole_number(text, syntax)
@@ -903,6 +1205,100 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nonfinite_double_spelling_matches_every_native_engine() {
+        use tcl_dialect::DoubleStringPolicy;
+        let fixtures = [
+            (
+                DoubleStringPolicy::Tcl84Precision,
+                include_str!("../testdata/native_nonfinite_double/8.4.20.tsv"),
+            ),
+            (
+                DoubleStringPolicy::TclPrecision,
+                include_str!("../testdata/native_nonfinite_double/8.5.19.tsv"),
+            ),
+            (
+                DoubleStringPolicy::TclPrecision,
+                include_str!("../testdata/native_nonfinite_double/8.6.18.tsv"),
+            ),
+            (
+                DoubleStringPolicy::Shortest,
+                include_str!("../testdata/native_nonfinite_double/9.0.4.tsv"),
+            ),
+            (
+                DoubleStringPolicy::Shortest,
+                include_str!("../testdata/native_nonfinite_double/9.1.0.tsv"),
+            ),
+            (
+                DoubleStringPolicy::JimTwelve,
+                include_str!("../testdata/native_nonfinite_double/jim.tsv"),
+            ),
+        ];
+        let bits = [
+            0x7ff8_0000_0000_0000,
+            0xfff8_0000_0000_0000,
+            0x7ff0_0000_0000_0000,
+            0xfff0_0000_0000_0000,
+            0,
+            0x8000_0000_0000_0000,
+        ];
+        let mut observations = 0;
+        for (policy, fixture) in fixtures {
+            for row in fixture.lines() {
+                let (case, expected) = row.split_once('\t').unwrap();
+                let value = f64::from_bits(bits[case.parse::<usize>().unwrap()]);
+                let rendered = super::format_double_native_selected(
+                    value,
+                    policy,
+                    policy.format(policy.default_precision()).unwrap(),
+                );
+                let hex: String = rendered.bytes().map(|byte| format!("{byte:02x}")).collect();
+                assert_eq!(hex, expected, "{policy:?}/{case}");
+                observations += 1;
+            }
+        }
+        assert_eq!(observations, 36);
+    }
+
+    #[test]
+    fn scalar_numeric_bytes_use_actual_native_extent_before_unicode() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        let original = vec![b'1', 0, 0xff];
+        let jim = super::NativeScalarNumericInputPolicy::for_point(Some(DialectPoint::canonical(
+            Release::JIM_0_84,
+        )))
+        .unwrap();
+        assert!(std::str::from_utf8(&original).is_err());
+        assert_eq!(jim.input_bytes(&original), b"1");
+        assert_eq!(jim.input_bytes(b"1.5\0X"), b"1.5");
+        assert_eq!(jim.input_bytes(b"\0\xff"), b"");
+        assert_eq!(jim.input_bytes(b"\xff\0"), b"\xff");
+        assert_eq!(original, b"1\0\xff");
+        for release in [
+            Release::TCL_8_4,
+            Release::TCL_8_5,
+            Release::TCL_8_6,
+            Release::TCL_9_0,
+            Release::TCL_9_1,
+        ] {
+            let c = super::NativeScalarNumericInputPolicy::for_point(Some(
+                DialectPoint::canonical(release),
+            ))
+            .unwrap();
+            assert_eq!(c.input_bytes(&original), original);
+            assert_eq!(c.input_bytes(b"1\0X"), b"1\0X");
+        }
+        assert!(super::NativeScalarNumericInputPolicy::for_point(None).is_none());
+        for release in [Release::F5_TCL_TMOS, Release::F5_IRULES_TMM] {
+            assert!(
+                super::NativeScalarNumericInputPolicy::for_point(Some(DialectPoint::canonical(
+                    release
+                )))
+                .is_none()
+            );
+        }
+    }
+
     use super::*;
 
     fn n(s: &str) -> Option<Number> {
@@ -930,6 +1326,32 @@ mod tests {
         assert_eq!(n("-0x10"), Some(Number::Int(-16)));
         // a bare `0x` (no hex digit) is not a whole number
         assert_eq!(n("0x"), None);
+    }
+
+    #[test]
+    fn process_exit_integer_width_and_overflow_are_runtime_policies() {
+        use tcl_dialect::ProcessExitConversion::{Narrow32, SaturatingWide, WholeInteger};
+        let modern = Numbers::Target(NumberSyntax::Tcl90);
+        assert_eq!(modern.parse_exit_status("4294967295", Narrow32), Some(-1));
+        assert_eq!(modern.parse_exit_status("-4294967295", Narrow32), Some(1));
+        assert_eq!(modern.parse_exit_status("4294967296", Narrow32), None);
+        assert_eq!(
+            modern.parse_exit_status("18446744073709551619", WholeInteger),
+            Some(3)
+        );
+        assert_eq!(
+            modern.parse_exit_status("-18446744073709551619", WholeInteger),
+            Some(-3)
+        );
+        assert_eq!(
+            modern.parse_exit_status("18446744073709551619", SaturatingWide),
+            Some(-1)
+        );
+        assert_eq!(
+            modern.parse_exit_status("-18446744073709551619", SaturatingWide),
+            Some(0)
+        );
+        assert_eq!(modern.parse_exit_status("1.0", WholeInteger), None);
     }
 
     #[test]
@@ -1051,6 +1473,37 @@ mod tests {
         let p = parse("42 rest", ParseFlags::default()).unwrap();
         assert_eq!(p.number, Number::Int(42));
         assert_eq!(p.end, 2);
+    }
+
+    #[test]
+    fn normalised_numeric_string_language_preserves_special_values() {
+        for value in [
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            -0.0,
+            0.0,
+            f64::MIN,
+            f64::MAX,
+            f64::MIN_POSITIVE,
+        ] {
+            for format in [
+                tcl_dialect::DoubleFormat::Shortest,
+                tcl_dialect::DoubleFormat::General(12),
+                tcl_dialect::DoubleFormat::TclSignificant(17),
+            ] {
+                assert!(canonical_numeric_bytes_may_equal(
+                    format_double_selected(value, format).as_bytes()
+                ));
+            }
+        }
+        for value in [b"hello".as_slice(), b"true", b"", b" 7", b"\xff"] {
+            assert!(!canonical_numeric_bytes_may_equal(value));
+        }
+        assert!(
+            canonical_numeric_bytes_may_equal(b"not-a-number"),
+            "the conservative language is not successful numeric parsing"
+        );
     }
 
     #[test]
@@ -1475,5 +1928,81 @@ mod dialect_tests {
         // still holds the initialiser's value.
         let ambient = std::thread::spawn(runtime_syntax).join().unwrap();
         assert_eq!(ambient, NumberSyntax::default());
+    }
+}
+
+#[cfg(test)]
+mod double_string_tests {
+    use super::*;
+    use tcl_dialect::{DoubleFormat, DoubleStringPolicy, TclVersion};
+
+    #[test]
+    fn native_double_strings_match_all_six_engines_and_precision_states() {
+        let vectors = include_str!("../tests/data/double_string_vectors.txt");
+        let mut count = 0;
+        for row in vectors
+            .lines()
+            .filter(|row| !row.starts_with('#') && !row.is_empty())
+        {
+            let parts: Vec<_> = row.split('\t').collect();
+            let policy = match parts[0] {
+                "8.4" => DoubleStringPolicy::for_tcl_version(TclVersion::V8_4),
+                "8.5" => DoubleStringPolicy::for_tcl_version(TclVersion::V8_5),
+                "8.6" => DoubleStringPolicy::for_tcl_version(TclVersion::V8_6),
+                "9.0" => DoubleStringPolicy::for_tcl_version(TclVersion::V9_0),
+                "9.1" => DoubleStringPolicy::for_tcl_version(TclVersion::V9_1),
+                "jim" => DoubleStringPolicy::JimTwelve,
+                engine => panic!("unmeasured engine {engine}"),
+            };
+            let precision: u8 = parts[1].parse().unwrap();
+            let precision = if policy == DoubleStringPolicy::Tcl84Precision && precision == 0 {
+                12 // Tcl 8.4 rejects zero and retains its initial precision.
+            } else {
+                precision
+            };
+            let value: f64 = parts[2].parse::<f64>().unwrap() + 0.0;
+            assert_eq!(
+                format_double_selected(value, policy.format(precision).unwrap()),
+                parts[3],
+                "{row}"
+            );
+            count += 1;
+        }
+        assert_eq!(count, 384);
+    }
+
+    #[test]
+    fn precision_variable_parsing_preserves_native_release_grammar() {
+        let old = DoubleStringPolicy::Tcl84Precision;
+        let new = DoubleStringPolicy::TclPrecision;
+        for (value, legacy, modern) in [
+            ("0", None, Some(0)),
+            ("17", Some(17), Some(17)),
+            ("18", None, None),
+            ("-1", None, None),
+            ("1.5", None, None),
+            ("+4", Some(4), Some(4)),
+            (" 4", Some(4), Some(4)),
+            ("4 ", None, Some(4)),
+            ("010", Some(10), Some(8)),
+            ("017", Some(17), Some(15)),
+            ("0x10", None, Some(16)),
+            ("4294967300", Some(4), None),
+            ("-4294967292", Some(4), Some(4)),
+            ("18446744073709551620", None, None),
+        ] {
+            assert_eq!(parse_double_precision(old, value), legacy, "8.4 {value}");
+            assert_eq!(
+                parse_double_precision(new, value),
+                modern,
+                "8.5/8.6 {value}"
+            );
+        }
+        assert_eq!(
+            DoubleStringPolicy::JimTwelve.constant_format(),
+            Some(DoubleFormat::General(12))
+        );
+        assert_eq!(old.constant_format(), None);
+        assert_eq!(new.constant_format(), None);
     }
 }

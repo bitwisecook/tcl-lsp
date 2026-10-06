@@ -44,7 +44,7 @@ use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
 use crate::ir::Statement;
 use crate::sccp::cfg_order;
-use crate::ssa::{SsaFunction, Symbol, ValueKey};
+use crate::ssa::{SsaFunction, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 
 use super::ShimmerWarning;
@@ -57,8 +57,8 @@ use super::hints::is_uncommitted_first_conversion;
 ///    standalone `expr {…}`.
 /// 2. **`Terminator::Branch` conditions** — the predicate of every
 ///    `if`/`while`/`for` construct.  Variable versions are resolved from
-///    the block's `exit_versions` map (the versions live at the end of
-///    the block, which is when the condition is evaluated).
+///    the retained actual source reference, including changes performed by
+///    an earlier substitution in the same expression.
 #[must_use]
 pub(crate) fn find_expr_shimmers(
     cfg: &CfgFunction,
@@ -74,6 +74,7 @@ pub(crate) fn find_expr_shimmers(
     let commit_ctx = super::commit::CommitCtx {
         registry,
         ssa,
+        source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
         values,
     };
@@ -97,7 +98,7 @@ pub(crate) fn find_expr_shimmers(
         let mut commit_walker = facts.commit.walker(&commit_ctx, block_id);
 
         // 1. SSA statements: AssignExpr and ExprEval.
-        for ss in &ssa_block.statements {
+        for (index, ss) in ssa_block.statements.iter().enumerate() {
             match &ss.statement {
                 Statement::AssignExpr {
                     expr,
@@ -112,13 +113,13 @@ pub(crate) fn find_expr_shimmers(
                     ..
                 } => {
                     let mut ctx = ExprShimmerCtx {
-                        uses: &ss.uses,
                         types,
                         values,
-                        ssa,
+                        source: crate::ssa::SsaSourceView::at_statement(ssa, block_id, index),
                         commit: &commit_walker,
                         stmt_span: *span,
                         expr_base: *expr_base,
+                        executed_source: None,
                         in_loop,
                         seen: &mut seen,
                         out: &mut out,
@@ -130,9 +131,8 @@ pub(crate) fn find_expr_shimmers(
                 // into the node above but leaves a nested one as opaque
                 // argument text,
                 // so it is lifted and parsed here (see [`crate::word_subst`]).
-                // Its operands resolve through the statement's own `uses`,
-                // which `ssa::scan_nested_substitution_words` populates
-                // for a nested command's in-frame braced words.
+                // Operands retain the nested expression's original source base
+                // and each read's actual place/version snapshot.
                 //
                 // Both statement kinds that carry substitutable words are
                 // lifted, for the reason the arm exists at all: the outer
@@ -145,25 +145,37 @@ pub(crate) fn find_expr_shimmers(
                 // lowerer already made it the `AssignExpr` above — so the two
                 // arms cannot both report the same expression.
                 Statement::Call { tokens, .. } | Statement::AssignValue { tokens, .. } => {
-                    for (expr, span) in
-                        crate::word_subst::lifted_exprs(tokens.as_ref(), registry.profile())
+                    let mut expressions = crate::word_subst::lifted_representation_expressions(
+                        tokens.as_ref(),
+                        registry,
+                    );
+                    if matches!(ss.statement, Statement::Call { .. })
+                        && let Some(tokens) = tokens
+                        && let Some(expression) = crate::word_subst::representation_expression_at(
+                            tokens,
+                            registry,
+                            ss.statement.span(),
+                        )
                     {
+                        expressions.push(expression);
+                    }
+                    for lifted in expressions {
                         let mut ctx = ExprShimmerCtx {
-                            uses: &ss.uses,
                             types,
                             values,
-                            ssa,
+                            source: crate::ssa::SsaSourceView::at_statement(ssa, block_id, index),
                             commit: &commit_walker,
                             // The substitution's own extent, so the report
                             // points at `[expr …]` rather than the whole
                             // enclosing command.
-                            stmt_span: span,
-                            expr_base: None,
+                            stmt_span: lifted.span,
+                            expr_base: lifted.expression_base,
+                            executed_source: lifted.executed_source.as_ref(),
                             in_loop,
                             seen: &mut seen,
                             out: &mut out,
                         };
-                        collect_expr_shimmers(&mut ctx, &expr, 0);
+                        collect_expr_shimmers(&mut ctx, &lifted.expression, 0);
                     }
                 }
                 _ => {}
@@ -180,7 +192,6 @@ pub(crate) fn find_expr_shimmers(
                 types,
                 values,
                 block_id,
-                exit_versions: &ssa_block.exit_versions,
                 commit: &commit_walker,
                 in_loop,
             },
@@ -201,7 +212,6 @@ struct TerminatorWalk<'a> {
     block_id: BlockId,
     /// The versions in scope when a terminator is evaluated — after every
     /// statement of its block has run.
-    exit_versions: &'a HashMap<Symbol, u32>,
     commit: &'a super::commit::CommitWalker<'a>,
     in_loop: bool,
 }
@@ -229,9 +239,8 @@ fn collect_terminator_shimmers(
     else {
         return;
     };
-    // `Terminator::Return` carries no `expr_base`, so its operand spans fall
-    // back to the statement span — the documented fallback for expression
-    // interiors.
+    // Both branches and returned expressions retain the parser's original
+    // expression base, so positioned reads use their actual source extent.
     let (expr, span, expr_base) = match terminator {
         Terminator::Branch {
             condition,
@@ -242,18 +251,19 @@ fn collect_terminator_shimmers(
         Terminator::Return {
             expr: Some(expr),
             span,
+            expr_base,
             ..
-        } => (expr, *span, None),
+        } => (expr, *span, *expr_base),
         _ => return,
     };
     let mut ctx = ExprShimmerCtx {
-        uses: walk.exit_versions,
         types: walk.types,
         values: walk.values,
-        ssa: walk.ssa,
+        source: crate::ssa::SsaSourceView::at_terminator(walk.ssa, walk.block_id),
         commit: walk.commit,
         stmt_span: span.unwrap_or_else(|| Span::new(0, 0)),
         expr_base,
+        executed_source: None,
         in_loop: walk.in_loop,
         seen,
         out,
@@ -263,17 +273,16 @@ fn collect_terminator_shimmers(
 
 /// Read-only context + warning sinks threaded through one expr walk.
 ///
-/// `uses` / `stmt_span` / `in_loop` are constant for a single
+/// `source` / `stmt_span` / `in_loop` are constant for a single
 /// `collect_expr_shimmers` recursion (they describe the statement whose expr
 /// is being walked); `seen` / `out` accumulate de-duplicated warnings.
 struct ExprShimmerCtx<'a> {
-    uses: &'a HashMap<Symbol, u32>,
     types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constant values, for the uncommitted-value ("pure string") check —
     /// a pure operand that is a valid instance of the required type converts for
     /// free, so it must not be flagged (see [`is_uncommitted_first_conversion`]).
     values: &'a HashMap<ValueKey, LatticeValue>,
-    ssa: &'a SsaFunction,
+    source: crate::ssa::SsaSourceView<'a>,
     /// Committed-intrep state just before this statement ([`super::commit`]) —
     /// an operand whose value already committed a different intrep on every
     /// path genuinely re-represents here even when the lattice sees no
@@ -285,22 +294,61 @@ struct ExprShimmerCtx<'a> {
     /// Maps AST leaf offsets to absolute operand spans; `None` falls back to
     /// anchoring at `stmt_span`.
     expr_base: Option<u32>,
+    executed_source: Option<&'a crate::command_binding::ExecutedExpressionSource>,
     in_loop: bool,
     seen: &'a mut HashSet<(Span, String)>,
     out: &'a mut Vec<ShimmerWarning>,
 }
 
 impl ExprShimmerCtx<'_> {
+    fn representation_cost(
+        &self,
+        node: &ExprNode,
+        semantic: TclType,
+        expected: TclType,
+    ) -> Option<super::commit::RepresentationCost> {
+        self.commit.cost_for_expression(
+            self.source,
+            node,
+            super::commit::ExpressionCostOrigin {
+                base: self.expr_base,
+                executed: self.executed_source,
+            },
+            self.read_variable(node)?,
+            semantic,
+            expected,
+        )
+    }
+
+    fn read_variable(&self, node: &ExprNode) -> Option<crate::ssa::SsaReadReference> {
+        if let Some(source) = self.executed_source {
+            self.source.read_executed_expression_variable(node, source)
+        } else {
+            self.source.read_expression_variable(node, self.expr_base)
+        }
+    }
+
     /// The span a shimmer on `node` anchors to: the operand's own source
     /// range when the expression text is verbatim-anchored (the leaf's
-    /// offsets shifted by `expr_base`), else the whole statement.  Leaf
-    /// `end` offsets are *inclusive* (the expr lexer's convention), so the
-    /// exclusive span end is `end + 1`.
+    /// mapped by the native variable extent owner), else the whole statement.
     fn operand_span(&self, node: &ExprNode) -> Span {
-        if let (Some(base), ExprNode::Var { start, end, .. }) = (self.expr_base, node)
-            && end >= start
+        if let Some(source) = self.executed_source {
+            return source
+                .variable_source(node)
+                .map_or(self.stmt_span, |(_, source)| source.span);
+        }
+        if let Some(base) = self.expr_base
+            && let Some(dialect) = self
+                .source
+                .source_tokens()
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .and_then(|binding| binding.variable_context.invocation_dialect)
+            && let Some(span) = node.variable_source_span(
+                base,
+                tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            )
         {
-            return Span::new(base + *start, base + *end + 1);
+            return span;
         }
         self.stmt_span
     }
@@ -458,10 +506,11 @@ fn check_numeric_operand(
         return;
     };
     let base = crate::naming::element_var_name(text);
-    let Some(sym) = ctx.ssa.var_symbol(base) else {
+    let Some(read) = ctx.read_variable(node) else {
         return;
     };
-    let Some(&ver) = ctx.uses.get(&sym) else {
+    let sym = read.symbol;
+    let Some(ver) = read.version else {
         return;
     };
     if ver == 0 {
@@ -483,10 +532,14 @@ fn check_numeric_operand(
         NumericContext::Integer => (TclType::Int, "integer-only expression"),
         NumericContext::Boolean => (TclType::Boolean, "boolean context"),
     };
+    let Some(cost) = ctx.representation_cost(node, current, to_type) else {
+        return;
+    };
+    let current = cost.current;
     // A prior use that committed a non-numeric intrep on every path makes this
     // operand a genuine second conversion (`set v 5; llength $v; expr {$v+1}`
     // re-represents List → Numeric) — even where the lattice type is numeric.
-    let commit_state = ctx.commit.state_of(sym, ver);
+    let commit_state = cost.commitment;
     // Otherwise only flag clearly non-numeric types (String, List, Dict,
     // ByteArray). A byte array in an arithmetic context is a textbook C Tcl
     // shimmer: Tcl has no numeric intrep of its own, so `Tcl_GetNumberFromObj`
@@ -554,10 +607,11 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
         return;
     };
     let base = crate::naming::element_var_name(text);
-    let Some(sym) = ctx.ssa.var_symbol(base) else {
+    let Some(read) = ctx.read_variable(node) else {
         return;
     };
-    let Some(&ver) = ctx.uses.get(&sym) else {
+    let sym = read.symbol;
+    let Some(ver) = read.version else {
         return;
     };
     if ver == 0 {
@@ -574,10 +628,14 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
     let Some(current) = lattice.tcl_type() else {
         return;
     };
+    let Some(cost) = ctx.representation_cost(node, current, TclType::List) else {
+        return;
+    };
+    let current = cost.current;
     // A prior use that committed a non-list intrep on every path makes this
     // membership test a genuine second conversion (`expr {$v+1}` then
     // `expr {"b" in $v}` re-represents Numeric → List).
-    let commit_state = ctx.commit.state_of(sym, ver);
+    let commit_state = cost.commitment;
     let lattice_flags = matches!(
         current,
         TclType::String | TclType::Dict | TclType::ByteArray
@@ -639,10 +697,11 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
         return;
     };
     let base = crate::naming::element_var_name(text);
-    let Some(sym) = ctx.ssa.var_symbol(base) else {
+    let Some(read) = ctx.read_variable(node) else {
         return;
     };
-    let Some(&ver) = ctx.uses.get(&sym) else {
+    let sym = read.symbol;
+    let Some(ver) = read.version else {
         return;
     };
     if ver == 0 {
@@ -659,6 +718,10 @@ fn check_string_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp
     let Some(current) = lattice.tcl_type() else {
         return;
     };
+    let Some(cost) = ctx.representation_cost(node, current, TclType::String) else {
+        return;
+    };
+    let current = cost.current;
     // A numeric variable in a string comparison does NOT lose its intrep —
     // `TclStringCmp` reads the string reps, which are generated once and
     // cached *alongside* the numeric intrep (dual-porting; tclsh-verified:
@@ -730,6 +793,7 @@ mod tests {
         let ctx = super::super::commit::CommitCtx {
             registry,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -772,6 +836,7 @@ mod tests {
         let cctx = super::super::commit::CommitCtx {
             registry: &r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -783,17 +848,16 @@ mod tests {
         );
         let walker = facts.walker(&cctx, fu.cfg.entry);
 
-        let uses: HashMap<Symbol, u32> = HashMap::new();
         let mut seen: HashSet<(Span, String)> = HashSet::new();
         let mut out: Vec<ShimmerWarning> = Vec::new();
         let mut sctx = ExprShimmerCtx {
-            uses: &uses,
             types: &fu.types,
             values: &fu.sccp.values,
-            ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             commit: &walker,
             stmt_span: Span::new(0, 1),
             expr_base: None,
+            executed_source: None,
             in_loop: false,
             seen: &mut seen,
             out: &mut out,
@@ -825,7 +889,7 @@ mod tests {
         let cu = CompilationUnit::build_for("set x 5\nset y [expr {$x + 1}]", &registry(), false);
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+        assert_eq!(w.len(), 0, "unexpected expr shimmers: {w:?}");
     }
 
     /// A double accumulator narrowed through a loop keeps a
@@ -866,7 +930,7 @@ mod tests {
         );
         let fu = cu.function("::top").unwrap();
         let w = expr_shimmers(fu, &registry());
-        assert!(w.is_empty(), "unexpected expr shimmers: {w:?}");
+        assert_eq!(w.len(), 0, "unexpected expr shimmers: {w:?}");
     }
 
     /// The same expression must not report differently depending only on
@@ -893,7 +957,10 @@ mod tests {
         let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n return {[expr {$d % 2}]}\n}";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        assert!(expr_shimmers(fu, &registry()).is_empty());
+        assert_eq!(
+            expr_shimmers(fu, &registry()),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
     }
 
     /// The other half of the same asymmetry: an `[expr …]` in a call
@@ -919,7 +986,10 @@ mod tests {
         let src = "proc f {x} {\n set d [expr {sqrt($x)}]\n puts {[expr {$d % 2}]}\n}";
         let cu = CompilationUnit::build_for(src, &registry(), false);
         let fu = cu.function("::f").unwrap();
-        assert!(expr_shimmers(fu, &registry()).is_empty());
+        assert_eq!(
+            expr_shimmers(fu, &registry()),
+            [] as [crate::shimmer::ShimmerWarning; 0]
+        );
     }
 
     /// A nested `[expr …]` must be lifted out of an
@@ -1100,55 +1170,150 @@ mod tests {
     /// silent.
     #[test]
     fn expr_shimmer_in_membership_flags_committed_not_pure_haystack() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let native_registry =
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         // TP: a committed Dict haystack re-represents to a list.
-        let cu = CompilationUnit::build_for(
+        let cu = CompilationUnit::build_for_profile(
             "set hay [dict create a 1 b 2]\nset y [expr {\"a\" in $hay}]",
-            &registry(),
+            native_registry,
             false,
+            profile,
         );
         let fu = cu.function("::top").unwrap();
-        let w = expr_shimmers(fu, &registry());
-        let warning = w
-            .iter()
-            .find(|sw| sw.variable == "hay")
-            .expect("committed Dict haystack of `in` must be flagged");
+        let w = expr_shimmers(fu, native_registry);
+        let warning = w.iter().find(|sw| sw.variable == "hay").unwrap_or_else(|| {
+            let reads: Vec<_> = fu
+                .ssa
+                .blocks
+                .iter()
+                .flat_map(|(&block, body)| {
+                    body.statements
+                        .iter()
+                        .enumerate()
+                        .filter_map(move |(index, statement)| {
+                            let view =
+                                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                            let tokens = view.source_tokens()?;
+                            Some((
+                                statement.statement.span(),
+                                tokens
+                                    .variable_accesses
+                                    .iter()
+                                    .map(|access| {
+                                        let read = view.read_reference(
+                                            &access.source,
+                                            &access.original_spelling,
+                                        );
+                                        let types = read
+                                            .and_then(|read| {
+                                                read.version.map(|version| (read.symbol, version))
+                                            })
+                                            .and_then(|key| fu.types.get(&key));
+                                        let representations: Vec<_> = access
+                                            .context_alternatives()
+                                            .iter()
+                                            .map(|context| {
+                                                let place =
+                                                    crate::var_resolve::resolve_substitution_access(
+                                                        &access.original_spelling,
+                                                        context,
+                                                        native_registry,
+                                                        tcl_registry::TraceOperation::Read,
+                                                    );
+                                                (
+                                                    context.read_produces_value(
+                                                        &place,
+                                                        native_registry,
+                                                    ),
+                                                    context.contents_representation_at(&place),
+                                                )
+                                            })
+                                            .collect();
+                                        (
+                                            &access.original_spelling,
+                                            access.source.span,
+                                            read,
+                                            types,
+                                            access.context_residual(),
+                                            representations,
+                                        )
+                                    })
+                                    .collect::<Vec<_>>(),
+                            ))
+                        })
+                })
+                .collect();
+            panic!(
+                "committed Dict haystack of `in` must be flagged; warnings={w:?}; reads={reads:?}"
+            )
+        });
         assert_eq!(warning.from_type, TclType::Dict);
         assert_eq!(warning.to_type, TclType::List);
 
-        // TN: a pure string haystack is a free first conversion.
-        let cu_pure = CompilationUnit::build_for(
-            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
-            &registry(),
+        let unspecified = registry();
+        let generic = CompilationUnit::build_for(
+            "set hay [dict create a 1 b 2]\nset y [expr {\"a\" in $hay}]",
+            &unspecified,
             false,
         );
+        assert!(
+            expr_shimmers(generic.function("::top").unwrap(), &unspecified)
+                .iter()
+                .any(|warning| warning.variable == "hay" && warning.from_type == TclType::Dict),
+            "the selected generic native creator independently produces a Dict"
+        );
+        let replaced = CompilationUnit::build_for_profile(
+            "rename dict {}; proc dict args {return {a 1 b 2}}; set maker dict;\n\
+             set hay [$maker create a 1 b 2]\nset y [expr {\"a\" in $hay}]",
+            native_registry,
+            false,
+            profile,
+        );
+        assert!(
+            !expr_shimmers(replaced.function("::top").unwrap(), native_registry)
+                .iter()
+                .any(|warning| warning.variable == "hay"),
+            "a replacement reached through generic dispatch cannot borrow the native creator's Dict"
+        );
+
+        // TN: a pure string haystack is a free first conversion.
+        let cu_pure = CompilationUnit::build_for_profile(
+            "set hay [string trim \"a b c\"]\nset y [expr {\"b\" in $hay}]",
+            native_registry,
+            false,
+            profile,
+        );
         let fu_pure = cu_pure.function("::top").unwrap();
-        let w_pure = expr_shimmers(fu_pure, &registry());
+        let w_pure = expr_shimmers(fu_pure, native_registry);
         assert!(
             !w_pure.iter().any(|sw| sw.variable == "hay"),
             "pure string haystack must not be flagged: {w_pure:?}"
         );
 
         // A List-typed haystack is already a list — silent.
-        let cu2 = CompilationUnit::build_for(
+        let cu2 = CompilationUnit::build_for_profile(
             "set hay [list a b c]\nset y [expr {\"b\" in $hay}]",
-            &registry(),
+            native_registry,
             false,
+            profile,
         );
         let fu2 = cu2.function("::top").unwrap();
-        let w2 = expr_shimmers(fu2, &registry());
+        let w2 = expr_shimmers(fu2, native_registry);
         assert!(
             !w2.iter().any(|sw| sw.variable == "hay"),
             "list haystack must not be flagged: {w2:?}"
         );
 
         // The needle is read as a string — a String-typed needle is silent.
-        let cu3 = CompilationUnit::build_for(
+        let cu3 = CompilationUnit::build_for_profile(
             "set needle [string trim b]\nset hay [dict create a 1]\nset y [expr {$needle in $hay}]",
-            &registry(),
+            native_registry,
             false,
+            profile,
         );
         let fu3 = cu3.function("::top").unwrap();
-        let w3 = expr_shimmers(fu3, &registry());
+        let w3 = expr_shimmers(fu3, native_registry);
         assert!(
             !w3.iter().any(|sw| sw.variable == "needle"),
             "the needle of `in` must not be flagged: {w3:?}"
@@ -1247,8 +1412,9 @@ mod tests {
             .iter()
             .filter(|sw| sw.variable == "x" && sw.to_type == TclType::String)
             .collect();
-        assert!(
-            str_cmp_shimmers.is_empty(),
+        assert_eq!(
+            str_cmp_shimmers.len(),
+            0,
             "unexpected String-in-string-cmp shimmer: {str_cmp_shimmers:?}"
         );
     }

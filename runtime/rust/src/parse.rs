@@ -70,7 +70,7 @@
 
 use std::borrow::Cow;
 
-use tcl_lexer::script::{group_commands, WordSpan};
+use tcl_lexer::script::{group_commands_bytes, WordSpan};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source: `Bare` (`foo`, `$x`, `a[b]c`),
@@ -100,6 +100,8 @@ pub struct Word<'s> {
     /// proc body defined on a later line than its command reports file-absolute
     /// `info frame` lines.
     pub start: usize,
+    /// Original word extent projected by the shared lexer range owner.
+    pub raw_source: &'s [u8],
 }
 
 /// One parsed command: its words and where to resume parsing the next command.
@@ -164,7 +166,7 @@ pub fn scan_parts(
 
 /// Byte slice of a token's *content* in the source, delimiter-stripped.
 ///
-/// Delegates to `tcl-lexer`'s [`SourceMap::token_text`] — the **one place** that
+/// Delegates to `tcl-lexer`'s [`SourceMap::token_bytes`] — the **one place** that
 /// encodes the "span covers the full token, content strips the wrappers"
 /// convention (the leading `$`/`${`/`[`/`{`/`"` via `content_offset`, the
 /// trailing `}`/`]`/`"` of the degenerate empty forms, and the zero-content
@@ -173,7 +175,7 @@ pub fn scan_parts(
 /// we reuse the canonical helper and recover the byte range from the returned
 /// sub-slice (it borrows the same source buffer as `src`).
 fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
-    let txt = sm.token_text(t);
+    let txt = sm.token_bytes(t);
     // The empty-clamp cases return a `&'static ""` (not a sub-slice of the
     // source), so its pointer is unrelated to `src` — short-circuit before the
     // pointer arithmetic below, which would otherwise underflow.
@@ -185,9 +187,8 @@ fn token_content<'s>(sm: &SourceMap<'s>, src: &'s [u8], t: Token) -> &'s [u8] {
 }
 
 /// Parse a whole script into commands via `tcl-lexer`. Empty commands (blank
-/// lines, comments) are dropped. Non-UTF-8 input or a lex error yields no
-/// commands (the UTF-8 internal-rep invariant; richer parse-error surfacing is
-/// tracked with the convergence).
+/// lines, comments) are dropped. Original counted bytes, including opaque
+/// native strings, retain the shared scanner's command and word geometry.
 ///
 /// Lexes with the default (Tcl-8.5+) config; a version-pinned interpreter
 /// parses through [`parse_script_with_config`] instead so the grammar follows
@@ -201,14 +202,11 @@ pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
 /// through, so `{*}` expansion is off and the first-close
 /// `${…}` rule applies when the interpreter emulates Tcl 8.4.
 pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> Vec<Command<'_>> {
-    let Ok(s) = std::str::from_utf8(src) else {
-        return Vec::new();
-    };
-    let toks = match Lexer::with_source_map(SourceMap::new(s), config).tokenise_all() {
+    let toks = match Lexer::with_bytes(src, config).tokenise_all() {
         Ok(t) => t,
         Err(_) => return Vec::new(),
     };
-    let sm = SourceMap::new(s);
+    let sm = SourceMap::from_bytes(src);
     // The boundary question — where each command and each word begins and
     // ends — is the owner's: answering it with a separate copy of the loop
     // here would risk disagreeing with the compiler's segmenter on `{*}`
@@ -216,7 +214,7 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
     // token indices), so lowering its answer into `Command`/`Word` keeps
     // this crate's zero-copy contract (memory-management.md MM-B.6): the
     // words below still borrow `src`.
-    group_commands(&toks, s, config)
+    group_commands_bytes(&toks, src, config)
         .into_iter()
         .map(|cmd| {
             // C's `commandStart`: the first content token, leading whitespace
@@ -373,7 +371,7 @@ fn parts_parse_error(
     }
     parts.iter().find_map(|part| match part {
         WordPart::ParseError(msg) => Some(*msg),
-        WordPart::Text(_) => None,
+        WordPart::Text(_) | WordPart::Expression(_) => None,
         WordPart::Variable(v) => v
             .index
             .as_deref()
@@ -438,7 +436,7 @@ use tcl_lexer::{
 /// `tests/parse_cut_agreement.rs` against `tcl_lexer::first_parse_cut`, on
 /// tcllib's `markdown.test`.
 fn brace_token_unterminated(sm: &SourceMap<'_>, tok: Token) -> bool {
-    sm.source().as_bytes().get(tok.span.start() as usize) == Some(&b'{')
+    sm.source_bytes().get(tok.span.start() as usize) == Some(&b'{')
         && tcl_lexer::word_closer_offset(sm, tok).is_none()
 }
 
@@ -453,6 +451,8 @@ fn build_word<'s>(
     let expand = word.expand;
     let kind = word.kind;
     let start = toks[0].span.start() as usize;
+    let range = tcl_lexer::word_span_at(sm.source_bytes(), word.span).as_range();
+    let raw_source = src.get(range).unwrap_or_default();
     // Text welded straight onto a close-brace (`{a}b`, `{a}$b`, `{a}[b]`,
     // `{}x`, `{a}{b}`, `{a}{*}$b`) is C's `extra characters after
     // close-brace`, raised while the *command* is parsed: measured on 8.6.16
@@ -471,6 +471,7 @@ fn build_word<'s>(
             expand,
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_BRACE)]),
             start,
+            raw_source,
         };
     }
     // The sibling shape on a quote (`"a"b`, `""b`, `"a"$b`, `"a"[b]`,
@@ -495,6 +496,7 @@ fn build_word<'s>(
             expand,
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)]),
             start,
+            raw_source,
         };
     }
     // A single braced token is a literal word (no substitution) — except a
@@ -513,6 +515,7 @@ fn build_word<'s>(
                 expand,
                 body: WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACE)]),
                 start,
+                raw_source,
             };
         }
         let content = token_content(sm, src, toks[0]);
@@ -525,6 +528,7 @@ fn build_word<'s>(
             expand,
             body,
             start,
+            raw_source,
         };
     }
     // A `"`-delimited word that never closes is C's `missing "`
@@ -541,9 +545,8 @@ fn build_word<'s>(
     // the word's parts are still built below and this error is appended
     // after them, where the first-error rule reaches it only if nothing
     // inside the word failed first.
-    let unterminated_quote = kind == WordKind::Quoted
-        && core::str::from_utf8(src)
-            .is_ok_and(|text| tcl_lexer::word_parts::quoted_word_close(text, start).is_err());
+    let unterminated_quote =
+        kind == WordKind::Quoted && tcl_lexer::word_parts::quoted_word_close(src, start).is_err();
     let mut parts: Vec<WordPart> = Vec::new();
     for &t in toks {
         let bytes = token_content(sm, src, t);
@@ -590,10 +593,20 @@ fn build_word<'s>(
                                     WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                                     WordBody::Parts(p) => p,
                                 });
-                        parts.push(WordPart::Variable(VarRef {
-                            name: raw.name,
-                            index,
-                        }));
+                        // Braces suppress index substitutions, not element
+                        // lookup. Keep a braced index as one literal part;
+                        // the unbraced index above retains its parsed parts.
+                        let (name, index) = match (raw.name, index) {
+                            (name, None) => match tcl_syntax::naming::split_element_ref_bytes(name)
+                            {
+                                Some((base, key)) => {
+                                    (base, Some(vec![WordPart::Text(Cow::Borrowed(key))]))
+                                }
+                                None => (name, None),
+                            },
+                            (name, index) => (name, index),
+                        };
+                        parts.push(WordPart::Variable(VarRef { name, index }));
                     }
                     // A `Var` token whose `$` opens no reference cannot come
                     // out of the lexer; keep the bytes as text rather than
@@ -608,6 +621,17 @@ fn build_word<'s>(
             // The lexer's recovery reads to end of input and hands back a
             // `Cmd` token regardless, so the close is re-derived from the
             // shared owner, exactly as the `{` and `"` words above are.
+            TokenType::ExprSugar => {
+                match tcl_lexer::word_parts::scan_expression_sugar(
+                    src,
+                    t.span.start() as usize,
+                    config,
+                ) {
+                    Ok(Some((expression, _))) => parts.push(WordPart::Expression(expression)),
+                    Err(message) => parts.push(WordPart::ParseError(message)),
+                    Ok(None) => parts.push(WordPart::Text(Cow::Borrowed(bytes))),
+                }
+            }
             TokenType::Cmd => {
                 match tcl_lexer::word_parts::command_subst_close(
                     src,
@@ -635,6 +659,7 @@ fn build_word<'s>(
             expand,
             body: WordBody::Literal(b""),
             start,
+            raw_source,
         };
     }
     if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
@@ -643,6 +668,7 @@ fn build_word<'s>(
             expand,
             body: WordBody::Literal(b),
             start,
+            raw_source,
         };
     }
     Word {
@@ -650,6 +676,7 @@ fn build_word<'s>(
         expand,
         body: WordBody::Parts(parts),
         start,
+        raw_source,
     }
 }
 
@@ -657,13 +684,10 @@ fn build_word<'s>(
 // value type need). CONVERGED onto the shared [`tcl_syntax::list`] crate (the
 // canonical `FindElement` grammar + `backslash_subst` collapse), so the list
 // grammar lives in one place for the runtime AND the LSP/compiler. The runtime
-// keeps the byte API (`&[u8]` in, owned bytes out); it converts at the boundary
-// on the UTF-8-internal-rep invariant.
+// keeps the actual byte API (`&[u8]` in, owned bytes out).
 
 /// Why splitting a string as a Tcl list failed. Mirrors
-/// [`tcl_syntax::list::ListError`] plus [`ListError::NotUtf8`] for the
-/// byte-boundary case (which cannot occur for a well-formed internal string rep,
-/// since the runtime upholds UTF-8 internally).
+/// [`tcl_syntax::list::ListError`] without requiring Unicode projection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListError {
     /// An unmatched `{` (`unmatched open brace in list`).
@@ -674,8 +698,6 @@ pub enum ListError {
     BraceFollowedByJunk,
     /// Junk directly after a closing `"` (`list element in quotes followed by`).
     QuoteFollowedByJunk,
-    /// The input bytes were not valid UTF-8 (violates the internal-rep invariant).
-    NotUtf8,
 }
 
 impl From<tcl_syntax::list::ListError> for ListError {
@@ -691,14 +713,13 @@ impl From<tcl_syntax::list::ListError> for ListError {
 }
 
 impl ListError {
-    fn shared(self) -> Option<tcl_syntax::list::ListError> {
-        Some(match self {
+    pub(crate) fn shared(self) -> tcl_syntax::list::ListError {
+        match self {
             ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
             ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
             ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
             ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
-            ListError::NotUtf8 => return None,
-        })
+        }
     }
 
     /// The Tcl error message for this failure — reusing the **shared**
@@ -708,28 +729,39 @@ impl ListError {
     /// splitter — see [`list_error_message`] for the byte-exact form.
     #[must_use]
     pub fn message(self) -> &'static [u8] {
-        self.shared()
-            .map_or(b"invalid list (not valid UTF-8)", |error| {
-                error.message().as_bytes()
-            })
+        self.shared().message().as_bytes()
     }
 
     /// Tcl's structured `-errorcode` for this list failure.
     #[must_use]
     pub fn error_code(self) -> &'static [u8] {
-        self.shared()
-            .map_or(b"TCL VALUE LIST", |error| error.error_code().as_bytes())
+        self.shared().error_code().as_bytes()
     }
+}
+
+thread_local! {
+    static NATIVE_LIST_POLICY: std::cell::Cell<(tcl_dialect::ListParse, tcl_dialect::EscapeSyntax)> = const {
+        std::cell::Cell::new((tcl_dialect::ListParse::Strict, tcl_dialect::EscapeSyntax::Tcl90))
+    };
+}
+
+/// Install the actual engine's object conversion grammar at interpreter ingress.
+/// Object codecs lack an interpreter parameter, as native object APIs do.
+pub(crate) fn install_native_list_policy(
+    syntax: tcl_dialect::ListParse,
+    escapes: tcl_dialect::EscapeSyntax,
+) {
+    NATIVE_LIST_POLICY.set((syntax, escapes));
 }
 
 /// Split `src` into its Tcl list element *values* (owned): `{braced}` elements
 /// verbatim, bare/`"quoted"` elements with backslash escapes decoded. The
 /// `Tcl_SplitList` primitive, delegating to [`tcl_syntax::list::split_list`].
 pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
-    let s = core::str::from_utf8(src).map_err(|_| ListError::NotUtf8)?;
-    Ok(tcl_syntax::list::split_list(s)?
+    let (syntax, escapes) = NATIVE_LIST_POLICY.get();
+    Ok(tcl_syntax::list::split_list_bytes_in(src, syntax, escapes)?
         .into_iter()
-        .map(|c| c.into_owned().into_bytes())
+        .map(std::borrow::Cow::into_owned)
         .collect())
 }
 
@@ -745,20 +777,38 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 /// re-implementation of that walk in this crate.
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {
-    let Some(shared) = err.shared() else {
-        // Not a shared variant: the runtime's own internal-rep invariant.
-        return err.message().to_vec();
-    };
-    // A non-UTF-8 `src` cannot reach the fragment walk; fall back to the fixed
-    // text rather than lose the error entirely.
-    match core::str::from_utf8(src) {
-        Ok(s) => shared.full_message(s).into_bytes(),
-        Err(_) => shared.message().as_bytes().to_vec(),
-    }
+    let shared = err.shared();
+    shared.full_message_bytes(src)
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn opaque_counted_words_keep_original_source_and_shared_delimiters() {
+        for source in [
+            &b"set opaque {\xff\0TAIL}; set opaque"[..],
+            &b"list \"\xff\0TAIL\""[..],
+            &b"list \xff\0TAIL"[..],
+            &b"list [set opaque {\xff\0TAIL}]"[..],
+        ] {
+            for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+                let profile = crate::environment::profile_for_dialect(engine);
+                let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+                let commands = super::parse_script_with_config(source, config);
+                assert!(!commands.is_empty());
+                for command in &commands {
+                    assert!(command.start <= command.end && command.end <= source.len());
+                    assert!(super::first_parse_error(&command.words, config).is_none());
+                    for word in &command.words {
+                        assert!(source
+                            .windows(word.raw_source.len())
+                            .any(|bytes| bytes == word.raw_source));
+                    }
+                }
+            }
+        }
+    }
+
     use super::*;
 
     fn lit<'a>(w: &Word<'a>) -> &'a [u8] {

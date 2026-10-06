@@ -36,8 +36,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// subcommand resolution first, so `after cancel …` / `after idle …` /
 /// `after info …` never call this resolver at all.
 ///
-/// `args[0]` is the delay (`after`'s own arity requires it). Marks a script
-/// word only when it is the **sole** trailing word (`args.len() == 2`):
+/// The count includes the delay (`after`'s own arity requires it). Marks a script
+/// word only when it is the **sole** trailing word (`count == 2`):
 /// `after ms script script script ...?` concatenates every trailing word
 /// together (like `concat`) before evaluating the result as one script, so
 /// `after 1000 {cb} 1 2` really runs `cb 1 2`, not `cb` alone — with more
@@ -47,20 +47,20 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// as the space-joined concatenation). Abstain in that case rather than
 /// model the concatenation — a single braced script is by far the
 /// idiomatic form.
-fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() == 2 {
+fn after_count_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    if count == 2 {
         vec![(1, ArgRole::Body)]
     } else {
         Vec::new()
     }
 }
 
-/// Same concatenation-aware guard as [`after_arg_roles`], for `after idle
-/// script ?script script ...?`. `args` here is already the subcommand's
-/// own slice (the word after `idle`), so the sole script word is at index
+/// Same concatenation-aware guard as [`after_count_roles`], for `after idle
+/// script ?script script ...?`. The count excludes the selected `idle` word,
+/// so the sole script word is at index
 /// 0 — marked as `Body` only when it is the only trailing word.
-fn after_idle_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() == 1 {
+fn after_idle_count_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    if count == 1 {
         vec![(0, ArgRole::Body)]
     } else {
         Vec::new()
@@ -87,10 +87,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "idle",
         arity: Arity::at_least(1),
         // Same concatenation shape as the default `after ms script` form
-        // (`after_arg_roles`) — mark the sole script word only when it is
+        // (`after_count_roles`) — mark the sole script word only when it is
         // the only one present, abstaining rather than mis-recursing a
         // truncated fragment when several words concatenate together.
-        arg_role_resolver: Some(after_idle_arg_roles),
+        arg_role_count_resolver: Some(after_idle_count_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         // The idle script runs later, at global level outside the context
         // of any Tcl procedure (Tcl man page after.n) — confirmed
@@ -99,6 +99,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // there reads 0. SSA must not treat it as sharing the caller's
         // frame.
         body_kind: BodyKind::Structural,
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript),
         detail: "Concatenate the script arguments (as concat would) and arrange for the result to run exactly once, the next time the event loop is entered with no other events pending. Runs at global level, outside the context of any Tcl procedure.",
         synopsis: "after idle script ?script script ...?",
         return_type: Some(TclType::String),
@@ -125,6 +126,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
@@ -144,7 +151,7 @@ pub fn spec() -> CommandSpec {
         // event loop's business, not this statement's.)
         traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         arity: Arity::at_least(1),
-        arg_role_resolver: Some(after_arg_roles),
+        arg_role_count_resolver: Some(after_count_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         // The default form's deferred script runs later, at global level
         // outside the context of any Tcl procedure (Tcl man page after.n:
@@ -157,6 +164,7 @@ pub fn spec() -> CommandSpec {
         // comment and `uplevel`'s). Neither SSA dataflow nor `my`/`next`/
         // `$obj method` dispatch scanning must treat it as same-frame.
         body_kind: BodyKind::Structural,
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::DeferredGlobalScript),
         subcommands: SUBCOMMANDS,
         // `after 200 …` — an integer first word selects the default
         // delayed-execution form rather than dispatching on a subcommand.

@@ -508,12 +508,13 @@ fn fp_sty_11_lassign_many_vars_no_false_w210() {
 }
 
 #[test]
-fn fp_sty_11_binary_scan_many_vars_no_false_w210() {
-    // FP-STY-11: same for `binary scan`.
+fn fp_sty_11_binary_scan_empty_input_does_not_define_its_targets() {
+    // Every native oracle consumes zero fields here. The variadic role
+    // projection records the targets, without promising that they were set.
     let src = "proc f {} { binary scan {} {i i i i i i i i i i i i i i i i i i i i} a b c d e f g h i j k l m n o p q r s t; return $t }\n";
     assert!(
-        !fires(src, D, "W210"),
-        "FP-STY-11: binary scan with 20 vars must NOT fire W210; emitted: {:?}",
+        fires(src, D, "W210"),
+        "an empty binary scan leaves its twentieth target undefined; emitted: {:?}",
         codes(src, D)
     );
 }

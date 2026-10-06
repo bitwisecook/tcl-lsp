@@ -287,19 +287,45 @@ pub unsafe extern "C" fn tcl_codegen_value_try_wide_int(value: *mut TclObj, out:
     if value.is_null() || out.is_null() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    match crate::typed_value::wide_int(value) {
-        Ok(parsed) => {
+    let interp = current_interp();
+    if interp.is_null() || unsafe { (*interp).host_refusal_pending() } {
+        return TCL_VALUE_TRY_NOT_NATIVE;
+    }
+    match crate::typed_value::native_scalar_probe(
+        value,
+        unsafe { (*interp).native_invocation_dialect() },
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+    ) {
+        Ok(Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(parsed))) => {
+            // A wrapped primitive Wide view is not an integer arithmetic cache.
+            // Big magnitude and Jim's coerced view remain available to the boxed
+            // arithmetic path; the reached probe effects still remain applied.
+            if !matches!(
+                crate::obj::native_scalar_cache(value),
+                Ok(Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Int(_)
+                )))
+            ) {
+                return TCL_VALUE_TRY_NOT_NATIVE;
+            }
             // SAFETY: `out` is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_TRY_NATIVE
         }
-        Err(_) => TCL_VALUE_TRY_NOT_NATIVE,
+        Err(error) => {
+            if let Some(refusal) = error.native_access_refusal() {
+                // SAFETY: the current interpreter was checked above.
+                unsafe { (*interp).refuse_native_access(refusal) };
+            }
+            TCL_VALUE_TRY_NOT_NATIVE
+        }
+        Ok(_) => TCL_VALUE_TRY_NOT_NATIVE,
     }
 }
 
 /// `tcl_codegen_value_try_double(value, out) -> native?` —
-/// [`tcl_codegen_value_try_wide_int`] over an `f64`: an integer or bignum
-/// widens, `NaN` and the infinities are values.
+/// [`tcl_codegen_value_try_wide_int`] over an `f64`, using the same selected
+/// primitive conversion and its original-object cache effects.
 ///
 /// # Safety
 /// `value` must be a live object; `out` must be writable aligned `f64`
@@ -309,13 +335,28 @@ pub unsafe extern "C" fn tcl_codegen_value_try_double(value: *mut TclObj, out: *
     if value.is_null() || out.is_null() {
         return TCL_VALUE_TRY_NOT_NATIVE;
     }
-    match crate::typed_value::double(value) {
-        Ok(parsed) => {
+    let interp = current_interp();
+    if interp.is_null() || unsafe { (*interp).host_refusal_pending() } {
+        return TCL_VALUE_TRY_NOT_NATIVE;
+    }
+    match crate::typed_value::native_scalar_probe(
+        value,
+        unsafe { (*interp).native_invocation_dialect() },
+        tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+    ) {
+        Ok(Ok(tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(parsed))) => {
             // SAFETY: `out` is writable aligned storage per the contract.
             unsafe { out.write(parsed) };
             TCL_VALUE_TRY_NATIVE
         }
-        Err(_) => TCL_VALUE_TRY_NOT_NATIVE,
+        Err(error) => {
+            if let Some(refusal) = error.native_access_refusal() {
+                // SAFETY: the current interpreter was checked above.
+                unsafe { (*interp).refuse_native_access(refusal) };
+            }
+            TCL_VALUE_TRY_NOT_NATIVE
+        }
+        Ok(_) => TCL_VALUE_TRY_NOT_NATIVE,
     }
 }
 
@@ -368,21 +409,24 @@ fn expr_eval_impl(interp: &mut Interp, _expr: *mut TclObj) -> Code {
 /// A no-op expression context: operator operands are already evaluated, so
 /// variable, command, and function resolution is never reached.
 #[cfg(have_tommath)]
-struct NoCtx;
+struct NoCtx(tcl_registry::InvocationDialect);
 
 #[cfg(have_tommath)]
 impl crate::expr::ExprCtx for NoCtx {
-    fn read_var(&mut self, _: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+        self.0
+    }
+    fn read_var(&mut self, _: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         unreachable!("operator operands are pre-evaluated")
     }
-    fn eval_command(&mut self, _: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+    fn eval_command(&mut self, _: &str) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         unreachable!("operator operands are pre-evaluated")
     }
     fn call_function(
         &mut self,
         _: &str,
-        _: &[crate::expr::Owned],
-    ) -> Result<crate::expr::Owned, crate::expr::ExprError> {
+        _: &[crate::obj::Owned],
+    ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
         unreachable!("operator operands are pre-evaluated")
     }
 }
@@ -442,11 +486,17 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
 fn mathop_eval_impl(interp: &mut Interp, op: &[u8], words: &[*mut TclObj]) -> Code {
     use tcl_cmd_core::mathop::MathopError;
     let op_str = core::str::from_utf8(op).unwrap_or("");
-    let args: Vec<crate::expr::Owned> = words
+    let args: Vec<crate::obj::Owned> = words
         .iter()
-        .map(|&word| crate::expr::Owned::retain(word))
+        .map(|&word| crate::obj::Owned::retain(word))
         .collect();
-    match crate::expr::eval_mathop(op_str, args, &mut NoCtx) {
+    match crate::expr::eval_mathop(
+        op_str,
+        args,
+        &mut NoCtx(tcl_registry::InvocationDialect::of_profile(
+            interp.dialect_profile(),
+        )),
+    ) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
             Code::Ok
@@ -457,12 +507,9 @@ fn mathop_eval_impl(interp: &mut Interp, op: &[u8], words: &[*mut TclObj]) -> Co
             message.push(b' ');
             message.extend_from_slice(usage.as_bytes());
             message.push(b'"');
-            interp.set_error(&message)
+            interp.wrong_arguments_message(&message)
         }
-        Err(MathopError::Op(error)) => match error.code {
-            Some(code) => interp.error_with_code(&error.msg, &code),
-            None => interp.set_error(&error.msg),
-        },
+        Err(MathopError::Op(error)) => interp.report_expr_error(error),
     }
 }
 
@@ -722,6 +769,79 @@ mod tests {
             release(int);
             release(float);
             release(word);
+        });
+    }
+
+    #[test]
+    fn speculative_getter_retains_failure_cache_without_changing_guest_state() {
+        leak_free(|interp| {
+            interp.set_error_state(b"KEEP CODE");
+            interp.set_result_bytes(b"keep result");
+            let value = owned(b"NaN");
+            let mut answer = 17.0;
+            // SAFETY: the owned value and local output are live.
+            assert_eq!(
+                unsafe { tcl_codegen_value_try_double(value, &mut answer) },
+                TCL_VALUE_TRY_NOT_NATIVE
+            );
+            assert_eq!(answer, 17.0);
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(value),
+                &obj::TCL_DOUBLE_TYPE
+            ));
+            assert!(obj::double_of(value).is_nan());
+            assert_eq!(interp.result_bytes(), b"keep result");
+            assert_eq!(interp.error_code(), b"KEEP CODE");
+            assert!(!interp.host_refusal_pending());
+            release(value);
+        });
+    }
+
+    #[test]
+    #[cfg(have_tommath)]
+    fn wide_arithmetic_admission_preserves_big_primitive_cache() {
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            interp.set_error_state(b"KEEP CODE");
+            interp.set_result_bytes(b"keep result");
+            let value = owned(b"18446744073709551615");
+            let mut answer = 17;
+            assert_eq!(
+                unsafe { tcl_codegen_value_try_wide_int(value, &mut answer) },
+                TCL_VALUE_TRY_NOT_NATIVE
+            );
+            assert_eq!(answer, 17);
+            assert!(matches!(
+                obj::native_scalar_cache(value),
+                Ok(Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Big { .. }
+                )))
+            ));
+            assert_eq!(interp.result_bytes(), b"keep result");
+            assert_eq!(interp.error_code(), b"KEEP CODE");
+            release(value);
+        });
+    }
+
+    #[test]
+    fn speculative_getter_keeps_missing_engine_out_of_guest_state() {
+        leak_free(|interp| {
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("f5-irules"));
+            interp.set_error_state(b"KEEP CODE");
+            interp.set_result_bytes(b"keep result");
+            let value = owned(b"3");
+            let mut answer = 17;
+            // SAFETY: the owned value and local output are live.
+            assert_eq!(
+                unsafe { tcl_codegen_value_try_wide_int(value, &mut answer) },
+                TCL_VALUE_TRY_NOT_NATIVE
+            );
+            assert_eq!(answer, 17);
+            assert!(obj::obj_type_ptr(value).is_null());
+            assert_eq!(interp.result_bytes(), b"keep result");
+            assert_eq!(interp.error_code(), b"KEEP CODE");
+            assert!(interp.host_refusal_pending());
+            release(value);
         });
     }
 

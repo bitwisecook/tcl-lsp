@@ -1,0 +1,6 @@
+default-code	privateinfo=null	privatecode=list	info_same=1	code_same=0	info_refs=-1	code_refs=-1	global0=null	global0_same=1	global1=null	global1_same=1
+error_code=1
+explicit-error	privateinfo=bytearray	privatecode=list	info_same=1	code_same=1	info_refs=3	code_refs=3	global0=null	global0_same=0	global1=null	global1_same=0
+trace-::errorCode	private=list	private_refs=5	global_same=1
+trace-::errorInfo	private=bytearray	private_refs=5	global_same=1
+after-reset	privateinfo=null	privatecode=null	info_same=0	code_same=0	info_refs=2	code_refs=2	global0=bytearray	global0_same=1	global1=list	global1_same=1

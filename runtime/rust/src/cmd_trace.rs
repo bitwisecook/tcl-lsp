@@ -44,9 +44,8 @@
 //! registry declares for the emulated release rather than a fixed list.
 
 use tcl_cmd_core::trace as core_trace;
-use tcl_dialect::model::surface_admits;
 
-use crate::frame::{split_array_ref, VarError};
+use crate::frame::VarError;
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::namespace::NsId;
 use crate::obj::TclObj;
@@ -64,6 +63,8 @@ pub struct VarTrace {
     /// and re-added during one firing is a different trace, exactly as it is a
     /// different allocation in C.
     pub id: u64,
+    /// Physical root generation owning this registration.
+    pub binding_id: Option<tcl_runtime_api::VarId>,
     /// The variable name as registered (for `trace info` matching).
     pub name: Vec<u8>,
     /// The array base / scalar name (for firing).
@@ -74,6 +75,16 @@ pub struct VarTrace {
     pub ops: Vec<Vec<u8>>,
     /// The command prefix invoked when the trace fires.
     pub command: Vec<u8>,
+    /// Direct native callback, hidden from script trace queries and removal.
+    pub native: Option<(
+        tcl_runtime_api::native_variable_trace::NativeVariableTraceToken,
+        std::rc::Rc<
+            dyn tcl_runtime_api::native_variable_trace::NativeVariableObserver<
+                Interp,
+                Error = tcl_cmd_core::CmdError,
+            >,
+        >,
+    )>,
     /// For a trace on a **proc-local** variable, the call-frame level it lives
     /// at — the trace dies when that frame is popped (C frees the local var's
     /// trace list at frame teardown). `None` for global/namespace/qualified
@@ -182,6 +193,7 @@ pub struct StepActive {
 /// active — is suppressed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VarTraceScope {
+    binding_id: Option<tcl_runtime_api::VarId>,
     base: Vec<u8>,
     elem: Option<Vec<u8>>,
     frame_level: Option<usize>,
@@ -195,8 +207,10 @@ impl VarTraceScope {
         elem: Option<&[u8]>,
         ns: Option<NsId>,
         frame_level: Option<usize>,
+        binding_id: Option<tcl_runtime_api::VarId>,
     ) -> Self {
         Self {
+            binding_id,
             base: base.to_vec(),
             elem: elem.map(<[u8]>::to_vec),
             frame_level,
@@ -316,8 +330,9 @@ pub fn matches(
     op: &[u8],
     access_ns: Option<NsId>,
     access_frame_level: Option<usize>,
+    binding_id: Option<tcl_runtime_api::VarId>,
 ) -> bool {
-    if !same_variable(t, base, access_ns, access_frame_level) {
+    if t.binding_id != binding_id || !same_variable(t, base, access_ns, access_frame_level) {
         return false;
     }
     if let Some(te) = &t.elem {
@@ -334,40 +349,23 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"trace", trace_cmd);
 }
 
-/// The `trace` option words the emulated release carries, in the registry's
-/// declaration order — which is C's `traceOptions[]` order, so the `bad
-/// option` / `ambiguous option` enumeration matches byte for byte. The three
-/// legacy forms are gated to `the retired availability mask::TCL8X`, so 9.0+ sees only
-/// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
-fn visible_options(interp: &Interp) -> Vec<&'static str> {
-    // The emulated release's name is a dialect *name*: one resolution
-    // through the ingress seam yields both the generation whose store the
-    // spec is read from and the document authoring mask the option table
-    // is gated on.
-    let profile =
-        crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
-    let dialect = Some(crate::environment::surface_point(profile));
-    let Some(spec) = crate::environment::store_for_profile(profile).get("trace") else {
-        return Vec::new();
-    };
-    spec.subcommands
-        .iter()
-        .filter(|sub| {
-            sub.surface
-                .or(spec.surface)
-                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
-        })
-        .map(|sub| sub.name)
-        .collect()
-}
-
 /// The variable resolver supplies the reason, while `trace` owns the command
 /// verb in its diagnostic (`can't trace`, not the usual `can't set`).
-fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError) -> Code {
+pub(crate) fn trace_var_error(interp: &mut Interp, name: &[u8], error: VarError) -> Code {
+    if error == VarError::NameProtocolUnavailable {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "variable naming",
+            ),
+        );
+    }
     let reason = match error {
+        VarError::NameProtocolUnavailable => unreachable!("host refusal handled above"),
         VarError::IsScalar => b"variable isn't array".as_slice(),
         VarError::IsArray => b"variable is array".as_slice(),
         VarError::NoSuchNamespace => b"parent namespace doesn't exist".as_slice(),
+        VarError::DeletedNamespace => b"upvar refers to variable in deleted namespace".as_slice(),
+        VarError::DeletedArray => b"upvar refers to element in deleted array".as_slice(),
         VarError::IsConstant => b"variable is a constant".as_slice(),
         VarError::TraceError => b"trace callback failed".as_slice(),
     };
@@ -382,9 +380,8 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"trace option ?arg ...?");
     }
-    let options = visible_options(interp);
-    let word = obj_bytes(argv[1]);
-    let option = match core_trace::resolve_option(&String::from_utf8_lossy(&word), &options) {
+    let protocol = interp.native_invocation_dialect().native_string_protocol();
+    let option = match core_trace::resolve_option_original(interp, &argv[1], protocol) {
         Ok(option) => option,
         Err(e) => return interp.report_cmd_error(e),
     };
@@ -399,8 +396,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     b"trace remove type ?arg ...?"
                 });
             }
-            let ty = obj_bytes(argv[2]);
-            match core_trace::resolve_type(&String::from_utf8_lossy(&ty)) {
+            match core_trace::resolve_type_original(interp, &argv[2]) {
                 Ok(core_trace::TraceKind::Variable) => trace_var_add_remove(interp, argv, is_add),
                 Ok(core_trace::TraceKind::Command) => {
                     cmd_trace_add_remove(interp, argv, is_add, ops::CMD_ANY)
@@ -415,8 +411,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if argv.len() < 3 {
                 return interp.wrong_args(b"trace info type name");
             }
-            let ty = obj_bytes(argv[2]);
-            match core_trace::resolve_type(&String::from_utf8_lossy(&ty)) {
+            match core_trace::resolve_type_original(interp, &argv[2]) {
                 Ok(core_trace::TraceKind::Variable) => trace_var_info(interp, argv),
                 Ok(core_trace::TraceKind::Command) => cmd_trace_info(interp, argv, ops::CMD_ANY),
                 Ok(core_trace::TraceKind::Execution) => cmd_trace_info(interp, argv, ops::EXEC_ANY),
@@ -431,13 +426,7 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // A registry-declared option this engine has no arm for. Reporting it
         // as unknown keeps a data-only spec edit (a new subcommand or alias)
         // from turning into a panic in a shipped interpreter.
-        _ => {
-            let mut message = b"bad option \"".to_vec();
-            message.extend_from_slice(&word);
-            message.extend_from_slice(b"\": must be ");
-            message.extend_from_slice(tcl_cmd_core::prefix::choice_list(&options).as_bytes());
-            interp.set_error(&message)
-        }
+        _ => unreachable!("selected trace declaration is exhaustive"),
     }
 }
 
@@ -445,9 +434,9 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Parse an execution-trace op list into a [`ops`] bitset, via the shared core
 /// (split + validation + the catalogue) then folding the canonical names to bits.
-fn parse_exec_ops(interp: &mut Interp, spec: &[u8]) -> Result<u8, Code> {
-    let names = core_trace::parse_ops(spec, core_trace::TraceKind::Execution)
-        .map_err(|e| interp.set_error(e.message().as_bytes()))?;
+fn parse_exec_ops(interp: &mut Interp, spec: *mut TclObj) -> Result<u8, Code> {
+    let names = core_trace::parse_ops_original(interp, &spec, core_trace::TraceKind::Execution)
+        .map_err(|e| interp.report_cmd_error(e))?;
     Ok(names.iter().fold(0u8, |acc, o| {
         acc | match *o {
             "enter" => ops::ENTER,
@@ -460,9 +449,9 @@ fn parse_exec_ops(interp: &mut Interp, spec: &[u8]) -> Result<u8, Code> {
 }
 
 /// Parse a command-trace op list (`rename`/`delete`) into a [`ops`] bitset.
-fn parse_cmd_ops(interp: &mut Interp, spec: &[u8]) -> Result<u8, Code> {
-    let names = core_trace::parse_ops(spec, core_trace::TraceKind::Command)
-        .map_err(|e| interp.set_error(e.message().as_bytes()))?;
+fn parse_cmd_ops(interp: &mut Interp, spec: *mut TclObj) -> Result<u8, Code> {
+    let names = core_trace::parse_ops_original(interp, &spec, core_trace::TraceKind::Command)
+        .map_err(|e| interp.report_cmd_error(e))?;
     Ok(names.iter().fold(0u8, |acc, o| {
         acc | match *o {
             "rename" => ops::RENAME,
@@ -495,11 +484,11 @@ fn cmd_trace_add_remove(
         usage.extend_from_slice(b" name opList command");
         return interp.wrong_args(&usage);
     }
-    let spec = obj_bytes(argv[4]);
+    let spec = argv[4];
     let flags = match if category == ops::EXEC_ANY {
-        parse_exec_ops(interp, &spec)
+        parse_exec_ops(interp, spec)
     } else {
-        parse_cmd_ops(interp, &spec)
+        parse_cmd_ops(interp, spec)
     } {
         Ok(f) => f,
         Err(c) => return c,
@@ -515,11 +504,19 @@ fn cmd_trace_add_remove(
     // entry, so both names edit the one list.
     let fqn = interp.renamed_cmd_key(&fqn).unwrap_or(fqn);
     let token = interp.resolve_cmd_token(&fqn);
+    let Some(generation) = token else {
+        return interp.unknown_command(&name);
+    };
     let command = obj_bytes(argv[5]);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`).
         let mut traces = interp.traces.borrow_mut();
+        let first_execution = flags & ops::EXEC_ANY != 0
+            && !traces
+                .cmd_traces
+                .iter()
+                .any(|trace| trace.token == token && trace.ops & ops::EXEC_ANY != 0);
         traces.next_cmd_trace_id += 1;
         let id = traces.next_cmd_trace_id;
         traces.cmd_traces.push(CmdTrace {
@@ -530,6 +527,9 @@ fn cmd_trace_add_remove(
             command,
         });
         drop(traces);
+        if first_execution {
+            note_execution_trace_boundary(interp, generation);
+        }
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
         // Remove the first trace matching exact ops + command string, where
@@ -546,12 +546,31 @@ fn cmd_trace_add_remove(
                 traces.untraced_cmd_trace_ids.push(id);
             }
             traces.cmd_traces.remove(i);
+            let last_execution = flags & ops::EXEC_ANY != 0
+                && !traces
+                    .cmd_traces
+                    .iter()
+                    .any(|trace| trace.token == token && trace.ops & ops::EXEC_ANY != 0);
             drop(traces);
+            if last_execution {
+                note_execution_trace_boundary(interp, generation);
+            }
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
         }
     }
     interp.set_result_bytes(b"");
     Code::Ok
+}
+
+fn note_execution_trace_boundary(interp: &Interp, generation: u64) {
+    use tcl_registry::native_procedure::NativeCompilerCacheMutation;
+    use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
+    let mut namespaces = interp.namespaces_mut();
+    let hook = namespaces
+        .native_compiler_hook(generation)
+        .unwrap_or(NativeCompilerHookPresence::Unknown);
+    namespaces
+        .note_native_compiler_mutation(None, NativeCompilerCacheMutation::ExecutionTrace { hook });
 }
 
 /// `trace info command|execution name` — the matching traces, most-recent
@@ -597,18 +616,18 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
             .filter(|(bit, _)| (t.ops & bit) != 0)
             .map(|(_, label)| new_string(label))
             .collect();
-        let ops_list = crate::list::new_list_obj(&op_objs);
+        let ops_list = interp.new_list_object(&op_objs);
         let cmd = new_string(&t.command);
-        entries.push(crate::list::new_list_obj(&[ops_list, cmd]));
+        entries.push(interp.new_list_object(&[ops_list, cmd]));
     }
-    interp.set_result(crate::list::new_list_obj(&entries));
+    interp.set_result(interp.new_list_object(&entries));
     Code::Ok
 }
 
 /// Parse and validate a variable-trace ops list (`{read write unset array}`),
 /// via the shared core (the op catalogue lives once in `tcl-cmd-core::trace`).
-fn parse_ops(interp: &mut Interp, spec: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
-    match core_trace::parse_ops(spec, core_trace::TraceKind::Variable) {
+fn parse_ops(interp: &mut Interp, spec: *mut TclObj) -> Result<Vec<Vec<u8>>, Code> {
+    match core_trace::parse_ops_original(interp, &spec, core_trace::TraceKind::Variable) {
         Ok(ops) => Ok(ops.iter().map(|o| o.as_bytes().to_vec()).collect()),
         Err(e) => Err(interp.report_cmd_error(e)),
     }
@@ -625,7 +644,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             b"trace remove variable name opList command"
         });
     }
-    let ops = match parse_ops(interp, &obj_bytes(argv[4])) {
+    let ops = match parse_ops(interp, argv[4]) {
         Ok(o) => o,
         Err(c) => return c,
     };
@@ -647,16 +666,17 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
 /// sees the same traces. Matching the registration spelling textually instead
 /// makes `trace info variable alias` report nothing for a trace the very next
 /// `set alias` fires.
-fn var_trace_query(
-    interp: &Interp,
-    name: &[u8],
-) -> (Option<NsId>, Option<usize>, Vec<u8>, Option<Vec<u8>>) {
-    let (base, elem) = split_array_ref(name);
-    let home = interp.trace_identity(&base);
-    // An alias for an array *element* (`upvar #0 a(k) e`) shows no parentheses,
-    // so the element it names comes from the resolution: in C the alias and
-    // `a(k)` are the same `Var` and therefore carry the same trace list.
-    (home.ns, home.level, home.base, elem.or(home.link_elem))
+fn var_trace_query(interp: &Interp, name: &[u8]) -> Result<crate::vars::TraceHome, VarError> {
+    let protocol = interp.require_variable_name_protocol()?;
+    let input = protocol
+        .trace_query_input(name)
+        .map_err(|_| VarError::NameProtocolUnavailable)?;
+    let (base, elem) = interp.variable_name_parts(input.selected())?;
+    let mut home = interp.trace_identity(&base);
+    // An element alias selects the same physical registration list as the
+    // element spelling, even while that array generation is detached.
+    home.link_elem = elem.or(home.link_elem);
+    Ok(home)
 }
 
 /// Install or remove one variable trace, shared by `trace add|remove variable`
@@ -673,7 +693,18 @@ fn var_trace_apply(
     old_style: bool,
 ) -> Code {
     if is_add {
-        let (base, spelled_elem) = split_array_ref(&name);
+        let protocol = match interp.require_variable_name_protocol() {
+            Ok(protocol) => protocol,
+            Err(error) => return trace_var_error(interp, &name, error),
+        };
+        let input = match protocol.trace_registration_input(&name) {
+            Ok(input) => input,
+            Err(_) => return trace_var_error(interp, &name, VarError::NameProtocolUnavailable),
+        };
+        let (base, spelled_elem) = match interp.variable_name_parts(input.selected()) {
+            Ok(parts) => parts,
+            Err(error) => return trace_var_error(interp, &name, error),
+        };
         // An alias for an array *element* (`upvar #0 a(k) e`) is a trace on that
         // element: C hangs it off the element's `Var`, which the alias and the
         // spelling `a(k)` share, so `trace add variable e …` and
@@ -689,10 +720,8 @@ fn var_trace_apply(
         // An alias already names a live element cell, so there is nothing to
         // create — and vivifying `e` as a scalar or an array would both be
         // wrong.
-        let vivify = if linked_elem.is_some() {
-            Ok(())
-        } else if elem.is_some() {
-            interp.ensure_array(&base)
+        let vivify = if let Some(key) = elem.as_deref() {
+            interp.ensure_trace_element(&base, key)
         } else {
             interp.ensure_trace_variable(&base)
         };
@@ -717,11 +746,13 @@ fn var_trace_apply(
         table.next_var_trace_id += 1;
         table.traces.push(VarTrace {
             id,
+            binding_id: home.binding_id,
             name,
             base: home.base,
             elem,
             ops,
             command,
+            native: None,
             frame_level: home.level,
             ns: home.ns,
             old_style,
@@ -729,7 +760,10 @@ fn var_trace_apply(
         drop(table);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
-        let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
+        let query = match var_trace_query(interp, &name) {
+            Ok(query) => query,
+            Err(error) => return trace_var_error(interp, &name, error),
+        };
         let pos = interp
             .traces
             .borrow()
@@ -741,13 +775,23 @@ fn var_trace_apply(
             // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
             // here.
             .rposition(|t| {
-                same_variable(t, &q_base, q_ns, q_level)
-                    && t.elem == q_elem
+                same_variable(t, &query.base, query.ns, query.level)
+                    && t.binding_id == query.binding_id
+                    && t.elem == query.link_elem
                     && t.ops == ops
+                    && t.native.is_none()
                     && t.command == command
             });
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
+            let traced = interp.traces.borrow().traces.iter().any(|trace| {
+                same_variable(trace, &query.base, query.ns, query.level)
+                    && trace.binding_id == query.binding_id
+                    && trace.elem == query.link_elem
+            });
+            if !traced {
+                interp.cleanup_trace_shell(&query, query.link_elem.as_deref());
+            }
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
         }
     }
@@ -762,18 +806,25 @@ fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace info variable name");
     }
     let name = obj_bytes(argv[3]);
-    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
+    let query = match var_trace_query(interp, &name) {
+        Ok(query) => query,
+        Err(error) => return trace_var_error(interp, &name, error),
+    };
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
+        if t.native.is_some()
+            || !same_variable(t, &query.base, query.ns, query.level)
+            || t.binding_id != query.binding_id
+            || t.elem != query.link_elem
+        {
             continue;
         }
         let op_objs: Vec<*mut TclObj> = t.ops.iter().map(|o| new_string(o)).collect();
-        let ops_list = crate::list::new_list_obj(&op_objs);
+        let ops_list = interp.new_list_object(&op_objs);
         let cmd = new_string(&t.command);
-        entries.push(crate::list::new_list_obj(&[ops_list, cmd]));
+        entries.push(interp.new_list_object(&[ops_list, cmd]));
     }
-    interp.set_result(crate::list::new_list_obj(&entries));
+    interp.set_result(interp.new_list_object(&entries));
     Code::Ok
 }
 
@@ -814,17 +865,24 @@ fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace vinfo name");
     }
     let name = obj_bytes(argv[2]);
-    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
+    let query = match var_trace_query(interp, &name) {
+        Ok(query) => query,
+        Err(error) => return trace_var_error(interp, &name, error),
+    };
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
+        if t.native.is_some()
+            || !same_variable(t, &query.base, query.ns, query.level)
+            || t.binding_id != query.binding_id
+            || t.elem != query.link_elem
+        {
             continue;
         }
         let letters = new_string(core_trace::legacy_ops_letters(&t.ops).as_bytes());
         let cmd = new_string(&t.command);
-        entries.push(crate::list::new_list_obj(&[letters, cmd]));
+        entries.push(interp.new_list_object(&[letters, cmd]));
     }
-    interp.set_result(crate::list::new_list_obj(&entries));
+    interp.set_result(interp.new_list_object(&entries));
     Code::Ok
 }
 
@@ -834,9 +892,13 @@ mod tests {
     use crate::interp::{Code, Interp};
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
+        leak_free_with(Interp::new, body);
+    }
+
+    fn leak_free_with(create: impl FnOnce() -> Interp, body: impl FnOnce(&mut Interp)) {
         counters::reset();
         {
-            let mut interp = Interp::new();
+            let mut interp = create();
             body(&mut interp);
         }
         assert_eq!(
@@ -858,6 +920,69 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn execution_trace_epochs_follow_only_native_hook_boundaries() {
+        use tcl_dialect::TclVersion;
+        use tcl_runtime_api::native_compilation::NativeCompilerHookPresence;
+        fn uncompiled(_: &mut Interp, _: &[*mut crate::obj::TclObj]) -> Code {
+            Code::Ok
+        }
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            leak_free_with(
+                || {
+                    Interp::with_native_core(
+                        crate::interp::default_host(),
+                        crate::environment::profile_for_dialect(version.dialect_name()),
+                        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+                    )
+                    .unwrap()
+                },
+                |i| {
+                    i.register_builtin(b"uncompiled", uncompiled);
+                    let set = i.resolve_cmd_token(b"set").unwrap();
+                    let other = i.resolve_cmd_token(b"uncompiled").unwrap();
+                    assert_eq!(
+                        i.namespaces().native_compiler_hook(set),
+                        Some(NativeCompilerHookPresence::Present),
+                    );
+                    assert_eq!(
+                        i.namespaces().native_compiler_hook(other),
+                        Some(NativeCompilerHookPresence::Absent),
+                    );
+                    let epochs = |i: &Interp| {
+                        i.namespaces()
+                            .native_compiler_cache_epochs(crate::namespace::GLOBAL)
+                            .unwrap()
+                    };
+                    let (before, resolver) = epochs(i);
+                    ok(i, b"trace add command set rename observer");
+                    assert_eq!(epochs(i), (before, resolver));
+                    ok(i, b"trace add execution set enter observer");
+                    assert_eq!(epochs(i), (before + 1, resolver));
+                    ok(i, b"trace add execution set leave other_observer");
+                    assert_eq!(epochs(i), (before + 1, resolver));
+                    ok(i, b"trace remove execution set enter missing_observer");
+                    assert_eq!(epochs(i), (before + 1, resolver));
+                    ok(i, b"trace remove execution set enter observer");
+                    assert_eq!(epochs(i), (before + 1, resolver));
+                    ok(i, b"trace remove command set rename observer");
+                    assert_eq!(epochs(i), (before + 1, resolver));
+                    ok(i, b"trace remove execution set leave other_observer");
+                    assert_eq!(epochs(i), (before + 2, resolver));
+                    ok(i, b"trace add execution uncompiled enter observer");
+                    ok(i, b"trace remove execution uncompiled enter observer");
+                    assert_eq!(epochs(i), (before + 2, resolver));
+                },
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,1 @@
+namespace eval n {proc upvar args {return LOCAL}}; set linked [namespace eval n {namespace upvar missing a; set {} VALUE; set ::n::missing::a}]; rename upvar original_upvar; proc upvar args {list FORWARD {*}$args}; list $linked [namespace upvar missing a]

@@ -1,0 +1,3 @@
+#include <stdio.h>
+#include "tcl.h"
+int main(int argc,char**argv){int route;(void)argc;Tcl_FindExecutable(argv[0]);for(route=0;route<2;route++){Tcl_Interp*i=Tcl_CreateInterp();Tcl_Obj *first,*second;const char*call=route?"f":"$cmd";Tcl_Eval(i,"proc f {} {list}; set cmd list");Tcl_Eval(i,call);first=Tcl_GetObjResult(i);Tcl_IncrRefCount(first);printf("route=%d first=%s ",route,first->typePtr?first->typePtr->name:"string");(void)Tcl_ConvertToType(NULL,first,Tcl_GetObjType("list"));printf("primed=%s ",first->typePtr?first->typePtr->name:"string");Tcl_Eval(i,call);second=Tcl_GetObjResult(i);printf("same=%d second=%s\n",first==second,second->typePtr?second->typePtr->name:"string");Tcl_DecrRefCount(first);Tcl_DeleteInterp(i);}Tcl_Finalize();return 0;}

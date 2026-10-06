@@ -1,0 +1,4 @@
+fresh_compiled|0|YES|SAFE|0|0|0
+poison_compiled|0|NO|DUPLICATE|1|0|1
+later_compiled|0|NO|DUPLICATE|1|0|1
+generic_same_pool|0|NO|ELEMENTS|0|1|1

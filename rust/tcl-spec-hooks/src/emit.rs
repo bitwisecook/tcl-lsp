@@ -167,7 +167,7 @@ impl Reading {
         let [name] = arguments else {
             return Err(misuse("option-present", "expected OPTION"));
         };
-        let name = text(name);
+        let name = text(name)?;
         let present = self
             .view
             .borrow()
@@ -181,7 +181,7 @@ impl Reading {
         let [name] = arguments else {
             return Err(misuse("option-value", "expected OPTION"));
         };
-        let name = text(name);
+        let name = text(name)?;
         Ok(self
             .view
             .borrow()
@@ -229,15 +229,19 @@ struct Verb {
     reading: Rc<Reading>,
 }
 
-fn text(value: &Value) -> String {
-    value.as_str().map_or_else(
-        || match value {
-            Value::Int(number) => number.to_string(),
-            Value::Double(number) => number.to_string(),
-            _ => String::new(),
-        },
-        str::to_owned,
-    )
+fn text(value: &Value) -> Result<String, EngineError> {
+    if let Some(bytes) = value.as_bytes() {
+        return std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| {
+            EngineError::ExecutionRefusal("SpecTcl metadata requires Unicode text".into())
+        });
+    }
+    match value {
+        Value::Int(number) => Ok(number.to_string()),
+        Value::Double(number) => Ok(number.to_string()),
+        _ => Err(EngineError::ExecutionRefusal(
+            "SpecTcl metadata requires a string or scalar value".into(),
+        )),
+    }
 }
 
 fn misuse(verb: &str, detail: &str) -> EngineError {
@@ -248,7 +252,7 @@ fn misuse(verb: &str, detail: &str) -> EngineError {
 }
 
 fn index_of(verb: &str, value: &Value) -> Result<usize, EngineError> {
-    text(value)
+    text(value)?
         .parse::<usize>()
         .map_err(|_| misuse(verb, "expected a word index"))
 }
@@ -256,10 +260,7 @@ fn index_of(verb: &str, value: &Value) -> Result<usize, EngineError> {
 /// Parse an `AppendedArity` the way the DSL spells it: `{Exactly N}`,
 /// `{AtLeast N}`, or `Unknown`.
 fn appended_arity(verb: &str, value: &Value) -> Result<AppendedArity, EngineError> {
-    let words: Vec<String> = value.as_list().map_or_else(
-        || text(value).split_whitespace().map(str::to_owned).collect(),
-        |items| items.iter().map(text).collect(),
-    );
+    let words = word_list(value)?;
     let count = |raw: Option<&String>| -> Result<u8, EngineError> {
         raw.ok_or_else(|| misuse(verb, "expected an arity count"))?
             .parse::<u8>()
@@ -328,7 +329,7 @@ impl HostCommand for Verb {
                 };
                 let index = u8::try_from(index_of(self.name, index)?)
                     .map_err(|_| misuse(self.name, "word index out of range"))?;
-                Emission::Role(index, role_by_name(self.name, &text(role))?)
+                Emission::Role(index, role_by_name(self.name, &text(role)?)?)
             }
             "prefix" => {
                 let [index, arity] = arguments else {
@@ -344,13 +345,13 @@ impl HostCommand for Verb {
                 };
                 let index = u8::try_from(index_of(self.name, index)?)
                     .map_err(|_| misuse(self.name, "word index out of range"))?;
-                Emission::Timing(index, timing_by_name(&text(timing))?)
+                Emission::Timing(index, timing_by_name(&text(timing)?)?)
             }
             "fold" => {
                 let [value] = arguments else {
                     return Err(misuse(self.name, "expected VALUE"));
                 };
-                Emission::Fold(text(value))
+                Emission::Fold(text(value)?)
             }
             "sink-applies" => Emission::SinkApplies,
             "sink-suppressed" => Emission::SinkSuppressed,
@@ -358,14 +359,14 @@ impl HostCommand for Verb {
                 let [message] = arguments else {
                     return Err(misuse(self.name, "expected MESSAGE"));
                 };
-                Emission::Reject(text(message))
+                Emission::Reject(text(message)?)
             }
             "invalid" => invalid_emission(arguments)?,
             "abstain" => {
                 let [reason] = arguments else {
                     return Err(misuse(self.name, "expected REASON"));
                 };
-                Emission::Abstain(decline_by_name(&text(reason))?)
+                Emission::Abstain(decline_by_name(&text(reason)?)?)
             }
             "missing-expr" => match arguments {
                 [] => Emission::MissingExpr(None),
@@ -415,17 +416,17 @@ fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let mut replacement = None;
     let mut rest = arguments.iter();
     while let Some(flag) = rest.next() {
-        let flag = text(flag);
+        let flag = text(flag)?;
         let value = rest
             .next()
             .ok_or_else(|| misuse("invalid", &format!("{flag} takes a value")))?;
         match flag.as_str() {
             "-index" => index = Some(index_of("invalid", value)?),
-            "-subject" => subject = Some(text(value)),
-            "-reason" => reason = Some(text(value)),
-            "-members" => members = word_list(value),
-            "-allowed" => allowed = word_list(value),
-            "-replacement" => replacement = Some(text(value)),
+            "-subject" => subject = Some(text(value)?),
+            "-reason" => reason = Some(text(value)?),
+            "-members" => members = word_list(value)?,
+            "-allowed" => allowed = word_list(value)?,
+            "-replacement" => replacement = Some(text(value)?),
             other => {
                 return Err(misuse("invalid", &format!("unknown flag \"{other}\"")));
             }
@@ -459,14 +460,14 @@ fn constraint_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     };
     let mut conflict = false;
     for flag in rest {
-        match text(flag).as_str() {
+        match text(flag)?.as_str() {
             "-conflict" => conflict = true,
             other => return Err(misuse("invalid", &format!("unknown flag \"{other}\""))),
         }
     }
     Ok(Emission::Constraint(ConstraintReport {
-        slot: constraint_slot(&text(slot))?,
-        message: text(message),
+        slot: constraint_slot(&text(slot)?)?,
+        message: text(message)?,
         conflict,
     }))
 }
@@ -503,22 +504,18 @@ fn consume_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let words = index_of("consume", count)?;
     let invalid = match rest {
         [] => None,
-        [flag, message] if text(flag) == "-invalid" => Some(text(message)),
+        [flag, message] if text(flag)? == "-invalid" => Some(text(message)?),
         _ => return Err(misuse("consume", "expected N ?-invalid MESSAGE?")),
     };
     Ok(Emission::Consume { words, invalid })
 }
 
-fn word_list(value: &Value) -> Vec<String> {
-    value.as_list().map_or_else(
-        || {
-            text(value)
-                .split_whitespace()
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        },
-        |items| items.iter().map(text).collect(),
-    )
+fn word_list(value: &Value) -> Result<Vec<String>, EngineError> {
+    if let Some(items) = value.as_list() {
+        items.iter().map(text).collect()
+    } else {
+        Ok(text(value)?.split_whitespace().map(str::to_owned).collect())
+    }
 }
 
 /// Build the verb commands a family injects, all sharing `sink`.
@@ -678,5 +675,27 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
                 HookAnswer::Constraints(reports)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn metadata_requires_an_explicit_unicode_view_of_native_bytes() {
+        let raw = tcl_engine_api::Value::string_bytes(&b"name\xFF"[..]);
+        assert!(matches!(
+            super::text(&raw),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        let words = tcl_engine_api::Value::list([tcl_engine_api::Value::string("ok"), raw]);
+        assert!(matches!(
+            super::word_list(&words),
+            Err(tcl_engine_api::EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(
+            super::text(&tcl_engine_api::Value::string_bytes(&b"k\0z"[..]))
+                .expect("Unicode NUL is exact"),
+            "k\0z"
+        );
     }
 }

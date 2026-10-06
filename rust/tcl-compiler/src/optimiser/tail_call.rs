@@ -88,12 +88,18 @@ fn lassign_supported(dialect: Option<&'static tcl_dialect::DialectProfile>) -> b
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let emit_o121 = tailcall_supported(ctx.dialect);
     for (qname, proc) in &cu.ir_module.procedures {
+        if !proc.body.is_authored_source() {
+            continue;
+        }
         let self_names = self_name_variants(qname);
         let mut sites: Vec<TailSite> = Vec::new();
         collect_tail_sites(ctx, &proc.body, &self_names, proc, &mut sites, emit_o121, 0);
 
         let total_self_calls = count_self_calls_in_script(ctx.source, &proc.body, &self_names);
-        if !sites.is_empty() && sites.len() == total_self_calls {
+        if !sites.is_empty()
+            && sites.len() == total_self_calls
+            && proc.body.is_fully_authored_source()
+        {
             // O122: every self-call is in tail position. Emit a
             // real source rewrite — restructure the proc body as
             // a `while {1}` loop, replacing each tail call with
@@ -303,6 +309,7 @@ fn count_self_calls_in_stmt(
     count: &mut usize,
 ) {
     match stmt {
+        Statement::NativeCall { .. } => *count = count.saturating_add(1),
         Statement::Call { command, args, .. } | Statement::Barrier { command, args, .. } => {
             if self_names.contains(command) {
                 *count += 1;
@@ -734,7 +741,7 @@ fn collect_tail_sites(
     emit_o121: bool,
     depth: u32,
 ) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     let Some(last) = script.statements.last() else {

@@ -59,12 +59,16 @@ examples include:
   (`rust/tcl-regex/tests/data/reg.test`) — Copyright © 1998, 1999 Henry
   Spencer; retained verbatim under Spencer's permissive regex license.
 
-The `tcl-regex` engine itself is an independent, idiomatic Rust reimplementation
-of the ARE semantics (not a transliteration of Spencer's C); its source is
-original work under the licensing options above. Spencer's permissive license
-allows reuse for any purpose, including relicensing derived work, provided the
-original notice is retained and the origin and nature of modifications are
-indicated — which this project does here and in the engine's documentation.
+The C Tcl ARE engine in `tcl-regex` is an independent, idiomatic Rust
+reimplementation of ARE semantics; its source is original work under the
+licensing options above. The separate Jim integer-program compiler and matcher
+in [`rust/tcl-regex/src/jim.rs`](rust/tcl-regex/src/jim.rs) is an altered Rust
+implementation of Jim's bundled `jimregexp` engine, originally Copyright © 1986
+University of Toronto, written by Henry Spencer, with Jim contributions by
+Steve Bennett. That file retains the original permissive notice and marks the
+implementation as altered. The notice permits use and redistribution for any
+purpose, disclaims author responsibility, and requires that the original origin
+and altered nature are not misrepresented.
 
 When a third-party component's license imposes obligations (such as retaining a
 copyright notice), those obligations continue to apply regardless of which of

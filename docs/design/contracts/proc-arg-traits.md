@@ -39,6 +39,37 @@ depend on:
 `ProcArgTrait::as_str` is the stable lower-case serialisation used on the
 wire (MCP, explorer payloads); it is the only place the spellings are fixed.
 
+## Original input provenance
+
+Positioned scans retain the declaration's original formal recipe, exact body
+source and declared frame. `symbolic_declaration_formal_value_at` and
+`symbolic_declaration_formal_components_in_word` select that immutable
+declaration frame for `param_traits` and caller-frame advice, independently of
+entered-call values. The component query accepts direct original argument
+components; nested command-result reads cannot donate an outer component.
+`symbolic_formal_value_at` retains its separate original-read and independently
+entered-frame purpose. Incoming ordinary
+formals and source-attested reaching copies can represent the input; an upvar
+alias's contents cannot represent the parameter string that named its target.
+Replacing a formal retires its original input identity. A copy made before that
+replacement can retain the input if its own cell remains unchanged.
+
+The query follows copy dependencies with an explicit work list and requires all
+owned frame alternatives to agree. Observer uncertainty, dynamic bindings,
+foreign source stores, unsupported copy operations and unresolved alternatives
+withdraw the identity. Variable spelling is parsed under the retained dialect,
+including literal braced names, numeric names and Unicode names. Each original
+word has its own frozen read identity; a nested command's parameter reads do
+not establish that its result is the parameter value.
+
+Role advice keeps each selected candidate's operation, argument mapping and
+traits together. Nominal catalogue roles and declared stub roles remain
+separate from implementation evidence. A conditional owned declaration can
+supply symbolic input usage and a caller-name template; it does not establish
+runtime execution, a physical caller target, actual values or completed writes.
+Caller navigation instantiates the template through the original selected call
+and the shared dialect-specific formal argument binder.
+
 ## Two passes
 
 **Shallow** — `infer_param_traits(params, body_source, env)` scans top-level

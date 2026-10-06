@@ -53,6 +53,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tell",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `surface: Some(SpecSurface::ALL_TCL)`. F5 iRules bans `tell` — the
         // sandboxed TMM interpreter has no real filesystem/channel-seek
         // support — and under the explicit-per-spec model that ban is carried

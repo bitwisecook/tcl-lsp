@@ -45,10 +45,29 @@
 //! `memory-management.md` MM-B.6) lands with the eval loop; the C-API
 //! boundary is immediate, which is what `Tcl_DecrRefCount` documents.
 
+mod native_jim_lookup;
+pub(crate) use native_jim_lookup::{
+    install_command_cache as install_jim_command_cache,
+    install_variable_cache as install_jim_variable_cache,
+    with_command_cache as with_jim_command_cache, with_variable_cache as with_jim_variable_cache,
+};
+pub(crate) use native_jim_lookup::{JimCommandCache, JimVariableCache};
+
 use core::ffi::{c_char, c_void};
 use std::alloc::{alloc, dealloc, realloc, Layout};
+use std::{
+    any::Any,
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use crate::counters;
+
+pub(crate) mod native_index;
+pub(crate) mod native_instruction_name;
+pub(crate) mod native_lambda_expression;
+pub(crate) mod native_namespace_name;
+pub(crate) mod native_variable_name;
 
 /// `Tcl_Size` — `ptrdiff_t` in `tcl.h` (Tcl 9 width-agnostic size type).
 pub type TclSize = isize;
@@ -80,6 +99,227 @@ pub struct TclObjType {
 // to a `'static` NUL-terminated byte string. They are read-only and shared.
 unsafe impl Sync for TclObjType {}
 
+/// Jim's native string internal representation retains the prescribed character
+/// count independently of byte length. Bytes always exist for this type.
+pub(crate) static JIM_STRING_TYPE: TclObjType = TclObjType {
+    name: c"string".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+/// Native C string representation. Count is computed under the current selected
+/// model, so repinning an interpreter cannot reuse a different model's cache.
+#[derive(Clone)]
+struct NativeStringRep {
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    count: Option<usize>,
+    unicode: Option<std::rc::Rc<[u32]>>,
+}
+
+extern "C" fn native_string_free(value: *mut TclObj) {
+    // SAFETY: this exact descriptor owns the boxed backing.
+    unsafe {
+        drop(Box::from_raw(
+            internal_rep(value) as usize as *mut NativeStringRep
+        ))
+    };
+}
+
+extern "C" fn native_string_dup(value: *mut TclObj, duplicate: *mut TclObj) {
+    // SAFETY: the exact descriptor owns a live backing and duplicate is fresh.
+    let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+    if !backing
+        .protocol
+        .string_primary_survives_duplicate(backing.count)
+    {
+        return;
+    }
+    let copied = Box::new(backing.clone());
+    change_type(
+        duplicate,
+        &NATIVE_STRING_TYPE,
+        Box::into_raw(copied) as usize as u64,
+    );
+}
+
+extern "C" fn native_string_update(value: *mut TclObj) {
+    // SAFETY: the exact descriptor owns the live backing. A stringless native
+    // String is created only with validated retained Unicode units.
+    let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+    let Some(unicode) = &backing.unicode else {
+        if backing.count == Some(0) {
+            // SAFETY: the selected zero-count constructor owns a live empty String.
+            unsafe { set_string_rep(value, b"") };
+        }
+        return;
+    };
+    let version = backing
+        .protocol
+        .tcl_version()
+        .expect("native C String backing");
+    let bytes = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+        .encode_units(unicode)
+        .expect("validated native Unicode unit width");
+    // SAFETY: the owned encoded extent remains live through its buffer copy.
+    unsafe { set_string_rep(value, &bytes) };
+}
+
+static NATIVE_STRING_TYPE: TclObjType = TclObjType {
+    name: c"string".as_ptr(),
+    free_int_rep_proc: Some(native_string_free),
+    dup_int_rep_proc: Some(native_string_dup),
+    update_string_proc: Some(native_string_update),
+    set_from_any_proc: None,
+};
+
+/// Record a successful native string coercion after its bytes were retained.
+fn retain_native_string_count(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    count: usize,
+) {
+    let backing = Box::new(NativeStringRep {
+        protocol,
+        count: Some(count),
+        unicode: None,
+    });
+    change_type(
+        value,
+        &NATIVE_STRING_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    );
+}
+
+/// Reach the selected actual character-count protocol on the original object.
+pub(crate) fn native_character_count(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    representation: tcl_registry::native_string_length::NativeStringLengthRepresentation,
+) -> Result<usize, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    if !native_string_available(value) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native string length storage",
+        ));
+    }
+    if let Some(length) = crate::bytearray::native_string_length(value, representation) {
+        return Ok(length);
+    }
+    if representation.preserves_short_string()
+        && has_string_rep(value)
+        && unsafe { (*value).length } <= 1
+    {
+        return Ok(unsafe { (*value).length as usize });
+    }
+    if protocol.is_jim084() {
+        drop(crate::dict::native_object_bytes(value, protocol)?);
+        return Ok(jim_character_count(value));
+    }
+    if core::ptr::eq(obj_type_ptr(value), &NATIVE_STRING_TYPE) {
+        // SAFETY: the exact descriptor owns this live backing.
+        let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+        if backing.protocol != protocol {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native string count cache origin",
+            ));
+        }
+        if let Some(count) = backing.count {
+            return Ok(count);
+        }
+    }
+    let bytes = crate::dict::native_object_bytes(value, protocol)?;
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native character units",
+        ))?;
+    let count = tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+        .decode_units(&bytes)
+        .len();
+    retain_native_string_count(value, protocol, count);
+    Ok(count)
+}
+
+/// Install an actual Jim string result's native cached count without changing bytes.
+pub(crate) fn retain_jim_string_count(value: *mut TclObj, count: usize) {
+    change_type(
+        value,
+        &JIM_STRING_TYPE,
+        u64::try_from(count).expect("native character count fits u64"),
+    );
+}
+
+/// Install Jim's string intrep without calculating its unknown character count.
+/// Native string operations preserve an existing cached count across conversion.
+pub(crate) fn retain_jim_string_representation(value: *mut TclObj) {
+    if !core::ptr::eq(obj_type_ptr(value), &JIM_STRING_TYPE) {
+        change_type(value, &JIM_STRING_TYPE, u64::MAX);
+    }
+}
+
+/// Retain the actual unknown-count String primary of an append/format producer.
+/// Existing resident bytes remain owned by the same original object header.
+pub(crate) fn retain_native_string_representation(
+    value: *mut TclObj,
+    protocol: tcl_registry::native_string_materialization::NativeStringMaterialization,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if !has_string_rep(value) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native String producer resident storage",
+        ));
+    }
+    if protocol.protocol().is_jim084() {
+        retain_jim_string_representation(value);
+    } else {
+        let backing = Box::new(NativeStringRep {
+            protocol: protocol.protocol(),
+            count: None,
+            unicode: None,
+        });
+        change_type(
+            value,
+            &NATIVE_STRING_TYPE,
+            Box::into_raw(backing) as usize as u64,
+        );
+    }
+    Ok(())
+}
+
+/// Apply a uniquely owned Jim suffix cut, preserving its current count receipt.
+pub(crate) fn trim_jim_string_bytes(value: *mut TclObj, bytes: &[u8]) {
+    debug_assert!(!is_shared(value));
+    revoke_script_location(value);
+    // SAFETY: the caller holds the live, unshared object and an independent
+    // byte snapshot. Its existing string intrep and cached count are retained.
+    unsafe { set_string_rep(value, bytes) };
+}
+
+/// Current native Jim string count; any internal-representation conversion
+/// withdraws this receipt through the central type-change door.
+pub(crate) fn jim_string_count(value: *mut TclObj) -> Option<usize> {
+    // SAFETY: the value is live for its caller's object operation.
+    unsafe {
+        (std::ptr::eq((*value).type_ptr, &JIM_STRING_TYPE) && (*value).internal_rep != u64::MAX)
+            .then(|| {
+                usize::try_from((*value).internal_rep).expect("native cached count fits usize")
+            })
+    }
+}
+
+/// Jim's actual string count conversion. Reuse the object's current cache;
+/// otherwise install the count of the original native byte units.
+pub(crate) fn jim_character_count(value: *mut TclObj) -> usize {
+    if let Some(count) = jim_string_count(value) {
+        return count;
+    }
+    let bytes = tcl_syntax::raw_string::RawString::from_bytes(bytes_of(value));
+    let count = bytes.jim084_characters().count();
+    retain_jim_string_count(value, count);
+    count
+}
+
 /// The `int` (wide) type descriptor. `typePtr == &TCL_INT_TYPE` ⇒ the value is
 /// in `internal_rep` as a `TclWideInt`; `bytes` may be null until shimmered.
 pub static TCL_INT_TYPE: TclObjType = TclObjType {
@@ -89,6 +329,34 @@ pub static TCL_INT_TYPE: TclObjType = TclObjType {
     update_string_proc: Some(int_update_string),
     set_from_any_proc: None,
 };
+/// C Tcl 8.4 native-long primary cache, distinct from its wideInt cache.
+pub(crate) static TCL_LONG84_TYPE: TclObjType = TclObjType {
+    name: c"int".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(int_update_string),
+    set_from_any_proc: None,
+};
+/// Jim's explicit double getter preserves the exact wide integer. The string
+/// updater remains integer-based, and a subsequent wide getter restores Int.
+pub(crate) static JIM_COERCED_DOUBLE_TYPE: TclObjType = TclObjType {
+    name: c"coerced-double".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(int_update_string),
+    set_from_any_proc: None,
+};
+
+/// Jim_GetWide restores the same retained integer without reparsing bytes.
+pub(crate) fn restore_jim_coerced_integer(value: *mut TclObj) -> Option<i64> {
+    if !core::ptr::eq(obj_type_ptr(value), &JIM_COERCED_DOUBLE_TYPE) {
+        return None;
+    }
+    let integer = wide_of(value);
+    change_type(value, &TCL_INT_TYPE, integer as u64);
+    Some(integer)
+}
+
 /// The `double` type descriptor.
 pub static TCL_DOUBLE_TYPE: TclObjType = TclObjType {
     name: c"double".as_ptr(),
@@ -106,12 +374,84 @@ extern "C" fn int_update_string(obj: *mut TclObj) {
     }
 }
 
+type ObjectScriptLocation =
+    tcl_runtime_api::script_source_location::ScriptSourceLocation<Option<std::rc::Rc<[u8]>>>;
+
+thread_local! {
+    // Metadata follows the value object, without changing the public C header.
+    // Retiring the header removes its entry before its address can be reused.
+    static SCRIPT_LOCATIONS: std::cell::RefCell<std::collections::HashMap<usize, ObjectScriptLocation>> = std::cell::RefCell::new(std::collections::HashMap::new());
+    // C's UpdateStringProc has no interpreter argument. Like Tcl_PrintDouble,
+    // the selected engine owns the thread's string conversion and shared
+    // precision. Child interpreters inherit the existing precision entry.
+    static DOUBLE_STRING_POLICY: std::cell::Cell<tcl_dialect::DoubleStringPolicy> =
+        const { std::cell::Cell::new(tcl_dialect::DoubleStringPolicy::Shortest) };
+    static DOUBLE_PRECISIONS: std::cell::RefCell<std::collections::HashMap<tcl_dialect::DoubleStringPolicy, u8>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+/// Retain the actual original literal's byte-preserving file and creation line.
+pub(crate) fn retain_script_location(obj: *mut TclObj, file: Option<std::rc::Rc<[u8]>>, line: u32) {
+    SCRIPT_LOCATIONS.with(|locations| {
+        locations
+            .borrow_mut()
+            .insert(obj as usize, ObjectScriptLocation { file, line })
+    });
+}
+
+/// Source metadata of the same live value object, never a lookup by its bytes.
+pub(crate) fn script_location(obj: *mut TclObj) -> Option<(Option<std::rc::Rc<[u8]>>, u32)> {
+    SCRIPT_LOCATIONS.with(|locations| {
+        locations
+            .borrow()
+            .get(&(obj as usize))
+            .map(|location| (location.file.clone(), location.line))
+    })
+}
+
+fn revoke_script_location(obj: *mut TclObj) {
+    SCRIPT_LOCATIONS.with(|locations| locations.borrow_mut().remove(&(obj as usize)));
+}
+
+/// Install the native lazy double conversion of the executing engine.
+pub(crate) fn install_double_string_policy(policy: tcl_dialect::DoubleStringPolicy) {
+    DOUBLE_STRING_POLICY.set(policy);
+    DOUBLE_PRECISIONS.with(|values| {
+        values
+            .borrow_mut()
+            .entry(policy)
+            .or_insert(policy.default_precision());
+    });
+}
+
+/// C Tcl's thread-shared linked precision, independently of a variable's raw value.
+pub(crate) fn double_precision(policy: tcl_dialect::DoubleStringPolicy) -> u8 {
+    DOUBLE_PRECISIONS.with(|values| {
+        *values
+            .borrow_mut()
+            .entry(policy)
+            .or_insert(policy.default_precision())
+    })
+}
+
+/// Commit a precision accepted by the shared native trace grammar.
+pub(crate) fn set_double_precision(policy: tcl_dialect::DoubleStringPolicy, precision: u8) {
+    debug_assert!(policy.format(precision).is_some());
+    DOUBLE_PRECISIONS.with(|values| {
+        values.borrow_mut().insert(policy, precision);
+    });
+}
+
 extern "C" fn double_update_string(obj: *mut TclObj) {
     // SAFETY: `obj` is a live double object. The canonical Tcl double→string is
     // the shared `tcl_syntax::number::format_double` (also used by the compiler's
     // const-folder) — integer-valued doubles get `.0`, plus `Inf`/`NaN`.
     unsafe {
-        let s = tcl_syntax::number::format_double((*obj).double());
+        let policy = DOUBLE_STRING_POLICY.get();
+        let format = policy
+            .format(double_precision(policy))
+            .expect("validated native precision");
+        let s = tcl_syntax::number::format_double_native_selected((*obj).double(), policy, format);
         set_owned_string(obj, s.as_ptr(), s.len());
     }
 }
@@ -128,6 +468,148 @@ pub struct TclObj {
     pub internal_rep: u64,
 }
 
+// The exported header remains exactly TclObj. Allocation bookkeeping follows
+// it and is never part of the extension ABI or a native cache descriptor.
+#[repr(C)]
+struct ObjectAllocation {
+    object: TclObj,
+    auxiliary: ObjectAuxiliary,
+}
+struct ObjectAuxiliary {
+    lifetime_pins: Cell<usize>,
+    live: Cell<bool>,
+    retiring: Cell<bool>,
+    cache: RefCell<Option<Rc<dyn Any>>>,
+}
+
+fn auxiliary(value: *mut TclObj) -> &'static ObjectAuxiliary {
+    // SAFETY: all runtime object headers originate at this sole allocator and
+    // TclObj is the first field. The caller must retain a native or lifetime owner.
+    unsafe { &(*(value.cast::<ObjectAllocation>())).auxiliary }
+}
+
+pub(crate) fn allocation_cache<T: Any>(value: *mut TclObj) -> Option<Rc<T>> {
+    auxiliary(value)
+        .cache
+        .borrow()
+        .as_ref()?
+        .clone()
+        .downcast()
+        .ok()
+}
+
+pub(crate) fn set_allocation_cache<T: Any>(value: *mut TclObj, cache: Rc<T>) {
+    assert!(
+        allocation_is_live(value),
+        "cache installation on a retired object"
+    );
+    let retired = auxiliary(value).cache.replace(Some(cache));
+    drop(retired);
+}
+
+pub(crate) fn allocation_is_live(value: *mut TclObj) -> bool {
+    auxiliary(value).live.get()
+}
+
+/// Validate a retained allocation before reading or changing its native header.
+pub(crate) fn check_native_liveness(
+    value: *mut TclObj,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if value.is_null() || !allocation_is_live(value) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "retired native object",
+        ));
+    }
+    Ok(())
+}
+
+/// Memory safety lease with no native object reference. A native decr-to-zero
+/// still retires the cache and its children immediately while this holds only
+/// the allocation. A retired object cannot be promoted back into a native owner.
+pub(crate) struct NativeObjectLifetime(*mut TclObj);
+impl NativeObjectLifetime {
+    pub(crate) fn as_ptr(&self) -> *mut TclObj {
+        self.0
+    }
+    pub(crate) fn retain(value: *mut TclObj) -> Self {
+        let state = auxiliary(value);
+        assert!(state.live.get(), "lifetime lease on a retired object");
+        state.lifetime_pins.set(
+            state
+                .lifetime_pins
+                .get()
+                .checked_add(1)
+                .expect("object lifetime pins"),
+        );
+        Self(value)
+    }
+}
+impl Clone for NativeObjectLifetime {
+    fn clone(&self) -> Self {
+        let state = auxiliary(self.0);
+        state.lifetime_pins.set(
+            state
+                .lifetime_pins
+                .get()
+                .checked_add(1)
+                .expect("object lifetime pins"),
+        );
+        Self(self.0)
+    }
+}
+
+/// A borrowed object pointer provided by either a genuine reference or an
+/// allocation-only procedure view. Native receivers acquire their own roles.
+pub trait ObjectPointer {
+    /// Borrow the selected original allocation.
+    fn as_ptr(&self) -> *mut TclObj;
+}
+
+/// Memory-safe view of a procedure object without a native object reference.
+/// A surviving view cannot revive resources retired by the last native role.
+#[derive(Clone)]
+pub struct ProcedureObject(NativeObjectLifetime);
+impl ProcedureObject {
+    pub(crate) fn retain_lifetime(original: &Owned) -> Self {
+        Self(NativeObjectLifetime::retain(original.as_ptr()))
+    }
+    /// Borrow the original address; consumers must check native liveness before
+    /// performing a native operation.
+    #[must_use]
+    pub fn as_ptr(&self) -> *mut TclObj {
+        self.0 .0
+    }
+    /// Select a live original header without acquiring a native reference.
+    pub(crate) fn checked_ptr(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        allocation_is_live(self.as_ptr())
+            .then_some(self.as_ptr())
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "retired native procedure object",
+            ))
+    }
+}
+impl ObjectPointer for ProcedureObject {
+    fn as_ptr(&self) -> *mut TclObj {
+        self.as_ptr()
+    }
+}
+impl Drop for NativeObjectLifetime {
+    fn drop(&mut self) {
+        let state = auxiliary(self.0);
+        let remaining = state
+            .lifetime_pins
+            .get()
+            .checked_sub(1)
+            .expect("object lifetime retirement");
+        state.lifetime_pins.set(remaining);
+        if remaining == 0 && !state.live.get() && !state.retiring.get() {
+            // SAFETY: all native resources were retired at the actual free
+            // boundary, and this is the last memory safety owner.
+            unsafe { deallocate_object(self.0) };
+        }
+    }
+}
+
 impl TclObj {
     #[inline]
     fn wide(&self) -> TclWideInt {
@@ -140,13 +622,95 @@ impl TclObj {
     }
 }
 
+/// An owned object reference (`rc +1`) that releases on drop — the discipline
+/// that keeps the shared recursive walk leak-/double-free-safe across early
+/// returns.
+pub struct Owned(*mut TclObj);
+
+impl ObjectPointer for Owned {
+    fn as_ptr(&self) -> *mut TclObj {
+        self.as_ptr()
+    }
+}
+
+impl Owned {
+    /// Take an existing owning reference without retaining the original again.
+    ///
+    /// # Safety
+    /// The caller must transfer one live, independently owned `+1` reference.
+    pub(crate) unsafe fn from_raw(o: *mut TclObj) -> Owned {
+        Owned(o)
+    }
+
+    /// Take an owning `+1` on a live object (e.g. a variable's store value).
+    pub(crate) fn retain(o: *mut TclObj) -> Owned {
+        // SAFETY: `o` is a live object.
+        unsafe { incr_ref_count(o) };
+        Owned(o)
+    }
+
+    /// Adopt a freshly-minted (`rc 0`) object, taking it to `rc 1`.
+    pub(crate) fn fresh(o: *mut TclObj) -> Owned {
+        // SAFETY: `o` is a fresh object from a constructor / tower op.
+        unsafe { incr_ref_count(o) };
+        Owned(o)
+    }
+
+    #[cfg(have_tommath)]
+    #[inline]
+    pub(crate) fn ptr(&self) -> *mut TclObj {
+        self.0
+    }
+
+    /// The borrowed object pointer (the `+1` stays with this `Owned`). Callers
+    /// that retain it (e.g. `Tcl_SetObjResult`, which takes its own `+1`) read
+    /// through this and let the `Owned` drop its reference normally.
+    #[inline]
+    #[must_use]
+    pub fn as_ptr(&self) -> *mut TclObj {
+        self.0
+    }
+
+    /// Hand the `+1` to the caller without releasing it here.
+    pub fn into_raw(self) -> *mut TclObj {
+        let o = self.0;
+        core::mem::forget(self);
+        o
+    }
+
+    /// Reverse the genuine interpolation reference without freeing a native
+    /// refcount-zero result header. The next real receiver must retain it.
+    pub(crate) fn into_native_unowned(self) -> *mut TclObj {
+        let value = self.into_raw();
+        // SAFETY: this consumed Owned held exactly one genuine reference.
+        unsafe {
+            assert!((*value).ref_count > 0, "owned interpolation reference");
+            (*value).ref_count -= 1;
+        }
+        value
+    }
+}
+
+impl Clone for Owned {
+    fn clone(&self) -> Self {
+        Self::retain(self.0)
+    }
+}
+
+impl Drop for Owned {
+    fn drop(&mut self) {
+        // SAFETY: `self.0` is the object we hold a `+1` on.
+        unsafe { decr_ref_count(self.0) };
+    }
+}
+
 // Allocation — the single allocator (§4.4). Natively this is the Rust global
 // allocator; on wasm it becomes the one shared-memory allocator. Every
 // header and every owned string buffer is counted so the leak gate can prove
 // balance.
 
 fn obj_layout() -> Layout {
-    Layout::new::<TclObj>()
+    Layout::new::<ObjectAllocation>()
 }
 
 /// Allocate a zeroed `TclObj` header at refCount 0 with no string rep.
@@ -165,6 +729,15 @@ fn obj_alloc() -> *mut TclObj {
         (*p).length = 0;
         (*p).type_ptr = core::ptr::null();
         (*p).internal_rep = 0;
+        core::ptr::write(
+            core::ptr::addr_of_mut!((*p.cast::<ObjectAllocation>()).auxiliary),
+            ObjectAuxiliary {
+                lifetime_pins: Cell::new(0),
+                live: Cell::new(true),
+                retiring: Cell::new(false),
+                cache: RefCell::new(None),
+            },
+        );
         counters::obj_alloced();
         p
     }
@@ -179,6 +752,15 @@ unsafe fn obj_free(obj: *mut TclObj) {
     if obj.is_null() {
         return;
     }
+    let state = auxiliary(obj);
+    if !state.live.replace(false) {
+        counters::double_free();
+        return;
+    }
+    state.retiring.set(true);
+    let retired_cache = state.cache.take();
+    revoke_script_location(obj);
+    crate::native_source::forget_context(obj);
     // SAFETY: caller guarantees `obj` is a live, uniquely-owned header.
     unsafe {
         // Dispatch the type's free-internal-rep proc (releases list elements,
@@ -190,9 +772,27 @@ unsafe fn obj_free(obj: *mut TclObj) {
             }
         }
         free_string_buffer(obj);
-        dealloc(obj as *mut u8, obj_layout());
+        (*obj).type_ptr = core::ptr::null();
+        (*obj).internal_rep = 0;
     }
+    drop(retired_cache);
     counters::obj_freed();
+    state.retiring.set(false);
+    if state.lifetime_pins.get() == 0 {
+        // SAFETY: no remaining native or lifetime owner can use this allocation.
+        unsafe { deallocate_object(obj) };
+    }
+}
+
+unsafe fn deallocate_object(obj: *mut TclObj) {
+    // SAFETY: caller owns the final allocation lease; its header has already
+    // released all native resources. Drop only the initialized auxiliary state.
+    unsafe {
+        core::ptr::drop_in_place(core::ptr::addr_of_mut!(
+            (*obj.cast::<ObjectAllocation>()).auxiliary
+        ));
+        dealloc(obj.cast(), obj_layout());
+    }
 }
 
 // Typed internal-rep helpers — the shimmer keystone's plumbing, used by the
@@ -229,6 +829,7 @@ pub(crate) fn obj_type_ptr(obj: *mut TclObj) -> *const TclObjType {
 /// string→typed shimmer (Tcl's dual-rep: the original spelling survives until
 /// the typed value is mutated, which invalidates it via [`invalidate_string`]).
 pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep: u64) {
+    let retired_cache = auxiliary(obj).cache.take();
     // SAFETY: `obj` is live; free the prior rep before overwriting `internal_rep`.
     unsafe {
         let old = (*obj).type_ptr;
@@ -248,6 +849,39 @@ pub(crate) fn change_type(obj: *mut TclObj, new_type: *const TclObjType, new_rep
         (*obj).type_ptr = new_type;
         (*obj).internal_rep = new_rep;
     }
+    drop(retired_cache);
+}
+
+/// Drop a reached cache while retaining exact resident storage and capacity.
+pub(crate) fn discard_native_internal_representation(
+    value: *mut TclObj,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    check_native_liveness(value)?;
+    if !has_string_rep(value) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native cache discard resident string",
+        ));
+    }
+    if obj_type_ptr(value).is_null() {
+        return Ok(());
+    }
+    let capacity = if has_canonical_empty_string(value) {
+        0
+    } else {
+        // SAFETY: a typed object's resident allocation has exactly length+1 bytes.
+        unsafe { (*value).length as usize + 1 }
+    };
+    change_type(value, core::ptr::null(), capacity as u64);
+    Ok(())
+}
+
+/// Reset the same unshared C result header to canonical empty storage.
+pub(crate) fn reset_native_c_result(value: *mut TclObj) {
+    debug_assert!(!is_shared(value));
+    // SAFETY: the interpreter owns this live unshared result. Publish its
+    // canonical empty bytes before releasing the previous internal backing.
+    unsafe { set_string_rep(value, b"") };
+    change_type(value, core::ptr::null(), 0);
 }
 
 /// Shrink a plain string's buffer to exactly `length + 1` so its cached rep can
@@ -290,6 +924,7 @@ unsafe fn shrink_string_to_exact(obj: *mut TclObj) {
 /// Invalidate the string rep (drop the buffer) so it regenerates via the type's
 /// `update_string_proc` on the next read — call after mutating a typed rep.
 pub(crate) fn invalidate_string(obj: *mut TclObj) {
+    revoke_script_location(obj);
     // SAFETY: `obj` is live; dropping its owned buffer is sound (it will be
     // regenerated lazily).
     unsafe { free_string_buffer(obj) }
@@ -302,6 +937,22 @@ pub(crate) fn invalidate_string(obj: *mut TclObj) {
 pub(crate) unsafe fn set_string_rep(obj: *mut TclObj, bytes: &[u8]) {
     // SAFETY: forwarded — `obj` live, slice readable.
     unsafe { set_owned_string(obj, bytes.as_ptr(), bytes.len()) }
+}
+
+/// Install the selected native updater storage without deriving canonical
+/// empty identity from byte contents alone.
+pub(crate) unsafe fn set_native_updater_string_rep(
+    obj: *mut TclObj,
+    bytes: &[u8],
+    canonical_empty: bool,
+) {
+    unsafe {
+        if bytes.is_empty() && !canonical_empty {
+            set_allocated_string(obj, bytes.as_ptr(), bytes.len());
+        } else {
+            set_owned_string(obj, bytes.as_ptr(), bytes.len());
+        }
+    }
 }
 
 /// Read a `TCL_INT_TYPE` object's wide value from its internal rep.
@@ -357,6 +1008,828 @@ pub(crate) fn cache_double_rep(obj: *mut TclObj, value: f64) {
     }
 }
 
+/// Numeric representation established by an actual reached native conversion.
+/// This is an execution effect, independently of opportunistic parse caching.
+pub(crate) enum NativeNumericRepresentation {
+    Wide(TclWideInt),
+    Double(f64),
+}
+
+/// Install a successful native operand conversion on the same shared object.
+/// Existing bytes survive, while a prior list/dict representation is destroyed
+/// exactly when the native conversion was reached. Callers must supply the
+/// selected engine's successfully parsed numeric value, never an optimisation
+/// approximation or a function's separately constructed result.
+pub(crate) fn adopt_native_numeric_representation(
+    obj: *mut TclObj,
+    representation: NativeNumericRepresentation,
+) {
+    // A container with only an internal representation must first retain its
+    // original bytes. Numeric objects retain their lazy native formatting.
+    if !has_string_rep(obj)
+        && !obj_type_ptr(obj).is_null()
+        && !std::ptr::eq(obj_type_ptr(obj), &TCL_INT_TYPE)
+        && !std::ptr::eq(obj_type_ptr(obj), &TCL_DOUBLE_TYPE)
+        && !std::ptr::eq(obj_type_ptr(obj), &JIM_COERCED_DOUBLE_TYPE)
+    {
+        let _ = bytes_of(obj);
+    }
+    match representation {
+        NativeNumericRepresentation::Wide(value) => {
+            change_type(obj, &TCL_INT_TYPE, value as u64);
+        }
+        NativeNumericRepresentation::Double(value) => {
+            change_type(obj, &TCL_DOUBLE_TYPE, value.to_bits());
+        }
+    }
+}
+
+/// Native word-boolean cache, distinct from a constructed integer boolean.
+static NATIVE_WORD_BOOLEAN_84_TYPE: TclObjType = TclObjType {
+    name: c"boolean".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: Some(int_update_string),
+    set_from_any_proc: None,
+};
+static NATIVE_WORD_BOOLEAN_85_TYPE: TclObjType = TclObjType {
+    name: c"booleanString".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+static NATIVE_WORD_BOOLEAN_86_TYPE: TclObjType = TclObjType {
+    name: c"booleanString".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+static NATIVE_WORD_BOOLEAN_90_TYPE: TclObjType = TclObjType {
+    name: c"boolean".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+static NATIVE_WORD_BOOLEAN_91_TYPE: TclObjType = TclObjType {
+    name: c"boolean".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+fn native_word_boolean_origin(kind: *const TclObjType) -> Option<tcl_dialect::TclVersion> {
+    use tcl_dialect::TclVersion;
+    [
+        (&NATIVE_WORD_BOOLEAN_84_TYPE, TclVersion::V8_4),
+        (&NATIVE_WORD_BOOLEAN_85_TYPE, TclVersion::V8_5),
+        (&NATIVE_WORD_BOOLEAN_86_TYPE, TclVersion::V8_6),
+        (&NATIVE_WORD_BOOLEAN_90_TYPE, TclVersion::V9_0),
+        (&NATIVE_WORD_BOOLEAN_91_TYPE, TclVersion::V9_1),
+    ]
+    .into_iter()
+    .find_map(|(descriptor, version)| core::ptr::eq(kind, descriptor).then_some(version))
+}
+
+/// Inspect the exact release of a native word-Boolean descriptor.
+pub(crate) fn native_word_boolean_version(value: *mut TclObj) -> Option<tcl_dialect::TclVersion> {
+    native_word_boolean_origin(obj_type_ptr(value))
+}
+
+/// Inspect original physical storage and cache without reaching any updater.
+pub(crate) fn native_object_snapshot(
+    value: *mut TclObj,
+) -> Result<tcl_syntax::native_object::NativeObjectSnapshot, tcl_syntax::value::ValueError> {
+    check_native_liveness(value)?;
+    use std::rc::Rc;
+    use tcl_syntax::native_object::{NativeObjectCacheSnapshot as Cache, NativeObjectSnapshot};
+    use tcl_syntax::native_string::NativeStringStorageIdentity as Storage;
+    let kind = obj_type_ptr(value);
+    let resident = has_string_rep(value).then(|| Rc::from(bytes_of(value)));
+    let storage = resident.as_ref().map(|_| {
+        if has_canonical_empty_string(value) {
+            Storage::CanonicalEmpty
+        } else {
+            Storage::Allocated
+        }
+    });
+    let cache = if kind.is_null() {
+        Cache::None
+    } else if core::ptr::eq(kind, &NATIVE_STRING_TYPE) {
+        // SAFETY: the exact descriptor owns the live backing.
+        let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+        Cache::String {
+            protocol: backing.protocol,
+            num_chars: backing.count,
+            unicode: backing.unicode.clone(),
+        }
+    } else if let Some(epoch) = with_jim_command_cache(value, |cache| cache.epoch) {
+        Cache::JimCommand {
+            procedure_epoch: epoch,
+        }
+    } else if let Some((frame, global)) =
+        with_jim_variable_cache(value, |cache| (cache.frame, cache.global))
+    {
+        Cache::JimVariable { frame, global }
+    } else if let Some(cache) = native_jim_enum::cache(value) {
+        match cache {
+            tcl_core_types::NativeJimOptionCache::Enum { entry, flags } => Cache::JimEnum {
+                flags,
+                index: entry.index(),
+            },
+            tcl_core_types::NativeJimOptionCache::ComparedString { .. } => Cache::JimComparedString,
+        }
+    } else if let Some(cache) = crate::interp::native_body_artifact::cache_snapshot(value) {
+        cache
+    } else if let Some(cache) = crate::native_script::cache_snapshot(value) {
+        cache
+    } else if let Some(cache) = crate::native_substitution::cache_snapshot(value) {
+        cache
+    } else if core::ptr::eq(kind, &JIM_STRING_TYPE) {
+        Cache::JimString {
+            num_chars: jim_string_count(value),
+        }
+    } else if let Some((bytes, proper)) = crate::bytearray::native_cache_snapshot(value) {
+        Cache::ByteArray { bytes, proper }
+    } else if let Some(version) = native_word_boolean_origin(kind) {
+        Cache::WordBoolean {
+            value: wide_of(value) != 0,
+            version,
+        }
+    } else if let Some((length, canonical)) = crate::list::native_cache_snapshot(value) {
+        Cache::List { length, canonical }
+    } else if let Some(size) = crate::dict::native_cache_size(value) {
+        Cache::Dictionary {
+            size,
+            pure: resident.is_none(),
+        }
+    } else if core::ptr::eq(kind, &NATIVE_COMMAND_NAME_TYPE) {
+        // SAFETY: the exact descriptor owns its immutable primary receipt.
+        let stored = unsafe { &*(internal_rep(value) as usize as *const NativeCommandNameRep) };
+        Cache::CommandName {
+            version: stored.version,
+            resolved: stored.cache.is_some(),
+        }
+    } else if let Some(name) = native_instruction_name::cache(value) {
+        Cache::InstructionName {
+            version: name.version(),
+            opcode: name.opcode(),
+        }
+    } else if let Some((cache, version)) = native_index::cache(value) {
+        Cache::Index {
+            version,
+            index: cache.index(),
+            stride: cache.stride(),
+        }
+    } else if let Some(cache) = native_namespace_name::cache(value) {
+        Cache::NamespaceName {
+            version: cache.version(),
+            resolved: cache.namespace().is_some(),
+        }
+    } else if let Some((version, array)) = native_variable_name::with_parsed(value, |cache| {
+        (cache.protocol.version(), cache.array.is_some())
+    }) {
+        Cache::ParsedVariableName { version, array }
+    } else if let Some((version, index)) =
+        native_variable_name::with_local(value, |cache| (cache.protocol.version(), cache.index))
+    {
+        Cache::LocalVariableName { version, index }
+    } else if let Some(number) = native_scalar_cache(value)? {
+        Cache::Numeric(number)
+    } else {
+        Cache::Other
+    };
+    Ok(NativeObjectSnapshot {
+        resident,
+        storage,
+        cache,
+    })
+}
+
+/// Reach native C Unicode-unit storage on the original object.
+pub(crate) fn new_native_unicode_obj(
+    unicode: std::rc::Rc<[u32]>,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let protocol =
+        dialect
+            .native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native Unicode constructor",
+            ))?;
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native Unicode constructor",
+        ))?;
+    tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+        .encode_units(&unicode)
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native Unicode unit width",
+        ))?;
+    let backing = Box::new(NativeStringRep {
+        protocol,
+        count: Some(unicode.len()),
+        unicode: protocol
+            .unicode_constructor_has_unicode(unicode.len())
+            .then_some(unicode),
+    });
+    Ok(alloc_typed(
+        &NATIVE_STRING_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    ))
+}
+
+/// Reach native C Unicode-unit storage on the original object.
+pub(crate) fn native_unicode_units(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+) -> Result<std::rc::Rc<[u32]>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable(
+            "native Unicode unit storage",
+        ))?;
+    if !native_string_available(value) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native Unicode string updater",
+        ));
+    }
+    if core::ptr::eq(obj_type_ptr(value), &NATIVE_STRING_TYPE) {
+        // SAFETY: the exact descriptor owns this live backing.
+        let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+        if backing.protocol != protocol {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native Unicode cache origin",
+            ));
+        }
+        if let Some(unicode) = &backing.unicode {
+            return Ok(unicode.clone());
+        }
+    }
+    let unicode: std::rc::Rc<[u32]> = std::rc::Rc::from(
+        tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(version)
+            .decode_units(&crate::dict::native_object_bytes(value, protocol)?),
+    );
+    let backing = Box::new(NativeStringRep {
+        protocol,
+        count: Some(unicode.len()),
+        unicode: Some(unicode.clone()),
+    });
+    change_type(
+        value,
+        &NATIVE_STRING_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    );
+    Ok(unicode)
+}
+
+/// The exact completion-keyword table's index representation.
+/// Its original keyword spelling remains resident after the native conversion.
+static COMPLETION_KEYWORD_TYPE: TclObjType = TclObjType {
+    name: c"index".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+/// Jim's completion-code representation has no native string updater.
+static JIM_RETURN_CODE_TYPE: TclObjType = TclObjType {
+    name: c"return-code".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+#[derive(Clone, Copy)]
+struct NativeArraySearchRep {
+    cache: tcl_core_types::NativeArraySearchCache,
+    version: tcl_dialect::TclVersion,
+}
+static NATIVE_ARRAY_SEARCH_TYPE: TclObjType = TclObjType {
+    name: c"array search".as_ptr(),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+pub(crate) fn native_array_search_cache_in(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+) -> Result<Option<tcl_core_types::NativeArraySearchCache>, tcl_syntax::value::ValueError> {
+    if !core::ptr::eq(obj_type_ptr(value), &NATIVE_ARRAY_SEARCH_TYPE) {
+        return Ok(None);
+    }
+    let stored = allocation_cache::<NativeArraySearchRep>(value).ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native array-search allocation origin",
+        ),
+    )?;
+    if !protocol.accepts_cache_origin(stored.version) || !has_string_rep(value) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native array-search cache origin",
+        ));
+    }
+    Ok(Some(stored.cache))
+}
+
+pub(crate) fn install_native_array_search_cache(
+    value: *mut TclObj,
+    cache: tcl_core_types::NativeArraySearchCache,
+    protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if !protocol.caches_handle()
+        || !has_string_rep(value)
+        || cache.name_offset > bytes_of(value).len()
+    {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native array-search cache storage",
+        ));
+    }
+    let stored = Rc::new(NativeArraySearchRep {
+        cache,
+        version: protocol.version(),
+    });
+    // The native descriptor has no hooks. Rust auxiliary storage belongs to
+    // the actual object allocation and is copied by its NULL-hook path.
+    change_type(value, &NATIVE_ARRAY_SEARCH_TYPE, 0);
+    set_allocation_cache(value, stored);
+    Ok(())
+}
+
+struct NativeFrameLevelRep {
+    cache: tcl_registry::NativeFrameLevelCache,
+    version: tcl_dialect::TclVersion,
+}
+
+extern "C" fn frame_level_free(value: *mut TclObj) {
+    // SAFETY: this exact descriptor owns the allocated frame-cache record.
+    unsafe {
+        drop(Box::from_raw(
+            internal_rep(value) as usize as *mut NativeFrameLevelRep
+        ));
+    }
+}
+
+extern "C" fn frame_level_dup(source: *mut TclObj, target: *mut TclObj) {
+    // SAFETY: the live source descriptor owns the immutable cache record.
+    let source = unsafe { &*(internal_rep(source) as usize as *const NativeFrameLevelRep) };
+    let copy = Box::new(NativeFrameLevelRep {
+        cache: source.cache,
+        version: source.version,
+    });
+    change_type(
+        target,
+        &NATIVE_FRAME_LEVEL_TYPE,
+        Box::into_raw(copy) as usize as u64,
+    );
+}
+
+static NATIVE_FRAME_LEVEL_TYPE: TclObjType = TclObjType {
+    name: c"levelReference".as_ptr(),
+    free_int_rep_proc: Some(frame_level_free),
+    dup_int_rep_proc: Some(frame_level_dup),
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+#[derive(Clone)]
+struct NativeCommandNameRep {
+    version: tcl_dialect::TclVersion,
+    cache: Option<tcl_runtime_api::native_command_name::NativeCommandNameCache>,
+}
+
+extern "C" fn command_name_free(value: *mut TclObj) {
+    // SAFETY: this exact descriptor owns the boxed immutable cache receipt.
+    unsafe {
+        drop(Box::from_raw(
+            internal_rep(value) as usize as *mut NativeCommandNameRep
+        ));
+    }
+}
+
+extern "C" fn command_name_dup(source: *mut TclObj, duplicate: *mut TclObj) {
+    // SAFETY: this exact source descriptor owns the live immutable record.
+    let stored = unsafe { &*(internal_rep(source) as usize as *const NativeCommandNameRep) };
+    change_type(
+        duplicate,
+        &NATIVE_COMMAND_NAME_TYPE,
+        Box::into_raw(Box::new(stored.clone())) as usize as u64,
+    );
+}
+
+static NATIVE_COMMAND_NAME_TYPE: TclObjType = TclObjType {
+    name: c"cmdName".as_ptr(),
+    free_int_rep_proc: Some(command_name_free),
+    dup_int_rep_proc: Some(command_name_dup),
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+/// Original command-name primary receipt; inspecting it grants no live cache hit.
+pub(crate) fn native_command_name_cache(
+    value: *mut TclObj,
+) -> Option<tcl_runtime_api::native_command_name::NativeCommandNameCache> {
+    if !core::ptr::eq(obj_type_ptr(value), &NATIVE_COMMAND_NAME_TYPE) {
+        return None;
+    }
+    // SAFETY: this exact descriptor owns the live immutable cache receipt.
+    unsafe { &*(internal_rep(value) as usize as *const NativeCommandNameRep) }
+        .cache
+        .clone()
+}
+
+/// Actual origin of C8's null command-name descriptor after a failed lookup.
+pub(crate) fn native_command_name_unresolved_version(
+    value: *mut TclObj,
+) -> Option<tcl_dialect::TclVersion> {
+    if !core::ptr::eq(obj_type_ptr(value), &NATIVE_COMMAND_NAME_TYPE) {
+        return None;
+    }
+    // SAFETY: this exact descriptor owns the live immutable record.
+    let stored = unsafe { &*(internal_rep(value) as usize as *const NativeCommandNameRep) };
+    stored.cache.is_none().then_some(stored.version)
+}
+
+/// Install the selected original lookup's primary effect without changing bytes.
+/// The live world separately validates command and reference identities on use.
+pub(crate) fn install_native_command_name_cache(
+    value: *mut TclObj,
+    cache: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let protocol =
+        dialect
+            .native_command_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native command-name cache",
+            ))?;
+    if !protocol.accepts_cache_origin(cache.version) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native command-name cache origin",
+        ));
+    }
+    if !has_string_rep(value) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native command-name resident string",
+        ));
+    }
+    change_type(
+        value,
+        &NATIVE_COMMAND_NAME_TYPE,
+        Box::into_raw(Box::new(NativeCommandNameRep {
+            version: cache.version,
+            cache: Some(cache),
+        })) as usize as u64,
+    );
+    Ok(())
+}
+
+/// Apply compile-time priming's selected early return to the original object.
+pub(crate) fn prime_native_command_name_cache(
+    value: *mut TclObj,
+    incoming: tcl_runtime_api::native_command_name::NativeCommandNameCache,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let protocol =
+        dialect
+            .native_command_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native command-name priming",
+            ))?;
+    let existing = native_command_name_cache(value);
+    let unresolved = native_command_name_unresolved_version(value);
+    if !protocol.accepts_cache_origin(incoming.version)
+        || existing
+            .as_ref()
+            .is_some_and(|cache| !protocol.accepts_cache_origin(cache.version))
+        || unresolved.is_some_and(|version| !protocol.accepts_cache_origin(version))
+    {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native command-name priming origin",
+        ));
+    }
+    if protocol.preserves_primed_cache(existing.as_ref(), unresolved.is_some(), &incoming) {
+        return Ok(());
+    }
+    install_native_command_name_cache(value, incoming, dialect)
+}
+
+/// Apply the selected failed lookup's null descriptor effect; C9 keeps its primary.
+pub(crate) fn install_unresolved_native_command_name_cache(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let protocol =
+        dialect
+            .native_command_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native command-name lookup miss",
+            ))?;
+    if !protocol.installs_unresolved_on_miss() {
+        return Ok(());
+    }
+    if !has_string_rep(value) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native command-name resident string",
+        ));
+    }
+    change_type(
+        value,
+        &NATIVE_COMMAND_NAME_TYPE,
+        Box::into_raw(Box::new(NativeCommandNameRep {
+            version: protocol.version(),
+            cache: None,
+        })) as usize as u64,
+    );
+    Ok(())
+}
+
+/// Retire only this reached command-name primary, preserving resident storage.
+#[cfg(test)]
+pub(crate) fn retire_native_command_name_cache(
+    value: *mut TclObj,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    if core::ptr::eq(obj_type_ptr(value), &NATIVE_COMMAND_NAME_TYPE) {
+        discard_native_internal_representation(value)?;
+    }
+    Ok(())
+}
+
+/// Inspect the original frame cache under its authentic actual-engine issuer.
+pub(crate) fn native_frame_level_cache_in(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    if !core::ptr::eq(obj_type_ptr(value), &NATIVE_FRAME_LEVEL_TYPE) {
+        return Ok(None);
+    }
+    let protocol = dialect
+        .native_frame_level_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
+    // SAFETY: the exact descriptor owns this live cache record.
+    let stored = unsafe { &*(internal_rep(value) as usize as *const NativeFrameLevelRep) };
+    if protocol.tcl_version() != Some(stored.version) || !protocol.accepts_cache(stored.cache) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native frame cache origin",
+        ));
+    }
+    Ok(Some(stored.cache))
+}
+
+/// Install an actually reached frame-reference conversion, preserving spelling.
+pub(crate) fn install_native_frame_level_cache(
+    value: *mut TclObj,
+    cache: tcl_registry::NativeFrameLevelCache,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    let protocol = dialect
+        .native_frame_level_protocol()
+        .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
+    let version = protocol
+        .tcl_version()
+        .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
+    if !has_string_rep(value) || !protocol.accepts_cache(cache) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native frame cache storage",
+        ));
+    }
+    let stored = Box::new(NativeFrameLevelRep { cache, version });
+    change_type(
+        value,
+        &NATIVE_FRAME_LEVEL_TYPE,
+        Box::into_raw(stored) as usize as u64,
+    );
+    Ok(())
+}
+
+/// Inspect only authenticated completion-code descriptors, never their names.
+pub(crate) fn completion_code_cache(
+    value: *mut TclObj,
+) -> Option<tcl_cmd_core::return_options::CompletionCodeCache> {
+    use tcl_cmd_core::return_options::CompletionCodeCache;
+    let kind = obj_type_ptr(value);
+    if core::ptr::eq(kind, &COMPLETION_KEYWORD_TYPE) {
+        Some(CompletionCodeCache::TclKeyword(wide_of(value) as i32))
+    } else if core::ptr::eq(kind, &JIM_RETURN_CODE_TYPE) {
+        Some(CompletionCodeCache::Jim(wide_of(value) as i32))
+    } else {
+        None
+    }
+}
+
+/// Adopt a reached completion conversion on its original object.
+pub(crate) fn adopt_completion_code_cache(
+    value: *mut TclObj,
+    cache: tcl_cmd_core::return_options::CompletionCodeCache,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_cmd_core::return_options::CompletionCodeCache;
+    let (descriptor, code) = match cache {
+        CompletionCodeCache::TclKeyword(code) => {
+            if !has_string_rep(value) {
+                return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "completion keyword resident string",
+                ));
+            }
+            (&COMPLETION_KEYWORD_TYPE, code)
+        }
+        CompletionCodeCache::Jim(code) => (&JIM_RETURN_CODE_TYPE, code),
+    };
+    change_type(value, descriptor, i64::from(code) as u64);
+    Ok(())
+}
+
+/// Whether this original cache has a resident string or a native updater.
+/// Jim completion codes with absent strings cannot manufacture a spelling.
+pub(crate) fn native_string_available(value: *mut TclObj) -> bool {
+    if value.is_null() || !allocation_is_live(value) {
+        return false;
+    }
+    if has_string_rep(value) {
+        return true;
+    }
+    let kind = obj_type_ptr(value);
+    if core::ptr::eq(kind, &NATIVE_STRING_TYPE) {
+        // SAFETY: the exact descriptor owns this live backing.
+        let backing = unsafe { &*(internal_rep(value) as usize as *const NativeStringRep) };
+        return backing.unicode.is_some() || backing.count == Some(0);
+    }
+    // A descriptor's actual updater, rather than its name, owns materialisation.
+    kind.is_null() || unsafe { (*kind).update_string_proc.is_some() }
+}
+
+/// Inspect the physical cache without generating an object's string.
+pub(crate) fn native_scalar_cache(
+    value: *mut TclObj,
+) -> Result<Option<tcl_syntax::scalar_getter::NativeScalarCache>, tcl_syntax::value::ValueError> {
+    check_native_liveness(value)?;
+    use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
+    let kind = obj_type_ptr(value);
+    let cache = if core::ptr::eq(kind, &TCL_LONG84_TYPE) {
+        Some(NativeScalarCache::Tcl84Long(wide_of(value)))
+    } else if core::ptr::eq(kind, &TCL_INT_TYPE) {
+        Some(NativeScalarCache::Number(Number::Int(wide_of(value))))
+    } else if core::ptr::eq(kind, &TCL_DOUBLE_TYPE) {
+        Some(NativeScalarCache::Number(Number::Double(double_of(value))))
+    } else if core::ptr::eq(kind, &JIM_COERCED_DOUBLE_TYPE) {
+        Some(NativeScalarCache::JimCoercedInteger(wide_of(value)))
+    } else if native_word_boolean_origin(kind).is_some() {
+        Some(NativeScalarCache::WordBoolean(wide_of(value) != 0))
+    } else {
+        #[cfg(have_tommath)]
+        if core::ptr::eq(kind, &crate::bignum::TCL_BIGNUM_TYPE) {
+            return crate::bignum::native_cached_number(value)
+                .map(|number| Some(NativeScalarCache::Number(number)))
+                .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
+        }
+        None
+    };
+    Ok(cache)
+}
+
+/// Exact physical stock class for object-length dispatch. No spelling or
+/// object type name authenticates a native cache.
+pub(crate) fn stock_list_input_class(
+    value: *mut TclObj,
+) -> tcl_registry::native_stock_list::NativeStockListInputClass {
+    use tcl_registry::native_stock_list::NativeStockListInputClass as Class;
+    let kind = obj_type_ptr(value);
+    if kind.is_null()
+        || core::ptr::eq(kind, &JIM_STRING_TYPE)
+        || core::ptr::eq(kind, &NATIVE_STRING_TYPE)
+    {
+        return Class::String;
+    }
+    if core::ptr::eq(kind, &crate::list::TCL_LIST_TYPE) {
+        return Class::List;
+    }
+    if core::ptr::eq(kind, &crate::dict::TCL_DICT_TYPE) {
+        return Class::Dictionary;
+    }
+    if core::ptr::eq(kind, &NATIVE_COMMAND_NAME_TYPE) {
+        return Class::CommandName;
+    }
+    if native_method_name::is_cached(value) {
+        return Class::MethodName;
+    }
+    if native_property_name::is_cached(value) {
+        return Class::PropertyName;
+    }
+    if with_jim_command_cache(value, |_| ()).is_some()
+        || with_jim_variable_cache(value, |_| ()).is_some()
+        || native_jim_enum::cache(value).is_some()
+    {
+        return Class::JimLookup;
+    }
+    if core::ptr::eq(kind, &NATIVE_ARRAY_SEARCH_TYPE) {
+        return Class::ArraySearch;
+    }
+    if native_index::cache(value).is_some() {
+        return Class::Index;
+    }
+    if native_instruction_name::cache(value).is_some() {
+        return Class::InstructionName;
+    }
+    if native_namespace_name::cache(value).is_some() {
+        return Class::NamespaceName;
+    }
+    if native_variable_name::with_parsed(value, |_| ()).is_some() {
+        return Class::ParsedVariableName;
+    }
+    if native_variable_name::with_local(value, |_| ()).is_some() {
+        return Class::LocalVariableName;
+    }
+    if core::ptr::eq(kind, &crate::bytearray::TCL_BYTE_ARRAY_TYPE) {
+        return Class::ByteArray;
+    }
+    if core::ptr::eq(kind, &TCL_INT_TYPE)
+        || core::ptr::eq(kind, &TCL_LONG84_TYPE)
+        || core::ptr::eq(kind, &TCL_DOUBLE_TYPE)
+        || core::ptr::eq(kind, &JIM_COERCED_DOUBLE_TYPE)
+    {
+        return Class::Numeric;
+    }
+    if native_word_boolean_origin(kind).is_some() {
+        return Class::Boolean;
+    }
+    #[cfg(have_tommath)]
+    if core::ptr::eq(kind, &crate::bignum::TCL_BIGNUM_TYPE) {
+        return Class::Numeric;
+    }
+    Class::Unknown
+}
+
+/// Apply the reached getter's complete cache change to the original object.
+/// This conversion is observable even for shared objects and guest failures.
+pub(crate) fn adopt_native_scalar_cache(
+    value: *mut TclObj,
+    cache: tcl_syntax::scalar_getter::NativeScalarCache,
+    protocol: tcl_syntax::scalar_getter::NativeScalarGetterProtocol,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
+    match cache {
+        NativeScalarCache::Tcl84Long(integer) => {
+            if protocol.tcl_version() != Some(tcl_dialect::TclVersion::V8_4) {
+                return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
+            }
+            change_type(value, &TCL_LONG84_TYPE, integer as u64);
+        }
+        NativeScalarCache::Number(Number::Int(integer)) => {
+            change_type(value, &TCL_INT_TYPE, integer as u64);
+        }
+        NativeScalarCache::Number(Number::Double(double)) => {
+            change_type(value, &TCL_DOUBLE_TYPE, double.to_bits());
+        }
+        NativeScalarCache::Number(Number::Nan { negative, payload }) => {
+            let bits = (u64::from(negative) << 63)
+                | 0x7ff8_0000_0000_0000
+                | (payload.unwrap_or(0) & 0x0007_ffff_ffff_ffff);
+            change_type(value, &TCL_DOUBLE_TYPE, bits);
+        }
+        NativeScalarCache::Number(Number::Big {
+            negative,
+            radix,
+            digits,
+        }) => {
+            #[cfg(have_tommath)]
+            if crate::bignum::adopt_native_big(value, negative, radix, &digits) {
+                return Ok(());
+            }
+            #[cfg(not(have_tommath))]
+            let _ = (negative, radix, digits);
+            return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable);
+        }
+        NativeScalarCache::WordBoolean(boolean) => {
+            let descriptor = match protocol.tcl_version() {
+                Some(tcl_dialect::TclVersion::V8_4) => &NATIVE_WORD_BOOLEAN_84_TYPE,
+                Some(tcl_dialect::TclVersion::V8_5) => &NATIVE_WORD_BOOLEAN_85_TYPE,
+                Some(tcl_dialect::TclVersion::V8_6) => &NATIVE_WORD_BOOLEAN_86_TYPE,
+                Some(tcl_dialect::TclVersion::V9_0) => &NATIVE_WORD_BOOLEAN_90_TYPE,
+                Some(tcl_dialect::TclVersion::V9_1) => &NATIVE_WORD_BOOLEAN_91_TYPE,
+                None => return Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
+            };
+            change_type(value, descriptor, u64::from(boolean));
+        }
+        NativeScalarCache::JimCoercedInteger(integer) => {
+            change_type(value, &JIM_COERCED_DOUBLE_TYPE, integer as u64);
+        }
+    }
+    Ok(())
+}
+
 /// Copy `obj`'s string rep (shimmering via `update_string_proc` if needed).
 pub(crate) fn bytes_of(obj: *mut TclObj) -> Vec<u8> {
     // SAFETY: `obj` is a live object; `get_string` returns a borrowed pointer
@@ -371,6 +1844,14 @@ pub(crate) fn bytes_of(obj: *mut TclObj) -> Vec<u8> {
     }
 }
 
+/// Native canonical empty-string storage identity, separate from byte length.
+static CANONICAL_EMPTY_STRING: [u8; 1] = [0];
+
+/// Whether the original resident representation uses canonical empty storage.
+pub(crate) fn has_canonical_empty_string(value: *mut TclObj) -> bool {
+    unsafe { (*value).bytes == CANONICAL_EMPTY_STRING.as_ptr().cast::<c_char>().cast_mut() }
+}
+
 /// Allocate an owned, NUL-terminated buffer holding `src[..len]` and attach it
 /// to `obj` as its string rep. Replaces any prior owned buffer.
 ///
@@ -378,6 +1859,23 @@ pub(crate) fn bytes_of(obj: *mut TclObj) -> Vec<u8> {
 /// `obj` must be live; `src` must point to at least `len` readable bytes (or be
 /// null when `len == 0`).
 unsafe fn set_owned_string(obj: *mut TclObj, src: *const u8, len: usize) {
+    unsafe {
+        if len == 0 {
+            free_string_buffer(obj);
+            (*obj).bytes = CANONICAL_EMPTY_STRING.as_ptr().cast::<c_char>().cast_mut();
+            (*obj).length = 0;
+            if (*obj).type_ptr.is_null() {
+                (*obj).internal_rep = 0;
+            }
+            return;
+        }
+        set_allocated_string(obj, src, len);
+    }
+}
+
+/// Attach allocated storage even for zero bytes, preserving C 8 byte-array
+/// updater identity. This is independent of the representation's contents.
+unsafe fn set_allocated_string(obj: *mut TclObj, src: *const u8, len: usize) {
     // SAFETY: see fn-doc; `obj` is live and we own its `bytes` slot.
     unsafe {
         free_string_buffer(obj);
@@ -419,6 +1917,11 @@ unsafe fn free_string_buffer(obj: *mut TclObj) {
     unsafe {
         let bytes = (*obj).bytes;
         if bytes.is_null() {
+            return;
+        }
+        if has_canonical_empty_string(obj) {
+            (*obj).bytes = core::ptr::null_mut();
+            (*obj).length = 0;
             return;
         }
         // Capacity: a plain string's allocated size lives in `internal_rep`; a
@@ -497,6 +2000,17 @@ pub(crate) fn is_shared(obj: *mut TclObj) -> bool {
 /// the internal rep (via the type's `dup_int_rep_proc`, or a raw copy for
 /// self-contained reps like int/double).
 pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
+    if crate::native_source::selected_string_protocol(src).is_some_and(|protocol| {
+        // SAFETY: duplicate's caller supplies this live original header.
+        let resident_length =
+            unsafe { (!(*src).bytes.is_null()).then_some((*src).length as usize) };
+        protocol.object_header_duplicate_action(resident_length)
+            == tcl_syntax::native_string::NativeObjectHeaderDuplicateAction::CanonicalEmptyString
+    }) {
+        let duplicate = new_string_bytes(b"");
+        crate::native_source::copy_context(src, duplicate);
+        return duplicate;
+    }
     let dup = obj_alloc();
     if dup.is_null() {
         return dup;
@@ -504,7 +2018,11 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
     // SAFETY: `src` is live; `dup` is freshly owned and uniquely ours.
     unsafe {
         if !(*src).bytes.is_null() {
-            set_owned_string(dup, (*src).bytes as *const u8, (*src).length as usize);
+            if has_canonical_empty_string(src) {
+                set_owned_string(dup, (*src).bytes as *const u8, (*src).length as usize);
+            } else {
+                set_allocated_string(dup, (*src).bytes as *const u8, (*src).length as usize);
+            }
         }
         let tp = (*src).type_ptr;
         if !tp.is_null() {
@@ -514,11 +2032,88 @@ pub(crate) fn duplicate(src: *mut TclObj) -> *mut TclObj {
                     // self-contained rep (int/double): copy type + raw 8 bytes
                     (*dup).type_ptr = tp;
                     (*dup).internal_rep = (*src).internal_rep;
+                    let cache = auxiliary(src).cache.borrow().clone();
+                    auxiliary(dup).cache.replace(cache);
                 }
             }
         }
     }
+    crate::native_source::copy_context(src, dup);
+    if let Some((file, line)) = script_location(src) {
+        retain_script_location(dup, file, line);
+    }
     dup
+}
+
+/// Replace one live object's representations with a duplicate, keeping its identity and refs.
+pub(crate) fn duplicate_into(receiver: *mut TclObj, source: *mut TclObj) {
+    let duplicate = duplicate(source);
+    // SAFETY: both objects are live, and duplicate owns independent string/type storage.
+    unsafe {
+        let receiver_refs = (*receiver).ref_count;
+        core::ptr::swap(receiver, duplicate);
+        let incoming_cache = auxiliary(duplicate).cache.take();
+        let retired_cache = auxiliary(receiver).cache.replace(incoming_cache);
+        auxiliary(duplicate).cache.replace(retired_cache);
+        (*receiver).ref_count = receiver_refs;
+        (*duplicate).ref_count = 0;
+        obj_free(duplicate);
+    }
+    revoke_script_location(receiver);
+    if let Some((file, line)) = script_location(source) {
+        retain_script_location(receiver, file, line);
+    }
+}
+
+/// Install the selected append String cache without invoking a previous updater.
+pub(crate) fn set_native_append_string(
+    value: *mut TclObj,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
+    resident: Option<(
+        std::rc::Rc<[u8]>,
+        tcl_syntax::native_string::NativeStringStorageIdentity,
+    )>,
+    count: Option<usize>,
+    unicode: Option<std::rc::Rc<[u32]>>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::native_string::NativeStringStorageIdentity as Storage;
+    use tcl_syntax::value::ValueError;
+    if resident.as_ref().is_some_and(|(bytes, storage)| {
+        *storage == Storage::Unknown || (*storage == Storage::CanonicalEmpty && !bytes.is_empty())
+    }) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native append resident storage",
+        ));
+    }
+    if protocol.is_jim084() && (resident.is_none() || unicode.is_some()) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "Jim append String backing",
+        ));
+    }
+    invalidate_string(value);
+    if protocol.is_jim084() {
+        change_type(
+            value,
+            &JIM_STRING_TYPE,
+            count.map_or(u64::MAX, |count| count as u64),
+        );
+    } else {
+        let backing = Box::new(NativeStringRep {
+            protocol,
+            count,
+            unicode,
+        });
+        change_type(
+            value,
+            &NATIVE_STRING_TYPE,
+            Box::into_raw(backing) as usize as u64,
+        );
+    }
+    if let Some((bytes, storage)) = resident {
+        // SAFETY: the original live object now owns a typed append String backing.
+        unsafe { set_native_updater_string_rep(value, &bytes, storage == Storage::CanonicalEmpty) };
+    }
+    Ok(())
 }
 
 /// Whether `obj` is a plain string (no typed internal rep) — the precondition
@@ -537,9 +2132,14 @@ pub(crate) fn string_append_inplace(obj: *mut TclObj, piece: &[u8]) {
     if piece.is_empty() {
         return;
     }
+    revoke_script_location(obj);
     // SAFETY: caller guarantees a live, unshared, plain-string `obj` whose
     // buffer was allocated by `set_owned_string` (capacity in `internal_rep`).
     unsafe {
+        if has_canonical_empty_string(obj) {
+            set_owned_string(obj, piece.as_ptr(), piece.len());
+            return;
+        }
         let cur_len = (*obj).length as usize;
         let cur_cap = (*obj).internal_rep as usize; // allocated bytes incl. NUL
         let new_len = cur_len + piece.len();
@@ -612,6 +2212,10 @@ pub unsafe fn incr_ref_count(obj: *mut TclObj) {
     }
     // SAFETY: caller guarantees `obj` is live.
     unsafe {
+        assert!(
+            allocation_is_live(obj),
+            "native reference to a retired object"
+        );
         (*obj).ref_count += 1;
     }
 }
@@ -655,6 +2259,12 @@ pub unsafe fn get_string(obj: *mut TclObj, length_out: *mut TclSize) -> *mut c_c
     // shimmer write.
     unsafe {
         if (*obj).bytes.is_null() {
+            if !native_string_available(obj) {
+                if !length_out.is_null() {
+                    *length_out = 0;
+                }
+                return core::ptr::null_mut();
+            }
             // Generate the string rep via the type's update_string_proc (int,
             // double, list, an extension's custom type, …). A typed obj with no
             // proc, or an untyped obj, gets the empty string rep.
@@ -711,3 +2321,188 @@ fn itoa(v: TclWideInt) -> Vec<u8> {
     buf.reverse();
     buf
 }
+
+#[cfg(test)]
+mod script_location_tests {
+    use super::*;
+
+    #[test]
+    fn retained_source_follows_object_lifetime_and_revokes_on_value_mutation() {
+        let source = new_string_bytes(b"error BOOM");
+        retain_script_location(source, Some(std::rc::Rc::from(b"source.tcl".as_slice())), 7);
+        let copy = duplicate(source);
+        assert_eq!(script_location(copy), script_location(source));
+        string_append_inplace(copy, b" changed");
+        assert!(script_location(copy).is_none());
+        assert_eq!(script_location(source).unwrap().1, 7);
+        // SAFETY: both fresh objects are retained once and released exactly once.
+        unsafe {
+            incr_ref_count(source);
+            incr_ref_count(copy);
+            decr_ref_count(source);
+            decr_ref_count(copy);
+        }
+        assert!(script_location(source).is_none());
+        assert!(script_location(copy).is_none());
+    }
+}
+
+#[cfg(test)]
+mod double_precision_tests {
+    use crate::interp::{Code, Interp};
+    use tcl_dialect::TclVersion;
+
+    fn run(interp: &mut Interp, source: &str) -> String {
+        assert_eq!(
+            interp.eval_str(source.as_bytes()),
+            Code::Ok,
+            "{source}: {:?}",
+            interp.result_bytes()
+        );
+        String::from_utf8(interp.result_bytes()).unwrap()
+    }
+
+    #[test]
+    fn native_double_precision_is_lazy_shared_and_preserves_cached_strings() {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 12; set x 1.0; set d [expr {$x/3}]; set ::tcl_precision 4; list $d"
+                ),
+                "0.3333"
+            );
+            assert_eq!(
+                run(&mut interp, "set ::tcl_precision 12; list $d"),
+                "0.3333"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "interp create child; child eval {set ::tcl_precision 8}; list $::tcl_precision [expr {$x/3}]"
+                ),
+                "8 0.33333333"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set d [expr {$x/7}]; child eval {set ::tcl_precision 12}; list $d"
+                ),
+                "0.142857142857"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "unset ::tcl_precision; list [info exists ::tcl_precision] $::tcl_precision"
+                ),
+                "1 12"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "proc precision_alias {} {upvar #0 ::tcl_precision p; set p 4}; precision_alias; list $::tcl_precision"
+                ),
+                "4"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "catch {set ::tcl_precision 18} problem; list $problem $::tcl_precision"
+                ),
+                "{can't set \"::tcl_precision\": improper value for precision} 4"
+            );
+        }
+    }
+
+    #[test]
+    fn binary_scan_doubles_materialise_only_at_the_selected_precision() {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 12; set x 1.0; set bytes [binary format d [expr {$x/3}]]; binary scan $bytes d d; set ::tcl_precision 4; list $d"
+                ),
+                "0.3333"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 12; binary scan $bytes d* ds; set ::tcl_precision 8; list [lindex $ds 0]"
+                ),
+                "0.33333333"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 4; set original [expr {$x/3}]; binary scan [binary format d $original] d copy; set ::tcl_precision 12; list $original $copy"
+                ),
+                "0.333333333333 0.333333333333"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 4; set original [expr {$x/3}]; binary scan [binary format d* [list $original]] d* copies; set ::tcl_precision 12; list $original [lindex $copies 0]"
+                ),
+                "0.333333333333 0.333333333333"
+            );
+        }
+    }
+
+    #[test]
+    fn native_precision_array_elements_share_the_hidden_trace_state() {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            let mut interp = Interp::new();
+            interp.set_runtime_version(version);
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision 12; unset ::tcl_precision; set ::tcl_precision(x) 4; set x 1.0; list [expr {$x/3}] $::tcl_precision(x)"
+                ),
+                "0.3333 4"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set ::tcl_precision(x) 12; upvar #0 ::tcl_precision(x) p; set p 4; list [expr {$x/3}] $p $::tcl_precision(x)"
+                ),
+                "0.333333333333 4 12"
+            );
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "proc adjust {n1 n2 op} {set ::tcl_precision(x) 8}; trace variable ::tcl_precision(x) w adjust; set ::tcl_precision(x) 4; list [expr {$x/3}] $::tcl_precision(x)"
+                ),
+                "0.3333 4"
+            );
+        }
+    }
+
+    #[test]
+    fn native_fixed_double_policies_ignore_ordinary_precision_variables() {
+        for profile in ["tcl9.0", "tcl9.1", "jim"] {
+            let mut interp = Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect(profile));
+            let expected = if profile == "jim" {
+                "0.333333333333"
+            } else {
+                "0.3333333333333333"
+            };
+            assert_eq!(
+                run(
+                    &mut interp,
+                    "set tcl_precision 4; set x 1.0; list [expr {$x/3}]"
+                ),
+                expected
+            );
+        }
+    }
+}
+
+/// Genuine original Jim Enum and immediate literal cache storage.
+pub(crate) mod native_jim_enum;
+pub(crate) mod native_method_name;
+pub(crate) mod native_property_name;

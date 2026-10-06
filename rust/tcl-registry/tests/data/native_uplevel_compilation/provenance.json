@@ -1,0 +1,147 @@
+{
+  "native_source": {
+    "9.0": {
+      "version": "9.0.4"
+    },
+    "9.1": {
+      "version": "9.1.0",
+      "compiler": "generic/tclCompCmdsSZ.c:TclCompileUplevelCmd",
+      "executor": "generic/tclExecute.c:INST_UPLEVEL"
+    }
+  },
+  "captured_artifacts": [
+    {
+      "engine": "9.0",
+      "label": "explicit",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-explicit.tcl",
+      "source_sha256": "2a21355a3aba921b798a1499b317457bc707592a723f76a0e50ecfbdc6243620",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-explicit.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "label": "default",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-default.tcl",
+      "source_sha256": "b0e93e289f9b829f889fe169f3fae484f118fd7b85ee177bef520c6a37328b57",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-default.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "label": "concat",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-concat.tcl",
+      "source_sha256": "7094b8fa51d60011e17a5d0e89c8df3bbf07cae91ae5d7dadc081e2bb0fea265",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-concat.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "label": "dynamic",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-dynamic.tcl",
+      "source_sha256": "93a07b4bb538531ea464758b2fbca650b925114a4351b991af60c8d36708f4a7",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-dynamic.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "label": "invalid",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-invalid.tcl",
+      "source_sha256": "1e44003e6eb400c1b207aad5713c4abd8ca9be4fd12675302837327bb3494ee2",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-invalid.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.0",
+      "label": "sole",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.0-sole.tcl",
+      "source_sha256": "c8e14cdfd7d5aa7a161b35c51efefc02bb1e2dd353b0f40b3b4aa5f0deefe8d8",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.0-sole.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18"
+    },
+    {
+      "engine": "9.1",
+      "label": "explicit",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-explicit.tcl",
+      "source_sha256": "2a21355a3aba921b798a1499b317457bc707592a723f76a0e50ecfbdc6243620",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-explicit.log",
+      "uplevel": true,
+      "concat": false,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "label": "default",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-default.tcl",
+      "source_sha256": "b0e93e289f9b829f889fe169f3fae484f118fd7b85ee177bef520c6a37328b57",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-default.log",
+      "uplevel": true,
+      "concat": false,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "label": "concat",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-concat.tcl",
+      "source_sha256": "7094b8fa51d60011e17a5d0e89c8df3bbf07cae91ae5d7dadc081e2bb0fea265",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-concat.log",
+      "uplevel": true,
+      "concat": true,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "label": "dynamic",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-dynamic.tcl",
+      "source_sha256": "93a07b4bb538531ea464758b2fbca650b925114a4351b991af60c8d36708f4a7",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-dynamic.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "label": "invalid",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-invalid.tcl",
+      "source_sha256": "1e44003e6eb400c1b207aad5713c4abd8ca9be4fd12675302837327bb3494ee2",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-invalid.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    },
+    {
+      "engine": "9.1",
+      "label": "sole",
+      "source": "/workspace/.proofs/2286-body-native-uplevel91/9.1-sole.tcl",
+      "source_sha256": "c8e14cdfd7d5aa7a161b35c51efefc02bb1e2dd353b0f40b3b4aa5f0deefe8d8",
+      "exit": 0,
+      "log": "/workspace/.proofs/2286-body-native-uplevel91/9.1-sole.log",
+      "uplevel": false,
+      "concat": false,
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c"
+    }
+  ],
+  "fixture_sha256": "a20ae4aae4b2e7d6eb5a145366d379b2f89a7d9e565e2f6e08e2dc4364a1cbc1"
+}

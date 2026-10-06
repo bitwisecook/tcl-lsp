@@ -50,48 +50,39 @@ use crate::analyser::state::{Analyser, ConstDispatchSite};
 use crate::signature_scan::types::SignatureCommandInvocation;
 use crate::value_provenance::{ValueContributor, const_contributors};
 
-/// The command-naming component of one contributor: the whole value for
-/// a plain `$cmd` head, or — for an expanded `{*}$cmd` head — the first
-/// whitespace-delimited list element, with the writable span narrowed to
-/// that element inside the defining literal.  `None` abstains: an
-/// expanded head whose first element carries substitution syntax or list
-/// quoting (braces, quotes, backslashes) has no exact writable
-/// component this simple scan can prove.
-fn command_component(c: &ValueContributor, head_expanded: bool) -> Option<ValueContributor> {
-    if !head_expanded {
-        return Some(c.clone());
+/// Select the actual first list value for an expanded command prefix.
+/// The native list owner parses under the selected grammar. A source span is
+/// retained only when the first element is byte-exact in the contributor.
+fn command_component(
+    contributor: &ValueContributor,
+    expanded: bool,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<ValueContributor> {
+    if !expanded {
+        return Some(contributor.clone());
     }
-    let trimmed_start = c.value.len() - c.value.trim_start().len();
-    let rest = &c.value[trimmed_start..];
-    let first_len = rest.find(char::is_whitespace).unwrap_or(rest.len());
-    let first = &rest[..first_len];
-    if first.is_empty() || first.contains(['{', '}', '"', '\\', '$', '[', ']']) {
-        return None;
-    }
-    let literal_span = c.literal_span.and_then(|span| {
-        let start = span.start() + u32::try_from(trimmed_start).ok()?;
-        let end = start + u32::try_from(first_len).ok()?;
-        (end <= span.end()).then(|| tcl_lexer::Span::new(start, end))
-    });
+    let values = rules.split_list(&contributor.value).ok()?;
+    let value = values.first()?.to_string();
+    let literal_span =
+        tcl_syntax::list::find_element_with_syntax(&contributor.value, 0, rules.list)
+            .ok()
+            .flatten()
+            .filter(|element| element.literal)
+            .and_then(|element| {
+                let span = contributor.literal_span?;
+                let start = span
+                    .start()
+                    .checked_add(u32::try_from(element.value.start).ok()?)?;
+                let end = span
+                    .start()
+                    .checked_add(u32::try_from(element.value.end).ok()?)?;
+                (end <= span.end() && contributor.value.get(element.value)? == value)
+                    .then(|| tcl_lexer::Span::new(start, end))
+            });
     Some(ValueContributor {
-        value: first.to_string(),
+        value,
         literal_span,
     })
-}
-
-/// Whether a proc/class definition is live at this dispatch site's execution
-/// position, excluding aliases and rename targets.
-fn user_definition_live(analyser: &Analyser, qualified: &str, call_off: u32) -> bool {
-    analyser
-        .result
-        .all_procs
-        .get(qualified)
-        .is_some_and(|p| analyser.fact_live_for_call(qualified, p.name_span.start(), call_off))
-        || analyser
-            .result
-            .all_classes
-            .get(qualified)
-            .is_some_and(|c| analyser.fact_live_for_call(qualified, c.name_span.start(), call_off))
 }
 
 /// Settle one pending dispatch site against `cu`'s flow-sensitive value
@@ -103,8 +94,6 @@ fn settle_one_site(
     cu: &crate::compilation_unit::CompilationUnit,
     site: &ConstDispatchSite,
     analyser: &Analyser,
-    builtins: &HashSet<String>,
-    renamed_away: &HashSet<&String>,
     settled: &mut Vec<SignatureCommandInvocation>,
 ) {
     // A write trace can mutate the variable at any read — the
@@ -121,37 +110,7 @@ fn settle_one_site(
     let Some(contributors) = const_contributors(fu, call_off, &site.var_name, config) else {
         return;
     };
-    let result = &analyser.result;
-    // A candidate qualified name is "user-defined" only when its own fact
-    // — the proc/class definition, or the establishing `interp alias` /
-    // `rename` — is still live at this dispatch site: renamed away or
-    // deleted with no later re-establishment no longer denotes a real
-    // command. This is the same question `unresolved.rs`'s W123 pass answers
-    // for ordinary bareword calls, via `fact_live_for_call` reused here rather
-    // than reimplemented.
-    let user_definition = |qualified: &str| user_definition_live(analyser, qualified, call_off);
-    let user_defined = |qualified: &str| {
-        user_definition(qualified)
-            || (result.command_aliases.contains_key(qualified)
-                && analyser
-                    .alias_offsets
-                    .get(qualified)
-                    .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
-            || (analyser.renamed_commands.contains_key(qualified)
-                && analyser
-                    .rename_offsets
-                    .get(qualified)
-                    .is_some_and(|&off| analyser.fact_live_for_call(qualified, off, call_off)))
-    };
-    let known = |qualified: &str| {
-        user_defined(qualified)
-            || (builtins.contains(qualified.trim_start_matches(':'))
-                && !renamed_away.contains(&qualified.to_string()))
-    };
-    let path: &[String] = result
-        .namespace_paths
-        .get(&site.ns)
-        .map_or(&[], Vec::as_slice);
+    let lookup = analyser.head_identities.invocation_at_source("", call_off);
     // Group the contributors by the user command their value resolves to
     // at *this* site's namespace context.  A value resolving to a builtin
     // or to nothing contributes no reference (a builtin carries no
@@ -164,20 +123,23 @@ fn settle_one_site(
     // value as the name.
     let mut by_target: HashMap<String, Vec<ValueContributor>> = HashMap::new();
     let mut order: Vec<String> = Vec::new();
+    let mut references = HashMap::new();
     for c in &contributors {
-        let Some(c) = command_component(c, site.head_expanded) else {
+        let Some(c) = command_component(
+            c,
+            site.head_expanded,
+            tcl_syntax::word_rules::WordValueRules::of_profile(Some(analyser.profile)),
+        ) else {
             continue;
         };
-        if c.value.trim().is_empty() || crate::naming::is_dynamic_word(&c.value) {
-            continue;
-        }
-        let Some(winner) = crate::naming::resolve_command_with(&site.ns, path, &c.value, known)
-        else {
+        let Some(reference) = lookup.command_reference(&c.value) else {
             continue;
         };
-        if !user_defined(&winner) {
+        if !reference.is_user_command() {
             continue;
         }
+        let winner = reference.slot().to_owned();
+        references.insert(winner.clone(), reference);
         if !by_target.contains_key(&winner) {
             order.push(winner.clone());
         }
@@ -187,52 +149,57 @@ fn settle_one_site(
         let group = &by_target[&winner];
         let rename_safe = group.iter().all(|c| c.literal_span.is_some());
         let written = &group[0].value;
-        settled.push(SignatureCommandInvocation {
-            name: written.clone(),
-            range: site.span,
-            resolved_qualified_name: Some(winner.clone()),
-            resolved_user_definition: user_definition(&winner),
-            resolution_candidates: crate::naming::command_resolution_candidates(
-                &site.ns, path, written,
-            ),
-            argc: None,
-            callback_arity: None,
-            callback_baked_args: 0,
-            indirect: true,
-            rename_safe,
-            existence_probe: false,
-            is_mathfunc_call: false,
-            ensemble_dispatch: None,
-        });
-        for c in group {
-            let Some(span) = c.literal_span else { continue };
-            settled.push(SignatureCommandInvocation {
-                name: c.value.clone(),
-                range: span,
-                resolved_qualified_name: Some(winner.clone()),
-                resolved_user_definition: user_definition(&winner),
-                resolution_candidates: crate::naming::command_resolution_candidates(
-                    &site.ns, path, &c.value,
-                ),
-                argc: None,
-                callback_arity: None,
-                callback_baked_args: 0,
-                indirect: false,
-                rename_safe: true,
-                existence_probe: false,
-                is_mathfunc_call: false,
-                ensemble_dispatch: None,
-            });
+        let reference = &references[&winner];
+        let mut invocation = SignatureCommandInvocation::written(written.clone(), site.span, None);
+        invocation.retain_reference(reference);
+        invocation.indirect = true;
+        invocation.rename_safe = rename_safe;
+        settled.push(invocation);
+        for contributor in group {
+            let Some(span) = contributor.literal_span else {
+                continue;
+            };
+            let mut invocation =
+                SignatureCommandInvocation::written(contributor.value.clone(), span, None);
+            invocation.lookup =
+                crate::signature_scan::types::SignatureCommandLookup::DeferredReference;
+            invocation.retain_reference(reference);
+            settled.push(invocation);
         }
     }
+}
+
+/// Contributor edit proof supplements an existing exact executed-head receipt.
+/// It cannot replace another temporal reference or introduce a second row for
+/// that same execution point. Literal contributor records remain separate.
+fn reconcile_positioned_dispatches(
+    existing: &mut [SignatureCommandInvocation],
+    settled: &mut Vec<SignatureCommandInvocation>,
+) {
+    settled.retain(|candidate| {
+        if !candidate.indirect || candidate.resolved_command_reference.is_none() {
+            return true;
+        }
+        let Some(original) = existing.iter_mut().find(|original| {
+            original.lookup.is_execution_site()
+                && original.indirect
+                && original.range == candidate.range
+                && original.resolved_command_reference == candidate.resolved_command_reference
+        }) else {
+            return true;
+        };
+        // The source point selected this reference already. Only its complete
+        // source-exact contributor proof adds rename safety for the value words.
+        original.rename_safe = candidate.rename_safe;
+        false
+    });
 }
 
 impl Analyser {
     /// Settle the pending `$cmd`-head dispatch sites against `cu`'s
     /// flow-sensitive value model, appending the settled invocations to
     /// `result.command_invocations`.  Runs inside the CFG/SSA phase —
-    /// after `finalise_invocation_resolutions` (whose namespace-path and
-    /// definition tables it reads) and before the result-order
+    /// after positioned source lookup has been retained and before result-order
     /// canonicalisation.
     pub(in crate::analyser) fn settle_const_dispatches(
         &mut self,
@@ -241,37 +208,97 @@ impl Analyser {
         if self.pending_const_dispatches.is_empty() {
             return;
         }
-        let _ = self.builtin_command_names();
-        if self.builtin_names.is_none() {
-            self.pending_const_dispatches.clear();
-            return;
-        }
         let sites = std::mem::take(&mut self.pending_const_dispatches);
-
-        let builtins = self.builtin_names.as_ref().expect("checked above");
-        let renamed_away: HashSet<&String> = self
-            .result
-            .renamed_commands
-            .values()
-            .chain(self.deleted_commands.keys())
-            .collect();
 
         let mut settled: Vec<SignatureCommandInvocation> = Vec::new();
         for site in &sites {
-            settle_one_site(cu, site, self, builtins, &renamed_away, &mut settled);
+            settle_one_site(cu, site, self, &mut settled);
+        }
+        // One editable literal cannot claim a unique implementation when its
+        // consuming worlds disagree. Keep every navigation alternative, but
+        // withhold rename authority at that shared literal and its indirect sites.
+        let mut literal_definitions = HashMap::new();
+        let mut ambiguous = HashSet::new();
+        for invocation in settled.iter().filter(|invocation| !invocation.indirect) {
+            let span = (invocation.range.start(), invocation.range.end());
+            let target = (
+                invocation.resolved_qualified_name.clone(),
+                invocation.resolved_command_reference.clone(),
+            );
+            if literal_definitions
+                .insert(span, target.clone())
+                .is_some_and(|previous| previous != target)
+            {
+                ambiguous.insert(span);
+            }
+        }
+        let unsafe_targets: HashSet<_> = settled
+            .iter()
+            .filter(|invocation| {
+                !invocation.indirect
+                    && ambiguous.contains(&(invocation.range.start(), invocation.range.end()))
+            })
+            .map(|invocation| invocation.resolved_qualified_name.clone())
+            .collect();
+        for invocation in &mut settled {
+            if (invocation.indirect && unsafe_targets.contains(&invocation.resolved_qualified_name))
+                || ambiguous.contains(&(invocation.range.start(), invocation.range.end()))
+            {
+                invocation.rename_safe = false;
+            }
         }
         // A literal feeding several dispatch sites (or several sites
         // resolving the same head) settles once per distinct
         // (span, target, kind).
-        let mut seen: HashSet<(u32, u32, String, bool)> = HashSet::new();
+        let mut seen = HashSet::new();
         settled.retain(|inv| {
             seen.insert((
                 inv.range.start(),
                 inv.range.end(),
                 inv.resolved_qualified_name.clone().unwrap_or_default(),
                 inv.indirect,
+                inv.resolved_command_reference.clone(),
             ))
         });
+        reconcile_positioned_dispatches(&mut self.result.command_invocations, &mut settled);
         self.result.command_invocations.extend(settled);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_syntax::word_rules::WordValueRules;
+
+    fn contributor(value: &str) -> ValueContributor {
+        ValueContributor {
+            value: value.to_owned(),
+            literal_span: Some(tcl_lexer::Span::new(
+                100,
+                100 + u32::try_from(value.len()).unwrap(),
+            )),
+        }
+    }
+
+    #[test]
+    fn expanded_prefix_uses_native_list_values_and_exact_element_spans() {
+        for rules in [WordValueRules::TCL, WordValueRules::JIM] {
+            let selected = command_component(&contributor("{has space} arg"), true, rules).unwrap();
+            assert_eq!(selected.value, "has space");
+            assert_eq!(selected.literal_span, Some(tcl_lexer::Span::new(101, 110)));
+            let selected = command_component(&contributor("has\\ space arg"), true, rules).unwrap();
+            assert_eq!(selected.value, "has space");
+            assert!(selected.literal_span.is_none());
+        }
+    }
+
+    #[test]
+    fn expanded_prefix_preserves_jim_leniency_and_native_source_spans() {
+        let value = contributor("{target");
+        assert!(command_component(&value, true, WordValueRules::TCL).is_none());
+        let selected = command_component(&value, true, WordValueRules::JIM).unwrap();
+        assert_eq!(selected.value, "target");
+        assert_eq!(selected.literal_span, Some(tcl_lexer::Span::new(101, 107)));
+        assert!(command_component(&contributor(""), true, WordValueRules::JIM).is_none());
     }
 }

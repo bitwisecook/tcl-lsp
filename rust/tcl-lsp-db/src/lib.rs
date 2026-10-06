@@ -1580,6 +1580,7 @@ pub struct ItemBodyKey<'db> {
         ),
         Option<(bool, Vec<String>, Vec<String>)>,
         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+        Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
     ),
     #[returns(ref)]
     pub dialect: String,
@@ -1603,6 +1604,7 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         None => (None, None),
     };
     let body = DeferredBody {
+        resolved_input: key.body_env(db).3.clone(),
         body_text: Arc::clone(key.body_text(db)),
         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
         scope_path: Vec::new(),
@@ -1651,6 +1653,15 @@ pub struct CfgContext<'db> {
     pub command_bindings: ModuleCommandBindings,
 }
 
+/// Exact selected compiler inputs shared by lattice and body memo identities.
+/// Metadata labels are separate; consumers read this retained registry and
+/// reconstruct policy from its full value snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CompilerMemoSnapshot {
+    pub profile: Option<tcl_dialect::DialectProfileKey>,
+    pub registry: tcl_registry::RegistrySnapshot,
+}
+
 /// Interned identity of one procedure's **offset-0** baseline lattice
 /// (salsa-native lattice graph).  Holds the procedure's post-inline IR body
 /// normalised to offset 0 plus the CFG-determining module [`CfgContext`] +
@@ -1687,6 +1698,9 @@ pub struct FnLatticeKey<'db> {
     pub lexer_config: tcl_lexer::LexerConfig,
     #[returns(ref)]
     pub dialect: String,
+    /// Full profile and actual authored command surface at ingress.
+    #[returns(ref)]
+    pub snapshot: CompilerMemoSnapshot,
     /// Encoded interprocedural SCCP seeds (`(param, version, string)`, sorted);
     /// empty means none.  Decoded by
     /// [`tcl_compiler::compilation_unit::decode_param_constants`] in [`function_lattice`].
@@ -1743,7 +1757,8 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         context.proc_params(db).iter().cloned().collect();
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
-    let registry = db.registry(key.dialect(db));
+    let registry = key.snapshot(db).registry.registry();
+    let profile = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
     // The request's exact grammar, not one reconstructed from the registry or
     // environment name: grammar overrides are part of the memo identity.
     let config = key.lexer_config(db);
@@ -1781,9 +1796,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         )
         .with_semantic_analysis(
             registry,
-            tcl_compiler::compilation_unit::semantic_context(
-                tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
-            ),
+            tcl_compiler::compilation_unit::semantic_context(profile),
             Some(key.body(db)),
             // A procedure body runs only after arbitrary interposed history,
             // so its dispatch proofs start from an unknown world.
@@ -1801,7 +1814,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
 /// that proc's `ProcBodyKey`, so salsa reuses every other proc body's lowered
 /// IR; an edit that merely *shifts* a body leaves its key unchanged (the caller
 /// rebases the offset-0 `Script` back to the body's real offset).  Used only for
-/// **context-free bodies** (the per-body gate `lowering::body_cache_eligible`)
+/// **context-free bodies** (the positioned binding owner proves cache eligibility)
 /// where the isolated lowering is byte-identical to the in-place `lower_body`;
 /// guarded by the corpus differential gates (`file_analysis_corpus` /
 /// `compiler_check_corpus`).
@@ -1820,6 +1833,12 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
+    /// Full profile and actual authored command surface at ingress.
+    #[returns(ref)]
+    pub snapshot: CompilerMemoSnapshot,
+    /// Exact normalised grammar used by the original body lowering.
+    #[returns(copy)]
+    pub lexer_config: tcl_lexer::LexerConfig,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body.
@@ -1831,19 +1850,15 @@ pub struct ProcBodyKey<'db> {
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
-    let registry = db.registry(key.dialect(db));
-    // The body's own environment grammar — the key already carries the
-    // dialect, so the three truncated `LexerConfig` fields are derived
-    // rather than interned as duplicate key fields.
-    let config = tcl_lexer::LexerConfig::from_grammar(
-        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
-    );
+    let registry = key.snapshot(db).registry.registry();
+    let profile = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
+    let config = key.lexer_config(db);
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
         registry,
         config,
-        tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
+        profile,
     ))
 }
 
@@ -1907,13 +1922,12 @@ fn build_unit_with_keys<'db>(
 ) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
     let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
-    // Salsa keys own their fields, so the memo identity is the profile's
-    // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
-    // profile and so share one memo entry instead of one per spelling —
-    // the analysis they produce is identical either way.
+    // Values, rather than an environment-name round trip, own memo identity.
     let dialect_key = dialect.map_or("", |profile| profile.name);
-    let dialect_opt =
-        dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
+    let dialect_opt = dialect;
+    let profile_key = dialect.map(tcl_dialect::DialectProfile::cache_key);
+    let registry_snapshot = registry.snapshot();
+    let body_config = options.config.normalized();
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -1951,51 +1965,50 @@ fn build_unit_with_keys<'db>(
                 req.command_bindings.clone(),
             )
         });
-        let key = FnLatticeKey::new(
-            db,
-            req.body.clone(),
-            req.qname.to_owned(),
-            req.params.to_vec(),
-            context,
-            req.lexer_config,
-            req.dialect.map_or("", |profile| profile.name).to_owned(),
-            req.param_constants.to_vec(),
-            req.known_classes.to_vec(),
-            req.traced_variables.to_vec(),
-            req.has_dynamic_variable_trace,
-            req.plain_command_dispatch,
-        );
+        let template = req.body_source.and_then(|body_source| {
+            req.command_bindings.prepare_native_body_template(
+                req.body,
+                tcl_compiler::command_binding::BodyProofScope {
+                    source: req.source,
+                    body_source,
+                    original_body_offset: req.original_body_offset,
+                    executable_body_offset: req.executable_body_offset,
+                },
+                registry,
+            )
+        });
+        if let Some(template) = template {
+            let template_context = CfgContext::new(
+                db,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                template.command_bindings,
+            );
+            let key =
+                lattice_request_key(db, req, template.body, template_context, &registry_snapshot);
+            let proofs = tcl_compiler::command_binding::BodySourceProofs::from_body(req.body);
+            let unit = template
+                .variable_relocation
+                .inverse()
+                .and_then(|inverse| function_lattice(db, key).relocated_variable_proofs(&inverse))
+                .and_then(|unit| unit.restored_source_proofs(&proofs));
+            if let Some(unit) = unit {
+                lattice_keys.insert(req.qname.to_owned(), key);
+                return unit;
+            }
+        }
+        // Exact full-world identity is the fallback when template admission or
+        // restoration cannot establish equivalence. No partially relocated
+        // artifact crosses this boundary.
+        let key = lattice_request_key(db, req, req.body.clone(), context, &registry_snapshot);
         lattice_keys.insert(req.qname.to_owned(), key);
-        // The memo stores the unit at **offset 0** and the builder rebases the
-        // returned unit to the procedure's real position
-        // (`lattice_rebase::rebase_function_unit` mutates `cfg` / `ssa` /
-        // `sccp.constant_branches` in place), so the span-carrying half genuinely
-        // has to be owned here — an `Arc` reader would only defer the copy to
-        // the rebase. The *span-free* half (`def_use` / `types` / `taints` /
-        // `rendered_props`) is `Arc`-held inside `FunctionUnit`, so this clone
-        // is a refcount bump for each of those four lattices and copies only
-        // what the rebase must rewrite.
-        // Making the whole read an `Arc` would mean lazy rebasing via
-        // `FunctionUnit::base_offset` / `abs_span`, which was deliberately
-        // rejected: consumers read `fu.cfg` spans directly and would silently
-        // get relative positions.
         (*function_lattice(db, key)).clone()
     };
-    // Lower each *eligible* top-level proc body through the
-    // `lower_proc_body` memo so a body-only edit re-lowers only the edited proc's
-    // body (every other body's IR is reused). The per-body gate
-    // (`lowering::body_cache_eligible`) decides which bodies take it, so a
-    // context-carrying sibling does not disable the cache for the whole file.
-    // Byte-identical to the whole-file lowering (corpus differential gates).
-    //
-    // File-level precondition: a command alias declared *outside* any body
-    // (`interp alias`) populates the alias table that `resolve_alias` consults
-    // while lowering every body, but the isolated body lowering starts with an
-    // empty table — so a file that may establish aliases forgoes the cache
-    // entirely (the per-body scan cannot see a top-level alias).
-    let cu = if tcl_compiler::lowering::source_may_alias_commands(source) {
-        CompilationUnit::build_for_memoized(source, options, &mut lattice_memo)
-    } else {
+    // The binding owner proves isolated-body equivalence against each actual
+    // entry state. Cache hits restore positioned carriers after rebasing, so
+    // namespace, activation and nested-dispatch proofs remain current.
+    let cu = {
         // Same offset-0-plus-rebase contract as `lattice_memo` above: the caller
         // shifts the returned `Script` to the body's real position, so it needs
         // an owned copy.
@@ -2005,6 +2018,11 @@ fn build_unit_with_keys<'db>(
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
+                CompilerMemoSnapshot {
+                    profile: profile_key,
+                    registry: registry_snapshot.clone(),
+                },
+                body_config,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -2032,6 +2050,33 @@ fn build_unit_with_keys<'db>(
         },
     );
     (unit, lattice_keys)
+}
+
+fn lattice_request_key<'db>(
+    db: &'db dyn TclDb,
+    req: &LatticeRequest<'_>,
+    body: Script,
+    context: CfgContext<'db>,
+    registry: &tcl_registry::RegistrySnapshot,
+) -> FnLatticeKey<'db> {
+    FnLatticeKey::new(
+        db,
+        body,
+        req.qname.to_owned(),
+        req.params.to_vec(),
+        context,
+        req.lexer_config,
+        req.dialect.map_or("", |profile| profile.name).to_owned(),
+        CompilerMemoSnapshot {
+            profile: req.dialect.map(tcl_dialect::DialectProfile::cache_key),
+            registry: registry.clone(),
+        },
+        req.param_constants.to_vec(),
+        req.known_classes.to_vec(),
+        req.traced_variables.to_vec(),
+        req.has_dynamic_variable_trace,
+        req.plain_command_dispatch,
+    )
 }
 
 /// The taint-relevant projection of one procedure's [`ProcSummary`], in the
@@ -2142,9 +2187,11 @@ pub fn taint_cascade<'db>(
     summary_key: TaintSummaryKey<'db>,
 ) -> Arc<HashMap<ValueKey, TaintLattice>> {
     let baseline = function_lattice(db, lattice_key);
-    let dialect = summary_key.dialect(db);
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
-    let registry = db.registry(dialect);
+    let dialect_opt = lattice_key
+        .snapshot(db)
+        .profile
+        .map(|snapshot| snapshot.profile());
+    let registry = lattice_key.snapshot(db).registry.registry();
 
     // Reconstruct the minimal summary: a stub per known name (resolution
     // domain), with the real taint-relevant fields overlaid for the reachable
@@ -2740,6 +2787,8 @@ pub struct OptDepsKey<'db> {
     /// rather than a `params.join(" ")` reconstruction.
     #[returns(ref)]
     pub proc_params_raw: String,
+    #[returns(ref)]
+    pub source_entry: tcl_compiler::command_binding::SourceAnalysisEntry,
 }
 
 /// Build the [`OptDepsKey`] for `qname` from the whole-module interproc summary.
@@ -2761,6 +2810,7 @@ fn opt_deps_key<'db>(
     proc_name: &str,
     proc_body_source: &str,
     proc_params_raw: &str,
+    source_entry: &tcl_compiler::command_binding::SourceAnalysisEntry,
 ) -> OptDepsKey<'db> {
     let mut proc_names: Vec<String> = ia.procedures.keys().cloned().collect();
     proc_names.sort();
@@ -2781,6 +2831,7 @@ fn opt_deps_key<'db>(
         proc_name.to_owned(),
         proc_body_source.to_owned(),
         proc_params_raw.to_owned(),
+        source_entry.clone(),
     )
 }
 
@@ -2804,9 +2855,8 @@ pub fn function_optimisations<'db>(
     let qname = key.qname(db).clone();
     let params = key.params(db).clone();
     let body = key.body(db).clone();
-    let dialect = key.dialect(db).clone();
-    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
-    let registry = db.registry(&dialect);
+    let dialect_opt = key.snapshot(db).profile.map(|snapshot| snapshot.profile());
+    let registry = key.snapshot(db).registry.registry();
     let body_source = deps.body_source(db).clone();
 
     let mut ia = InterproceduralAnalysis::default();
@@ -2841,11 +2891,23 @@ pub fn function_optimisations<'db>(
     let mut ir_procs = HashMap::new();
     ir_procs.insert(qname.clone(), proc);
     let ir_module = tcl_compiler::ir::Module {
+        retained_source_bindings: None,
+        lexer_config: key.lexer_config(db),
+        dialect_profile: dialect_opt,
+        registry_snapshot: Some(key.snapshot(db).registry.clone()),
         top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
+        source_entry: deps.source_entry(db).clone(),
+        future_call_sites: Vec::new(),
+        installed_procedure_body_units: Default::default(),
+        original_declaration_body_units: Default::default(),
+        // This synthetic unit has no retained source allocation attestation;
+        // its procedure name cannot invent a callee implementation identity.
+        procedure_implementation_bodies: Default::default(),
         source: body_source.clone(),
-        // This synthetic module has no executable top-level script; the
-        // procedure entry below carries its own qualified-name namespace.
+        // This synthetic module has no executable top-level script.
+        // Its procedure body retains its selected namespace independently.
         top_level_namespace: "::".to_owned(),
+        top_level_namespace_context: None,
         // The document's dialect, not `None`. The unit is synthesised, but the
         // release it is analysed under is real and known right here
         // (`dialect_opt`, which is also what `optimise_unit_raw` below is
@@ -2888,15 +2950,7 @@ pub fn function_optimisations<'db>(
         has_dynamic_variable_trace: false,
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
-    let top_fu = FunctionUnit::build(
-        "::",
-        empty_cfg.clone(),
-        &[],
-        registry,
-        tcl_lexer::LexerConfig::from_grammar(
-            tcl_lsp_core::environment_for_dialect(&dialect).grammar(),
-        ),
-    );
+    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], registry, key.lexer_config(db));
     let mut cfg_procs = HashMap::new();
     cfg_procs.insert(qname.clone(), fu.cfg.clone());
     let mut fu_procs = HashMap::new();
@@ -2921,7 +2975,11 @@ pub fn function_optimisations<'db>(
         // scan for boundaries, no cross-file view to inherit, and no
         // document of its own to carry stub declarations.
         caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
-        declared_commands: tcl_registry::model::DeclaredSurface::new(),
+        declared_commands: deps
+            .source_entry(db)
+            .declared_commands
+            .clone()
+            .unwrap_or_default(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -3040,6 +3098,7 @@ fn solve_optimisations<'db>(
             &proc.name,
             proc.body_source.as_deref().unwrap_or(""),
             &proc.params_raw,
+            &cu.ir_module.source_entry,
         );
         let mut max_group: Option<u32> = None;
         for opt in function_optimisations(db, key, deps).iter() {
@@ -3086,9 +3145,19 @@ fn top_level_only_unit(
     CompilationUnit {
         source: cu.source.clone(),
         ir_module: tcl_compiler::ir::Module {
+            retained_source_bindings: cu.ir_module.retained_source_bindings.clone(),
+            lexer_config: cu.ir_module.lexer_config,
+            dialect_profile: cu.ir_module.dialect_profile,
+            registry_snapshot: cu.ir_module.registry_snapshot.clone(),
             top_level_kind: tcl_compiler::ir::TopLevelKind::Script,
+            source_entry: cu.ir_module.source_entry.clone(),
+            future_call_sites: cu.ir_module.future_call_sites.clone(),
+            installed_procedure_body_units: cu.ir_module.installed_procedure_body_units.clone(),
+            original_declaration_body_units: cu.ir_module.original_declaration_body_units.clone(),
+            procedure_implementation_bodies: cu.ir_module.procedure_implementation_bodies.clone(),
             source: cu.source.clone(),
             top_level_namespace: cu.ir_module.top_level_namespace.clone(),
+            top_level_namespace_context: cu.ir_module.top_level_namespace_context.clone(),
             dialect: cu.ir_module.dialect.clone(),
             plain_command_dispatch: cu.ir_module.plain_command_dispatch,
             top_level: cu.ir_module.top_level.clone(),
@@ -3316,6 +3385,7 @@ pub fn file_analysis_incremental(
                 ),
                 body.safe_interp_ctx.clone(),
                 workspace_class_factories.clone(),
+                body.resolved_input.clone(),
             ),
             dialect.clone(),
             disabled_vec.clone(),
@@ -3923,6 +3993,10 @@ mod tests {
                 context,
                 config.normalized(),
                 "tcl8.6".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(tcl_lsp_core::profile_for_dialect("tcl8.6").cache_key()),
+                    registry: db.registry("tcl8.6").snapshot(),
+                },
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -3982,7 +4056,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                ((Vec::new(), Vec::new()), None, None),
+                ((Vec::new(), Vec::new()), None, None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -4005,7 +4079,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            ((Vec::new(), Vec::new()), None, None),
+            ((Vec::new(), Vec::new()), None, None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,
@@ -7685,6 +7759,124 @@ mod tests {
             count_cu(&log),
             1,
             "after an edit, tcl8.6 again shares one build across both consumers"
+        );
+    }
+}
+
+#[cfg(test)]
+mod compiler_snapshot_memo_tests {
+    use super::*;
+    use tcl_dialect::model::{DialectPoint, Release};
+
+    #[test]
+    fn same_name_body_memos_preserve_the_selected_execution_snapshot() {
+        let db = TclDatabase::default();
+        let mut keys = Vec::new();
+        for release in [Release::JIM_0_80, Release::JIM_0_84] {
+            let point = DialectPoint::canonical(release);
+            let profile =
+                tcl_dialect::DialectProfile::projected_from_point("jim", &[], "Jim", point)
+                    .intern();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let key = ProcBodyKey::new(
+                &db,
+                "return DONE".to_owned(),
+                "::".to_owned(),
+                "jim".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(profile.cache_key()),
+                    registry: registry.snapshot(),
+                },
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            );
+            assert_eq!(
+                key.snapshot(&db).profile.unwrap().profile().core_point,
+                Some(point)
+            );
+            assert_eq!(
+                key.snapshot(&db)
+                    .registry
+                    .registry()
+                    .profile()
+                    .unwrap()
+                    .core_point,
+                Some(point)
+            );
+            let body = lower_proc_body(&db, key);
+            let dialect = body
+                .statements
+                .iter()
+                .filter_map(|statement| statement.tokens())
+                .filter_map(|tokens| tokens.source_binding.as_ref())
+                .find_map(|binding| binding.variable_context.invocation_dialect)
+                .unwrap();
+            assert_eq!(dialect.core_point, Some(point));
+            keys.push(key);
+        }
+        assert!(
+            keys[0] != keys[1],
+            "distinct selected profiles must intern different body keys"
+        );
+    }
+
+    #[test]
+    fn body_memo_registry_identity_preserves_authored_overrides_and_pins() {
+        let db = TclDatabase::default();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry = CommandRegistry::build_default().project_for_profile(profile);
+        let make_key = |snapshot| {
+            ProcBodyKey::new(
+                &db,
+                "return DONE".to_owned(),
+                "::".to_owned(),
+                "tcl8.6".to_owned(),
+                CompilerMemoSnapshot {
+                    profile: Some(profile.cache_key()),
+                    registry: snapshot,
+                },
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            )
+        };
+        let original = make_key(registry.snapshot());
+        registry.insert_ambient_package("MemoPackage", "1.0");
+        let changed = make_key(registry.snapshot());
+        assert!(
+            original != changed,
+            "ambient pins participate in memo equality"
+        );
+        assert!(
+            !original
+                .snapshot(&db)
+                .registry
+                .registry()
+                .ambient_package_rows()
+                .contains(&("MemoPackage", "1.0"))
+        );
+        assert!(
+            changed
+                .snapshot(&db)
+                .registry
+                .registry()
+                .ambient_package_rows()
+                .contains(&("MemoPackage", "1.0"))
+        );
+        let mut spec = registry.get("set").unwrap().clone();
+        spec.traits = tcl_registry::Traits::PURE;
+        registry.insert(spec);
+        let authored = make_key(registry.snapshot());
+        assert!(
+            changed != authored,
+            "authored overrides participate in memo equality"
+        );
+        assert_eq!(
+            authored
+                .snapshot(&db)
+                .registry
+                .registry()
+                .get("set")
+                .unwrap()
+                .traits,
+            tcl_registry::Traits::PURE
         );
     }
 }

@@ -16,54 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! "Read as a script, does this word bind this name?" — [`script_binds_name`].
+//! Bounded lexical name ownership for diagnostic suppression.
 //!
-//! Two passes ask the same question about a word the pipeline could not
-//! lower: [`crate::ssa`]'s `braced_word_class`, deciding whether a `$name`
-//! inside a brace-quoted word of an **undescribed** command is a read of the
-//! enclosing frame, and the read-before-set emitter's
-//! `barrier_body_locally_sets`, deciding the same for an opaque
-//! `Statement::Barrier` body. In both, a word that binds the name itself
-//! reads *its own* local whichever frame it runs in, so the enclosing frame's
-//! binding is not what the `$name` refers to and W210 must stay silent.
-//!
-//! Both used to answer it by looking for a **top-level `set NAME`** and
-//! nothing else, which is one spelling of binding out of many. A body whose
-//! writes sit one block deeper, or that binds through any other command, read
-//! as "never binds it":
-//!
-//! ```tcl
-//! test one {a test} -body {
-//!     foreach it $items { set last $it }   ;# binds `it` and `last`
-//!     catch {risky} err                    ;# binds `err`
-//!     list $last $err $it
-//! } -result {…}
-//! ```
-//!
-//! Every one of `it`, `last` and `err` drew `W210 read before it is set`
-//! against the outer frame, on a body that plainly sets all three — reported
-//! as issue #2117, where `tcltest`'s bare `test` spelling is undescribed
-//! while the `tcltest::test` spelling lowers to a barrier and stays silent.
-//!
-//! The registry already knows every binding spelling — `ArgRole::VarWrite`
-//! for an output operand, `ArgRole::LoopVarList` for a loop's own variables —
-//! so this walks the word as a script, asks the registry per invocation, and
-//! recurses into the nested bodies. No command is named here.
-//!
-//! Two things the walk has to get right, or it silences findings rather than
-//! false ones:
-//!
-//! * **Only a same-frame body counts.** `proc p {} {set x 1}` binds `x` in
-//!   `p`'s frame, so a `$x` beside it in the outer script still reads the
-//!   enclosing frame's variable. `plain_body_arg_indices` is the registry's
-//!   generic answer for that — every `BodyKind::Plain` body, and none of the
-//!   `Structural` ones (`proc`, `uplevel`, `namespace eval`, the `oo::`
-//!   definers). `ArgRole::OpaqueScript` is excluded too: by contract it is
-//!   not executed here at all.
-//! * **A variable list is a Tcl list.** `foreach {{first last}} …` binds one
-//!   variable named `first last`; splitting the word on whitespace yields
-//!   `{first` and `last}` and matches neither, leaving the false W210 this
-//!   module exists to remove.
+//! A conditional or opaque body can mention names that it binds internally.
+//! This owner follows registry-described variable operands and same-frame
+//! script arguments; it excludes declaration bodies, foreign frames and opaque
+//! scripts. It supplies no executed store, current value or command identity.
+//! Variable lists use the retained lexical policy's Tcl list grammar.
+//! A depth limit returns no ownership advice; it never invents a binding.
 
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -84,11 +44,17 @@ pub(crate) enum Ownership {
     /// whichever frame the script runs in, which for an undescribed
     /// command's word may be this one.
     Bindings,
+    /// Binding operands evaluated as decoded names. A literal leading `$`
+    /// remains part of the name; dynamic name values supply no ownership.
+    DecodedBindings,
     /// A binding, or a bare-name read (`set y`, `info exists y`).  The
     /// barrier twin wants this: its body runs in a context this frame cannot
     /// see (`interp eval PATH {…}`), so a name the body names at all is that
     /// context's, and reporting it here would blame the wrong interpreter.
     BindingsOrNameReads,
+    /// Names mentioned by registry-described scope-alias declarations.
+    /// This supplies lexical exclusion advice, not an installed alias.
+    ScopeAliases,
 }
 
 /// True when `word`, read as a script, owns `name` under `ownership` — by any
@@ -103,17 +69,37 @@ pub(crate) fn script_binds_name(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> bool {
-    // A script that never spells the name cannot bind it, and segmenting is
-    // the expensive half. The callers reach here having found the name in the
-    // word, so this rejects only the nested levels.
-    if !word.contains(name) {
+    script_image_binds_name(
+        &tcl_lexer::SourceImage::document(word),
+        name,
+        ownership,
+        registry,
+        config,
+    )
+}
+
+/// Lexical ownership in an unchanged original image. Opaque bytes, incomplete
+/// scripts and unavailable segmentation supply no ownership advice. Nested
+/// literal body values use native-value channel semantics after their original
+/// enclosing word has been evaluated by the shared word owner.
+pub(crate) fn script_image_binds_name(
+    image: &tcl_lexer::SourceImage,
+    name: &str,
+    ownership: Ownership,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
+    let Ok(text) = image.try_text() else {
+        return false;
+    };
+    if !text.contains(name) {
         return false;
     }
-    binds(word, name, ownership, registry, config, MAX_DEPTH)
+    binds(image, name, ownership, registry, config, MAX_DEPTH)
 }
 
 fn binds(
-    script: &str,
+    script: &tcl_lexer::SourceImage,
     name: &str,
     ownership: Ownership,
     registry: &CommandRegistry,
@@ -123,29 +109,65 @@ fn binds(
     if depth == 0 {
         return false;
     }
-    let list_rules = tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile());
-    for segment in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
+    let list_rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+    let Some(segments) =
+        crate::segmenter::segment_commands_image_with_offset_and_config(script, 0, config)
+    else {
+        return false;
+    };
+    for segment in segments {
+        if segment.is_partial {
+            return false;
+        }
         let Some((command, args)) = segment.texts.split_first() else {
             continue;
         };
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
-        let at = |role: ArgRole| registry.arg_indices_for_role(command, &args, role);
+        let resolution = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::literals(command, &args),
+            registry.profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authoring_query()
+            }),
+        );
+        let Some(resolved) = resolution.resolved() else {
+            continue;
+        };
+        let facts = resolved.facts();
+        let at = |role: ArgRole| {
+            facts
+                .arg_roles
+                .iter()
+                .filter_map(|(index, found)| {
+                    (*found == role).then_some(facts.argument_offset + usize::from(*index))
+                })
+                .collect::<Vec<_>>()
+        };
 
         // An output operand: `catch … err`, `scan … out`, `binary scan … v`,
         // `lassign`'s tail, `incr`, `append`, `lappend`, `upvar`'s locals.
         // `VarRead` joins it for a barrier body — a bare-name read such as
         // the one-argument `set y` names that context's variable too.
+        let scope_alias = facts.traits.intersects(
+            tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::ALIASES_GLOBAL,
+        );
         let name_roles: &[ArgRole] = match ownership {
-            Ownership::Bindings => &[ArgRole::VarWrite],
+            Ownership::Bindings | Ownership::DecodedBindings => &[ArgRole::VarWrite],
             Ownership::BindingsOrNameReads => &[ArgRole::VarWrite, ArgRole::VarRead],
+            Ownership::ScopeAliases if scope_alias => &[ArgRole::VarWrite],
+            Ownership::ScopeAliases => &[],
         };
-        if name_roles
-            .iter()
-            .copied()
-            .flat_map(&at)
-            .filter_map(|index| args.get(index))
-            .any(|word| crate::naming::normalise_var_name(word) == name)
-        {
+        if name_roles.iter().copied().flat_map(&at).any(|index| {
+            if matches!(
+                ownership,
+                Ownership::DecodedBindings | Ownership::ScopeAliases
+            ) {
+                decoded_binding_root(script, &segment, index + 1, config)
+                    .is_some_and(|root| root == name)
+            } else {
+                args.get(index)
+                    .is_some_and(|word| crate::naming::normalise_var_name(word) == name)
+            }
+        }) {
             return true;
         }
         // A loop's own variables: `foreach {k v} $pairs …` binds `k` and `v`.
@@ -155,12 +177,23 @@ fn binds(
         // `foreach {{first last}} …` binds one variable whose name contains a
         // space, and a whitespace split reads it as the two fragments
         // `{first` and `last}` and finds neither.
-        if at(ArgRole::LoopVarList)
-            .into_iter()
-            .filter_map(|index| args.get(index))
-            .filter_map(|list| list_rules.split_list(list).ok())
-            .flatten()
-            .any(|word| crate::naming::normalise_var_name(&word) == name)
+        if ownership != Ownership::ScopeAliases
+            && at(ArgRole::LoopVarList)
+                .into_iter()
+                .filter_map(|index| args.get(index))
+                .filter_map(|list| list_rules.split_list(list).ok())
+                .flatten()
+                .any(|word| {
+                    if ownership == Ownership::DecodedBindings {
+                        tcl_syntax::naming::normalise_var_name_braced_for_style(
+                            &word,
+                            true,
+                            config.braced_var,
+                        ) == name
+                    } else {
+                        crate::naming::normalise_var_name(&word) == name
+                    }
+                })
         {
             return true;
         }
@@ -181,13 +214,237 @@ fn binds(
         if registry
             .plain_body_arg_indices(command, &args)
             .into_iter()
-            .filter_map(|index| args.get(index))
-            .any(|body| binds(body, name, ownership, registry, config, depth - 1))
+            .filter_map(|index| literal_body_image(script, &segment, index + 1, config))
+            .any(|body| binds(&body, name, ownership, registry, config, depth - 1))
         {
             return true;
         }
     }
     false
+}
+
+fn decoded_binding_root(
+    image: &tcl_lexer::SourceImage,
+    segment: &crate::segmenter::SegmentedCommand,
+    word: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+    match crate::registry_invocation::effective_invocation_word(
+        tokens.words().get(word)?,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    ) {
+        crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(
+            tcl_syntax::naming::normalise_var_name_braced_for_style(
+                &value,
+                true,
+                config.braced_var,
+            )
+            .to_owned(),
+        ),
+        crate::registry_invocation::EffectiveInvocationWord::ArrayElementName { root } => {
+            Some(root)
+        }
+        _ => None,
+    }
+}
+
+/// Original straight-line declaration layout available to missing-read advice.
+/// It excludes unknown heads, nested script evaluation and unavailable operand
+/// roles. This is a syntax-domain receipt, not a completion or effect proof.
+#[cfg(test)]
+pub(crate) struct LinearDeclarationReadLayout;
+
+#[cfg(test)]
+pub(crate) fn linear_declaration_read_layout(
+    image: &tcl_lexer::SourceImage,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<LinearDeclarationReadLayout> {
+    let segments =
+        crate::segmenter::segment_commands_image_with_offset_and_config(image, 0, config)?;
+    for segment in segments {
+        if segment.is_partial {
+            return None;
+        }
+        let tokens =
+            crate::ir::CommandTokens::from_segmented(&image.source_map(), config, &segment);
+        if !tokens
+            .words()
+            .iter()
+            .all(|word| linear_operand(word, config))
+        {
+            return None;
+        }
+        let values: Vec<_> = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                crate::registry_invocation::effective_invocation_word(
+                    word,
+                    config.escapes,
+                    dialect.word_values,
+                )
+            })
+            .collect();
+        let words: Vec<_> = values
+            .iter()
+            .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+            .collect();
+        let (head, arguments) = words.split_first()?;
+        let resolved = registry.resolve_structured_invocation(
+            tcl_registry::InvocationWords::structured(*head, arguments).with_dialect(dialect),
+            dialect.authoring_query(),
+        );
+        let facts = resolved.resolved()?.facts();
+        if !facts.arg_roles_complete
+            || facts.arity_accepts_frozen_arguments() != Some(true)
+            || !matches!(
+                tcl_registry::case_bodies::script_body_flow_in_registry(
+                    registry,
+                    &facts,
+                    tcl_registry::InvocationWords::structured(*head, arguments)
+                        .with_dialect(dialect)
+                        .arguments()
+                ),
+                tcl_registry::script_body_flow::ScriptBodyFlow::None
+            )
+            || facts
+                .arg_roles
+                .iter()
+                .any(|(_, role)| role.carries_script() || *role == ArgRole::OpaqueScript)
+        {
+            return None;
+        }
+    }
+    Some(LinearDeclarationReadLayout)
+}
+
+#[cfg(test)]
+fn linear_operand(word: &crate::ir::WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+    use crate::ir::{WordExpr, WordPart};
+    let variable = |spelling: &str| {
+        tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config)
+            .ok()
+            .flatten()
+            .is_some_and(|reference| reference.index.is_none())
+    };
+    match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
+        WordExpr::Variable { spelling, .. } => variable(spelling),
+        WordExpr::Template { parts, .. } => parts.iter().all(|part| match part {
+            WordPart::Text { .. } => true,
+            WordPart::Variable { spelling, .. } => variable(spelling),
+            WordPart::CommandSubstitution { .. } | WordPart::Opaque { .. } => false,
+        }),
+        WordExpr::CommandSubstitution { .. }
+        | WordExpr::Expand { .. }
+        | WordExpr::Opaque { .. } => false,
+    }
+}
+
+fn literal_body_image(
+    image: &tcl_lexer::SourceImage,
+    segment: &crate::segmenter::SegmentedCommand,
+    word: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::SourceImage> {
+    let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, segment);
+    let value = crate::registry_invocation::effective_invocation_word(
+        tokens.words().get(word)?,
+        config.escapes,
+        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+    );
+    let crate::registry_invocation::EffectiveInvocationWord::Literal(value) = value else {
+        return None;
+    };
+    Some(tcl_lexer::SourceImage::native(value.into_bytes()))
+}
+
+/// An unchanged authored procedure's potential local-read domain. This is
+/// existential diagnostic advice, including a declaration whose runtime
+/// publication fails; it supplies no activation, physical absence or dispatch.
+pub(crate) struct AuthoredProcedureReadAdvice {
+    body: tcl_lexer::Span,
+}
+
+impl AuthoredProcedureReadAdvice {
+    /// Original diagnostic read span, without a physical contents verdict.
+    pub(crate) fn owns(&self, span: tcl_lexer::Span) -> bool {
+        span.start() >= self.body.start() && span.end() <= self.body.end()
+    }
+}
+
+/// Validate the original declaration/body/formal geometry using shared word
+/// and parameter owners. A materialised, substituted or malformed declaration
+/// cannot donate an authored local frame to this diagnostic projection.
+pub(crate) fn authored_procedure_read_advice(
+    image: &tcl_lexer::SourceImage,
+    procedure: &crate::ir::Procedure,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<AuthoredProcedureReadAdvice> {
+    let body = procedure.body_source.as_ref()?;
+    let base = usize::try_from(procedure.body_offset).ok()?;
+    if image.bytes().get(base..base.checked_add(body.len())?) != Some(body.as_bytes()) {
+        return None;
+    }
+    let start = usize::try_from(procedure.span.start()).ok()?;
+    let end = usize::try_from(procedure.span.end()).ok()?;
+    let original =
+        tcl_lexer::SourceImage::from_bytes(image.bytes().get(start..end)?, image.channel());
+    let mut segments =
+        crate::segmenter::segment_commands_image_with_offset_and_config(&original, 0, config)?
+            .into_iter();
+    let segment = segments.next()?;
+    if segment.is_partial || segments.next().is_some() || segment.argv.len() != 4 {
+        return None;
+    }
+    let words = crate::ir::CommandTokens::from_segmented(&original.source_map(), config, &segment);
+    let values: Option<Vec<String>> = words
+        .words()
+        .iter()
+        .map(|word| {
+            match crate::registry_invocation::effective_invocation_word(
+                word,
+                config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            ) {
+                crate::registry_invocation::EffectiveInvocationWord::Literal(value) => Some(value),
+                _ => None,
+            }
+        })
+        .collect();
+    let values = values?;
+    if values[0] != "proc"
+        || values[1] != procedure.name
+        || values[2] != procedure.params_raw
+        || values[3] != *body
+    {
+        return None;
+    }
+    let formals = tcl_syntax::formal_params::parse_formal_parameters_in(
+        &procedure.params_raw,
+        dialect?.parameter_grammar()?,
+    )
+    .ok()?;
+    if formals
+        .iter()
+        .map(|formal| &formal.name)
+        .ne(procedure.params.iter())
+    {
+        return None;
+    }
+    Some(AuthoredProcedureReadAdvice {
+        body: tcl_lexer::Span::new(
+            procedure.body_offset,
+            procedure
+                .body_offset
+                .checked_add(u32::try_from(body.len()).ok()?)?,
+        ),
+    })
 }
 
 #[cfg(test)]
@@ -212,6 +469,61 @@ mod tests {
             tcl_registry::default_registry(),
             tcl_lexer::LexerConfig::default(),
         )
+    }
+
+    #[test]
+    fn decoded_binding_names_do_not_strip_reference_sigils() {
+        let registry = tcl_registry::default_registry();
+        let config = tcl_lexer::LexerConfig::default();
+        for (script, name, expected) in [
+            ("set {$n} 1; return ${$n}", "$n", true),
+            ("set {$n} 1; return $n", "n", false),
+            ("set $n 1", "n", false),
+            ("set map($key) 1", "map", true),
+            ("foreach {{$n}} $items {}", "$n", true),
+        ] {
+            assert_eq!(
+                super::script_image_binds_name(
+                    &tcl_lexer::SourceImage::native(script.as_bytes()),
+                    name,
+                    Ownership::DecodedBindings,
+                    registry,
+                    config,
+                ),
+                expected,
+                "{script}: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn linear_read_layout_declines_unmodelled_completion_and_nested_effects() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        for (script, expected) in [
+            ("namespace upvar ::ns a alias; return $missing", true),
+            ("set {$n} 1; return ${$n}", true),
+            ("if {[catch {operation} err]} {puts $other}", false),
+            (
+                "switch $x {a {return} default {error stop}}; puts $missing",
+                false,
+            ),
+            ("operation; puts $missing", false),
+            ("puts $a([operation])", false),
+        ] {
+            assert_eq!(
+                super::linear_declaration_read_layout(
+                    &tcl_lexer::SourceImage::native(script.as_bytes()),
+                    registry,
+                    config,
+                    dialect,
+                )
+                .is_some(),
+                expected,
+                "{script}"
+            );
+        }
     }
 
     /// The shape the old top-level-`set` reading already answered, kept so a
@@ -283,5 +595,69 @@ mod tests {
     fn a_bare_name_read_is_ownership_only_for_a_barrier_body() {
         assert!(!binds("set y", "y"));
         assert!(owns("set y", "y"));
+    }
+    #[test]
+    fn original_source_channel_is_retained_before_body_value_evaluation() {
+        let raw = b"set \\\r\n x 1";
+        let registry = tcl_registry::default_registry();
+        let config = tcl_lexer::LexerConfig::default();
+        assert!(super::script_image_binds_name(
+            &tcl_lexer::SourceImage::from_bytes(raw.as_slice(), tcl_lexer::SourceChannel::Document),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+        assert!(!super::script_image_binds_name(
+            &tcl_lexer::SourceImage::native(raw.as_slice()),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+        assert!(!super::script_image_binds_name(
+            &tcl_lexer::SourceImage::native(b"set \xff 1".as_slice()),
+            "x",
+            Ownership::Bindings,
+            registry,
+            config,
+        ));
+    }
+    #[test]
+    fn declaration_read_advice_requires_original_unchanged_body_and_formals() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc ::missing::p {arg} {puts $missing}";
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source,
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let procedure = &unit.ir_module.procedures["::missing::p"];
+        let image = tcl_lexer::SourceImage::document(source);
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let dialect = Some(tcl_registry::InvocationDialect::of_profile(
+            registry.profile().unwrap(),
+        ));
+        let advice = super::authored_procedure_read_advice(&image, procedure, config, dialect)
+            .expect("authored declaration advice is independent of namespace publication");
+        assert!(advice.owns(tcl_lexer::Span::new(
+            procedure.body_offset,
+            procedure.body_offset + 4
+        )));
+        assert!(!advice.owns(procedure.span));
+        let mut changed = procedure.clone();
+        changed.params.push("invented".into());
+        assert!(super::authored_procedure_read_advice(&image, &changed, config, dialect).is_none());
+        assert!(
+            super::authored_procedure_read_advice(
+                &tcl_lexer::SourceImage::document("proc ::missing::p {arg} {puts $changed}"),
+                procedure,
+                config,
+                dialect,
+            )
+            .is_none()
+        );
+        assert!(super::authored_procedure_read_advice(&image, procedure, config, None).is_none());
     }
 }

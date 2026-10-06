@@ -1,0 +1,1150 @@
+{
+  "observation": "Original native output; no Rust comparison recorded by this producer",
+  "sources": [
+    {
+      "proof": "2286-native-control-preparation",
+      "original_manifest": {
+        "native_only": true,
+        "rust_comparisons": 0,
+        "controls": 75,
+        "source_sha256": "e2c569f12e07c1023957acf1d81eb075e8b4c7941f5b8958a00b40ff3f6dd946",
+        "records": [
+          {
+            "version": "8.4.20",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+            "stdout_sha256": "701bd4b7b555798e4a70b0b3930a8f68e15dc4f265f699aee36d2c17df62b6de"
+          },
+          {
+            "version": "8.5.19",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+            "stdout_sha256": "65d23ca0a8f983f699b18569144d6f66c82d4af7edfd2aec9dbf6ca579a13341"
+          },
+          {
+            "version": "8.6.18",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+            "stdout_sha256": "dfdc8be49c6ad292cbab4a19b9ed0a9086a1407d6173f7fc49f2a655ab02b758"
+          },
+          {
+            "version": "9.0.4",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+            "stdout_sha256": "82dd7cc4ee4f9934e1d25ddb7275d451f8cac79ece46f8a29204e1dc99a4f658"
+          },
+          {
+            "version": "9.1.0",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+            "stdout_sha256": "10761cdbad1d79f3bd3c8aa54920af78974770a8062b637d20c09c13417ae096"
+          }
+        ],
+        "rows": [
+          {
+            "version": "8.4.20",
+            "case": 0,
+            "source_hex": "69662030207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 1,
+            "source_hex": "69662031207b72657475726e205448454e7d20656c73656966207b5b6572726f72204d41534b45445d7d207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "5448454e",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 2,
+            "source_hex": "6966207b24787d207b72657475726e205448454e7d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 3,
+            "source_hex": "69662030207b736574206120417d20656c736569662030207b736574206220427d20656c7365207b736574206320437d3b20696e666f206c6f63616c73",
+            "code": 0,
+            "result_hex": "782063",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 4,
+            "source_hex": "7768696c652030207b736574206c65616b20227d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 5,
+            "source_hex": "7768696c65207b24787d207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 6,
+            "source_hex": "7768696c652031207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 7,
+            "source_hex": "666f72207b736574206920307d207b2469203c20317d207b696e637220697d207b73657420626f647920424f44597d3b206c6973742024692024626f6479",
+            "code": 0,
+            "result_hex": "3120424f4459",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 8,
+            "source_hex": "666f72207b7d207b317d207b627265616b7d207b73657420626f647920424f44597d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 9,
+            "source_hex": "6361746368207b6572726f72204348494c447d20726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 1,
+            "result_hex": "77726f6e67202320617267733a2073686f756c642062652022636174636820636f6d6d616e64203f7661724e616d653f22",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 10,
+            "source_hex": "636174636820247820726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 1,
+            "result_hex": "77726f6e67202320617267733a2073686f756c642062652022636174636820636f6d6d616e64203f7661724e616d653f22",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 11,
+            "source_hex": "6361746368207b72657475726e202d6c6576656c2030202d636f6465206572726f72204241447d20726573756c743b2072657475726e2024726573756c74",
+            "code": 0,
+            "result_hex": "626164206f7074696f6e20222d6c6576656c223a206d757374206265202d636f64652c202d6572726f72636f64652c206f72202d6572726f72696e666f",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 12,
+            "source_hex": "666f72656163682069207b4120427d207b736574206c6173742024697d3b2072657475726e20246c617374",
+            "code": 0,
+            "result_hex": "42",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 13,
+            "source_hex": "747279207b6572726f72204348494c447d206f6e206572726f72207b726573756c74206f7074696f6e737d207b72657475726e2024726573756c747d",
+            "code": 1,
+            "result_hex": "696e76616c696420636f6d6d616e64206e616d65202274727922",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.4.20",
+            "case": 14,
+            "source_hex": "747279207b72657475726e2056414c55457d2066696e616c6c79207b7365742066696e616c2046494e414c7d",
+            "code": 1,
+            "result_hex": "696e76616c696420636f6d6d616e64206e616d65202274727922",
+            "disassembly_available": false
+          },
+          {
+            "version": "8.5.19",
+            "case": 0,
+            "source_hex": "69662030207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 1,
+            "source_hex": "69662031207b72657475726e205448454e7d20656c73656966207b5b6572726f72204d41534b45445d7d207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "5448454e",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 2,
+            "source_hex": "6966207b24787d207b72657475726e205448454e7d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 3,
+            "source_hex": "69662030207b736574206120417d20656c736569662030207b736574206220427d20656c7365207b736574206320437d3b20696e666f206c6f63616c73",
+            "code": 0,
+            "result_hex": "782063",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 4,
+            "source_hex": "7768696c652030207b736574206c65616b20227d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 5,
+            "source_hex": "7768696c65207b24787d207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 6,
+            "source_hex": "7768696c652031207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 7,
+            "source_hex": "666f72207b736574206920307d207b2469203c20317d207b696e637220697d207b73657420626f647920424f44597d3b206c6973742024692024626f6479",
+            "code": 0,
+            "result_hex": "3120424f4459",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 8,
+            "source_hex": "666f72207b7d207b317d207b627265616b7d207b73657420626f647920424f44597d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 9,
+            "source_hex": "6361746368207b6572726f72204348494c447d20726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "4348494c442031",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 10,
+            "source_hex": "636174636820247820726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "7b696e76616c696420636f6d6d616e64206e616d65202230227d2031",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 11,
+            "source_hex": "6361746368207b72657475726e202d6c6576656c2030202d636f6465206572726f72204241447d20726573756c743b2072657475726e2024726573756c74",
+            "code": 0,
+            "result_hex": "424144",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 12,
+            "source_hex": "666f72656163682069207b4120427d207b736574206c6173742024697d3b2072657475726e20246c617374",
+            "code": 0,
+            "result_hex": "42",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 13,
+            "source_hex": "747279207b6572726f72204348494c447d206f6e206572726f72207b726573756c74206f7074696f6e737d207b72657475726e2024726573756c747d",
+            "code": 1,
+            "result_hex": "696e76616c696420636f6d6d616e64206e616d65202274727922",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.5.19",
+            "case": 14,
+            "source_hex": "747279207b72657475726e2056414c55457d2066696e616c6c79207b7365742066696e616c2046494e414c7d",
+            "code": 1,
+            "result_hex": "696e76616c696420636f6d6d616e64206e616d65202274727922",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 0,
+            "source_hex": "69662030207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 1,
+            "source_hex": "69662031207b72657475726e205448454e7d20656c73656966207b5b6572726f72204d41534b45445d7d207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "5448454e",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 2,
+            "source_hex": "6966207b24787d207b72657475726e205448454e7d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 3,
+            "source_hex": "69662030207b736574206120417d20656c736569662030207b736574206220427d20656c7365207b736574206320437d3b20696e666f206c6f63616c73",
+            "code": 0,
+            "result_hex": "782063",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 4,
+            "source_hex": "7768696c652030207b736574206c65616b20227d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 5,
+            "source_hex": "7768696c65207b24787d207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 6,
+            "source_hex": "7768696c652031207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 7,
+            "source_hex": "666f72207b736574206920307d207b2469203c20317d207b696e637220697d207b73657420626f647920424f44597d3b206c6973742024692024626f6479",
+            "code": 0,
+            "result_hex": "3120424f4459",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 8,
+            "source_hex": "666f72207b7d207b317d207b627265616b7d207b73657420626f647920424f44597d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 9,
+            "source_hex": "6361746368207b6572726f72204348494c447d20726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "4348494c442031",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 10,
+            "source_hex": "636174636820247820726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "7b696e76616c696420636f6d6d616e64206e616d65202230227d2031",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 11,
+            "source_hex": "6361746368207b72657475726e202d6c6576656c2030202d636f6465206572726f72204241447d20726573756c743b2072657475726e2024726573756c74",
+            "code": 0,
+            "result_hex": "424144",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 12,
+            "source_hex": "666f72656163682069207b4120427d207b736574206c6173742024697d3b2072657475726e20246c617374",
+            "code": 0,
+            "result_hex": "42",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 13,
+            "source_hex": "747279207b6572726f72204348494c447d206f6e206572726f72207b726573756c74206f7074696f6e737d207b72657475726e2024726573756c747d",
+            "code": 0,
+            "result_hex": "4348494c44",
+            "disassembly_available": true
+          },
+          {
+            "version": "8.6.18",
+            "case": 14,
+            "source_hex": "747279207b72657475726e2056414c55457d2066696e616c6c79207b7365742066696e616c2046494e414c7d",
+            "code": 0,
+            "result_hex": "56414c5545",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 0,
+            "source_hex": "69662030207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 1,
+            "source_hex": "69662031207b72657475726e205448454e7d20656c73656966207b5b6572726f72204d41534b45445d7d207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "5448454e",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 2,
+            "source_hex": "6966207b24787d207b72657475726e205448454e7d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 3,
+            "source_hex": "69662030207b736574206120417d20656c736569662030207b736574206220427d20656c7365207b736574206320437d3b20696e666f206c6f63616c73",
+            "code": 0,
+            "result_hex": "782063",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 4,
+            "source_hex": "7768696c652030207b736574206c65616b20227d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 5,
+            "source_hex": "7768696c65207b24787d207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 6,
+            "source_hex": "7768696c652031207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 7,
+            "source_hex": "666f72207b736574206920307d207b2469203c20317d207b696e637220697d207b73657420626f647920424f44597d3b206c6973742024692024626f6479",
+            "code": 0,
+            "result_hex": "3120424f4459",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 8,
+            "source_hex": "666f72207b7d207b317d207b627265616b7d207b73657420626f647920424f44597d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 9,
+            "source_hex": "6361746368207b6572726f72204348494c447d20726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "4348494c442031",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 10,
+            "source_hex": "636174636820247820726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "7b696e76616c696420636f6d6d616e64206e616d65202230227d2031",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 11,
+            "source_hex": "6361746368207b72657475726e202d6c6576656c2030202d636f6465206572726f72204241447d20726573756c743b2072657475726e2024726573756c74",
+            "code": 0,
+            "result_hex": "424144",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 12,
+            "source_hex": "666f72656163682069207b4120427d207b736574206c6173742024697d3b2072657475726e20246c617374",
+            "code": 0,
+            "result_hex": "42",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 13,
+            "source_hex": "747279207b6572726f72204348494c447d206f6e206572726f72207b726573756c74206f7074696f6e737d207b72657475726e2024726573756c747d",
+            "code": 0,
+            "result_hex": "4348494c44",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.0.4",
+            "case": 14,
+            "source_hex": "747279207b72657475726e2056414c55457d2066696e616c6c79207b7365742066696e616c2046494e414c7d",
+            "code": 0,
+            "result_hex": "56414c5545",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 0,
+            "source_hex": "69662030207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 1,
+            "source_hex": "69662031207b72657475726e205448454e7d20656c73656966207b5b6572726f72204d41534b45445d7d207b736574206c65616b20227d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "5448454e",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 2,
+            "source_hex": "6966207b24787d207b72657475726e205448454e7d20656c7365207b72657475726e20454c53457d",
+            "code": 0,
+            "result_hex": "454c5345",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 3,
+            "source_hex": "69662030207b736574206120417d20656c736569662030207b736574206220427d20656c7365207b736574206320437d3b20696e666f206c6f63616c73",
+            "code": 0,
+            "result_hex": "782063",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 4,
+            "source_hex": "7768696c652030207b736574206c65616b20227d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 5,
+            "source_hex": "7768696c65207b24787d207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 6,
+            "source_hex": "7768696c652031207b627265616b7d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 7,
+            "source_hex": "666f72207b736574206920307d207b2469203c20317d207b696e637220697d207b73657420626f647920424f44597d3b206c6973742024692024626f6479",
+            "code": 0,
+            "result_hex": "3120424f4459",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 8,
+            "source_hex": "666f72207b7d207b317d207b627265616b7d207b73657420626f647920424f44597d3b2072657475726e204146544552",
+            "code": 0,
+            "result_hex": "4146544552",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 9,
+            "source_hex": "6361746368207b6572726f72204348494c447d20726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "4348494c442031",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 10,
+            "source_hex": "636174636820247820726573756c74206f7074696f6e733b206c6973742024726573756c74205b646963742067657420246f7074696f6e73202d636f64655d",
+            "code": 0,
+            "result_hex": "7b696e76616c696420636f6d6d616e64206e616d65202230227d2031",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 11,
+            "source_hex": "6361746368207b72657475726e202d6c6576656c2030202d636f6465206572726f72204241447d20726573756c743b2072657475726e2024726573756c74",
+            "code": 0,
+            "result_hex": "424144",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 12,
+            "source_hex": "666f72656163682069207b4120427d207b736574206c6173742024697d3b2072657475726e20246c617374",
+            "code": 0,
+            "result_hex": "42",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 13,
+            "source_hex": "747279207b6572726f72204348494c447d206f6e206572726f72207b726573756c74206f7074696f6e737d207b72657475726e2024726573756c747d",
+            "code": 0,
+            "result_hex": "4348494c44",
+            "disassembly_available": true
+          },
+          {
+            "version": "9.1.0",
+            "case": 14,
+            "source_hex": "747279207b72657475726e2056414c55457d2066696e616c6c79207b7365742066696e616c2046494e414c7d",
+            "code": 0,
+            "result_hex": "56414c5545",
+            "disassembly_available": true
+          }
+        ],
+        "observations": "Original procedure compilation disassembly where available and actual completion; no cache/refcount certification"
+      },
+      "fixture": "control75.tsv",
+      "sha256": "b72364c49fdc10c762950a94fa1670f2aedc0a31399450fdd37344007288695f",
+      "windows": 75
+    },
+    {
+      "proof": "2286-native-compound-expression-preparation",
+      "original_manifest": {
+        "native_only": true,
+        "rust_comparisons": 0,
+        "controls": 40,
+        "source_sha256": "c6dc99811ac803593930d778e5fe09e7fbd9707f81d4bf9f12604586fc13f6d8",
+        "records": [
+          {
+            "version": "8.4.20",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+            "stdout_sha256": "6abe105f6798f10ce2b841914ef06ac0393248176e0e6f97b3bd923c10070658"
+          },
+          {
+            "version": "8.5.19",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+            "stdout_sha256": "9d553d6c0f2eb0a5555dfb1a156e8313aa4d2c4b18651962bf6dfc3e56ff0ac5"
+          },
+          {
+            "version": "8.6.18",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+            "stdout_sha256": "1e2a5554dc1610eebf1a10b8d164d51d515b7a36e2f4ab50df14581b23fa5622"
+          },
+          {
+            "version": "9.0.4",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+            "stdout_sha256": "e3cd41892558da6222c25bec4e9fb8af3410c0756a9aeb230525c245b2228849"
+          },
+          {
+            "version": "9.1.0",
+            "exit": 0,
+            "stderr_bytes": 0,
+            "binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+            "stdout_sha256": "fcfd31b4dee6c61161a47223919370cadf1f7bc83045d124b5abfeaa62e5acaa"
+          }
+        ],
+        "rows": [
+          {
+            "version": "8.4.20",
+            "case": 0,
+            "source_hex": "65787072207b312b327d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.4.20",
+            "case": 1,
+            "source_hex": "65787072207b24782b28312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "36"
+          },
+          {
+            "version": "8.4.20",
+            "case": 2,
+            "source_hex": "65787072207b307831302b3031307d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "3234"
+          },
+          {
+            "version": "8.4.20",
+            "case": 3,
+            "source_hex": "65787072207b66616c7365207c7c2028312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "31"
+          },
+          {
+            "version": "8.4.20",
+            "case": 4,
+            "source_hex": "65787072207b2478203f2028312b3229203a2028312f30297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.4.20",
+            "case": 5,
+            "source_hex": "65787072207b2478203f2028312f3029203a2028312b32297d",
+            "argument_hex": "33",
+            "code": 1,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "8.4.20",
+            "case": 6,
+            "source_hex": "65787072207b616273282d34297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "34"
+          },
+          {
+            "version": "8.4.20",
+            "case": 7,
+            "source_hex": "6361746368207b65787072207b312f307d7d20726573756c743b2072657475726e2024726573756c74",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "8.5.19",
+            "case": 0,
+            "source_hex": "65787072207b312b327d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.5.19",
+            "case": 1,
+            "source_hex": "65787072207b24782b28312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "36"
+          },
+          {
+            "version": "8.5.19",
+            "case": 2,
+            "source_hex": "65787072207b307831302b3031307d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "3234"
+          },
+          {
+            "version": "8.5.19",
+            "case": 3,
+            "source_hex": "65787072207b66616c7365207c7c2028312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "31"
+          },
+          {
+            "version": "8.5.19",
+            "case": 4,
+            "source_hex": "65787072207b2478203f2028312b3229203a2028312f30297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.5.19",
+            "case": 5,
+            "source_hex": "65787072207b2478203f2028312f3029203a2028312b32297d",
+            "argument_hex": "33",
+            "code": 1,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "8.5.19",
+            "case": 6,
+            "source_hex": "65787072207b616273282d34297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "34"
+          },
+          {
+            "version": "8.5.19",
+            "case": 7,
+            "source_hex": "6361746368207b65787072207b312f307d7d20726573756c743b2072657475726e2024726573756c74",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "8.6.18",
+            "case": 0,
+            "source_hex": "65787072207b312b327d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.6.18",
+            "case": 1,
+            "source_hex": "65787072207b24782b28312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "36"
+          },
+          {
+            "version": "8.6.18",
+            "case": 2,
+            "source_hex": "65787072207b307831302b3031307d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "3234"
+          },
+          {
+            "version": "8.6.18",
+            "case": 3,
+            "source_hex": "65787072207b66616c7365207c7c2028312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "31"
+          },
+          {
+            "version": "8.6.18",
+            "case": 4,
+            "source_hex": "65787072207b2478203f2028312b3229203a2028312f30297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "8.6.18",
+            "case": 5,
+            "source_hex": "65787072207b2478203f2028312f3029203a2028312b32297d",
+            "argument_hex": "33",
+            "code": 1,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "8.6.18",
+            "case": 6,
+            "source_hex": "65787072207b616273282d34297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "34"
+          },
+          {
+            "version": "8.6.18",
+            "case": 7,
+            "source_hex": "6361746368207b65787072207b312f307d7d20726573756c743b2072657475726e2024726573756c74",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "9.0.4",
+            "case": 0,
+            "source_hex": "65787072207b312b327d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "9.0.4",
+            "case": 1,
+            "source_hex": "65787072207b24782b28312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "36"
+          },
+          {
+            "version": "9.0.4",
+            "case": 2,
+            "source_hex": "65787072207b307831302b3031307d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "3236"
+          },
+          {
+            "version": "9.0.4",
+            "case": 3,
+            "source_hex": "65787072207b66616c7365207c7c2028312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "31"
+          },
+          {
+            "version": "9.0.4",
+            "case": 4,
+            "source_hex": "65787072207b2478203f2028312b3229203a2028312f30297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "9.0.4",
+            "case": 5,
+            "source_hex": "65787072207b2478203f2028312f3029203a2028312b32297d",
+            "argument_hex": "33",
+            "code": 1,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "9.0.4",
+            "case": 6,
+            "source_hex": "65787072207b616273282d34297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "34"
+          },
+          {
+            "version": "9.0.4",
+            "case": 7,
+            "source_hex": "6361746368207b65787072207b312f307d7d20726573756c743b2072657475726e2024726573756c74",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "9.1.0",
+            "case": 0,
+            "source_hex": "65787072207b312b327d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "9.1.0",
+            "case": 1,
+            "source_hex": "65787072207b24782b28312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "36"
+          },
+          {
+            "version": "9.1.0",
+            "case": 2,
+            "source_hex": "65787072207b307831302b3031307d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "3236"
+          },
+          {
+            "version": "9.1.0",
+            "case": 3,
+            "source_hex": "65787072207b66616c7365207c7c2028312b32297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "31"
+          },
+          {
+            "version": "9.1.0",
+            "case": 4,
+            "source_hex": "65787072207b2478203f2028312b3229203a2028312f30297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "33"
+          },
+          {
+            "version": "9.1.0",
+            "case": 5,
+            "source_hex": "65787072207b2478203f2028312f3029203a2028312b32297d",
+            "argument_hex": "33",
+            "code": 1,
+            "result_hex": "646976696465206279207a65726f"
+          },
+          {
+            "version": "9.1.0",
+            "case": 6,
+            "source_hex": "65787072207b616273282d34297d",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "34"
+          },
+          {
+            "version": "9.1.0",
+            "case": 7,
+            "source_hex": "6361746368207b65787072207b312f307d7d20726573756c743b2072657475726e2024726573756c74",
+            "argument_hex": "33",
+            "code": 0,
+            "result_hex": "646976696465206279207a65726f"
+          }
+        ]
+      },
+      "fixture": "compound40.tsv",
+      "sha256": "7881a3ba2147109424c65769a858fa6a404a086356b2d5823dd3c15a3eb52795",
+      "windows": 40
+    },
+    {
+      "proof": "2286-native-compiled-constant-storage",
+      "original_manifest": {
+        "source_sha256": "d587b8f667589f8752031b01b235ec4bdb3f7318fcb3528ec375d752f1d3e724",
+        "engines": [
+          {
+            "version": "8.4.20",
+            "compile_command": [
+              "cc",
+              "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+              "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/probe.c",
+              "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+              "-lm",
+              "-ldl",
+              "-lpthread",
+              "-lz",
+              "-o",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/8.4.20.probe"
+            ],
+            "compile_exit": 0,
+            "stderr": "",
+            "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+            "exit": 0,
+            "output_sha256": "6119824be9e34629e03ac4c5756823300e16b051b73aabb22294adee2f0f487e",
+            "completed_cases": 8
+          },
+          {
+            "version": "8.5.19",
+            "compile_command": [
+              "cc",
+              "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+              "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/probe.c",
+              "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+              "-lm",
+              "-ldl",
+              "-lpthread",
+              "-lz",
+              "-o",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/8.5.19.probe"
+            ],
+            "compile_exit": 0,
+            "stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclUnixPort.h:142,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-native-compiled-constant-storage/probe.c:1:\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+            "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+            "exit": 0,
+            "output_sha256": "72b7a970d673bbea3d07e7fd90e33e1fe78669cf9e4f338463cf530374306624",
+            "completed_cases": 8
+          },
+          {
+            "version": "8.6.18",
+            "compile_command": [
+              "cc",
+              "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+              "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/probe.c",
+              "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+              "-lm",
+              "-ldl",
+              "-lpthread",
+              "-lz",
+              "-o",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/8.6.18.probe"
+            ],
+            "compile_exit": 0,
+            "stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h:161,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-native-compiled-constant-storage/probe.c:1:\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+            "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+            "exit": 0,
+            "output_sha256": "c0fa2f92821811e390e6091809123e5100992261eeecaa23f0990a14db6eb118",
+            "completed_cases": 8
+          },
+          {
+            "version": "9.0.4",
+            "compile_command": [
+              "cc",
+              "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+              "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/probe.c",
+              "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+              "-lm",
+              "-ldl",
+              "-lpthread",
+              "-lz",
+              "-o",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/9.0.4.probe"
+            ],
+            "compile_exit": 0,
+            "stderr": "",
+            "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+            "exit": 0,
+            "output_sha256": "c0fa2f92821811e390e6091809123e5100992261eeecaa23f0990a14db6eb118",
+            "completed_cases": 8
+          },
+          {
+            "version": "9.1.0",
+            "compile_command": [
+              "cc",
+              "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+              "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/probe.c",
+              "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+              "-lm",
+              "-ldl",
+              "-lpthread",
+              "-lz",
+              "-o",
+              "/workspace/.proofs/2286-native-compiled-constant-storage/9.1.0.probe"
+            ],
+            "compile_exit": 0,
+            "stderr": "",
+            "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+            "exit": 0,
+            "output_sha256": "52b1089d4bff863c56b23eef293d42d9d165d23261af423e54fa46d06723254b",
+            "completed_cases": 8
+          }
+        ],
+        "rust_comparisons": 0
+      },
+      "fixture": "storage40.tsv",
+      "sha256": "53829a91df7b3e1356fadb8541cdb766c5e63df782c4b0e63d611563e4d5b680",
+      "windows": 40
+    }
+  ]
+}

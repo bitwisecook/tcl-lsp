@@ -1,0 +1,34 @@
+{
+  "actual_engine": "Jim0.84/current pinned source",
+  "actual_list_conversions": 64,
+  "child_source_observations": 104,
+  "windows": 296,
+  "exit": 0,
+  "files": [
+    {
+      "path": "/workspace/.proofs/2286-jim-source-list.c",
+      "sha256": "b4584a92a0bb6b6d62f513980f967fbb3b4385e5949b30f8d09fd9207bd38475"
+    },
+    {
+      "path": "/workspace/.proofs/2286-jim-source-list",
+      "sha256": "a9e55af2cdcc8844756c7ac4cdd65d9846bdb5cca2845c817403179979745b9e"
+    },
+    {
+      "path": "/tmp/2286-oracles/jimtcl/libjim.a",
+      "sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff"
+    },
+    {
+      "path": "/tmp/2286-oracles/jimtcl/jim.c",
+      "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+    },
+    {
+      "path": "/tmp/2286-oracles/jimtcl/jim.h",
+      "sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    },
+    {
+      "path": "/workspace/.proofs/2286-jim-source-list.tsv",
+      "sha256": "5fcbf657cea90fb09b4a0219363535cd9fae3f71f5e88a3632796563d2d2b272"
+    }
+  ],
+  "scope": "Original filename identity/type/residency/reference ownership and source line across plain/source/duplicate-source parents; includes counted raw NUL. Child string observations after physical state capture. No Rust comparisons."
+}

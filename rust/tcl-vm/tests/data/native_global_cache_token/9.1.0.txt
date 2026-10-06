@@ -1,0 +1,5 @@
+localVarName|LOCAL
+simple|1|can't read "v": no such variable
+parsedVarName|QUALIFIED
+parsedVarName|QUALIFIED
+qualified|1|can't read "v": no such variable

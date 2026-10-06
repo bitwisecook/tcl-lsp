@@ -37,33 +37,27 @@ use std::rc::Rc;
 
 use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj, TclObjType};
+
+// Compatibility re-exports; object lifetime and error transport do not need the engine.
+pub use crate::expr_error::ExprError;
+pub use crate::obj::Owned;
 use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
 use tcl_syntax::expr::mathfunc::MathFuncError;
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
-// `TCL_EXPR_TYPE` — the parsed-expression internal rep.
-
-/// The expression cache's backing: the parsed AST, plus the emulated release
-/// its registry validation was performed against.
-///
-/// The AST is behind an [`Rc`] so a reader takes an owning handle before
-/// evaluating. Evaluation runs `[cmd]` substitutions, and one of those can
-/// shimmer the very object the AST is cached on (a numeric read of an unshared
-/// condition object, say); the strong reference makes that harmless instead of
-/// a use-after-free.
+/// Immutable original expression backing. Jim terms retain their own objects,
+/// including unvisited lazy branches and original command Source descriptors.
 struct CachedExpr {
-    node: Rc<ExprNode>,
-    version: tcl_dialect::TclVersion,
+    parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+    node: Option<Rc<tcl_syntax::expr::NativeExprNode>>,
+    dialect: tcl_registry::InvocationDialect,
+    jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>>,
 }
 
-/// The `expr` type descriptor — a condition or operand's parsed, validated AST.
-///
-/// There is deliberately **no** `update_string_proc`: this rep is only ever
-/// attached to an object that already carries its spelling, and nothing mutates
-/// the AST, so the string rep stays the authority and is never regenerated from
-/// the tree. [`obj::change_type`] keeps that spelling across the shimmer, and
-/// any later string mutation frees this rep exactly like any other — which is
-/// precisely the invalidation the cache needs.
+/// C expression source cache; its resident spelling is never regenerated.
 pub static TCL_EXPR_TYPE: TclObjType = TclObjType {
     name: c"expr".as_ptr(),
     free_int_rep_proc: Some(expr_free),
@@ -72,61 +66,217 @@ pub static TCL_EXPR_TYPE: TclObjType = TclObjType {
     set_from_any_proc: None,
 };
 
-extern "C" fn expr_free(obj: *mut TclObj) {
-    let p = obj::internal_rep(obj) as usize as *mut CachedExpr;
-    if p.is_null() {
-        return;
-    }
-    // SAFETY: `obj` has the expr type, so its rep is the box `cache_expr` made.
-    unsafe { drop(Box::from_raw(p)) };
-}
+/// Jim expression tree, including a prepared rejected Expression(NULL).
+pub(crate) static JIM_EXPR_TYPE: TclObjType = TclObjType {
+    name: c"expression".as_ptr(),
+    free_int_rep_proc: Some(expr_free),
+    dup_int_rep_proc: Some(jim_expr_dup),
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
 
-extern "C" fn expr_dup(src: *mut TclObj, dup: *mut TclObj) {
-    // SAFETY: `src` has the expr type; the copy shares the immutable AST.
-    unsafe {
-        let src_ref = &*(obj::internal_rep(src) as usize as *const CachedExpr);
-        let boxed = Box::new(CachedExpr {
-            node: Rc::clone(&src_ref.node),
-            version: src_ref.version,
-        });
-        obj::change_type(dup, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+fn expression_type(dialect: tcl_registry::InvocationDialect) -> &'static TclObjType {
+    if dialect.native_string_protocol()
+        == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+    {
+        &JIM_EXPR_TYPE
+    } else {
+        &TCL_EXPR_TYPE
     }
 }
 
-/// The AST cached on `obj`, if it was validated for `version`.
-///
-/// A release change (an embedder pinning another emulated Tcl) invalidates the
-/// entry: the *parse* runs over the union grammar and is release-neutral, but
-/// the registry validation that admitted it is not, so a cached tree is only
-/// reusable under the release it was admitted for.
-pub(crate) fn cached_expr(
-    obj: *mut TclObj,
-    version: tcl_dialect::TclVersion,
-) -> Option<Rc<ExprNode>> {
-    if !core::ptr::eq(obj::obj_type_ptr(obj), &TCL_EXPR_TYPE) {
+fn expression_backing(value: *mut TclObj) -> Option<Rc<CachedExpr>> {
+    if obj::obj_type_ptr(value) != &TCL_EXPR_TYPE && obj::obj_type_ptr(value) != &JIM_EXPR_TYPE {
         return None;
     }
-    // SAFETY: the type check above proves the rep is a live `CachedExpr` box.
-    let cached = unsafe { &*(obj::internal_rep(obj) as usize as *const CachedExpr) };
-    (cached.version == version).then(|| Rc::clone(&cached.node))
+    // SAFETY: both exact descriptors own a boxed Rc to the immutable backing.
+    Some(unsafe { Rc::clone(&*(obj::internal_rep(value) as usize as *const Rc<CachedExpr>)) })
 }
 
-/// Cache a parsed and validated AST on `obj` so the next evaluation of the same
-/// condition object reuses it instead of re-lexing its text.
-///
-/// Only a **plain string** that already carries its spelling is shimmered. That
-/// is the shape every literal condition word has, and refusing the rest keeps
-/// the cache from destroying a list/dict/numeric rep another holder still wants
-/// — the same "may we cache" reasoning as the numeric write-back, one rung up.
-pub(crate) fn cache_expr(obj: *mut TclObj, version: tcl_dialect::TclVersion, node: &Rc<ExprNode>) {
-    if !obj::obj_type_ptr(obj).is_null() || !obj::has_string_rep(obj) {
+fn install_expression(value: *mut TclObj, backing: Rc<CachedExpr>) {
+    let descriptor = expression_type(backing.dialect);
+    obj::change_type(
+        value,
+        descriptor,
+        Box::into_raw(Box::new(backing)) as usize as u64,
+    );
+}
+
+extern "C" fn expr_free(value: *mut TclObj) {
+    // SAFETY: the exact expression descriptor owns this boxed Rc.
+    unsafe {
+        drop(Box::from_raw(
+            obj::internal_rep(value) as usize as *mut Rc<CachedExpr>
+        ))
+    };
+}
+
+extern "C" fn expr_dup(original: *mut TclObj, duplicate: *mut TclObj) {
+    install_expression(
+        duplicate,
+        expression_backing(original).expect("live C expression backing"),
+    );
+}
+
+extern "C" fn jim_expr_dup(_original: *mut TclObj, _duplicate: *mut TclObj) {
+    // Jim deliberately leaves the new header untyped, retaining only bytes.
+}
+
+/// Original matching expression tree, without treating a rejected tree as absent.
+pub(crate) fn cached_expr(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+) -> Option<Rc<tcl_syntax::expr::NativeExprNode>> {
+    let cached = expression_backing(value)?;
+    (cached.dialect == dialect && cached.parser_policy == parser_policy)
+        .then(|| cached.node.clone())
+        .flatten()
+}
+
+pub(crate) fn expression_rejected(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+) -> bool {
+    expression_backing(value).is_some_and(|cached| {
+        cached.dialect == dialect && cached.parser_policy == parser_policy && cached.node.is_none()
+    })
+}
+
+pub(crate) fn native_jim_expression_objects(
+    value: *mut TclObj,
+) -> Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>> {
+    expression_backing(value)?.jim.clone()
+}
+
+/// Preserve the reached rejected primary after the original string is resident.
+pub(crate) fn prepare_expr_cache(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+) {
+    if obj::has_string_rep(value) {
+        install_expression(
+            value,
+            Rc::new(CachedExpr {
+                node: None,
+                dialect,
+                parser_policy,
+                jim: None,
+            }),
+        );
+    }
+}
+
+/// Cache the C tree; a genuine Jim backing retains its existing original terms.
+pub(crate) fn cache_expr(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+    node: &Rc<tcl_syntax::expr::NativeExprNode>,
+) {
+    if !obj::has_string_rep(value)
+        || (native_jim_expression_objects(value).is_some()
+            && cached_expr(value, dialect, parser_policy).is_some())
+    {
         return;
     }
-    let boxed = Box::new(CachedExpr {
-        node: Rc::clone(node),
-        version,
-    });
-    obj::change_type(obj, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+    install_expression(
+        value,
+        Rc::new(CachedExpr {
+            node: Some(Rc::clone(node)),
+            dialect,
+            parser_policy,
+            jim: None,
+        }),
+    );
+}
+
+pub(crate) struct JimExpressionInstall<'a> {
+    pub(crate) dialect: tcl_registry::InvocationDialect,
+    pub(crate) parser_policy: Option<(
+        tcl_registry::invocation_words::LogicalExpressionParseProvider,
+        tcl_dialect::DialectProfileKey,
+    )>,
+    pub(crate) node: &'a tcl_syntax::expr::NativeExprNode,
+    pub(crate) source: &'a [u8],
+    pub(crate) preparation: &'a tcl_syntax::expr::native_objects::JimExpressionPreparation,
+    pub(crate) info: &'a crate::native_source::NativeJimSourceInfo,
+}
+
+pub(crate) fn install_jim_expression(
+    value: *mut TclObj,
+    input: JimExpressionInstall<'_>,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    use tcl_syntax::expr::native_objects::{JimExpressionObjects, JimExpressionTermValue};
+    let context = crate::native_source::context(value)?;
+    let objects =
+        JimExpressionObjects::prepare(input.source, input.preparation, |term, payload| {
+            let value = Owned::fresh(match payload {
+                JimExpressionTermValue::Number(
+                    tcl_syntax::scalar_getter::JimExpressionNumber::Integer(number),
+                ) => obj::new_wide_int_obj(number),
+                JimExpressionTermValue::Number(
+                    tcl_syntax::scalar_getter::JimExpressionNumber::Double(number),
+                ) => obj::new_double_obj(number),
+                JimExpressionTermValue::String(bytes) => obj::new_string_bytes(bytes),
+            });
+            crate::native_source::bind_context(value.as_ptr(), &context)?;
+            if term.kind == tcl_lexer::ExprTermKind::Command {
+                crate::native_source::install_source(
+                    value.as_ptr(),
+                    crate::native_source::NativeJimSourceInfo {
+                        filename: input.info.filename.clone(),
+                        line: input.info.line.wrapping_add_unsigned(term.line_delta),
+                    },
+                    &context,
+                )?;
+            }
+            Ok(value)
+        })?;
+    install_expression(
+        value,
+        Rc::new(CachedExpr {
+            dialect: input.dialect,
+            parser_policy: input.parser_policy,
+            node: Some(Rc::new(input.node.clone())),
+            jim: Some(Rc::new(objects)),
+        }),
+    );
+    Ok(())
+}
+
+/// Keeps the original parent and actual tree alive during evaluation, then
+/// reinstalls the same backing even when a reached operation shimmered it.
+pub(crate) struct ExpressionLease {
+    original: Owned,
+    backing: Rc<CachedExpr>,
+}
+impl Drop for ExpressionLease {
+    fn drop(&mut self) {
+        install_expression(self.original.as_ptr(), Rc::clone(&self.backing));
+    }
+}
+pub(crate) fn retain_expression_primary(value: *mut TclObj) -> Option<ExpressionLease> {
+    let backing = expression_backing(value)?;
+    backing.jim.as_ref()?;
+    Some(ExpressionLease {
+        original: Owned::retain(value),
+        backing,
+    })
 }
 
 #[cfg(test)]
@@ -154,43 +304,22 @@ pub(crate) fn expr_parse_count() -> u64 {
     EXPR_PARSE_COUNT.with(core::cell::Cell::get)
 }
 
-/// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
-/// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExprError {
-    pub msg: Vec<u8>,
-    pub code: Option<Vec<u8>>,
-}
-
-impl ExprError {
-    fn msg(s: &[u8]) -> ExprError {
-        ExprError {
-            msg: s.to_vec(),
-            code: None,
-        }
-    }
-    /// An error from owned message bytes (no `-errorcode`).
-    pub fn from_bytes(m: Vec<u8>) -> ExprError {
-        ExprError { msg: m, code: None }
-    }
-    /// An error from message bytes plus an optional `-errorcode` (an empty code
-    /// is treated as none).
-    pub fn from_parts(m: Vec<u8>, code: Vec<u8>) -> ExprError {
-        ExprError {
-            msg: m,
-            code: (!code.is_empty()).then_some(code),
-        }
-    }
-    /// An error with an explicit `-errorcode`.
-    fn with_code(m: &[u8], code: &[u8]) -> ExprError {
-        ExprError {
-            msg: m.to_vec(),
-            code: Some(code.to_vec()),
-        }
-    }
-}
-
 pub(crate) fn arith_err(e: ArithError) -> ExprError {
+    use tcl_syntax::expr::errors::NativeArithmeticFailure as Failure;
+    let failure = match e {
+        ArithError::DivideByZero => Some(Failure::DivideByZero),
+        ArithError::ZeroToNegativePower => Some(Failure::ZeroToNegativePower),
+        ArithError::NanResult => Some(Failure::NanResult),
+        ArithError::NegativeShift => Some(Failure::NegativeShift),
+        _ => None,
+    };
+    if let Some(failure) = failure {
+        let (message, code) = failure.diagnostic();
+        return code.map_or_else(
+            || ExprError::msg(message.as_bytes()),
+            |code| ExprError::with_code(message.as_bytes(), code.as_bytes()),
+        );
+    }
     match e {
         ArithError::NonNumeric => {
             ExprError::msg(b"can't use non-numeric string as operand of arithmetic")
@@ -198,22 +327,12 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
         ArithError::NonInteger => {
             ExprError::msg(b"can't use floating-point value as operand of bitwise op")
         }
-        // C stamps the arithmetic `-errorcode`s (`tclExecute.c`).
-        ArithError::DivideByZero => {
-            ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
+        ArithError::DivideByZero
+        | ArithError::ZeroToNegativePower
+        | ArithError::NanResult
+        | ArithError::NegativeShift => {
+            unreachable!("shared native arithmetic diagnostic handled above")
         }
-        // `0 ** negative` is a *domain* error in C, not a division by zero
-        // (tclsh 8.6/9.0: `-errorcode ARITH DOMAIN`).
-        ArithError::ZeroToNegativePower => ExprError::with_code(
-            b"exponentiation of zero by negative power",
-            b"ARITH DOMAIN {exponentiation of zero by negative power}",
-        ),
-        // C's `TclExprFloatError` for a produced NaN (`tclExecute.c`).
-        ArithError::NanResult => ExprError::with_code(
-            b"domain error: argument not in valid range",
-            b"ARITH DOMAIN {domain error: argument not in valid range}",
-        ),
-        ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
         ArithError::TooLargeToRepresent => ExprError::msg(b"integer value too large to represent"),
         ArithError::Alloc => ExprError::msg(b"out of memory"),
@@ -224,17 +343,38 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
 /// [`tcl_syntax::expr::errors`]: the *wording* is a release axis (9.0 names
 /// the value and the side, 8.4-8.6 name neither and have no list branch),
 /// while the `-errorcode ARITH DOMAIN <description>` is invariant.
-fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8]) -> ExprError {
-    let release = tcl_syntax::expr::errors::ambient_release();
-    let message = tcl_syntax::expr::errors::illegal_operand_message(
-        desc,
-        &String::from_utf8_lossy(value),
-        side,
-        &String::from_utf8_lossy(op),
-        release,
-    );
+fn operand_type_err(
+    desc: OperandDesc,
+    value: &[u8],
+    side: OperandSide,
+    op: &[u8],
+    dialect: tcl_registry::InvocationDialect,
+    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+) -> ExprError {
+    let release = dialect
+        .native_string_protocol()
+        .and_then(|protocol| protocol.tcl_version())
+        .or_else(|| {
+            dialect.byte_array_string_recipe(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )).and_then(|recipe| recipe.protocol().tcl_version())
+        });
+    let Some(release) = release else {
+        return ExprError::host_refusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "expression operand diagnostic",
+            ),
+        );
+    };
+    let message =
+        tcl_syntax::expr::errors::illegal_operand_message_bytes(desc, value, side, op, release);
     let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release);
-    ExprError::from_parts(message.into_bytes(), code.into_bytes())
+    let error = ExprError::from_parts(message, code.into_bytes());
+    if desc == OperandDesc::NonNumericFloatingPointValue {
+        error
+    } else {
+        error.with_invalid_type_stage(dialect, stage)
+    }
 }
 
 /// How C describes `o` when an operator cannot use it: a NaN is a
@@ -250,9 +390,11 @@ fn operand_desc(o: *mut TclObj, float_operand: bool) -> OperandDesc {
         return OperandDesc::NonNumericFloatingPointValue;
     }
     let bytes = obj::bytes_of(o);
-    let text = String::from_utf8_lossy(&bytes);
-    if tcl_syntax::list::max_list_length(&text) > 1 && tcl_syntax::list::split_list(&text).is_ok() {
-        return OperandDesc::List;
+    if let Ok(text) = core::str::from_utf8(&bytes) {
+        if tcl_syntax::list::max_list_length(text) > 1 && tcl_syntax::list::split_list(text).is_ok()
+        {
+            return OperandDesc::List;
+        }
     }
     OperandDesc::NonNumericString
 }
@@ -278,7 +420,13 @@ fn binop_sym(op: BinOp) -> &'static [u8] {
 /// Build the operand-type error for a *binary* op: the offending operand is the
 /// first one (left, then right) that is non-numeric (for `NonNumeric`) or a
 /// float (for `NonInteger`). Other `ArithError`s keep their plain message.
-fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> ExprError {
+fn binop_err(
+    e: ArithError,
+    op: BinOp,
+    lp: *mut TclObj,
+    rp: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> ExprError {
     let float = match e {
         ArithError::NonInteger => true,
         ArithError::NonNumeric => false,
@@ -300,55 +448,108 @@ fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> Expr
         &obj::bytes_of(bad),
         side,
         binop_sym(op),
+        dialect,
+        if float {
+            tcl_registry::native_numeric_error::NativeExpressionOperandStage::Integer
+        } else {
+            tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint
+        },
     )
 }
 
-/// An owned object reference (`rc +1`) that releases on drop — the discipline
-/// that keeps the shared recursive walk leak-/double-free-safe across early
-/// returns.
-pub struct Owned(*mut TclObj);
-
-impl Owned {
-    /// Take an owning `+1` on a live object (e.g. a variable's store value).
-    pub fn retain(o: *mut TclObj) -> Owned {
-        // SAFETY: `o` is a live object.
-        unsafe { obj::incr_ref_count(o) };
-        Owned(o)
-    }
-
-    /// Adopt a freshly-minted (`rc 0`) object, taking it to `rc 1`.
-    pub(crate) fn fresh(o: *mut TclObj) -> Owned {
-        // SAFETY: `o` is a fresh object from a constructor / tower op.
-        unsafe { obj::incr_ref_count(o) };
-        Owned(o)
-    }
-
-    #[inline]
-    fn ptr(&self) -> *mut TclObj {
-        self.0
-    }
-
-    /// The borrowed object pointer (the `+1` stays with this `Owned`). Callers
-    /// that retain it (e.g. `Tcl_SetObjResult`, which takes its own `+1`) read
-    /// through this and let the `Owned` drop its reference normally.
-    #[inline]
-    #[must_use]
-    pub fn as_ptr(&self) -> *mut TclObj {
-        self.0
-    }
-
-    /// Hand the `+1` to the caller without releasing it here.
-    pub fn into_raw(self) -> *mut TclObj {
-        let o = self.0;
-        core::mem::forget(self);
-        o
-    }
+fn selected_operand_error(
+    dialect: tcl_registry::InvocationDialect,
+    stage: tcl_registry::native_numeric_error::NativeExpressionOperandStage,
+    value: *mut TclObj,
+) -> Option<ExprError> {
+    let presentation = dialect.expression_operand_error_presentation()?;
+    Some(ExprError::from_bytes(
+        presentation.message(stage, &obj::bytes_of(value)),
+    ))
 }
 
-impl Drop for Owned {
-    fn drop(&mut self) {
-        // SAFETY: `self.0` is the object we hold a `+1` on.
-        unsafe { obj::decr_ref_count(self.0) };
+fn selected_binop_error(
+    error: ArithError,
+    op: BinOp,
+    left: *mut TclObj,
+    right: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> ExprError {
+    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
+    if matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
+        let integer = matches!(
+            op,
+            BinOp::Mod
+                | BinOp::BitAnd
+                | BinOp::BitOr
+                | BinOp::BitXor
+                | BinOp::LShift
+                | BinOp::RShift
+        );
+        let bad = if !bignum::is_numeric(left) || (integer && !bignum::is_integer(left)) {
+            left
+        } else {
+            right
+        };
+        if let Some(error) = selected_operand_error(
+            dialect,
+            if integer {
+                Stage::Integer
+            } else {
+                Stage::FloatingPoint
+            },
+            bad,
+        ) {
+            return error;
+        }
+    }
+    binop_err(error, op, left, right, dialect)
+}
+
+fn selected_unary_error(
+    error: ArithError,
+    op: UnaryOp,
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> ExprError {
+    use tcl_registry::native_numeric_error::NativeExpressionOperandStage as Stage;
+    if matches!(error, ArithError::NonNumeric | ArithError::NonInteger) {
+        if let Some(presentation) = dialect.expression_operand_error_presentation() {
+            if matches!(op, UnaryOp::Pos | UnaryOp::Neg) && to_bool_in(value, dialect).is_ok() {
+                if let Some(message) = presentation.non_numeric_unary_message(op) {
+                    return ExprError::from_bytes(message);
+                }
+            }
+        }
+        let stage = if op == UnaryOp::BitNot {
+            Stage::Integer
+        } else {
+            Stage::Boolean
+        };
+        if let Some(error) = selected_operand_error(dialect, stage, value) {
+            return error;
+        }
+    }
+    let symbol = match op {
+        UnaryOp::Pos => b"+",
+        UnaryOp::Neg => b"-",
+        UnaryOp::BitNot => b"~",
+        _ => b"?",
+    };
+    match error {
+        ArithError::NonInteger | ArithError::NonNumeric => operand_type_err(
+            operand_desc(value, error == ArithError::NonInteger),
+            &obj::bytes_of(value),
+            OperandSide::Unary,
+            symbol,
+            dialect,
+            if op == UnaryOp::BitNot {
+                Stage::Integer
+            } else {
+                Stage::FloatingPoint
+            },
+        ),
+        other => arith_err(other),
     }
 }
 
@@ -357,8 +558,65 @@ impl Drop for Owned {
 /// trait (vs two closures) avoids double-borrowing the interp for var-read +
 /// command-eval.
 pub trait ExprCtx {
+    /// Actual entered Host capability, independently of native grammar.
+    fn numeric_host(&self) -> Option<Rc<dyn tcl_platform::Host>> {
+        None
+    }
+    /// Exact native grammar and arithmetic policy for this evaluation.
+    fn invocation_dialect(&self) -> tcl_registry::InvocationDialect;
+    /// Whether the admitted compiler retained results for complete subtrees.
+    fn has_compiled_nodes(&self) -> bool {
+        false
+    }
+    /// Reuse a result belonging to this exact checked tree before visiting its leaves.
+    fn compiled_node(
+        &mut self,
+        _node: &tcl_syntax::expr::NativeExprNode,
+    ) -> Option<Result<Owned, ExprError>> {
+        None
+    }
+    /// Original literal from an admitted compiled expression's literal bank.
+    /// Ordinary expression evaluation does not supply this capability.
+    fn compiled_literal(&mut self, _start: u32, _end: u32) -> Option<Owned> {
+        None
+    }
+    /// Resolve a retained compiled variable operand at its original offset.
+    fn compiled_variable(&mut self, reference: &[u8], _start: u32) -> Result<Owned, ExprError> {
+        self.read_variable_reference_bytes(reference)
+    }
+    /// Execute an original bracket program belonging to the same compiled unit.
+    fn compiled_command(
+        &mut self,
+        script: &[u8],
+        _start: u32,
+        _end: u32,
+    ) -> Result<Owned, ExprError> {
+        self.eval_command_bytes(script)
+    }
+    /// Substitute an original quoted operand through its retained arena.
+    fn compiled_string(
+        &mut self,
+        inner: &[u8],
+        _start: u32,
+        _end: u32,
+    ) -> Result<Owned, ExprError> {
+        self.subst_string_bytes(inner)
+    }
+    /// Invoke the original compiled function-head operand after its arguments.
+    fn compiled_call(
+        &mut self,
+        name: &str,
+        args: &[Owned],
+        _start: u32,
+    ) -> Result<Owned, ExprError> {
+        self.call_function(name, args)
+    }
     /// Resolve a `$name` reference to an owned value, or `Err` (`can't read …`).
     fn read_var(&mut self, name: &str) -> Result<Owned, ExprError>;
+    /// Resolve authored variable syntax without losing braced-name semantics.
+    fn read_variable_reference(&mut self, reference: &str) -> Result<Owned, ExprError> {
+        self.read_var(tcl_syntax::naming::var_reference(reference))
+    }
     /// Evaluate a `[script]` (brackets stripped) to an owned result.
     fn eval_command(&mut self, script: &str) -> Result<Owned, ExprError>;
     /// Substitute the raw contents of a `"…"` operand — `$var`, `${var}`,
@@ -368,6 +626,51 @@ pub trait ExprCtx {
     fn subst_string(&mut self, inner: &str) -> Result<Owned, ExprError> {
         Ok(Owned::fresh(obj::new_string_bytes(inner.as_bytes())))
     }
+    /// Resolve original byte variable syntax without a Unicode name projection.
+    fn read_variable_reference_bytes(&mut self, reference: &[u8]) -> Result<Owned, ExprError> {
+        let text = core::str::from_utf8(reference).map_err(|_| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression variable bytes",
+                ),
+            )
+        })?;
+        self.read_variable_reference(text)
+    }
+    /// Evaluate original command source bytes in the current activation.
+    fn eval_command_bytes(&mut self, script: &[u8]) -> Result<Owned, ExprError> {
+        let text = core::str::from_utf8(script).map_err(|_| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression command bytes",
+                ),
+            )
+        })?;
+        self.eval_command(text)
+    }
+    /// Evaluate the same original command token object. Implementations with
+    /// an interpreter preserve its Source primary instead of rebuilding text.
+    fn eval_command_object(&mut self, original: &Owned) -> Result<Owned, ExprError> {
+        let _ = original;
+        Err(ExprError::host_refusal(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original expression command object",
+            ),
+        ))
+    }
+
+    /// Substitute a native expression quoted operand's exact byte content.
+    fn subst_string_bytes(&mut self, inner: &[u8]) -> Result<Owned, ExprError> {
+        let text = core::str::from_utf8(inner).map_err(|_| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression quote bytes",
+                ),
+            )
+        })?;
+        self.subst_string(text)
+    }
+
     /// Evaluate a `func(args…)` math-function call. The interp routes this
     /// through the command table (`::tcl::mathfunc::func`, so user overrides
     /// win — the A3 contract); the standalone evaluator falls back to the shared
@@ -379,23 +682,48 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
-    let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
+    dispatch_shared_in(
+        name,
+        args,
+        tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+    )
+}
+
+pub(crate) fn dispatch_shared_in(
+    name: &str,
+    args: &[Owned],
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Owned, ExprError> {
+    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_protocol, NumValue};
+    let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
+        .expect("native math handler dispatch must retain its selected protocol");
+    let nums: Result<Option<Vec<NumValue<crate::bignum::TowerMp>>>, ExprError> = args
         .iter()
-        .map(|o| crate::bignum::as_math_num(o.ptr()))
+        .map(|operand| native_math_operand(operand.ptr(), dialect, protocol))
         .collect();
-    let nums =
-        nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
+    let nums = nums?
+        .ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
     // The standalone evaluator has no interp to ask for a release, so it uses
     // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
     // interp path resolves it from `Interp::runtime_version` in
     // `cmd_mathfunc`.
-    match try_dispatch_with_backend_int_width(
+    match try_dispatch_with_backend_protocol(
         &name.to_ascii_lowercase(),
         &nums,
-        IntWidth::Unbounded,
+        int_width_for_dialect(dialect),
+        protocol,
     ) {
-        Ok(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
+        Ok(NumValue::Int(integer))
+            if name == "abs"
+                && dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) =>
+        {
+            native_integer_result(
+                dialect,
+                integer,
+                &args.iter().map(Owned::as_ptr).collect::<Vec<_>>(),
+            )
+        }
+        Ok(num) => native_math_result(num, dialect).map(Owned::fresh),
         Err(MathFuncError::UnknownFunction) => {
             let mut m = b"unknown math function \"".to_vec();
             m.extend_from_slice(name.as_bytes());
@@ -404,6 +732,68 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
         }
         Err(e) => Err(math_func_err(e)),
     }
+}
+
+fn native_math_operand(
+    operand: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    protocol: tcl_syntax::expr::mathfunc::NativeMathProtocol,
+) -> Result<Option<tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>>, ExprError> {
+    use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NativeMathProtocol, NumValue};
+    if protocol == NativeMathProtocol::Tcl {
+        if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
+            if let Some(integer) = fixed_integer(operand, dialect)? {
+                return Ok(Some(NumValue::Int(integer)));
+            }
+        }
+        return Ok(bignum::as_math_num(operand));
+    }
+    if !obj::has_string_rep(operand)
+        && std::ptr::eq(obj::obj_type_ptr(operand), &obj::TCL_DOUBLE_TYPE)
+    {
+        return Ok(Some(NumValue::Float(obj::double_of(operand))));
+    }
+    let Some(parsed) = crate::typed_value::scalar_number(operand, dialect, false)
+        .map_err(ExprError::host_refusal)?
+    else {
+        return Ok(None);
+    };
+    let Some(value) = jim_numeric_operand(&parsed) else {
+        return Ok(None);
+    };
+    Ok(Some(value))
+}
+
+/// Select math integer conversion independently of the host runtime release.
+pub(crate) fn int_width_for_dialect(
+    dialect: tcl_registry::InvocationDialect,
+) -> tcl_syntax::expr::mathfunc::IntWidth {
+    use tcl_syntax::expr::mathfunc::IntWidth;
+    dialect
+        .tcl_version
+        .map(IntWidth::for_tcl_version)
+        .or_else(|| dialect.arithmetic().map(IntWidth::for_native_arithmetic))
+        .unwrap_or(IntWidth::Unresolved)
+}
+
+/// Fixed-width functions cannot accidentally produce an arbitrary-precision
+/// result just because the adapter links a bignum backend.
+pub(crate) fn native_math_result(
+    value: tcl_syntax::expr::mathfunc::NumValue<bignum::TowerMp>,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<*mut TclObj, ExprError> {
+    use tcl_syntax::expr::mathfunc::NumValue;
+    if let NumValue::Big(integer) = &value {
+        if let Some(policy) = dialect
+            .arithmetic()
+            .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
+        {
+            let integer = tcl_syntax::expr::wide::literal(policy, integer)
+                .map_err(|error| wide_error(error, policy))?;
+            return Ok(obj::new_wide_int_obj(integer));
+        }
+    }
+    Ok(bignum::math_num_to_obj(value))
 }
 
 /// A shared math-function refusal as this engine's error: C's verbatim
@@ -424,14 +814,143 @@ pub(crate) fn math_func_err(e: MathFuncError) -> ExprError {
 /// The tower [`ExprOps`] over an [`ExprCtx`].
 struct TowerOps<'a> {
     ctx: &'a mut dyn ExprCtx,
+    jim: Option<Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>>,
+    safe: bool,
+}
+impl TowerOps<'_> {
+    fn original_term(
+        &self,
+        start: u32,
+        end: Option<u32>,
+    ) -> Result<Option<(tcl_lexer::ExprTermKind, Owned)>, ExprError> {
+        let Some(objects) = &self.jim else {
+            return Ok(None);
+        };
+        let (term, value) = objects.at(start, end).ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original Jim expression term extent",
+                ),
+            )
+        })?;
+        Ok(Some((term.kind, value.clone())))
+    }
 }
 
 impl ExprOps for TowerOps<'_> {
     type Value = Owned;
     type Error = ExprError;
 
+    fn prepared_node<Text: tcl_syntax::expr::ExprText>(
+        &mut self,
+        node: &ExprNode<Text>,
+    ) -> Option<Result<Owned, ExprError>> {
+        if !self.ctx.has_compiled_nodes() {
+            return None;
+        }
+        let original = node.clone().map_text(|text| text.bytes().to_vec());
+        self.ctx.compiled_node(&original)
+    }
+
+    fn literal_bytes_at(&mut self, text: &[u8], start: u32, end: u32) -> Result<Owned, ExprError> {
+        if let Some(original) = self.ctx.compiled_literal(start, end) {
+            return Ok(original);
+        }
+        match self.original_term(start, Some(end))? {
+            Some((_, original)) => Ok(original),
+            None => self.literal_bytes(text),
+        }
+    }
+    fn string_bytes_at(
+        &mut self,
+        inner: &[u8],
+        substitutes: bool,
+        start: u32,
+        end: u32,
+    ) -> Result<Owned, ExprError> {
+        if let Some(original) = self.ctx.compiled_literal(start, end) {
+            return Ok(original);
+        }
+        if let Some((kind, original)) = self.original_term(start, Some(end))? {
+            if kind == tcl_lexer::ExprTermKind::String {
+                return Ok(original);
+            }
+        }
+        if self.safe {
+            return Err(ExprError::msg(b""));
+        }
+        if substitutes {
+            self.ctx.compiled_string(inner, start, end)
+        } else {
+            self.string_bytes(inner, false)
+        }
+    }
+    fn command_bytes_at(
+        &mut self,
+        script: &[u8],
+        start: u32,
+        end: u32,
+    ) -> Result<Owned, ExprError> {
+        let original = self.original_term(start, Some(end))?;
+        if self.safe {
+            return Err(ExprError::msg(b""));
+        }
+        match original {
+            Some((_, original)) => self.ctx.eval_command_object(&original),
+            None => self.ctx.compiled_command(script, start, end),
+        }
+    }
+    fn literal_bytes(&mut self, text: &[u8]) -> Result<Owned, ExprError> {
+        let text = core::str::from_utf8(text).map_err(|_| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native expression literal grammar",
+                ),
+            )
+        })?;
+        self.literal(text)
+    }
+    fn string_bytes(&mut self, inner: &[u8], substitutes: bool) -> Result<Owned, ExprError> {
+        if !substitutes {
+            let bytes = tcl_syntax::backslash::collapse_brace_continuations_for(
+                inner,
+                self.ctx.invocation_dialect().word_values.brace,
+            );
+            return Ok(Owned::fresh(obj::new_string_bytes(&bytes)));
+        }
+        self.ctx.subst_string_bytes(inner)
+    }
+    fn variable_reference_bytes_at(
+        &mut self,
+        reference: &[u8],
+        start: u32,
+    ) -> Result<Owned, ExprError> {
+        if self.safe {
+            return self.original_term(start, None)?.map(|(_, original)| original).ok_or_else(|| ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable("original Jim safe variable term")));
+        }
+        self.ctx.compiled_variable(reference, start)
+    }
+    fn command_bytes(&mut self, script: &[u8]) -> Result<Owned, ExprError> {
+        self.ctx.eval_command_bytes(script)
+    }
+    fn call_bytes_at(
+        &mut self,
+        function: &[u8],
+        args: Vec<Owned>,
+        start: u32,
+    ) -> Result<Owned, ExprError> {
+        let function = core::str::from_utf8(function).map_err(|_| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "native math function grammar",
+                ),
+            )
+        })?;
+        self.ctx.compiled_call(function, &args, start)
+    }
+
     fn literal(&mut self, text: &str) -> Result<Owned, ExprError> {
-        Ok(make_literal(text))
+        make_literal(text, self.ctx.invocation_dialect())
     }
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<Owned, ExprError> {
         // Only a `"…"` operand substitutes; a `{…}` one is its text with its
@@ -445,6 +964,9 @@ impl ExprOps for TowerOps<'_> {
     fn var(&mut self, name: &str) -> Result<Owned, ExprError> {
         self.ctx.read_var(name)
     }
+    fn variable_reference(&mut self, reference: &str) -> Result<Owned, ExprError> {
+        self.ctx.read_variable_reference(reference)
+    }
     fn command(&mut self, script: &str) -> Result<Owned, ExprError> {
         self.ctx.eval_command(script)
     }
@@ -456,7 +978,35 @@ impl ExprOps for TowerOps<'_> {
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
-        let (lp, rp) = (left.ptr(), right.ptr());
+        let dialect = self.ctx.invocation_dialect();
+        let mut normalized_left = None;
+        let mut normalized_right = None;
+        if let Some(policy) = dialect
+            .arithmetic()
+            .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
+        {
+            let numeric_host = self.ctx.numeric_host();
+            let environment = numeric_host
+                .as_ref()
+                .and_then(|host| host.numeric_environment());
+            let left_integer = fixed_integer_with_environment(left.ptr(), dialect, environment)
+                .map_err(|error| operand_overflow(error, binop_sym(op)))?;
+            let right_integer = fixed_integer_with_environment(right.ptr(), dialect, environment)
+                .map_err(|error| operand_overflow(error, binop_sym(op)))?;
+            if let (Some(left_integer), Some(right_integer)) = (left_integer, right_integer) {
+                let result =
+                    tcl_syntax::expr::wide::binary(policy, op, left_integer, right_integer)
+                        .map_err(|error| wide_error(error, policy))?;
+                return native_integer_result(dialect, result, &[left.ptr(), right.ptr()]);
+            }
+            normalized_left = left_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
+            normalized_right =
+                right_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
+        }
+        prepare_scalar_operand(left.ptr(), dialect)?;
+        prepare_scalar_operand(right.ptr(), dialect)?;
+        let lp = normalized_left.as_ref().unwrap_or(&left).ptr();
+        let rp = normalized_right.as_ref().unwrap_or(&right).ptr();
         let res = match op {
             BinOp::Add => bignum::add(lp, rp),
             BinOp::Sub => bignum::sub(lp, rp),
@@ -472,28 +1022,36 @@ impl ExprOps for TowerOps<'_> {
             _ => return Err(ExprError::msg(b"unsupported operator")),
         };
         // `left`/`right` stay alive until here, then release.
-        Ok(Owned::fresh(res.map_err(|e| binop_err(e, op, lp, rp))?))
+        Ok(Owned::fresh(res.map_err(|e| {
+            selected_binop_error(e, op, lp, rp, dialect)
+        })?))
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
+        let dialect = self.ctx.invocation_dialect();
+        let numeric_host = self.ctx.numeric_host();
+        let environment = numeric_host
+            .as_ref()
+            .and_then(|host| host.numeric_environment());
+        if matches!(op, UnaryOp::Pos | UnaryOp::Neg | UnaryOp::BitNot) {
+            if let Some(policy) = dialect
+                .arithmetic()
+                .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
+            {
+                if let Some(integer) =
+                    fixed_integer_with_environment(value.ptr(), dialect, environment)?
+                {
+                    let result = tcl_syntax::expr::wide::unary(policy, op, integer)
+                        .map_err(|error| wide_error(error, policy))?;
+                    return native_integer_result(dialect, result, &[value.ptr()]);
+                }
+            }
+        }
+        prepare_scalar_operand(value.ptr(), dialect)?;
         // A unary operand-type error names the value and the operator, with no
         // left/right qualifier (`as operand of "OP"`).
-        let uerr = |e: ArithError, sym: &[u8]| -> ExprError {
-            match e {
-                ArithError::NonInteger => operand_type_err(
-                    operand_desc(value.ptr(), true),
-                    &obj::bytes_of(value.ptr()),
-                    OperandSide::Unary,
-                    sym,
-                ),
-                ArithError::NonNumeric => operand_type_err(
-                    operand_desc(value.ptr(), false),
-                    &obj::bytes_of(value.ptr()),
-                    OperandSide::Unary,
-                    sym,
-                ),
-                other => arith_err(other),
-            }
+        let uerr = |error: ArithError, _symbol: &[u8]| {
+            selected_unary_error(error, op, value.ptr(), dialect)
         };
         match op {
             UnaryOp::Pos => {
@@ -504,11 +1062,21 @@ impl ExprOps for TowerOps<'_> {
                     bignum::compare(value.ptr(), value.ptr()),
                     Some(NumericCompare::Ordered(_))
                 ) {
+                    if dialect.expression_operand_error_presentation().is_some() {
+                        return Err(selected_unary_error(
+                            ArithError::NonNumeric,
+                            op,
+                            value.ptr(),
+                            dialect,
+                        ));
+                    }
                     return Err(operand_type_err(
                         operand_desc(value.ptr(), false),
                         &obj::bytes_of(value.ptr()),
                         OperandSide::Unary,
                         b"+",
+                        dialect,
+                        tcl_registry::native_numeric_error::NativeExpressionOperandStage::FloatingPoint,
                     ));
                 }
                 Ok(value)
@@ -519,15 +1087,23 @@ impl ExprOps for TowerOps<'_> {
             UnaryOp::BitNot => Ok(Owned::fresh(
                 bignum::bnot(value.ptr()).map_err(|e| uerr(e, b"~"))?,
             )),
-            UnaryOp::Not => match to_bool(value.ptr()) {
-                Ok(b) => Ok(bool_obj(!b)),
+            UnaryOp::Not => match to_bool_in(value.ptr(), dialect) {
+                Ok(b) => native_integer_result(dialect, i64::from(!b), &[]),
                 // A `!` operand that is neither boolean nor numeric is an
                 // operand-type error (not the generic "expected boolean").
+                Err(error)
+                    if dialect.expression_operand_error_presentation().is_some()
+                        || error.native_access_refusal.is_some() =>
+                {
+                    Err(error)
+                }
                 Err(_) => Err(operand_type_err(
                     operand_desc(value.ptr(), false),
                     &obj::bytes_of(value.ptr()),
                     OperandSide::Unary,
                     b"!",
+                    dialect,
+                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
                 )),
             },
             UnaryOp::WordNot => Err(ExprError::msg(b"unsupported operator")),
@@ -535,24 +1111,81 @@ impl ExprOps for TowerOps<'_> {
     }
 
     fn compare_numeric(&mut self, left: &Owned, right: &Owned) -> Option<NumericCompare> {
+        let dialect = self.ctx.invocation_dialect();
+        if dialect
+            .arithmetic()
+            .is_some_and(|policy| policy != tcl_dialect::NativeArithmetic::TclBignum)
+        {
+            // Tcl 8.4 compares an oversized string lexically, but coerces an
+            // in-range unsigned-wide value before comparing it with a float.
+            let numeric_host = self.ctx.numeric_host();
+            let environment = numeric_host
+                .as_ref()
+                .and_then(|host| host.numeric_environment());
+            let left_integer =
+                fixed_integer_with_environment(left.ptr(), dialect, environment).ok()?;
+            let right_integer =
+                fixed_integer_with_environment(right.ptr(), dialect, environment).ok()?;
+            let left_integer = left_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
+            let right_integer =
+                right_integer.map(|value| Owned::fresh(obj::new_wide_int_obj(value)));
+            prepare_scalar_operand(left.ptr(), dialect).ok()?;
+            prepare_scalar_operand(right.ptr(), dialect).ok()?;
+            return bignum::compare(
+                left_integer.as_ref().unwrap_or(left).ptr(),
+                right_integer.as_ref().unwrap_or(right).ptr(),
+            );
+        }
         bignum::compare(left.ptr(), right.ptr())
     }
-    fn compare_string(&mut self, left: &Owned, right: &Owned) -> Ordering {
-        obj::bytes_of(left.ptr()).cmp(&obj::bytes_of(right.ptr()))
+    fn compare_string(&mut self, left: &Owned, right: &Owned) -> Result<Ordering, ExprError> {
+        let model = self.ctx.invocation_dialect().characters.ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable,
+            )
+        })?;
+        let counts = if model == tcl_dialect::StringCharacterModel::Jim084Utf8 {
+            (
+                obj::jim_character_count(left.ptr()),
+                obj::jim_character_count(right.ptr()),
+            )
+        } else {
+            (0, 0)
+        };
+        let left = tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(left.ptr()));
+        let right = tcl_syntax::raw_string::RawString::from_bytes(obj::bytes_of(right.ptr()));
+        left.compare_character_units(model, &right, counts)
+            .map_err(ExprError::host_refusal)
+    }
+    fn equal_string(&mut self, left: &Owned, right: &Owned) -> Result<bool, ExprError> {
+        if self.ctx.invocation_dialect().characters
+            == Some(tcl_dialect::StringCharacterModel::Jim084Utf8)
+        {
+            return Ok(obj::bytes_of(left.ptr()) == obj::bytes_of(right.ptr()));
+        }
+        Ok(self.compare_string(left, right)?.is_eq())
     }
     fn in_list(&mut self, needle: &Owned, list: &Owned) -> Result<bool, ExprError> {
-        let hay = obj::bytes_of(list.ptr());
-        let s = core::str::from_utf8(&hay).map_err(|_| ExprError::msg(b"invalid list"))?;
-        let elems = tcl_syntax::list::split_list(s).map_err(|_| ExprError::msg(b"invalid list"))?;
+        let grammar = self.ctx.invocation_dialect().lexer_grammar;
+        let elems = crate::list::list_elements_in(list.ptr(), grammar.list_parse, grammar.escapes)
+            .map_err(|error| {
+                ExprError::from_parts(
+                    error
+                        .shared()
+                        .full_message_bytes(&obj::bytes_of(list.ptr())),
+                    error.shared().error_code().as_bytes().to_vec(),
+                )
+            })?;
         let n = obj::bytes_of(needle.ptr());
-        Ok(elems.iter().any(|e| e.as_bytes() == n.as_slice()))
+        Ok(elems.iter().any(|element| obj::bytes_of(*element) == n))
     }
 
     fn to_bool(&mut self, value: &Owned) -> Result<bool, ExprError> {
-        to_bool(value.ptr())
+        to_bool_in(value.ptr(), self.ctx.invocation_dialect())
     }
     fn bool_value(&mut self, b: bool) -> Owned {
-        bool_obj(b)
+        native_integer_result(self.ctx.invocation_dialect(), i64::from(b), &[])
+            .expect("selected boolean result producer")
     }
     fn unsupported(&mut self, what: &str) -> ExprError {
         ExprError::from_bytes(what.as_bytes().to_vec())
@@ -560,9 +1193,285 @@ impl ExprOps for TowerOps<'_> {
 }
 
 /// Evaluate `node` over the tower, resolving `$var`/`[cmd]` via `ctx`.
-pub fn eval_expr(node: &ExprNode, ctx: &mut dyn ExprCtx) -> Result<Owned, ExprError> {
-    let mut ops = TowerOps { ctx };
-    eval(node, &mut ops)
+pub fn eval_expr<Text: tcl_syntax::expr::ExprText>(
+    node: &ExprNode<Text>,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, ExprError> {
+    let mut ops = TowerOps {
+        ctx,
+        jim: None,
+        safe: false,
+    };
+    let value = eval(node, &mut ops)?;
+    let dialect = ops.ctx.invocation_dialect();
+    // A numeric result already has the correct internal representation. Its
+    // first string conversion must stay lazy so subsequent precision writes
+    // affect an unmaterialised double, just as Tcl's UpdateStringProc does.
+    if obj::obj_type_ptr(value.ptr()) == &obj::TCL_DOUBLE_TYPE {
+        return Ok(value);
+    }
+    if dialect
+        .arithmetic()
+        .is_some_and(tcl_dialect::NativeArithmetic::normalizes_expression_result)
+    {
+        let bytes = obj::bytes_of(value.ptr());
+        // Oversized numeric-looking strings remain strings in Tcl 8.4; bare
+        // numeric tokens have already raised from literal evaluation.
+        if let Ok(text) = core::str::from_utf8(&bytes) {
+            if let Ok(normalized) = make_literal(text, dialect) {
+                return Ok(normalized);
+            }
+        }
+    }
+    Ok(value)
+}
+
+/// Execute the compiler's temporary constant program without the public
+/// expression command's final result normalisation or a string getter.
+pub(crate) fn eval_compiled_expression_node(
+    node: &tcl_syntax::expr::NativeExprNode,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, ExprError> {
+    eval(
+        node,
+        &mut TowerOps {
+            ctx,
+            jim: None,
+            safe: false,
+        },
+    )
+}
+
+/// C8.4 TRY_CVT_TO_NUMERIC on a compiled primary. Conversion failures keep
+/// the same original nonnumeric header; a shared resident numeric header
+/// yields an absent-string duplicate with the same long/wide distinction.
+pub(crate) fn normalize_compiled_primary84(
+    value: Owned,
+    dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<Owned, ExprError> {
+    use tcl_syntax::{
+        number::Number,
+        scalar_getter::{NativeScalarCache as Cache, NativeScalarGetterKind as Getter},
+    };
+    let protocol = dialect
+        .native_scalar_getter_protocol()
+        .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
+        .ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            )
+        })?;
+    let inspect = |value| {
+        obj::native_scalar_cache(value).map_err(|error| {
+            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+        })
+    };
+    let current = inspect(value.as_ptr())?;
+    let integer = matches!(
+        current,
+        Some(Cache::Tcl84Long(_) | Cache::Number(Number::Int(_)))
+    );
+    let absent_double = matches!(
+        current,
+        Some(Cache::Number(Number::Double(_) | Number::Nan { .. }))
+    ) && !obj::has_string_rep(value.as_ptr());
+    if !integer && !absent_double {
+        if let Some(Cache::WordBoolean(boolean)) = current
+            .as_ref()
+            .filter(|_| !obj::has_string_rep(value.as_ptr()))
+        {
+            obj::adopt_native_scalar_cache(
+                value.as_ptr(),
+                Cache::Tcl84Long(i64::from(*boolean)),
+                protocol,
+            )
+            .map_err(|error| {
+                ExprError::host_refusal(
+                    error.native_access_refusal().expect("scalar cache refusal"),
+                )
+            })?;
+        } else {
+            let original = crate::bytearray::scalar_getter_string(value.as_ptr(), protocol).ok_or_else(|| {
+                ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)
+            })?;
+            if protocol.expression_integer_spelling84(&original) {
+                if let Some(environment) = environment {
+                    tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                        protocol,
+                        Getter::Wide,
+                        &original,
+                        environment,
+                    )
+                    .map_err(|error| {
+                        ExprError::host_refusal(
+                            error.native_access_refusal().expect("numeric host refusal"),
+                        )
+                    })?;
+                }
+                if let Some(conversion) =
+                    protocol.expression_integer_conversion84(current.as_ref(), &original)
+                {
+                    if let Some(cache) = conversion.cache() {
+                        obj::adopt_native_scalar_cache(value.as_ptr(), cache.clone(), protocol)
+                            .map_err(|error| {
+                                ExprError::host_refusal(
+                                    error.native_access_refusal().expect("scalar cache refusal"),
+                                )
+                            })?;
+                    }
+                }
+            } else {
+                let _ = crate::typed_value::native_scalar_probe_with_environment(
+                    value.as_ptr(),
+                    dialect,
+                    Getter::Double,
+                    environment,
+                )
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("numeric host refusal"),
+                    )
+                })?;
+            }
+        }
+    }
+    let cache = inspect(value.as_ptr())?;
+    let Some(
+        cache @ (Cache::Tcl84Long(_)
+        | Cache::Number(Number::Int(_) | Number::Double(_) | Number::Nan { .. })),
+    ) = cache
+    else {
+        return Ok(value);
+    };
+    let double = match &cache {
+        Cache::Number(Number::Double(value)) => Some(*value),
+        Cache::Number(Number::Nan { .. }) => Some(f64::NAN),
+        _ => None,
+    };
+    let value = if obj::is_shared(value.as_ptr()) && obj::has_string_rep(value.as_ptr()) {
+        let duplicate = Owned::fresh(obj::new_string_bytes(b""));
+        obj::adopt_native_scalar_cache(duplicate.as_ptr(), cache, protocol).map_err(|error| {
+            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+        })?;
+        obj::invalidate_string(duplicate.as_ptr());
+        duplicate
+    } else {
+        if !obj::is_shared(value.as_ptr()) {
+            obj::invalidate_string(value.as_ptr());
+        }
+        value
+    };
+    if let Some(value) = double {
+        if let Some(failure) =
+            tcl_cmd_core::native_numeric::c84_nonfinite_error(protocol, value, environment)
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("numeric host refusal"),
+                    )
+                })?
+        {
+            let (message, code) = failure.diagnostic();
+            return Err(ExprError::with_code(message.as_bytes(), code.as_bytes())
+                .with_numeric_string_result84());
+        }
+    }
+    Ok(value)
+}
+
+/// Execute the compiler's temporary constant program without the public
+/// expression command's final result normalisation or a string getter.
+pub(crate) fn eval_compiler_constant(
+    node: &tcl_syntax::expr::NativeExprNode,
+    ctx: &mut dyn ExprCtx,
+) -> Result<Owned, ExprError> {
+    let dialect = ctx.invocation_dialect();
+    let value = eval_compiled_expression_node(node, ctx)?;
+    if matches!(node, ExprNode::Ternary { .. }) {
+        // CompileExprTree's root QUESTION emits TRY_CVT_TO_NUMERIC. Its
+        // failed numeric probe leaves the same original string result alive.
+        if let Some(number) = crate::typed_value::scalar_number(value.as_ptr(), dialect, false)
+            .map_err(ExprError::host_refusal)?
+        {
+            if obj::obj_type_ptr(value.as_ptr()).is_null() {
+                let protocol = dialect.native_scalar_getter_protocol().ok_or_else(|| {
+                    ExprError::host_refusal(
+                        tcl_syntax::value::ValueError::ScalarNumericInputUnavailable
+                            .native_access_refusal()
+                            .expect("scalar capability refusal"),
+                    )
+                })?;
+                obj::adopt_native_scalar_cache(
+                    value.as_ptr(),
+                    tcl_syntax::scalar_getter::NativeScalarCache::Number(number),
+                    protocol,
+                )
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("scalar cache refusal"),
+                    )
+                })?;
+            }
+        }
+    }
+    Ok(value)
+}
+
+/// Evaluate an admitted Jim tree using its retained original terms. Safe mode
+/// returns original variable token bodies and rejects reached substitutions.
+pub(crate) fn eval_jim_expr(
+    node: &tcl_syntax::expr::NativeExprNode,
+    ctx: &mut dyn ExprCtx,
+    objects: Rc<tcl_syntax::expr::native_objects::JimExpressionObjects<Owned>>,
+    safe: bool,
+) -> Result<Owned, ExprError> {
+    eval(
+        node,
+        &mut TowerOps {
+            ctx,
+            jim: Some(objects),
+            safe,
+        },
+    )
+}
+
+/// Jim's safe integer-expression context. Effects are rejected when reached,
+/// retaining the shared evaluator's short-circuit behaviour.
+pub(crate) fn eval_index_expression<Text: tcl_syntax::expr::ExprText>(
+    node: &ExprNode<Text>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Result<Owned, ExprError> {
+    struct SafeIndex {
+        surface: tcl_registry::expr_surface::RuntimeExprSurface,
+        dialect: tcl_registry::InvocationDialect,
+    }
+    impl ExprCtx for SafeIndex {
+        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+            self.dialect
+        }
+        fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unsafe index variable"))
+        }
+        fn eval_command(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unsafe index script"))
+        }
+        fn subst_string(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unsafe index substitution"))
+        }
+        fn call_function(&mut self, name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
+            if self.surface.builtin_math_function(name).is_none() {
+                return Err(ExprError::msg(b"unknown native index math function"));
+            }
+            dispatch_shared_in(name, args, self.dialect)
+        }
+    }
+    eval_expr(
+        node,
+        &mut SafeIndex {
+            surface: tcl_registry::expr_surface::RuntimeExprSurface::for_profile(profile),
+            dialect: tcl_registry::InvocationDialect::of_profile(profile),
+        },
+    )
 }
 
 /// Drive `::tcl::mathop::<op>` over the tower: the shared `tcl_cmd_core::mathop`
@@ -574,42 +1483,346 @@ pub fn eval_mathop(
     args: Vec<Owned>,
     ctx: &mut dyn ExprCtx,
 ) -> Result<Owned, tcl_cmd_core::mathop::MathopError<ExprError>> {
-    let mut ops = TowerOps { ctx };
+    let mut ops = TowerOps {
+        ctx,
+        jim: None,
+        safe: false,
+    };
     tcl_cmd_core::mathop::eval(&mut ops, op, args)
 }
 
 // value helpers
 
-/// Tcl boolean context (`Tcl_GetBooleanFromObj`) as an `expr` error: the
-/// runtime's one typed-read owner ([`crate::typed_value::boolean`]) — the
-/// shared boolean words by unique prefix, else any number against zero, a NaN
-/// refused — with C's message and `-errorcode` carried into [`ExprError`].
-pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
-    crate::typed_value::boolean(o).map_err(|e| ExprError::from_parts(e.message, e.code.to_vec()))
+pub(crate) fn to_bool_in(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<bool, ExprError> {
+    crate::typed_value::boolean_in(value, dialect)
+        .map_err(ExprError::host_refusal)?
+        .map_err(|error| {
+            let mut error = ExprError::from_parts(error.message, error.code.to_vec());
+            if !matches!(
+                bignum::compare(value, value),
+                Some(NumericCompare::Unordered)
+            ) {
+                error = error.with_invalid_type_stage(
+                    dialect,
+                    tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
+                );
+            }
+            selected_operand_error(
+                dialect,
+                tcl_registry::native_numeric_error::NativeExpressionOperandStage::Boolean,
+                value,
+            )
+            .unwrap_or(error)
+        })
 }
 
-fn bool_obj(b: bool) -> Owned {
-    Owned::fresh(obj::new_wide_int_obj(i64::from(b)))
+/// C8.4's compiled jump inspects numeric primaries before the primitive
+/// Boolean getter. In particular it leaves a registered native-long literal
+/// unchanged instead of replacing it with a word-Boolean primary.
+pub(crate) fn native_jump_boolean84(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<bool, ExprError> {
+    let protocol = dialect
+        .native_scalar_getter_protocol()
+        .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
+        .ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            )
+        })?;
+    let cache = obj::native_scalar_cache(value).map_err(|error| {
+        ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+    })?;
+    use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache as Cache};
+    match cache {
+        Some(Cache::Tcl84Long(integer) | Cache::Number(Number::Int(integer))) => Ok(integer != 0),
+        Some(Cache::Number(Number::Double(number))) => Ok(number != 0.0),
+        Some(Cache::Number(Number::Nan { .. })) => Ok(true),
+        _ => {
+            debug_assert_eq!(protocol.tcl_version(), Some(tcl_dialect::TclVersion::V8_4));
+            to_bool_in(value, dialect)
+        }
+    }
+}
+
+/// C8.4 eager LAND/LOR consumes the original normalised left header and the
+/// reached right value. Numeric-looking strings follow GET_WIDE_OR_INT;
+/// the result reuses only an actually unshared left header.
+pub(crate) fn native_logical84(
+    dialect: tcl_registry::InvocationDialect,
+    left: Owned,
+    right: Owned,
+    conjunction: bool,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<Owned, ExprError> {
+    let truth = |value: *mut TclObj| -> Result<bool, ExprError> {
+        use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache as Cache};
+        let cache = obj::native_scalar_cache(value).map_err(|error| {
+            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+        })?;
+        if let Some(Cache::WordBoolean(boolean)) = cache {
+            return Ok(boolean);
+        }
+        if matches!(
+            cache,
+            Some(Cache::Number(Number::Double(_) | Number::Nan { .. }))
+        ) {
+            return native_jump_boolean84(value, dialect);
+        }
+        if let Some(integer) = fixed_integer_with_environment(value, dialect, environment)? {
+            return Ok(integer != 0);
+        }
+        native_jump_boolean84(value, dialect)
+    };
+    let a = truth(left.as_ptr())?;
+    let b = truth(right.as_ptr())?;
+    let result = i64::from(if conjunction { a && b } else { a || b });
+    if obj::is_shared(left.as_ptr()) {
+        native_integer_result(dialect, result, &[])
+    } else {
+        let protocol = dialect
+            .native_scalar_getter_protocol()
+            .filter(|protocol| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
+            .ok_or_else(|| {
+                ExprError::host_refusal(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+                )
+            })?;
+        obj::adopt_native_scalar_cache(
+            left.as_ptr(),
+            tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(result),
+            protocol,
+        )
+        .map_err(|error| {
+            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+        })?;
+        obj::invalidate_string(left.as_ptr());
+        Ok(left)
+    }
 }
 
 /// Build an object from a literal token: a number through the shared grammar,
 /// otherwise its original string spelling. Tcl preserves boolean literal text
 /// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
-fn make_literal(text: &str) -> Owned {
-    use tcl_syntax::number::{parse_whole, Number};
-    if let Some(n) = parse_whole(text) {
-        return Owned::fresh(match n {
-            Number::Int(v) => obj::new_wide_int_obj(v),
-            Number::Double(d) => obj::new_double_obj(d),
+fn make_literal(text: &str, dialect: tcl_registry::InvocationDialect) -> Result<Owned, ExprError> {
+    use tcl_syntax::number::{parse_whole_with, Number, ParseFlags};
+    if let Some(number) = parse_whole_with(text, ParseFlags::for_syntax(dialect.numbers)) {
+        if let Some(policy) = dialect
+            .arithmetic()
+            .filter(|policy| *policy != tcl_dialect::NativeArithmetic::TclBignum)
+        {
+            if matches!(number, Number::Int(_) | Number::Big { .. }) {
+                let value = tcl_syntax::expr::wide::parsed_literal(policy, &number)
+                    .map_err(|error| wide_error(error, policy))?;
+                return Ok(Owned::fresh(obj::new_wide_int_obj(value)));
+            }
+        }
+        return Ok(Owned::fresh(match number {
+            Number::Int(value) => obj::new_wide_int_obj(value),
+            Number::Double(value) => obj::new_double_obj(value),
             Number::Big {
                 negative,
                 radix,
                 digits,
             } => bignum::from_big_digits(negative, radix, &digits),
             Number::Nan { .. } => obj::new_double_obj(f64::NAN),
-        });
+        }));
     }
-    Owned::fresh(obj::new_string_bytes(text.as_bytes()))
+    Ok(Owned::fresh(obj::new_string_bytes(text.as_bytes())))
+}
+
+fn operand_overflow(mut error: ExprError, operator: &[u8]) -> ExprError {
+    if error.msg == tcl_syntax::expr::errors::IOVERFLOW_MESSAGE.as_bytes() {
+        error.msg = tcl_syntax::expr::errors::oversized_integer_operand_message(
+            std::str::from_utf8(operator).expect("ASCII expression operator"),
+        )
+        .into_bytes();
+    }
+    error
+}
+
+fn prepare_scalar_operand(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<(), ExprError> {
+    if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::JimWide) {
+        let _ = crate::typed_value::scalar_number(value, dialect, false)
+            .map_err(ExprError::host_refusal)?;
+    }
+    Ok(())
+}
+
+fn native_integer_result(
+    dialect: tcl_registry::InvocationDialect,
+    integer: i64,
+    operands: &[*mut TclObj],
+) -> Result<Owned, ExprError> {
+    let result = Owned::fresh(obj::new_wide_int_obj(integer));
+    if let Some(protocol) = dialect.native_scalar_getter_protocol() {
+        if protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4) {
+            let caches = operands
+                .iter()
+                .map(|value| obj::native_scalar_cache(*value))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("scalar cache refusal"),
+                    )
+                })?;
+            let cache = protocol
+                .expression_integer_result84(integer, &caches)
+                .expect("selected C84 integer result");
+            obj::adopt_native_scalar_cache(result.as_ptr(), cache, protocol).map_err(|error| {
+                ExprError::host_refusal(
+                    error.native_access_refusal().expect("scalar cache refusal"),
+                )
+            })?;
+        }
+    }
+    Ok(result)
+}
+
+fn fixed_integer(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Option<i64>, ExprError> {
+    fixed_integer_with_environment(value, dialect, None)
+}
+fn fixed_integer_with_environment(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<Option<i64>, ExprError> {
+    let Some(policy) = dialect.arithmetic() else {
+        return Err(ExprError::msg(b"unknown native arithmetic policy"));
+    };
+    if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
+        let protocol = dialect.native_scalar_getter_protocol().ok_or_else(|| {
+            ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            )
+        })?;
+        let current = obj::native_scalar_cache(value).map_err(|error| {
+            ExprError::host_refusal(error.native_access_refusal().expect("scalar cache refusal"))
+        })?;
+        let integer = matches!(
+            &current,
+            Some(
+                tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(_)
+                    | tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                        tcl_syntax::number::Number::Int(_)
+                    )
+            )
+        );
+        let absent_double = matches!(
+            &current,
+            Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                tcl_syntax::number::Number::Double(_) | tcl_syntax::number::Number::Nan { .. }
+            ))
+        ) && !obj::has_string_rep(value);
+        if !integer && !absent_double {
+            let original = crate::bytearray::scalar_getter_string(value, protocol).ok_or_else(|| {
+                ExprError::host_refusal(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)
+            })?;
+            if let Some(environment) = environment.filter(|_| {
+                protocol.expression_integer_spelling84(&original)
+                    && current
+                        .as_ref()
+                        .and_then(|cache| {
+                            protocol.cached_conversion(
+                                tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+                                cache,
+                            )
+                        })
+                        .is_none()
+            }) {
+                tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                    protocol,
+                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide,
+                    &original,
+                    environment,
+                )
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("numeric host refusal"),
+                    )
+                })?;
+            }
+            if !protocol.expression_integer_spelling84(&original) && environment.is_some() {
+                let _ = crate::typed_value::native_scalar_probe_with_environment(
+                    value,
+                    dialect,
+                    tcl_syntax::scalar_getter::NativeScalarGetterKind::Double,
+                    environment,
+                )
+                .map_err(|error| {
+                    ExprError::host_refusal(
+                        error.native_access_refusal().expect("numeric host refusal"),
+                    )
+                })?;
+            }
+            if let Some(conversion) =
+                protocol.expression_integer_conversion84(current.as_ref(), &original)
+            {
+                let (_, cache, outcome) = conversion.into_parts();
+                if let Some(cache) = cache {
+                    obj::adopt_native_scalar_cache(value, cache, protocol).map_err(|error| {
+                        ExprError::host_refusal(
+                            error.native_access_refusal().expect("scalar cache refusal"),
+                        )
+                    })?;
+                }
+                if outcome.is_err() {
+                    return Err(ExprError::msg(b"non-numeric operand"));
+                }
+            }
+        }
+    }
+    let parsed =
+        crate::typed_value::scalar_number(value, dialect, true).map_err(ExprError::host_refusal)?;
+    parsed
+        .filter(|number| {
+            matches!(
+                number,
+                tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
+            )
+        })
+        .map(|number| {
+            tcl_syntax::expr::wide::parsed_literal(policy, &number)
+                .map_err(|error| wide_error(error, policy))
+        })
+        .transpose()
+}
+
+fn wide_error(
+    error: tcl_syntax::expr::wide::WideError,
+    policy: tcl_dialect::NativeArithmetic,
+) -> ExprError {
+    use tcl_syntax::expr::wide::WideError;
+    let error = match error {
+        WideError::LiteralOverflow => ExprError::with_code(
+            b"integer value too large to represent",
+            b"ARITH IOVERFLOW {integer value too large to represent}",
+        ),
+        WideError::DivisionByZero if policy == tcl_dialect::NativeArithmetic::JimWide => {
+            ExprError::msg(b"Division by zero")
+        }
+        WideError::DivisionByZero => arith_err(ArithError::DivideByZero),
+        WideError::ZeroToNegativePower => arith_err(ArithError::ZeroToNegativePower),
+        WideError::UndefinedNativeOperation => {
+            ExprError::msg(b"undefined native integer operation")
+        }
+        WideError::Unsupported => ExprError::msg(b"unsupported native integer operation"),
+    };
+    if policy == tcl_dialect::NativeArithmetic::Tcl84Wide {
+        error.with_numeric_string_result84()
+    } else {
+        error
+    }
 }
 
 #[cfg(test)]
@@ -620,6 +1833,9 @@ mod tests {
     /// A mock context: a `$var` table; `[cmd]` is unsupported in these tests.
     struct MockCtx(std::collections::HashMap<String, i64>);
     impl ExprCtx for MockCtx {
+        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+        }
         fn read_var(&mut self, name: &str) -> Result<Owned, ExprError> {
             self.0
                 .get(name)
@@ -633,6 +1849,201 @@ mod tests {
             // No command table in the mock — use the shared built-in dispatch.
             dispatch_shared(name, args)
         }
+    }
+
+    struct NativeCtx(tcl_registry::InvocationDialect);
+    impl ExprCtx for NativeCtx {
+        fn invocation_dialect(&self) -> tcl_registry::InvocationDialect {
+            self.0
+        }
+        fn read_var(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unexpected variable read"))
+        }
+        fn eval_command(&mut self, _: &str) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unexpected command"))
+        }
+        fn call_function(&mut self, _: &str, _: &[Owned]) -> Result<Owned, ExprError> {
+            Err(ExprError::msg(b"unexpected function"))
+        }
+    }
+
+    #[test]
+    fn c84_reached_expression_matches_seven_original_cache_controls() {
+        use tcl_syntax::scalar_getter::{
+            NativeScalarCache as Cache, NativeScalarGetterKind as Getter,
+        };
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        let class = |value| match obj::native_scalar_cache(value).unwrap() {
+            Some(Cache::Tcl84Long(_)) => "int",
+            Some(Cache::Number(tcl_syntax::number::Number::Int(_))) => "wideInt",
+            Some(Cache::Number(tcl_syntax::number::Number::Double(_))) => "double",
+            None => "none",
+            _ => panic!("original scalar class"),
+        };
+        let words = [b"2".as_slice(), b"2.0", b"2", b"2", b"2", b"0x10", b"010"];
+        let mut compared = 0;
+        for row in include_str!("../../../rust/tcl-syntax/tests/data/native_numeric_operand_conversions/expression84-reached.tsv").lines() {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let mode = fields[0].parse::<usize>().unwrap();
+            let original = Owned::fresh(match mode {
+                2 => obj::new_double_obj(2.0),
+                4 => obj::new_wide_int_obj(2),
+                _ => obj::new_string_bytes(words[mode]),
+            });
+            if mode < 2 { crate::typed_value::native_scalar_getter(original.ptr(), dialect, Getter::Double).unwrap(); }
+            if mode == 3 { crate::typed_value::native_scalar_getter(original.ptr(), dialect, Getter::Wide).unwrap(); }
+            assert_eq!(class(original.ptr()), fields[1], "native before mode {mode}");
+            assert_eq!(usize::from(obj::has_string_rep(original.ptr())).to_string(), fields[2]);
+            let one = native_integer_result(dialect, 1, &[]).unwrap();
+            let mut context = NativeCtx(dialect);
+            let mut ops = TowerOps { ctx: &mut context, jim: None, safe: false };
+            let result = ops.arith(BinOp::Add, original.clone(), one).unwrap();
+            assert_eq!(fields[3], "0");
+            assert_eq!(class(original.ptr()), fields[4], "native reached mode {mode}");
+            assert_eq!(usize::from(obj::has_string_rep(original.ptr())).to_string(), fields[5]);
+            assert_eq!(class(result.ptr()), fields[6], "native result mode {mode}");
+            assert_eq!(usize::from(obj::has_string_rep(result.ptr())).to_string(), fields[7]);
+            assert_eq!(obj::bytes_of(result.ptr()), fields[8].as_bytes());
+            compared += 1;
+        }
+        assert_eq!(compared, 7);
+    }
+
+    #[test]
+    fn checked_comparison_separates_jim_bytes_counts_and_storage_refusal() {
+        crate::counters::reset();
+        {
+            let profile = crate::environment::profile_for_dialect("jim");
+            let mut context = NativeCtx(tcl_registry::InvocationDialect::of_profile(profile));
+            let mut ops = TowerOps {
+                ctx: &mut context,
+                jim: None,
+                safe: false,
+            };
+            let raw = Owned::fresh(obj::new_string_bytes(&[0xff]));
+            let utf8 = Owned::fresh(obj::new_string_bytes(&[0xc3, 0xbf]));
+            assert!(!ops.equal_string(&raw, &utf8).unwrap());
+            assert_eq!(ops.compare_string(&raw, &utf8).unwrap(), Ordering::Equal);
+            let list = Owned::fresh(crate::list::new_list_obj(&[utf8.ptr()]));
+            assert!(!ops.in_list(&raw, &list).unwrap());
+            assert!(ops.in_list(&utf8, &list).unwrap());
+            let cached = Owned::fresh(obj::new_string_bytes(b"ab"));
+            obj::retain_jim_string_count(cached.ptr(), 5);
+            let error = ops.compare_string(&cached, &cached).unwrap_err();
+            assert!(matches!(
+                error.native_access_refusal,
+                Some(tcl_syntax::raw_string::NativeValueAccessRefusal::StringAccess(_))
+            ));
+            assert!(error.msg.is_empty() && error.code.is_none());
+        }
+        assert_eq!(crate::counters::finalize(), 0, "comparison ownership leak");
+    }
+
+    #[test]
+    fn expression_refusal_bypasses_guest_capture_and_finally() {
+        crate::counters::reset();
+        {
+            let mut interp = crate::interp::Interp::new();
+            interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            interp
+                .var_set(b"a", obj::new_string_bytes(&[0xff]))
+                .unwrap();
+            let code = interp.eval_str(b"set b okay; set prior 1; try {catch {expr {$a lt $b}} captured; set recovered 1} finally {set final 1}; set after 1");
+            assert_eq!(code, crate::interp::Code::Error);
+            assert!(matches!(
+                interp.native_access_refusal(),
+                Some(tcl_syntax::raw_string::NativeValueAccessRefusal::Unicode(_))
+            ));
+            assert_eq!(
+                interp.var_get(b"prior").map(obj::bytes_of),
+                Some(b"1".to_vec())
+            );
+            for name in [b"captured".as_slice(), b"recovered", b"final", b"after"] {
+                assert!(
+                    interp.var_get(name).is_none(),
+                    "unexpected guest write: {name:?}"
+                );
+            }
+        }
+        assert_eq!(crate::counters::finalize(), 0, "refusal ownership leak");
+    }
+
+    #[test]
+    fn selected_numeric_input_preserves_original_bytes_and_caches_the_actual_object() {
+        crate::counters::reset();
+        {
+            let jim = tcl_registry::InvocationDialect::of_profile(
+                crate::environment::profile_for_dialect("jim"),
+            );
+            let c = tcl_registry::InvocationDialect::of_profile(
+                crate::environment::profile_for_dialect("tcl8.6"),
+            );
+            let raw = Owned::fresh(obj::new_string_bytes(&[b'1', 0, 0xff]));
+            assert_eq!(
+                crate::typed_value::scalar_number(raw.ptr(), c, true).unwrap(),
+                None
+            );
+            assert_eq!(
+                crate::typed_value::scalar_number(raw.ptr(), jim, true).unwrap(),
+                Some(tcl_syntax::number::Number::Int(1))
+            );
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(raw.ptr()),
+                &obj::TCL_INT_TYPE
+            ));
+            assert_eq!(obj::bytes_of(raw.ptr()), [b'1', 0, 0xff]);
+            let bad = Owned::fresh(obj::new_string_bytes(&[0xff, 0, b'1']));
+            assert_eq!(
+                crate::typed_value::scalar_number(bad.ptr(), jim, false).unwrap(),
+                None
+            );
+            assert_eq!(obj::bytes_of(bad.ptr()), [0xff, 0, b'1']);
+        }
+        assert_eq!(
+            crate::counters::finalize(),
+            0,
+            "numeric input ownership leak"
+        );
+    }
+
+    #[test]
+    fn jim_explicit_double_getter_keeps_exact_integer_and_lazy_string_cache() {
+        use tcl_syntax::value::ValueOps;
+        crate::counters::reset();
+        {
+            let mut interp = crate::interp::Interp::new();
+            interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+            for integer in [7, i64::MAX] {
+                let original = Owned::fresh(obj::new_wide_int_obj(integer));
+                let alias = original.clone();
+                assert!(!obj::has_string_rep(original.ptr()));
+                assert_eq!(interp.as_double(&alias.ptr()).unwrap(), integer as f64);
+                assert!(core::ptr::eq(
+                    obj::obj_type_ptr(original.ptr()),
+                    &obj::JIM_COERCED_DOUBLE_TYPE
+                ));
+                assert_eq!(obj::has_string_rep(original.ptr()), integer == i64::MAX);
+                assert_eq!(interp.as_int(&original.ptr()).unwrap(), integer);
+                assert!(core::ptr::eq(
+                    obj::obj_type_ptr(alias.ptr()),
+                    &obj::TCL_INT_TYPE
+                ));
+                assert_eq!(obj::bytes_of(alias.ptr()), integer.to_string().as_bytes());
+            }
+            interp.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            let c = Owned::fresh(obj::new_wide_int_obj(7));
+            assert_eq!(interp.as_double(&c.ptr()).unwrap(), 7.0);
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(c.ptr()),
+                &obj::TCL_INT_TYPE
+            ));
+            assert!(!obj::has_string_rep(c.ptr()));
+        }
+        assert_eq!(
+            crate::counters::finalize(),
+            0,
+            "coerced getter ownership leak"
+        );
     }
 
     fn ev(src: &str, vars: &[(&str, i64)]) -> Result<Vec<u8>, ExprError> {
@@ -737,3 +2148,7 @@ mod tests {
         assert!(ev("$missing + 1", &[]).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "expr_float_tests.rs"]
+mod float_error_tests;

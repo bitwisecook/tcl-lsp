@@ -50,7 +50,9 @@ use crate::def_use::DefKind;
 use crate::ir::Statement;
 use crate::ir_helpers::expr_has_command;
 use crate::place::{LOCAL_NS, Place, PlaceKind};
-use crate::place_bridge::{build_resolve_context, def_places, element_writes_observed_by_reads};
+use crate::place_bridge::{
+    build_point_resolve_contexts, def_places, element_writes_observed_with_contexts,
+};
 
 /// A def *place* a dead-store check may report: a plain proc-local scalar or
 /// array — not a global/namespace var (`ns != LOCAL_NS`), `upvar` alias or
@@ -69,18 +71,28 @@ fn is_reportable_local(place: &Place) -> bool {
 /// Liveness-based dead stores for one function. See the module docs.
 #[must_use]
 pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Vec<DeadStore> {
-    let ctx = build_resolve_context(&fu.cfg, &fu.name);
+    let fallback;
+    let points = if let Some(points) = &fu.ssa.point_contexts {
+        points
+    } else {
+        fallback = build_point_resolve_contexts(&fu.cfg, &fu.name, registry);
+        &fallback
+    };
     let hidden_reads = Analyser::substitution_hidden_reads_of(fu, registry);
     // Array-element / dict writes the name-level SSA mis-folds but that a read
     // observes — keyed by (block, statement_index).
-    let element_observed = element_writes_observed_by_reads(&fu.cfg, &fu.name, registry);
+    let element_observed = element_writes_observed_with_contexts(&fu.cfg, points, registry);
 
     let mut dead: Vec<DeadStore> = Vec::new();
     for chain in fu.def_use.chains.values() {
         if !chain.is_dead() || chain.definition.kind != DefKind::Statement {
             continue;
         }
-        let (var, version) = &chain.key;
+        let (key, version) = &chain.key;
+        let Some(symbol) = fu.ssa.cell_symbol(key) else {
+            continue;
+        };
+        let var = fu.ssa.var_name(symbol);
         // A name read in a position the version-precise `used` set can't see
         // keeps every write of it alive.
         if hidden_reads.contains(var) {
@@ -91,7 +103,7 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         if fu.ssa.is_synthetic_def(
             &chain.definition.block,
             chain.definition.statement_index,
-            var,
+            key,
         ) {
             continue;
         }
@@ -122,8 +134,16 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         }
         // Reportable-local place (subsumes the `::`-prefix / scope-alias /
         // instance / upvar / dynamic / traced guards).
-        let places = def_places(stmt, &ctx, registry);
+        let Some(block_id) = fu.cfg.block_id(&chain.definition.block) else {
+            continue;
+        };
+        let places = def_places(stmt, points.before_statement(block_id, idx), registry);
         if places.len() != 1 || !is_reportable_local(&places[0]) {
+            continue;
+        }
+        if crate::place_bridge::write_observed_by_unknown_access(
+            &fu.cfg, block_id, idx, &places[0], points, registry,
+        ) {
             continue;
         }
         // An array-element write a read may alias is not dead.
@@ -136,7 +156,7 @@ pub fn liveness_dead_stores(fu: &FunctionUnit, registry: &CommandRegistry) -> Ve
         dead.push(DeadStore {
             block: chain.definition.block.clone(),
             statement_index: idx,
-            variable: var.clone(),
+            variable: var.to_owned(),
             version: *version,
         });
     }

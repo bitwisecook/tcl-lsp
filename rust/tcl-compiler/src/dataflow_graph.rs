@@ -59,6 +59,8 @@ impl EdgeKind {
 /// A single SSA value in the data-flow graph.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowNode {
+    /// Canonical cell identity; use this with `version` as the node key.
+    pub cell: String,
     /// Variable name.
     pub name: String,
     /// SSA version.
@@ -87,6 +89,7 @@ impl DataFlowNode {
     pub fn new(name: impl Into<String>, version: u32, block: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            cell: String::new(),
             version,
             block: block.into(),
             def_kind: String::new(),
@@ -102,6 +105,10 @@ impl DataFlowNode {
 /// An edge from a definition to a use site.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DataFlowEdge {
+    /// Canonical identity of the source cell, independently of display names.
+    pub from_cell: String,
+    /// Canonical receiving phi cell, or empty for a direct use.
+    pub to_cell: String,
     /// Source variable name.
     pub from_name: String,
     /// Source SSA version.
@@ -129,6 +136,8 @@ impl DataFlowEdge {
         to_statement_index: i32,
     ) -> Self {
         Self {
+            from_cell: String::new(),
+            to_cell: String::new(),
             from_name: from_name.into(),
             from_version,
             to_block: to_block.into(),
@@ -150,6 +159,8 @@ impl DataFlowEdge {
         to_version: u32,
     ) -> Self {
         Self {
+            from_cell: String::new(),
+            to_cell: String::new(),
             from_name: from_name.into(),
             from_version,
             to_block: to_block.into(),
@@ -311,21 +322,25 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
     let mut nodes: Vec<DataFlowNode> = Vec::new();
     let mut edges: Vec<DataFlowEdge> = Vec::new();
 
-    // Sort chain keys so output is deterministic. `du.chains` is keyed by the
-    // String-based `SsaValueKey`, so this already sorts by name then version.
+    // Order diagnostic output by the actual SSA symbol and version. Display
+    // strings are presentation only and cannot replace typed chain identity.
     let mut keys: Vec<&crate::def_use::SsaValueKey> = du.chains.keys().collect();
-    keys.sort();
+    keys.sort_by_key(|(cell, version)| (ssa.cell_symbol(cell), *version));
 
     for key in keys {
         let chain = &du.chains[key];
-        let (var_name, version) = key;
+        let (cell, version) = key;
         // The SCCP / type maps are keyed by the interned-`Symbol` `ValueKey`;
-        // resolve this chain's display name to its symbol to query them. A name
+        // resolve this chain's canonical cell to its symbol to query them. A cell
         // with no SSA symbol yields `None` (an empty display column, same as a
         // map miss).
-        let ssa_key: Option<ValueKey> = ssa.var_symbol(var_name).map(|sym| (sym, *version));
+        let symbol = ssa.cell_symbol(cell);
+        let cell_display = cell.compatibility_name();
+        let var_name = symbol.map_or(cell_display.as_str(), |symbol| ssa.var_name(symbol));
+        let ssa_key: Option<ValueKey> = symbol.map(|sym| (sym, *version));
         nodes.push(DataFlowNode {
-            name: var_name.clone(),
+            cell: cell_display.clone(),
+            name: var_name.to_owned(),
             version: *version,
             block: chain.definition.block.clone(),
             def_kind: def_kind_name(chain.definition.kind).to_owned(),
@@ -337,22 +352,29 @@ pub fn extract_function_dataflow<S: std::hash::BuildHasher>(
         });
 
         for use_site in &chain.uses {
-            let edge = if use_site.kind == UseKind::PhiIncoming {
+            let mut edge = if use_site.kind == UseKind::PhiIncoming {
                 DataFlowEdge::phi(
-                    var_name.clone(),
+                    var_name.to_owned(),
                     *version,
                     use_site.block.clone(),
-                    use_site.variable.clone(),
+                    ssa.cell_symbol(&use_site.variable).map_or_else(
+                        || use_site.variable.compatibility_name(),
+                        |symbol| ssa.var_name(symbol).to_owned(),
+                    ),
                     use_site.phi_version,
                 )
             } else {
                 DataFlowEdge::direct(
-                    var_name.clone(),
+                    var_name.to_owned(),
                     *version,
                     use_site.block.clone(),
                     use_site.statement_index,
                 )
             };
+            edge.from_cell.clone_from(&cell_display);
+            if use_site.kind == UseKind::PhiIncoming {
+                edge.to_cell = use_site.variable.compatibility_name();
+            }
             edges.push(edge);
         }
     }
@@ -467,14 +489,14 @@ mod tests {
         assert_eq!(n.statement_index, -1);
         assert_eq!(n.use_count, 0);
         assert!(!n.is_dead);
-        assert!(n.lattice.is_empty());
+        assert_eq!(n.lattice, "");
     }
 
     #[test]
     fn direct_edge_defaults_to_empty_phi_fields() {
         let e = DataFlowEdge::direct("x", 1, "b", 3);
         assert_eq!(e.edge_kind, EdgeKind::Direct);
-        assert!(e.to_name.is_empty());
+        assert_eq!(e.to_name, "");
         assert_eq!(e.to_version, -1);
         assert_eq!(e.to_statement_index, 3);
     }
@@ -514,6 +536,7 @@ mod tests {
             uses: Map::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -534,6 +557,8 @@ mod tests {
         let mut cfg = CfgFunction::new("::top", "entry");
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -624,6 +649,8 @@ mod tests {
         let mut cfg = CfgFunction::new("::top", "entry");
         let entry_id = cfg.entry;
         cfg.blocks.get_mut(&entry_id).unwrap().terminator = Some(crate::cfg::Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -653,6 +680,7 @@ mod tests {
             uses,
             defs: ydefs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -678,7 +706,7 @@ mod tests {
     #[test]
     fn extract_alias_info_from_memory_ssa() {
         use crate::memory_ssa::{AliasSet, MemoryLocation, MemoryLocationKind};
-        let mut locs = BTreeSet::new();
+        let mut locs = std::collections::HashSet::new();
         locs.insert(MemoryLocation::new(MemoryLocationKind::Global, "g"));
         locs.insert(MemoryLocation::new(MemoryLocationKind::Local, "g"));
         let mem = MemorySsaFunction {
@@ -753,7 +781,10 @@ mod tests {
     #[test]
     fn extract_dataflow_graph_empty_input() {
         let g = extract_dataflow_graph(&[] as &[FunctionInputs]);
-        assert!(g.functions.is_empty());
+        assert_eq!(
+            g.functions,
+            [] as [crate::dataflow_graph::FunctionDataFlowGraph; 0]
+        );
         assert_eq!(g.total_defs(), 0);
         assert_eq!(g.total_uses(), 0);
         assert_eq!(g.total_aliases(), 0);
@@ -766,8 +797,8 @@ mod tests {
         let g = extract_function_dataflow::<std::collections::hash_map::RandomState>(
             "::top", &ssa, &du, None, None, None,
         );
-        assert!(g.nodes.is_empty());
-        assert!(g.edges.is_empty());
+        assert_eq!(g.nodes, [] as [crate::dataflow_graph::DataFlowNode; 0]);
+        assert_eq!(g.edges, [] as [crate::dataflow_graph::DataFlowEdge; 0]);
         assert_eq!(g.total_defs, 0);
     }
 

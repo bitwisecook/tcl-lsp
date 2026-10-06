@@ -34,6 +34,27 @@ use core::cmp::Ordering;
 use tcl_syntax::expr::ast::{BinOp, UnaryOp};
 use tcl_syntax::expr::{ExprOps, NumericCompare};
 
+/// Select the operator from an attested registered handler identity. Invocation
+/// words, aliases and current command locations cannot supply this identity.
+#[must_use]
+pub fn operation_for_handler_identity(identity: &[u8]) -> Option<&'static str> {
+    use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+    let operation = identity
+        .strip_prefix(b"::tcl::mathop::")
+        .or_else(|| identity.strip_prefix(b"tcl::mathop::"))?;
+    ALL_BIN_OPS
+        .iter()
+        .filter_map(|operator| {
+            let spec = operator.spec();
+            spec.mathop_shape.map(|_| spec.spelling)
+        })
+        .chain(ALL_UNARY_OPS.iter().filter_map(|operator| {
+            let spec = operator.spec();
+            spec.mathop_shape.map(|_| spec.spelling)
+        }))
+        .find(|spelling| spelling.as_bytes() == operation)
+}
+
 /// A `mathop` failure: a wrong-args (arity) error carrying the operator's usage
 /// string, or an arithmetic/coercion error from the value ops.
 pub enum MathopError<E> {
@@ -93,17 +114,17 @@ pub fn eval<O: ExprOps>(
             None => Err(MathopError::WrongArgs("boolean")),
         },
         // Chained comparisons (vacuously true for <2 args).
-        "==" => Ok(bool_chain(ops, &args, false, |o| o == Ordering::Equal)),
-        "<" => Ok(bool_chain(ops, &args, false, |o| o == Ordering::Less)),
-        ">" => Ok(bool_chain(ops, &args, false, |o| o == Ordering::Greater)),
-        "<=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Greater)),
-        ">=" => Ok(bool_chain(ops, &args, false, |o| o != Ordering::Less)),
-        "eq" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Equal)),
+        "==" => bool_chain(ops, &args, false, |o| o == Ordering::Equal),
+        "<" => bool_chain(ops, &args, false, |o| o == Ordering::Less),
+        ">" => bool_chain(ops, &args, false, |o| o == Ordering::Greater),
+        "<=" => bool_chain(ops, &args, false, |o| o != Ordering::Greater),
+        ">=" => bool_chain(ops, &args, false, |o| o != Ordering::Less),
+        "eq" => equal_chain(ops, &args),
         // String-only chained ordering (the `eq`-style spellings of `<`/`>`/…).
-        "lt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Less)),
-        "gt" => Ok(bool_chain(ops, &args, true, |o| o == Ordering::Greater)),
-        "le" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Greater)),
-        "ge" => Ok(bool_chain(ops, &args, true, |o| o != Ordering::Less)),
+        "lt" => bool_chain(ops, &args, true, |o| o == Ordering::Less),
+        "gt" => bool_chain(ops, &args, true, |o| o == Ordering::Greater),
+        "le" => bool_chain(ops, &args, true, |o| o != Ordering::Greater),
+        "ge" => bool_chain(ops, &args, true, |o| o != Ordering::Less),
         // Strict-binary (in)equality.
         "!=" => ne_binary(ops, args, false),
         "ne" => ne_binary(ops, args, true),
@@ -188,25 +209,41 @@ fn binary<O: ExprOps>(
 
 /// Chained comparison → a boolean value: every adjacent pair must satisfy
 /// `pred` (vacuously true for fewer than two operands). `string_only` forces a
-/// string compare (`eq`); otherwise it is numeric-if-both-numeric else string.
+/// string ordering; otherwise it is numeric-if-both-numeric else string ordering.
 fn bool_chain<O: ExprOps>(
     ops: &mut O,
     args: &[O::Value],
     string_only: bool,
     pred: impl Fn(Ordering) -> bool,
-) -> O::Value {
+) -> Result<O::Value, MathopError<O::Error>> {
     for w in args.windows(2) {
         // A NaN operand is unordered: every ordering link in the chain is
         // false (`::tcl::mathop::< 1 NaN` → 0), same as `expr`'s rule.
-        let ok = match compare(ops, &w[0], &w[1], string_only) {
+        let ok = match compare(ops, &w[0], &w[1], string_only).map_err(MathopError::Op)? {
             NumericCompare::Ordered(ord) => pred(ord),
             NumericCompare::Unordered => false,
         };
         if !ok {
-            return ops.bool_value(false);
+            return Ok(ops.bool_value(false));
         }
     }
-    ops.bool_value(true)
+    Ok(ops.bool_value(true))
+}
+
+/// Chained byte/native equality, independent from ordering units.
+fn equal_chain<O: ExprOps>(
+    ops: &mut O,
+    args: &[O::Value],
+) -> Result<O::Value, MathopError<O::Error>> {
+    for pair in args.windows(2) {
+        if !ops
+            .equal_string(&pair[0], &pair[1])
+            .map_err(MathopError::Op)?
+        {
+            return Ok(ops.bool_value(false));
+        }
+    }
+    Ok(ops.bool_value(true))
 }
 
 /// Strict-binary inequality (`!=` numeric-or-string, `ne` string-only).
@@ -218,9 +255,13 @@ fn ne_binary<O: ExprOps>(
     match into_n::<O, 2>(args) {
         Some([a, b]) => {
             // NaN is unequal to everything (`::tcl::mathop::!= 1 NaN` → 1).
-            let ne = match compare(ops, &a, &b, string_only) {
-                NumericCompare::Ordered(ord) => ord != Ordering::Equal,
-                NumericCompare::Unordered => true,
+            let ne = if string_only {
+                !ops.equal_string(&a, &b).map_err(MathopError::Op)?
+            } else {
+                match compare(ops, &a, &b, false).map_err(MathopError::Op)? {
+                    NumericCompare::Ordered(ord) => ord != Ordering::Equal,
+                    NumericCompare::Unordered => true,
+                }
             };
             Ok(ops.bool_value(ne))
         }
@@ -245,19 +286,17 @@ fn membership<O: ExprOps>(
 
 /// Compare two operands by the `expr` rule (numeric if both look numeric —
 /// possibly unordered, for NaN — else a string compare); `string_only` forces
-/// the string compare (`eq`/`ne`).
+/// string ordering. Equality uses the independent `equal_string` hook.
 fn compare<O: ExprOps>(
     ops: &mut O,
     a: &O::Value,
     b: &O::Value,
     string_only: bool,
-) -> NumericCompare {
-    if string_only {
-        NumericCompare::Ordered(ops.compare_string(a, b))
-    } else {
-        ops.compare_numeric(a, b)
-            .unwrap_or_else(|| NumericCompare::Ordered(ops.compare_string(a, b)))
+) -> Result<NumericCompare, O::Error> {
+    if !string_only && let Some(numeric) = ops.compare_numeric(a, b) {
+        return Ok(numeric);
     }
+    ops.compare_string(a, b).map(NumericCompare::Ordered)
 }
 
 /// Move the single element out of a one-element vec (the caller checked `len`).
@@ -273,6 +312,27 @@ fn into_n<O: ExprOps, const N: usize>(args: Vec<O::Value>) -> Option<[O::Value; 
 #[cfg(test)]
 mod tests {
     use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+    #[test]
+    fn handler_identity_selects_only_registered_math_operators() {
+        assert_eq!(
+            super::operation_for_handler_identity(b"::tcl::mathop::+"),
+            Some("+")
+        );
+        assert_eq!(
+            super::operation_for_handler_identity(b"tcl::mathop::!"),
+            Some("!")
+        );
+        for invoked_word in [
+            b"+".as_slice(),
+            b"aliasplus",
+            b"other::+",
+            b"::tcl::mathop::unknown",
+            b"::tcl::mathop::+\0tail",
+        ] {
+            assert_eq!(super::operation_for_handler_identity(invoked_word), None);
+        }
+    }
 
     /// `eval`'s own recognised operator spellings — kept as a literal list
     /// (rather than probed by calling `eval` itself) because a wrong-arity

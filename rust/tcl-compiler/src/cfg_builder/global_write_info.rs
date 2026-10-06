@@ -102,10 +102,7 @@ impl GlobalWriteInfo {
 /// recursive/mutually-recursive cycles terminate safely.
 #[must_use]
 pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWriteInfo> {
-    let registry = tcl_registry::model::ingress::static_context_for(
-        module.dialect.as_deref().unwrap_or("tcl"),
-    )
-    .commands();
+    let registry = module.resolved_registry();
     detect_global_write_procs_with_registry(module, registry)
 }
 
@@ -314,10 +311,10 @@ fn script_invokes_unknown_binding(
         script.statements.iter().any(|stmt| {
             let own = match stmt {
                 Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-                    let Some(command_namespace) = namespace.for_head(command) else {
+                    let Some(command_namespace) = namespace.for_head_context(command) else {
                         return true;
                     };
-                    aliases.target_resolution_may_be_unknown(command, command_namespace)
+                    aliases.target_resolution_may_be_unknown(command, command_namespace.as_ref())
                 }
                 _ => false,
             };
@@ -567,7 +564,7 @@ fn accumulate_state(
                 renamed_aliases,
                 registry,
                 aliases,
-                command_namespace,
+                command_namespace.as_ref(),
             );
         }
         let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, registry);
@@ -578,10 +575,11 @@ fn accumulate_state(
             else {
                 continue;
             };
-            let Some(command_namespace) = namespace.for_head(head) else {
+            let Some(command_namespace) = namespace.for_head_context(head) else {
                 continue;
             };
-            for facts in aliases.resolve_command_words(&words, registry, command_namespace) {
+            for facts in aliases.resolve_command_words(&words, registry, command_namespace.as_ref())
+            {
                 collect_renamed_outer_alias_facts(&facts, renamed_aliases, registry);
             }
         }
@@ -605,12 +603,12 @@ fn accumulate_state(
 fn statement_command_namespace<'a>(
     stmt: &Statement,
     namespace: &'a ExecutionNamespace,
-) -> Option<&'a str> {
+) -> Option<std::borrow::Cow<'a, crate::command_binding::SourceNamespaceKey>> {
     match stmt {
         Statement::Call { command, .. } | Statement::Barrier { command, .. } => {
-            namespace.for_head(command)
+            namespace.for_head_context(command)
         }
-        _ => namespace.for_head(""),
+        _ => namespace.for_head_context(""),
     }
 }
 
@@ -641,7 +639,7 @@ fn collect_renamed_outer_alias(
     renamed_aliases: &mut OuterAliasProjection,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) {
     for invocation in aliases.resolve_statement(stmt, registry, namespace) {
         collect_renamed_outer_alias_facts(&invocation.facts, renamed_aliases, registry);
@@ -751,7 +749,8 @@ fn collect_write_targets(
 ) {
     for stmt in &script.statements {
         if let Some(command_namespace) = statement_command_namespace(stmt, namespace) {
-            let (targets, opaque) = own_write_targets(stmt, registry, aliases, command_namespace);
+            let (targets, opaque) =
+                own_write_targets(stmt, registry, aliases, command_namespace.as_ref());
             info.opaque_global_frame |= opaque;
             for target in targets {
                 let target = normalise_var_name(&target);
@@ -808,7 +807,7 @@ fn own_write_targets(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) -> (Vec<String>, bool) {
     let mut out = Vec::new();
     match stmt {
@@ -929,7 +928,7 @@ fn declaration_only_targets(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
     aliases: &ModuleCommandBindings,
-    namespace: &str,
+    namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
 ) -> BTreeSet<String> {
     let mut targets = BTreeSet::new();
     for invocation in aliases.resolve_statement(stmt, registry, namespace) {
@@ -1010,7 +1009,7 @@ fn collect_direct_calls(
 ) {
     fn collect_resolved_head(
         head: &str,
-        command_namespace: &str,
+        command_namespace: &(impl crate::command_binding::NamespaceKeyQuery + ?Sized),
         aliases: &ModuleCommandBindings,
         calls: &mut BTreeSet<String>,
         opaque: &mut bool,
@@ -1046,7 +1045,7 @@ fn collect_direct_calls(
             command, tokens, ..
         } = stmt
         {
-            let command_namespace = namespace.for_head(command);
+            let command_namespace = namespace.for_head_context(command);
             match tokens.as_ref() {
                 Some(tokens) if tokens.synthetic.is_some() => {}
                 Some(tokens) => match tokens
@@ -1059,7 +1058,13 @@ fn collect_direct_calls(
                             *opaque = true;
                             continue;
                         };
-                        collect_resolved_head(command, command_namespace, aliases, calls, opaque);
+                        collect_resolved_head(
+                            command,
+                            command_namespace.as_ref(),
+                            aliases,
+                            calls,
+                            opaque,
+                        );
                     }
                     Some(_) => *opaque = true,
                 },
@@ -1068,7 +1073,13 @@ fn collect_direct_calls(
                         *opaque = true;
                         continue;
                     };
-                    collect_resolved_head(command, command_namespace, aliases, calls, opaque);
+                    collect_resolved_head(
+                        command,
+                        command_namespace.as_ref(),
+                        aliases,
+                        calls,
+                        opaque,
+                    );
                 }
             }
         }
@@ -1082,11 +1093,17 @@ fn collect_direct_calls(
                 *opaque = true;
                 continue;
             };
-            let Some(command_namespace) = namespace.for_head(head_name) else {
+            let Some(command_namespace) = namespace.for_head_context(head_name) else {
                 *opaque = true;
                 continue;
             };
-            collect_resolved_head(head_name, command_namespace, aliases, calls, opaque);
+            collect_resolved_head(
+                head_name,
+                command_namespace.as_ref(),
+                aliases,
+                calls,
+                opaque,
+            );
         }
         for (body, body_namespace) in crate::ir_helpers::nested_execution_bodies(stmt, namespace) {
             collect_direct_calls(
@@ -1257,6 +1274,15 @@ mod tests {
             name: "global",
             arg_roles: &[(0, ArgRole::VarWrite)],
             state_transitions: Some(StateTransitionDescriptor::EMPTY),
+            world_effects: Some(tcl_registry::WorldEffectDescriptor::VARIABLE_WRITE),
+            native_compilation: Some(tcl_registry::native_compilation::NativeCompilationSpec {
+                grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+                operation: tcl_registry::SemanticOperationId::Invoke,
+                body: tcl_registry::native_compilation::NativeBodyCompilation::Direct,
+            }),
+            successful_handler: Some(
+                tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+            ),
             ..CommandSpec::DEFAULT
         });
         let m = module_with_registry("proc ::p {} { variable x; global x value }", &registry);

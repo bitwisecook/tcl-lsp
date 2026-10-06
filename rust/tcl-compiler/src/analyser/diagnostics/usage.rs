@@ -176,10 +176,9 @@ Use braces: {{ \u{2026} }}"
         // one expression (the registry's `EXPR_CONCATENATES_ARGS` trait —
         // `expr`), so W100 anchors at the full tail span rather than one
         // argument.
-        let is_expr = registry.get(cmd_name).is_some_and(|s| {
-            s.traits
-                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-        });
+        let is_expr = registry
+            .invocation_traits(cmd_name, &arg_strs, Some(self.profile.surface_query()))
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS);
         // The whole-`expr` argument span (used when the command is
         // `expr`, whose expression is the remaining words).
         let expr_full_span = (!arg_tokens.is_empty()).then(|| {

@@ -16,42 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The VM's dialect ingress — this engine's face of the one shared seam,
-//! [`tcl_registry::model::ingress`].
+//! Registry and document-dialect ingress for the VM.
 //!
-//! Every dialect **name** the VM accepts (there is exactly one kind: the
-//! release name a [`TclVersion`] pin spells, [`Vm::set_runtime_version`])
-//! resolves here, once, through [`tcl_registry::model::resolve_environment`],
-//! and every registry access and availability point the engine reads is
-//! derived from the resolved environment rather than from a second lookup of
-//! the string.
+//! Release names resolve through [`tcl_registry::model::resolve_environment`].
+//! Registry handles come from that environment's retained command generation;
+//! command visibility uses its document authoring query. Physical invocation
+//! protocols and compiler admission use the VM's independently retained actual
+//! engine point. A document profile alone cannot establish that engine point.
 //!
-//! Nothing in this module changes what the VM admits. The names it resolves
-//! are the closed set [`TclVersion::dialect_name`] spells, whose environments
-//! are their same-named catalogue entries, so [`profile_for_dialect`] returns
-//! the same profile `DialectProfile::by_name` returns; the generation's
-//! command store is the same `Arc` the per-profile cache owns, so
-//! [`store_for_profile`] returns the allocation `registry_for_profile`
-//! returns; and the document authoring mask is test-pinned to the threaded
-//! profile's `surface_query` for every profile an ingress can produce, so
-//! [`surface_point`] answers the command-availability gate exactly as the mask
-//! read does.
-//!
-//! **Scope: the VM executes Tcl 9 semantics.** The closed set above is a
-//! set of *Tcl releases*; a dialect with no Tcl ladder rung (`jim`) never
-//! reaches [`Vm::set_runtime_version`] — its projected profile
-//! (`DialectProfile::projected_from_point`) carries
-//! `vm_runtime_version = V9_0`, so a Jim unit is *compiled* under Jim's
-//! grammar and *executed* as Tcl 9. That is the intended boundary today.
-//! The eventual, recorded in `docs/design/registry/dialect-profile-model.md` §2.5,
-//! is a pin that is a `tcl_dialect::DialectPoint` rather than a
-//! `TclVersion`, at which point this module resolves it the same way and
-//! nothing upstream changes: every consumer here already derives from the
-//! resolved environment, never from the name.
-//!
-//! [`Vm::set_runtime_version`]: crate::Vm::set_runtime_version
-//! [`TclVersion`]: tcl_dialect::TclVersion
-//! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name
+//! Release-specific ensemble tables preserve native table order. They select
+//! actual installed workers independently of authored command availability.
 
 use std::sync::{Mutex, OnceLock};
 
@@ -91,15 +65,6 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
     tcl_registry::model::static_context_for_profile(profile).commands()
 }
 
-/// The shared, dialect-agnostic command store used while the VM installs its
-/// builtin implementations. Availability is applied later from each VM's
-/// pinned [`command_surface_profile`](crate::Vm::command_surface_profile), so
-/// registration needs the universal specs and must not rebuild a private
-/// [`CommandRegistry`] for every interpreter.
-pub(crate) fn universal_store() -> &'static CommandRegistry {
-    store_for_profile(profile_for_dialect(""))
-}
-
 /// The point the builtin command-surface gate answers at for `profile` —
 /// the **document authoring point** of the profile's environment, rather
 /// than a direct `profile.surface_query()` read.
@@ -109,20 +74,6 @@ pub(crate) fn universal_store() -> &'static CommandRegistry {
 /// `the_document_point_matches_the_threaded_profile`.
 pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'static> {
     tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
-}
-
-/// [`surface_point`] keyed by a dialect **name** — for the native command
-/// handlers that gate a subcommand or option table on the emulated
-/// release ([`TclVersion::dialect_profile_name`]) rather than on a pinned
-/// profile handle.
-///
-/// One resolution of the name, not two: the resolved environment's
-/// document authoring point is the same point an availability-mask read
-/// over the resolved profile would give.
-///
-/// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
-pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
-    tcl_registry::model::static_document_context_for(name).authoring_query()
 }
 
 /// One memoised answer: `(command, release name, the release's slice of the
@@ -177,6 +128,13 @@ pub(crate) fn release_subcommands(
             .iter()
             .copied()
             .filter(|name| {
+                if command == "array"
+                    && tcl_registry::InvocationDialect::of_profile(profile)
+                        .native_array_search_member_present(name.as_bytes())
+                        == Some(false)
+                {
+                    return false;
+                }
                 spec.subcommands
                     .iter()
                     .find(|sub| sub.name == *name)

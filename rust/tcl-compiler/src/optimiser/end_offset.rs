@@ -26,10 +26,10 @@
 //! command's own list/string operand: rewriting `[llength $A]` used to
 //! index `$B` would change semantics.
 //!
-//! Each statement's source slice is re-segmented (the IR `Statement`
-//! carries only argv *texts*, not per-word spans, so the index
-//! argument's command-substitution span is recovered by re-tokenising),
-//! and nested `[…]` command substitutions are walked recursively.
+//! Candidates are advisory until an exact repeated-read contents witness,
+//! native handler/compiler proofs and a reached expression preparation prove
+//! the original and replacement schedules equivalent. The initial executable
+//! case is one `lindex` index into a known valid list with an in-bounds offset.
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, TokenType};
@@ -59,18 +59,18 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     let source = ctx.source;
     // The document's own grammar, threaded from the pass context's resolved
     // profile — the segmenter re-reads statement source here.
-    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
-    let mut spans: Vec<Span> = Vec::new();
+    let config = cu.ir_module.lexer_config;
+    let mut spans = Vec::new();
     collect_statement_spans(&cu.ir_module.top_level, &mut spans, 0);
     for proc in cu.ir_module.procedures.values() {
         collect_statement_spans(&proc.body, &mut spans, 0);
     }
-    for span in spans {
+    for (span, script, tokens) in spans {
         let Some(slice) = source.get(span.start() as usize..span.end() as usize) else {
             continue;
         };
         for cmd in segment_commands_with_offset_and_config(slice, span.start(), config) {
-            apply_to_command(ctx, &cmd, 0);
+            apply_to_command(ctx, &cmd, 0, Some((tokens, script, config)));
         }
     }
 }
@@ -79,12 +79,20 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 /// so commands nested in `if` / `for` / `while` / `switch` / `try`
 /// bodies are reached. `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
-fn collect_statement_spans(script: &Script, out: &mut Vec<Span>, depth: u32) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+fn collect_statement_spans<'a>(
+    script: &'a Script,
+    out: &mut Vec<(Span, &'a Script, &'a crate::ir::CommandTokens)>,
+    depth: u32,
+) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     for stmt in &script.statements {
-        out.push(stmt.span());
+        if let Some(span) = stmt.source_edit_span()
+            && let Some(tokens) = stmt.tokens()
+        {
+            out.push((span, script, tokens));
+        }
         match stmt {
             Statement::If {
                 clauses, else_body, ..
@@ -139,7 +147,12 @@ fn collect_statement_spans(script: &Script, out: &mut Vec<Span>, depth: u32) {
 
 /// Emit O128 for any end-offset index in `cmd`, then recurse into the
 /// command's nested `[…]` substitutions.
-fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u32) {
+fn apply_to_command(
+    ctx: &mut PassContext<'_>,
+    cmd: &SegmentedCommand,
+    depth: u32,
+    proof: Option<(&crate::ir::CommandTokens, &Script, tcl_lexer::LexerConfig)>,
+) {
     // Native-stack safety net: recurses into nested `[…]`
     // substitutions inside a command word, a genuinely unbounded axis. Past
     // the cap, stop descending — the only effect is that O128 opportunities
@@ -147,7 +160,7 @@ fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u3
     if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
         return;
     }
-    emit_for_command(ctx, cmd);
+    emit_for_command(ctx, cmd, proof);
     for (idx, tok) in cmd.argv.iter().enumerate() {
         if cmd.single_token_word.get(idx).copied() != Some(true) {
             continue;
@@ -166,16 +179,23 @@ fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u3
         for nested in segment_commands_with_offset_and_config(
             inner,
             base,
-            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            proof.map_or_else(
+                || tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+                |(_, _, config)| config,
+            ),
         ) {
-            apply_to_command(ctx, &nested, depth + 1);
+            apply_to_command(ctx, &nested, depth + 1, proof);
         }
     }
 }
 
 /// Emit O128 for each index argument of `cmd` that is length arithmetic
 /// over the command's own list/string operand.
-fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
+fn emit_for_command(
+    ctx: &mut PassContext<'_>,
+    cmd: &SegmentedCommand,
+    proof: Option<(&crate::ir::CommandTokens, &Script, tcl_lexer::LexerConfig)>,
+) {
     let Some((index_positions, container_pos, expected)) = end_offset_command_shape(&cmd.texts)
     else {
         return;
@@ -229,13 +249,177 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         // as `end + 1` overshoots an empty `[]`, so it goes through the
         // owner rather than by hand.
         let span = tcl_lexer::word_span_at(ctx.source, idx_tok.span);
-        ctx.report(Optimisation::new(
+        let mut suggestion = Optimisation::new(
             DiagCode::O128,
             "Use end-offset index instead of length arithmetic",
             span,
-            replacement,
-        ));
+            replacement.clone(),
+        );
+        // Matching spelling does not prove that two original reads see the
+        // same object or that removing the length call preserves its effects.
+        suggestion.hint_only = !closed_source_candidate(ctx, cmd, proof, &replacement);
+
+        ctx.report(suggestion);
     }
+}
+
+fn closed_source_candidate(
+    ctx: &PassContext<'_>,
+    cmd: &SegmentedCommand,
+    proof: Option<(&crate::ir::CommandTokens, &Script, tcl_lexer::LexerConfig)>,
+    replacement: &str,
+) -> bool {
+    proof.is_some_and(|(parent, script, config)| {
+        let Some(registry) = ctx.registry else {
+            return false;
+        };
+        let tokens = if parent.argv.first() == cmd.argv.first().map(|word| &word.span) {
+            parent.clone()
+        } else {
+            let mut tokens = crate::ir::CommandTokens::from_segmented(
+                &tcl_lexer::SourceMap::new(ctx.source),
+                config,
+                cmd,
+            );
+            tokens.inherit_nested_bindings(parent);
+            tokens
+        };
+        closed_list_end_offset(&tokens, script, registry, config, replacement).is_some()
+    })
+}
+
+/// Closed initial case: one list index, one native length read, decimal
+/// subtraction, and two unchanged observer-free reads of a known valid list.
+fn closed_list_end_offset(
+    tokens: &crate::ir::CommandTokens,
+    script: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    replacement: &str,
+) -> Option<()> {
+    use crate::registry_invocation::resolved_tokens_invocation;
+    use tcl_registry::{IntrinsicId, SemanticOperationId};
+    let outer = resolved_tokens_invocation(registry, None, tokens)?;
+    if outer.facts.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListIndex)
+        || tokens.words().len() != 3
+        || !outer.effective.binding_prefix.is_empty()
+        || outer.facts.effects.requires_world_barrier()
+    {
+        return None;
+    }
+    let (_, first_read) = tokens.words()[1].sole_variable_substitution()?;
+    let (spelling, site) = tokens.words()[2].sole_command_substitution()?;
+    let mut expression = crate::word_subst::nested_command_words(spelling, site, config).ok()?;
+    expression.inherit_nested_bindings(tokens);
+    let selected = resolved_tokens_invocation(registry, None, &expression)?;
+    if selected.facts.operation
+        != SemanticOperationId::StructuredLowering(tcl_registry::hooks::LoweringHookId::Expr)
+        || expression.words().len() != 2
+        || !selected.effective.binding_prefix.is_empty()
+    {
+        return None;
+    }
+    // The prepared tree below bounds every reached expression operand. The
+    // generic expr footprint includes arbitrary nested scripts; this exact
+    // tree instead has one independently proved callback-free length call.
+    let (length, subtraction, dialect) = prepared_length_subtraction(
+        tokens,
+        &expression,
+        script,
+        registry,
+        config,
+        selected.dialect?,
+    )?;
+    let length_call = resolved_tokens_invocation(registry, None, &length)?;
+    if length_call.facts.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListLength)
+        || length.words().len() != 2
+        || !length_call.effective.binding_prefix.is_empty()
+        || length_call.facts.effects.requires_world_barrier()
+    {
+        return None;
+    }
+    let (_, second_read) = length.words()[1].sole_variable_substitution()?;
+    let reads = crate::read_schedule::RepeatedReadContentsWitness::prove(
+        tokens,
+        first_read,
+        second_read,
+        registry,
+    )?;
+    if reads.dialect() != dialect {
+        return None;
+    }
+    let elements = dialect.word_values.split_list(reads.value()).ok()?;
+    // Both retained native handlers interpret this same object as a list.
+    // The original length call installs/reads that representation before
+    // lindex; the rewrite retains lindex's interpretation. Initial object
+    // representation is therefore not a freshness or string-type premise.
+    // No observer or callback may run between the two proved original reads.
+    let element_count = i32::try_from(elements.len()).ok()?;
+    let original = element_count.checked_sub(subtraction)?;
+    // Bounds keep every engine's signed index representation closed, including Jim.
+    if original < 0 || original >= element_count {
+        return None;
+    }
+    let rewritten =
+        tcl_cmd_core::index::resolve_opt_in(replacement, elements.len(), dialect.index_syntax()?)?;
+    (rewritten == i64::from(original)).then_some(())
+}
+
+fn prepared_length_subtraction(
+    tokens: &crate::ir::CommandTokens,
+    expression: &crate::ir::CommandTokens,
+    script: &Script,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<(
+    crate::ir::CommandTokens,
+    i32,
+    tcl_registry::InvocationDialect,
+)> {
+    let prepared = crate::math_function_binding::ExpressionMathBindings::new(script, None)
+        .at_invocation(expression.words().first()?.source().span.start())?;
+    let context =
+        crate::tcl_expr_eval::FoldPolicy::for_retained_entry(registry, Some(dialect), &config)
+            .preparation_context()?;
+    let preparation = prepared.preparation_for_context(&context)?;
+    if preparation.source.origin != script.executed_source.as_ref()?.origin {
+        return None;
+    }
+    let ExprNode::Binary {
+        op: BinOp::Sub,
+        left,
+        right,
+    } = preparation.witness.tree()
+    else {
+        return None;
+    };
+    let ExprNode::Command { text, start, end } = left.as_ref() else {
+        return None;
+    };
+    let ExprNode::Literal {
+        text: subtraction, ..
+    } = right.as_ref()
+    else {
+        return None;
+    };
+    if !subtraction
+        .as_bytes()
+        .first()
+        .is_some_and(|digit| matches!(digit, b'1'..=b'9'))
+        || !subtraction.bytes().all(|digit| digit.is_ascii_digit())
+    {
+        return None;
+    }
+    let subtraction = subtraction.parse::<i32>().ok()?;
+    let base = preparation.source.base();
+    let site = crate::ir::SourceSite::source(Span::new(
+        base.checked_add(*start)?,
+        base.checked_add(*end)?,
+    ));
+    let mut length = crate::word_subst::nested_command_words(text, &site, config).ok()?;
+    length.inherit_nested_bindings(tokens);
+    Some((length, subtraction, dialect))
 }
 
 /// Identify list/string commands that accept `end` / `end-N` index args.
@@ -266,7 +450,8 @@ fn end_offset_command_shape(texts: &[String]) -> Option<(Vec<usize>, usize, Leng
 /// Return the single `expr` argument of a `[expr <arg>]` command word, or
 /// `None` for anything else. The word text is the verbatim `[…]`
 /// substitution; the head is recognised via the registry's
-/// `EXPR_CONCATENATES_ARGS` trait, not a name match.
+/// structural expression descriptor, not a name match. A sole operand needs
+/// no multi-argument concatenation capability.
 fn expr_arg_from_command_word(
     word: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
@@ -281,11 +466,8 @@ fn expr_arg_from_command_word(
         return None;
     }
     let head_is_expr = registry
-        .and_then(|r| r.get(&cmd.texts[0]))
-        .is_some_and(|s| {
-            s.traits
-                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-        });
+        .and_then(|registry| registry.get_for_surface(&cmd.texts[0], registry.own_surface_query()))
+        .is_some_and(|spec| spec.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Expr));
     if !head_is_expr {
         return None;
     }
@@ -452,7 +634,118 @@ mod tests {
         for cmd in
             segment_commands_with_offset_and_config(&source, 0, tcl_lexer::LexerConfig::default())
         {
-            apply_to_command(&mut ctx, &cmd, 0);
+            apply_to_command(&mut ctx, &cmd, 0, None);
+        }
+    }
+
+    #[test]
+    fn end_offset_candidates_do_not_erase_read_trace_schedules() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source = "set L {a b}; proc observe args {}; trace add variable L read observe; lindex $L [expr {[llength $L] - 1}]";
+        let cu = CompilationUnit::build_for(source, registry, false);
+        let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(registry);
+        run(&mut ctx, &cu);
+        let candidates: Vec<_> = ctx
+            .optimisations
+            .iter()
+            .filter(|candidate| candidate.code == DiagCode::O128)
+            .collect();
+        assert_eq!(candidates.len(), 1);
+        assert!(candidates[0].hint_only);
+    }
+
+    #[test]
+    fn closed_known_list_schedule_can_erase_only_the_redundant_read() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(profile).commands();
+            let source = "set L {a b c}; lindex $L [expr {[llength $L] - 2}]";
+            let cu = CompilationUnit::build_for(source, registry, false);
+            let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+            ctx.registry = Some(registry);
+            ctx.dialect = registry.profile();
+            run(&mut ctx, &cu);
+            let candidate = ctx
+                .optimisations
+                .iter()
+                .find(|candidate| candidate.code == DiagCode::O128)
+                .unwrap();
+            assert!(
+                !candidate.hint_only,
+                "{profile}: {candidate:?}; preparations={:?}; reads={:?}",
+                cu.ir_module
+                    .top_level
+                    .expression_preparations
+                    .iter()
+                    .map(|proof| {
+                        (
+                            proof.invocation.offset,
+                            proof.source.base(),
+                            proof.source.text.as_ref(),
+                            proof.witness.tree(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+                cu.ir_module
+                    .top_level
+                    .statements
+                    .last()
+                    .unwrap()
+                    .tokens()
+                    .unwrap()
+                    .variable_accesses
+                    .iter()
+                    .map(|read| {
+                        (
+                            &read.original_spelling,
+                            read.source.span,
+                            read.context_residual(),
+                            read.context_alternatives().len(),
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            assert_eq!(candidate.replacement, "end-1");
+        }
+    }
+
+    #[test]
+    fn closed_schedule_retains_list_conversion_for_a_shared_numeric_input() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let owner = tcl_registry::model::ingress::static_context_for(profile);
+            let registry = owner.commands();
+            let source = "set L [expr {2 + 2}]; set alias $L; lindex $L [expr {[llength $L] - 1}]; concat $alias [list]";
+            let cu = CompilationUnit::build_for(source, registry, false);
+            let mut context = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+            context.registry = Some(registry);
+            context.dialect = registry.profile();
+            run(&mut context, &cu);
+            let candidate = context
+                .optimisations
+                .iter()
+                .find(|candidate| candidate.code == DiagCode::O128)
+                .unwrap();
+            assert!(!candidate.hint_only, "{profile}: {candidate:?}");
+            assert_eq!(candidate.replacement, "end");
+        }
+    }
+
+    #[test]
+    fn repeated_read_rewrite_declines_unknown_invalid_and_replaced_schedules() {
+        for source in [
+            "lindex $L [expr {[llength $L] - 1}]",
+            r"set L \{; lindex $L [expr {[llength $L] - 1}]",
+            "set L {a b}; proc llength args {return 2}; lindex $L [expr {[llength $L] - 1}]",
+            "set L {a b}; proc expr args {return 1}; lindex $L [expr {[llength $L] - 1}]",
+            "set L {a b}; lindex $L [expr {[llength $L] - 3}]",
+        ] {
+            assert!(
+                run_pass(source)
+                    .iter()
+                    .filter(|candidate| candidate.code == DiagCode::O128)
+                    .all(|candidate| candidate.hint_only),
+                "{source}"
+            );
         }
     }
 

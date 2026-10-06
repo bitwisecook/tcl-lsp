@@ -108,12 +108,28 @@ fn proc_fu<'a>(cu: &'a CompilationUnit, qname: &str) -> &'a FunctionUnit {
 
 /// Look up the def-use chain for `(name, version)` in a unit.
 fn chain<'a>(fu: &'a FunctionUnit, name: &str, version: Version) -> Option<&'a DefUseChain> {
-    fu.def_use.chain_for(name, version)
+    let symbol = fu.ssa.var_symbol(name)?;
+    fu.def_use.chain_for(fu.ssa.cell_key(symbol), version)
 }
 
 /// All SSA versions defined for `name` in a unit.
 fn reaching_defs(fu: &FunctionUnit, name: &str) -> Vec<(String, Version)> {
-    fu.def_use.reaching_defs(name)
+    let Some(symbol) = fu.ssa.var_symbol(name) else {
+        return Vec::new();
+    };
+    fu.def_use
+        .reaching_defs(fu.ssa.cell_key(symbol))
+        .into_iter()
+        .map(|(key, version)| {
+            (
+                fu.ssa.cell_symbol(&key).map_or_else(
+                    || key.compatibility_name(),
+                    |symbol| fu.ssa.var_name(symbol).to_owned(),
+                ),
+                version,
+            )
+        })
+        .collect()
 }
 
 /// Build the module data-flow graph from a (memory-SSA populated) unit.
@@ -211,7 +227,12 @@ fn def_use_if_merge_creates_phi_chain() {
         .def_use
         .chains
         .iter()
-        .filter(|(k, c)| k.0 == "a" && c.definition.kind == DefKind::Phi)
+        .filter(|(k, c)| {
+            fu.ssa
+                .var_symbol("a")
+                .is_some_and(|symbol| k.0 == *fu.ssa.cell_key(symbol))
+                && c.definition.kind == DefKind::Phi
+        })
         .collect();
     assert!(!phi_defs.is_empty(), "expected ≥1 phi def for `a`");
     let (_, phi_chain) = phi_defs[0];

@@ -130,10 +130,12 @@ fn fp_rbs_02_catch_msg_var_silent() {
 
 #[test]
 fn fp_rbs_02_unrelated_read_still_fires() {
-    // TP control: an unrelated $other (no cmd-sub write target) must still fire W210.
+    // A known error handler does not write an unrelated caller variable.
+    // An unknown `operation` could use uplevel to initialise it before
+    // throwing, so that separate May case cannot donate an undef finding.
     let src = "\
 proc f {} {
-    if {[catch {operation} err]} { puts \"failed: $other\" }
+    if {[catch {error stop} err]} { puts \"failed: $other\" }
 }
 ";
     assert!(
@@ -141,6 +143,8 @@ proc f {} {
         "FP-RBS-02 TP: $other (not written by the catch) must still fire W210; emitted: {:?}",
         codes(src, D)
     );
+    let unknown = "proc f {} {if {[catch {operation} err]} {puts $other}}";
+    assert!(!fires(unknown, D, "W210"));
 }
 
 #[test]
@@ -1268,18 +1272,17 @@ fn fp_rbs_17_empty_literal_still_fires() {
 }
 
 #[test]
-fn fp_rbs_17_dynamic_list_body_defined_silent() {
-    // FP-RBS-19: a foreach over a *dynamic* list may be empty, but its
-    // body unconditionally sets `y`, so a read after the loop is defined
-    // whenever the loop ran. Matching C Tcl (which errors only when the list is
-    // actually empty at runtime), we assume a may-run loop runs — the
-    // accumulator idiom (`foreach … { lappend acc … }`).
+fn fp_rbs_17_dynamic_list_requires_an_initial_value() {
+    // C Tcl 8.4–9.1 and Jim all fail this read for an empty list. The body
+    // write must not erase the zero-iteration alternative.
     let src = "proc f {items} { foreach x $items { set y $x } ; puts $y }\n";
     assert!(
-        !fires(src, D, "W210"),
-        "FP-RBS-19: dynamic-list foreach whose body defines 'y' must NOT fire W210 after the loop; emitted: {:?}",
+        fires(src, D, "W210"),
+        "the possibly empty list leaves 'y' undefined; emitted: {:?}",
         codes(src, D)
     );
+    let initialised = "proc f {items} {set y {}; foreach x $items {set y $x}; puts $y}";
+    assert!(!fires(initialised, D, "W210"));
 }
 
 #[test]
@@ -1647,23 +1650,61 @@ emitted: {:?}",
     );
 }
 
+const SUBSTITUTED_COMMAND_HEAD_SOURCE: &str =
+    "proc f {set} { if {[$set length foo]} { puts $length } }\n";
+
 #[test]
-fn fp_rbs_20_substituted_command_head_harvests_nothing() {
-    // TN control: the head word's *content* spelling drops the `$`, so
-    // `[$set length foo]` would resolve as the builtin `set` and harvest
-    // `length` as a definition, silencing a genuine warning.  Which command
-    // runs is run-time data, so nothing may be claimed about what it writes.
-    //
-    // tclsh 9.0.4 / 8.6.14 (identical): calling `f string` executes
-    // `string length foo`, which defines nothing —
-    //   catch {f string} err → 1, err → `can't read "length": no such variable`
-    let src = "proc f {set} { if {[$set length foo]} { puts $length } }\n";
+fn fp_rbs_20_substituted_command_head_keeps_unknown_writers() {
+    // The formal may select native string or a custom caller-cell setter.
+    // Neither a definition nor an absent-variable warning follows from an
+    // unresolved dispatch. Its spelling must not select native set.
+    let src = SUBSTITUTED_COMMAND_HEAD_SOURCE;
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-20 TN: a substituted head must not harvest its lookalike \
-builtin's out-vars; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "an unknown substituted command may initialise length; emitted: {:?}",
         codes(src, D)
     );
+}
+
+#[test]
+fn substituted_command_head_native_callers_have_distinct_cell_effects() {
+    let script = format!(
+        "{SUBSTITUTED_COMMAND_HEAD_SOURCE}\
+proc initialize_length {{name value}} {{upvar 1 $name cell; set cell $value; return 1}}\n\
+set status [catch {{f string}} result]\n\
+puts [list original_string $status $result]\n\
+set status [catch {{f initialize_length}} result]\n\
+puts [list original_custom_setter $status $result]\n"
+    );
+    let mut references = tcl_test_support::available_tclshs()
+        .into_iter()
+        .map(|reference| reference.path)
+        .collect::<Vec<_>>();
+    let jim = if std::env::var_os("TCL_LSP_REQUIRE_JIM_ORACLE").is_some() {
+        Some(tcl_test_support::require_jimsh().expect("required current Jim"))
+    } else {
+        tcl_test_support::locate_jimsh().expect("valid Jim override")
+    };
+    if let Some(jim) = jim {
+        references.push(jim.path);
+    }
+    assert!(!references.is_empty(), "configure the native oracle matrix");
+    for reference in references {
+        let result = tcl_test_support::run_script(&reference, script.as_bytes())
+            .expect("native original caller script");
+        assert!(result.success(), "{reference:?}: {result:?}");
+        assert!(result.stderr.is_empty(), "{reference:?}: {result:?}");
+        assert_eq!(
+            result.stdout,
+            b"original_string 1 {can't read \"length\": no such variable}\nfoo\noriginal_custom_setter 0 {}\n",
+            "{reference:?}"
+        );
+    }
+    assert!(fires(
+        "proc f {} {if {[string length foo]} {puts $length}}",
+        D,
+        "W210"
+    ));
 }
 
 #[test]
@@ -2640,13 +2681,13 @@ fn fp_rbs_21b_braced_var_list_binds_a_literal_dollar_name() {
 }
 
 #[test]
-fn fp_rbs_21b_tp_a_substituted_var_list_still_harvests_nothing() {
-    // TP control: a var-list word that genuinely substitutes names nothing
-    // statically, so a body read of the bound name still reports.
+fn fp_rbs_21b_resolved_substituted_var_list_binds_the_original_name() {
+    // Frozen original values supply the var-list and expansion before the
+    // native foreach binder defines x on entry to its body.
     let src = "set spec {{1}}\nset names {x}\nforeach $names {*}$spec {puts $x}\n";
     assert!(
-        fires(src, D, "W210"),
-        "FP-RBS-21b TP: a substituted var-list contributes no def; emitted: {:?}",
+        !fires(src, D, "W210"),
+        "FP-RBS-21b: the resolved original var-list defines x; emitted: {:?}",
         codes(src, D)
     );
 }

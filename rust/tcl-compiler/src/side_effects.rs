@@ -90,7 +90,7 @@ pub enum StorageScope {
     Event,
     /// iRules connection-scoped state (lives for the connection lifetime).
     Connection,
-    /// iRules `static::` variable (system-wide, survives across connections).
+    /// iRules root static namespace cell, persistent within one TMM worker.
     Static,
     /// F5 session table (`table` command). Keyed, with lifetime/timeout.
     SessionTable,
@@ -290,13 +290,15 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
         SideEffectTarget::ResponseCommit => {
             EffectRegion::RESPONSE_LIFECYCLE | EffectRegion::HTTP_STATE
         }
-        SideEffectTarget::Variable => {
-            if matches!(scope, StorageScope::Global | StorageScope::Namespace) {
+        SideEffectTarget::Variable => match scope {
+            StorageScope::Global | StorageScope::Namespace | StorageScope::Static => {
                 EffectRegion::GLOBAL_STATE
-            } else {
+            }
+            StorageScope::ProcLocal | StorageScope::Event | StorageScope::Connection => {
                 EffectRegion::NONE
             }
-        }
+            _ => EffectRegion::UNKNOWN_STATE,
+        },
         // External I/O does not mutate compiler-tracked in-memory state.
         SideEffectTarget::FileIo | SideEffectTarget::NetworkIo | SideEffectTarget::LogIo => {
             EffectRegion::NONE
@@ -307,58 +309,113 @@ pub fn target_to_region(target: SideEffectTarget, scope: StorageScope) -> Effect
 
 // Scope / storage-type inference helpers
 
-/// Infer storage scope and namespace from a variable-name prefix.
+/// A compatibility query for Tcl names in a root procedure context.
 ///
-/// Returns `(scope, namespace)` where `namespace` is `Some("::…")`
-/// for qualified names (populated only for [`StorageScope::Namespace`]
-/// and [`StorageScope::Global`]) or `None` otherwise.
-///
-/// Conventions:
-/// - `static::NAME` → iRules [`StorageScope::Static`] (namespace
-///   left as `None` — the `static::` prefix is the scope marker,
-///   not a Tcl namespace).
-/// - `::NAME` with no further `::` → [`StorageScope::Global`] with
-///   `Some("::")`.
-/// - `::NS::…::VAR` → [`StorageScope::Namespace`] with
-///   `Some("::NS::…")` (the last `::` segment is the variable
-///   name itself and is stripped).
-/// - Everything else → [`StorageScope::ProcLocal`] with `None`.
+/// Host storage policy is applied only by the contextual classifier. A name
+/// `static::x` is an ordinary Tcl namespace reference in this query.
 #[must_use]
 pub fn scope_from_varname(name: &str) -> (StorageScope, Option<String>) {
-    if let Some(rest) = name.strip_prefix("static::") {
-        // Only treat as iRules static if the rest doesn't itself
-        // contain further qualification — but this does not distinguish
-        // there, treating any `static::` prefix as static scope.
-        let _ = rest;
-        return (StorageScope::Static, None);
-    }
-    if let Some(rest) = name.strip_prefix("::") {
-        // Peel all "::"-separated segments except the last (the
-        // variable name itself). Empty leading segments from "::"
-        // are ignored in the rebuild.
-        let parts: Vec<&str> = rest.split("::").collect();
-        if parts.len() <= 1 {
-            // Pure "::VAR" — global scope, namespace is root.
-            return (StorageScope::Global, Some("::".into()));
-        }
-        let ns_parts: Vec<&str> = parts[..parts.len() - 1]
-            .iter()
-            .copied()
-            .filter(|p| !p.is_empty())
-            .collect();
-        let ns = if ns_parts.is_empty() {
-            "::".to_string()
-        } else {
-            format!("::{}", ns_parts.join("::"))
-        };
-        let scope = if ns == "::" {
+    if crate::naming::is_qualified(name.as_bytes()) {
+        let rooted = crate::naming::qualify("::", name);
+        let (namespace, _) = crate::naming::key_holder_and_tail(&rooted);
+        let scope = if namespace == "::" {
             StorageScope::Global
         } else {
             StorageScope::Namespace
         };
-        return (scope, Some(ns));
+        (scope, Some(namespace.to_owned()))
+    } else {
+        (StorageScope::ProcLocal, None)
     }
-    (StorageScope::ProcLocal, None)
+}
+
+fn variable_effect_context<'a>(
+    context: &'a crate::var_resolve::ResolveContext,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> std::borrow::Cow<'a, crate::var_resolve::ResolveContext> {
+    // An explicit metadata profile supplies lookup policy only when the
+    // retained point has not already selected its execution dialect.
+    if context.invocation_dialect.is_none()
+        && let Some(profile) = dialect
+    {
+        let mut supplied = context.clone();
+        supplied.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        std::borrow::Cow::Owned(supplied)
+    } else {
+        std::borrow::Cow::Borrowed(context)
+    }
+}
+
+fn resolved_variable_scope(
+    name: &str,
+    registry: &CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    context: &crate::var_resolve::ResolveContext,
+) -> (StorageScope, Option<String>, String) {
+    let context = variable_effect_context(context, dialect);
+    let context = context.as_ref();
+    let Some((place, canonical)) = crate::var_resolve::canonical_namespace_variable_place(
+        name, context, registry,
+    )
+    .and_then(|place| crate::var_resolve::canonical_place_key(&place).map(|key| (place, key))) else {
+        let place = crate::var_resolve::resolve_place(name, context, false, registry);
+        let scope = if place.dynamic {
+            StorageScope::Unknown
+        } else if place.ns == crate::place::LOCAL_NS {
+            StorageScope::ProcLocal
+        } else {
+            StorageScope::Unknown
+        };
+        return (scope, None, name.to_owned());
+    };
+    let namespace = if let Some(identity) = canonical.namespace_identity() {
+        let root = identity
+            .exact_native_path()
+            .is_some_and(tcl_core_types::ByteNamespacePath::is_root);
+        let worker = place.cell.as_ref().is_some_and(|cell| {
+            cell.storage_domain == Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+        });
+        Some((root, identity.display(), worker))
+    } else {
+        match canonical.root() {
+            crate::var_resolve::VariableCellKey::Authored(_) => {
+                match place.cell.as_ref().map(|cell| &cell.owner) {
+                    Some(crate::place::CellOwner::Namespace(namespace)) => {
+                        // This authored classification supplies no native TMM owner.
+                        let worker = crate::taint::is_irules_dialect(dialect)
+                            && tcl_registry::f5::namespace_storage_domain(
+                                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                                namespace,
+                            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace;
+                        Some((namespace == "::", Some(namespace.clone()), worker))
+                    }
+                    None => {
+                        // A resolved legacy symbolic place has no native cell.
+                        let namespace = &place.ns;
+                        let worker = crate::taint::is_irules_dialect(dialect)
+                            && tcl_registry::f5::namespace_storage_domain(
+                                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                                namespace,
+                            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace;
+                        Some((namespace == "::", Some(namespace.clone()), worker))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    };
+    let Some((root, namespace, worker)) = namespace else {
+        return (StorageScope::Unknown, None, canonical.compatibility_name());
+    };
+    let scope = if worker {
+        StorageScope::Static
+    } else if root {
+        StorageScope::Global
+    } else {
+        StorageScope::Namespace
+    };
+    (scope, namespace, canonical.compatibility_name())
 }
 
 /// Lift a registry `StorageType` value into the richer
@@ -417,7 +474,8 @@ pub struct SideEffect {
     pub connection_side: ConnectionSide,
     /// Tcl namespace or F5 protocol namespace (e.g. `"HTTP"`).
     ///
-    /// For Tcl variables this is the namespace path (`"::foo::bar"`).
+    /// For Tcl variables this is optional presentation of the retained
+    /// namespace path (`"::foo::bar"`), never a namespace identity.
     /// For F5 commands this is the protocol prefix (`"HTTP"`,
     /// `"SSL"`). `None` when not applicable or not determinable.
     pub namespace: Option<String>,
@@ -427,7 +485,8 @@ pub struct SideEffect {
     pub dialect: Option<String>,
     /// Optional key identifying the specific target.
     ///
-    /// For variables: the variable name. For `table` / `session`:
+    /// For variables: a compatibility label, not a cell-equality proof.
+    /// For `table` / `session`:
     /// the key expression (if literal). For HTTP headers: the
     /// header name (if literal). `None` when dynamic or not
     /// applicable.
@@ -630,16 +689,37 @@ impl Default for CalleeSummary {
 /// resolution and the per-subcommand protocol-namespace write modelling
 /// are not implemented.
 #[must_use]
-#[allow(
-    clippy::too_many_lines,
-    reason = "sequential registry-trait dispatch; splitting hurts readability"
-)]
 pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     callee_summary: Option<&CalleeSummary>,
+) -> CommandSideEffects {
+    let mut context = crate::var_resolve::ResolveContext::default();
+    if crate::taint::is_irules_dialect(dialect) {
+        context.known_namespaces.extend(
+            tcl_registry::f5::runtime_namespaces(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+                .iter()
+                .map(|namespace| (*namespace).to_owned()),
+        );
+    }
+    classify_side_effects_with_context(registry, command, args, dialect, callee_summary, &context)
+}
+
+/// Classify effects using the variable bindings in force at this invocation.
+#[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "sequential registry-trait dispatch; splitting hurts readability"
+)]
+pub fn classify_side_effects_with_context(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[String],
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    callee_summary: Option<&CalleeSummary>,
+    context: &crate::var_resolve::ResolveContext,
 ) -> CommandSideEffects {
     if let Some(summary) = callee_summary {
         return classify_from_callee_summary(summary, dialect);
@@ -745,6 +825,7 @@ pub fn classify_side_effects(
                 idx,
                 spec.traits,
                 dialect,
+                context,
             );
         }
         return CommandSideEffects {
@@ -779,10 +860,11 @@ pub fn classify_side_effects(
         let make_effect = |name: Option<&str>| {
             let mut e = SideEffect::new(SideEffectTarget::Variable, false, true);
             if let Some(name) = name {
-                let (scope, ns) = scope_from_varname(name);
+                let (scope, namespace, key) =
+                    resolved_variable_scope(name, registry, dialect, context);
                 e.scope = scope;
-                e.namespace = ns;
-                e.key = Some(name.to_owned());
+                e.namespace = namespace;
+                e.key = Some(key);
             }
             e.dialect = dialect.map(|profile| profile.name.to_owned());
             e
@@ -884,9 +966,12 @@ fn classify_variable_assignment(
     idx: usize,
     traits: Traits,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
+    context: &crate::var_resolve::ResolveContext,
 ) -> CommandSideEffects {
+    let context = variable_effect_context(context, dialect);
+    let context = context.as_ref();
     let varname = &args[idx];
-    let (scope, ns) = scope_from_varname(varname);
+    let (scope, ns, key) = resolved_variable_scope(varname, registry, dialect, context);
     let st = storage_type_for_command(registry, command, args);
     let rmw = traits.contains(Traits::READS_BEFORE_WRITE);
 
@@ -913,25 +998,25 @@ fn classify_variable_assignment(
     effect.connection_side = side;
     effect.namespace = ns;
     effect.dialect = dialect.map(|profile| profile.name.to_owned());
-    effect.key = Some(varname.clone());
+    effect.key = Some(key);
 
     let mut effects = vec![effect];
 
-    // A write to an interpreter special variable (`auto_path`, `tcl_precision`,
-    // `env`, …) mutates the interpreter/runtime state the special-variable
-    // registry records — not just the variable slot — so surface that extra
-    // effect. It keeps effect analysis and dead-code elimination from treating
-    // `set auto_path …` as a removable plain assignment. The
-    // registry lookup is dialect-aware, so it fires only where the variable
-    // actually exists.
+    // Only the resolved root namespace cell can carry the registry's extra
+    // interpreter effect. A source alias retains that owner; a same-named
+    // procedure local or named namespace cell does not.
     if is_write {
-        let base = crate::naming::normalise_var_name(varname);
-        if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
-            base,
-            Some(tcl_registry::special_vars::surface_query_for_profile(
-                dialect,
-            )),
-        ) {
+        let place = crate::var_resolve::resolve_place(varname, context, false, registry);
+        if let Some(target) = crate::var_resolve::root_namespace_variable_simple_name(&place)
+            .and_then(|simple| {
+                tcl_registry::special_vars::special_var_write_effect(
+                    simple,
+                    Some(tcl_registry::special_vars::surface_query_for_profile(
+                        dialect,
+                    )),
+                )
+            })
+        {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());
             effects.push(extra);
@@ -1030,6 +1115,26 @@ fn lift_registry_effect(
     effect.connection_side = lift_registry_side(e.connection_side);
     effect.dialect = dialect.map(|profile| profile.name.to_owned());
     effect
+}
+
+/// Coarse regions of already selected normal-handler effects. This May
+/// projection establishes neither successful entry nor purity and does not
+/// replace the invocation's unknown or callback obligations.
+pub(crate) fn normal_handler_effect_regions(
+    footprint: &tcl_registry::world_effect::EffectFootprint,
+) -> (EffectRegion, EffectRegion) {
+    let mut reads = EffectRegion::NONE;
+    let mut writes = EffectRegion::NONE;
+    for effect in &footprint.legacy().side_effects {
+        let region = target_to_region(lift_registry_target(effect.target), StorageScope::Unknown);
+        if effect.reads {
+            reads |= region;
+        }
+        if effect.writes {
+            writes |= region;
+        }
+    }
+    (reads, writes)
 }
 
 /// Resolve the dialect-gated structured side-effect hints for a
@@ -1202,7 +1307,7 @@ mod tests {
         let cse = CommandSideEffects::pure();
         assert!(cse.pure);
         assert!(cse.deterministic);
-        assert!(cse.effects.is_empty());
+        assert_eq!(cse.effects, [] as [crate::side_effects::SideEffect; 0]);
         assert!(!cse.dynamic_barrier);
         assert!(!cse.reads_any());
         assert!(!cse.writes_any());
@@ -1270,10 +1375,10 @@ mod tests {
     }
 
     #[test]
-    fn scope_static_for_irules_prefix() {
+    fn static_spelling_is_an_ordinary_tcl_namespace() {
         let (s, ns) = scope_from_varname("static::counter");
-        assert_eq!(s, StorageScope::Static);
-        assert!(ns.is_none());
+        assert_eq!(s, StorageScope::Namespace);
+        assert_eq!(ns.as_deref(), Some("::static"));
     }
 
     #[test]
@@ -1335,7 +1440,7 @@ mod tests {
         let cse = classify_side_effects(&registry, "expr", &["{1 + 2}".into()], None, None);
         assert!(cse.pure);
         assert!(cse.deterministic);
-        assert!(cse.effects.is_empty());
+        assert_eq!(cse.effects, [] as [crate::side_effects::SideEffect; 0]);
     }
 
     #[test]
@@ -1651,7 +1756,7 @@ mod tests {
         let cse = classify_side_effects(&registry, "doesnt_matter", &[], None, Some(&summary));
         assert!(cse.pure);
         assert!(cse.deterministic);
-        assert!(cse.effects.is_empty());
+        assert_eq!(cse.effects, [] as [crate::side_effects::SideEffect; 0]);
     }
 
     #[test]
@@ -1667,5 +1772,326 @@ mod tests {
         assert_eq!(cse.effects_on_side(ConnectionSide::Client).len(), 1);
         assert_eq!(cse.effects_on_side(ConnectionSide::Server).len(), 1);
         assert_eq!(cse.effects_in_scope(StorageScope::Global).len(), 0);
+    }
+    #[test]
+    fn static_namespace_effects_share_regions_across_spellings_and_aliases() {
+        let registry = CommandRegistry::build_default();
+        let dialect = Some(tcl_dialect::DialectProfile::irules());
+        let mut context = crate::var_resolve::ResolveContext::default();
+        context.known_namespaces.insert("::static".to_owned());
+        let target =
+            crate::var_resolve::resolve_place("::static::counter", &context, false, &registry);
+        context.alias_bindings.insert("linked".to_owned(), target);
+        for name in ["static::counter", "::static::counter", "linked"] {
+            let effects = classify_side_effects_with_context(
+                &registry,
+                "set",
+                &[name.to_owned(), "1".to_owned()],
+                dialect,
+                None,
+                &context,
+            );
+            assert_eq!(effects.effects[0].scope, StorageScope::Static);
+            assert_eq!(effects.effects[0].key.as_deref(), Some("::static::counter"));
+            assert!(
+                effects
+                    .to_effect_regions()
+                    .1
+                    .contains(EffectRegion::GLOBAL_STATE)
+            );
+        }
+        let plain = classify_side_effects(
+            &registry,
+            "set",
+            &["::static::counter".to_owned(), "1".to_owned()],
+            Some(tcl_dialect::DialectProfile::find("tcl8.6").expect("profile")),
+            None,
+        );
+        assert_eq!(plain.effects[0].scope, StorageScope::Namespace);
+    }
+
+    fn native_effect_namespace(
+        token: u64,
+        segments: &[&str],
+    ) -> crate::command_binding::SourceNamespaceKey {
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+        crate::command_binding::SourceNamespaceKey::Native(NativeNamespaceContext {
+            interpreter: NativeInterpreterIdentity {
+                owner: 31,
+                interpreter: 7,
+            },
+            token,
+            path: tcl_core_types::ByteNamespacePath::from_segments(segments.iter().copied()),
+        })
+    }
+
+    #[test]
+    fn native_variable_scope_uses_geometry_and_actual_storage_domain() {
+        let registry = CommandRegistry::build_default();
+        let root = native_effect_namespace(1, &[]);
+        let literal_colons = native_effect_namespace(2, &["::"]);
+        let static_namespace = native_effect_namespace(3, &["static"]);
+        for (namespace, expected) in [
+            (root.clone(), StorageScope::Global),
+            (literal_colons.clone(), StorageScope::Namespace),
+            (static_namespace.clone(), StorageScope::Namespace),
+        ] {
+            let mut context = crate::var_resolve::ResolveContext::for_namespace(
+                namespace.display().expect("Unicode presentation"),
+            );
+            context.retain_namespace_world(
+                namespace.clone(),
+                [
+                    root.clone(),
+                    literal_colons.clone(),
+                    static_namespace.clone(),
+                ],
+                Some(tcl_syntax::naming::NativeNameProtocol::C(
+                    tcl_dialect::TclVersion::V8_6,
+                )),
+            );
+            context.invocation_dialect = Some(tcl_registry::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find("tcl8.6").expect("actual lookup protocol"),
+            ));
+            if namespace != root {
+                assert_eq!(
+                    resolved_variable_scope(
+                        "counter",
+                        &registry,
+                        Some(tcl_dialect::DialectProfile::irules()),
+                        &context,
+                    )
+                    .0,
+                    StorageScope::Unknown,
+                    "unknown current/global cell presence must remain ambiguous",
+                );
+            }
+            context.namespace_cells.present.insert(
+                crate::var_resolve::VariableCellKey::Namespace {
+                    identity: namespace.clone(),
+                    simple: "counter".into(),
+                },
+            );
+            let (scope, displayed_namespace, _) = resolved_variable_scope(
+                "counter",
+                &registry,
+                Some(tcl_dialect::DialectProfile::irules()),
+                &context,
+            );
+            assert_eq!(scope, expected);
+            assert_eq!(displayed_namespace, namespace.display());
+            context.namespace_cells.present.insert(
+                crate::var_resolve::VariableCellKey::Namespace {
+                    identity: namespace.clone(),
+                    simple: "auto_path".into(),
+                },
+            );
+            let special = classify_side_effects_with_context(
+                &registry,
+                "set",
+                &["auto_path".to_owned(), "value".to_owned()],
+                Some(tcl_dialect::DialectProfile::find("tcl8.6").expect("profile")),
+                None,
+                &context,
+            );
+            assert_eq!(
+                special.writes_target(SideEffectTarget::InterpState),
+                expected == StorageScope::Global,
+            );
+            if namespace == static_namespace {
+                context.authored_tmm_static = Some(
+                    tcl_runtime_api::authored_tmm::AuthoredTmmStaticCompilationContext {
+                        policy: tcl_runtime_api::authored_tmm::AuthoredTmmStaticPolicy::RuleInitPublication,
+                        context: None,
+                        namespace: namespace.native_context().expect("actual namespace").clone(),
+                        recipients: Vec::new(),
+                        outward_observers: tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
+                    },
+                );
+                assert_eq!(
+                    resolved_variable_scope("counter", &registry, None, &context).0,
+                    StorageScope::Static,
+                );
+                context
+                    .authored_tmm_static
+                    .as_mut()
+                    .expect("selected policy")
+                    .namespace
+                    .token += 1;
+                assert_eq!(
+                    resolved_variable_scope("counter", &registry, None, &context).0,
+                    StorageScope::Namespace,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_namespace_scope_distinguishes_current_global_and_original_alias_cells() {
+        use crate::var_resolve::VariableCellKey;
+
+        for (dialect, version, fallback) in [
+            ("tcl8.4", tcl_dialect::TclVersion::V8_4, true),
+            ("tcl8.5", tcl_dialect::TclVersion::V8_5, true),
+            ("tcl8.6", tcl_dialect::TclVersion::V8_6, true),
+            ("tcl9.0", tcl_dialect::TclVersion::V9_0, false),
+            ("tcl9.1", tcl_dialect::TclVersion::V9_1, false),
+        ] {
+            let selected = tcl_registry::model::ingress::static_context_for(dialect);
+            let registry = selected.commands();
+            let root = native_effect_namespace(1, &[]);
+            let named = native_effect_namespace(2, &["named"]);
+            let mut context = crate::var_resolve::ResolveContext::for_namespace("::named");
+            context.retain_namespace_world(
+                named.clone(),
+                [root.clone(), named.clone()],
+                Some(tcl_syntax::naming::NativeNameProtocol::C(version)),
+            );
+            let profile = Some(tcl_dialect::DialectProfile::find(dialect).expect("native profile"));
+            assert_eq!(
+                resolved_variable_scope("counter", registry, profile, &context).0,
+                if fallback {
+                    StorageScope::Unknown
+                } else {
+                    StorageScope::Namespace
+                },
+                "{dialect}: open original cell inventory",
+            );
+            let root_cell = VariableCellKey::Namespace {
+                identity: root.clone(),
+                simple: "counter".into(),
+            };
+            let current_cell = VariableCellKey::Namespace {
+                identity: named,
+                simple: "counter".into(),
+            };
+            context.namespace_cells.closed = true;
+            context.namespace_cells.present.insert(root_cell);
+            assert_eq!(
+                resolved_variable_scope("counter", registry, profile, &context).0,
+                if fallback {
+                    StorageScope::Global
+                } else {
+                    StorageScope::Namespace
+                },
+                "{dialect}: missing current cell and present global cell",
+            );
+            context.namespace_cells.present.insert(current_cell);
+            assert_eq!(
+                resolved_variable_scope("counter", registry, profile, &context).0,
+                StorageScope::Namespace,
+                "{dialect}: present current cell precedes global fallback",
+            );
+            let original = context.namespace_place_in_identity("counter", &root, false);
+            context.alias_bindings.insert("linked", original);
+            assert_eq!(
+                resolved_variable_scope("linked", registry, profile, &context).0,
+                StorageScope::Global,
+                "{dialect}: original alias retains its root receiver",
+            );
+            context.namespace_cells.present.clear();
+            assert_eq!(
+                resolved_variable_scope("counter", registry, profile, &context).0,
+                StorageScope::Namespace,
+                "{dialect}: both original cells absent selects current creation table",
+            );
+        }
+    }
+
+    #[test]
+    fn jim_namespace_scope_keeps_activation_locals_and_original_variable_links_separate() {
+        let selected = tcl_registry::model::ingress::static_context_for("jim");
+        let registry = selected.commands();
+        let profile = registry.profile();
+        let root = native_effect_namespace(1, &[]);
+        let named = native_effect_namespace(2, &["named"]);
+        let mut context = crate::var_resolve::ResolveContext::for_namespace("::named");
+        context.retain_namespace_world(
+            named.clone(),
+            [root.clone(), named.clone()],
+            Some(tcl_syntax::naming::NativeNameProtocol::Jim084),
+        );
+        context.namespace_objects.insert(root.clone(), "".into());
+        context
+            .namespace_objects
+            .insert(named.clone(), "named".into());
+        assert_eq!(
+            resolved_variable_scope("counter", registry, profile, &context).0,
+            StorageScope::ProcLocal,
+            "an unlinked namespace-eval local does not select global fallback",
+        );
+        let original = context.namespace_place_in_identity("counter", &named, false);
+        assert_eq!(
+            original
+                .cell
+                .as_ref()
+                .expect("original flat namespace cell")
+                .name,
+            "::named::counter",
+        );
+        context.alias_bindings.insert("counter", original);
+        assert_eq!(
+            resolved_variable_scope("counter", registry, profile, &context).0,
+            StorageScope::Global,
+            "variable links retain Jim's actual flat global storage owner",
+        );
+        let root_original = context.namespace_place_in_identity("counter", &root, false);
+        context.alias_bindings.insert("linked", root_original);
+        assert_eq!(
+            resolved_variable_scope("linked", registry, profile, &context).0,
+            StorageScope::Global,
+        );
+        assert_eq!(
+            resolved_variable_scope("::counter", registry, profile, &context).0,
+            StorageScope::Global,
+            "an original root qualifier selects the real flat global cell",
+        );
+    }
+
+    #[test]
+    fn special_variable_effects_follow_root_cells_and_aliases() {
+        let registry = CommandRegistry::build_default();
+        let profile = Some(tcl_dialect::DialectProfile::find("tcl8.6").expect("profile"));
+        let mut context = crate::var_resolve::ResolveContext::default();
+        context.known_namespaces.insert("::named".to_owned());
+        for (name, alias) in [("::auto_path", "search_path"), ("::env", "environment")] {
+            let target = crate::var_resolve::resolve_place(name, &context, false, &registry);
+            context.alias_bindings.insert(alias, target);
+        }
+        for (name, expected) in [
+            ("::auto_path", true),
+            ("search_path", true),
+            ("::env(KEY)", true),
+            ("environment(KEY)", true),
+            ("auto_path", false),
+            ("env(KEY)", false),
+            ("::named::auto_path", false),
+            ("::named::env(KEY)", false),
+        ] {
+            let effects = classify_side_effects_with_context(
+                &registry,
+                "set",
+                &[name.to_owned(), "value".to_owned()],
+                profile,
+                None,
+                &context,
+            );
+            assert_eq!(
+                effects.writes_target(SideEffectTarget::InterpState),
+                expected,
+                "{name}"
+            );
+        }
+        let read = classify_side_effects_with_context(
+            &registry,
+            "set",
+            &["search_path".to_owned()],
+            profile,
+            None,
+            &context,
+        );
+        assert!(!read.writes_target(SideEffectTarget::InterpState));
     }
 }

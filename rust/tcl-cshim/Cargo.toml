@@ -39,14 +39,19 @@ links = "tclshim"
 name = "tcl_cshim"
 
 [dependencies]
+num-bigint = "0.5"
 tcl-engine-api = { path = "../tcl-engine-api" }
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-core-types = { path = "../tcl-core-types" }
 # The shared owners the shim must not re-implement: list quoting/splitting,
 # number parsing and double formatting (`tcl-syntax`), and option-table
 # prefix resolution with its C-shaped messages (`tcl-cmd-core`).
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
+tcl-registry = { path = "../tcl-registry" }
 
 [dev-dependencies]
+tcl-vm = { path = "../tcl-vm" }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-spec-hooks = { path = "../tcl-spec-hooks" }
 

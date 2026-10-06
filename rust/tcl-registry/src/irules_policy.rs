@@ -132,6 +132,37 @@ pub fn irules_disabled_class(command: &str) -> Option<IrulesDisabledClass> {
     }
 }
 
+/// The measured interpreter table adds these native commands to the positive
+/// rule-source surface. It does not admit the full ancestor command set.
+#[must_use]
+pub fn runtime_surface_admits(
+    spec: &crate::CommandSpec,
+    query: tcl_dialect::model::SurfaceQuery<'_>,
+) -> bool {
+    use tcl_dialect::model::{Family, InvocationRealm};
+    if query.realm != InvocationRealm::InterpreterRuntime
+        || query
+            .core
+            .nearest()
+            .is_none_or(|(family, _)| family != Family::F5Irules)
+    {
+        return spec.supports_dialect(Some(query));
+    }
+    let loader = query.with_realm(InvocationRealm::RuleLoader);
+    spec.supports_dialect(Some(loader))
+        || (irules_disabled_class(spec.name) == Some(IrulesDisabledClass::CompilerRefused)
+            && spec.owning_package().is_none()
+            && spec.supports_dialect(Some(query)))
+}
+
+/// Whether the measured native command is subject to authored-source refusal
+/// at this phase. Runtime availability remains a separate question.
+#[must_use]
+pub fn rule_loader_refuses(command: &str, realm: tcl_dialect::model::InvocationRealm) -> bool {
+    realm == tcl_dialect::model::InvocationRealm::RuleLoader
+        && irules_disabled_class(command) == Some(IrulesDisabledClass::CompilerRefused)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -202,6 +233,85 @@ mod tests {
         );
         assert!(IrulesDisabledClass::InterpreterAbsent.is_language_fact());
         assert!(!IrulesDisabledClass::CompilerRefused.is_language_fact());
+    }
+
+    #[test]
+    fn explicit_runtime_phase_admits_only_the_measured_native_table() {
+        use tcl_dialect::model::InvocationRealm;
+        let context = crate::model::semantic::SemanticContext::for_environment("f5-irules");
+        let registry = context.commands();
+        let loader = context.context().authoring_query();
+        let runtime = loader.with_realm(InvocationRealm::InterpreterRuntime);
+        for &command in IRULES_COMPILER_REFUSED {
+            assert!(
+                registry.get_for_surface(command, Some(loader)).is_none(),
+                "{command}: loader"
+            );
+            assert!(
+                registry.get_for_surface(command, Some(runtime)).is_some(),
+                "{command}: runtime"
+            );
+            assert!(
+                context
+                    .context()
+                    .resolve_spec_in_realm(&registry, command, InvocationRealm::InterpreterRuntime,)
+                    .is_some(),
+                "{command}: contextual runtime"
+            );
+            assert!(rule_loader_refuses(command, InvocationRealm::RuleLoader));
+            assert!(!rule_loader_refuses(
+                command,
+                InvocationRealm::InterpreterRuntime
+            ));
+        }
+        for command in IRULES_INTERPRETER_ABSENT
+            .iter()
+            .copied()
+            .chain(["lassign", "const"])
+        {
+            assert!(
+                registry.get_for_surface(command, Some(runtime)).is_none(),
+                "{command}: no ancestor donation"
+            );
+            assert!(
+                context
+                    .context()
+                    .resolve_spec_in_realm(&registry, command, InvocationRealm::InterpreterRuntime,)
+                    .is_none(),
+                "{command}: contextual absence"
+            );
+        }
+        for command in ["set", "HTTP::uri"] {
+            assert!(
+                registry.get_for_surface(command, Some(loader)).is_some(),
+                "{command}: positive loader {loader:?}, rows {:?}",
+                registry
+                    .specs(command)
+                    .iter()
+                    .map(|spec| (spec.name, spec.surface, spec.supports_dialect(Some(loader))))
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                registry.get_for_surface(command, Some(runtime)).is_some(),
+                "{command}: positive runtime"
+            );
+        }
+        let dialect = crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+        let loader_table = registry.effective_semantics_for_dialect(dialect);
+        let runtime_table = registry
+            .effective_semantics_for_dialect_in_realm(dialect, InvocationRealm::InterpreterRuntime);
+        for &command in IRULES_COMPILER_REFUSED {
+            let name = tcl_syntax::naming::normalise_qualified_name(command);
+            assert!(
+                !loader_table.binding_names().contains(&name),
+                "{command}: source table"
+            );
+            assert!(
+                runtime_table.binding_names().contains(&name),
+                "{command}: physical table"
+            );
+        }
+        assert_eq!(runtime.with_realm(InvocationRealm::RuleLoader), loader);
     }
 
     /// Every classified command exists in the compiled universe as a Tcl spec

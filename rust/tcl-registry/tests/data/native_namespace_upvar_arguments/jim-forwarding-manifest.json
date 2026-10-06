@@ -1,0 +1,10 @@
+{
+  "engine": "Jim",
+  "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+  "source_sha256": "055390f310cdf80208da1b8b030b4c79166e0489957b074081dc36ca7e4b7367",
+  "code": 0,
+  "result": "VALUE {FORWARD 0 ::missing::a {}}",
+  "stdout": "0 {VALUE {FORWARD 0 ::missing::a {}}}\n",
+  "budget": 60,
+  "rust_comparisons": 0
+}

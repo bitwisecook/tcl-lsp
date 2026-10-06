@@ -342,7 +342,7 @@ mod tests {
         let mut client = RegistryClient::new(&dir, true);
         let results = client.search("json").unwrap();
         assert_eq!(results.len(), 1);
-        assert!(client.search("nomatch").unwrap().is_empty());
+        assert_eq!(client.search("nomatch").unwrap().len(), 0);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

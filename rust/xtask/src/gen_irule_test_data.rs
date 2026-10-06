@@ -2,13 +2,15 @@
 //!
 //! The framework is intentionally Tcl so it can run in a stock `tclsh` as
 //! well as the in-process VM, but its event and command surfaces belong to
-//! `tcl-registry`.  This module projects those owners into the two framework
+//! `tcl-registry`.  This module projects those owners into the three framework
 //! assets that need them:
 //!
 //! - `rust/tcl-irule-test/tcl/_event_data.tcl` — event order, flow chains,
 //!   and multiplicity sets from [`tcl_registry::events::EventRegistry`];
 //! - `rust/tcl-irule-test/tcl/_mock_stubs.tcl` — generic fallback mock actions
-//!   for command specs without a hand-written Tcl mock.
+//!   for command specs without a hand-written Tcl mock;
+//! - `rust/tcl-irule-test/tcl/_user_surface_data.tcl` — unavailable modern core
+//!   commands, including individually callable qualified ensemble members.
 //!
 //! Run `cargo xtask gen-irule-test-data` to update the checked-in files, or
 //! pass `--check` to make stale generated data fail the Rust check gate.
@@ -27,6 +29,7 @@ use crate::util::{DISABLED_SENTINEL, license_banner, repo_root, write_if_changed
 
 const EVENT_DATA_PATH: &str = "rust/tcl-irule-test/tcl/_event_data.tcl";
 const MOCK_STUBS_PATH: &str = "rust/tcl-irule-test/tcl/_mock_stubs.tcl";
+const USER_SURFACE_PATH: &str = "rust/tcl-irule-test/tcl/_user_surface_data.tcl";
 const HAND_WRITTEN_MOCKS_PATH: &str = "rust/tcl-irule-test/tcl/command_mocks.tcl";
 const GENERATED_BY: &str = "cargo xtask gen-irule-test-data";
 /// The canonical id of the environment the iRules harness simulates — the
@@ -229,6 +232,51 @@ fn render_mock_stubs(entries: &[MockStubEntry]) -> String {
     out
 }
 
+fn unavailable_modern_commands(
+    registry: &CommandRegistry,
+    context: &ResolvedContext,
+) -> BTreeSet<String> {
+    let tcl84 = crate::environment::context_for_dialect("tcl8.4");
+    let mut commands: BTreeSet<_> = registry
+        .command_names()
+        .filter(|command| {
+            registry
+                .specs(command)
+                .iter()
+                .any(|spec| tcl_registry::registry::spec_pack_of(spec) == Some("tcl"))
+                && tcl84.resolve_spec(registry, command).is_none()
+                && context.resolve_spec(registry, command).is_none()
+        })
+        .map(|command| tcl_syntax::naming::qualify("::", command))
+        .collect();
+    // TclOO definition members have a native namespace roster rather than
+    // ordinary callable catalogue rows. The same owner seeds source lookup.
+    let modern = crate::environment::store_for_dialect("tcl9.0");
+    if let Some(grammar) = modern.default_construction_grammar("oo::class") {
+        for member in grammar.members {
+            if let Some(lookup) =
+                grammar.definition_member_lookup(member, modern.own_surface_query())
+            {
+                commands.insert(lookup.implementation);
+            }
+        }
+    }
+    commands
+}
+
+fn render_user_surface(commands: &BTreeSet<String>) -> String {
+    let mut out = license_banner("#");
+    let _ = write!(
+        out,
+        "# _user_surface_data.tcl -- AUTO-GENERATED from tcl-registry by `{GENERATED_BY}`\n#\n# DO NOT EDIT. Regenerate with:\n#   {GENERATED_BY}\n#\n# Modern core command availability includes qualified ensemble members.\n\nnamespace eval ::tmm {{\n    variable _gen_unavailable_modern_commands {{\n"
+    );
+    for command in commands {
+        let _ = writeln!(out, "        {command}");
+    }
+    out.push_str("    }\n}\n");
+    out
+}
+
 fn generated_files() -> Result<Vec<(&'static str, String)>> {
     let root = repo_root();
     let events = EventRegistry::build();
@@ -248,6 +296,10 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
             render_event_data(events.master_order(), events.flow_chains(), &events),
         ),
         (
+            USER_SURFACE_PATH,
+            render_user_surface(&unavailable_modern_commands(registry, irules_context)),
+        ),
+        (
             MOCK_STUBS_PATH,
             render_mock_stubs(&stub_entries(
                 registry,
@@ -258,7 +310,7 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
     ])
 }
 
-/// Update or verify the two registry-backed iRule-test Tcl assets.
+/// Update or verify the registry-backed iRule-test Tcl assets.
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let mut drift = Vec::new();
@@ -328,6 +380,25 @@ mod tests {
         assert_eq!(mock_proc_name("HTTP::header"), "http_header");
         assert_eq!(mock_proc_name("traffic-group"), "cmd_traffic_group");
         assert_eq!(mock_proc_name("::tcl::path"), "tcl_path");
+    }
+
+    #[test]
+    fn user_surface_blocks_modern_qualified_members_without_hiding_tmm_commands() {
+        let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
+        let context = crate::environment::context_for_dialect(IRULES_DIALECT);
+        let blocked = unavailable_modern_commands(registry, context);
+        for command in ["::dict", "::tcl::dict::create", "::coroutine", "::lmap"] {
+            assert!(
+                blocked.contains(command),
+                "modern core command leaked: {command}"
+            );
+        }
+        for command in ["::set", "::namespace", "::HTTP::host", "::when", "::after"] {
+            assert!(
+                !blocked.contains(command),
+                "existing TMM command blocked: {command}"
+            );
+        }
     }
 
     #[test]

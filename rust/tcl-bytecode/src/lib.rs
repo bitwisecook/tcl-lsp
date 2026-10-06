@@ -43,6 +43,16 @@ use tcl_syntax::expr::ast::{BinOp, UnaryOp};
 /// `end` → `INDEX_END`, `end-N` → `INDEX_END - N`.
 pub const INDEX_END: i32 = -(1 << 30);
 
+/// A selected physical local slot or an original dynamic variable name.
+/// Slot targets retain compiler allocation and never repeat name resolution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompiledVariableTarget {
+    /// An indexed cell in the actual activation's compiled-local layout.
+    Slot(usize),
+    /// A complete counted name for an authored dynamic backend operation.
+    Name(tcl_runtime_api::NameBytes),
+}
+
 /// Convert a non-negative count or index to an `i32` bytecode operand.
 ///
 /// Bytecode `Imm` operands are `i32`; call-site usage always comes from
@@ -117,7 +127,7 @@ pub fn str_class_name(id: u8) -> Option<&'static str> {
     })
 }
 
-/// Tcl 9.0.2 bytecode instruction opcodes.
+/// Portable Tcl bytecode instruction opcodes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(non_camel_case_types, missing_docs)]
 pub enum Op {
@@ -133,6 +143,9 @@ pub enum Op {
     INCR_SCALAR1_IMM,
     INVOKE_STK1,
     INVOKE_STK4,
+    /// Portable pre-TIP-232 fixed-function call. The operand counts value
+    /// arguments; the exact registration is carried outside the value stack.
+    CALL_FUNC1,
     EVAL_STK,
     EXPR_STK,
     JUMP1,
@@ -353,10 +366,19 @@ pub enum Op {
     /// popped (possibly qualified) name — the compiled `variable` command.
     VARIABLE,
     TAILCALL,
+    /// Tcl 9.1 tailcall with a four-byte namespace-inclusive argument count.
+    TAILCALL4,
+    /// Replace the procedure using a list containing its retained namespace,
+    /// command and arguments. A namespace-only list schedules an empty return.
+    TAILCALL_LIST,
     CONCAT_STK,
     TRY_CVT_TO_NUMERIC,
     VERIFY_DICT,
     DICT_GET,
+    /// C9.1 single-member original Dictionary update, without variable lookup.
+    DICT_PUT,
+    /// C9.1 original error-code List prefix comparison; operand is prefix length.
+    ERROR_PREFIX_EQ,
     DICT_EXISTS,
     INVOKE_REPLACE,
     EXIST_STK,
@@ -367,6 +389,8 @@ pub enum Op {
     DICT_APPEND,
     DICT_LAPPEND,
     UPVAR,
+    /// C Tcl 9.1 selected frame evaluation: stack holds level then script.
+    UPLEVEL,
     NSUPVAR,
     LREPLACE4,
     OVER,
@@ -375,6 +399,10 @@ pub enum Op {
     LIST_CONCAT,
     PUSH_RETURN_OPTS,
     RETURN_STK,
+    /// Swap the top two original objects; a native C9.1 one-byte opcode.
+    /// Portable control recipes also use this stack operation independently
+    /// of older native reverse instruction encodings.
+    SWAP,
     REVERSE,
     NUMERIC_TYPE,
     TRY_CVT_TO_BOOLEAN,
@@ -448,6 +476,8 @@ pub enum Op {
     /// `tclooIsObject` — pop a name and push whether it names a `TclOO` object
     /// (`info object isa object`). Never errors (C `INST_TCLOO_IS_OBJECT`).
     TCLOO_IS_OBJECT,
+    /// Produce the original object's wide creation epoch (C9.1 `INST_TCLOO_ID`).
+    TCLOO_ID,
     /// `tclooNext <numWords>` — invoke the next implementation on the method
     /// chain (`next`). The operand counts the words on the stack: the first is
     /// the `next` command word itself (C's `skip = 1`), the rest are the
@@ -458,6 +488,14 @@ pub enum Op {
     /// the second names the class to resume from (C's `skip = 2`, C
     /// `INST_TCLOO_NEXT_CLASS`).
     TCLOO_NEXT_CLASS,
+    /// C9.1 direct next invocation with a four-byte complete-word count.
+    TCLOO_NEXT4,
+    /// C9.1 direct nextto invocation with a four-byte complete-word count.
+    TCLOO_NEXT_CLASS4,
+    /// C9.1 next consumes one genuinely constructed original argument List.
+    TCLOO_NEXT_LIST,
+    /// C9.1 nextto consumes one genuinely constructed original argument List.
+    TCLOO_NEXT_CLASS_LIST,
 }
 
 impl Op {
@@ -497,6 +535,7 @@ impl Op {
             Self::DUP => "dup",
             Self::INVOKE_STK1 => "invokeStk1",
             Self::INVOKE_STK4 => "invokeStk4",
+            Self::CALL_FUNC1 => "callFunc1",
             Self::EVAL_STK => "evalStk",
             Self::EXPR_STK => "exprStk",
             Self::JUMP1 => "jump1",
@@ -527,8 +566,10 @@ impl Op {
             Self::DICT_EXPAND => "dictExpand",
             Self::DICT_RECOMBINE_IMM => "dictRecombineImm",
             Self::NOP => "nop",
-            Self::TAILCALL => "tailcall",
+            Self::TAILCALL | Self::TAILCALL4 => "tailcall",
+            Self::TAILCALL_LIST => "tailcallList",
             Self::INVOKE_REPLACE => "invokeReplace",
+            Self::UPLEVEL => "uplevel",
             Self::EXPAND_START => "expandStart",
             Self::EXPAND_STKTOP => "expandStkTop",
             Self::INVOKE_EXPANDED => "invokeExpanded",
@@ -678,8 +719,13 @@ impl Op {
             Self::TCLOO_CLASS => "tclooClass",
             Self::TCLOO_NS => "tclooNamespace",
             Self::TCLOO_IS_OBJECT => "tclooIsObject",
+            Self::TCLOO_ID => "tclooId",
             Self::TCLOO_NEXT => "tclooNext",
             Self::TCLOO_NEXT_CLASS => "tclooNextClass",
+            Self::TCLOO_NEXT4 => "tclooNext4",
+            Self::TCLOO_NEXT_CLASS4 => "tclooNextClass4",
+            Self::TCLOO_NEXT_LIST => "tclooNextList",
+            Self::TCLOO_NEXT_CLASS_LIST => "tclooNextClassList",
             _ => return None,
         })
     }
@@ -715,8 +761,11 @@ impl Op {
             Self::ARRAY_MAKE_STK => "arrayMakeStk",
             Self::CONST_STK => "constStk",
             Self::RETURN_STK => "returnStk",
+            Self::SWAP => "swap",
             Self::VERIFY_DICT => "verifyDict",
             Self::DICT_GET => "dictGet",
+            Self::DICT_PUT => "dictPut",
+            Self::ERROR_PREFIX_EQ => "errorPrefixEq",
             Self::DICT_GET_DEF => "dictGetDef",
             Self::DICT_EXISTS => "dictExists",
             Self::DICT_SET => "dictSet",
@@ -812,6 +861,7 @@ impl Op {
             Self::POP
                 | Self::DUP
                 | Self::EVAL_STK
+                | Self::UPLEVEL
                 | Self::EXPR_STK
                 | Self::ADD
                 | Self::SUB
@@ -849,6 +899,7 @@ impl Op {
                 | Self::RETURN_CODE_BRANCH
                 | Self::PUSH_RETURN_OPTS
                 | Self::RETURN_STK
+                | Self::SWAP
                 | Self::FOREACH_STEP
                 | Self::FOREACH_END
                 | Self::LMAP_COLLECT
@@ -858,6 +909,7 @@ impl Op {
                 | Self::EXPAND_DROP
                 | Self::YIELD
                 | Self::YIELD_TO_INVOKE
+                | Self::TAILCALL_LIST
                 | Self::CORO_NAME
         )
     }
@@ -867,7 +919,8 @@ impl Op {
     const fn is_one_byte_access(self) -> bool {
         matches!(
             self,
-            Self::STR_EQ
+            Self::DICT_PUT
+                | Self::STR_EQ
                 | Self::STR_NEQ
                 | Self::STR_CMP
                 | Self::STR_LT
@@ -933,10 +986,13 @@ impl Op {
                 | Self::INFO_LEVEL_ARGS
                 | Self::RESOLVE_CMD
                 | Self::ORIGIN_CMD
+                | Self::TCLOO_NEXT_LIST
+                | Self::TCLOO_NEXT_CLASS_LIST
                 | Self::TCLOO_SELF
                 | Self::TCLOO_CLASS
                 | Self::TCLOO_NS
                 | Self::TCLOO_IS_OBJECT
+                | Self::TCLOO_ID
         )
     }
 
@@ -959,6 +1015,7 @@ impl Op {
             | Self::STORE_SCALAR1
             | Self::INCR_SCALAR1
             | Self::INVOKE_STK1
+            | Self::CALL_FUNC1
             | Self::JUMP1
             | Self::JUMP_TRUE1
             | Self::JUMP_FALSE1
@@ -988,6 +1045,9 @@ impl Op {
 
             // 5-byte: opcode + 4-byte operand
             Self::PUSH4
+            | Self::TCLOO_NEXT4
+            | Self::TCLOO_NEXT_CLASS4
+            | Self::TAILCALL4
             | Self::LOAD_SCALAR4
             | Self::STORE_SCALAR4
             | Self::INVOKE_STK4
@@ -1015,6 +1075,7 @@ impl Op {
             | Self::ARRAY_MAKE_IMM
             | Self::CONCAT_STK
             | Self::DICT_GET
+            | Self::ERROR_PREFIX_EQ
             | Self::DICT_GET_DEF
             | Self::DICT_EXISTS
             | Self::EXIST_SCALAR
@@ -1128,12 +1189,18 @@ pub enum Operand {
 /// reconstructed from source text after lowering.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorStackContext {
+    /// Record the actual returnImm operation from its result and original
+    /// options stack values, while retaining authored errorInfo source text.
+    ReturnImmediate {
+        /// Exact source command responsible for the compiled error.
+        error_info_command: Vec<u8>,
+    },
     /// Build `{head <runtime-result>}` for TIP 348 while using the failing
     /// command itself, rather than its containing lowered instruction, for
     /// `errorInfo`.
     CommandResult {
         head: String,
-        error_info_command: String,
+        error_info_command: Vec<u8>,
     },
 }
 
@@ -1192,12 +1259,28 @@ pub struct Instruction {
     pub offset: i32,
     /// Pattern → label map for `JUMP_TABLE` only.
     pub jump_table: Option<HashMap<String, String>>,
+    /// Original counted native switch table. Only authenticated compiler output
+    /// uses this; the runtime selects `CString` extent independently of Rust text.
+    pub native_switch_bytes: Option<HashMap<Vec<u8>, String>>,
+    /// C9.1 wide-integer jump table, independent of textual keys.
+    pub native_switch_integers: Option<HashMap<i64, String>>,
+    /// Physical opcode recipe for original switch comparison/materialization.
+    pub native_switch_version: Option<tcl_dialect::TclVersion>,
+    /// Exact pre-TIP-232 function registration consumed by `CALL_FUNC1`.
+    /// Its complete owning table is retained on [`FunctionAsm`]; this is
+    /// independent of any same-spelled Tcl command or namespace binding.
+    pub native_fixed_math_call:
+        Option<tcl_runtime_api::native_compilation::NativeMathFunctionBinding>,
     /// Prevent push-pop folding (jump target result).
     pub no_fold: bool,
     /// 1-based source line for `errorInfo`.
     pub source_line: u32,
+    /// Original literal word's line within this compiled source object.
+    /// The runtime combines this with the actual source-file entry when
+    /// retaining script values; command lines cannot supply word locations.
+    pub source_value_line: Option<u32>,
     /// Original command text for `errorInfo`.
-    pub source_cmd_text: String,
+    pub source_cmd_text: tcl_lexer::SourceImage,
     /// Runtime-only recipe for structured error-stack logging.
     pub error_stack_context: Option<ErrorStackContext>,
     /// Canonical unrooted constructed namespace in which
@@ -1207,7 +1290,9 @@ pub struct Instruction {
     /// This is compiler provenance, not the VM activation's current
     /// namespace: executable inlining may copy a namespaced command into a
     /// caller whose frame resolves commands somewhere else.
-    pub source_command_namespace: String,
+    pub source_command_namespace: tcl_runtime_api::ByteNamespacePath,
+    /// Exact original namespace owner, authoritative when present.
+    pub source_command_namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
     /// This instruction begins an executable IR/source command. The VM uses
     /// this explicit compiler fact to find deoptimisation continuations;
     /// diagnostic span/text transitions are not execution boundaries because
@@ -1228,22 +1313,25 @@ pub struct Instruction {
     pub source_span: Option<Span>,
     /// Loop-variable groups for `FOREACH_START`/`lmap` only — the analogue of
     /// C Tcl's `ForeachInfo.varLists` (`tclExecute.c` `INST_FOREACH_*`). One
-    /// inner `Vec<String>` per iterator group; the value lists are pushed on the
+    /// inner target vector per iterator group; the value lists are pushed on the
     /// stack before the opcode. Not rendered in disassembly (keeps identity
     /// stable).
-    pub foreach_vars: Option<Vec<Vec<String>>>,
+    pub foreach_vars: Option<Vec<Vec<CompiledVariableTarget>>>,
+    /// Authenticated original foreach auxiliary layout. These physical slots
+    /// are compiler output, independent of textual loop-variable names.
+    pub native_each: Option<std::sync::Arc<NativeEachAuxiliary>>,
     /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
     /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
     /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
     /// alongside `foreach_vars` so the 5-byte operand form and disassembly stay
     /// byte-stable. `false` for a plain `foreach` and every other opcode.
     pub foreach_collect: bool,
-    /// Target variable names for `DICT_UPDATE_START`/`DICT_UPDATE_END` only — the
-    /// analogue of C Tcl's `DictUpdateInfo.varIndices`. One name per key in the
-    /// key list on the stack; the VM stores/reads each named local. Carried
+    /// Target physical LVT indices for `DICT_UPDATE_START`/`DICT_UPDATE_END` —
+    /// C Tcl's `DictUpdateInfo.varIndices`. One slot per original key object;
+    /// execution reads and writes the retained cell, independent of same-name locals. Carried
     /// out-of-band (like `foreach_vars`) so the 9-byte on-disk operand form and
     /// disassembly stay byte-stable. `None` for every other opcode.
-    pub dict_vars: Option<Vec<String>>,
+    pub dict_vars: Option<Vec<usize>>,
     /// `PUSH1`/`PUSH4` only: the literal is a *verbatim* (braced / constant)
     /// word and must be pushed exactly as-is, suppressing the runtime word
     /// substitution that the VM otherwise applies to `${…}` / `[…]` markers
@@ -1255,6 +1343,13 @@ pub struct Instruction {
     /// Literal command-head `PUSH1`/`PUSH4` only: token provenance carried
     /// through argument substitution to its consuming invoke.
     pub entered_command: Option<EnteredCommandSite>,
+    /// Actual native compiler selection made before this command's arguments run.
+    /// It remains valid through its continuation even if an argument replaces
+    /// or removes the callable that supplied the compiler hook.
+    pub native_compiler_selection: Option<NativeCompilerSelectionSite>,
+    /// Selected stock operations guard their actual prerequisites before argv.
+    /// Several nested operations may share their first operand instruction.
+    pub native_operation_selections: Vec<NativeOperationSelectionSite>,
     /// `BEGIN_CATCH4` only: the label of the range's handler — where the VM
     /// resumes (stack trimmed, caught completion recorded) when an exceptional
     /// completion unwinds into the range. This is the analogue of C Tcl's
@@ -1264,9 +1359,28 @@ pub struct Instruction {
     /// codegen emitted the C-faithful shape but relies on the VM's
     /// activation-stack unwinding instead, so `BEGIN_CATCH4` is inert.
     pub catch_target: Option<String>,
+    /// First protected instruction for a catch whose stack entry is opened
+    /// before unprotected argument substitution, as in Tcl 8.4 catch.
+    /// Absent means the instruction following `BEGIN_CATCH4` is protected.
+    pub catch_start: Option<String>,
+    /// Exclusive end of the protected body, excluding a native epilogue that
+    /// runs before `END_CATCH`. Absent uses the handler instruction as the end.
+    pub catch_end: Option<String>,
 }
 
 impl Instruction {
+    /// Original command namespace for transparent stale-command replay.
+    #[must_use]
+    pub fn source_namespace_context(&self) -> tcl_runtime_api::CompiledNamespaceContext {
+        self.source_command_namespace_context
+            .clone()
+            .unwrap_or_else(|| {
+                tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(
+                    self.source_command_namespace.clone(),
+                )
+            })
+    }
+
     /// Create a new instruction with default metadata.
     #[must_use]
     pub fn new(op: Op, operands: Vec<Operand>) -> Self {
@@ -1276,22 +1390,45 @@ impl Instruction {
             comment: String::new(),
             offset: -1,
             jump_table: None,
+            native_switch_bytes: None,
+            native_switch_integers: None,
+            native_switch_version: None,
+            native_fixed_math_call: None,
             no_fold: false,
             source_line: 0,
-            source_cmd_text: String::new(),
+            source_value_line: None,
+            source_cmd_text: tcl_lexer::SourceImage::default(),
             error_stack_context: None,
-            source_command_namespace: String::new(),
+            source_command_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            source_command_namespace_context: None,
             source_command_boundary: SourceCommandBoundary::None,
             completion_option_scope: None,
             source_span: None,
             foreach_vars: None,
+            native_each: None,
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
             entered_command: None,
+            native_compiler_selection: None,
+            native_operation_selections: Vec::new(),
             catch_target: None,
+            catch_start: None,
+            catch_end: None,
         }
     }
+}
+
+/// Original foreach auxiliary indices and release-selected storage owners.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeEachAuxiliary {
+    /// Compiler release, independently checked against the executing engine.
+    pub version: tcl_dialect::TclVersion,
+    /// Ordered variable slots for each original value-list group.
+    pub variables: Vec<Vec<usize>>,
+    /// C8.4/8.5 value-list locals followed by their counter local.
+    /// Empty for stack-based C8.6 and later iteration.
+    pub temporaries: Vec<usize>,
 }
 
 /// A statically literal command entered before its remaining words perform
@@ -1307,44 +1444,561 @@ pub struct EnteredCommandSite {
     pub end: String,
 }
 
+/// Actual native compiler operation entered before argument substitutions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeCompilerSelectionSite {
+    /// Exact runtime callable/header prerequisite; no catalogue substitution.
+    pub prerequisite: tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite,
+    /// Label immediately following the selected invocation's instructions.
+    pub end: String,
+}
+
+/// Exact stock-operation selection and its original replay boundary.
+/// These prerequisites are checked once; later argument mutations cannot
+/// replace a selected native opcode with a newly looked-up public command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeOperationSelectionSite {
+    /// Exact raw command or ensemble compiler registration, independent of the callable.
+    pub compiler_prerequisite: Option<
+        std::sync::Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>,
+    >,
+    /// Actual implementation lookups required by the selected native compiler.
+    pub requirements: Vec<tcl_runtime_api::CommandBindingIdentity>,
+    /// Native selection timing, independent of operand evaluation.
+    pub guard: tcl_runtime_api::CommandBindingGuard,
+    /// Label immediately after the selected operation's instruction range.
+    pub end: String,
+    /// Original Tcl command, replayed only when the initial premise fails.
+    pub source: tcl_lexer::SourceImage,
+    /// Exact authored command extent for diagnostics.
+    pub span: Span,
+    /// Rooted constructed command namespace of the original lookup.
+    pub namespace: tcl_runtime_api::ByteNamespacePath,
+    /// Exact original namespace owner for stale-operation replay.
+    pub namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
+}
+
+impl NativeOperationSelectionSite {
+    /// Namespace owner retained by the original command, including its lifetime.
+    #[must_use]
+    pub fn replay_namespace_context(&self) -> tcl_runtime_api::CompiledNamespaceContext {
+        self.namespace_context.clone().unwrap_or_else(|| {
+            tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(self.namespace.clone())
+        })
+    }
+
+    /// Retain the actual compiler kind independently of late callable lookup.
+    #[must_use]
+    pub fn compiler_selection_prerequisite(
+        &self,
+    ) -> Option<tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite> {
+        self.compiler_prerequisite.as_ref().map(|required| {
+            tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(
+                std::sync::Arc::clone(required),
+            )
+        })
+    }
+}
+
 // Interning tables
 
-/// Intern pool mapping literal strings to object-array indices.
+/// Exact absent-string numeric header produced while a native C expression
+/// compiler executes a constant operator subtree. This stores the payload;
+/// it grants neither expression nor command admission.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NativeExpressionNumberLiteral {
+    /// Native integer payload.
+    Integer(i64),
+    /// IEEE double bits, preserving signed zero and NaN payload.
+    Double(u64),
+    /// Exact arbitrary-precision integer magnitude in decimal notation.
+    BigInteger {
+        /// Sign of the integer.
+        negative: bool,
+        /// Cleaned decimal magnitude without a sign.
+        digits: String,
+    },
+}
+
+impl NativeExpressionNumberLiteral {
+    /// Retain a concrete native numeric payload without invoking its updater.
+    /// Non-decimal Big storage needs the producing backend's normalisation.
+    #[must_use]
+    pub fn from_number(number: tcl_syntax::number::Number) -> Option<Self> {
+        use tcl_syntax::number::Number;
+        Some(match number {
+            Number::Int(value) => Self::Integer(value),
+            Number::Double(value) => Self::Double(value.to_bits()),
+            Number::Nan { negative, payload } => Self::Double(
+                (u64::from(negative) << 63)
+                    | 0x7ff8_0000_0000_0000
+                    | (payload.unwrap_or(0) & 0x0007_ffff_ffff_ffff),
+            ),
+            Number::Big {
+                negative,
+                radix: tcl_syntax::number::Radix::Dec,
+                digits,
+            } => Self::BigInteger { negative, digits },
+            Number::Big { .. } => return None,
+        })
+    }
+
+    /// Recover the full scalar payload without formatting or parsing it.
+    #[must_use]
+    pub fn number(&self) -> tcl_syntax::number::Number {
+        match self {
+            Self::Integer(value) => tcl_syntax::number::Number::Int(*value),
+            Self::Double(bits) => tcl_syntax::number::Number::Double(f64::from_bits(*bits)),
+            Self::BigInteger { negative, digits } => tcl_syntax::number::Number::Big {
+                negative: *negative,
+                radix: tcl_syntax::number::Radix::Dec,
+                digits: digits.clone(),
+            },
+        }
+    }
+}
+
+/// Native allocation route for one bytecode object-array entry.
+/// These recipes describe construction, not proof that a public handler is live.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub enum NativeLiteralAllocation {
+    /// `TclRegisterLiteral` without a command namespace partition.
+    #[default]
+    RegisteredData,
+    /// `TclRegisterLiteral`'s original command-name namespace partition.
+    RegisteredCommand {
+        /// Actual compiler namespace path, validated against the retained token.
+        namespace: tcl_runtime_api::ByteNamespacePath,
+        /// Original fully-qualified command head selects the retained root token.
+        fully_qualified: bool,
+    },
+    /// Command registration carrying its actual interpreter/namespace incarnation.
+    RegisteredNativeCommand {
+        /// Retained original compilation context, independently checked on admission.
+        context: tcl_runtime_api::native_command_name::NativeLiteralContext,
+        /// Original selected command name is absolute.
+        fully_qualified: bool,
+    },
+    /// Original string allocated without interpreter-global registration.
+    Unshared,
+    /// C9.1 `TclAddLiteralObj` retains an original constant-concat String primary.
+    PrivateConcatString,
+    /// `TclAddLiteralObj` retains a supplied original header without `GetString`.
+    /// The concrete producer must provide that header for this ordered slot.
+    PrivateOriginal,
+    /// `TclAddLiteralObj` retains a fresh native Integer header without `GetString`.
+    PrivateInteger(i64),
+    /// Selected C8.5+ constant-expression result, retained without `GetString`.
+    PrivateExpressionNumber {
+        /// Actual compiler release which executed the constant subtree.
+        version: tcl_dialect::TclVersion,
+        /// Complete original numeric payload.
+        value: NativeExpressionNumberLiteral,
+    },
+    /// C8.5 logical constant evaluation retains its temporary compiler's
+    /// registered Boolean original through `TclAddLiteralObj`. The temporary
+    /// registration is released; a preexisting global original remains shared.
+    PrivateLogicalBoolean85(bool),
+    /// Fresh private Dictionary manufactured by the selected native Return compiler.
+    PrivateReturnOptions(tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral),
+    /// `TclAddLiteralObj` retains a fresh native List and its original fresh children.
+    PrivateConstantList {
+        /// Original decoded native element bytes, never interpreter-interned children.
+        members: Vec<Vec<u8>>,
+        /// Selected native compiler's object-string recipe.
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    },
+}
+
+/// One ordered bytecode object-array slot and its native allocation recipe.
+/// String slots retain exact native bytes; private originals retain only the
+/// allocation marker here and require the concrete producer's original header.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct NativeStringLiteral {
+    bytes: Vec<u8>,
+    allocation: NativeLiteralAllocation,
+}
+
+impl NativeStringLiteral {
+    /// Retained native construction route for this original object-array slot.
+    #[must_use]
+    pub const fn allocation(&self) -> &NativeLiteralAllocation {
+        &self.allocation
+    }
+
+    /// Exact native string payload, without decoding or replacement.
+    ///
+    /// # Panics
+    /// A private original has no string receipt; use [`Self::byte_payload`] or
+    /// consume its concrete original header instead.
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        self.byte_payload()
+            .expect("native original object has no string payload receipt")
+    }
+
+    /// Original string bytes when this slot's producer supplied them. A private
+    /// original object has no byte receipt and must use its concrete header.
+    #[must_use]
+    pub fn byte_payload(&self) -> Option<&[u8]> {
+        (!matches!(
+            self.allocation,
+            NativeLiteralAllocation::PrivateOriginal
+                | NativeLiteralAllocation::PrivateReturnOptions(_)
+                | NativeLiteralAllocation::PrivateInteger(_)
+                | NativeLiteralAllocation::PrivateExpressionNumber { .. }
+        ))
+        .then_some(self.bytes.as_slice())
+    }
+
+    /// Project Unicode for a string slot when its complete payload is UTF-8.
+    /// A private original must first be handled through its allocation recipe.
+    pub fn unicode(&self) -> Result<&str, std::str::Utf8Error> {
+        std::str::from_utf8(self.bytes())
+    }
+
+    /// Whether the native string has no bytes.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.bytes().is_empty()
+    }
+}
+
+impl PartialEq<str> for NativeStringLiteral {
+    fn eq(&self, other: &str) -> bool {
+        self.byte_payload() == Some(other.as_bytes())
+    }
+}
+
+impl PartialEq<&str> for NativeStringLiteral {
+    fn eq(&self, other: &&str) -> bool {
+        self == *other
+    }
+}
+
+impl PartialEq<String> for NativeStringLiteral {
+    fn eq(&self, other: &String) -> bool {
+        self == other.as_str()
+    }
+}
+
+/// Intern pool mapping exact native string bytes to object-array indices.
 #[derive(Debug, Clone, Default)]
 pub struct LiteralTable {
-    entries: Vec<String>,
-    index: HashMap<String, usize>,
+    entries: Vec<NativeStringLiteral>,
+    index: HashMap<Vec<u8>, usize>,
+    actions: Vec<NativeLiteralAction>,
+}
+
+/// Native compiler actions on its object array, in original execution order.
+/// Local deduplication does not suppress later cache priming actions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeLiteralAction {
+    /// Construct/register a newly allocated object-array entry.
+    Register(usize),
+    /// Retain C9.1's original Syntax message as the compiled options'
+    /// `-errorinfo` member after both object-array entries exist, then perform
+    /// the reached compiler result reset through actual error-variable setters.
+    RetainSyntaxErrorInfo {
+        /// Original private merged Dictionary slot.
+        options: usize,
+        /// Original compiler message slot; bytes do not replace its identity.
+        message: usize,
+    },
+    /// Move a reached constant result's numeric primary into a registered
+    /// string header only when that destination still has no primary cache.
+    AdoptExpressionNumber {
+        /// Registered local object-array slot.
+        index: usize,
+        /// Actual C expression compiler that produced the constant.
+        version: tcl_dialect::TclVersion,
+        /// Numeric payload retained independently of its resident spelling.
+        value: NativeExpressionNumberLiteral,
+    },
+    /// Apply the C8.4 expression compiler's Boolean getter to the SAME
+    /// registered resident literal, retaining its original spelling.
+    PrimeExpressionBoolean84(usize),
+    /// Install the actual compiler-selected command-name cache on this entry.
+    PrimeCommandName {
+        /// Existing object-array index, including an earlier data registration.
+        index: usize,
+        /// Retained original native lookup and compilation context.
+        receipt: Box<tcl_runtime_api::native_command_name::NativeCommandNamePriming>,
+    },
+    /// Duplicate a local entry and withdraw its local/global hash registration.
+    Hide(usize),
 }
 
 impl LiteralTable {
+    /// Register the original C8.4 Boolean word and retain its reached getter
+    /// action separately from local/global literal deduplication.
+    pub fn intern_expression_boolean84(&mut self, bytes: &[u8]) -> usize {
+        let index = self.intern_bytes(bytes);
+        self.actions
+            .push(NativeLiteralAction::PrimeExpressionBoolean84(index));
+        index
+    }
+    /// Register a resident constant and retain the compiler's conditional
+    /// internal-representation transfer after normal literal deduplication.
+    pub fn intern_expression_number(
+        &mut self,
+        bytes: &[u8],
+        version: tcl_dialect::TclVersion,
+        value: NativeExpressionNumberLiteral,
+    ) -> usize {
+        let index = self.intern_bytes(bytes);
+        self.actions
+            .push(NativeLiteralAction::AdoptExpressionNumber {
+                index,
+                version,
+                value,
+            });
+        index
+    }
     /// Create a new empty literal table.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Get or create a deduplicated index for `value`.
+    /// Get or create a deduplicated index for a Unicode value.
     pub fn intern(&mut self, value: &str) -> usize {
+        self.intern_bytes(value.as_bytes())
+    }
+
+    /// Get or create a deduplicated index for exact native bytes.
+    pub fn intern_bytes(&mut self, value: &[u8]) -> usize {
+        self.intern_allocated(value, NativeLiteralAllocation::RegisteredData)
+    }
+
+    /// Intern a command head under its selected native namespace partition.
+    /// Local-array byte deduplication retains the first registration route.
+    pub fn intern_command_bytes(
+        &mut self,
+        value: &[u8],
+        namespace: &tcl_runtime_api::ByteNamespacePath,
+        fully_qualified: bool,
+    ) -> usize {
+        self.intern_allocated(
+            value,
+            NativeLiteralAllocation::RegisteredCommand {
+                namespace: namespace.clone(),
+                fully_qualified,
+            },
+        )
+    }
+
+    /// Register an original head with its actual namespace-token receipt.
+    /// A previously allocated data literal retains its original allocation.
+    pub fn intern_native_command_bytes(
+        &mut self,
+        value: &[u8],
+        context: &tcl_runtime_api::native_command_name::NativeLiteralContext,
+        fully_qualified: bool,
+    ) -> usize {
+        self.intern_allocated(
+            value,
+            NativeLiteralAllocation::RegisteredNativeCommand {
+                context: context.clone(),
+                fully_qualified,
+            },
+        )
+    }
+
+    /// Retain a reached native priming action even after local byte deduplication.
+    /// Returns false when the receipt does not describe this original head.
+    pub fn prime_native_command_name(
+        &mut self,
+        index: usize,
+        receipt: tcl_runtime_api::native_command_name::NativeCommandNamePriming,
+    ) -> bool {
+        if self
+            .entries
+            .get(index)
+            .is_none_or(|entry| entry.bytes() != receipt.original.as_bytes())
+        {
+            return false;
+        }
+        self.actions.push(NativeLiteralAction::PrimeCommandName {
+            index,
+            receipt: Box::new(receipt),
+        });
+        true
+    }
+
+    /// Retain native `TclHideLiteral` ordering and remove its local deduplication key.
+    /// The runtime duplicates the complete current object before releasing its lease.
+    pub fn hide_native_literal(&mut self, index: usize) -> bool {
+        let Some(entry) = self.entries.get(index) else {
+            return false;
+        };
+        if self.index.get(entry.bytes()) == Some(&index) {
+            self.index.remove(entry.bytes());
+        }
+        self.actions.push(NativeLiteralAction::Hide(index));
+        true
+    }
+
+    fn intern_allocated(&mut self, value: &[u8], allocation: NativeLiteralAllocation) -> usize {
         if let Some(&idx) = self.index.get(value) {
             return idx;
         }
         let idx = self.entries.len();
-        self.entries.push(value.to_owned());
+        self.entries.push(NativeStringLiteral {
+            bytes: value.to_owned(),
+            allocation,
+        });
         self.index.insert(value.to_owned(), idx);
+        self.actions.push(NativeLiteralAction::Register(idx));
         idx
     }
 
-    /// Always append `value` (no deduplication).
+    /// Always append a Unicode value (no deduplication).
     pub fn register(&mut self, value: &str) -> usize {
+        self.register_bytes(value.as_bytes())
+    }
+
+    /// Always append exact native bytes (no deduplication).
+    pub fn register_bytes(&mut self, value: &[u8]) -> usize {
+        self.register_unshared(value)
+    }
+
+    /// Append an original string without local or interpreter-global deduplication.
+    pub fn register_unshared(&mut self, value: &[u8]) -> usize {
         let idx = self.entries.len();
-        self.entries.push(value.to_owned());
+        self.entries.push(NativeStringLiteral {
+            bytes: value.to_owned(),
+            allocation: NativeLiteralAllocation::Unshared,
+        });
+        self.actions.push(NativeLiteralAction::Register(idx));
         idx
     }
 
-    /// Return all interned entries in order.
+    /// Retain the C9.1 constant-concat String original without global registration.
+    pub fn register_private_concat_string(&mut self, value: &[u8]) -> usize {
+        let index = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: value.to_owned(),
+            allocation: NativeLiteralAllocation::PrivateConcatString,
+        });
+        self.actions.push(NativeLiteralAction::Register(index));
+        index
+    }
+
+    /// Reserve one ordered `TclAddLiteralObj` slot without materialising its
+    /// original object. The concrete emitter retains the supplied header; this
+    /// table neither allocates it nor grants a string or compilation receipt.
+    pub fn register_private_original(&mut self) -> usize {
+        let idx = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: Vec::new(),
+            allocation: NativeLiteralAllocation::PrivateOriginal,
+        });
+        self.actions.push(NativeLiteralAction::Register(idx));
+        idx
+    }
+
+    /// Reserve a chronological private native Return-options object slot.
+    pub fn register_private_return_options(
+        &mut self,
+        recipe: tcl_runtime_api::native_return_literal::NativeReturnOptionsLiteral,
+    ) -> usize {
+        let index = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: Vec::new(),
+            allocation: NativeLiteralAllocation::PrivateReturnOptions(recipe),
+        });
+        self.actions.push(NativeLiteralAction::Register(index));
+        index
+    }
+
+    /// Record the selected C9.1 Syntax options' original message member.
+    /// The backend validates the actual release and both original slots.
+    pub fn retain_syntax_error_info(&mut self, options: usize, message: usize) {
+        self.actions
+            .push(NativeLiteralAction::RetainSyntaxErrorInfo { options, message });
+    }
+
+    /// Append the fresh native Integer supplied to `TclAddLiteralObj`.
+    /// No interpreter-global String registration or original byte receipt is issued.
+    pub fn register_private_integer(&mut self, value: i64) -> usize {
+        let index = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: Vec::new(),
+            allocation: NativeLiteralAllocation::PrivateInteger(value),
+        });
+        self.actions.push(NativeLiteralAction::Register(index));
+        index
+    }
+
+    /// Retain a selected compiler's absent-string constant-expression result.
+    /// Consumers validate the compiler release before constructing its header.
+    pub fn register_private_expression_number(
+        &mut self,
+        version: tcl_dialect::TclVersion,
+        value: NativeExpressionNumberLiteral,
+    ) -> usize {
+        let index = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: Vec::new(),
+            allocation: NativeLiteralAllocation::PrivateExpressionNumber { version, value },
+        });
+        self.actions.push(NativeLiteralAction::Register(index));
+        index
+    }
+
+    /// Append the C8.5 constant logical evaluator's original Boolean result.
+    /// Unlike ordinary registration, this always creates a new local slot.
+    pub fn register_private_logical_boolean85(&mut self, value: bool) -> usize {
+        let index = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: if value { b"1" } else { b"0" }.to_vec(),
+            allocation: NativeLiteralAllocation::PrivateLogicalBoolean85(value),
+        });
+        self.actions.push(NativeLiteralAction::Register(index));
+        index
+    }
+
+    /// Append a native constant List object and retain its original fresh elements.
+    /// The emitter separately proves the actual compiler selects this allocation.
+    pub fn register_private_constant_list(
+        &mut self,
+        members: &[impl AsRef<[u8]>],
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> usize {
+        use tcl_syntax::list_result::NativeListResultSerialization as Render;
+        let renderer = match protocol {
+            tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) => {
+                Render::Tcl84
+            }
+            tcl_syntax::native_string::NativeStringProtocol::C(_) => Render::Tcl85Plus,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084 => Render::Jim084,
+        };
+        let idx = self.entries.len();
+        self.entries.push(NativeStringLiteral {
+            bytes: renderer.render(members),
+            allocation: NativeLiteralAllocation::PrivateConstantList {
+                members: members
+                    .iter()
+                    .map(|member| member.as_ref().to_vec())
+                    .collect(),
+                protocol,
+            },
+        });
+        self.actions.push(NativeLiteralAction::Register(idx));
+        idx
+    }
+
+    /// Return all interned native byte entries in order.
     #[must_use]
-    pub fn entries(&self) -> &[String] {
+    pub fn entries(&self) -> &[NativeStringLiteral] {
         &self.entries
+    }
+
+    /// Ordered allocation/cache actions retained by the original compiler.
+    #[must_use]
+    pub fn native_actions(&self) -> &[NativeLiteralAction] {
+        &self.actions
     }
 
     /// Number of entries.
@@ -1363,8 +2017,9 @@ impl LiteralTable {
 /// Maps variable names to local variable table (LVT) slot indices.
 #[derive(Debug, Clone, Default)]
 pub struct LocalVarTable {
-    slots: Vec<String>,
-    index: HashMap<String, usize>,
+    compiler_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
+    slots: Vec<tcl_runtime_api::NameBytes>,
+    index: HashMap<tcl_runtime_api::NameBytes, usize>,
     /// Slots the *compiler* allocated for its own bookkeeping — a `dict for`
     /// iterator, a `catch` result temporary — rather than for a variable the
     /// source names.
@@ -1378,6 +2033,38 @@ pub struct LocalVarTable {
 }
 
 impl LocalVarTable {
+    /// Configure the independently selected compiler-name comparison.
+    /// Existing primary keys and declaration order remain unchanged.
+    pub fn set_native_protocol(
+        &mut self,
+        protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
+    ) {
+        self.compiler_protocol = protocol;
+    }
+
+    /// Retained compiler selection; absence uses exact artifact-name lookup.
+    #[must_use]
+    pub const fn native_protocol(
+        &self,
+    ) -> Option<tcl_syntax::naming::NativeCompiledVariableProtocol> {
+        self.compiler_protocol
+    }
+
+    /// Find a source local through the configured compiler comparison.
+    #[must_use]
+    pub fn find(&self, name: &str) -> Option<usize> {
+        self.find_bytes(name.as_bytes())
+    }
+
+    /// Find a source local without decoding its original counted name.
+    #[must_use]
+    pub fn find_bytes(&self, name: &[u8]) -> Option<usize> {
+        match self.compiler_protocol {
+            Some(protocol) => self.find_native(protocol, name),
+            None => self.index.get(name).copied(),
+        }
+    }
+
     /// Create a new LVT, optionally pre-populating with procedure parameters.
     #[must_use]
     pub fn new(params: &[&str]) -> Self {
@@ -1388,12 +2075,22 @@ impl LocalVarTable {
         lvt
     }
 
-    /// Get or create a slot index the compiler allocated for itself.
+    /// Allocate a distinct slot index for compiler bookkeeping.
     ///
     /// See [`LocalVarTable::synthetic`]; [`Self::is_source_local`] is how a
     /// consumer tells the two apart.
     pub fn intern_synthetic(&mut self, name: &str) -> usize {
-        let slot = self.intern(name);
+        let slot = self.slots.len();
+        self.slots.push(tcl_runtime_api::NameBytes::from(name));
+        self.synthetic.insert(slot);
+        slot
+    }
+
+    /// Reserve a distinct native temporary with no source name or lookup key.
+    /// Empty source names remain independent named slots.
+    pub fn intern_anonymous(&mut self) -> usize {
+        let slot = self.slots.len();
+        self.slots.push(tcl_runtime_api::NameBytes::default());
         self.synthetic.insert(slot);
         slot
     }
@@ -1404,25 +2101,132 @@ impl LocalVarTable {
     /// is a compiler temporary.
     #[must_use]
     pub fn is_source_local(&self, name: &str) -> bool {
-        self.index
-            .get(name)
-            .is_some_and(|slot| !self.synthetic.contains(slot))
+        self.is_source_local_bytes(name.as_bytes())
     }
 
     /// Get or create a slot index for `name`.
     pub fn intern(&mut self, name: &str) -> usize {
+        self.intern_bytes(name.as_bytes())
+    }
+
+    /// Get or create a local slot for an exact native storage key.
+    pub fn intern_bytes(&mut self, name: &[u8]) -> usize {
+        if let Some(protocol) = self.compiler_protocol {
+            return self.intern_native(protocol, name);
+        }
         if let Some(&idx) = self.index.get(name) {
             return idx;
         }
         let idx = self.slots.len();
-        self.slots.push(name.to_owned());
-        self.index.insert(name.to_owned(), idx);
+        let name = tcl_runtime_api::NameBytes::from(name);
+        self.slots.push(name.clone());
+        self.index.insert(name, idx);
         idx
     }
 
-    /// Return all variable names in slot order.
+    /// Create a table from actual bound formal storage keys in declaration order.
     #[must_use]
-    pub fn entries(&self) -> &[String] {
+    pub fn from_names(params: &[tcl_runtime_api::NameBytes]) -> Self {
+        let mut table = Self::default();
+        for name in params {
+            table.intern_bytes(name.as_bytes());
+        }
+        table
+    }
+
+    /// Retain every bound formal declaration slot, including repeated names.
+    /// The selected compiler comparator governs later lookup; declaration
+    /// storage never discards a name because it compares equal to another slot.
+    #[must_use]
+    pub fn from_native_names(params: &[tcl_runtime_api::NameBytes]) -> Self {
+        let mut table = Self::default();
+        for name in params {
+            table.append_native_source(name.as_bytes());
+        }
+        table
+    }
+
+    /// Preserve physical local-cache indices, including unnamed temporary slots.
+    /// Names and `None` markers come from the retained native layout; this
+    /// constructor supplies no compiler policy or execution-frame authority.
+    #[must_use]
+    pub fn from_native_slot_names(names: &[Option<tcl_runtime_api::NameBytes>]) -> Self {
+        let mut table = Self::default();
+        for name in names {
+            if let Some(name) = name {
+                table.append_native_source(name.as_bytes());
+            } else {
+                let slot = table.slots.len();
+                table.slots.push(tcl_runtime_api::NameBytes::default());
+                table.synthetic.insert(slot);
+            }
+        }
+        table
+    }
+
+    /// Snapshot the ordered native local layout without inventing source names
+    /// for compiler temporary slots.
+    #[must_use]
+    pub fn native_slot_names(&self) -> Vec<Option<tcl_runtime_api::NameBytes>> {
+        self.slots
+            .iter()
+            .enumerate()
+            .map(|(slot, name)| (!self.synthetic.contains(&slot)).then(|| name.clone()))
+            .collect()
+    }
+
+    fn append_native_source(&mut self, name: &[u8]) -> usize {
+        let slot = self.slots.len();
+        let name = tcl_runtime_api::NameBytes::from(name);
+        self.slots.push(name.clone());
+        self.index.entry(name).or_insert(slot);
+        slot
+    }
+
+    /// Select the first nonsynthetic source slot under the actual compiler rule.
+    /// A comparison match never changes either original primary name.
+    #[must_use]
+    pub fn find_native(
+        &self,
+        protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
+        name: &[u8],
+    ) -> Option<usize> {
+        self.slots.iter().enumerate().find_map(|(slot, original)| {
+            (!self.synthetic.contains(&slot)
+                && protocol.compiled_local_names_equal(original.as_bytes(), name))
+            .then_some(slot)
+        })
+    }
+
+    /// Reuse the selected source slot or append the complete original byte name.
+    pub fn intern_native(
+        &mut self,
+        protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
+        name: &[u8],
+    ) -> usize {
+        self.find_native(protocol, name)
+            .unwrap_or_else(|| self.append_native_source(name))
+    }
+
+    /// Whether the selected native compiler comparison finds a source local.
+    #[must_use]
+    pub fn is_source_local_native(
+        &self,
+        protocol: tcl_syntax::naming::NativeCompiledVariableProtocol,
+        name: &[u8],
+    ) -> bool {
+        self.find_native(protocol, name).is_some()
+    }
+
+    /// Whether an exact native source key has a nonsynthetic local slot.
+    #[must_use]
+    pub fn is_source_local_bytes(&self, name: &[u8]) -> bool {
+        self.find_bytes(name).is_some()
+    }
+
+    /// Return original native storage keys in local slot order.
+    #[must_use]
+    pub fn entries(&self) -> &[tcl_runtime_api::NameBytes] {
         &self.slots
     }
 
@@ -1448,6 +2252,25 @@ impl LocalVarTable {
 pub struct FunctionAsm {
     /// Function name.
     pub name: String,
+    /// Proved native compiler rejection at this function's actual entry.
+    /// The executor validates handler and raw compiler prerequisites before presenting this error
+    /// and admits it before evaluating arguments or binding procedure formals.
+    /// This metadata never moves into a caller through executable inlining.
+    pub native_compilation_failure: Option<tcl_runtime_api::NativeCompilationError>,
+    /// Remaining entry-time native compiler obligation. A missing error
+    /// presentation never turns a definite compiler failure into executable code.
+    pub native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight,
+    /// Actual fixed math registrations required to reuse native compiler metadata.
+    pub native_math_table_prerequisite:
+        Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
+    /// Exact raw compiler registrations consumed by failure or preparation.
+    /// These are checked once at admission, separately from handler dependencies.
+    pub native_compiler_prerequisites:
+        Vec<tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite>,
+    /// Exact reusable compiled-local cache whose existing indices this body borrows.
+    /// No activation identifiers or variable cells participate in this prerequisite.
+    pub required_compiled_local_layout:
+        Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -1498,11 +2321,122 @@ pub struct FunctionAsm {
     /// optimised function that merely happens to have no binding requirements.
     pub plain_command_dispatch: bool,
     /// Runtime command bindings whose registry implementations this function's
-    /// specialised operations assume. Empty for plain-dispatch bytecode.
+    /// specialised operations or native compilation rejection assume. A
+    /// plain-dispatch function can still retain compiler-entry dependencies.
     pub command_bindings: Vec<tcl_runtime_api::CommandBindingIdentity>,
     /// Exact user-procedure bindings whose bodies were copied into this
     /// function by an executable inlining transform.
     pub procedure_bindings: Vec<tcl_runtime_api::ProcedureBindingIdentity>,
+}
+
+impl FunctionAsm {
+    /// Validate native compiler metadata before entering this function.
+    ///
+    /// This returns a host admission error, never a Tcl catch-visible error.
+    /// Hosts resolve a remaining obligation through their genuine compiler
+    /// provider before evaluating any source word or binding procedure formals.
+    pub fn validate_native_compilation_entry(
+        &self,
+    ) -> Result<(), tcl_runtime_api::NativeCompilationAdmissionError> {
+        use tcl_runtime_api::{
+            NativeCompilationAdmissionError as Error, NativeCompilationPreflight,
+        };
+        if self.native_compilation_preflight != NativeCompilationPreflight::NotRequired {
+            return Err(Error::NativePreflightRequired);
+        }
+        if self
+            .native_compiler_prerequisites
+            .iter()
+            .any(|required| required.guard() != tcl_runtime_api::CommandBindingGuard::ChunkEntry)
+        {
+            return Err(Error::NativePreflightRequired);
+        }
+        if self
+            .native_compilation_failure
+            .as_ref()
+            .is_some_and(|error| error.error_info_for_procedure(Some(&self.name)).is_none())
+        {
+            return Err(Error::InvalidErrorPresentation);
+        }
+        if !self.native_operation_sites_valid() || !self.native_fixed_math_calls_valid() {
+            return Err(Error::NativePreflightRequired);
+        }
+        if self.instructions.iter().any(|instruction| {
+            instruction
+                .source_command_namespace_context
+                .as_ref()
+                .is_some_and(|context| context.path() != &instruction.source_command_namespace)
+        }) {
+            return Err(Error::NativePreflightRequired);
+        }
+        Ok(())
+    }
+    fn native_fixed_math_calls_valid(&self) -> bool {
+        use tcl_runtime_api::native_compilation::NativeMathFunctionResolution;
+
+        self.instructions.iter().all(|instruction| {
+            if instruction.op != Op::CALL_FUNC1 {
+                return instruction.native_fixed_math_call.is_none();
+            }
+            let Some(binding) = instruction.native_fixed_math_call.as_ref() else {
+                return false;
+            };
+            let [Operand::Imm(argc)] = instruction.operands.as_slice() else {
+                return false;
+            };
+            let Ok(argc) = u8::try_from(*argc) else {
+                return false;
+            };
+            binding.arity == Some(usize::from(argc))
+                && binding.registry_identity.is_some()
+                && self
+                    .native_math_table_prerequisite
+                    .as_ref()
+                    .is_some_and(|required| {
+                        matches!(required.table.lookup_bytes(binding.name.as_bytes()),
+                        NativeMathFunctionResolution::Present(actual) if actual == binding)
+                    })
+        })
+    }
+    fn native_operation_sites_valid(&self) -> bool {
+        let byte_end = self.instructions.last().and_then(|instruction| {
+            usize::try_from(instruction.offset)
+                .ok()?
+                .checked_add(usize::from(instruction.op.size()))
+        });
+        self.instructions.iter().all(|instruction| {
+            instruction.native_operation_selections.iter().all(|site| {
+                let Some(&end) = self.labels.get(&site.end) else {
+                    return false;
+                };
+                let Some(start) = usize::try_from(instruction.offset).ok() else {
+                    return false;
+                };
+                end > start
+                    && site
+                        .namespace_context
+                        .as_ref()
+                        .is_none_or(|context| context.path() == &site.namespace)
+                    && (Some(end) == byte_end
+                        || self
+                            .instructions
+                            .iter()
+                            .any(|next| usize::try_from(next.offset).ok() == Some(end)))
+                    && (site.compiler_prerequisite.is_some() || !site.requirements.is_empty())
+                    && site.compiler_prerequisite.as_ref().is_none_or(|required| {
+                        required.guard == site.guard
+                            && (required.compiler.ensemble.is_some()
+                                || required.selected_worker.is_none())
+                    })
+                    && !site.source.is_empty()
+                    && usize::try_from(site.span.len()).ok() == Some(site.source.len())
+                    && (site.guard != tcl_runtime_api::CommandBindingGuard::ChunkEntry
+                        || site.requirements.iter().all(|binding| {
+                            binding.guard == tcl_runtime_api::CommandBindingGuard::ChunkEntry
+                        }))
+            })
+        })
+    }
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the
@@ -1525,7 +2459,7 @@ pub struct ErrorRegion {
     pub label: String,
     /// The enclosing command's surface text, for its `invoked from within "…"`
     /// frame (truncated to 150 bytes by the logger, as in C).
-    pub cmd_text: String,
+    pub cmd_text: tcl_lexer::SourceImage,
     /// One less than the body's first source line: a covered instruction's
     /// body-relative line is `instruction_line − line_base` (so the body frame
     /// reports a line relative to the body, not the whole module).
@@ -1544,12 +2478,12 @@ pub struct ModuleAsm {
     pub profile: &'static tcl_dialect::DialectProfile,
     /// Original module source, retained so a reusable optimised artifact can
     /// be recompiled through the plain-dispatch capability after invalidation.
-    pub source: String,
+    pub source: tcl_lexer::SourceImage,
     /// Canonical unrooted constructed namespace in which the top-level
     /// assembly was specialised.  This is part of the artifact's executable
     /// provenance: an unqualified command may resolve to a different binding
     /// when the same source is entered from another namespace.
-    pub source_namespace: String,
+    pub source_namespace: tcl_runtime_api::ByteNamespacePath,
     /// Whether lowering suppressed every registry-driven specialised command
     /// path. Runtimes validate this explicit capability stamp instead of
     /// inferring plain dispatch from an accidentally-empty dependency list.
@@ -1594,6 +2528,10 @@ pub struct ProcedureProvenance {
     /// feed the remainder back through written-name canonicalisation (a `:`
     /// namespace segment would become ambiguous).
     pub name: String,
+    /// Original body lookup context, separate from the displayed declaration name.
+    /// A constructed path preserves geometry without attesting a native owner.
+    /// Missing context cannot authorise native procedure-artifact cache reuse.
+    pub namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
     /// Raw formal-parameter list value, including defaults.
     pub parameters: String,
     /// Raw procedure body value.
@@ -1602,7 +2540,89 @@ pub struct ProcedureProvenance {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn private_original_literal_has_ordered_slot_without_string_receipt() {
+        let mut table = super::LiteralTable::new();
+        let string = table.intern_bytes(b"VALUE");
+        let original = table.register_private_original();
+        assert_eq!((string, original), (0, 1));
+        assert_eq!(
+            table.entries()[string].byte_payload(),
+            Some(b"VALUE".as_slice())
+        );
+        assert_eq!(table.entries()[original].byte_payload(), None);
+        assert_ne!(table.entries()[original], "");
+        assert_eq!(
+            table.entries()[original].allocation(),
+            &super::NativeLiteralAllocation::PrivateOriginal
+        );
+        assert_eq!(
+            table.native_actions(),
+            &[
+                super::NativeLiteralAction::Register(0),
+                super::NativeLiteralAction::Register(1)
+            ]
+        );
+    }
     use super::*;
+
+    #[test]
+    fn replay_context_rejects_inconsistent_component_geometry() {
+        let path = tcl_runtime_api::ByteNamespacePath::from_segments(["a:", "b"]);
+        let other = tcl_runtime_api::ByteNamespacePath::from_segments(["a", ":b"]);
+        let mut instruction = Instruction::new(Op::NOP, vec![]);
+        instruction.source_command_namespace = path.clone();
+        instruction.source_command_namespace_context = Some(
+            tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(other),
+        );
+        let mut function = FunctionAsm {
+            instructions: vec![instruction],
+            ..FunctionAsm::default()
+        };
+        assert!(function.validate_native_compilation_entry().is_err());
+        function.instructions[0].source_command_namespace_context = Some(
+            tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(path.clone()),
+        );
+        assert_eq!(function.validate_native_compilation_entry(), Ok(()));
+        assert_eq!(
+            function.instructions[0].source_namespace_context().path(),
+            &path
+        );
+    }
+
+    #[test]
+    fn operation_replay_accepts_neutral_root_and_rejects_invalid_source_extent() {
+        let mut instruction = Instruction::new(Op::NOP, vec![]);
+        instruction.offset = 0;
+        instruction
+            .native_operation_selections
+            .push(NativeOperationSelectionSite {
+                compiler_prerequisite: None,
+                requirements: vec![
+                    tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+                        "::", "string", "string",
+                    ),
+                ],
+                guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
+                end: "end".to_owned(),
+                source: tcl_lexer::SourceImage::document("string length abc"),
+                span: Span::new(0, 17),
+                namespace: tcl_runtime_api::ByteNamespacePath::root(),
+                namespace_context: None,
+            });
+        let mut function = FunctionAsm {
+            instructions: vec![instruction],
+            labels: [("end".to_owned(), 1)].into(),
+            ..FunctionAsm::default()
+        };
+        assert_eq!(function.validate_native_compilation_entry(), Ok(()));
+        assert_eq!(
+            function.instructions[0].native_operation_selections[0].namespace,
+            tcl_runtime_api::ByteNamespacePath::root(),
+        );
+        function.instructions[0].native_operation_selections[0].span = Span::new(0, 16);
+        assert!(function.validate_native_compilation_entry().is_err());
+    }
 
     #[test]
     fn parse_tcl_index_plain() {
@@ -1640,6 +2660,21 @@ mod tests {
         assert_eq!(Op::PUSH1.mnemonic(), "push1");
         assert_eq!(Op::ADD.mnemonic(), "add");
         assert_eq!(Op::IRULE_CONTAINS.mnemonic(), "iruleContains");
+    }
+
+    #[test]
+    fn portable_fixed_function_call_requires_its_original_registration() {
+        assert_eq!(Op::CALL_FUNC1.mnemonic(), "callFunc1");
+        assert_eq!(Op::CALL_FUNC1.size(), 2);
+        assert!(!Op::CALL_FUNC1.is_one_byte());
+        let function = FunctionAsm {
+            instructions: vec![Instruction::new(Op::CALL_FUNC1, vec![Operand::Imm(1)])],
+            ..Default::default()
+        };
+        assert_eq!(
+            function.validate_native_compilation_entry(),
+            Err(tcl_runtime_api::NativeCompilationAdmissionError::NativePreflightRequired)
+        );
     }
 
     #[test]
@@ -1713,8 +2748,13 @@ mod tests {
             (Op::TCLOO_CLASS, "tclooClass", 1),
             (Op::TCLOO_NS, "tclooNamespace", 1),
             (Op::TCLOO_IS_OBJECT, "tclooIsObject", 1),
+            (Op::TCLOO_ID, "tclooId", 1),
             (Op::TCLOO_NEXT, "tclooNext", 2),
             (Op::TCLOO_NEXT_CLASS, "tclooNextClass", 2),
+            (Op::TCLOO_NEXT4, "tclooNext4", 5),
+            (Op::TCLOO_NEXT_CLASS4, "tclooNextClass4", 5),
+            (Op::TCLOO_NEXT_LIST, "tclooNextList", 1),
+            (Op::TCLOO_NEXT_CLASS_LIST, "tclooNextClassList", 1),
         ] {
             assert_eq!(op.mnemonic(), mnemonic, "mnemonic of {op:?}");
             assert_eq!(op.size(), size, "size of {op:?}");
@@ -1757,6 +2797,10 @@ mod tests {
             // `tclooNext`/`tclooNextClass` operand is a stack word count.
             Op::TCLOO_NEXT,
             Op::TCLOO_NEXT_CLASS,
+            Op::TCLOO_NEXT4,
+            Op::TCLOO_NEXT_CLASS4,
+            Op::TCLOO_NEXT_LIST,
+            Op::TCLOO_NEXT_CLASS_LIST,
             Op::YIELD,
             Op::CORO_NAME,
             Op::TCLOO_SELF,
@@ -1810,6 +2854,7 @@ mod tests {
                 }
                 Op::INVOKE_STK1 => (Op::INVOKE_STK1.mnemonic(), Op::INVOKE_STK1.size()),
                 Op::INVOKE_STK4 => (Op::INVOKE_STK4.mnemonic(), Op::INVOKE_STK4.size()),
+                Op::CALL_FUNC1 => (Op::CALL_FUNC1.mnemonic(), Op::CALL_FUNC1.size()),
                 Op::EVAL_STK => (Op::EVAL_STK.mnemonic(), Op::EVAL_STK.size()),
                 Op::EXPR_STK => (Op::EXPR_STK.mnemonic(), Op::EXPR_STK.size()),
                 Op::JUMP1 => (Op::JUMP1.mnemonic(), Op::JUMP1.size()),
@@ -1987,6 +3032,8 @@ mod tests {
                 Op::CONST_STK => (Op::CONST_STK.mnemonic(), Op::CONST_STK.size()),
                 Op::VARIABLE => (Op::VARIABLE.mnemonic(), Op::VARIABLE.size()),
                 Op::TAILCALL => (Op::TAILCALL.mnemonic(), Op::TAILCALL.size()),
+                Op::TAILCALL4 => (Op::TAILCALL4.mnemonic(), Op::TAILCALL4.size()),
+                Op::TAILCALL_LIST => (Op::TAILCALL_LIST.mnemonic(), Op::TAILCALL_LIST.size()),
                 Op::CONCAT_STK => (Op::CONCAT_STK.mnemonic(), Op::CONCAT_STK.size()),
                 Op::TRY_CVT_TO_NUMERIC => (
                     Op::TRY_CVT_TO_NUMERIC.mnemonic(),
@@ -1994,6 +3041,8 @@ mod tests {
                 ),
                 Op::VERIFY_DICT => (Op::VERIFY_DICT.mnemonic(), Op::VERIFY_DICT.size()),
                 Op::DICT_GET => (Op::DICT_GET.mnemonic(), Op::DICT_GET.size()),
+                Op::DICT_PUT => (Op::DICT_PUT.mnemonic(), Op::DICT_PUT.size()),
+                Op::ERROR_PREFIX_EQ => (Op::ERROR_PREFIX_EQ.mnemonic(), Op::ERROR_PREFIX_EQ.size()),
                 Op::DICT_EXISTS => (Op::DICT_EXISTS.mnemonic(), Op::DICT_EXISTS.size()),
                 Op::INVOKE_REPLACE => (Op::INVOKE_REPLACE.mnemonic(), Op::INVOKE_REPLACE.size()),
                 Op::EXIST_STK => (Op::EXIST_STK.mnemonic(), Op::EXIST_STK.size()),
@@ -2004,6 +3053,7 @@ mod tests {
                 Op::DICT_APPEND => (Op::DICT_APPEND.mnemonic(), Op::DICT_APPEND.size()),
                 Op::DICT_LAPPEND => (Op::DICT_LAPPEND.mnemonic(), Op::DICT_LAPPEND.size()),
                 Op::UPVAR => (Op::UPVAR.mnemonic(), Op::UPVAR.size()),
+                Op::UPLEVEL => (Op::UPLEVEL.mnemonic(), Op::UPLEVEL.size()),
                 Op::NSUPVAR => (Op::NSUPVAR.mnemonic(), Op::NSUPVAR.size()),
                 Op::LREPLACE4 => (Op::LREPLACE4.mnemonic(), Op::LREPLACE4.size()),
                 Op::OVER => (Op::OVER.mnemonic(), Op::OVER.size()),
@@ -2015,6 +3065,7 @@ mod tests {
                 }
                 Op::RETURN_STK => (Op::RETURN_STK.mnemonic(), Op::RETURN_STK.size()),
                 Op::REVERSE => (Op::REVERSE.mnemonic(), Op::REVERSE.size()),
+                Op::SWAP => (Op::SWAP.mnemonic(), Op::SWAP.size()),
                 Op::NUMERIC_TYPE => (Op::NUMERIC_TYPE.mnemonic(), Op::NUMERIC_TYPE.size()),
                 Op::TRY_CVT_TO_BOOLEAN => (
                     Op::TRY_CVT_TO_BOOLEAN.mnemonic(),
@@ -2057,10 +3108,21 @@ mod tests {
                 Op::YIELD => (Op::YIELD.mnemonic(), Op::YIELD.size()),
                 Op::YIELD_TO_INVOKE => (Op::YIELD_TO_INVOKE.mnemonic(), Op::YIELD_TO_INVOKE.size()),
                 Op::CORO_NAME => (Op::CORO_NAME.mnemonic(), Op::CORO_NAME.size()),
+                Op::TCLOO_NEXT4 => (Op::TCLOO_NEXT4.mnemonic(), Op::TCLOO_NEXT4.size()),
+                Op::TCLOO_NEXT_CLASS4 => (
+                    Op::TCLOO_NEXT_CLASS4.mnemonic(),
+                    Op::TCLOO_NEXT_CLASS4.size(),
+                ),
+                Op::TCLOO_NEXT_LIST => (Op::TCLOO_NEXT_LIST.mnemonic(), Op::TCLOO_NEXT_LIST.size()),
+                Op::TCLOO_NEXT_CLASS_LIST => (
+                    Op::TCLOO_NEXT_CLASS_LIST.mnemonic(),
+                    Op::TCLOO_NEXT_CLASS_LIST.size(),
+                ),
                 Op::TCLOO_SELF => (Op::TCLOO_SELF.mnemonic(), Op::TCLOO_SELF.size()),
                 Op::TCLOO_CLASS => (Op::TCLOO_CLASS.mnemonic(), Op::TCLOO_CLASS.size()),
                 Op::TCLOO_NS => (Op::TCLOO_NS.mnemonic(), Op::TCLOO_NS.size()),
                 Op::TCLOO_IS_OBJECT => (Op::TCLOO_IS_OBJECT.mnemonic(), Op::TCLOO_IS_OBJECT.size()),
+                Op::TCLOO_ID => (Op::TCLOO_ID.mnemonic(), Op::TCLOO_ID.size()),
                 Op::TCLOO_NEXT => (Op::TCLOO_NEXT.mnemonic(), Op::TCLOO_NEXT.size()),
                 Op::TCLOO_NEXT_CLASS => {
                     (Op::TCLOO_NEXT_CLASS.mnemonic(), Op::TCLOO_NEXT_CLASS.size())
@@ -2080,6 +3142,7 @@ mod tests {
             Op::INCR_SCALAR1_IMM,
             Op::INVOKE_STK1,
             Op::INVOKE_STK4,
+            Op::CALL_FUNC1,
             Op::EVAL_STK,
             Op::EXPR_STK,
             Op::JUMP1,
@@ -2218,10 +3281,14 @@ mod tests {
             Op::CONST_STK,
             Op::VARIABLE,
             Op::TAILCALL,
+            Op::TAILCALL4,
+            Op::TAILCALL_LIST,
             Op::CONCAT_STK,
             Op::TRY_CVT_TO_NUMERIC,
             Op::VERIFY_DICT,
             Op::DICT_GET,
+            Op::DICT_PUT,
+            Op::ERROR_PREFIX_EQ,
             Op::DICT_EXISTS,
             Op::INVOKE_REPLACE,
             Op::EXIST_STK,
@@ -2232,6 +3299,7 @@ mod tests {
             Op::DICT_APPEND,
             Op::DICT_LAPPEND,
             Op::UPVAR,
+            Op::UPLEVEL,
             Op::NSUPVAR,
             Op::LREPLACE4,
             Op::OVER,
@@ -2241,6 +3309,7 @@ mod tests {
             Op::PUSH_RETURN_OPTS,
             Op::RETURN_STK,
             Op::REVERSE,
+            Op::SWAP,
             Op::NUMERIC_TYPE,
             Op::TRY_CVT_TO_BOOLEAN,
             Op::STR_CLASS,
@@ -2271,12 +3340,17 @@ mod tests {
             Op::TCLOO_CLASS,
             Op::TCLOO_NS,
             Op::TCLOO_IS_OBJECT,
+            Op::TCLOO_ID,
             Op::TCLOO_NEXT,
             Op::TCLOO_NEXT_CLASS,
+            Op::TCLOO_NEXT4,
+            Op::TCLOO_NEXT_CLASS4,
+            Op::TCLOO_NEXT_LIST,
+            Op::TCLOO_NEXT_CLASS_LIST,
         ];
         for op in all {
             let (mnemonic, size) = touch(op);
-            assert!(!mnemonic.is_empty());
+            assert_ne!(mnemonic, "");
             assert!((1..=9).contains(&size), "{mnemonic}: size {size}");
         }
     }
@@ -2310,6 +3384,18 @@ mod tests {
     }
 
     #[test]
+    fn literal_pool_preserves_native_bytes_without_unicode_aliasing() {
+        let mut table = LiteralTable::new();
+        let raw = table.intern_bytes(&[0xff]);
+        let unicode = table.intern("ÿ");
+        assert_ne!(raw, unicode);
+        assert_eq!(table.intern_bytes(&[0xff]), raw);
+        assert_eq!(table.entries()[raw].bytes(), &[0xff]);
+        assert!(table.entries()[raw].unicode().is_err());
+        assert_eq!(table.entries()[unicode].unicode(), Ok("ÿ"));
+    }
+
+    #[test]
     fn local_var_table_intern() {
         let mut lvt = LocalVarTable::new(&["a", "b"]);
         assert_eq!(lvt.len(), 2);
@@ -2324,5 +3410,107 @@ mod tests {
         assert_eq!(instr.op, Op::PUSH1);
         assert_eq!(instr.offset, -1);
         assert!(!instr.no_fold);
+    }
+}
+
+#[cfg(test)]
+mod native_local_tests {
+    use super::LocalVarTable;
+    use tcl_runtime_api::NameBytes;
+
+    #[test]
+    fn native_formal_keys_keep_opaque_and_embedded_nul_identity() {
+        let names = [NameBytes::from(b"\xff"), NameBytes::from(b"a\0b")];
+        let mut table = LocalVarTable::from_names(&names);
+        assert_eq!(table.entries(), &names);
+        assert_eq!(table.intern_bytes(b"\xff"), 0);
+        assert_eq!(table.intern_bytes(b"a\0b"), 1);
+        assert_eq!(table.intern("a"), 2);
+        let temp = table.intern_synthetic("#tmp");
+        assert_eq!(temp, 3);
+        assert!(!table.is_source_local_bytes(b"#tmp"));
+        assert!(table.is_source_local_bytes(b"a\0b"));
+    }
+
+    #[test]
+    fn native_compiler_selection_retains_each_formal_primary_key() {
+        use tcl_syntax::naming::NativeCompiledVariableProtocol;
+        let names = [
+            NameBytes::from(b"k\0a"),
+            NameBytes::from(b"k\0b"),
+            NameBytes::from(b"k\0a"),
+            NameBytes::from(b"\xff"),
+        ];
+        for version in tcl_dialect::TclVersion::ALL {
+            let protocol = NativeCompiledVariableProtocol::for_native_point(
+                tcl_dialect::model::DialectPoint::for_tcl_version(version),
+            )
+            .unwrap();
+            let mut table = LocalVarTable::from_native_names(&names);
+            assert_eq!(table.entries(), &names);
+            assert_eq!(table.find_native(protocol, b"k\0b"), Some(0));
+            assert_eq!(table.intern_native(protocol, b"k\0c"), 0);
+            assert_eq!(table.intern_native(protocol, b"k\0zz"), 4);
+            assert_eq!(table.entries()[1].as_bytes(), b"k\0b");
+            assert_eq!(table.entries()[4].as_bytes(), b"k\0zz");
+            assert_eq!(table.find_native(protocol, b"k"), None);
+        }
+    }
+
+    #[test]
+    fn native_lookup_excludes_temporaries_without_stealing_real_names() {
+        let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V8_4,
+        );
+        let mut table = LocalVarTable::default();
+        let temp = table.intern_synthetic("#tmp");
+        assert_eq!(table.find_native(protocol, b"#tmp"), None);
+        let source = table.intern_native(protocol, b"#tmp");
+        assert_ne!(temp, source);
+        assert_eq!(table.find_native(protocol, b"#tmp"), Some(source));
+        assert!(table.is_source_local_bytes(b"#tmp"));
+        let second_temp = table.intern_synthetic("#tmp");
+        assert_ne!(second_temp, source);
+        assert_eq!(table.find_native(protocol, b"#tmp"), Some(source));
+    }
+
+    #[test]
+    fn configured_native_policy_governs_ordinary_intern_and_query_methods() {
+        let protocol = tcl_syntax::naming::NativeCompiledVariableProtocol::authored_tcl(
+            tcl_dialect::TclVersion::V8_4,
+        );
+        let mut table = LocalVarTable::from_native_names(&[NameBytes::from(b"k\0a")]);
+        table.set_native_protocol(Some(protocol));
+        assert_eq!(table.intern("k\0b"), 0);
+        assert_eq!(table.intern_bytes(b"k\0c"), 0);
+        assert_eq!(table.find("k\0z"), Some(0));
+        assert!(table.is_source_local("k\0q"));
+        assert_eq!(table.entries()[0].as_bytes(), b"k\0a");
+        assert_eq!(table.intern("k"), 1);
+        assert_eq!(table.intern("k\0long"), 2);
+        table.set_native_protocol(None);
+        assert_eq!(table.find("k\0b"), None);
+        assert_eq!(table.find("k\0a"), Some(0));
+    }
+    #[test]
+    fn native_unnamed_slots_preserve_indices_without_source_aliases() {
+        use tcl_runtime_api::NameBytes;
+        let slots = vec![
+            Some(NameBytes::from(b"k\0a")),
+            None,
+            Some(NameBytes::from(b"k\0b")),
+            Some(NameBytes::default()),
+        ];
+        let mut table = LocalVarTable::from_native_slot_names(&slots);
+        assert_eq!(table.native_slot_names(), slots);
+        assert_eq!(table.find_bytes(b""), Some(3));
+        assert_eq!(table.find_bytes(b"k\0b"), Some(2));
+        table.set_native_protocol(Some(
+            tcl_syntax::naming::NativeCompiledVariableProtocol::authored_tcl(
+                tcl_dialect::TclVersion::V9_0,
+            ),
+        ));
+        assert_eq!(table.find_bytes(b"k\0b"), Some(0));
+        assert_eq!(table.find_bytes(b""), Some(3));
     }
 }

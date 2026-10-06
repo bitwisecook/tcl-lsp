@@ -158,7 +158,8 @@ pub fn code_lenses(
         // proc directly, so iterating every proc here doesn't rebuild a
         // `LineIndex` or rescan the proc table per definition.
         let mut count =
-            crate::references::proc_reference_spans(analysis, resolution, qname, proc_def).len();
+            crate::references::proc_reference_spans(analysis, resolution, qname, proc_def, source)
+                .len();
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&proc_def.qualified_name, current_uri)
@@ -191,7 +192,7 @@ pub fn code_lenses(
     // inheritance chains (`oo::class create Sub { superclass
     // ClassName ... }`).
     for (qname, class_def) in &analysis.all_classes {
-        let mut count = count_class_references(qname, class_def, analysis, resolution);
+        let mut count = count_class_references(qname, class_def, analysis, resolution, source);
         if let Some(index) = workspace {
             count += index
                 .invocations_of(&class_def.qualified_name, current_uri)
@@ -463,12 +464,13 @@ fn count_class_references(
     class_def: &tcl_compiler::analyser::ClassDef,
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
+    source: &str,
 ) -> usize {
     // Derive the count from the *same* namespace-aware matching the peek
     // (Find All References) uses — `references::class_reference_spans` — so
     // the lens title and the peek can never drift (mirrors the proc lens's
     // `proc_reference_spans` reuse above).
-    crate::references::class_reference_spans(analysis, resolution, qname, class_def)
+    crate::references::class_reference_spans(analysis, resolution, qname, class_def, source)
         .into_iter()
         .filter(|span| {
             !(span.start() <= class_def.name_span.start()

@@ -294,9 +294,42 @@ pub enum CodegenAbiImportId {
     /// rather than the source body, which is otherwise unobservable because
     /// both produce the same Tcl result.
     NativeProcDispatches,
+    /// Whether a host-only refusal is retained after a reached operation.
+    /// This does not consume the refusal or publish a Tcl completion.
+    HostRefusalPending,
 }
 
 impl CodegenAbiImportId {
+    /// Check the retained host channel before using this call's result or
+    /// entering Tcl completion handling. New operation imports require the
+    /// check unless their descriptor explicitly proves a transport-only role.
+    #[must_use]
+    pub const fn requires_host_refusal_check(self) -> bool {
+        !matches!(
+            self,
+            Self::CallFrameAlloc
+                | Self::CallFrameFree
+                | Self::NewOwnedString
+                | Self::CompletionRelease
+                | Self::ObjectRetain
+                | Self::ObjectRelease
+                | Self::ObjectNewString
+                | Self::ValueNewString
+                | Self::ValueNewWideInt
+                | Self::ValueNewDouble
+                | Self::ValueNewBool
+                | Self::FramePush
+                | Self::FramePop
+                | Self::GuardRelease
+                | Self::ActivationEnter
+                | Self::ActivationLeave
+                | Self::LogCommand
+                | Self::ReturnState
+                | Self::NativeProcDispatches
+                | Self::HostRefusalPending
+        )
+    }
+
     /// Return this import's shared ABI descriptor.
     #[must_use]
     pub const fn descriptor(self) -> CodegenAbiImport {
@@ -385,6 +418,7 @@ impl CodegenAbiImportId {
             Self::NativeProcDispatches => {
                 tcl_import("tcl_codegen_native_proc_dispatches", NONE, I32)
             }
+            Self::HostRefusalPending => tcl_import("tcl_codegen_host_refusal_pending", NONE, I32),
         }
     }
 }
@@ -413,6 +447,11 @@ pub const NATIVE_PROC_STATUS_RAN: i32 = 0;
 /// writes a cell, dispatches a command, or sets a result — never part-way
 /// through a body.
 pub const NATIVE_PROC_STATUS_DECLINED: i32 = 1;
+
+/// A reached operation retained a host-only refusal. Completion output is
+/// untouched; the caller unwinds without guest capture or source fallback.
+/// Effects that precede the refusal must never execute again.
+pub const NATIVE_PROC_STATUS_HOST_REFUSED: i32 = 2;
 
 /// wasm32 linear-memory pointer width.
 pub const WASM32_POINTER_BYTES: i32 = 4;
@@ -456,9 +495,10 @@ pub const WASM32_GUARD_IDENTITY_ALIGN: i32 = 8;
 mod tests {
     use super::{
         CodegenAbiImportId, CodegenAbiValueType, I32, I64, NATIVE_PROC_STATUS_DECLINED,
-        NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_ALIGN, WASM32_COMPLETION_CODE_OFFSET,
-        WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE,
-        WASM32_FUNCTION_TABLE_IMPORT, WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
+        NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_ALIGN,
+        WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+        WASM32_COMPLETION_RESULT_OFFSET, WASM32_COMPLETION_SIZE, WASM32_FUNCTION_TABLE_IMPORT,
+        WASM32_GUARD_DOMAINS_SIZE, WASM32_GUARD_IDENTITY_ALIGN,
         WASM32_GUARD_IDENTITY_NAMESPACE_OFFSET, WASM32_GUARD_IDENTITY_SIZE,
         WASM32_GUARD_IDENTITY_VALUE_OFFSET, WASM32_GUARD_TOKEN_ALIGN, WASM32_GUARD_TOKEN_SIZE,
         WASM32_INTRINSIC_ID_SIZE,
@@ -710,14 +750,14 @@ mod tests {
         let enter = CodegenAbiImportId::ActivationEnter.descriptor();
         assert_eq!(enter.module, "tcl");
         assert_eq!(enter.name, "tcl_codegen_activation_enter");
-        assert!(enter.parameters.is_empty());
+        assert_eq!(enter.parameters, []);
         assert_eq!(enter.results, I32);
 
         let leave = CodegenAbiImportId::ActivationLeave.descriptor();
         assert_eq!(leave.module, "tcl");
         assert_eq!(leave.name, "tcl_codegen_activation_leave");
         assert_eq!(leave.parameters, I32);
-        assert!(leave.results.is_empty());
+        assert_eq!(leave.results, []);
     }
 
     #[test]
@@ -781,7 +821,7 @@ mod tests {
         assert_eq!(log.module, "tcl");
         assert_eq!(log.name, "tcl_codegen_log_command");
         assert_eq!(log.parameters, &[I32; 3][..]);
-        assert!(log.results.is_empty());
+        assert_eq!(log.results, []);
 
         // The pending-return-state writer takes the same (level, code) pair
         // the `return` command records, and answers nothing: it is a state
@@ -790,13 +830,37 @@ mod tests {
         assert_eq!(state.module, "tcl");
         assert_eq!(state.name, "tcl_codegen_return_state");
         assert_eq!(state.parameters, &[I32; 2][..]);
-        assert!(state.results.is_empty());
+        assert_eq!(state.results, []);
 
         let dispatches = CodegenAbiImportId::NativeProcDispatches.descriptor();
         assert_eq!(dispatches.module, "tcl");
         assert_eq!(dispatches.name, "tcl_codegen_native_proc_dispatches");
-        assert!(dispatches.parameters.is_empty());
+        assert_eq!(dispatches.parameters, []);
         assert_eq!(dispatches.results, &[I32][..]);
+    }
+
+    #[test]
+    fn host_refusal_query_is_distinct_from_guest_completion_and_cleanup() {
+        let query = CodegenAbiImportId::HostRefusalPending.descriptor();
+        assert_eq!(query.module, "tcl");
+        assert_eq!(query.name, "tcl_codegen_host_refusal_pending");
+        assert_eq!(query.parameters, [] as [CodegenAbiValueType; 0]);
+        assert_eq!(query.results, I32);
+        for call in [
+            CodegenAbiImportId::InvokeArgv,
+            CodegenAbiImportId::ValueGetWideInt,
+            CodegenAbiImportId::VarGet,
+            CodegenAbiImportId::GuardCheck,
+        ] {
+            assert!(call.requires_host_refusal_check());
+        }
+        for call in [
+            CodegenAbiImportId::HostRefusalPending,
+            CodegenAbiImportId::ObjectRelease,
+            CodegenAbiImportId::CallFrameFree,
+        ] {
+            assert!(!call.requires_host_refusal_check());
+        }
     }
 
     #[test]
@@ -805,6 +869,9 @@ mod tests {
         // decline, matching every other ABI status in this file.
         assert_eq!(NATIVE_PROC_STATUS_RAN, 0);
         assert_eq!(NATIVE_PROC_STATUS_DECLINED, 1);
+        assert_eq!(NATIVE_PROC_STATUS_HOST_REFUSED, 2);
+        assert_ne!(NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_DECLINED);
+        assert_ne!(NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN);
         assert_ne!(NATIVE_PROC_STATUS_RAN, NATIVE_PROC_STATUS_DECLINED);
         // wasm-ld's name for the table `--export-table` publishes.
         assert_eq!(WASM32_FUNCTION_TABLE_IMPORT, "__indirect_function_table");

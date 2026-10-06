@@ -1,0 +1,24 @@
+raw0-double	observe	pre=0	before:double:1:30	code=0	original-after:double:1:30	result=
+raw0-double	expr	pre=0	before:double:1:30	code=0	original-after:int:1:30	cell-after:int:1:30	result=31
+raw0-double	incr	pre=0	before:double:1:30	code=0	original-after:double:1:30	cell-after:int:0:	result=31
+raw1-double	observe	pre=0	before:double:1:31	code=0	original-after:double:1:31	result=
+raw1-double	expr	pre=0	before:double:1:31	code=0	original-after:int:1:31	cell-after:int:1:31	result=32
+raw1-double	incr	pre=0	before:double:1:31	code=0	original-after:double:1:31	cell-after:int:0:	result=32
+rawbig-double	observe	pre=0	before:double:1:3138343436373434303733373039353531363136	code=0	original-after:double:1:3138343436373434303733373039353531363136	result=
+rawbig-double	expr	pre=0	before:double:1:3138343436373434303733373039353531363136	code=1	original-after:double:1:3138343436373434303733373039353531363136	cell-after:double:1:3138343436373434303733373039353531363136	result=63616e27742075736520696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206f706572616e64206f6620222b22
+rawbig-double	incr	pre=0	before:double:1:3138343436373434303733373039353531363136	code=1	original-after:double:1:3138343436373434303733373039353531363136	cell-after:double:1:3138343436373434303733373039353531363136	result=696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74
+rawminus0-double	observe	pre=0	before:double:1:2d30	code=0	original-after:double:1:2d30	result=
+rawminus0-double	expr	pre=0	before:double:1:2d30	code=0	original-after:int:1:2d30	cell-after:int:1:2d30	result=31
+rawminus0-double	incr	pre=0	before:double:1:2d30	code=0	original-after:double:1:2d30	cell-after:int:0:	result=31
+double1-constructor	observe	pre=0	before:double:0:	code=0	original-after:double:0:	result=
+double1-constructor	expr	pre=0	before:double:0:	code=0	original-after:double:0:	cell-after:double:0:	result=322e30
+double1-constructor	incr	pre=0	before:double:0:	code=1	original-after:double:0:	cell-after:double:0:	result=657870656374656420696e74656765722062757420676f742022312e3022
+int1-constructor	observe	pre=0	before:int:0:	code=0	original-after:int:0:	result=
+int1-constructor	expr	pre=0	before:int:0:	code=0	original-after:int:0:	cell-after:int:0:	result=32
+int1-constructor	incr	pre=0	before:int:0:	code=0	original-after:int:0:	cell-after:int:0:	result=32
+raw1-list	observe	pre=0	before:list:1:31	code=0	original-after:list:1:31	result=
+raw1-list	expr	pre=0	before:list:1:31	code=0	original-after:int:1:31	cell-after:int:1:31	result=32
+raw1-list	incr	pre=0	before:list:1:31	code=0	original-after:list:1:31	cell-after:int:0:	result=32
+raw0-double-duplicate	observe	pre=0	before:double:1:30	code=0	original-after:double:1:30	result=
+raw0-double-duplicate	expr	pre=0	before:double:1:30	code=0	original-after:int:1:30	cell-after:int:1:30	result=31
+raw0-double-duplicate	incr	pre=0	before:double:1:30	code=0	original-after:double:1:30	cell-after:int:0:	result=31

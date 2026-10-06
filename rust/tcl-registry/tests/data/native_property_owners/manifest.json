@@ -1,0 +1,51 @@
+{
+  "compile": {
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/native-property-owners/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/native-property-owners/probe"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.10001958697102964,
+    "stdout": "",
+    "stderr": "",
+    "original_budget": 60,
+    "global_slots": 2,
+    "explicit_environment": {}
+  },
+  "sha256": {
+    "/workspace/.proofs/2286-packages-dialects/native-property-owners/probe.c": "816d811eb93e055f1f5389071e5690fcc9ba6a09e7b65aa7eeecc4c77d44589b",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOProp.c": "c791423ae9b49c877bea8da8a7c2b74b40520e600863341e8d12a63b10c2aaaf",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOODefineCmds.c": "bd254581a59362769c56269dfb009dd9ed5e5b9bcf00ac67b5738e97e50b5106",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOMethod.c": "1424048c7a16891c68535ae215359d440f28654a72f72eefadc9b5aada54f1d1",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclOOInt.h": "d05b67a6bf4832f3b94013caab7c6b7d6939982f077e53ff98b7c40c51ac40e7",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "/workspace/.proofs/2286-packages-dialects/native-property-owners/probe": "aee4794fbb9a1395e74498ad4edafc2427ff9e816df8ac52b7038de9e7316315"
+  },
+  "run": {
+    "command": [
+      "/workspace/.proofs/2286-packages-dialects/native-property-owners/probe"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "seconds": 0.002701552992220968,
+    "stdout": "all-header\t32\t0\t1\t2\t3\tstring\ncopy-header\t32\t0\t1\t1\t3\tstring\ninstance-method\t32\t0\t1\t2\t0\tnone\nclass-method-error\t33\t1\t1\t0\t0\tnone\nclass-method-refresh\t33\t0\t0\t2\t0\tnone\nuntangled-structure\t33\t0\t0\t0\t0\tnone\nused-structure\t34\t1\t0\t0\t0\tnone\nproperty-read\t34\t0\t1\t0\t3\ttcl::oo property name\n",
+    "stderr": "",
+    "original_budget": 60,
+    "global_slots": 2,
+    "explicit_environment": {
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library"
+    }
+  }
+}

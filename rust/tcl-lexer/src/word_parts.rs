@@ -16,78 +16,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The** owner of "split a Tcl word into its substitution components".
+//! Shared decomposition of written words, substitution templates and array indices.
 //!
-//! One decomposer for the `TCL_TOKEN_TEXT` / `TCL_TOKEN_BS` /
-//! `TCL_TOKEN_VARIABLE` / `TCL_TOKEN_COMMAND` breakdown C Tcl's `ParseTokens`
-//! (`tclParse.c`) produces for a bare or `"quoted"` word, for a `subst`
-//! template, and for an array index. Before this module the same walk existed
-//! four times — `runtime/rust/src/parse.rs`'s `scan_parts`, that crate's
-//! `subst.rs` mirror, `tcl-vm`'s `subst.rs`, and the compiler's
-//! `segmenter.rs`/`ir.rs` `WordExpr` builder — and drifted: only one of them
-//! raised C's `missing close-bracket`, only one respected brace nesting when
-//! finding a `]`, and only one decoded the backslashes of a literal run.
+//! The scanner uses the native variable, array-index, quote and bracket boundary
+//! owners and one literal escape decoder. `WordBody`/`WordPart` provide a borrowed
+//! advisory tree; index nesting beyond its retained budget has no executable
+//! authority. `decompose_spanned_checked` separately reports that capability
+//! boundary instead of accepting advisory literal fallback.
 //!
-//! ## Why it lives in `tcl-lexer`
+//! `ExecutablePartArena` is the full-depth executable owner. It retains one exact
+//! `SourceImage`, original component/name/body spans and ordered list IDs for
+//! array-index children. Construction queues indices through the same scanner,
+//! without recursively allocating or destroying a component tree. Consumers
+//! traverse lists explicitly and preserve native evaluation order.
 //!
-//! Its neighbours are already here: [`crate::braced_var_name_end`] (the
-//! release-variant `${…}` close rule), [`crate::scan_array_index`] (the
-//! release-variant `$name(index)` scan), [`crate::command_substitution_end`]
-//! (the brace/quote/comment-aware `]` search) and
-//! [`crate::close_quote_offset`]. This crate sits below `tcl-syntax`, both
-//! runtimes and the compiler in the dependency DAG, so a leaf module here is
-//! reachable from every consumer without inverting an edge.
-//!
-//! ## The model
-//!
-//! A borrow-based enum tree, not C's `numComponents` index arithmetic:
-//!
-//! - [`WordBody::Literal`] — nothing to substitute; **the bytes are the
-//!   value**, borrowed from the source. C's `TCL_TOKEN_SIMPLE_WORD` fast path.
-//! - [`WordBody::Parts`] — [`WordPart::Text`] (a literal run with its
-//!   backslash escapes already folded in — there is no separate `BS` part, so
-//!   one decoder produces `subst`'s answer, not two), [`WordPart::Variable`],
-//!   [`WordPart::Command`], [`WordPart::ParseError`].
-//!
-//! Everything borrows `&'s [u8]` from the caller's source; only a `Text` run
-//! that actually had an escape to decode owns its bytes. That keeps the
-//! literal fast path zero-copy, which is what lets the runtime's `parse_cache`
-//! hold parsed commands against a stable script slab without the stale-slab
-//! hazard of memory-management.md MM-B.6 — the borrow makes reuse-after-free a
-//! compile error rather than a runtime one.
-//!
-//! ## Errors are parts, not a `Result`
-//!
-//! The scan is infallible: a malformed construct becomes a
-//! [`WordPart::ParseError`] carrying C's exact message, and the parts before
-//! it are still returned. That is not leniency, it is C's *order*. Verified
-//! against `tclsh9.0` (9.0.4) and `tclsh8.6` (8.6.16):
-//!
-//! ```text
-//! % proc side {} { puts ran; return S }
-//! % subst {[side][b}
-//! ran
-//! missing close-bracket
-//! ```
-//!
-//! `subst` substitutes incrementally, so the earlier `[side]` runs and keeps
-//! its side effects before the bad bracket is reported. A consumer that wants
-//! C's *script*-parsing order instead (`Tcl_ParseCommand` parses every word of
-//! a command before evaluating any of them, so nothing runs) scans all its
-//! words first and raises the first [`WordPart::ParseError`] it finds before
-//! resolving anything.
-//!
-//! ## Adoption by `tcl-compiler::segmenter`
-//!
-//! Not done here, deliberately — the owner row is *word substitution
-//! components* in `docs/design/contracts/shared-utility-contracts-rust.md`.
-//! The API is shaped so it can be: [`decompose`] takes the word's *content*
-//! span plus a
-//! [`LexerConfig`] and returns parts whose byte extents are recoverable from
-//! the borrows, which is what `WordExpr`/`WordPart` need to keep their public
-//! shape (`CommandTokens::from_segmented` maps part-for-part). The segmenter
-//! keeps owning *command* and *word* boundaries; only the within-word
-//! breakdown moves here.
+//! Syntax errors remain parts after preceding components. A reached `subst`
+//! template may execute earlier substitutions before reporting that error.
+//! A script parser validates every word before argument evaluation and reports
+//! the first authentic syntax error before dispatch. The command grouper still
+//! owns whole-word boundaries; decomposition owns only their components.
 
 use std::borrow::Cow;
 
@@ -98,7 +45,13 @@ use crate::ranges::{
     ArrayIndexEnd, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX, MISSING_CLOSE_BRACE_FOR_VAR,
     braced_var_name_end, close_quote_offset, command_substitution_end_bytes, scan_array_index,
 };
-use crate::substitution::backslash_subst_in;
+use crate::substitution::backslash_subst_bytes_in;
+
+pub use crate::executable_parts::{
+    ExecutableInput, ExecutablePart, ExecutablePartArena, ExecutablePartsUnavailable,
+    ExecutableText, PartListId, SpannedExecutablePart,
+};
+pub use crate::native_word::{NativeWord, NativeWordError};
 
 /// C Tcl's error for a `"`-delimited word that never finds its closing quote
 /// (`Tcl_ParseQuotedString` → `TCL_PARSE_MISSING_QUOTE`, `tclParse.c`).
@@ -138,6 +91,27 @@ pub const EXTRA_AFTER_CLOSE_BRACE: &str = "extra characters after close-brace";
 /// (`Tcl_ParseVarName` → `TCL_PARSE_MISSING_PAREN`, `tclParse.c`).
 /// `subst {$x(}` reports `missing )` on 8.6.16 and 9.0.4.
 pub const MISSING_PAREN: &str = "missing )";
+
+/// Scan Jim expression sugar at a dollar byte under the actual native grammar.
+/// The expression retains both parentheses; the returned offset follows the
+/// closing parenthesis. Other grammars and other dollar forms return `None`.
+/// An unterminated selected sugar reports the native parse error.
+pub fn scan_expression_sugar(
+    source: &[u8],
+    at: usize,
+    config: LexerConfig,
+) -> Result<Option<(&[u8], usize)>, &'static str> {
+    if !config.var_syntax.has_expr_sugar()
+        || !source.get(at..).is_some_and(|tail| tail.starts_with(b"$("))
+    {
+        return Ok(None);
+    }
+    let end = crate::ranges::jim_parenthesis_body_end(source, at + 2);
+    if source.get(end) != Some(&b')') {
+        return Err("missing close-paren for expression substitution");
+    }
+    Ok(Some((&source[at + 1..=end], end + 1)))
+}
 
 /// Which substitution kinds the scan performs — C's `TCL_SUBST_*` bits, and
 /// `subst`'s `-nobackslashes` / `-nocommands` / `-novariables`.
@@ -216,6 +190,10 @@ pub enum WordPart<'s> {
     Variable(VarRef<'s>),
     /// `[...]` command substitution — the inner script, brackets stripped.
     Command(&'s [u8]),
+    /// Jim's `$(expr)` substitution. The borrowed expression includes its
+    /// original parentheses; evaluation uses the expression engine directly,
+    /// independently of the command named `expr`.
+    Expression(&'s [u8]),
     /// A construct C's parser rejects, carrying its exact message. See the
     /// module docs for why this is a part and not a `Result`.
     ParseError(&'static str),
@@ -231,6 +209,53 @@ pub struct VarRef<'s> {
     pub index: Option<Vec<WordPart<'s>>>,
 }
 
+impl VarRef<'_> {
+    /// Recover this borrowed reference's exact extent in its original source.
+    /// The native scanner verifies both wrapper forms and closing delimiters;
+    /// references made from another source allocation have no source proof.
+    #[must_use]
+    pub fn source_range_in(
+        &self,
+        source: &[u8],
+        config: LexerConfig,
+    ) -> Option<std::ops::Range<usize>> {
+        let name_at = (self.name.as_ptr() as usize).checked_sub(source.as_ptr() as usize)?;
+        if name_at.checked_add(self.name.len())? > source.len() {
+            return None;
+        }
+        for prefix in [1, 2] {
+            let Some(start) = name_at.checked_sub(prefix) else {
+                continue;
+            };
+            if source.get(start) != Some(&b'$') {
+                continue;
+            }
+            if let Ok(Some(reference)) = scan_var_ref(source, start, config)
+                && std::ptr::eq(reference.name.as_ptr(), self.name.as_ptr())
+                && reference.name.len() == self.name.len()
+                && reference.index.is_some() == self.index.is_some()
+            {
+                return Some(start..reference.next);
+            }
+        }
+        None
+    }
+
+    /// The exact native token span of this borrowed reference in its source.
+    /// This shares the braced/empty-name convention with source word builders.
+    #[must_use]
+    pub fn source_span_in(
+        &self,
+        source: &[u8],
+        base: u32,
+        config: LexerConfig,
+    ) -> Option<crate::Span> {
+        let range = self.source_range_in(source, config)?;
+        let reference = scan_var_ref(source, range.start, config).ok()??;
+        reference.source_span(source, range.start, base)
+    }
+}
+
 /// A variable reference with its array index left as a **raw source span** —
 /// what a consumer that substitutes the index itself needs (`tcl-vm`'s
 /// `subst`, whose index substitution has its own control-flow rules).
@@ -242,6 +267,40 @@ pub struct RawVarRef<'s> {
     pub index: Option<&'s [u8]>,
     /// Byte offset just past the whole reference.
     pub next: usize,
+}
+
+impl RawVarRef<'_> {
+    /// Project the native token extent into the source map's span convention.
+    /// Bare references retain their exclusive end. A nonempty braced name's
+    /// end sits on its closer; an empty braced name includes the closer.
+    #[must_use]
+    pub fn source_span(self, source: &[u8], at: usize, base: u32) -> Option<crate::Span> {
+        variable_source_span(source, at, self.next, base, self.name.is_empty())
+    }
+}
+
+fn variable_source_span(
+    source: &[u8],
+    at: usize,
+    next: usize,
+    base: u32,
+    empty_name: bool,
+) -> Option<crate::Span> {
+    if source.get(at) != Some(&b'$') || next > source.len() {
+        return None;
+    }
+    let end = if source.get(at + 1) == Some(&b'{') && !empty_name {
+        next.checked_sub(1)?
+    } else {
+        next
+    };
+    mapped_source_span(at, end, base)
+}
+
+fn mapped_source_span(start: usize, end: usize, base: u32) -> Option<crate::Span> {
+    let start = base.checked_add(u32::try_from(start).ok()?)?;
+    let end = base.checked_add(u32::try_from(end).ok()?)?;
+    (start <= end).then(|| crate::Span::new(start, end))
 }
 
 /// A word's content: a literal (nothing to substitute) or a component list.
@@ -303,7 +362,89 @@ pub fn decompose(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody
     if !triggers(src, flags) {
         return WordBody::Literal(src);
     }
-    body_of(scan_parts(src, flags, config, 0))
+    body_of(scan_parts(
+        src,
+        flags,
+        config,
+        0,
+        TemplateVariableSyntax::WrittenWord,
+        &mut false,
+    ))
+}
+
+/// Variable acceptance of a reached substitution template, separate from words.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemplateVariableSyntax {
+    /// Written-word variable grammar, including its required closing delimiters.
+    WrittenWord,
+    /// Jim 0.84 `JimParseSubst` / `JimParseVar`: `${name` reads through input end.
+    /// Braced names stop at the first literal close brace.
+    Jim084,
+}
+
+/// Native template syntax whose execution protocol is not yet represented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnsupportedTemplateSyntax {
+    /// Jim's `$[...]` expression substitution is independent of `-nocommands`.
+    ExpressionSugar,
+}
+
+/// Decompose an actual template under its independently selected native parser.
+/// Ordinary word parsing never consumes this policy. Array and command parts
+/// retain their existing nested grammar and require separate execution proofs.
+pub fn decompose_template_spanned(
+    src: &[u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+    variables: TemplateVariableSyntax,
+) -> Result<Vec<SpannedPart<'_>>, UnsupportedTemplateSyntax> {
+    if variables == TemplateVariableSyntax::Jim084 && flags.vars {
+        let mut at = 0;
+        while at < src.len() {
+            if src[at] == b'\\' && at + 1 < src.len() {
+                at += 2;
+            } else if src[at] == b'$' {
+                if matches!(src.get(at + 1), Some(b'[' | b'(')) {
+                    return Err(UnsupportedTemplateSyntax::ExpressionSugar);
+                }
+                at = scan_template_var_ref(src, at, config, variables)
+                    .ok()
+                    .flatten()
+                    .map_or(at + 1, |reference| reference.next);
+            } else {
+                at += 1;
+            }
+        }
+    }
+    if !triggers(src, flags) {
+        return Ok(vec![SpannedPart {
+            part: WordPart::Text(Cow::Borrowed(src)),
+            start: 0,
+            end: src.len(),
+        }]);
+    }
+    Ok(scan_parts(src, flags, config, 0, variables, &mut false))
+}
+
+fn scan_template_var_ref(
+    src: &[u8],
+    at: usize,
+    config: LexerConfig,
+    variables: TemplateVariableSyntax,
+) -> Result<Option<RawVarRef<'_>>, &'static str> {
+    if variables == TemplateVariableSyntax::Jim084 && src.get(at + 1) == Some(&b'{') {
+        let start = at + 2;
+        let end = src[start..]
+            .iter()
+            .position(|byte| *byte == b'}')
+            .map_or(src.len(), |end| start + end);
+        return Ok(Some(RawVarRef {
+            name: &src[start..end],
+            index: None,
+            next: if end < src.len() { end + 1 } else { end },
+        }));
+    }
+    scan_var_ref(src, at, config)
 }
 
 /// [`decompose`] with each top-level component's byte extent in `src`.
@@ -318,7 +459,91 @@ pub fn decompose_spanned(
     flags: SubstFlags,
     config: LexerConfig,
 ) -> Vec<SpannedPart<'_>> {
-    decompose_at_depth(src, flags, config, 0)
+    decompose_at_depth(src, flags, config, 0, &mut false)
+}
+
+/// A bounded decomposition could not retain every executable substitution.
+/// This is a host capability boundary, not a Tcl syntax error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DecompositionUnavailable {
+    /// Nested array indices exceed the shared recursive decomposition budget.
+    IndexNesting,
+}
+
+/// Decompose an executable word without accepting advisory literal fallback.
+/// Original syntax errors remain `WordPart::ParseError`; a nested index whose
+/// substitutions cannot all be retained returns a separate capability error.
+///
+/// # Errors
+/// Returns `IndexNesting` when the shared index budget would conceal enabled
+/// substitutions. It never turns that input into a literal or guest error.
+pub fn decompose_spanned_checked(
+    src: &[u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> Result<Vec<SpannedPart<'_>>, DecompositionUnavailable> {
+    let mut unavailable = false;
+    let parts = decompose_at_depth(src, flags, config, 0, &mut unavailable);
+    if unavailable {
+        Err(DecompositionUnavailable::IndexNesting)
+    } else {
+        Ok(parts)
+    }
+}
+
+impl SpannedPart<'_> {
+    /// Map a template component without borrowing written-word closing rules.
+    #[must_use]
+    pub fn template_source_span(
+        &self,
+        source: &[u8],
+        base: u32,
+        variables: TemplateVariableSyntax,
+    ) -> Option<crate::Span> {
+        if variables == TemplateVariableSyntax::Jim084
+            && matches!(&self.part, WordPart::Variable(_))
+            && source.get(self.start + 1) == Some(&b'{')
+            && source.get(self.end.checked_sub(1)?) != Some(&b'}')
+        {
+            mapped_source_span(self.start, self.end, base)
+        } else {
+            self.source_span(source, 0, base)
+        }
+    }
+
+    /// Map this parsed component to its native source token span.
+    /// `region_at` locates the decomposed region inside `source`; `base` locates
+    /// that source buffer inside the document. Closing conventions are owned
+    /// here, so variable/index consumers and word builders share exact sites.
+    #[must_use]
+    pub fn source_span(&self, source: &[u8], region_at: usize, base: u32) -> Option<crate::Span> {
+        let start = region_at.checked_add(self.start)?;
+        let end = region_at.checked_add(self.end)?;
+        match &self.part {
+            WordPart::Variable(variable) => {
+                variable_source_span(source, start, end, base, variable.name.is_empty())
+            }
+            WordPart::Expression(expression) => mapped_source_span(
+                start,
+                if expression.len() == 2 {
+                    end
+                } else {
+                    end.checked_sub(1)?
+                },
+                base,
+            ),
+            WordPart::Command(script) => mapped_source_span(
+                start,
+                if script.is_empty() {
+                    end
+                } else {
+                    end.checked_sub(1)?
+                },
+                base,
+            ),
+            _ => mapped_source_span(start, end, base),
+        }
+    }
 }
 
 /// C's `TCL_TOKEN_SIMPLE_WORD` collapse. A span whose only component is one
@@ -345,7 +570,10 @@ fn body_of(parts: Vec<SpannedPart<'_>>) -> WordBody<'_> {
 /// The one place the `missing "` spelling is decided. Delegates the search to
 /// [`close_quote_offset`], which steps over `\X` pairs and complete `[…]`
 /// substitutions so a `"` inside either does not close the word.
-pub fn quoted_word_close(source: &str, open_quote: usize) -> Result<usize, &'static str> {
+pub fn quoted_word_close(
+    source: impl AsRef<[u8]>,
+    open_quote: usize,
+) -> Result<usize, &'static str> {
     close_quote_offset(source, open_quote).ok_or(MISSING_QUOTE)
 }
 
@@ -377,11 +605,27 @@ pub fn scan_var_ref(
         };
     }
     let start = at + 1;
-    let name_end = tcl_core_types::naming::scan_var_name_end(src, start);
-    if name_end == start {
+    let name_end = tcl_core_types::naming::scan_var_name_end_with(
+        src,
+        start,
+        config.var_syntax.name_allows_high_bytes(),
+    );
+    if name_end == start && (src.get(name_end) != Some(&b'(') || config.var_syntax.has_expr_sugar())
+    {
         return Ok(None);
     }
     if src.get(name_end) == Some(&b'(') {
+        if config.var_syntax.index_parens_nest() {
+            let end = crate::ranges::jim_parenthesis_body_end(src, name_end + 1);
+            if src.get(end) != Some(&b')') {
+                return Err(MISSING_PAREN);
+            }
+            return Ok(Some(RawVarRef {
+                name: &src[start..name_end],
+                index: Some(&src[name_end + 1..end]),
+                next: end + 1,
+            }));
+        }
         let scan = scan_array_index(src, name_end, config.array_index, config.braced_var);
         if scan.invalid.is_some() {
             return Err(INVALID_CHARACTER_IN_ARRAY_INDEX);
@@ -412,6 +656,20 @@ pub fn scan_var_ref(
     }))
 }
 
+/// Recognise exactly one original variable reference under the actual grammar.
+/// Non-reference or compound text returns `Ok(None)`; malformed reference
+/// syntax retains the scanner's native parse error. Jim expression sugar is
+/// deliberately outside this variable-only projection.
+pub fn whole_var_ref(
+    source: &[u8],
+    config: LexerConfig,
+) -> Result<Option<RawVarRef<'_>>, &'static str> {
+    if source.first() != Some(&b'$') {
+        return Ok(None);
+    }
+    Ok(scan_var_ref(source, 0, config)?.filter(|reference| reference.next == source.len()))
+}
+
 /// Where the `[` command substitution at `at` closes — one byte **past** the
 /// `]` — or the error C reports for it.
 ///
@@ -438,12 +696,6 @@ pub fn command_subst_close(
     }
 }
 
-/// Is `c` a valid first byte of a bare `$name`? A `$` not followed by one of
-/// these (or `{`) is a literal `$` in Tcl (`Tcl_ParseVarName`).
-fn is_var_name_byte(c: u8) -> bool {
-    c.is_ascii_alphanumeric() || c == b'_' || c == b':'
-}
-
 /// Whether any byte of `src` could start a substitution `flags` has enabled —
 /// the "nothing to do" test shared by [`decompose`]'s fast path and
 /// [`decompose_at_depth`]'s.
@@ -453,11 +705,13 @@ fn triggers(src: &[u8], flags: SubstFlags) -> bool {
     })
 }
 
-fn decompose_at_depth(
+/// Scan one component list while retaining every index as original raw text.
+/// The executable arena queues those indices, rather than recursing here.
+pub(crate) fn shallow_spanned_parts(
     src: &[u8],
     flags: SubstFlags,
     config: LexerConfig,
-    depth: u32,
+    variables: TemplateVariableSyntax,
 ) -> Vec<SpannedPart<'_>> {
     if !triggers(src, flags) {
         return vec![SpannedPart {
@@ -466,19 +720,59 @@ fn decompose_at_depth(
             end: src.len(),
         }];
     }
-    scan_parts(src, flags, config, depth)
+    scan_parts(src, flags, config, MAX_INDEX_DEPTH, variables, &mut false)
+}
+
+fn decompose_at_depth<'s>(
+    src: &'s [u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+    depth: u32,
+    unavailable: &mut bool,
+) -> Vec<SpannedPart<'s>> {
+    if !triggers(src, flags) {
+        return vec![SpannedPart {
+            part: WordPart::Text(Cow::Borrowed(src)),
+            start: 0,
+            end: src.len(),
+        }];
+    }
+    scan_parts(
+        src,
+        flags,
+        config,
+        depth,
+        TemplateVariableSyntax::WrittenWord,
+        unavailable,
+    )
+}
+
+/// Package the selected sugar's exact span, including its terminal parse error.
+fn expression_component(src: &[u8], at: usize, config: LexerConfig) -> SpannedPart<'_> {
+    let (part, end) = match scan_expression_sugar(src, at, config) {
+        Ok(Some((expression, next))) => (WordPart::Expression(expression), next),
+        Err(message) => (WordPart::ParseError(message), src.len()),
+        Ok(None) => unreachable!("selected expression sugar prefix"),
+    };
+    SpannedPart {
+        part,
+        start: at,
+        end,
+    }
 }
 
 /// The substitution walk itself, once [`triggers`] has confirmed there is
 /// something to scan for. Shared by [`decompose`] (triggered case) and
 /// [`decompose_at_depth`] (always, including the recursive `$name(index)`
 /// call) so the walk exists exactly once.
-fn scan_parts(
-    src: &[u8],
+fn scan_parts<'s>(
+    src: &'s [u8],
     flags: SubstFlags,
     config: LexerConfig,
     depth: u32,
-) -> Vec<SpannedPart<'_>> {
+    variables: TemplateVariableSyntax,
+    unavailable: &mut bool,
+) -> Vec<SpannedPart<'s>> {
     let len = src.len();
     // Computed once per call, not per byte: whether this call already sits at
     // the index-nesting cap, so any `$name(index)` here keeps its index as
@@ -491,15 +785,36 @@ fn scan_parts(
 
     while i < len {
         let c = src[i];
-        if flags.vars && c == b'$' && starts_var_ref(src, i, flags) {
+        if flags.vars
+            && c == b'$'
+            && config.var_syntax.has_expr_sugar()
+            && src.get(i + 1) == Some(&b'(')
+        {
             flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
-            match scan_var_ref(src, i, config) {
+            let component = expression_component(src, i, config);
+            i = component.end;
+            let failed = matches!(component.part, WordPart::ParseError(_));
+            parts.push(component);
+            if failed {
+                return parts;
+            }
+            lit_start = i;
+        } else if flags.vars && c == b'$' && starts_var_ref(src, i, flags, config) {
+            flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
+            match scan_template_var_ref(src, i, config, variables) {
                 Ok(Some(raw)) => {
                     let index = raw.index.map(|idx| {
                         if past_cap {
+                            *unavailable |= triggers(idx, flags);
                             vec![WordPart::Text(Cow::Borrowed(idx))]
                         } else {
-                            match body_of(decompose_at_depth(idx, flags, config, depth + 1)) {
+                            match body_of(decompose_at_depth(
+                                idx,
+                                flags,
+                                config,
+                                depth + 1,
+                                unavailable,
+                            )) {
                                 WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                                 WordBody::Parts(p) => p,
                             }
@@ -562,7 +877,10 @@ fn scan_parts(
                     return parts;
                 }
             }
-        } else if flags.backslashes && c == b'\\' && i + 1 < len {
+        } else if (flags.backslashes || variables == TemplateVariableSyntax::Jim084)
+            && c == b'\\'
+            && i + 1 < len
+        {
             // Step over the escaped byte so an escaped `$` / `[` is not a
             // substitution boundary. Only the byte immediately after the
             // backslash matters here — a longer escape's trailing digits are
@@ -643,7 +961,7 @@ fn error_inside_unterminated(
                     i += 1;
                 }
             }
-            b'$' if flags.vars && starts_var_ref(src, i, flags) => {
+            b'$' if flags.vars && starts_var_ref(src, i, flags, config) => {
                 match scan_var_ref(src, i, config) {
                     Ok(Some(raw)) => i = raw.next,
                     Ok(None) => i += 1,
@@ -711,12 +1029,20 @@ fn error_inside_unterminated(
 }
 
 /// Whether the `$` at `at` opens a variable reference under `flags`.
-fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags) -> bool {
-    match src.get(at + 1) {
-        Some(b'{') => true,
-        Some(&c) => flags.bare_var_refs && is_var_name_byte(c),
-        None => false,
+fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags, config: LexerConfig) -> bool {
+    if src.get(at + 1) == Some(&b'{') {
+        return true;
     }
+    if !flags.bare_var_refs {
+        return false;
+    }
+    let start = at + 1;
+    tcl_core_types::naming::scan_var_name_end_with(
+        src,
+        start,
+        config.var_syntax.name_allows_high_bytes(),
+    ) > start
+        || (src.get(start) == Some(&b'(') && !config.var_syntax.has_expr_sugar())
 }
 
 /// The index of the `"` closing the quoted word opening at `at`.
@@ -790,19 +1116,101 @@ fn flush_text<'s>(
     }
 }
 
-/// Byte adapter over the one escape decoder ([`backslash_subst_in`]).
-///
-/// `tcl_syntax::backslash::decode_bytes_in` is the identical adapter one
-/// altitude up; both are `&str` round-trips over this crate's decoder, which
-/// stays the single owner of the escape grammar. Non-UTF-8 input cannot occur
-/// for a well-formed Tcl string rep and borrows through unchanged.
+/// Byte escape value formation delegates the shared native decoder. Opaque
+/// literal bytes remain unchanged while their adjacent escapes are decoded.
 fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
-    let Ok(s) = core::str::from_utf8(raw) else {
-        return Cow::Borrowed(raw);
-    };
-    match backslash_subst_in(s, escapes) {
-        Cow::Borrowed(b) => Cow::Borrowed(b.as_bytes()),
-        Cow::Owned(o) => Cow::Owned(o.into_bytes()),
+    backslash_subst_bytes_in(raw, escapes)
+}
+
+#[cfg(test)]
+mod template_policy_tests {
+    use super::*;
+
+    #[test]
+    fn jim_expression_components_retain_parentheses_and_native_token_sites() {
+        let source = b"pre$(1+(2))post";
+        let jim = LexerConfig::for_dialect("jim");
+        let parts = decompose_spanned(source, SubstFlags::default(), jim);
+        assert_eq!(parts[1].part, WordPart::Expression(b"(1+(2))"));
+        assert_eq!((parts[1].start, parts[1].end), (3, 11));
+        assert_eq!(
+            parts[1].source_span(source, 0, 100),
+            Some(crate::Span::new(103, 110))
+        );
+        assert_eq!(
+            scan_expression_sugar(b"$()", 0, jim),
+            Ok(Some((b"()".as_slice(), 3)))
+        );
+        assert_eq!(
+            scan_expression_sugar(b"$(1", 0, jim),
+            Err("missing close-paren for expression substitution")
+        );
+        let disabled = SubstFlags {
+            vars: false,
+            ..SubstFlags::default()
+        };
+        assert_eq!(decompose(source, disabled, jim), WordBody::Literal(source));
+        assert!(
+            matches!(decompose(b"$(k)", SubstFlags::default(), LexerConfig::default()), WordBody::Parts(parts) if matches!(&parts[0], WordPart::Variable(reference) if reference.name.is_empty()))
+        );
+    }
+
+    #[test]
+    fn jim_template_acceptance_does_not_relax_written_words() {
+        let source = b"prefix ${x y";
+        let config = LexerConfig::default();
+        let parts = decompose_template_spanned(
+            source,
+            SubstFlags::default(),
+            config,
+            TemplateVariableSyntax::Jim084,
+        )
+        .unwrap();
+        let WordPart::Variable(reference) = &parts[1].part else {
+            panic!("native scalar reference");
+        };
+        assert_eq!(reference.name, b"x y");
+        assert_eq!(
+            parts[1].template_source_span(source, 10, TemplateVariableSyntax::Jim084),
+            Some(crate::Span::new(17, 22))
+        );
+        assert!(matches!(
+            decompose_spanned(source, SubstFlags::default(), config)
+                .last()
+                .unwrap()
+                .part,
+            WordPart::ParseError(_)
+        ));
+        let parts = decompose_template_spanned(
+            b"${a{b}c}",
+            SubstFlags::default(),
+            config,
+            TemplateVariableSyntax::Jim084,
+        )
+        .unwrap();
+        assert!(
+            matches!(&parts[0].part, WordPart::Variable(reference) if reference.name == b"a{b")
+        );
+        assert!(matches!(&parts[1].part, WordPart::Text(bytes) if bytes.as_ref() == b"c}"));
+        let flags = SubstFlags {
+            vars: false,
+            ..SubstFlags::default()
+        };
+        assert!(
+            matches!(&decompose_template_spanned(source, flags, config, TemplateVariableSyntax::Jim084).unwrap()[0].part, WordPart::Text(bytes) if bytes.as_ref() == source)
+        );
+        let flags = SubstFlags {
+            backslashes: false,
+            cmds: false,
+            ..SubstFlags::default()
+        };
+        assert!(
+            matches!(&decompose_template_spanned(b"\\${x", flags, config, TemplateVariableSyntax::Jim084).unwrap()[0].part, WordPart::Text(bytes) if bytes.as_ref() == b"\\${x")
+        );
+        assert_eq!(
+            decompose_template_spanned(b"$[1+2]", flags, config, TemplateVariableSyntax::Jim084),
+            Err(UnsupportedTemplateSyntax::ExpressionSugar)
+        );
     }
 }
 
@@ -1218,6 +1626,83 @@ mod tests {
     }
 
     #[test]
+    fn whole_variable_references_follow_native_empty_name_and_jim_grammar() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let config = LexerConfig::for_dialect(dialect);
+            let empty_array = whole_var_ref(b"$(k)", config).unwrap().unwrap();
+            assert_eq!(empty_array.name, b"");
+            assert_eq!(empty_array.index, Some(b"k".as_slice()));
+            assert_eq!(
+                parts(b"$(k)", config),
+                vec![WordPart::Variable(VarRef {
+                    name: b"",
+                    index: Some(vec![text(b"k")]),
+                })]
+            );
+            assert_eq!(
+                decompose("$é".as_bytes(), SubstFlags::default(), config),
+                WordBody::Literal("$é".as_bytes())
+            );
+            assert_eq!(whole_var_ref(b"${}", config).unwrap().unwrap().name, b"");
+            assert!(whole_var_ref("$café".as_bytes(), config).unwrap().is_none());
+            if matches!(dialect, "tcl9.0" | "tcl9.1") {
+                assert_eq!(
+                    whole_var_ref(b"$a(k(x))", config),
+                    Err(INVALID_CHARACTER_IN_ARRAY_INDEX)
+                );
+            } else {
+                assert!(whole_var_ref(b"$a(k(x))", config).unwrap().is_none());
+            }
+            assert!(whole_var_ref(b"$a(k)suffix", config).unwrap().is_none());
+        }
+        let jim = LexerConfig::for_dialect("jim");
+        assert!(jim.var_syntax.has_expr_sugar());
+        assert_eq!(
+            parts("$é".as_bytes(), jim),
+            vec![WordPart::Variable(VarRef {
+                name: "é".as_bytes(),
+                index: None,
+            })]
+        );
+        assert!(whole_var_ref(b"$(1+2)", jim).unwrap().is_none());
+        assert_eq!(
+            whole_var_ref("$café".as_bytes(), jim)
+                .unwrap()
+                .unwrap()
+                .name,
+            "café".as_bytes()
+        );
+        assert_eq!(
+            whole_var_ref(b"$a(k(x))", jim).unwrap().unwrap().index,
+            Some(b"k(x)".as_slice())
+        );
+        assert_eq!(whole_var_ref(b"${(k)}", jim).unwrap().unwrap().name, b"(k)");
+        assert!(whole_var_ref(b"$a(k", jim).is_err());
+    }
+
+    #[test]
+    fn checked_decomposition_keeps_index_capacity_distinct_from_parse_errors() {
+        let mut source = Vec::new();
+        for _ in 0..80 {
+            source.extend_from_slice(b"$a(");
+        }
+        source.extend_from_slice(b"[compileMe]");
+        source.extend(std::iter::repeat_n(b')', 80));
+        assert_eq!(
+            decompose_spanned_checked(&source, SubstFlags::default(), nine()),
+            Err(DecompositionUnavailable::IndexNesting),
+        );
+        // The advisory API retains its documented bounded projection.
+        assert!(!decompose_spanned(&source, SubstFlags::default(), nine()).is_empty());
+        let malformed = decompose_spanned_checked(b"$a(", SubstFlags::default(), nine()).unwrap();
+        assert!(
+            malformed
+                .iter()
+                .any(|part| matches!(part.part, WordPart::ParseError(_)))
+        );
+    }
+
+    #[test]
     fn scan_var_ref_leaves_the_index_raw() {
         let cfg = nine();
         let got = scan_var_ref(b"$arr($i)x", 0, cfg).unwrap().unwrap();
@@ -1278,5 +1763,38 @@ mod tests {
     #[test]
     fn oracle_sheet_is_recorded() {
         let () = ORACLE_SHEET;
+    }
+}
+
+#[cfg(test)]
+mod variable_source_range_tests {
+    use super::*;
+
+    #[test]
+    fn borrowed_reference_extents_use_the_native_scanner() {
+        let config = LexerConfig::default();
+        for source in [b"$name".as_slice(), b"${braced}", b"$a($i)", b"${}"] {
+            let WordBody::Parts(parts) = decompose(source, SubstFlags::default(), config) else {
+                panic!("source contains a variable reference");
+            };
+            let WordPart::Variable(variable) = &parts[0] else {
+                panic!("first component is a reference");
+            };
+            assert_eq!(
+                variable.source_range_in(source, config),
+                Some(0..source.len())
+            );
+            let different_allocation = source.to_vec();
+            assert_eq!(
+                variable.source_range_in(&different_allocation, config),
+                None
+            );
+            if let Some(index) = &variable.index {
+                let WordPart::Variable(nested) = &index[0] else {
+                    panic!("nested index reference");
+                };
+                assert_eq!(nested.source_range_in(source, config), Some(3..5));
+            }
+        }
     }
 }

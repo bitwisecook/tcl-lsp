@@ -114,6 +114,9 @@ pub enum LastHop {
 pub struct Indirection {
     /// The canonical name the chain terminates on.
     pub target: String,
+    /// Selected authored alias target slot, independent of its reported name.
+    /// This is not an entered lookup or a physical command identity.
+    pub target_source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// The kind of the final hop — see [`LastHop`].
     pub last_hop: LastHop,
     /// The latest offset among the statements the chain crossed: the whole
@@ -132,6 +135,19 @@ pub struct Indirection {
     /// there the as-of time is the call site's own offset and this field
     /// carries the `call_off` the walk was given.
     pub resolve_at: u32,
+}
+
+impl Indirection {
+    /// Checked global spelling for a retained alias target, or the existing
+    /// compatibility key for a legacy rename/interpreter-domain record.
+    /// Retained alias reports never substitute for written lookup input.
+    #[must_use]
+    pub fn lookup_spelling(&self) -> Option<std::borrow::Cow<'_, str>> {
+        match &self.target_source_name {
+            Some(name) => name.source_spelling().map(Into::into),
+            None => Some(self.target.as_str().into()),
+        }
+    }
 }
 
 /// Whether an indirection established at `established` is observably in
@@ -198,7 +214,8 @@ fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Opti
         .zip(result.rename_offsets.get(key))
         .map(|(old, &at)| Binding {
             kind: LastHop::Rename,
-            source: old.as_str(),
+            source: std::borrow::Cow::Borrowed(old.as_str()),
+            source_name: None,
             at,
             prepends_args: false,
         });
@@ -206,11 +223,17 @@ fn latest_binding<'a>(result: &'a AnalysisResult, key: &str, as_of: u32) -> Opti
         .command_aliases
         .get(key)
         .zip(result.alias_offsets.get(key))
-        .map(|(alias, &at)| Binding {
-            kind: LastHop::Alias,
-            source: alias.target.as_str(),
-            at,
-            prepends_args: !alias.extras.is_empty(),
+        .and_then(|(alias, &at)| {
+            let policy = result.resolved_profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            });
+            Some(Binding {
+                kind: LastHop::Alias,
+                source: alias.target.reported_global_key(policy)?,
+                source_name: alias.target.selected_global_name(policy),
+                at,
+                prepends_args: !alias.extras.is_empty(),
+            })
         });
     [rename, alias]
         .into_iter()
@@ -224,7 +247,8 @@ struct Binding<'a> {
     kind: LastHop,
     /// Where the name's contents came from: the rename's `OLD` word, or the
     /// alias's target command.
-    source: &'a str,
+    source: std::borrow::Cow<'a, str>,
+    source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
     /// Offset of the statement that installed it.
     at: u32,
     /// Whether an alias binds leading arguments (never true for a rename).
@@ -240,8 +264,8 @@ struct Binding<'a> {
 /// own tables by; pass a plain qualifier for command names, or a class-name
 /// resolver for the class tables (which is what
 /// `diagnostics::var_command::class_reachable_by_indirection` does).  The
-/// maps themselves are keyed by the qualified name the scanner resolved, so
-/// every lookup normalises through [`crate::naming::normalise_qualified_name`].
+/// maps and retained hop targets already carry constructed keys. Only the
+/// initial written name is canonicalised; later hops retain literal colons.
 ///
 /// Cost is `O(MAX_COMMAND_NAME_HOPS)` hash lookups — no scan of the
 /// invocation list or of the source, so this is safe on a per-request LSP
@@ -253,7 +277,14 @@ pub fn walk(
     call_off: u32,
     canonicalise: &dyn Fn(&str) -> String,
 ) -> Option<Indirection> {
-    let mut cur = canonicalise(written);
+    walk_constructed(result, canonicalise(written), call_off)
+}
+
+fn walk_constructed(
+    result: &AnalysisResult,
+    mut cur: String,
+    call_off: u32,
+) -> Option<Indirection> {
     let mut hopped = false;
     let mut last_hop = LastHop::Rename;
     let mut established = 0u32;
@@ -262,11 +293,26 @@ pub fn walk(
     // held *then*); an alias releases it back to the call, since it re-resolves
     // its target by name every time it fires.
     let mut as_of = call_off;
+    let mut target_source_name: Option<crate::signature_scan::scope::SignatureSourceCommand> = None;
     for _ in 0..MAX_COMMAND_NAME_HOPS {
-        let key = crate::naming::normalise_qualified_name(&cur);
-        let Some(binding) = latest_binding(result, &key, as_of) else {
+        if let Some(expected) = &target_source_name {
+            if let Some(alias) = result.command_aliases.get(&cur) {
+                // A reported colon boundary can name distinct authored slots.
+                // Only the exact retained publication can continue this hop.
+                if alias.source_name.as_ref() != Some(expected) {
+                    return None;
+                }
+            } else if result.renamed_commands.contains_key(&cur)
+                && expected.source_spelling().is_none()
+            {
+                // The legacy rename inventory carries only reported strings.
+                return None;
+            }
+        }
+        let Some(binding) = latest_binding(result, &cur, as_of) else {
             return hopped.then_some(Indirection {
                 target: cur,
+                target_source_name,
                 last_hop,
                 established,
                 resolve_at: as_of,
@@ -275,7 +321,7 @@ pub fn walk(
         if binding.prepends_args {
             return None;
         }
-        let source = canonicalise(binding.source);
+        let source = binding.source.into_owned();
         if source == cur {
             return None;
         }
@@ -285,6 +331,7 @@ pub fn walk(
             LastHop::Alias => call_off,
         };
         cur = source;
+        target_source_name = binding.source_name;
         // A rename destination is a live command name in its own right — the
         // definition just keeps its original identity — so a chain ending
         // there is back on the rename-chase rule.
@@ -312,6 +359,7 @@ pub struct Reaching {
 
 /// Every written command name whose indirection chain terminates on
 /// `target`, paired with how it gets there ([`Reaching`]).
+/// `target` and the retained mutation-map keys are already constructed keys.
 ///
 /// The reverse of [`walk`], for consumers that start from a definition rather
 /// than from a call site — find-references has to attribute a call spelled
@@ -334,16 +382,16 @@ pub struct Reaching {
 pub fn names_reaching(
     result: &AnalysisResult,
     target: &str,
-    canonicalise: &dyn Fn(&str) -> String,
+    _canonicalise: &dyn Fn(&str) -> String,
 ) -> HashMap<String, Reaching> {
-    let canonical_target = canonicalise(target);
+    let canonical_target = target;
     let mut out = HashMap::new();
     let names = result
         .renamed_commands
         .keys()
         .chain(result.command_aliases.keys());
     for name in names {
-        let Some(hop) = walk(result, name, u32::MAX, canonicalise) else {
+        let Some(hop) = walk_constructed(result, name.clone(), u32::MAX) else {
             continue;
         };
         if hop.target == canonical_target {

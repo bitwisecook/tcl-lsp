@@ -115,6 +115,34 @@ pub fn parse_ops(spec: &[u8], kind: TraceKind) -> Result<Vec<&'static str>, CmdE
     Ok(canonical_set(&elems, kind))
 }
 
+/// Validate the actual original operation-list object and its SAME members.
+/// Physical adapters resolve each member through their selected static Index
+/// owner; the returned names are the canonical trace bitset presentation.
+pub fn parse_ops_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+    kind: TraceKind,
+) -> Result<Vec<&'static str>, CmdError> {
+    let members = ops.list_elements(original)?;
+    let valid = kind.ops();
+    if members.is_empty() {
+        return Err(CmdError::new(format!(
+            "bad operation list \"\": must be one or more of {}",
+            choice_list(valid)
+        )));
+    }
+    let table = OptionTable::exact_only("operation", valid);
+    let selected = members
+        .iter()
+        .map(|member| {
+            table
+                .index_of_original(ops, member)
+                .map(|index| valid[index])
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(canonical_set(&selected, kind))
+}
+
 /// The `spec` operations selected out of `kind`'s [`TraceKind::info_order`] —
 /// the bitset collapse C performs, applied to already-validated words.
 fn canonical_set(elems: &[impl AsRef<str>], kind: TraceKind) -> Vec<&'static str> {
@@ -222,6 +250,34 @@ pub fn resolve_option<'a>(word: &str, visible: &[&'a str]) -> Result<&'a str, Cm
     Ok(visible[index])
 }
 
+static TRACE_OPTIONS_8: [&str; 6] = ["add", "info", "remove", "variable", "vdelete", "vinfo"];
+static TRACE_OPTIONS_9: [&str; 3] = ["add", "info", "remove"];
+
+/// Original trace dispatcher lookup using the selected physical C declaration.
+/// Jim's compatibility trace engine uses the portable legacy roster without
+/// installing a C Index; missing physical selection remains a host refusal.
+pub fn resolve_option_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+    protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+) -> Result<&'static str, CmdError> {
+    use tcl_syntax::native_string::NativeStringProtocol;
+    let names = match protocol {
+        Some(NativeStringProtocol::C(version)) if version >= tcl_dialect::TclVersion::V9_0 => {
+            &TRACE_OPTIONS_9[..]
+        }
+        Some(NativeStringProtocol::C(_) | NativeStringProtocol::Jim084) => &TRACE_OPTIONS_8[..],
+        None => {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "trace option declaration",
+            )
+            .into());
+        }
+    };
+    let table = OptionTable::abbreviating("option", names);
+    Ok(names[table.index_of_original(ops, original)?])
+}
+
 /// `bad option "X": must be execution, command, or variable` — the trace-type
 /// error (`trace add|remove|info <type> …`). C resolves the type word against
 /// `traceTypeOptions`, so it reports a bad *option*, not a bad type.
@@ -244,13 +300,13 @@ pub fn ambiguous_type_error(got: &str) -> CmdError {
 // C's `traceTypeOptions[]` (`tclTrace.c`), resolved with abbreviations
 // allowed (flags 0) — which is why `trace add var x write cb` is accepted
 // (set-2.4 / set-4.4).
-const TYPE_NAMES: [&str; 3] = ["execution", "command", "variable"];
+static TYPE_NAMES: [&str; 3] = ["execution", "command", "variable"];
 const TYPE_KINDS: [TraceKind; 3] = [
     TraceKind::Execution,
     TraceKind::Command,
     TraceKind::Variable,
 ];
-const TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &TYPE_NAMES);
+static TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &TYPE_NAMES);
 
 /// Resolve a trace-type word (`trace add|remove|info <type> …`) to its
 /// [`TraceKind`] with the shared [`OptionTable`] rule: an exact match always
@@ -261,6 +317,14 @@ const TYPE_OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &
 /// [`ambiguous_type_error`] when it abbreviates more than one — including the
 /// empty word, which prefixes all three types (`trace add "" x …` is
 /// `ambiguous option ""` in tclsh).
+/// Resolve the original type object against the authentic static declaration.
+pub fn resolve_type_original<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    original: &O::Value,
+) -> Result<TraceKind, CmdError> {
+    Ok(TYPE_KINDS[TYPE_OPTIONS.index_of_original(ops, original)?])
+}
+
 pub fn resolve_type(got: &str) -> Result<TraceKind, CmdError> {
     match TYPE_OPTIONS.resolve(got.as_bytes()) {
         Resolution::Exact(i) | Resolution::UniquePrefix(i) => Ok(TYPE_KINDS[i]),
@@ -318,7 +382,10 @@ mod tests {
     #[test]
     fn bad_operation_enumerates_table_order() {
         assert_eq!(
-            parse_ops(b"w", TraceKind::Variable).unwrap_err().message(),
+            parse_ops(b"w", TraceKind::Variable)
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operation \"w\": must be array, read, unset, or write"
         );
     }
@@ -336,11 +403,17 @@ mod tests {
             parse_ops(b"write read", TraceKind::Variable).unwrap()
         );
         assert_eq!(
-            parse_legacy_variable_ops(b"").unwrap_err().message(),
+            parse_legacy_variable_ops(b"")
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operations \"\": should be one or more of rwua"
         );
         assert_eq!(
-            parse_legacy_variable_ops(b"read").unwrap_err().message(),
+            parse_legacy_variable_ops(b"read")
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad operations \"read\": should be one or more of rwua"
         );
     }
@@ -368,15 +441,18 @@ mod tests {
         assert_eq!(resolve_option("var", &V8).unwrap(), "variable");
         assert_eq!(resolve_option("add", &V9).unwrap(), "add");
         assert_eq!(
-            resolve_option("v", &V8).unwrap_err().message(),
+            resolve_option("v", &V8).unwrap_err().message().unwrap(),
             "ambiguous option \"v\": must be add, info, remove, variable, vdelete, or vinfo"
         );
         assert_eq!(
-            resolve_option("variable", &V9).unwrap_err().message(),
+            resolve_option("variable", &V9)
+                .unwrap_err()
+                .message()
+                .unwrap(),
             "bad option \"variable\": must be add, info, or remove"
         );
         assert_eq!(
-            resolve_option("zzz", &V8).unwrap_err().message(),
+            resolve_option("zzz", &V8).unwrap_err().message().unwrap(),
             "bad option \"zzz\": must be add, info, remove, variable, vdelete, or vinfo"
         );
     }

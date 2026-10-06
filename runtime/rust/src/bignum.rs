@@ -169,6 +169,9 @@ fn read_with_syntax(obj: *mut TclObj, syntax: tcl_dialect::NumberSyntax) -> Opti
     if tp == &obj::TCL_DOUBLE_TYPE {
         return Some(NumVal::Float(obj::double_of(obj)));
     }
+    if tp == &obj::JIM_COERCED_DOUBLE_TYPE {
+        return Some(NumVal::Float(obj::wide_of(obj) as f64));
+    }
     if tp == &TCL_BIGNUM_TYPE {
         return Some(NumVal::Big(Mp::copy_of(mp_ptr(obj))?));
     }
@@ -194,7 +197,11 @@ pub(crate) fn integer_magnitude(
         NumVal::Big(value) => value,
         NumVal::Float(_) => return None,
     };
-    let negative = mp_is_neg(&integer);
+    integer_digits(&integer, radix)
+}
+
+fn integer_digits(integer: &Mp, radix: Radix) -> Option<(bool, String)> {
+    let negative = mp_is_neg(integer);
     let mut size = 0;
     // SAFETY: `integer` owns a live `mp_int`; libtommath reports an output
     // buffer size including the trailing NUL for the requested valid radix.
@@ -293,49 +300,6 @@ fn cache_parsed_rep(obj: *mut TclObj, value: &NumVal) {
             };
             let boxed = Box::into_raw(Box::new(copy.into_inner()));
             obj::change_type(obj, &TCL_BIGNUM_TYPE, boxed as u64);
-        }
-    }
-}
-
-/// How an object read as a `Tcl_WideInt` (`Tcl_GetWideIntFromObj`) came out.
-pub(crate) enum WideRead {
-    /// The value, as a wide integer.
-    Wide(i64),
-    /// An integer past the wide range — C's `integer value too large to
-    /// represent` / `ARITH IOVERFLOW`.
-    Overflow,
-    /// A number that is not an integer (a double, or NaN).
-    NotInteger,
-    /// Not a number at all.
-    NotNumeric,
-}
-
-/// Read `obj` as a wide integer with `Tcl_GetWideIntFromObj`'s classification,
-/// caching the parsed rep back onto the object like every other tower read.
-///
-/// A bignum that still fits a wide narrows here, exactly as C's bignum branch
-/// does even with auto-narrowing enabled.
-pub(crate) fn read_wide(obj: *mut TclObj) -> WideRead {
-    match read(obj) {
-        Some(NumVal::Wide(w)) => WideRead::Wide(w),
-        Some(NumVal::Big(m)) => {
-            // SAFETY: `m` owns a live mp_int.
-            if unsafe { mp_count_bits(m.ptr()) } <= 63 {
-                // SAFETY: the magnitude fits, so the signed read is exact.
-                WideRead::Wide(unsafe { mp_get_i64(m.ptr()) })
-            } else {
-                WideRead::Overflow
-            }
-        }
-        Some(NumVal::Float(_)) => WideRead::NotInteger,
-        None => {
-            // A NaN spelling is a number the tower declines, not a non-number:
-            // `Tcl_GetWideIntFromObj` still reports it as "expected integer".
-            if is_nan_operand(obj) {
-                WideRead::NotInteger
-            } else {
-                WideRead::NotNumeric
-            }
         }
     }
 }
@@ -1091,6 +1055,54 @@ fn zeroed_mp() -> MpInt {
         sign: 0,
         dp: core::ptr::null_mut(),
     }
+}
+
+/// Snapshot an actual bignum cache without touching the object's string.
+pub(crate) fn native_cached_number(value: *mut TclObj) -> Option<tcl_syntax::number::Number> {
+    if obj::obj_type_ptr(value) != &TCL_BIGNUM_TYPE {
+        return None;
+    }
+    let integer = Mp::copy_of(mp_ptr(value))?;
+    let (negative, digits) = integer_digits(&integer, Radix::Dec)?;
+    Some(tcl_syntax::number::Number::Big {
+        negative,
+        radix: Radix::Dec,
+        digits,
+    })
+}
+
+/// Retain the full parsed native magnitude, independently of a Wide return.
+pub(crate) fn adopt_native_big(
+    value: *mut TclObj,
+    negative: bool,
+    radix: Radix,
+    digits: &str,
+) -> bool {
+    let mut source = Vec::with_capacity(digits.len() + 2);
+    if negative {
+        source.push(b'-');
+    }
+    source.extend_from_slice(digits.as_bytes());
+    source.push(0);
+    let mut integer = zeroed_mp();
+    // SAFETY: initialise and parse a new integer before replacing the old cache.
+    unsafe {
+        if mp_init(&mut integer) != MP_OKAY {
+            return false;
+        }
+        if mp_read_radix(
+            &mut integer,
+            source.as_ptr().cast::<c_char>(),
+            radix as c_int,
+        ) != MP_OKAY
+        {
+            mp_clear(&mut integer);
+            return false;
+        }
+    }
+    let backing = Box::into_raw(Box::new(integer));
+    obj::change_type(value, &TCL_BIGNUM_TYPE, backing as u64);
+    true
 }
 
 /// Build a numeric object from a parsed [`Number::Big`](tcl_syntax::number::Number)

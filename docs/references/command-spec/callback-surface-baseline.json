@@ -58,10 +58,6 @@
       "location": "dynamic-arg-role"
     },
     {
-      "owner": "bind",
-      "location": "dynamic-script-timing"
-    },
-    {
       "owner": "body_scope",
       "location": "arg[0]"
     },
@@ -74,22 +70,6 @@
       "location": "option -yscrollcommand value"
     },
     {
-      "owner": "canvas bind",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "canvas bind",
-      "location": "dynamic-script-timing"
-    },
-    {
-      "owner": "canvas instance bind",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "canvas instance bind",
-      "location": "dynamic-script-timing"
-    },
-    {
       "owner": "case",
       "location": "dynamic-arg-role"
     },
@@ -100,6 +80,10 @@
     {
       "owner": "catch",
       "location": "arg[0]"
+    },
+    {
+      "owner": "catch",
+      "location": "dynamic-arg-role"
     },
     {
       "owner": "certificate",
@@ -506,10 +490,6 @@
       "location": "arg[2]"
     },
     {
-      "owner": "lassign",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "lfilter",
       "location": "dynamic-arg-role"
     },
@@ -870,10 +850,6 @@
       "location": "arg[0]"
     },
     {
-      "owner": "set",
-      "location": "dynamic-arg-role"
-    },
-    {
       "owner": "snit::compile",
       "location": "arg[2]"
     },
@@ -1084,22 +1060,6 @@
     {
       "owner": "tk::canvas",
       "location": "option -yscrollcommand value"
-    },
-    {
-      "owner": "tk::canvas bind",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "tk::canvas bind",
-      "location": "dynamic-script-timing"
-    },
-    {
-      "owner": "tk::canvas instance bind",
-      "location": "dynamic-arg-role"
-    },
-    {
-      "owner": "tk::canvas instance bind",
-      "location": "dynamic-script-timing"
     },
     {
       "owner": "tk::checkbutton",

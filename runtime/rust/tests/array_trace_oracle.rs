@@ -34,15 +34,28 @@ fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+fn strict_oracles() -> bool {
+    std::env::var_os("TCL_LSP_REQUIRE_ALL_TCL_ORACLES").is_some()
+}
+
 fn tcl_9_0_4() -> Option<TclSourceTree> {
     let tree = locate_source_tree(&repository_root(), TclVersion::V9_0, None)
-        .expect("locate the pinned Tcl 9.0 source tree")?;
+        .expect("locate the pinned Tcl 9.0 source tree");
+    assert!(
+        !strict_oracles() || tree.is_some(),
+        "required Tcl 9.0.4 source tree is absent"
+    );
+    let tree = tree?;
     assert_eq!(tree.patchlevel, "9.0.4", "exact Tcl oracle pin");
     Some(tree)
 }
 
 fn run_oracle(tree: &TclSourceTree, source: &str) -> Option<String> {
     if !tree.root.join("unix/tclsh").is_file() {
+        assert!(
+            !strict_oracles(),
+            "required Tcl 9.0.4 source-built interpreter is absent"
+        );
         eprintln!(
             "skipping Tcl 9.0.4 oracle: {} has no built unix/tclsh",
             tree.root.display()
@@ -61,9 +74,17 @@ fn oracle_result(tree: &TclSourceTree, sheet: &str) -> Option<String> {
     run_oracle(tree, &format!("{sheet}\nputs -nonewline [set ::out]\n"))
 }
 
+fn native_runtime(host: Rc<dyn Host>) -> Interp {
+    Interp::with_native_core(
+        host,
+        tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("actual Tcl 9.0 native core bootstrap")
+}
+
 fn runtime_result(sheet: &str) -> String {
-    let mut interp = Interp::new();
-    interp.set_runtime_version(TclVersion::V9_0);
+    let mut interp = native_runtime(Rc::new(NativeHost::new()));
     let code = interp.eval_str(sheet.as_bytes());
     let result = String::from_utf8(interp.result_bytes()).expect("runtime result is UTF-8");
     assert_eq!(code, Code::Ok, "runtime sheet failed: {result}\n{sheet}");
@@ -74,10 +95,13 @@ fn runtime_tcltest_result(tree: &TclSourceTree, sheet: &str) -> Option<String> {
     let host = Rc::new(NativeHost::new());
     host.env()
         .set("TCL_LIBRARY", &tree.library_dir().to_string_lossy());
-    let mut interp = Interp::with_host(host);
-    interp.set_runtime_version(TclVersion::V9_0);
+    let mut interp = native_runtime(host);
     assert_eq!(interp.eval_str(b"info commands if"), Code::Ok);
     if interp.result_bytes().is_empty() {
+        assert!(
+            !strict_oracles(),
+            "strict Tcl startup requires the runtime numeric tower"
+        );
         // The deliberate no-libtommath build omits expr-driven commands such
         // as `if`; Tcl's init.tcl cannot execute in that representation tier.
         return None;

@@ -476,8 +476,10 @@ pub struct ProcDef {
     /// caller's frame — spelled in the proc's *own* body (`upvar 1 name
     /// name`), so no call-site argument word carries them.
     /// `name → written-through-alias`: `true` means
-    /// a call *creates* the variable in the calling frame, `false` that it
-    /// only reads it.  Populated by
+    /// the conditional callee template writes through the alias, `false` that
+    /// it only reads through it. This proves no actual caller cell or completed
+    /// write. Navigation requires a separate original call/allocation/frame
+    /// receipt. Populated by
     /// [`super::param_traits::caller_frame_literal_targets`]; empty when
     /// the body binds none.
     pub caller_frame_literals: std::collections::HashMap<String, bool>,
@@ -2093,6 +2095,10 @@ impl ScopedBodyRegion {
 /// in the shape so a consumer can serialise the complete result.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct AnalysisResult {
+    pub(super) command_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
+    /// Actual editing inputs retained independently of the dialect label.
+    /// This is not a native execution or implementation-identity proof.
+    pub resolved_input: Option<super::ResolvedAnalysisInput>,
     /// Root scope tree (`::`).
     pub global_scope: Scope,
     /// Procs keyed by qualified name.
@@ -2127,6 +2133,10 @@ pub struct AnalysisResult {
     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
     /// Classes keyed by qualified name.
     pub all_classes: HashMap<String, ClassDef>,
+    /// Original class declarations displaced by a later declaration of the
+    /// same name. Positioned navigation uses these records; the final class
+    /// inventory alone cannot identify an earlier selected implementation.
+    pub superseded_classes: HashMap<String, Vec<ClassDef>>,
     /// Every class-body span contributing member declarations to a
     /// qualified class name, in source order: the `oo::class create`
     /// block's own body span, plus one entry per later same-class
@@ -2190,7 +2200,7 @@ pub struct AnalysisResult {
     /// folding) chain-fold these with
     /// [`crate::auto_path_eval::fold_constant_assignments`], which also owns
     /// the multi-write poisoning rule.
-    pub path_constant_assignments: Vec<crate::auto_path_eval::PathConstantWrite>,
+    pub path_constant_assignments: crate::auto_path_eval::PathConstantAssignments,
     /// Command-alias records keyed by qualified alias name.
     pub command_aliases: HashMap<String, SignatureCommandAlias>,
     /// Byte offset of the `interp alias` command token that established each
@@ -2370,24 +2380,14 @@ pub struct AnalysisResult {
     /// **Contract.** Best-effort, exactly like [`Self::instance_classes`]: an
     /// absent key means *no evidence was found in this document*, never *proof
     /// that the name holds no object*.  An empty value (the default) is what
-    /// every CU-less analysis path produces, so a consumer must degrade to its
-    /// pre-lattice behaviour rather than concluding anything from emptiness.
+    /// every CU-less analysis path produces, so a runtime-proof consumer must
+    /// abstain rather than concluding anything from emptiness.
     ///
-    /// **Which map to read.**  `by_scope` is keyed by the owning unit and is
-    /// the *narrow* map: it never merges a `chart` in one proc with a `chart`
-    /// in another.  That holds through the *propagation*, not just the keying —
-    /// every variable read an edge resolves is resolved in the reading unit's
-    /// own scope (or its class, for an instance variable), so one proc's
-    /// binding can never reach another's same-named local and leave a false
-    /// singleton behind.  `any_scope` is the union across every scope and is
-    /// the *wide* map — deliberately imprecise, and unchanged.  So:
-    ///
-    /// | consumer | map | why |
-    /// |---|---|---|
-    /// | edits (rename), find-references | `by_scope` only | widening here rewrites an unrelated variable — a wrong edit, not a missed one |
-    /// | navigation (definition, type-definition), hover | `by_scope`, then `any_scope` labelled as a guess | a wrong jump is recoverable; a missing one is not |
-    /// | semantic tokens / highlighting | either | colour-only, so the union's imprecision is harmless |
-    /// | "provably a *different* class, so refuse/skip" gates | `by_scope` singletons only | widening turns an abstention into a false certainty, which silences a refusal that protects the user |
+    /// **Which map to read.** `proven_reads` retains the original substitution
+    /// and reaching SSA contents. Edits, references and refusal gates require
+    /// that positioned proof; a singleton candidate is insufficient.
+    /// `by_scope` and `any_scope` union contents versions and supply assistance
+    /// only. Empty proof means abstention, never a fallback to a nominal class.
     ///
     /// Populated once per analysis, from the same `CompilationUnit` the
     /// CFG/SSA diagnostics ride on (`analyser/diagnostics.rs`); no other
@@ -2491,12 +2491,55 @@ pub struct AnalysisResult {
     /// global fallback ([`Self::ns_var_global_fallback`]) — without
     /// re-detecting the dialect.  Empty for a default-constructed result.
     pub dialect: String,
+    /// Actual body grammar selected at the analysis ingress. Navigation
+    /// reparses use this retained context rather than interpreting a profile
+    /// name again. A default-constructed assistance result carries no grammar
+    /// authority for matching a positioned source definition.
+    pub body_lexer_config: Option<tcl_lexer::LexerConfig>,
     /// Session library-version overrides used for this analysis. Downstream
     /// providers use the same keyed BIG-IP/tool floors as diagnostics.
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
 }
 
 impl AnalysisResult {
+    /// Exact temporal source world used by this analysis. Missing evidence
+    /// remains unknown; rebuilding a realm from the dialect label cannot
+    /// replace its native entry, provider or source-instance obligations.
+    #[must_use]
+    pub fn retained_command_realm(&self) -> Option<&crate::realm::CommandBindingRealm> {
+        self.command_realm.as_deref()
+    }
+
+    /// Actual compilation profile retained at analysis ingress. Assistance
+    /// records without retained inputs leave this unknown.
+    #[must_use]
+    pub fn resolved_profile(&self) -> Option<&'static tcl_dialect::DialectProfile> {
+        self.resolved_input.as_ref().map(|input| input.unit_profile)
+    }
+
+    /// Exact editing command store retained with its availability generation.
+    /// It supplies metadata, independently of reached command identities.
+    #[must_use]
+    pub fn resolved_registry(&self) -> Option<&tcl_registry::CommandRegistry> {
+        self.resolved_input
+            .as_ref()
+            .map(|input| input.context.commands().as_ref())
+    }
+
+    /// Publish a class assistance record while retaining original declarations
+    /// for navigation. Updating members of the same declaration does not mint
+    /// a second declaration or a positioned execution fact.
+    pub(crate) fn retain_class_declaration(&mut self, qualified: String, class: ClassDef) {
+        if let Some(previous) = self.all_classes.insert(qualified.clone(), class)
+            && self.all_classes[&qualified].name_span != previous.name_span
+        {
+            self.superseded_classes
+                .entry(qualified)
+                .or_default()
+                .push(previous);
+        }
+    }
+
     /// Does this document configure the ensemble resolving to `ensemble`
     /// with `namespace ensemble … -prefixes 0`?
     ///
@@ -2508,7 +2551,9 @@ impl AnalysisResult {
         self.prefixless_ensembles.contains(ensemble)
             || self
                 .prefixless_ensembles
-                .contains(&format!("::{}", ensemble.trim_start_matches(':')))
+                .contains(&crate::naming::root_unrooted_key(
+                    crate::naming::unroot_rooted_key(ensemble).unwrap_or(ensemble),
+                ))
     }
 
     /// Resolve `sub` against the subcommands recorded for the ensemble
@@ -2583,7 +2628,8 @@ impl AnalysisResult {
     /// (the stricter 9.0 semantics).
     #[must_use]
     pub fn ns_var_global_fallback(&self) -> bool {
-        tcl_dialect::DialectProfile::find(&self.dialect)
+        self.resolved_profile()
+            .or_else(|| tcl_dialect::DialectProfile::find(&self.dialect))
             .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
     }
 
@@ -2624,6 +2670,74 @@ impl AnalysisResult {
             .chain(self.all_procs.get(qualified))
     }
 
+    /// Match a retained implementation allocation to its original authored
+    /// declaration. This is navigation only; no lexical-order or final-name
+    /// reconstruction substitutes for the selected allocation. A materialised
+    /// or loaded script has no editable declaration in this document.
+    #[must_use]
+    pub fn proc_for_definition(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<&ProcDef> {
+        if definition.kind() != crate::command_binding::SourceCommandDefinitionKind::Procedure {
+            return None;
+        }
+        let tokens = self.definition_tokens(definition, source)?;
+        self.proc_declarations(&definition.allocation().command)
+            .find(|declaration| tokens.contains(&declaration.name_span))
+    }
+
+    /// Navigate to the original authored class declaration matching a retained
+    /// class receipt. Instance and procedure allocations cannot borrow a class
+    /// record; overwritten or foreign records cannot supply its source span.
+    #[must_use]
+    pub fn class_for_definition(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<&ClassDef> {
+        if definition.kind() != crate::command_binding::SourceCommandDefinitionKind::Class {
+            return None;
+        }
+        let tokens = self.definition_tokens(definition, source)?;
+        let qualified = &definition.allocation().command;
+        self.superseded_classes
+            .get(qualified)
+            .into_iter()
+            .flatten()
+            .chain(self.all_classes.get(qualified))
+            .find(|declaration| tokens.contains(&declaration.name_span))
+    }
+
+    fn definition_tokens(
+        &self,
+        definition: &crate::command_binding::SourceCommandDefinition,
+        source: &str,
+    ) -> Option<Vec<Span>> {
+        let allocation = definition.allocation();
+        if !matches!(allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
+        {
+            return None;
+        }
+        let config = self.body_lexer_config?;
+        let start = usize::try_from(allocation.site.offset).ok()?;
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            source.get(start..)?,
+            allocation.site.offset,
+            config,
+        );
+        Some(
+            commands
+                .first()?
+                .argv
+                .iter()
+                .map(|word| word.span)
+                .collect(),
+        )
+    }
+
     /// The definition of `qualified` a call at `call_off` actually reaches.
     ///
     /// Order-gated the same way every other command-table fact is
@@ -2656,6 +2770,27 @@ impl AnalysisResult {
     /// redefinition fails `wrong # args: should be "p a"`.
     #[must_use]
     pub fn proc_def_in_effect_at(&self, qualified: &str, call_off: u32) -> Option<&ProcDef> {
+        let mut retained = self.command_invocations.iter().filter_map(|invocation| {
+            (invocation.range.start() == call_off
+                && (invocation.resolved_qualified_name.as_deref() == Some(qualified)
+                    || invocation
+                        .resolved_definition
+                        .as_ref()
+                        .is_some_and(|definition| definition.allocation().command == qualified)))
+            .then_some(invocation.resolved_definition.as_ref())
+            .flatten()
+        });
+        if let Some(definition) = retained.next() {
+            if !retained.all(|alternative| alternative == definition) {
+                return None;
+            }
+            let crate::command_binding::SourceOriginKind::Authored(source) =
+                definition.allocation().site.source.kind()
+            else {
+                return None;
+            };
+            return self.proc_for_definition(definition, source.try_text().ok()?);
+        }
         let winner = self.all_procs.get(qualified)?;
         let Some(earlier) = self.superseded_procs.get(qualified) else {
             return Some(winner);
@@ -3095,25 +3230,37 @@ mod tests {
         let s = Scope::default();
         assert_eq!(s.kind, ScopeKind::Global);
         assert_eq!(s.name, "::");
-        assert!(s.variables.is_empty());
-        assert!(s.procs.is_empty());
-        assert!(s.classes.is_empty());
-        assert!(s.children.is_empty());
+        assert_eq!(s.variables.len(), 0);
+        assert_eq!(s.procs.len(), 0);
+        assert_eq!(s.classes.len(), 0);
+        assert_eq!(s.children, [] as [crate::analyser::types::Scope; 0]);
     }
 
     #[test]
     fn analysis_result_default_is_empty() {
         let r = AnalysisResult::default();
         assert_eq!(r.global_scope.kind, ScopeKind::Global);
-        assert!(r.all_procs.is_empty());
-        assert!(r.all_classes.is_empty());
-        assert!(r.all_variables.is_empty());
-        assert!(r.diagnostics.is_empty());
-        assert!(r.command_invocations.is_empty());
-        assert!(r.package_requires.is_empty());
-        assert!(r.source_targets.is_empty());
-        assert!(r.command_aliases.is_empty());
-        assert!(r.namespace_imports.is_empty());
+        assert_eq!(r.all_procs.len(), 0);
+        assert_eq!(r.all_classes.len(), 0);
+        assert_eq!(r.all_variables.len(), 0);
+        assert_eq!(r.diagnostics, [] as [crate::analyser::types::Diagnostic; 0]);
+        assert_eq!(
+            r.command_invocations,
+            [] as [crate::signature_scan::types::SignatureCommandInvocation; 0]
+        );
+        assert_eq!(
+            r.package_requires,
+            [] as [crate::signature_scan::types::SignaturePackageRequire; 0]
+        );
+        assert_eq!(
+            r.source_targets,
+            [] as [crate::signature_scan::types::SignatureSource; 0]
+        );
+        assert_eq!(r.command_aliases.len(), 0);
+        assert_eq!(
+            r.namespace_imports,
+            [] as [crate::signature_scan::types::SignatureNamespaceImport; 0]
+        );
         assert!(r.unknown_proc_info.is_none());
     }
 
@@ -3125,14 +3272,14 @@ mod tests {
         assert_eq!(c.metaclass, "oo::class");
         // …and it is a stand-in, not an observation.
         assert_eq!(c.metaclass_provenance, MetaclassProvenance::StandIn);
-        assert!(c.constructors.is_empty());
+        assert_eq!(c.constructors, [] as [crate::analyser::types::MethodDef; 0]);
         assert!(c.destructor.is_none());
-        assert!(c.variables.is_empty());
-        assert!(c.properties.is_empty());
-        assert!(c.filters.is_empty());
-        assert!(c.exports.is_empty());
-        assert!(c.unexports.is_empty());
-        assert!(c.doc.is_empty());
+        assert_eq!(c.variables, [] as [std::string::String; 0]);
+        assert_eq!(c.properties.len(), 0);
+        assert_eq!(c.filters, [] as [std::string::String; 0]);
+        assert_eq!(c.exports.len(), 0);
+        assert_eq!(c.unexports.len(), 0);
+        assert_eq!(c.doc, "");
     }
 
     fn strings(items: &[&str]) -> Vec<String> {

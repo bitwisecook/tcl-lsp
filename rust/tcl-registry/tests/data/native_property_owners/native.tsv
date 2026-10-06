@@ -1,0 +1,8 @@
+all-header	32	0	1	2	3	string
+copy-header	32	0	1	1	3	string
+instance-method	32	0	1	2	0	none
+class-method-error	33	1	1	0	0	none
+class-method-refresh	33	0	0	2	0	none
+untangled-structure	33	0	0	0	0	none
+used-structure	34	1	0	0	0	none
+property-read	34	0	1	0	3	tcl::oo property name

@@ -1,0 +1,4 @@
+route=direct hook=update code=0 result=4 UPDATED CHANGED
+route=direct hook=free code=0 result=4 FREED CHANGED
+route=alias hook=update code=0 result=4 UPDATED CHANGED
+route=alias hook=free code=0 result=4 FREED CHANGED

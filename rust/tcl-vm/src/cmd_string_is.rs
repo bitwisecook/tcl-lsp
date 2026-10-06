@@ -22,7 +22,7 @@
 //! the core; this parses the options and writes the `-failindex` variable.
 
 use tcl_cmd_core::prefix::OptionTable;
-use tcl_cmd_core::string_is::{class_check, resolve_class};
+use tcl_cmd_core::string_is::{CLASSES, class_check};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
@@ -41,9 +41,9 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if rest.len() < 2 {
         return err(WRONG);
     }
-    let class = match resolve_class(&rest[0].to_str()) {
-        Ok(c) => c,
-        Err(e) => return err(e.into_message()),
+    let class = match vm.native_static_option_index(&rest[0], CLASSES, false, "class") {
+        Ok(index) => CLASSES[index],
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     let mut strict = false;
     let mut fail_var: Option<Value> = None;
@@ -52,22 +52,25 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         // The loop only visits non-final arguments (the last is the string),
         // so an unrecognised token here is in option position: a bad option,
         // not a wrong count (`string is alpha a b` → `bad option "a"`).
-        match OPTIONS.index_of(rest[i].to_str().as_bytes()) {
+        match vm.native_static_option_index(&rest[i], OPTIONS.names(), false, "option") {
             Ok(0) => {
                 strict = true;
                 i += 1;
             }
             Ok(1) => {
                 let Some(v) = rest.get(i + 1) else {
-                    return err(format!(
-                        "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
-                    ));
+                    return crate::command::native_wrong_arguments_message(
+                        vm,
+                        format!(
+                            "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
+                        ),
+                    );
                 };
                 fail_var = Some(v.clone());
                 i += 2;
             }
             Ok(_) => unreachable!("the option table is closed"),
-            Err(m) => return err(String::from_utf8_lossy(&m).into_owned()),
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         }
     }
     if rest.len() - i > 1 {
@@ -75,9 +78,10 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         return err(WRONG);
     }
     if rest.len() - i < 1 {
-        return err(format!(
-            "wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!("wrong # args: should be \"string is {class} ?-strict? ?-failindex var? str\""),
+        );
     }
     let s = rest[i].to_str();
     // The emulated release's numeral grammar: the numeric classes inherit

@@ -56,12 +56,7 @@ use tcl_dialect::model::SurfaceQuery;
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
 /// sets below.  Built once (the data is static).
 fn irules_registry() -> &'static CommandRegistry {
-    static REG: OnceLock<CommandRegistry> = OnceLock::new();
-    REG.get_or_init(|| {
-        let mut r = CommandRegistry::build_default();
-        r.load_irules();
-        r
-    })
+    tcl_registry::model::ingress::static_context_for("f5-irules").commands()
 }
 
 /// Commands that commit an HTTP response — derived from the registry's
@@ -558,6 +553,7 @@ pub fn find_unguarded_drop_warnings(
             &proc.body,
             &[DropFlowState::default()],
             &mut FlowDispatch {
+                registry: cu.ir_module.resolved_registry(),
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_drop_states,
@@ -768,6 +764,9 @@ fn classify_stmt_for_collect_flow(
     registry: &CommandRegistry,
     base_offset: i64,
 ) {
+    if let Some(tokens) = stmt.tokens() {
+        scan_nested_collection_words(tokens, event, side, state, registry, base_offset);
+    }
     // The flow-state spans land in cross-event warnings emitted where the
     // producing `fu` is out of scope, so absolutise them here (no-op when
     // `base_offset == 0`).
@@ -837,6 +836,79 @@ fn classify_stmt_for_collect_flow(
             }
         }
         _ => {}
+    }
+}
+
+/// Nested getter calls retain their own evaluated argv and exact dispatch site;
+/// a normal generic assignment need not become `AssignValue` to expose them.
+fn scan_nested_collection_words(
+    parent: &crate::ir::CommandTokens,
+    event: &str,
+    side: &str,
+    state: &mut CollectFlowState,
+    registry: &CommandRegistry,
+    base_offset: i64,
+) {
+    let config = parent
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.variable_context.invocation_dialect)
+        .map_or_else(
+            || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        );
+    for word in parent.words().iter().skip(1) {
+        let Some(commands) =
+            crate::value_shapes::command_substitution_tokens(word, Some(parent), config)
+        else {
+            continue;
+        };
+        for tokens in commands {
+            scan_nested_collection_words(&tokens, event, side, state, registry, base_offset);
+            let Some(possible) =
+                crate::registry_invocation::registry_invocation_assistance(registry, None, &tokens)
+            else {
+                continue;
+            };
+            let Some(dialect) = tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.variable_context.invocation_dialect)
+            else {
+                continue;
+            };
+            for shape in possible.candidates {
+                let Some(arguments) = (0..shape.effective.words.len().saturating_sub(1))
+                    .map(|index| {
+                        shape.effective.argument_literal(
+                            index,
+                            dialect.lexer_grammar.escapes,
+                            dialect.word_values,
+                        )
+                    })
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    continue;
+                };
+                let span = Span::new(
+                    u32::try_from((base_offset + i64::from(tokens.argv[0].start())).max(0))
+                        .unwrap_or(u32::MAX),
+                    u32::try_from(
+                        (base_offset + i64::from(tokens.argv.last().unwrap().end())).max(0),
+                    )
+                    .unwrap_or(u32::MAX),
+                );
+                classify_collect_command(
+                    &shape.command,
+                    &arguments,
+                    event,
+                    side,
+                    span,
+                    state,
+                    registry,
+                );
+            }
+        }
     }
 }
 
@@ -1159,6 +1231,7 @@ pub fn find_http_flow_warnings(
                 respond_at: None,
             }],
             &mut FlowDispatch {
+                registry: cu.ir_module.resolved_registry(),
                 out: &mut out,
                 leaf: &leaf,
                 dedupe: &dedupe_flow_states,
@@ -1273,6 +1346,7 @@ fn apply_http_flow_command(
 /// `out`, the per-leaf transfer `leaf`, and the state-set `dedupe`.  Bundled so
 /// the mutually-recursive walk helpers stay under the argument limit.
 struct FlowDispatch<'a, L, D> {
+    registry: &'a CommandRegistry,
     out: &'a mut Vec<IrulesCheckWarning>,
     leaf: &'a L,
     dedupe: &'a D,
@@ -1322,6 +1396,18 @@ where
     D: Fn(Vec<S>) -> Vec<S>,
 {
     let one = std::slice::from_ref;
+    if let Some(region) = stmt
+        .tokens()
+        .and_then(crate::ir::CommandTokens::evaluated_body)
+    {
+        return Some(flow_step_region(region, states, fd, return_sink));
+    }
+    if let Some(tokens) = stmt.tokens()
+        && !crate::registry_invocation::normal_handler_completion_route(fd.registry, None, tokens)
+            .normal_possible()
+    {
+        return None;
+    }
     Some(match stmt {
         Statement::Return { .. } => return None,
         Statement::If {
@@ -1399,6 +1485,109 @@ where
             (fd.dedupe)(next)
         }
     })
+}
+
+/// Diagnostic projection of the same source-positioned region used by CFG
+/// construction. Possible entry retains the unchanged incoming alternative.
+fn flow_step_region<S, L, D>(
+    region: &crate::execution_region::EvaluatedBodyRegion,
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    use tcl_registry::native_compilation::PossibleBodyTopology;
+    if region.selection == crate::execution_region::RegionSelection::Never {
+        return states.to_vec();
+    }
+    let mut next = if region.selection == crate::execution_region::RegionSelection::MaySkip
+        || region.possible_bodies.is_some()
+    {
+        states.to_vec()
+    } else {
+        Vec::new()
+    };
+    let phases: Vec<_> = region.phases.iter().collect();
+    let Some(possible) = &region.possible_bodies else {
+        next.extend(flow_region_phases(&phases, states, fd, return_sink));
+        return (fd.dedupe)(next);
+    };
+    match &possible.topology {
+        PossibleBodyTopology::Sequence(_) | PossibleBodyTopology::Captured(_) => {
+            next.extend(flow_region_phases(&phases, states, fd, return_sink));
+        }
+        PossibleBodyTopology::Loop {
+            initial, repeated, ..
+        } => {
+            let initial_phases = selected_region_phases(region, &possible.arguments, initial);
+            let entry = flow_region_phases(&initial_phases, states, fd, return_sink.as_deref_mut());
+            next.extend(entry.clone());
+            let repeated_phases = selected_region_phases(region, &possible.arguments, repeated);
+            next.extend(flow_region_phases(
+                &repeated_phases,
+                &entry,
+                fd,
+                return_sink,
+            ));
+        }
+        PossibleBodyTopology::Alternatives(_)
+        | PossibleBodyTopology::Conditional(_)
+        | PossibleBodyTopology::CaseAlternatives(_) => {
+            for phase in &region.phases {
+                next.extend(flow_region_phases(
+                    &[phase],
+                    states,
+                    fd,
+                    return_sink.as_deref_mut(),
+                ));
+            }
+        }
+    }
+    (fd.dedupe)(next)
+}
+
+fn selected_region_phases<'a>(
+    region: &'a crate::execution_region::EvaluatedBodyRegion,
+    arguments: &[usize],
+    selected: &[usize],
+) -> Vec<&'a crate::execution_region::ExecutionPhase> {
+    selected
+        .iter()
+        .filter_map(|argument| {
+            arguments
+                .iter()
+                .position(|candidate| candidate == argument)
+                .and_then(|index| region.phases.get(index))
+        })
+        .collect()
+}
+
+fn flow_region_phases<S, L, D>(
+    phases: &[&crate::execution_region::ExecutionPhase],
+    states: &[S],
+    fd: &mut FlowDispatch<'_, L, D>,
+    mut return_sink: Option<&mut Vec<S>>,
+) -> Vec<S>
+where
+    S: Clone,
+    L: Fn(&S, &Statement, &mut Vec<IrulesCheckWarning>) -> S,
+    D: Fn(Vec<S>) -> Vec<S>,
+{
+    let mut continuing = states.to_vec();
+    for phase in phases {
+        let mut captured = Vec::new();
+        continuing = if phase.abrupt == crate::execution_region::RegionTarget::Exit {
+            walk_flow(&phase.script, &continuing, fd, Some(&mut captured))
+        } else {
+            walk_flow(&phase.script, &continuing, fd, return_sink.as_deref_mut())
+        };
+        continuing.extend(captured);
+    }
+    continuing
 }
 
 /// The `switch` arm of [`flow_step`]: every arm body (and the default body) is
@@ -1500,33 +1689,10 @@ pub fn find_hoistable_set_warnings(
         return out;
     }
     let events = EventRegistry::build();
-    let mut write_counts = HashMap::<String, usize>::new();
-    // Count every lowered event, including one whose deeper analyses hit the
-    // complexity guard. A skipped handler is not evidence that no second write
-    // exists there.
-    for fu in cu.functions() {
-        if !fu.name.starts_with("::when::") {
-            continue;
-        }
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                match stmt {
-                    Statement::AssignConst { name, .. }
-                    | Statement::AssignExpr { name, .. }
-                    | Statement::AssignValue { name, .. }
-                    | Statement::Incr { name, .. } => {
-                        *write_counts.entry(name.clone()).or_default() += 1;
-                    }
-                    Statement::Call { defs, .. } => {
-                        for name in defs {
-                            *write_counts.entry(name.clone()).or_default() += 1;
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
+    let registry = cu.ir_module.resolved_registry();
+    let Some(write_counts) = event_mutation_counts(cu, registry) else {
+        return out;
+    };
     for fu in cu.analysable_functions() {
         let Some(event) = fu.name.strip_prefix("::when::") else {
             continue;
@@ -1538,28 +1704,38 @@ pub fn find_hoistable_set_warnings(
         let Some(block) = fu.cfg.blocks.get(&fu.cfg.entry) else {
             continue;
         };
-        for stmt in &block.statements {
-            let (name, value, span) = match stmt {
-                Statement::AssignConst {
-                    name, value, span, ..
-                }
-                | Statement::AssignValue {
-                    name, value, span, ..
-                } => (name, value, *span),
-                _ => continue,
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            crate::connection_scope::event_resolve_context(event),
+            registry,
+        );
+        for (index, stmt) in block.statements.iter().enumerate() {
+            let Some((name, value)) = hoistable_literal_assignment(stmt, registry) else {
+                continue;
+            };
+            let places = crate::place_bridge::def_places_with_continuation(
+                stmt,
+                contexts.before_statement(fu.cfg.entry, index),
+                contexts.after_statement(fu.cfg.entry, index),
+                registry,
+            );
+            let [place] = places.as_slice() else {
+                continue;
+            };
+            let Some(cell @ crate::connection_scope::EventCell::Connection(_)) =
+                crate::connection_scope::cell_from_place(place)
+            else {
+                continue;
             };
             if name.is_empty()
                 || value.is_empty()
-                || name.contains('(')
-                || name.contains("::")
-                || write_counts.get(name) != Some(&1)
+                || place.observed
+                || place.kind != crate::place::PlaceKind::Scalar
+                || write_counts.get(&cell) != Some(&1)
             {
                 continue;
             }
-            // Skip dynamic values — `$x` / `[cmd]` interpolation.
-            if value.contains('$') || value.contains('[') {
-                continue;
-            }
+            let span = stmt.span();
             out.push(IrulesCheckWarning {
                 span: fu.abs_span(span),
                 code: DiagCode::Irule4004,
@@ -1572,6 +1748,71 @@ pub fn find_hoistable_set_warnings(
         }
     }
     out
+}
+
+/// Count physical mutations rather than displayed operands. An unbounded
+/// mutation cannot prove that another event leaves a proposed destination alone.
+fn event_mutation_counts(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> Option<HashMap<crate::connection_scope::EventCell, usize>> {
+    let mut counts = HashMap::new();
+    for fu in cu.functions() {
+        if !fu.name.starts_with("::when::") {
+            continue;
+        }
+        let event = crate::ir::when_event_name(&fu.name);
+        let contexts = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &fu.cfg,
+            crate::connection_scope::event_resolve_context(event),
+            registry,
+        );
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, stmt) in block.statements.iter().enumerate() {
+                for place in crate::place_bridge::statement_mutation_places_with_continuation(
+                    stmt,
+                    contexts.before_statement(id, index),
+                    contexts.after_statement(id, index),
+                    registry,
+                ) {
+                    let cell = crate::connection_scope::cell_from_place(&place)?;
+                    *counts.entry(cell).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    Some(counts)
+}
+
+fn hoistable_literal_assignment(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> Option<(String, String)> {
+    if let Some(tokens) = statement.tokens() {
+        let normal =
+            crate::registry_invocation::normal_representation_invocation(registry, None, tokens)?;
+        let assignment = normal.value_assignment()?;
+        let dialect = tokens
+            .source_binding
+            .as_ref()?
+            .variable_context
+            .invocation_dialect?;
+        let value = crate::registry_invocation::effective_invocation_word(
+            &assignment.value,
+            dialect.lexer_grammar.escapes,
+            dialect.word_values,
+        );
+        return match value {
+            crate::registry_invocation::EffectiveInvocationWord::Literal(value) => {
+                Some((assignment.name, value))
+            }
+            _ => None,
+        };
+    }
+    match statement {
+        Statement::AssignConst { name, value, .. } => Some((name.clone(), value.clone())),
+        _ => None,
+    }
 }
 
 // IRULE4002 — generic `static::` variable name that will collide
@@ -1726,9 +1967,7 @@ mod tests {
     use super::*;
 
     fn registry() -> CommandRegistry {
-        let mut r = CommandRegistry::build_default();
-        r.load_irules();
-        r
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules())
     }
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
@@ -1751,14 +1990,14 @@ mod tests {
     #[test]
     fn irule3102_clean_when_normalized_flag_present() {
         let w = warnings_for_irules("set u [HTTP::uri -normalized]");
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
     fn irule3102_setter_form_not_flagged() {
         // `HTTP::path /x` — first arg `/x` is non-flag → setter form → no warning.
         let w = warnings_for_irules("HTTP::path /x");
-        assert!(w.is_empty(), "expected no IRULE3102 on setter, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102 on setter, got {w:?}");
     }
 
     #[test]
@@ -1780,7 +2019,7 @@ mod tests {
         let w = warnings_for_irules(
             "when HTTP_REQUEST {\n    HTTP::respond 200 content \"static body\"\n}\n",
         );
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
@@ -1789,20 +2028,24 @@ mod tests {
         let w = warnings_for_irules(
             "when HTTP_REQUEST {\n    HTTP::respond 200 content [HTTP::uri -normalized]\n}\n",
         );
-        assert!(w.is_empty(), "expected no IRULE3102, got {w:?}");
+        assert_eq!(w.len(), 0, "expected no IRULE3102, got {w:?}");
     }
 
     #[test]
     fn irule3102_non_irules_dialect_returns_empty() {
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false);
-        assert!(find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty());
-        assert!(
+        assert_eq!(
+            find_unnormalised_getter_warnings(&cu, &registry(), None),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
+        assert_eq!(
             find_unnormalised_getter_warnings(
                 &cu,
                 &registry(),
                 Some(SurfaceQuery::any_release(Family::Tcl))
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -1864,8 +2107,9 @@ mod tests {
             "expected IRULE3102 on HTTP::uri, got {with_uri:?}",
         );
         let with_header = warnings_for_irules("set u [HTTP::header Content-Type]");
-        assert!(
-            with_header.is_empty(),
+        assert_eq!(
+            with_header.len(),
+            0,
             "no IRULE3102 expected on HTTP::header (no -normalized), got {with_header:?}",
         );
     }
@@ -1917,10 +2161,10 @@ mod tests {
     fn irule5002_only_in_irules_dialect() {
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
         let none_dialect = find_unguarded_drop_warnings(&cu, None);
-        assert!(none_dialect.is_empty(), "got {none_dialect:?}");
+        assert_eq!(none_dialect.len(), 0, "got {none_dialect:?}");
         let tcl_dialect =
             find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::Tcl)));
-        assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
+        assert_eq!(tcl_dialect.len(), 0, "got {tcl_dialect:?}");
     }
 
     #[test]
@@ -1944,7 +2188,7 @@ mod tests {
     #[test]
     fn no_drop_warnings_for_clean_when_body() {
         let ws = drop_warnings("when CLIENT_ACCEPTED { log local0. \"connection open\" }");
-        assert!(ws.is_empty(), "got {ws:?}");
+        assert_eq!(ws.len(), 0, "got {ws:?}");
     }
 
     fn drop_codes(source: &str) -> Vec<String> {
@@ -1971,9 +2215,10 @@ mod tests {
     fn irule5002_quiet_when_every_branch_guarded() {
         // Both branches guard their drop with `return`, so no surviving path
         // is left unguarded.
-        assert!(
+        assert_eq!(
             drop_codes("when CLIENT_ACCEPTED { if {$x} { drop; return } else { reject; return } }")
-                .is_empty()
+                .len(),
+            0
         );
     }
 
@@ -2421,7 +2666,7 @@ mod tests {
         let reg = registry();
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { TCP::collect }", &reg, false);
         let none = find_collect_flow_warnings(&cu, &reg, None);
-        assert!(none.is_empty(), "got {none:?}");
+        assert_eq!(none.len(), 0, "got {none:?}");
     }
 
     // IRULE1201 / 1202
@@ -2574,20 +2819,22 @@ mod tests {
         // A respond in each arm of an if/else is NOT a double-respond — only
         // one executes per path.  The path-sensitive walk keeps the branch
         // states separate (the linear scan wrongly fired IRULE1202 here).
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
              else { HTTP::respond 404 content b } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
         // Same for mutually-exclusive switch arms.
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { switch $x { a { HTTP::respond 200 content a } \
              b { HTTP::respond 404 content b } } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -2618,12 +2865,13 @@ mod tests {
     fn irule1201_quiet_when_respond_and_use_are_exclusive() {
         // respond in one branch, an HTTP command in the *other* — no path
         // both responds and then uses HTTP, so nothing fires.
-        assert!(
+        assert_eq!(
             http_codes(
                 "when HTTP_REQUEST { if {$x} { HTTP::respond 200 content a } \
              else { HTTP::header insert Foo bar } }"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -2814,7 +3062,7 @@ mod tests {
             false,
         );
         let none = find_hoistable_set_warnings(&cu, None);
-        assert!(none.is_empty(), "got {none:?}");
+        assert_eq!(none.len(), 0, "got {none:?}");
     }
 
     // IRULE4002
@@ -2875,7 +3123,10 @@ mod tests {
             &registry(),
             false,
         );
-        assert!(find_generic_static_name_warnings(&cu, None, None).is_empty());
+        assert_eq!(
+            find_generic_static_name_warnings(&cu, None, None),
+            [] as [crate::irules_checks::IrulesCheckWarning; 0]
+        );
     }
 
     #[test]

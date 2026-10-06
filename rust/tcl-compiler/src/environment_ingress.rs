@@ -31,6 +31,48 @@ pub(crate) use tcl_registry::model::ingress::{
     DocumentEnvironment, context_for_profile, irules_context, resolve_environment,
 };
 
+/// The compiler convenience driver's native target contract. An explicitly
+/// execution release takes precedence. An exact environment-owned profile can
+/// select its separately declared execution default. An unprofiled catalogue
+/// selects the compiler's documented Tcl 9.0 target;
+/// this choice is made by the driver, never inferred by the source interpreter.
+pub(crate) fn authoring_invocation_dialect(
+    registry: &tcl_registry::CommandRegistry,
+    profile: Option<&tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
+) -> tcl_registry::InvocationDialect {
+    let mut dialect = profile.or_else(|| registry.profile()).map_or_else(
+        || tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0),
+        |profile| {
+            let selected = tcl_registry::InvocationDialect::of_profile(profile);
+            if selected.core_point.is_some() || selected.tcl_version.is_some() {
+                return selected;
+            }
+            tcl_registry::model::ingress::default_execution_point_for_profile(profile)
+                .map_or(selected, tcl_registry::InvocationDialect::of_point)
+        },
+    );
+    dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    dialect
+}
+
+/// A source document is evaluated as a file: native command selection is late.
+/// Bytecode and procedure drivers must supply their own explicit compilation entry.
+pub(crate) const fn authoring_native_compilation()
+-> tcl_registry::native_compilation::NativeCompilationContext {
+    use tcl_registry::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+    };
+    NativeCompilationContext {
+        mode: NativeCompilationMode::Direct,
+        frame: NativeCompilationFrame::ScriptCode,
+        loop_depth: 0,
+        catch_depth: Some(0),
+    }
+}
+
 /// Intern `name` as a `&'static str` — transitional plumbing for the
 /// version-gate axis, whose `Package` arm predates the model's
 /// `Arc<str>` package names. Bounded by the compiled placement
@@ -49,11 +91,155 @@ pub(crate) fn interned_package_name(name: &str) -> &'static str {
     leaked
 }
 
+/// Capture the real interpreter's original command and fixed-math entry.
+/// This attests registration only: it grants no literal-pool object class,
+/// operand effects or successful execution of the fixture being analysed.
+#[cfg(test)]
+pub(crate) fn captured_native_entry(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> tcl_runtime_api::NativeCompilationEntry {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    struct Capture(Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>);
+    impl tcl_runtime_api::CompileService for Capture {
+        type Module = tcl_bytecode::ModuleAsm;
+        fn compile_script_bytes_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            _: &'static tcl_dialect::DialectProfile,
+            _: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            Ok(tcl_runtime_api::ScriptCommandPlan::complete(source.len()))
+        }
+
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "entry capture only".into(),
+            ))
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTarget<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+    }
+
+    let captured = Rc::new(RefCell::new(None));
+    let mut vm = tcl_vm::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("authentic native registration before entry capture");
+    vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
+    assert!(vm.try_eval_source("set entry_probe 1").is_err());
+    captured
+        .borrow_mut()
+        .take()
+        .expect("actual interpreter compilation entry")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::Arc;
     use tcl_registry::model::KeyedVersions;
+
+    #[test]
+    fn authoring_target_is_explicit_and_lexical_axes_are_independent() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::for_dialect("jim");
+        let default = authoring_invocation_dialect(&registry, None, config);
+        assert_eq!(default.tcl_version, Some(tcl_dialect::TclVersion::V9_0));
+        assert_eq!(
+            default.lexer_grammar.word_separators,
+            config.word_separators
+        );
+        assert_eq!(default.numbers, tcl_dialect::NumberSyntax::Tcl90);
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let jim = authoring_invocation_dialect(&registry, Some(&profile), config);
+        assert_eq!(jim.tcl_version, None);
+        assert_eq!(jim.family(), Some(tcl_dialect::model::Family::Jim));
+        assert_eq!(jim.numbers, tcl_dialect::NumberSyntax::Jim080);
+    }
+
+    #[test]
+    fn canonical_authoring_profile_has_an_independent_native_execution_default() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let profile = resolve_environment("tcl").unit_profile();
+        assert!(
+            tcl_registry::InvocationDialect::of_profile(profile)
+                .tcl_version
+                .is_none()
+        );
+        let config = tcl_lexer::LexerConfig::default();
+        let default = authoring_invocation_dialect(&registry, Some(profile), config);
+        assert_eq!(default.tcl_version, Some(tcl_dialect::TclVersion::V9_0));
+
+        let mut custom = profile.clone();
+        custom.display_name = "Custom unversioned interpreter";
+        let unknown = authoring_invocation_dialect(&registry, Some(&custom), config);
+        assert_eq!(unknown.tcl_version, None);
+        assert_eq!(unknown.core_point, None);
+
+        let explicit = resolve_environment("tcl8.6").unit_profile();
+        let pinned = authoring_invocation_dialect(&registry, Some(explicit), config);
+        assert_eq!(pinned.tcl_version, Some(tcl_dialect::TclVersion::V8_6));
+    }
+
+    #[test]
+    fn explicit_source_options_do_not_inherit_the_convenience_target() {
+        use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let config = tcl_lexer::LexerConfig::default();
+        let source = "set x 1";
+        let default = SourceCommandBindings::analyse(source, config, &registry);
+        let explicit = SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            &registry,
+            SourceAnalysisOptions::default(),
+        );
+        assert_eq!(
+            default
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect
+                .and_then(|d| d.tcl_version),
+            Some(tcl_dialect::TclVersion::V9_0),
+        );
+        assert_eq!(
+            explicit
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect,
+            None
+        );
+    }
 
     #[test]
     fn names_resolve_as_the_old_ingress_did() {

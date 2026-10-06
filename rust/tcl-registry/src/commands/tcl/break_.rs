@@ -33,6 +33,11 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Break];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "break",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Break,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

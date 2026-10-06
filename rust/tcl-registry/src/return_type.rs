@@ -80,6 +80,70 @@ pub(crate) fn resolve(
     }
 }
 
+/// Project result representation from exact retained slots, without inventing
+/// strings for dynamic operands. The option owner decides where literal
+/// switches stop; positional values need not be known to select a result kind.
+pub(crate) fn resolve_arguments(
+    hook: ReturnTypeHookId,
+    args: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<TclType> {
+    let count = args.exact_argv_len()?;
+    let available = options.available().cloned().collect::<Vec<_>>();
+    let prefix = (0..count)
+        .map_while(|index| args.literal_at(index))
+        .collect::<Vec<_>>();
+    let option_end = count
+        .saturating_sub(options.reserved_trailing_words)
+        .min(prefix.len());
+    let scanned = crate::spec::leading_option_word_count_with(
+        &available,
+        &prefix[..option_end],
+        options.prefix_matching,
+    );
+    if scanned > prefix.len() {
+        return None;
+    }
+    let mut selected = Vec::new();
+    let mut index = 0;
+    let mut terminated = false;
+    while index < scanned {
+        if prefix[index] == "--" {
+            terminated = true;
+            break;
+        }
+        let option = crate::spec::resolve_option_prefix_with(
+            &available,
+            prefix[index],
+            options.prefix_matching,
+        )?;
+        selected.push(option.name);
+        index += 1 + option.value_word_count_for_arguments(args, index)?;
+    }
+    if !terminated
+        && scanned < option_end
+        && prefix[scanned].starts_with('-')
+        && prefix[scanned].len() > 1
+    {
+        return None;
+    }
+    let closed_options = scanned < prefix.len()
+        || terminated
+        || scanned == count.saturating_sub(options.reserved_trailing_words);
+    match hook {
+        ReturnTypeHookId::Regexp => regexp_selected_type(&selected, closed_options),
+        ReturnTypeHookId::Lsearch => lsearch_selected_type(&selected, closed_options),
+        ReturnTypeHookId::Regsub if closed_options => match count.checked_sub(scanned)? {
+            3 => Some(TclType::String),
+            4 => Some(TclType::Int),
+            _ => None,
+        },
+        ReturnTypeHookId::Scan => (count > 2).then_some(TclType::Int),
+        ReturnTypeHookId::Pid => (count == 0).then_some(TclType::Int),
+        ReturnTypeHookId::Regsub => None,
+    }
+}
+
 /// `regexp ?switches? exp string ?matchVar ...?`.
 ///
 /// `-about` skips matching entirely and always returns the two-element
@@ -92,17 +156,20 @@ pub(crate) fn resolve(
 ///
 /// Everything else is the 0/1 flag, or the count under `-all`.
 fn regexp(spec: &CommandSpec, args: &[&str]) -> Option<TclType> {
-    let switches = spec.leading_switch_names(args);
+    regexp_selected_type(
+        &spec.leading_switch_names(args),
+        switches_are_certain(spec, args),
+    )
+}
+
+fn regexp_selected_type(switches: &[&str], certain: bool) -> Option<TclType> {
     if switches.contains(&"-about") {
         return Some(TclType::List);
     }
     if switches.contains(&"-inline") {
         return None;
     }
-    if !switches_are_certain(spec, args) {
-        return None;
-    }
-    Some(TclType::Int)
+    certain.then_some(TclType::Int)
 }
 
 /// `lsearch ?options? list pattern`.
@@ -122,18 +189,20 @@ fn regexp(spec: &CommandSpec, args: &[&str]) -> Option<TclType> {
 ///   others it *is* guaranteed a list: the no-match answer is `-1 0`, not a
 ///   bare `-1`.
 fn lsearch(spec: &CommandSpec, args: &[&str]) -> Option<TclType> {
-    let switches = spec.leading_switch_names(args);
-    let given = |name: &'static str| switches.contains(&name);
-    if given("-all") || given("-inline") {
+    lsearch_selected_type(
+        &spec.leading_switch_names(args),
+        switches_are_certain(spec, args),
+    )
+}
+
+fn lsearch_selected_type(switches: &[&str], certain: bool) -> Option<TclType> {
+    if switches.contains(&"-all") || switches.contains(&"-inline") {
         return None;
     }
-    if given("-subindices") {
+    if switches.contains(&"-subindices") {
         return Some(TclType::List);
     }
-    if !switches_are_certain(spec, args) {
-        return None;
-    }
-    Some(TclType::Int)
+    certain.then_some(TclType::Int)
 }
 
 /// `regsub ?switches? exp string subSpec ?varName?`.
@@ -215,12 +284,17 @@ fn is_dynamic(word: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::CommandRegistry;
     use crate::types::TclType;
 
     fn returns(command: &str, args: &[&str]) -> Option<TclType> {
-        CommandRegistry::build_default()
-            .get(command)
+        let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
+        registry
+            .get_for_surface(
+                command,
+                registry.profile().and_then(|profile| {
+                    crate::InvocationDialect::of_profile(profile).authoring_query()
+                }),
+            )
             .expect("command is registered")
             .return_type_for_call(args)
     }

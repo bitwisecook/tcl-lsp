@@ -1,0 +1,32 @@
+{
+  "command": [
+    "cc",
+    "-I",
+    "/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-command-jim-engine/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/2286-command-jim-engine/probe"
+  ],
+  "sources": {
+    "/workspace/.proofs/2286-command-jim-regexp/probe.c": "dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e",
+    "/tmp/2286-oracles/jimtcl/jim-regexp.c": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jimregexp.c": "97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf",
+    "/tmp/2286-oracles/jimtcl/jimregexp.h": "0d23cc41b3f40be1545deb96b42fca290f0b6e80bb0710b4476dbc33a8b02e49",
+    "/tmp/2286-oracles/jimtcl/utf8.c": "905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jimautoconf.h": "c72023de18863d3d368bbb135692e92848cc79b5a49ed96cc68cf97b8fd49e89",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/workspace/.proofs/2286-command-jim-regexp/probe": "ee57f547d7d45cb3ed4c065af67784ba467993b8933e1cce40f0024204a39c70"
+  },
+  "source_sha256": "c2eb3a6c97d6b3d638ec84c908545d1538e081a081b598315342fed546ed396f",
+  "compile_exit": 0,
+  "stderr": "",
+  "binary_sha256": "9b704d15aa2e0e146cb9dc811971944ce725cb415f1ecf930e8fa0de5dec50c1"
+}

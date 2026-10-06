@@ -779,12 +779,14 @@ pub fn encode_output_bytes(bytes: &[u8], newline: bool, config: ChannelConfig) -
 /// prefix has been written, preserving the structured error code.
 #[must_use]
 pub fn channel_output_error(name: &str, error: CmdError) -> CmdError {
-    let (message, code) = error.into_parts();
-    let message = format!("error writing \"{name}\": {message}");
-    match code {
-        Some(code) => CmdError::with_error_code(message, code),
-        None => CmdError::new(message),
+    if error.native_access_refusal().is_some() {
+        return error;
     }
+    let mut details = error.into_byte_details();
+    let mut message = format!("error writing \"{name}\": ").into_bytes();
+    message.extend_from_slice(&details.message);
+    details.message = message;
+    CmdError::from_byte_details(details)
 }
 
 #[cfg(test)]
@@ -824,8 +826,8 @@ mod tests {
         let output = encode_output("A\u{178}B", true, config);
         assert_eq!(output.bytes, b"A");
         let error = output.error.expect("strict conversion failure");
-        assert_eq!(error.message(), EILSEQ_REASON);
-        assert_eq!(error.error_code(), Some(EILSEQ_ERROR_CODE));
+        assert_eq!(error.message().unwrap(), EILSEQ_REASON);
+        assert_eq!(error.error_code().unwrap(), Some(EILSEQ_ERROR_CODE));
     }
 
     #[test]
@@ -845,8 +847,11 @@ mod tests {
     fn system_and_channel_encoding_errors_retain_tcl_identity() {
         assert_eq!(resolve_system_encoding(""), Ok(SystemEncoding::Iso88591));
         let system = resolve_system_encoding("bogus").expect_err("unknown system encoding");
-        assert_eq!(system.message(), "unknown encoding \"bogus\"");
-        assert_eq!(system.error_code(), Some("TCL LOOKUP ENCODING bogus"));
+        assert_eq!(system.message().unwrap(), "unknown encoding \"bogus\"");
+        assert_eq!(
+            system.error_code().unwrap(),
+            Some("TCL LOOKUP ENCODING bogus")
+        );
 
         let mut config = ChannelConfig::file(
             TclVersion::V9_0,
@@ -854,18 +859,26 @@ mod tests {
             ChannelDirection::Output,
         );
         let profile = config.set_profile("bogus").expect_err("unknown profile");
-        assert_eq!(profile.error_code(), Some("TCL ENCODING PROFILE bogus"));
+        assert_eq!(
+            profile.error_code().unwrap(),
+            Some("TCL ENCODING PROFILE bogus")
+        );
         let binary = config
             .set_encoding(TclVersion::V9_0, "binary")
             .expect_err("Tcl 9 removed binary encoding");
-        assert!(binary.message().contains("-translation binary"));
-        assert_eq!(binary.error_code(), None);
+        assert!(binary.message().unwrap().contains("-translation binary"));
+        assert_eq!(binary.error_code().unwrap(), None);
         let empty = config
             .set_encoding(TclVersion::V9_0, "")
             .expect_err("Tcl 9 removed the empty binary encoding");
-        assert!(empty.message().starts_with("unknown encoding \"\""));
-        assert!(empty.message().contains("-translation binary"));
-        assert_eq!(empty.error_code(), None);
+        assert!(
+            empty
+                .message()
+                .unwrap()
+                .starts_with("unknown encoding \"\"")
+        );
+        assert!(empty.message().unwrap().contains("-translation binary"));
+        assert_eq!(empty.error_code().unwrap(), None);
 
         let mut eight = config;
         eight
@@ -893,20 +906,22 @@ mod tests {
 
         let illegal =
             resolve_open_access_mode(TclVersion::V9_0, "brw").expect_err("illegal simple mode");
-        assert_eq!(illegal.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(illegal.error_code().unwrap(), Some("TCL OPENMODE INVALID"));
         let unknown = resolve_open_access_mode(TclVersion::V9_0, "WRONLY BAD")
             .expect_err("unknown list flag");
-        assert_eq!(unknown.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(unknown.error_code().unwrap(), Some("TCL OPENMODE INVALID"));
         assert!(
             resolve_open_access_mode(TclVersion::V9_0, "RDONLY WRONLY")
                 .expect_err("conflicting list flags")
                 .message()
+                .unwrap()
                 .contains("cannot be combined")
         );
         assert_eq!(
             resolve_open_access_mode(TclVersion::V9_0, "BINARY")
                 .expect_err("missing direction")
-                .message(),
+                .message()
+                .unwrap(),
             "access mode must include either RDONLY, RDWR, or WRONLY"
         );
 
@@ -916,14 +931,20 @@ mod tests {
         assert!(eight.is_writable());
         let eight_unknown = resolve_open_access_mode(TclVersion::V8_6, "WRONLY BAD")
             .expect_err("unknown Tcl 8 list flag");
-        assert_eq!(eight_unknown.error_code(), None);
+        assert_eq!(eight_unknown.error_code().unwrap(), None);
 
         let malformed_nine = resolve_open_access_mode(TclVersion::V9_0, "{RDONLY")
             .expect_err("malformed Tcl 9 access list");
-        assert_eq!(malformed_nine.error_code(), Some("TCL OPENMODE INVALID"));
+        assert_eq!(
+            malformed_nine.error_code().unwrap(),
+            Some("TCL OPENMODE INVALID")
+        );
         let malformed_eight = resolve_open_access_mode(TclVersion::V8_6, "{RDONLY")
             .expect_err("malformed Tcl 8 access list");
-        assert_eq!(malformed_eight.error_code(), Some("TCL VALUE LIST BRACE"));
+        assert_eq!(
+            malformed_eight.error_code().unwrap(),
+            Some("TCL VALUE LIST BRACE")
+        );
     }
 
     #[test]

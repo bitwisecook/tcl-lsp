@@ -38,7 +38,9 @@ enum LiteralBinding {
 
 /// Result of the CFG+SSA flow-sensitive analysis.
 ///
-/// `ssa_tags` is the authoritative per-version result;
+/// `ssa_tags` records conservative frame-storage hazards under legacy
+/// name/version keys. It does not prove physical cell equality or a value
+/// dependency; those require the shared point-aware SSA/place owners.
 /// `name_tags` collapses to per-name (a name is `Frame` if any of
 /// its versions was tagged `Frame`).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -223,7 +225,21 @@ impl CfgState {
         defs: &HashMap<String, Version>,
         reason: crate::var_escape::types::EscapeReason,
     ) {
-        if name.is_empty() || is_dynamic_name(name) {
+        if is_dynamic_name(name) {
+            return;
+        }
+        self.escape_resolved_name_with_reason(name, defs, reason);
+    }
+
+    /// Tag a registry-proved literal binding name, including literal dollar signs.
+    /// This accepts evaluated name values, rather than source substitution text.
+    pub fn escape_resolved_name_with_reason(
+        &mut self,
+        name: &str,
+        defs: &HashMap<String, Version>,
+        reason: crate::var_escape::types::EscapeReason,
+    ) {
+        if name.is_empty() {
             return;
         }
         let version = self.version_for(name, defs);

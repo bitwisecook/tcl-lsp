@@ -64,6 +64,105 @@ struct CountingCompilerSvc {
 
 impl CompileService for CountingCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        BytecodeCompileService::for_profile(profile)
+            .compile_script_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.calls.set(self.calls.get() + 1);
+        BytecodeCompileService::for_profile(profile)
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.compile_for_profile(src, DialectProfile::plain_tcl())
@@ -94,6 +193,124 @@ struct FixedFallbackCompilerSvc;
 
 impl CompileService for FixedFallbackCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        if !profile.is_fallback() {
+            return Err(tcl_runtime_api::CompileError::Unsupported(format!(
+                "CompileService does not support dialect profile {}",
+                profile.name
+            )));
+        }
+        tcl_compiler::compile_service::BytecodeCompileService::default()
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         BytecodeCompileService::default().compile(src)
@@ -109,7 +326,7 @@ impl CompileService for FixedFallbackCompilerSvc {
             BytecodeCompileService::default()
                 .compile_procedure_for_profile(target, profile, dispatch)
         } else {
-            Err(CompileError(format!(
+            Err(CompileError::Unsupported(format!(
                 "CompileService does not support dialect profile {}",
                 profile.name
             )))
@@ -121,6 +338,82 @@ struct WrongProfileCompilerSvc;
 
 impl CompileService for WrongProfileCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_script_bytes_for_profile(target, wrong)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_script_bytes_for_profile(target, wrong)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_plain_script_bytes_for_profile(target, wrong)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_plain_script_bytes_for_profile(target, wrong)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_procedure_bytes_for_profile(target, wrong, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let wrong = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(wrong)
+            .compile_procedure_bytes_for_profile(target, wrong, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         BytecodeCompileService::for_profile(
@@ -156,7 +449,12 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
     fixed.set_dialect_profile(v84);
     fixed.set_compiler(Box::new(FixedFallbackCompilerSvc));
     assert_eq!(
-        fixed.eval_source("set x 1").unwrap_err().message,
+        fixed
+            .eval_source("set x 1")
+            .unwrap_err()
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "CompileService does not support dialect profile tcl8.4"
     );
 
@@ -167,7 +465,9 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
         mislabelled
             .compile_function("lassign {a b} x")
             .unwrap_err()
-            .message,
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "bytecode compiled for dialect profile tcl8.5 cannot run under tcl8.4"
     );
 }
@@ -302,7 +602,7 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
     let svc = BytecodeCompileService::for_profile(profile);
     let asm = match svc.compile(src) {
         Ok(asm) => asm,
-        Err(e) => return e.0,
+        Err(e) => return e.to_string(),
     };
     let cap = Capture::default();
     let mut vm = Vm::with_output(Box::new(cap.clone()));

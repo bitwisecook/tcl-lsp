@@ -56,6 +56,10 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
         return script.clone();
     }
     Script {
+        namespace_context: script.namespace_context.clone(),
+        executed_source: script.executed_source.clone(),
+        implicit_math_invocations: script.implicit_math_invocations.clone(),
+        expression_preparations: script.expression_preparations.clone(),
         statements: script
             .statements
             .iter()
@@ -63,6 +67,8 @@ pub(super) fn rewrite_script(script: &Script, rename: &HashMap<String, String>) 
             .collect(),
         command_binding_sites: script.command_binding_sites.clone(),
         procedure_binding_requirements: script.procedure_binding_requirements.clone(),
+        native_compilation_failure: script.native_compilation_failure.clone(),
+        native_compilation_admission: script.native_compilation_admission.clone(),
     }
 }
 
@@ -124,7 +130,7 @@ fn rewrite_stmt(stmt: &Statement, rename: &HashMap<String, String>) -> Statement
         // Barrier never appears in a v3-eligible body (it isn't
         // splice-eligible, so `_v3_eligible` rejects the proc). Pass
         // through unchanged for completeness.
-        Statement::Barrier { .. } => stmt.clone(),
+        Statement::Barrier { .. } | Statement::NativeCall { .. } => stmt.clone(),
     }
 }
 
@@ -245,10 +251,12 @@ fn rewrite_call_like(stmt: &Statement, rename: &HashMap<String, String>) -> Stat
             braced,
             ..
         } => Statement::Return {
+            tokens: None,
             span: *span,
             value: value.as_ref().map(|v| rewrite_value_string(v, rename)),
             value_word: None,
             expr: expr.as_ref().map(|e| rewrite_expr(e, rename)),
+            expr_base: None,
             command_binding: command_binding.clone(),
             braced: *braced,
         },

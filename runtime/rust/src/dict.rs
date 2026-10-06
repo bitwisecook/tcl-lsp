@@ -16,51 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The Tcl **dict** value type — an *insertion-ordered* map.
+//! Dictionary values retain original key and value objects in insertion order.
+//! The byte-keyed index provides lookup; the retained native hash-order state
+//! describes table growth independently of that lookup index. A dictionary
+//! owns one native reference to each key and value. Prepared mutation receipts
+//! select COW before retaining a working owner and preserve that decision
+//! throughout a nested path update.
 //!
-//! ## Representation decision (evidence-based; experiment in
-//! `experiments/dict_rep.rs`)
-//!
-//! A dict needs **by-key** get/set (hot, incl. `dict set` build loops) **and
-//! insertion-ordered** iteration (`dict keys`/`dict for`/`dict values`, Tcl
-//! 8.5+). Canonical Tcl (`tclDictObj.c`) uses a hash table + an intrusive
-//! insertion-order linked list. The internal rep is **free to choose** (see the
-//! C-extension note below), so the choice was made by **benchmarking five
-//! candidates compiled to WASM under wasmtime** (the real target). At N=65536
-//! on wasm: a linear `Vec` is out (O(n²) build = 23.5 s); sort-on-iterate
-//! candidates iterate 18–60× slower than a maintained-order `Vec`; and an
-//! ordered `Vec` + a fixed-hash index won on **every** axis (build 15 ms,
-//! lookup 14 ms, iterate 68 µs).
-//!
-//! So the backing is [`TclDict`]: an **insertion-ordered `Vec` of (key, value)
-//! object pairs** (O(n) ordered iteration, no sort) + a **`HashMap<key-bytes,
-//! index>` with a fixed FNV hasher** (O(1) by-key). Output order == `Vec` order,
-//! so it is fully **deterministic** even though the hash index is unordered (we
-//! never iterate the hash for output). Zero external deps. Hung off
-//! `internalRep`; the dict owns a `+1` on every key **and** value object.
-//!
-//! ## Compatible with C extensions
-//!
-//! Yes. The dict C API (`Tcl_DictObjGet`/`Put`/`Remove`/`First`/`Next`) is
-//! **function-mediated**: unlike `Tcl_HashTable` (embedded by value, buckets
-//! walked directly — a layout contract), no extension ever observes a dict's
-//! internal structure, so the rep is free to choose (the methodology's shim
-//! escape-hatch). The two ABI touch-points are honoured:
-//! - keys/values cross as `Tcl_Obj *` — we store the **key objects** (not just
-//!   their bytes), so `Tcl_DictObjFirst` can hand back the original key object;
-//!   the byte-keyed index is just for lookup (dicts compare keys by string).
-//! - `Tcl_DictObjFirst`/`Next` iterate via an opaque `Tcl_DictSearch` struct the
-//!   runtime fills — when that C API lands it carries a `Vec` index + an `epoch`
-//!   (added then) for modify-during-iteration detection; insertion order is
-//!   exactly what this `Vec` provides.
-//!
-//! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
+//! See `list.rs` for the pointer-argument safety contract.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use std::collections::HashMap;
+use std::cell::Cell;
+use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasherDefault, Hasher};
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
+use tcl_syntax::native_string::NativeStringProtocol;
+use tcl_syntax::value::ValueError;
 
 use crate::obj::{self, TclObj, TclObjType};
 
@@ -92,6 +64,7 @@ struct TclDict {
     entries: Vec<(*mut TclObj, *mut TclObj)>,
     index: Index,
     hash_order: TclStringHashOrder,
+    string_protocol: Cell<Option<NativeStringProtocol>>,
 }
 
 impl TclDict {
@@ -159,86 +132,58 @@ extern "C" fn dict_dup(src: *mut TclObj, dup: *mut TclObj) {
             entries,
             index,
             hash_order,
+            string_protocol: s.string_protocol.clone(),
         });
         obj::change_type(dup, &TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64);
     }
 }
 
-extern "C" fn dict_update_string(obj: *mut TclObj) {
-    // SAFETY: every nested dict is given its string rep first, so the
-    // single-level generation below reads them rather than re-entering here.
-    unsafe {
-        generate_nested_string_reps(obj);
-        write_dict_string_rep(obj);
+extern "C" fn dict_update_string(value: *mut TclObj) {
+    if let Some(protocol) = native_string_protocol(value) {
+        let _ = native_object_bytes(value, protocol);
     }
 }
 
-/// Whether `obj` is a dict that would have to generate a string rep.
-fn needs_dict_string_rep(obj: *mut TclObj) -> bool {
-    obj::obj_type_ptr(obj) == &TCL_DICT_TYPE && !obj::has_string_rep(obj)
+/// Selected recipe retained by this actual Dictionary backing.
+pub(crate) fn native_string_protocol(value: *mut TclObj) -> Option<NativeStringProtocol> {
+    (obj::obj_type_ptr(value) == &TCL_DICT_TYPE)
+        .then(|| unsafe { dict_ref(value) }.string_protocol.get())
+        .flatten()
 }
 
-/// Give every dict nested inside `root` a string rep, deepest first.
-///
-/// A dict value that is itself a dict makes `write_dict_string_rep` reach it
-/// through `bytes_of`, which re-enters this type's update-string proc — one
-/// native frame per level. The nesting depth is attacker-controlled (`dict
-/// set d {*}[lrepeat N k] v` builds a chain N deep through `{*}` argument
-/// expansion), so the walk is an explicit stack rather than recursion, which
-/// removes the crash class instead of merely bounding it — the same shape,
-/// and for the same reason, as `dict_path_set` in `cmd_dict`.
-///
-/// Values are acyclic: a dict is only ever built from values that already
-/// exist, so no entry can reach its own container.
-///
-/// # Safety
-/// `root` must be a live dict object, as must every object it holds.
-unsafe fn generate_nested_string_reps(root: *mut TclObj) {
-    // (object, children already pushed) — post-order, so a dict is written
-    // only once every dict below it has its string rep.
-    let mut stack: Vec<(*mut TclObj, bool)> = vec![(root, false)];
-    while let Some((current, expanded)) = stack.pop() {
-        if expanded {
-            if current != root {
-                // SAFETY: `current` is a live dict reached from `root`, and
-                // every dict below it has been written already.
-                unsafe { write_dict_string_rep(current) };
-            }
-            continue;
-        }
-        stack.push((current, true));
-        // SAFETY: `current` carries the dict internal rep.
-        for &(k, v) in unsafe { dict_ref(current) }.entries.iter() {
-            for entry in [k, v] {
-                if needs_dict_string_rep(entry) {
-                    stack.push((entry, false));
-                }
-            }
-        }
+/// Retain a selected recipe before any original-member string conversion.
+pub(crate) fn seal_string_protocol(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<(), ValueError> {
+    if obj::obj_type_ptr(value) != &TCL_DICT_TYPE {
+        return Ok(());
     }
+    let retained = &unsafe { dict_ref(value) }.string_protocol;
+    if retained.get().is_some_and(|existing| existing != protocol) {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "native Dictionary string recipe origin",
+        ));
+    }
+    retained.set(Some(protocol));
+    Ok(())
 }
 
-/// Write `key value key value …` for one dict, reading its entries' existing
-/// string reps.
-///
-/// # Safety
-/// `obj` must be a live dict object.
-unsafe fn write_dict_string_rep(obj: *mut TclObj) {
-    // SAFETY: regenerate `key value key value …` with list-element quoting.
-    unsafe {
-        let mut buf: Vec<u8> = Vec::new();
-        for (i, (k, v)) in dict_ref(obj).entries.iter().enumerate() {
-            if i > 0 {
-                buf.push(b' ');
-            }
-            // Only the very first element of the flattened list quotes a
-            // leading `#` (the comment-safety rule applies to list position 0).
-            crate::list::append_list_element(&mut buf, &obj::bytes_of(*k), i == 0);
-            buf.push(b' ');
-            crate::list::append_list_element(&mut buf, &obj::bytes_of(*v), false);
-        }
-        obj::set_string_rep(obj, &buf);
+/// Original member pointers; copying this inventory adds no native references.
+fn compound_members(value: *mut TclObj) -> Result<Option<Vec<*mut TclObj>>, ValueError> {
+    if let Some(backing) = crate::list::native_list_backing(value) {
+        return Ok(Some(backing.elements()?.to_vec()));
     }
+    if obj::obj_type_ptr(value) == &TCL_DICT_TYPE {
+        return Ok(Some(
+            unsafe { dict_ref(value) }
+                .entries
+                .iter()
+                .flat_map(|(key, value)| [*key, *value])
+                .collect(),
+        ));
+    }
+    Ok(None)
 }
 
 // shimmer
@@ -280,9 +225,310 @@ fn ensure_dict(obj: *mut TclObj) -> Result<(), DictError> {
         entries,
         index,
         hash_order,
+        string_protocol: Cell::new(None),
     });
     obj::change_type(obj, &TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64);
     Ok(())
+}
+
+/// Checked original string access through the physical object's retained updater.
+pub(crate) fn native_object_bytes(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<Vec<u8>, ValueError> {
+    native_object_bytes_with_integer_formatter(value, protocol, None)
+}
+
+/// Checked actual-build formatting, propagated through original compounds.
+pub(crate) fn native_object_bytes_with_integer_formatter(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+    formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
+) -> Result<Vec<u8>, ValueError> {
+    let mut pending = vec![(value, false)];
+    while let Some((current, expanded)) = pending.pop() {
+        obj::check_native_liveness(current)?;
+        if obj::native_instruction_name::cache(current)
+            .is_some_and(|name| protocol != NativeStringProtocol::C(name.version()))
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "foreign instruction-name updater",
+            ));
+        }
+        if obj::has_string_rep(current) {
+            continue;
+        }
+        if let Some(members) = compound_members(current)? {
+            crate::list::seal_string_protocol(current, protocol)?;
+            seal_string_protocol(current, protocol)?;
+            if !expanded {
+                pending.push((current, true));
+                pending.extend(members.into_iter().rev().map(|member| (member, false)));
+                continue;
+            }
+            let elements: Vec<_> = members.into_iter().map(obj::bytes_of).collect();
+            let bytes =
+                tcl_syntax::list_result::NativeListResultSerialization::for_string_protocol(
+                    protocol,
+                )
+                .render(&elements);
+            if obj::obj_type_ptr(current) == &crate::list::TCL_LIST_TYPE {
+                crate::list::install_native_string(current, &bytes, protocol);
+            } else {
+                // SAFETY: the original Dictionary still owns its live backing.
+                unsafe {
+                    obj::set_native_updater_string_rep(current, &bytes, protocol.compound_updater_storage() == tcl_syntax::native_string::NativeStringStorageIdentity::CanonicalEmpty)
+                };
+            }
+            continue;
+        }
+        if crate::native_arithseries::is_series(current) {
+            drop(crate::native_arithseries::materialize_string(
+                current, protocol,
+            )?);
+            continue;
+        }
+        if protocol == NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4) {
+            let scalar = match obj::native_scalar_cache(current)? {
+                Some(tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(value)) => {
+                    Some((tcl_platform::NativeIntegerKind::Long, value))
+                }
+                Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(
+                    tcl_syntax::number::Number::Int(value),
+                )) => Some((tcl_platform::NativeIntegerKind::Wide, value)),
+                _ => None,
+            };
+            if let Some((kind, value)) = scalar {
+                if let Some(formatter) = formatter {
+                    if formatter.build().version[..2] != [8, 4] {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "native integer formatter build",
+                        ));
+                    }
+                    let bytes = formatter.format(kind, value).map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("native integer formatter operation")
+                    })?;
+                    // SAFETY: current is the original live object and the native
+                    // updater supplied its complete counted bytes. C84 allocates.
+                    unsafe { obj::set_native_updater_string_rep(current, &bytes, false) };
+                    continue;
+                }
+                if value == i64::MIN {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "C Tcl 8.4 minimum integer string formatter",
+                    ));
+                }
+            }
+        }
+        if !obj::native_string_available(current) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native object string updater",
+            ));
+        }
+        if obj::obj_type_ptr(current) == &crate::bytearray::TCL_BYTE_ARRAY_TYPE
+            && crate::bytearray::native_string_protocol(current) != Some(protocol)
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native binary string recipe origin",
+            ));
+        }
+        if core::ptr::eq(obj::obj_type_ptr(current), &obj::TCL_DOUBLE_TYPE) {
+            let policy = match protocol {
+                NativeStringProtocol::C(version) => {
+                    tcl_dialect::DoubleStringPolicy::for_tcl_version(version)
+                }
+                NativeStringProtocol::Jim084 => tcl_dialect::DoubleStringPolicy::JimTwelve,
+            };
+            let format = policy
+                .format(obj::double_precision(policy))
+                .expect("validated native precision");
+            let bytes = tcl_syntax::number::format_double_native_selected(
+                obj::double_of(current),
+                policy,
+                format,
+            );
+            // SAFETY: the selected updater installs this live Double's spelling.
+            unsafe { obj::set_native_updater_string_rep(current, bytes.as_bytes(), false) };
+        }
+        drop(obj::bytes_of(current));
+        if !obj::has_string_rep(current) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native object string updater",
+            ));
+        }
+    }
+    Ok(obj::bytes_of(value))
+}
+
+/// Convert using the actual native dictionary door, preserving member objects
+/// and the cache reached before a parse failure.
+pub(crate) fn ensure_dict_native(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<(), ValueError> {
+    seal_string_protocol(value, protocol)?;
+    if obj::obj_type_ptr(value) == &TCL_DICT_TYPE {
+        return Ok(());
+    }
+    let cached_list = obj::obj_type_ptr(value) == &crate::list::TCL_LIST_TYPE;
+    if protocol.is_jim084() && cached_list && obj::is_shared(value) {
+        native_object_bytes(value, protocol)?;
+    }
+    let members: Vec<obj::Owned> = if cached_list || protocol.is_jim084() {
+        // Jim converts to List before validating an even count; C reuses an
+        // existing List but does not install one on its string-parse path.
+        if !cached_list {
+            native_object_bytes(value, protocol)?;
+        }
+        crate::list::list_elements_native_checked(value, protocol)?
+            .into_iter()
+            .map(obj::Owned::retain)
+            .collect()
+    } else {
+        let bytes = native_object_bytes(value, protocol)?;
+        match tcl_syntax::list::split_native_list_bytes(&bytes, protocol) {
+            Ok(members) => members
+                .iter()
+                .map(|bytes| obj::Owned::fresh(obj::new_string_bytes(bytes)))
+                .collect(),
+            Err(error) => {
+                return Err(ValueError::DictionaryParse {
+                    error,
+                    source: bytes,
+                });
+            }
+        }
+    };
+    if members.len() % 2 != 0 {
+        return Err(ValueError::MissingDictionaryValue);
+    }
+    let mut entries: Vec<(*mut TclObj, *mut TclObj)> = Vec::with_capacity(members.len() / 2);
+    let mut index = Index::default();
+    let mut hash_order = TclStringHashOrder::default();
+    let mut keys = Vec::with_capacity(members.len() / 2);
+    for pair in members.chunks_exact(2) {
+        keys.push(native_object_bytes(pair[0].as_ptr(), protocol)?);
+    }
+    let duplicate_keys = keys.iter().collect::<HashSet<_>>().len() != keys.len();
+    if cached_list && !protocol.is_jim084() && duplicate_keys {
+        native_object_bytes(value, protocol)?;
+    }
+    for (pair, key) in members.chunks_exact(2).zip(keys) {
+        let (k, v) = (pair[0].as_ptr(), pair[1].as_ptr());
+        if let Some(&position) = index.get(&key) {
+            unsafe {
+                obj::incr_ref_count(v);
+                obj::decr_ref_count(entries[position].1);
+            }
+            entries[position].1 = v;
+        } else {
+            unsafe {
+                obj::incr_ref_count(k);
+                obj::incr_ref_count(v);
+            }
+            hash_order.insert(&key);
+            index.insert(key, entries.len());
+            entries.push((k, v));
+        }
+    }
+    let backing = Box::new(TclDict {
+        entries,
+        index,
+        hash_order,
+        string_protocol: Cell::new(Some(protocol)),
+    });
+    obj::change_type(
+        value,
+        &TCL_DICT_TYPE,
+        Box::into_raw(backing) as usize as u64,
+    );
+    Ok(())
+}
+
+/// Prepared native dictionary owner, retaining its original COW decision.
+pub(crate) struct PreparedNativeDictionary {
+    value: obj::Owned,
+    protocol: NativeStringProtocol,
+}
+
+impl PreparedNativeDictionary {
+    pub(crate) fn original(&self) -> *mut TclObj {
+        self.value.as_ptr()
+    }
+    pub(crate) fn prepare(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        // Observe actual ownership before creating the receipt's reference.
+        let value = match original {
+            Some(value) if obj::is_shared(value) => obj::Owned::fresh(obj::duplicate(value)),
+            Some(value) => {
+                ensure_dict_native(value, protocol)?;
+                obj::Owned::retain(value)
+            }
+            None => obj::Owned::fresh(new_dict_obj(&[])),
+        };
+        ensure_dict_native(value.as_ptr(), protocol)?;
+        Ok(Self { value, protocol })
+    }
+    pub(crate) fn prepare_after_conversion(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        if let Some(original) = original {
+            ensure_dict_native(original, protocol)?;
+        }
+        Self::prepare(original, protocol)
+    }
+
+    pub(crate) fn prepare_for_increment(
+        original: Option<*mut TclObj>,
+        protocol: NativeStringProtocol,
+    ) -> Result<Self, ValueError> {
+        let shared = original.is_some_and(obj::is_shared);
+        let prepared = Self::prepare_after_conversion(original, protocol)?;
+        if shared && protocol.tcl_version().is_some() {
+            obj::invalidate_string(prepared.value.as_ptr());
+        }
+        Ok(prepared)
+    }
+
+    pub(crate) fn with_member<R>(
+        &self,
+        key: *mut TclObj,
+        operation: impl FnOnce(Option<*mut TclObj>) -> R,
+    ) -> Result<R, ValueError> {
+        let key = native_object_bytes(key, self.protocol)?;
+        let backing = unsafe { dict_ref(self.value.as_ptr()) };
+        Ok(operation(
+            backing.position(&key).map(|i| backing.entries[i].1),
+        ))
+    }
+    pub(crate) fn set_member(
+        &mut self,
+        key: *mut TclObj,
+        value: *mut TclObj,
+    ) -> Result<(), ValueError> {
+        native_object_bytes(key, self.protocol)?;
+        dict_set(self.value.as_ptr(), key, value).expect("prepared native Dictionary cache");
+        Ok(())
+    }
+    pub(crate) fn remove_member(&mut self, key: *mut TclObj) -> Result<bool, ValueError> {
+        let key = native_object_bytes(key, self.protocol)?;
+        Ok(dict_unset(self.value.as_ptr(), &key).expect("prepared native Dictionary cache"))
+    }
+    pub(crate) fn into_value(self) -> obj::Owned {
+        self.value
+    }
+}
+
+/// Actual native dictionary members, borrowed from the converted original.
+pub(crate) fn native_dict_pairs(
+    value: *mut TclObj,
+    protocol: NativeStringProtocol,
+) -> Result<Vec<(*mut TclObj, *mut TclObj)>, ValueError> {
+    ensure_dict_native(value, protocol)?;
+    Ok(unsafe { dict_ref(value) }.entries.clone())
 }
 
 // error
@@ -295,6 +541,13 @@ pub enum DictError {
     /// Odd number of elements — `missing value to go with key`
     /// (`TCL VALUE DICTIONARY`).
     MissingValue,
+    /// Typed shared byte-element parser failure and the original dictionary bytes.
+    Parse {
+        /// Shared failure identity.
+        error: tcl_syntax::list::ListError,
+        /// Original dictionary string representation.
+        source: Vec<u8>,
+    },
     /// Junk after a closing brace — `dict element in braces followed by "X"
     /// instead of space` (`TCL VALUE DICTIONARY JUNK`); carries the fragment.
     BraceJunk(Vec<u8>),
@@ -305,8 +558,6 @@ pub enum DictError {
     UnmatchedBrace,
     /// Unmatched `"` — `unmatched open quote in dict` (`TCL VALUE DICTIONARY QUOTE`).
     UnmatchedQuote,
-    /// Input bytes were not valid UTF-8 (violates the internal-rep invariant).
-    NotUtf8,
 }
 
 impl DictError {
@@ -314,7 +565,10 @@ impl DictError {
     #[must_use]
     pub fn message_bytes(&self) -> Vec<u8> {
         match self {
-            Self::MissingValue | Self::NotUtf8 => b"missing value to go with key".to_vec(),
+            Self::Parse { error, source } => {
+                tcl_syntax::value::dictionary_parse_message(*error, source)
+            }
+            Self::MissingValue => b"missing value to go with key".to_vec(),
             Self::BraceJunk(fragment) | Self::QuoteJunk(fragment) => {
                 let kind = if matches!(self, Self::BraceJunk(_)) {
                     b"dict element in braces followed by \"".as_slice()
@@ -331,28 +585,16 @@ impl DictError {
         }
     }
 
-    /// Canonical public message for this dictionary conversion failure.
-    #[must_use]
-    pub fn message(&self) -> String {
-        String::from_utf8_lossy(&self.message_bytes()).into_owned()
-    }
-}
-
-/// The dict-worded form of a list-grammar failure. `SetDictFromAny` walks the
-/// *same* `FindElement` grammar `Tcl_SplitList` does (`tclUtil.c`) and differs
-/// only in the noun it prints and the `-errorcode` it sets, so the scan itself
-/// comes from the one `tcl_syntax::list` owner and this maps the outcome.
-fn dict_error(err: tcl_syntax::list::ListError, src: &str) -> DictError {
-    use tcl_syntax::list::ListError;
-    match err {
-        ListError::UnmatchedBrace => DictError::UnmatchedBrace,
-        ListError::UnmatchedQuote => DictError::UnmatchedQuote,
-        ListError::BraceFollowedByJunk => {
-            DictError::BraceJunk(tcl_syntax::list::junk_fragment(src).into_bytes())
-        }
-        ListError::QuoteFollowedByJunk => {
-            DictError::QuoteJunk(tcl_syntax::list::junk_fragment(src).into_bytes())
-        }
+    /// Checked Unicode presentation of this dictionary conversion failure.
+    pub fn message(&self) -> Result<String, tcl_syntax::raw_string::UnicodeAccessError> {
+        let bytes = self.message_bytes();
+        String::from_utf8(bytes).map_err(|error| {
+            let error = error.utf8_error();
+            tcl_syntax::raw_string::UnicodeAccessError {
+                valid_up_to: error.valid_up_to(),
+                error_len: error.error_len(),
+            }
+        })
     }
 }
 
@@ -364,27 +606,18 @@ type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
 /// here (the caller handles it); an odd element count is `missing value to go
 /// with key`.
 fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
-    let Ok(src) = core::str::from_utf8(bytes) else {
-        return Err(DictError::NotUtf8);
-    };
-    let decode = |el: &tcl_syntax::list::Element| -> Vec<u8> {
-        let raw = &bytes[el.value.clone()];
-        if el.literal {
-            raw.to_vec()
-        } else {
-            tcl_syntax::backslash::decode_bytes(raw).into_owned()
-        }
-    };
-    let next =
-        |pos: usize| tcl_syntax::list::find_element(src, pos).map_err(|e| dict_error(e, src));
+    let elements = crate::parse::split_list(bytes).map_err(|error| DictError::Parse {
+        error: error.shared(),
+        source: bytes.to_vec(),
+    })?;
+    if elements.len() % 2 != 0 {
+        return Err(DictError::MissingValue);
+    }
+    let mut elements = elements.into_iter();
     let mut pairs = Vec::new();
-    let mut pos = 0;
-    while let Some(key) = next(pos)? {
-        let Some(val) = next(key.next)? else {
-            return Err(DictError::MissingValue);
-        };
-        pairs.push((decode(&key), decode(&val)));
-        pos = val.next;
+    while let Some(key) = elements.next() {
+        let value = elements.next().expect("even dictionary element count");
+        pairs.push((key, value));
     }
     Ok(pairs)
 }
@@ -432,8 +665,23 @@ pub fn new_dict_obj_with_hash_bucket_count(
         entries,
         index,
         hash_order,
+        string_protocol: Cell::new(None),
     });
     obj::alloc_typed(&TCL_DICT_TYPE, Box::into_raw(boxed) as usize as u64)
+}
+
+/// Construct original Dictionary members after checked native key conversion.
+pub(crate) fn new_dict_obj_native(
+    pairs: &[(*mut TclObj, *mut TclObj)],
+    bucket_count: Option<usize>,
+    protocol: NativeStringProtocol,
+) -> Result<*mut TclObj, ValueError> {
+    for &(key, _) in pairs {
+        drop(native_object_bytes(key, protocol)?);
+    }
+    let value = new_dict_obj_with_hash_bucket_count(pairs, bucket_count);
+    seal_string_protocol(value, protocol)?;
+    Ok(value)
 }
 
 /// `Tcl_DictObjGet` — the value for key `key` (its string bytes), borrowed.
@@ -514,6 +762,15 @@ pub fn dict_unset(obj: *mut TclObj, key: &[u8]) -> Result<bool, DictError> {
 }
 
 /// `dict size`.
+pub(crate) fn native_cache_size(value: *mut TclObj) -> Option<usize> {
+    if obj::obj_type_ptr(value) != &TCL_DICT_TYPE {
+        return None;
+    }
+    // SAFETY: the exact descriptor owns this live backing.
+    Some(unsafe { dict_ref(value) }.entries.len())
+}
+
+/// `dict size`.
 pub fn dict_size(obj: *mut TclObj) -> Result<usize, DictError> {
     ensure_dict(obj)?;
     // SAFETY: dict rep guaranteed.
@@ -548,6 +805,62 @@ pub fn dict_hash_bucket_count(obj: *mut TclObj) -> Result<usize, DictError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn actual_c84_updater_retains_original_long_and_wide_minimum_cache() {
+        use tcl_platform::{NativeIntegerFormatter, NativeIntegerKind};
+        use tcl_syntax::{number::Number, scalar_getter::NativeScalarCache};
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let formatter =
+            tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root)
+                .expect("explicit pinned native formatter");
+        let dialect = tcl_registry::InvocationDialect::of_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").unit_profile(),
+        );
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4);
+        for (kind, cache) in [
+            (
+                NativeIntegerKind::Long,
+                NativeScalarCache::Tcl84Long(i64::MIN),
+            ),
+            (
+                NativeIntegerKind::Wide,
+                NativeScalarCache::Number(Number::Int(i64::MIN)),
+            ),
+        ] {
+            let original = obj::Owned::fresh(obj::new_wide_int_obj(i64::MIN));
+            obj::adopt_native_scalar_cache(
+                original.as_ptr(),
+                cache.clone(),
+                dialect.native_scalar_getter_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(native_object_bytes(original.as_ptr(), protocol).is_err());
+            assert!(!obj::has_string_rep(original.as_ptr()));
+            let expected = formatter.format(kind, i64::MIN).unwrap();
+            let bytes = native_object_bytes_with_integer_formatter(
+                original.as_ptr(),
+                protocol,
+                Some(&formatter),
+            )
+            .unwrap();
+            assert_eq!(bytes, expected);
+            assert_eq!(
+                obj::native_scalar_cache(original.as_ptr()).unwrap(),
+                Some(cache)
+            );
+            assert!(obj::has_string_rep(original.as_ptr()));
+        }
+    }
+
+    fn test_dict(pairs: &[(*mut TclObj, *mut TclObj)]) -> *mut TclObj {
+        let value = super::new_dict_obj(pairs);
+        super::seal_string_protocol(
+            value,
+            NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5),
+        )
+        .unwrap();
+        value
+    }
     use super::*;
     use crate::counters;
     use crate::obj::new_string_bytes;
@@ -576,7 +889,7 @@ mod tests {
     #[test]
     fn build_get_size() {
         leak_free(|| {
-            let d = new_dict_obj(&[(s(b"a"), s(b"1")), (s(b"b"), s(b"2"))]);
+            let d = test_dict(&[(s(b"a"), s(b"1")), (s(b"b"), s(b"2"))]);
             unsafe { obj::incr_ref_count(d) };
             assert_eq!(dict_size(d).unwrap(), 2);
             assert_eq!(bytes(dict_get(d, b"a").unwrap().unwrap()), b"1");
@@ -589,7 +902,7 @@ mod tests {
     #[test]
     fn set_overwrites_in_place_preserving_order() {
         leak_free(|| {
-            let d = new_dict_obj(&[(s(b"x"), s(b"1"))]);
+            let d = test_dict(&[(s(b"x"), s(b"1"))]);
             unsafe { obj::incr_ref_count(d) };
             dict_set(d, s(b"y"), s(b"2")).unwrap(); // new key: both retained
                                                     // Overwrite keeps the existing key object and does NOT retain the
@@ -609,7 +922,7 @@ mod tests {
     #[test]
     fn insertion_order_in_string_rep() {
         leak_free(|| {
-            let d = new_dict_obj(&[(s(b"z"), s(b"1")), (s(b"a"), s(b"2")), (s(b"m"), s(b"3"))]);
+            let d = test_dict(&[(s(b"z"), s(b"1")), (s(b"a"), s(b"2")), (s(b"m"), s(b"3"))]);
             unsafe { obj::incr_ref_count(d) };
             // NOT sorted — insertion order (z a m), not alphabetical
             assert_eq!(bytes(d), b"z 1 a 2 m 3");
@@ -620,7 +933,7 @@ mod tests {
     #[test]
     fn unset_preserves_order_and_frees() {
         leak_free(|| {
-            let d = new_dict_obj(&[(s(b"a"), s(b"1")), (s(b"b"), s(b"2")), (s(b"c"), s(b"3"))]);
+            let d = test_dict(&[(s(b"a"), s(b"1")), (s(b"b"), s(b"2")), (s(b"c"), s(b"3"))]);
             unsafe { obj::incr_ref_count(d) };
             assert!(dict_unset(d, b"b").unwrap());
             let keys: Vec<Vec<u8>> = dict_keys(d).unwrap().into_iter().map(bytes).collect();
@@ -750,22 +1063,46 @@ mod tests {
         leak_free(|| {
             let v = new_string_bytes(b"a 1 {b}c d");
             unsafe { obj::incr_ref_count(v) };
-            assert_eq!(dict_size(v), Err(DictError::BraceJunk(b"c".to_vec())));
+            assert_eq!(
+                dict_size(v),
+                Err(DictError::Parse {
+                    error: tcl_syntax::list::ListError::BraceFollowedByJunk,
+                    source: b"a 1 {b}c d".to_vec()
+                })
+            );
             unsafe { obj::decr_ref_count(v) };
 
             let q = new_string_bytes(b"a 1 \"b\"c d");
             unsafe { obj::incr_ref_count(q) };
-            assert_eq!(dict_size(q), Err(DictError::QuoteJunk(b"c".to_vec())));
+            assert_eq!(
+                dict_size(q),
+                Err(DictError::Parse {
+                    error: tcl_syntax::list::ListError::QuoteFollowedByJunk,
+                    source: b"a 1 \"b\"c d".to_vec()
+                })
+            );
             unsafe { obj::decr_ref_count(q) };
 
             let ub = new_string_bytes(b"a 1 {b");
             unsafe { obj::incr_ref_count(ub) };
-            assert_eq!(dict_size(ub), Err(DictError::UnmatchedBrace));
+            assert_eq!(
+                dict_size(ub),
+                Err(DictError::Parse {
+                    error: tcl_syntax::list::ListError::UnmatchedBrace,
+                    source: b"a 1 {b".to_vec()
+                })
+            );
             unsafe { obj::decr_ref_count(ub) };
 
             let uq = new_string_bytes(b"a 1 \"b");
             unsafe { obj::incr_ref_count(uq) };
-            assert_eq!(dict_size(uq), Err(DictError::UnmatchedQuote));
+            assert_eq!(
+                dict_size(uq),
+                Err(DictError::Parse {
+                    error: tcl_syntax::list::ListError::UnmatchedQuote,
+                    source: b"a 1 \"b".to_vec()
+                })
+            );
             unsafe { obj::decr_ref_count(uq) };
         });
     }

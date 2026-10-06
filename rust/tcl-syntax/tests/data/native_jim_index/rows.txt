@@ -1,0 +1,102 @@
+case	0	322a33
+code	0
+index	6
+object	index	1	1
+result_object	int	0	1
+result	36
+case	1	656e642d322a33
+code	0
+index	-7
+object	index	1	1
+result_object	int	0	1
+result	2d36
+case	2	28322b33292a32
+code	0
+index	10
+object	index	1	1
+result_object	int	0	1
+result	3130
+case	3	313f323a33
+code	0
+index	2
+object	index	1	1
+result_object	int	0	1
+result	32
+case	4	2478
+code	1
+index	42
+object	expression	1	1
+result_object	none	1	1
+result	62616420696e64657820222478223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f
+case	5	5b736574207820315d
+code	1
+index	42
+object	expression	1	1
+result_object	none	1	1
+result	62616420696e64657820225b736574207820315d223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f
+case	6	656e642d312e35
+code	1
+index	42
+object	none	1	1
+result_object	none	1	1
+result	62616420696e6465782022656e642d312e35223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f
+case	7	656e6478
+code	1
+index	42
+object	none	1	1
+result_object	none	1	1
+result	62616420696e6465782022656e6478223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f
+case	8	32313437343833363438
+code	1
+index	42
+object	int	1	1
+result_object	none	1	1
+result	62616420696e646578202232313437343833363438223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f
+case	9	656e642b31
+code	0
+index	2147483647
+object	index	1	1
+result_object	none	1	4
+result	
+case	10	2d31
+code	0
+index	-2147483647
+object	index	1	1
+result_object	none	1	4
+result	
+case	11	656e64
+code	0
+index	-1
+object	index	1	1
+result_object	none	1	4
+result	
+case	12	332b342f32
+code	0
+index	5
+object	index	1	1
+result_object	int	0	1
+result	35
+case	13	322a2a33
+code	0
+index	8
+object	index	1	1
+result_object	int	0	1
+result	38
+case	14	696e7428322e3529
+code	0
+index	2
+object	index	1	1
+result_object	int	0	1
+result	32
+case	15	656e642d32007461696c
+code	0
+index	-3
+object	index	1	1
+result_object	none	1	4
+result	
+case	16	322a33007461696c
+code	1
+index	42
+object	expression	1	1
+result_object	none	1	1
+result	62616420696e6465782022322a33223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f

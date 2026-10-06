@@ -49,6 +49,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::WhileLoop,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::While,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted — `while` carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), resolving under the bare `IRULES` mask; a
         // pure control-flow keyword with no filesystem/process/network access,

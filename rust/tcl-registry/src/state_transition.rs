@@ -63,6 +63,8 @@ pub enum StateTransitionDomain {
     ExecutionTraces,
     /// Variable read/write/unset traces.
     VariableTraces,
+    /// Interpreter-local package provisions, loaders and selection policy.
+    Packages,
     /// `TclOO` class, object, method, filter, and mixin dispatch state.
     ObjectDispatch,
 }
@@ -140,6 +142,15 @@ pub fn namespace_qualifiers(name: &str) -> &str {
     ""
 }
 
+/// Namespace used when a command-prefix alias resolves its target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AliasTargetLookup {
+    /// Tcl interpreter aliases select the target interpreter's root namespace.
+    Global,
+    /// Jim command-prefix aliases preserve the caller's active namespace.
+    CallerNamespace,
+}
+
 /// A transition that changes a Tcl command binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandBindingTransition {
@@ -167,6 +178,8 @@ pub enum CommandBindingTransition {
     },
     /// Establish a command alias, potentially across interpreters.
     Alias {
+        /// Namespace used for target lookup at invocation.
+        target_lookup: AliasTargetLookup,
         /// Source interpreter path.
         source_interpreter: TransitionSubject,
         /// Name the alias receives in the source interpreter.
@@ -265,6 +278,35 @@ pub enum InterpreterTransition {
     },
 }
 
+impl InterpreterTransition {
+    /// Parent-interpreter command installed on a normal native creation edge.
+    /// Tcl child paths are lists: a nested path installs no command in the
+    /// current parent. The selected handler and successful edge remain caller
+    /// obligations; this supplies no child dispatch or compiler-hook proof.
+    #[must_use]
+    pub fn created_parent_command(&self, dialect: crate::InvocationDialect) -> Option<String> {
+        if dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.tcl_version.is_none()
+        {
+            return None;
+        }
+        let Self::Create {
+            interpreter: Some(interpreter),
+            ..
+        } = self
+        else {
+            return None;
+        };
+        let elements = tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar)
+            .split_list(interpreter.literal()?)
+            .ok()?;
+        let [name] = elements.as_slice() else {
+            return None;
+        };
+        (!name.is_empty()).then(|| name.to_string())
+    }
+}
+
 /// The safety policy selected while creating a child interpreter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChildInterpreterSafety {
@@ -314,9 +356,68 @@ pub enum VariableAliasTarget {
     },
 }
 
+/// Storage selected for a variable-alias destination name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasDestination {
+    /// A procedure local-table link. In C Tcl global and namespace evaluation
+    /// frames this declaration has no effect.
+    ProcedureLocal,
+    /// An unqualified name binds locally in a procedure activation; namespace
+    /// activations and qualified names create a namespace slot without the
+    /// ordinary read lookup's global fallback.
+    CurrentNamespaceOrLocal,
+}
+
+/// Actual activation class consumed by variable-alias declarations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasFrame {
+    /// Interpreter root activation with no local variable table.
+    Global,
+    /// A namespace-evaluation activation.
+    Namespace,
+    /// A procedure or method activation owning a local table.
+    Procedure,
+    /// A caller-selected activation whose class is not proved.
+    Unknown,
+}
+
+impl VariableAliasDestination {
+    /// Whether this destination grammar acts in the selected activation.
+    /// Unknown frame or dialect policy never silently selects C Tcl rules.
+    #[must_use]
+    pub fn is_active_in_frame(
+        self,
+        frame: VariableAliasFrame,
+        dialect: crate::InvocationDialect,
+    ) -> Option<bool> {
+        self.is_active_in_frame_with_policy(frame, Some(dialect))
+    }
+
+    /// The same activation query before an execution dialect is selected.
+    /// Frame-independent facts remain usable; namespace policy abstains.
+    #[must_use]
+    pub fn is_active_in_frame_with_policy(
+        self,
+        frame: VariableAliasFrame,
+        dialect: Option<crate::InvocationDialect>,
+    ) -> Option<bool> {
+        match (self, frame) {
+            (_, VariableAliasFrame::Unknown) => None,
+            (Self::CurrentNamespaceOrLocal, _)
+            | (Self::ProcedureLocal, VariableAliasFrame::Procedure) => Some(true),
+            (Self::ProcedureLocal, VariableAliasFrame::Global) => Some(false),
+            (Self::ProcedureLocal, VariableAliasFrame::Namespace) => dialect
+                .and_then(|dialect| dialect.variable_lookup_policy)
+                .map(|policy| policy == tcl_dialect::VariableLookupPolicy::Jim),
+        }
+    }
+}
+
 /// A local variable cell bound to another Tcl cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariableCellAliasTransition {
+    /// The destination storage selected by this declaration grammar.
+    pub destination: VariableAliasDestination,
     /// The current-frame local variable name.
     pub local: TransitionSubject,
     /// The cell reached through `local`.
@@ -375,6 +476,9 @@ pub enum NamespaceTransition {
     Import {
         /// Namespace receiving imported command bindings.
         namespace: NamespaceTransitionTarget,
+        /// Whether existing commands may be replaced. An unresolved leading
+        /// option leaves this unknown rather than assuming a non-forcing import.
+        force: Option<bool>,
         /// Import patterns, retained as whole Tcl values.
         patterns: Vec<TransitionSubject>,
     },
@@ -407,6 +511,19 @@ pub enum NamespaceTransition {
 }
 
 impl NamespaceTransition {
+    /// Split the sole exact export control word from the retained pattern
+    /// operands. Other dash-prefixed values, including `--`, are patterns.
+    /// An unknown leading value leaves both clearing and pattern layout unknown.
+    #[must_use]
+    pub fn export_pattern_operands(
+        patterns: &[TransitionSubject],
+    ) -> Option<(bool, &[TransitionSubject])> {
+        let clear = patterns.first().map_or(Some(false), |first| {
+            first.literal().map(|word| word == "-clear")
+        })?;
+        Some((clear, &patterns[usize::from(clear)..]))
+    }
+
     /// Whether this transition can change command lookup in the current
     /// interpreter.
     ///
@@ -626,6 +743,8 @@ pub enum StateTransition {
     Trace(TraceTransition),
     /// `TclOO` object lifecycle or dispatch configuration changes.
     ObjectDispatch(ObjectDispatchTransition),
+    /// Interpreter-local package bookkeeping or loader execution.
+    Package(crate::model::binding::PackageTransition),
     /// A dynamic transition operand widens named state domains.
     Widen(StateTransitionWidening),
 }
@@ -754,7 +873,11 @@ impl StateTransitions {
         let mut explicit = false;
         for fact in &self.facts {
             match &fact.transition {
-                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. }) => {
+                StateTransition::CommandBinding(CommandBindingTransition::Unknown { .. })
+                | StateTransition::Package(
+                    crate::model::binding::PackageTransition::Require { .. }
+                    | crate::model::binding::PackageTransition::SourceLoad { .. },
+                ) => {
                     return CommandResolutionImpact::Unbounded;
                 }
                 StateTransition::CommandBinding(_) => explicit = true,
@@ -774,7 +897,8 @@ impl StateTransitions {
                 {
                     return CommandResolutionImpact::Unbounded;
                 }
-                StateTransition::Interpreter(_)
+                StateTransition::Package(_)
+                | StateTransition::Interpreter(_)
                 | StateTransition::VariableCellAlias(_)
                 | StateTransition::Namespace(_)
                 | StateTransition::Trace(_)
@@ -975,6 +1099,9 @@ pub struct StateTransitionDescriptor {
     pub composition: StateTransitionComposition,
     /// Optional resolver for precise transition operands.
     pub resolver: Option<StateTransitionResolver>,
+    /// Optional transition projection valid only on successful completion.
+    /// Ordinary/error facts retain `resolver`; consumers must select the edge.
+    pub success_resolver: Option<StateTransitionResolver>,
     /// Whether expansion changes the resolver's positional grammar.
     pub argument_shape: StateTransitionArgumentShape,
     /// Domains widened for dynamic identity-bearing operands.
@@ -995,6 +1122,7 @@ impl StateTransitionDescriptor {
     pub const EMPTY: Self = Self {
         composition: StateTransitionComposition::Extend,
         resolver: None,
+        success_resolver: None,
         argument_shape: StateTransitionArgumentShape::Independent,
         dynamic_widening: &[],
         effect_coverage: TransitionEffectCoverage::NONE,
@@ -1004,12 +1132,31 @@ impl StateTransitionDescriptor {
     /// Resolve one descriptor against structured invocation arguments.
     #[must_use]
     pub fn resolve(self, arguments: InvocationArguments<'_>) -> StateTransitions {
+        self.resolve_on_edge(arguments, false)
+    }
+
+    /// Resolve facts on the normal completion edge, preserving ordinary/error
+    /// facts in [`Self::resolve`].
+    #[must_use]
+    pub fn resolve_after_success(self, arguments: InvocationArguments<'_>) -> StateTransitions {
+        self.resolve_on_edge(arguments, true)
+    }
+
+    fn resolve_on_edge(
+        self,
+        arguments: InvocationArguments<'_>,
+        successful: bool,
+    ) -> StateTransitions {
         let positional_shape = self.argument_shape == StateTransitionArgumentShape::Positional;
         let mut transitions = if positional_shape && !arguments.has_exact_argv_len() {
             StateTransitions::default()
         } else {
-            self.resolver
-                .map_or_else(StateTransitions::default, |resolver| resolver(arguments))
+            let resolver = if successful {
+                self.success_resolver.or(self.resolver)
+            } else {
+                self.resolver
+            };
+            resolver.map_or_else(StateTransitions::default, |resolver| resolver(arguments))
         };
         transitions.widen_dynamic_arguments(arguments, self.dynamic_widening, positional_shape);
         transitions.set_commit(self.commit);
@@ -1053,13 +1200,30 @@ impl ResolvedStateTransitions {
         self,
         arguments: InvocationArguments<'_>,
     ) -> (StateTransitions, TransitionEffectCoverages) {
+        self.resolve_coverage_on_edge(arguments, false)
+    }
+
+    /// Resolve normal-edge transitions and their matching write coverage.
+    #[must_use]
+    pub fn resolve_after_success_with_effect_coverage(
+        self,
+        arguments: InvocationArguments<'_>,
+    ) -> (StateTransitions, TransitionEffectCoverages) {
+        self.resolve_coverage_on_edge(arguments, true)
+    }
+
+    fn resolve_coverage_on_edge(
+        self,
+        arguments: InvocationArguments<'_>,
+        successful: bool,
+    ) -> (StateTransitions, TransitionEffectCoverages) {
         let mut transitions = StateTransitions::default();
         let mut coverage = TransitionEffectCoverages::default();
         for descriptor in [self.command, self.subcommand, self.form]
             .into_iter()
             .flatten()
         {
-            let resolved = descriptor.resolve(arguments);
+            let resolved = descriptor.resolve_on_edge(arguments, successful);
             let produced_transition = !resolved.facts().is_empty();
             if descriptor.composition == StateTransitionComposition::Replace {
                 transitions = resolved;
@@ -1091,12 +1255,12 @@ impl ResolvedStateTransitions {
 /// resolver, one fact vocabulary for every consumer.
 pub mod command_binding {
     use super::{
-        CommandBindingDefinitionKind, CommandBindingTransition, InvocationArguments,
-        NamespaceTransition, NamespaceTransitionTarget, SideEffectTarget, StateTransition,
-        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
-        StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
-        StateTransitionWideningRule, StateTransitions, TransitionEffectCoverage, TransitionSubject,
-        WorldEffectWriteSource, WorldStateDomain,
+        AliasTargetLookup, CommandBindingDefinitionKind, CommandBindingTransition,
+        InvocationArguments, NamespaceTransition, NamespaceTransitionTarget, SideEffectTarget,
+        StateTransition, StateTransitionArgumentShape, StateTransitionCommit,
+        StateTransitionComposition, StateTransitionDescriptor, StateTransitionDomain,
+        StateTransitionOperandLayout, StateTransitionWideningRule, StateTransitions,
+        TransitionEffectCoverage, TransitionSubject, WorldEffectWriteSource, WorldStateDomain,
     };
 
     /// The identity domains a command-table mutation can invalidate. A
@@ -1140,6 +1304,7 @@ pub mod command_binding {
     /// `proc name params body` — bind argument 0 as a procedure.
     pub const DEFINES_PROCEDURE: StateTransitionDescriptor = StateTransitionDescriptor {
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(defines_procedure),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1154,6 +1319,7 @@ pub mod command_binding {
     /// it when the target is empty.
     pub const RENAMES_COMMANDS: StateTransitionDescriptor = StateTransitionDescriptor {
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(renames_commands),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1172,6 +1338,7 @@ pub mod command_binding {
     /// create, delete, or query a command alias.
     pub const CREATES_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(creates_aliases),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[StateTransitionWideningRule {
@@ -1187,6 +1354,46 @@ pub mod command_binding {
         // lifecycle hooks before reporting an error.
         commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
     };
+
+    /// Jim's `alias newname command ?args?` preserves the caller namespace.
+    pub const CREATES_CALLER_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        success_resolver: None,
+        resolver: Some(creates_caller_aliases),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0, 1]),
+            domains: ALIAS_DOMAINS,
+        }],
+        effect_coverage: ALIAS_COVERAGE,
+        commit: StateTransitionCommit::OnOkOnly,
+    };
+
+    fn creates_caller_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        if arguments.len() < 2 {
+            return transitions;
+        }
+        let (Some(alias), Some(target)) = (
+            TransitionSubject::from_argument(arguments, 0),
+            TransitionSubject::from_argument(arguments, 1),
+        ) else {
+            return transitions;
+        };
+        transitions.push(StateTransition::CommandBinding(
+            CommandBindingTransition::Alias {
+                target_lookup: AliasTargetLookup::CallerNamespace,
+                source_interpreter: TransitionSubject::Literal(String::new()),
+                alias,
+                target_interpreter: TransitionSubject::Literal(String::new()),
+                target,
+                arguments: (2..arguments.len())
+                    .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+                    .collect(),
+            },
+        ));
+        transitions
+    }
 
     fn defines_procedure(arguments: InvocationArguments<'_>) -> StateTransitions {
         let mut transitions = StateTransitions::default();
@@ -1321,6 +1528,7 @@ pub mod command_binding {
                     .collect();
                 transitions.push(StateTransition::CommandBinding(
                     CommandBindingTransition::Alias {
+                        target_lookup: AliasTargetLookup::Global,
                         source_interpreter,
                         alias,
                         target_interpreter,
@@ -1334,24 +1542,53 @@ pub mod command_binding {
     }
 }
 
-/// Return the local name Tcl gives a namespace-qualified variable reference.
-///
-/// `global ::pkg::counter` and `variable ::pkg::counter` bind a current-frame
-/// local named `counter`, while dynamic source words remain typed unknown.
+/// The operation selecting a local variable alias name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableAliasNamePurpose {
+    /// A global-variable link; Jim leaves rooted names without a local link.
+    Global,
+    /// A namespace-variable link, with the engine's namespace-tail rules.
+    NamespaceVariable,
+}
+
+/// Project an original alias operand through the selected native naming owner.
+/// Missing policies and non-Unicode projections remain opaque; no native
+/// lookup, successful link, physical cell or compiler permission follows.
+/// `None` means the selected operation creates no local alias.
 #[must_use]
-pub fn local_alias_name(subject: &TransitionSubject) -> TransitionSubject {
-    match subject {
-        TransitionSubject::Literal(name) => {
-            TransitionSubject::Literal(name.rsplit("::").next().unwrap_or(name).to_owned())
+pub fn local_alias_name(
+    subject: &TransitionSubject,
+    argument_index: usize,
+    purpose: VariableAliasNamePurpose,
+    dialect: Option<crate::InvocationDialect>,
+) -> Option<TransitionSubject> {
+    let TransitionSubject::Literal(name) = subject else {
+        return Some(subject.clone());
+    };
+    let opaque = || TransitionSubject::Unknown {
+        argument_index,
+        word_kind: InvocationWordKind::Opaque,
+    };
+    let Some(protocol) = dialect.and_then(crate::InvocationDialect::native_name_protocol) else {
+        if dialect.is_some_and(|dialect| dialect.family() == Some(tcl_dialect::model::Family::Tcl))
+        {
+            return Some(
+                tcl_syntax::naming::c_family_local_alias_name_bytes(name.as_bytes())
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+                    .map_or_else(opaque, TransitionSubject::Literal),
+            );
         }
-        TransitionSubject::Unknown {
-            argument_index,
-            word_kind,
-        } => TransitionSubject::Unknown {
-            argument_index: *argument_index,
-            word_kind: *word_kind,
-        },
-    }
+        return Some(opaque());
+    };
+    let selected = match purpose {
+        VariableAliasNamePurpose::Global => {
+            tcl_syntax::naming::global_local_name_bytes(protocol, name.as_bytes())?
+        }
+        VariableAliasNamePurpose::NamespaceVariable => {
+            tcl_syntax::naming::variable_local_name_bytes(protocol, name.as_bytes())
+        }
+    };
+    Some(String::from_utf8(selected).map_or_else(|_| opaque(), TransitionSubject::Literal))
 }
 
 #[cfg(test)]
@@ -1368,6 +1605,7 @@ mod tests {
     fn dynamic_operands_become_typed_widenings() {
         const DESCRIPTOR: StateTransitionDescriptor = StateTransitionDescriptor {
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: None,
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[StateTransitionWideningRule {
@@ -1456,6 +1694,7 @@ mod tests {
         // exact CFG must not treat this as an unconditional binding fact.
         let descriptor = StateTransitionDescriptor {
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(command_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1478,6 +1717,7 @@ mod tests {
     fn descriptors_resolve_command_subcommand_then_form() {
         let command = StateTransitionDescriptor {
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(command_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1486,6 +1726,7 @@ mod tests {
         };
         let subcommand = StateTransitionDescriptor {
             composition: StateTransitionComposition::Extend,
+            success_resolver: None,
             resolver: Some(subcommand_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1494,6 +1735,7 @@ mod tests {
         };
         let form = StateTransitionDescriptor {
             composition: StateTransitionComposition::Replace,
+            success_resolver: None,
             resolver: Some(form_definition),
             argument_shape: StateTransitionArgumentShape::Independent,
             dynamic_widening: &[],
@@ -1520,8 +1762,91 @@ mod tests {
     #[test]
     fn qualified_aliases_use_the_current_frame_tail_name() {
         assert_eq!(
-            local_alias_name(&TransitionSubject::Literal("::pkg::counter".to_owned())),
-            TransitionSubject::Literal("counter".to_owned())
+            local_alias_name(
+                &TransitionSubject::Literal("::pkg::counter".to_owned()),
+                0,
+                VariableAliasNamePurpose::Global,
+                Some(crate::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_6
+                )),
+            ),
+            Some(TransitionSubject::Literal("counter".to_owned()))
         );
+    }
+
+    #[test]
+    fn unversioned_c_alias_assistance_keeps_native_release_unknown() {
+        let dialect =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
+        assert!(dialect.native_name_protocol().is_none());
+        let subject = TransitionSubject::Literal("ns:::v".to_owned());
+        assert_eq!(
+            local_alias_name(&subject, 0, VariableAliasNamePurpose::Global, Some(dialect)),
+            Some(TransitionSubject::Literal("v".to_owned())),
+        );
+        assert!(matches!(
+            local_alias_name(
+                &TransitionSubject::Literal("v\0tail".to_owned()),
+                0,
+                VariableAliasNamePurpose::Global,
+                Some(dialect),
+            ),
+            Some(TransitionSubject::Unknown {
+                argument_index: 0,
+                ..
+            }),
+        ));
+        assert!(dialect.native_name_protocol().is_none());
+    }
+
+    #[test]
+    fn alias_name_projection_keeps_operation_and_engine_separate() {
+        let rooted = TransitionSubject::Literal("::pkg:::counter".to_owned());
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert_eq!(
+            local_alias_name(&rooted, 2, VariableAliasNamePurpose::Global, Some(jim)),
+            None
+        );
+        assert_eq!(
+            local_alias_name(
+                &rooted,
+                2,
+                VariableAliasNamePurpose::NamespaceVariable,
+                Some(jim)
+            ),
+            Some(TransitionSubject::Literal("counter".to_owned()))
+        );
+        for version in tcl_dialect::TclVersion::ALL {
+            for purpose in [
+                VariableAliasNamePurpose::Global,
+                VariableAliasNamePurpose::NamespaceVariable,
+            ] {
+                assert_eq!(
+                    local_alias_name(
+                        &rooted,
+                        2,
+                        purpose,
+                        Some(crate::InvocationDialect::for_version(version))
+                    ),
+                    Some(TransitionSubject::Literal("counter".to_owned()))
+                );
+            }
+        }
+        for dialect in [
+            None,
+            Some(crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::irules(),
+            )),
+        ] {
+            assert_eq!(
+                local_alias_name(&rooted, 2, VariableAliasNamePurpose::Global, dialect),
+                Some(TransitionSubject::Unknown {
+                    argument_index: 2,
+                    word_kind: InvocationWordKind::Opaque
+                })
+            );
+        }
     }
 }

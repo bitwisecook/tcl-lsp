@@ -1,0 +1,44 @@
+OPCODES	125	98
+CASE	0	0	0	int,0,2
+L	0	0	int,0,2
+OWNER	0	private-info=0	options-info=0	NULL
+CASE	1	0	0	int,0,1
+L	1	0	int,0,1
+OWNER	1	private-info=0	options-info=0	NULL
+CASE	2	0	0	int,0,2
+L	2	0	int,0,2
+OWNER	2	private-info=0	options-info=0	NULL
+CASE	3	0	0	none,1,3,31
+L	3	0	none,1,3,31
+OWNER	3	private-info=0	options-info=0	NULL
+CASE	4	0	0	int,0,2
+L	4	0	int,0,2
+L	4	1	none,1,2,646976696465206279207a65726f
+L	4	2	dict,0,1
+OWNER	4	private-info=0	options-info=0	NULL
+CTX	4	0	-1	0	instname,0,1
+CTX	4	1	-1	0	int,1,1,31
+CTX	4	2	-1	0	int,1,1,30
+INST	4	56	646976
+CASE	5	0	1	none,1,4,646976696465206279207a65726f
+L	5	0	none,1,4,646976696465206279207a65726f
+L	5	1	dict,0,3
+L	5	2	int,0,1
+OWNER	5	private-info=0	options-info=0	none,1,2,646976696465206279207a65726f
+CTX	5	0	-1	0	instname,0,1
+CTX	5	1	0	1	none,1,4,646976696465206279207a65726f
+CTX	5	2	1	0	dict,0,3
+INST	5	125	73796e746178
+CASE	6	0	0	int,0,1
+L	6	0	cmdName,1,2,74636c3a3a6d61746866756e633a3a616273
+L	6	1	int,0,1
+OWNER	6	private-info=0	options-info=0	NULL
+CASE	7	0	0	none,1,4,646976696465206279207a65726f
+L	7	0	none,1,4,646976696465206279207a65726f
+L	7	1	dict,0,2
+L	7	2	none,1,2,30
+OWNER	7	private-info=0	options-info=0	NULL
+CTX	7	0	-1	0	instname,0,1
+CTX	7	1	0	1	none,1,4,646976696465206279207a65726f
+CTX	7	2	1	0	dict,0,2
+INST	7	125	73796e746178

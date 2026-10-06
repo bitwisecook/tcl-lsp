@@ -83,7 +83,7 @@ expect_relevant rust/bigip-report-gen/python/deploy/report-pyz.yml
 expect_relevant .github/workflows/github-pages.yml
 expect_relevant .github/workflows/report-pyz.yml
 expect_unrelated README.md
-expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
+expect_unrelated docs/design/compiler/wasm-native-lowering.md
 expect_relevant rust/tcl-lsp-server/src/lib.rs
 expect_unrelated runtime/rust/src/lib.rs
 expect_unrelated grammars/tree-sitter-tcl/grammar.js

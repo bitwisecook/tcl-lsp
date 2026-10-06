@@ -291,8 +291,8 @@ fn fp_nab_10_dict_enabled_in_tcl_9_0_silent() {
 
 // FP-NAB-11 — package-gated command used without its `package require`.
 // `argparse` is a modelled registry command (`package require argparse`), so
-// using it without the require draws W120 ("requires `package require
-// argparse`", with an add-the-require fix), not the unknown-command W123.
+// using it without the require draws W120 package-loading advice. Catalogue
+// assistance does not supply a callable slot, so W123 also reports its absence.
 #[test]
 fn fp_nab_11_unrequired_argparse_fires_w120() {
     assert!(
@@ -301,9 +301,15 @@ fn fp_nab_11_unrequired_argparse_fires_w120() {
         diags("argparse {x y}", D)
     );
     assert!(
-        !fires("argparse {x y}", D, "W123"),
-        "FP-NAB-11: a registered package command must not also draw W123; {:?}",
+        fires("argparse {x y}", D, "W123"),
+        "FP-NAB-11: assistance metadata must not establish a loaded callable slot; {:?}",
         diags("argparse {x y}", D)
+    );
+    let local = "proc argparse args {return local}; argparse {x y}";
+    assert!(
+        !fires_any(local, D, &["W120", "W123"]),
+        "{:?}",
+        diags(local, D)
     );
 }
 
@@ -321,19 +327,35 @@ fn fp_nab_11_stub_registered_command_silent() {
 // the inner command — W100, unbraced `expr` — fires inside it.
 #[test]
 fn tk_command_option_body_is_analysed() {
-    let src = "button .b -command {expr $x+1}";
+    use crate::provider_fixtures::{Provider, analyse};
+    let src = "package require Tk; button .b -command {expr $x+1}";
+    let loaded = analyse(src, "tk", &[Provider::Tk]);
     assert!(
-        fires(src, "tk", "W100"),
-        "-command body should be analysed (W100 on unbraced expr); {:?}",
-        diags(src, "tk")
+        loaded
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.to_string() == "W100"),
+        "{loaded:?}"
     );
-    // A generic-value option's value is a plain string, never a script — the
-    // inner `expr` is not parsed as a command, so no W100.
-    let neg = "button .b -text {expr $x+1}";
+    let unloaded = analyse(src, "tk", &[]);
     assert!(
-        !fires(neg, "tk", "W100"),
-        "-text value must not be analysed as a script; {:?}",
-        diags(neg, "tk")
+        !unloaded
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.to_string() == "W100"),
+        "{unloaded:?}"
+    );
+    let text = analyse(
+        "package require Tk; button .b -text {expr $x+1}",
+        "tk",
+        &[Provider::Tk],
+    );
+    assert!(
+        !text
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.to_string() == "W100"),
+        "{text:?}"
     );
 }
 

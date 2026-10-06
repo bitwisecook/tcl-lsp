@@ -1,0 +1,12 @@
+data-relative	probe	cmdName
+data-relative	deleted	cmdName
+data-relative	recreated	cmdName
+command-relative	probe	cmdName
+command-relative	deleted	cmdName
+command-relative	recreated	cmdName
+data-absolute	probe	cmdName
+data-absolute	deleted	cmdName
+data-absolute	recreated	cmdName
+command-absolute	probe	cmdName
+command-absolute	deleted	cmdName
+command-absolute	recreated	cmdName

@@ -27,7 +27,8 @@ use tcl_dialect::model::SpecSurface;
 /// (NESTING_SCRIPT)?` carries the deferred body as its trailing
 /// argument (never the `-periodic` flag, and never when only the delay
 /// is given).  The script runs later from a timer wakeup in its own
-/// dispatch context, so `body_kind` is `Structural`.
+/// dispatch context. No actual variable frame is retained by this descriptor,
+/// so `body_kind` is `Structural`.
 fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     match args {
         [] | ["cancel" | "info", ..] => Vec::new(),
@@ -45,17 +46,14 @@ fn after_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "after",
-        // `DEFERS_BODY` — the "deferred body" the comment below already
-        // states. The Tcl `after` carries it for the same reason
-        // (`tcl/after_.rs`); this is the iRules spec of the same command and
-        // must not disagree with it. No iRules oracle
-        // exists here, but the TMOS `after` is the Tcl one with a timer
-        // wakeup, and the divergence would be the surprising claim.
+        // Scheduling is deferred. The documented timer wakeup does not
+        // establish an actual variable frame or borrowed caller activation;
+        // native Tcl's global callback frame cannot be promoted to TMM.
         traits: Traits::DIAGRAM_ACTION.union(Traits::DEFERS_BODY),
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         // The timer form's trailing nesting script is a deferred body
-        // (runs from a timer wakeup, not the caller's frame).
+        // (runs from a timer wakeup with no measured frame receipt here).
         arg_role_resolver: Some(after_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         body_kind: BodyKind::Structural,

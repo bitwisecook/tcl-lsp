@@ -50,6 +50,7 @@
 //! where the C code made text authoritative. See [`obj`].
 
 pub mod ffi;
+mod index_table;
 pub mod obj;
 pub mod state;
 
@@ -57,7 +58,11 @@ use std::ffi::c_int;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-use tcl_engine_api::{CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_core_types::NameBytes;
+use tcl_engine_api::{
+    CommandPublicationKey, CommandPublicationService, CommandRegistrar, CompileUnit, Engine,
+    EngineError, HostCommand, PreparedCommandPublication, Value,
+};
 
 pub use obj::{Obj, ObjRef, TclError};
 pub use state::{CommandChange, InitProc, InterpState};
@@ -66,9 +71,9 @@ pub use state::{CommandChange, InitProc, InterpState};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Loaded {
     /// The commands the entry point registered, sorted by name.
-    pub commands: Vec<String>,
+    pub commands: Vec<NameBytes>,
     /// The packages it provided, `(name, version)` in provision order.
-    pub packages: Vec<(String, String)>,
+    pub packages: Vec<(NameBytes, Vec<u8>)>,
 }
 
 /// Why [`Interp::load_static`] failed.
@@ -80,7 +85,7 @@ pub enum LoadError {
         /// The code returned.
         code: c_int,
         /// The result text.
-        message: String,
+        message: Vec<u8>,
     },
     /// The shim panicked during the call (a Rust-side defect, contained).
     Crashed(String),
@@ -92,7 +97,11 @@ impl std::fmt::Display for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InitFailed { code, message } => {
-                write!(f, "extension init returned {code}: {message}")
+                write!(
+                    f,
+                    "extension init returned {code}: {:?}",
+                    message.escape_ascii().to_string()
+                )
             }
             Self::Crashed(payload) => write!(f, "shim crashed during init: {payload}"),
             Self::Engine(error) => write!(f, "engine refused registration: {error}"),
@@ -113,7 +122,9 @@ impl From<EngineError> for LoadError {
 /// (or the error, with its code) back.
 struct ShimCommand {
     state: Rc<InterpState>,
-    name: String,
+    name: NameBytes,
+    key: CommandPublicationKey,
+    entry: Rc<state::CommandEntry>,
 }
 
 impl ShimCommand {
@@ -124,17 +135,43 @@ impl ShimCommand {
         registrar: &mut dyn CommandRegistrar,
     ) -> Result<Vec<CommandChange>, EngineError> {
         let changes = state.take_pending();
+        // A native callback can create, replace and delete the same slot before
+        // returning. Only its last prepared disposition reaches the engine.
+        let mut seen = std::collections::BTreeSet::new();
+        let mut changes: Vec<_> = changes
+            .into_iter()
+            .rev()
+            .filter(|change| {
+                let publication = match change {
+                    CommandChange::Created(publication) | CommandChange::Deleted(publication) => {
+                        publication
+                    }
+                };
+                seen.insert(publication.key.clone())
+            })
+            .collect();
+        changes.reverse();
         for change in &changes {
             match change {
-                CommandChange::Created(name) => {
+                CommandChange::Created(publication) => {
+                    // Intermediate creations may already have been replaced/deleted by a callback.
+                    let Some(entry) = state.command(&publication.key) else {
+                        continue;
+                    };
+                    let publication = &entry.publication;
                     let command = Rc::new(ShimCommand {
                         state: Rc::clone(state),
-                        name: name.clone(),
+                        name: NameBytes::from(publication.original.as_ref()),
+                        key: publication.key.clone(),
+                        entry: Rc::clone(&entry),
                     });
-                    registrar.define_command(name, command)?;
+                    registrar.define_prepared_command(publication.clone(), command)?;
                 }
-                CommandChange::Deleted(name) => {
-                    registrar.remove_command(name)?;
+                CommandChange::Deleted(publication) => {
+                    if state.command(&publication.key).is_some() {
+                        continue;
+                    }
+                    registrar.remove_prepared_command(publication.clone())?;
                 }
             }
         }
@@ -142,16 +179,38 @@ impl ShimCommand {
     }
 
     fn lookup_error(&self) -> EngineError {
-        EngineError::Script {
-            message: format!("invalid command name \"{}\"", self.name),
-            code: Some(tcl_syntax::list::join_list([
-                "TCL", "LOOKUP", "COMMAND", &self.name,
-            ])),
-        }
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(self.name.as_bytes());
+        message.push(b'"');
+        let code = tcl_syntax::list_result::NativeListResultSerialization::Tcl85Plus.render(&[
+            b"TCL".as_slice(),
+            b"LOOKUP",
+            b"COMMAND",
+            self.name.as_bytes(),
+        ]);
+        EngineError::script_bytes(message, Some(code))
     }
 }
 
 impl HostCommand for ShimCommand {
+    fn argument_view(&self) -> tcl_engine_api::HostArgumentView {
+        tcl_engine_api::HostArgumentView::OriginalObjects
+    }
+
+    fn retire_with_registrar(
+        &self,
+        registrar: &mut dyn CommandRegistrar,
+    ) -> Result<(), EngineError> {
+        let service = registrar.command_publication_service()?;
+        let previous = self.state.replace_publication_service(Some(service));
+        self.state.retire_entry(&self.key, &self.entry);
+        self.state.replace_publication_service(previous);
+        if let Some(error) = self.state.take_host_refusal() {
+            return Err(error);
+        }
+        Self::publish(&self.state, registrar).map(|_| ())
+    }
+
     /// With the engine's door open, changes the C code made to the command
     /// table are published before the calling script's next statement — so
     /// `factory x; x` works. An engine that does not open the door leaves
@@ -161,22 +220,112 @@ impl HostCommand for ShimCommand {
         registrar: &mut dyn CommandRegistrar,
         arguments: &[Value],
     ) -> Result<Value, EngineError> {
+        let service = registrar.command_publication_service()?;
+        let previous = self.state.replace_publication_service(Some(service));
         let answer = self.invoke(arguments);
+        self.state.replace_publication_service(previous);
         Self::publish(&self.state, registrar)?;
         answer
     }
 
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
-        let Some(entry) = self.state.command(&self.name) else {
+        let completion = self.invoke_objects(arguments, None)?;
+        if completion.code == tcl_core_types::Code::Error {
+            return Err(EngineError::ScriptBytes {
+                message: self.state.result().get().bytes(),
+                code: self.state.error_code_bytes(),
+                options: Some(self.state.return_options(ffi::TCL_ERROR).bytes()),
+            });
+        }
+        normal_callback_result(completion).and_then(|result| result.snapshot())
+    }
+
+    fn invoke_original_objects_with_registrar(
+        &self,
+        registrar: &mut dyn CommandRegistrar,
+        arguments: &[Rc<dyn tcl_engine_api::OriginalObject>],
+    ) -> Result<tcl_engine_api::OriginalObjectResult, EngineError> {
+        if registrar.native_c_version() != Some(tcl_engine_api::NativeCVersion::V9_0) {
+            return Err(EngineError::ExecutionRefusal(
+                "callback engine differs from the C9.0 shim ABI".into(),
+            ));
+        }
+        let service = registrar.command_publication_service()?;
+        let previous = self.state.replace_publication_service(Some(service));
+        let answer = self
+            .invoke_objects(&[], Some(arguments))
+            .and_then(normal_callback_result);
+        self.state.replace_publication_service(previous);
+        Self::publish(&self.state, registrar)?;
+        answer
+    }
+    fn invoke_original_completion_with_registrar(
+        &self,
+        registrar: &mut dyn CommandRegistrar,
+        arguments: &[Rc<dyn tcl_engine_api::OriginalObject>],
+    ) -> Result<tcl_engine_api::OriginalObjectCompletion, EngineError> {
+        if registrar.native_c_version() != Some(tcl_engine_api::NativeCVersion::V9_0) {
+            return Err(EngineError::ExecutionRefusal(
+                "callback engine differs from the C9.0 shim ABI".into(),
+            ));
+        }
+        let service = registrar.command_publication_service()?;
+        let previous = self.state.replace_publication_service(Some(service));
+        let answer = self.invoke_objects(&[], Some(arguments));
+        self.state.replace_publication_service(previous);
+        Self::publish(&self.state, registrar)?;
+        answer
+    }
+}
+
+fn normal_callback_result(
+    completion: tcl_engine_api::OriginalObjectCompletion,
+) -> Result<tcl_engine_api::OriginalObjectResult, EngineError> {
+    if completion.code.is_ok() {
+        Ok(completion.result)
+    } else {
+        Err(EngineError::ExecutionRefusal(
+            "callback requires the native completion interface".into(),
+        ))
+    }
+}
+
+impl ShimCommand {
+    fn invoke_objects(
+        &self,
+        arguments: &[Value],
+        originals: Option<&[Rc<dyn tcl_engine_api::OriginalObject>]>,
+    ) -> Result<tcl_engine_api::OriginalObjectCompletion, EngineError> {
+        let Some(entry) = self.state.command(&self.key) else {
             return Err(self.lookup_error());
         };
+        if !Rc::ptr_eq(&entry, &self.entry) {
+            return Err(self.lookup_error());
+        }
         let mut objv: Vec<ObjRef> = Vec::with_capacity(arguments.len() + 1);
-        objv.push(ObjRef::new(Obj::from_text(&self.name)));
-        objv.extend(
-            arguments
-                .iter()
-                .map(|argument| ObjRef::new(Obj::from_value(argument))),
-        );
+        objv.push(ObjRef::new(Obj::from_bytes(self.name.as_bytes())));
+        if let Some(originals) = originals {
+            self.state.prune_original_objects();
+            let mut identities: Vec<((u64, u64, usize), usize)> = Vec::new();
+            for original in originals {
+                let scope = original.scope_identity();
+                let key = (scope.0, scope.1, original.identity());
+                if let Some((_, index)) = identities.iter().find(|(identity, _)| *identity == key) {
+                    objv.push(objv[*index].clone());
+                } else {
+                    let index = objv.len();
+                    objv.push(self.state.import_original(Rc::clone(original))?);
+                    identities.push((key, index));
+                }
+            }
+        } else {
+            objv.extend(
+                arguments
+                    .iter()
+                    .map(|argument| Obj::from_value(argument).map(ObjRef::new))
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
         let raw: Vec<*mut Obj> = objv.iter().map(ObjRef::as_ptr).collect();
         let word_count = c_int::try_from(raw.len()).map_err(|_| EngineError::Script {
             message: "too many arguments for a C command".to_owned(),
@@ -185,14 +334,18 @@ impl HostCommand for ShimCommand {
 
         self.state.reset_result();
         let state_ptr = Rc::as_ptr(&self.state).cast_mut();
-        let code = catch_unwind(AssertUnwindSafe(|| {
-            // SAFETY: `entry` came from `Tcl_CreateObjCommand`, so `proc` is
-            // the extension's own command procedure and `client_data` what it
-            // registered; `state_ptr` is live for the whole call because
-            // `self.state` holds it; `raw` holds `word_count` live objects that
-            // `objv` keeps alive until after the call returns.
-            unsafe { (entry.proc)(entry.client_data, state_ptr, word_count, raw.as_ptr()) }
-        }));
+        let code = self
+            .state
+            .with_static_extension(entry.extension.clone(), || {
+                catch_unwind(AssertUnwindSafe(|| {
+                    // SAFETY: `entry` came from `Tcl_CreateObjCommand`, so `proc` is
+                    // the extension's own command procedure and `client_data` what it
+                    // registered; `state_ptr` is live for the whole call because
+                    // `self.state` holds it; `raw` holds `word_count` live objects that
+                    // `objv` keeps alive until after the call returns.
+                    unsafe { (entry.proc)(entry.client_data, state_ptr, word_count, raw.as_ptr()) }
+                }))
+            });
         let code = match code {
             Ok(code) => code,
             Err(payload) => return Err(EngineError::Crashed(panic_text(payload.as_ref()))),
@@ -201,30 +354,20 @@ impl HostCommand for ShimCommand {
             return Err(EngineError::Crashed(panic));
         }
         drop(objv);
+        if let Some(refusal) = self.state.take_host_refusal() {
+            return Err(refusal);
+        }
 
         let result = self.state.result();
-        match code {
-            ffi::TCL_OK | ffi::TCL_RETURN => Ok(result.get().to_value()),
-            ffi::TCL_ERROR => Err(EngineError::Script {
-                message: result.get().text(),
-                code: self.state.error_code_text(),
-            }),
-            // The interface carries results and errors, not Tcl's loop
-            // completion codes; a C command answering with one is reported as
-            // Tcl itself reports it at a non-loop level.
-            ffi::TCL_BREAK => Err(EngineError::Script {
-                message: "invoked \"break\" outside of a loop".to_owned(),
-                code: None,
-            }),
-            ffi::TCL_CONTINUE => Err(EngineError::Script {
-                message: "invoked \"continue\" outside of a loop".to_owned(),
-                code: None,
-            }),
-            other => Err(EngineError::Script {
-                message: format!("command returned bad code: {other}"),
-                code: None,
-            }),
-        }
+        let options = ObjRef::new(self.state.return_options(code));
+        let mut graph = obj::OriginalObjectGraph::default();
+        let result = graph.export(result.get(), false)?;
+        let options = graph.export(options.get(), false)?;
+        Ok(tcl_core_types::Completion::new(
+            tcl_core_types::Code::from_int(code),
+            result,
+            options,
+        ))
     }
 }
 
@@ -245,6 +388,37 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 struct EngineDoor<'a, E: Engine>(&'a mut E);
 
 impl<E: Engine> CommandRegistrar for EngineDoor<'_, E> {
+    fn command_publication_service(
+        &mut self,
+    ) -> Result<Rc<dyn CommandPublicationService>, EngineError> {
+        self.0.command_publication_service()
+    }
+    fn define_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.0.define_prepared_command(publication, command)
+    }
+    fn remove_prepared_command(
+        &mut self,
+        publication: PreparedCommandPublication,
+    ) -> Result<bool, EngineError> {
+        self.0.remove_prepared_command(publication)
+    }
+
+    fn define_command_bytes(
+        &mut self,
+        name: &[u8],
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.0.define_command_bytes(name, command)
+    }
+
+    fn remove_command_bytes(&mut self, name: &[u8]) -> Result<bool, EngineError> {
+        self.0.remove_command_bytes(name)
+    }
+
     fn define_command(
         &mut self,
         name: &str,
@@ -290,11 +464,19 @@ impl<E: Engine> Interp<E> {
     /// `init` must be a package entry point written against
     /// `include/tclshim.h`: the shim contains Rust panics, not C undefined
     /// behaviour. Calling this is the act of trusting native code.
+    /// The extension's code and non-temporary Index tables must remain valid
+    /// through every retained object/cache, even after command or interpreter
+    /// retirement. This static loader does not support unloading a library.
     pub unsafe fn load_static(&mut self, init: InitProc) -> Result<Loaded, LoadError> {
+        let service = self.engine.command_publication_service()?;
+        self.state.replace_publication_service(Some(service));
         let state_ptr = self.raw();
         self.state.reset_result();
         // SAFETY: the caller vouches for `init`; `state_ptr` is live.
-        let code = catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }));
+        let extension = Rc::new(state::StaticExtensionLifetime::new(init));
+        let code = self.state.with_static_extension(Some(extension), || {
+            catch_unwind(AssertUnwindSafe(|| unsafe { init(state_ptr) }))
+        });
         let code = match code {
             Ok(code) => code,
             Err(payload) => return Err(LoadError::Crashed(panic_text(payload.as_ref()))),
@@ -302,17 +484,22 @@ impl<E: Engine> Interp<E> {
         if let Some(panic) = ffi::take_panic() {
             return Err(LoadError::Crashed(panic));
         }
+        if let Some(refusal) = self.state.take_host_refusal() {
+            return Err(LoadError::Engine(refusal));
+        }
         if code != ffi::TCL_OK {
             return Err(LoadError::InitFailed {
                 code,
-                message: self.state.result().get().text(),
+                message: self.state.result().get().bytes(),
             });
         }
-        let mut commands: Vec<String> = self
+        let mut commands: Vec<NameBytes> = self
             .sync()?
             .into_iter()
             .filter_map(|change| match change {
-                CommandChange::Created(name) => Some(name),
+                CommandChange::Created(publication) => {
+                    Some(NameBytes::from(publication.original.as_ref()))
+                }
                 CommandChange::Deleted(_) => None,
             })
             .collect();
@@ -359,13 +546,13 @@ impl<E: Engine> Interp<E> {
 
     /// The commands currently registered by C code, sorted.
     #[must_use]
-    pub fn commands(&self) -> Vec<String> {
+    pub fn commands(&self) -> Vec<NameBytes> {
         self.state.command_names()
     }
 
     /// The packages C code has provided.
     #[must_use]
-    pub fn provided_packages(&self) -> Vec<(String, String)> {
+    pub fn provided_packages(&self) -> Vec<(NameBytes, Vec<u8>)> {
         self.state.provided_packages()
     }
 }
@@ -472,8 +659,78 @@ mod tests {
         removed: Vec<String>,
     }
 
+    struct RecordingPublicationService;
+
+    impl tcl_engine_api::CommandPublicationService for RecordingPublicationService {
+        fn observed_presence(
+            &self,
+            _publication: &tcl_engine_api::PreparedCommandPublication,
+        ) -> Result<bool, EngineError> {
+            // This service has no commands outside the shim's local table.
+            Ok(false)
+        }
+
+        fn note_publication(
+            &self,
+            _publication: &tcl_engine_api::PreparedCommandPublication,
+            _present: bool,
+        ) -> Result<(), EngineError> {
+            Ok(())
+        }
+
+        fn prepare(
+            &self,
+            original: &[u8],
+            _purpose: tcl_engine_api::CommandPublicationPurpose,
+        ) -> Result<tcl_engine_api::PreparedCommandPublication, EngineError> {
+            // This mock only provides the root names used by the boundary tests.
+            if original.windows(2).any(|pair| pair == b"::") {
+                return Err(EngineError::ExecutionRefusal(
+                    "recording engine has only a root slot".into(),
+                ));
+            }
+            Ok(tcl_engine_api::PreparedCommandPublication {
+                original: Rc::from(original),
+                key: tcl_engine_api::CommandPublicationKey {
+                    owner: 1,
+                    interpreter: 0,
+                    namespace: 0,
+                    simple: Rc::from(original),
+                },
+                receipt: Rc::new(()),
+            })
+        }
+    }
+
     impl Engine for RecordingEngine {
         type Handle = String;
+
+        fn command_publication_service(
+            &mut self,
+        ) -> Result<Rc<dyn tcl_engine_api::CommandPublicationService>, EngineError> {
+            Ok(Rc::new(RecordingPublicationService))
+        }
+
+        fn define_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+            command: Rc<dyn HostCommand>,
+        ) -> Result<(), EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple).map_err(|_| {
+                EngineError::ExecutionRefusal("recording engine requires Unicode".into())
+            })?;
+            self.define_command(name, command)
+        }
+
+        fn remove_prepared_command(
+            &mut self,
+            publication: tcl_engine_api::PreparedCommandPublication,
+        ) -> Result<bool, EngineError> {
+            let name = std::str::from_utf8(&publication.key.simple).map_err(|_| {
+                EngineError::ExecutionRefusal("recording engine requires Unicode".into())
+            })?;
+            self.remove_command(name)
+        }
 
         fn name(&self) -> &'static str {
             "recording"
@@ -524,7 +781,10 @@ mod tests {
         // SAFETY: `init` is written against the shim's own exports.
         let loaded = unsafe { interp.load_static(init) }.expect("loads");
         assert_eq!(loaded.commands, ["boom", "echo", "twice"]);
-        assert_eq!(loaded.packages, [("demo".to_owned(), "1.0".to_owned())]);
+        assert_eq!(
+            loaded.packages,
+            [(tcl_core_types::NameBytes::from("demo"), b"1.0".to_vec())]
+        );
         interp
     }
 
@@ -569,20 +829,21 @@ mod tests {
         let twice = command(&interp, "twice");
         let error = twice.invoke(&[]).expect_err("arity");
         assert_eq!(
-            error,
-            EngineError::Script {
-                message: "wrong # args: should be \"twice n\"".to_owned(),
-                code: Some("TCL WRONGARGS".to_owned()),
-            }
+            error.script_message_bytes(),
+            Some(b"wrong # args: should be \"twice n\"".as_slice())
         );
+        assert_eq!(error.script_code_bytes(), Some(b"TCL WRONGARGS".as_slice()));
+        assert!(error.script_options_bytes().is_some());
         let error = twice.invoke(&[Value::string("x")]).expect_err("conversion");
         assert_eq!(
-            error,
-            EngineError::Script {
-                message: "expected integer but got \"x\"".to_owned(),
-                code: Some("TCL VALUE NUMBER".to_owned()),
-            }
+            error.script_message_bytes(),
+            Some(b"expected integer but got \"x\"".as_slice())
         );
+        assert_eq!(
+            error.script_code_bytes(),
+            Some(b"TCL VALUE NUMBER".as_slice())
+        );
+        assert!(error.script_options_bytes().is_some());
     }
 
     #[test]
@@ -592,7 +853,7 @@ mod tests {
         let error = boom.invoke(&[]).expect_err("crashes");
         assert!(matches!(&error, EngineError::Crashed(text) if text.contains("NULL Tcl_Obj")));
         assert!(
-            matches!(command(&interp, "echo").invoke(&[]), Ok(Value::List(_))),
+            command(&interp, "echo").invoke(&[]).unwrap().as_bytes() == Some(b"".as_slice()),
             "the interpreter is still usable"
         );
     }
@@ -606,7 +867,7 @@ mod tests {
             error,
             LoadError::InitFailed {
                 code: ffi::TCL_ERROR,
-                message: "no licence".to_owned(),
+                message: b"no licence".to_vec(),
             }
         );
         assert!(interp.commands().is_empty());
@@ -631,25 +892,93 @@ mod tests {
                 Some(on_delete),
             );
         }
-        assert_eq!(
-            interp.sync().expect("syncs"),
-            [CommandChange::Created("temp".to_owned())]
-        );
+        assert!(matches!(interp.sync().expect("syncs").as_slice(),
+            [CommandChange::Created(publication)] if publication.original.as_ref() == b"temp"));
         // SAFETY: as above.
         assert_eq!(
             unsafe { ffi::tcl_delete_command(interp.raw(), c"temp".as_ptr()) },
             0
         );
         assert!(DELETED.with(Cell::get));
-        assert_eq!(
-            interp.sync().expect("syncs"),
-            [CommandChange::Deleted("temp".to_owned())]
-        );
+        assert!(matches!(interp.sync().expect("syncs").as_slice(),
+            [CommandChange::Deleted(publication)] if publication.original.as_ref() == b"temp"));
         assert_eq!(interp.engine().removed, ["temp"]);
         // SAFETY: as above.
         assert_eq!(
             unsafe { ffi::tcl_delete_command(interp.raw(), c"temp".as_ptr()) },
             -1
         );
+    }
+    #[test]
+    fn native_delete_callbacks_observe_original_and_nested_generation() {
+        struct DeleteContext {
+            state: *const InterpState,
+            nested: bool,
+            saw_original: Cell<bool>,
+            created: std::cell::RefCell<Option<Rc<super::state::CommandEntry>>>,
+        }
+        unsafe extern "C" fn inspect_and_replace(data: *mut c_void) {
+            // SAFETY: the test keeps context and state alive until deletion returns.
+            let context = unsafe { &*data.cast::<DeleteContext>() };
+            let state = unsafe { &*context.state };
+            let key = tcl_engine_api::CommandPublicationKey {
+                owner: 1,
+                interpreter: 0,
+                namespace: 0,
+                simple: Rc::from(b"target".as_slice()),
+            };
+            context.saw_original.set(
+                state
+                    .command(&key)
+                    .is_some_and(|entry| entry.client_data == data),
+            );
+            if context.nested {
+                let created = state
+                    .create_command(b"target", echo, std::ptr::null_mut(), None)
+                    .expect("mock root publication");
+                *context.created.borrow_mut() = Some(created);
+            }
+        }
+        for replacement in [false, true] {
+            for nested in [false, true] {
+                let state = InterpState::new();
+                state.replace_publication_service(Some(Rc::new(RecordingPublicationService)));
+                let context = DeleteContext {
+                    state: &raw const state,
+                    nested,
+                    saw_original: Cell::new(false),
+                    created: std::cell::RefCell::new(None),
+                };
+                let old = state
+                    .create_command(
+                        b"target",
+                        echo,
+                        std::ptr::from_ref(&context).cast_mut().cast(),
+                        Some(inspect_and_replace),
+                    )
+                    .expect("mock root publication");
+                if replacement {
+                    let outer = state
+                        .create_command(b"target", echo, std::ptr::null_mut(), None)
+                        .expect("outer publication");
+                    assert!(Rc::ptr_eq(
+                        &state.command(&outer.publication.key).expect("present"),
+                        &outer
+                    ));
+                } else {
+                    assert!(state.delete_command(b"target").expect("mock root deletion"));
+                    let current = state.command(&old.publication.key);
+                    if nested {
+                        assert!(Rc::ptr_eq(
+                            &current.expect("nested survives"),
+                            context.created.borrow().as_ref().expect("created")
+                        ));
+                    } else {
+                        assert!(current.is_none());
+                    }
+                }
+                assert!(context.saw_original.get());
+            }
+        }
     }
 }

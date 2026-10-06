@@ -67,6 +67,8 @@ publish = false
 wasm_stdlib = []
 
 [dependencies]
+# Pure executable artifact tables shared with the native bytecode producer.
+tcl-bytecode = { path = "../../rust/tcl-bytecode" }
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }
 # The ordered Tcl release enum (`TclVersion`) this runtime's release-dependent

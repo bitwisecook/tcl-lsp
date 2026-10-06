@@ -60,6 +60,13 @@ pub struct TransitionStateIntent {
     pub commit: StateTransitionCommit,
 }
 
+struct InstructionPlanInputs {
+    block: ExecutableBlockId,
+    completion: crate::executable_ir::CompletionId,
+    ordinary: Vec<(WorldStateIntentKind, WorldRegion)>,
+    transition: Vec<TransitionStateIntent>,
+}
+
 type InvocationIntents = (
     Vec<(WorldStateIntentKind, WorldRegion)>,
     Vec<TransitionStateIntent>,
@@ -133,7 +140,52 @@ fn append_transition(intents: &mut Vec<TransitionStateIntent>, fact: &StateTrans
         StateTransition::ObjectDispatch(transition) => {
             append_object_dispatch(intents, fact.commit, transition);
         }
+        StateTransition::Package(transition) => {
+            append_package(intents, fact.commit, transition);
+        }
         StateTransition::Widen(widening) => append_widening(intents, fact.commit, widening),
+    }
+}
+
+fn append_package(
+    intents: &mut Vec<TransitionStateIntent>,
+    commit: StateTransitionCommit,
+    transition: &tcl_registry::model::binding::PackageTransition,
+) {
+    use tcl_registry::model::binding::PackageTransition;
+    let region = |subject: Option<&TransitionSubject>| {
+        subject.and_then(TransitionSubject::literal).map_or_else(
+            || unknown_current_region(WorldRegionKind::PackageState),
+            |name| {
+                WorldRegion::exact(
+                    WorldRegionKind::PackageState,
+                    WorldInterpreterScope::Current,
+                    WorldNamespaceScope::Any,
+                    name,
+                )
+            },
+        )
+    };
+    let (subjects, writes): (Vec<Option<&TransitionSubject>>, bool) = match transition {
+        PackageTransition::Provide { package, version } => (vec![Some(package)], version.is_some()),
+        PackageTransition::Require { package, .. } => (vec![Some(package)], true),
+        PackageTransition::Ifneeded {
+            package,
+            script_provided,
+            ..
+        } => (vec![Some(package)], *script_provided),
+        PackageTransition::Forget { packages } => (packages.iter().map(Some).collect(), true),
+        PackageTransition::UnknownHandler { handler } => (vec![None], handler.is_some()),
+        PackageTransition::Prefer { mode } => (vec![None], mode.is_some()),
+        PackageTransition::SourceLoad { .. }
+        | PackageTransition::DiscoveryDependencyChanged { .. } => (vec![None], true),
+    };
+    for subject in subjects {
+        let location = region(subject);
+        push_intent(intents, commit, WorldStateIntentKind::Use, location.clone());
+        if writes {
+            push_intent(intents, commit, WorldStateIntentKind::Clobber, location);
+        }
     }
 }
 
@@ -338,7 +390,7 @@ fn append_command_binding(
             target,
             // Baked leading arguments change what the alias *runs*, never
             // which command regions it reads or writes.
-            arguments: _,
+            ..
         } => {
             let source = subject_interpreter(source_interpreter);
             let target_interpreter = subject_interpreter(target_interpreter);
@@ -606,10 +658,7 @@ fn append_namespace(
             WorldStateIntentKind::Def,
             namespace_region(WorldRegionKind::NamespaceLookup, namespace),
         ),
-        NamespaceTransition::Import {
-            namespace,
-            patterns: _,
-        }
+        NamespaceTransition::Import { namespace, .. }
         | NamespaceTransition::Forget {
             namespace,
             patterns: _,
@@ -921,6 +970,7 @@ fn domain_wildcards(domain: StateTransitionDomain) -> Vec<WorldRegion> {
         StateTransitionDomain::ExecutionTraces => vec![region(WorldRegionKind::ExecutionTraces)],
         StateTransitionDomain::VariableTraces => vec![region(WorldRegionKind::VariableTraces)],
         StateTransitionDomain::ObjectDispatch => vec![region(WorldRegionKind::ObjectDispatch)],
+        StateTransitionDomain::Packages => vec![region(WorldRegionKind::PackageState)],
     }
 }
 
@@ -1094,85 +1144,15 @@ impl<'a> Planner<'a> {
             }
             let mut ordinal = 0_u32;
             for instruction_index in 0..self.function.blocks[block_index].instructions.len() {
-                let plan_inputs = {
-                    let block = &self.function.blocks[block_index];
-                    match &block.instructions[instruction_index] {
-                        ExecutableInstruction::Invoke(invoke) => {
-                            let state_site =
-                                Self::state_site(block.id, instruction_index, ordinal)?;
-                            project_invocation_intents(
-                                &invoke.resolution,
-                                &state_site,
-                                block.id,
-                                instruction_index,
-                            )
-                            .map(|(ordinary, transition)| {
-                                Some((block.id, invoke.completion, ordinary, transition))
-                            })
-                        }
-                        ExecutableInstruction::ExecuteLowered(operation) => Ok(Some((
-                            block.id,
-                            operation.completion,
-                            lowered_footprint_intents(&operation.footprint),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::ExecuteOpaqueRegion(region) => Ok(Some((
-                            block.id,
-                            region.completion,
-                            conservative_region_intents(),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::EvaluateWord {
-                            word, completion, ..
-                        } if word_evaluation_runs_commands(word) => {
-                            // A word containing a command substitution (or an
-                            // opaque fragment that may hide one) runs arbitrary
-                            // commands during argv evaluation.  Without this
-                            // barrier a closed outer invocation such as a pure
-                            // list query would hide a nested `rename` from the
-                            // world graph.
-                            Ok(Some((
-                                block.id,
-                                *completion,
-                                conservative_region_intents(),
-                                Vec::new(),
-                            )))
-                        }
-                        // Structured control's own operations touch variable
-                        // cells and nothing else.  An operand that can run
-                        // commands is the one exception, and it takes the same
-                        // conservative barrier a command-substituting word does.
-                        ExecutableInstruction::EvaluateExpr {
-                            expr, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            executable_expr_intents(expr),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::IterateLists {
-                            groups, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            cell_intents(
-                                groups.iter().flat_map(|group| group.variables.iter()),
-                                WorldStateIntentKind::Clobber,
-                            ),
-                            Vec::new(),
-                        ))),
-                        ExecutableInstruction::WriteCompletionCell {
-                            cell, completion, ..
-                        } => Ok(Some((
-                            block.id,
-                            *completion,
-                            cell_intents(std::iter::once(cell), WorldStateIntentKind::Clobber),
-                            Vec::new(),
-                        ))),
-                        _ => Ok(None),
-                    }
-                }?;
-                let Some((block, completion, ordinary, transition)) = plan_inputs else {
+                let plan_inputs =
+                    self.instruction_plan_inputs(block_index, instruction_index, ordinal)?;
+                let Some(InstructionPlanInputs {
+                    block,
+                    completion,
+                    ordinary,
+                    transition,
+                }) = plan_inputs
+                else {
                     continue;
                 };
                 for (kind, location) in ordinary {
@@ -1195,6 +1175,117 @@ impl<'a> Planner<'a> {
             }
         }
         Ok(())
+    }
+
+    fn instruction_plan_inputs(
+        &self,
+        block_index: usize,
+        instruction_index: usize,
+        ordinal: u32,
+    ) -> Result<Option<InstructionPlanInputs>, WorldStateSsaDecline> {
+        let block = &self.function.blocks[block_index];
+        let inputs = match &block.instructions[instruction_index] {
+            ExecutableInstruction::Invoke(invoke) => {
+                let state_site = Self::state_site(block.id, instruction_index, ordinal)?;
+                project_invocation_intents(
+                    &invoke.resolution,
+                    &state_site,
+                    block.id,
+                    instruction_index,
+                )
+                .map(|(ordinary, transition)| {
+                    Some((block.id, invoke.completion, ordinary, transition))
+                })
+            }
+            ExecutableInstruction::ExecuteLowered(operation) => Ok(Some((
+                block.id,
+                operation.completion,
+                lowered_footprint_intents(&operation.footprint),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::ExecuteOpaqueRegion(region) => Ok(Some((
+                block.id,
+                region.completion,
+                conservative_region_intents(),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::CompleteEvaluatedRegion(completed) => {
+                let state_site = Self::state_site(block.id, instruction_index, ordinal)?;
+                let residual = completed.region.residual_effects.resolve();
+                let intents = project_effect_footprint(&residual, &state_site, None)
+                    .map_err(|_| WorldStateSsaDecline::StateSiteOverflow {
+                        block: block.id,
+                        instruction: instruction_index,
+                    })?
+                    .into_iter()
+                    .map(|intent| (intent.kind, intent.location))
+                    .collect();
+                Ok(Some((
+                    block.id,
+                    completed.invocation.completion,
+                    intents,
+                    Vec::new(),
+                )))
+            }
+            ExecutableInstruction::EvaluateWord {
+                word, completion, ..
+            } if word_evaluation_runs_commands(word) => {
+                // A word containing a command substitution (or an
+                // opaque fragment that may hide one) runs arbitrary
+                // commands during argv evaluation.  Without this
+                // barrier a closed outer invocation such as a pure
+                // list query would hide a nested `rename` from the
+                // world graph.
+                Ok(Some((
+                    block.id,
+                    *completion,
+                    conservative_region_intents(),
+                    Vec::new(),
+                )))
+            }
+            // Structured control's own operations touch variable
+            // cells and nothing else.  An operand that can run
+            // commands is the one exception, and it takes the same
+            // conservative barrier a command-substituting word does.
+            ExecutableInstruction::EvaluateExpr {
+                expr, completion, ..
+            } => Ok(Some((
+                block.id,
+                *completion,
+                executable_expr_intents(expr),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::IterateLists {
+                groups, completion, ..
+            } => Ok(Some((
+                block.id,
+                *completion,
+                cell_intents(
+                    groups.iter().flat_map(|group| group.variables.iter()),
+                    WorldStateIntentKind::Clobber,
+                ),
+                Vec::new(),
+            ))),
+            ExecutableInstruction::WriteCompletionCell {
+                cell, completion, ..
+            } => Ok(Some((
+                block.id,
+                *completion,
+                cell_intents(std::iter::once(cell), WorldStateIntentKind::Clobber),
+                Vec::new(),
+            ))),
+            _ => Ok(None),
+        };
+        inputs.map(|inputs| {
+            inputs.map(
+                |(block, completion, ordinary, transition)| InstructionPlanInputs {
+                    block,
+                    completion,
+                    ordinary,
+                    transition,
+                },
+            )
+        })
     }
 
     fn plan_transition_intents(
@@ -1765,6 +1856,7 @@ pub(crate) fn successors_of(terminator: &ExecutableTerminator) -> Vec<usize> {
         } => {
             vec![then_target.index(), else_target.index()]
         }
+        ExecutableTerminator::RegionChoice { enter, skip } => vec![enter.index(), skip.index()],
         ExecutableTerminator::CompletionSwitch { cases, default, .. } => cases
             .iter()
             .map(|case| case.target.index())
@@ -1885,6 +1977,8 @@ mod tests {
             argv: ExecutableArgvId::new(id, completion.index()),
             resolution,
             original_words: words,
+            source_binding: None,
+            effective_words: None,
             node: NodeId::from_path(vec![
                 u32::try_from(completion.index()).expect("test completion index fits u32"),
             ]),

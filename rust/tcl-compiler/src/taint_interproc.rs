@@ -417,6 +417,9 @@ fn return_ctx<'a>(
         taint_summaries: Some(summaries),
         instance_classes: Some(instance_classes),
         source_position: None,
+        source_tokens: None,
+        word_offset: None,
+        source_word: None,
     }
 }
 
@@ -491,6 +494,23 @@ pub fn infer_proc_summary(
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
+    if fu.cfg.has_opaque_native_accesses() {
+        return ProcTaintSummary {
+            qualified_name: qname.to_owned(),
+            params: params.to_vec(),
+            arity: crate::interprocedural::arity_from_names(params),
+            return_base: TaintLattice::tainted(),
+            return_by_param_basis: params
+                .iter()
+                .map(|param| {
+                    (
+                        param.clone(),
+                        vec![TaintLattice::tainted(); TaintBasis::ALL.len()],
+                    )
+                })
+                .collect(),
+        };
+    }
     // Prune 1 — the return taint does not depend on the taint map at all, so
     // neither the clean base nor any of the `17P` seeded scenarios needs a
     // solve.  Every scenario is `clean`, which is exactly what
@@ -1338,7 +1358,7 @@ mod tests {
     fn clean_argument_into_proc_does_not_warn() {
         // A clean (literal) argument flowing into the same proc must NOT warn.
         let src = "proc s {v} { eval $v }\ns hello\n";
-        assert!(warnings(src).is_empty());
+        assert_eq!(warnings(src), [] as [crate::taint::TaintWarning; 0]);
     }
 
     #[test]
@@ -1532,6 +1552,40 @@ mod tests {
     }
 
     #[test]
+    fn opaque_native_call_cannot_produce_a_clean_constant_return_summary() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {value} {return LITERAL}",
+            registry,
+            false,
+        );
+        let function = unit.procedures.get_mut("::p").unwrap();
+        function
+            .cfg
+            .blocks
+            .get_mut(&function.cfg.entry)
+            .unwrap()
+            .statements
+            .push(crate::ir::native_call_for_test(b"opaque \xff"));
+        let parameters = vec!["value".into()];
+        let summary = infer_proc_summary(
+            "::p",
+            &parameters,
+            function,
+            registry,
+            None,
+            registry.profile(),
+            &HashSet::from(["::p".into()]),
+            &HashMap::new(),
+        );
+        assert_eq!(summary.return_base, TaintLattice::tainted());
+        assert_eq!(
+            apply_proc_return_summary(&summary, &[TaintLattice::clean()]),
+            TaintLattice::tainted()
+        );
+    }
+
+    #[test]
     fn constant_return_prune_yields_the_untainted_summary() {
         // A procedure whose every executable return value is substitution-free
         // cannot carry taint out, so the whole summary is the clean one — with
@@ -1573,12 +1627,13 @@ mod tests {
         );
         // …and a procedure the constant-return prune skips *entirely* (zero
         // solves) must still produce exactly what the unpruned solver did.
-        // The sink check reports `$x` here because the tainted variable is
-        // written literally inside `eval`'s word, independently of what `lit`'s
-        // summary says — behaviour this change does not touch, pinned so a
-        // future prune cannot quietly move it.
+        // The original `eval` operand contains only the selected procedure's
+        // clean result. An input read inside that procedure call cannot supply
+        // bytes to the outer sink independently of the returned value.
         let src = "proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]\n";
         let w = warnings(src);
+        assert!(w.is_empty(), "constant result must remain clean: {w:?}");
+        let w = warnings("proc lit {v} { return safe }\nset x [gets stdin]\neval [lit $x]$x\n");
         assert_eq!(w.len(), 1, "{w:?}");
         assert_eq!(w[0].code, DiagCode::T100);
         assert_eq!(w[0].variable, "x");

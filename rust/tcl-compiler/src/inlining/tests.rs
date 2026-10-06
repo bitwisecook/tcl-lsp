@@ -64,6 +64,52 @@ fn inlined_top(source: &str) -> Vec<Statement> {
         .statements
 }
 
+fn inlined_native_top(source: &str) -> Vec<Statement> {
+    let context = tcl_registry::model::ingress::static_context_for("tcl9.0");
+    let registry = context.commands();
+    let module = CompilationUnit::build_for_profile(
+        source,
+        registry,
+        false,
+        registry.profile().expect("selected native profile"),
+    )
+    .ir_module;
+    if std::env::var_os("TCL_INLINE_PROOF_DEBUG").is_some() {
+        let summaries =
+            crate::var_escape::analyse_var_escape_with_registry(&module, true, registry);
+        let catalogue = build_inlinable_map(&module, &summaries, registry);
+        eprintln!(
+            "inline source={source:?} top_admission={} catalogue={:?}",
+            crate::native_compilation_admission::script_requires_admission(&module.top_level),
+            catalogue.keys().collect::<Vec<_>>()
+        );
+        for (name, procedure) in &module.procedures {
+            if let Some(summary) = summaries.get(name) {
+                eprintln!(
+                    "inline escape frame={} flags={:?} callees={:?} barriers={:?}",
+                    summary.frame_needed, summary.flags, summary.direct_callees, summary.barriers,
+                );
+            }
+            eprintln!(
+                "inline proc={name} admission={} safe={} size={} v3={} kinds={:?}",
+                crate::native_compilation_admission::script_requires_admission(&procedure.body),
+                summaries
+                    .get(name)
+                    .is_some_and(ProcEscapeSummary::safe_to_inline),
+                count_statements(&procedure.body),
+                v3_eligible(procedure, name, &summaries, registry),
+                procedure
+                    .body
+                    .statements
+                    .iter()
+                    .map(std::mem::discriminant)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+    inline_module(module, registry).top_level.statements
+}
+
 /// Whether any top-level statement is an assignment to a mangled
 /// `__inline_*` slot.
 fn has_inline_binding(stmts: &[Statement]) -> bool {
@@ -125,7 +171,7 @@ fn deeply_nested_if_survives_inlining_walks() {
 /// `$__inline_…__x` against the pattern `$x` and takes the wrong arm.
 #[test]
 fn a_braced_switch_subject_survives_alpha_renaming() {
-    let stmts = inlined_top(
+    let stmts = inlined_native_top(
         "proc ::f {x} { switch -- {$x} {$x} { puts hit } default { puts miss } }
 f {$x}",
     );
@@ -142,7 +188,7 @@ f {$x}",
         .collect();
     assert!(
         !subjects.is_empty(),
-        "the switch did not survive inlining, so this proves nothing: {stmts:#?}"
+        "the selected native switch must survive inlining"
     );
     for (subject, braced) in subjects {
         assert!(braced, "the subject should still be marked braced");
@@ -690,7 +736,7 @@ fn repeated_v3_wrap_preserves_transitive_procedure_bindings_in_asm() {
 #[test]
 fn v3_non_trailing_return_is_wrapped() {
     let src = "proc ::h {x} { if {$x} { return 1 }\n set y 2 }\nh 0\nputs done";
-    let stmts = inlined_top(src);
+    let stmts = inlined_native_top(src);
     assert!(
         stmts.iter().any(|s| matches!(s, Statement::While { .. })),
         "non-trailing return wrapped in a one-shot loop"
@@ -701,6 +747,30 @@ fn v3_non_trailing_return_is_wrapped() {
             .any(|s| matches!(s, Statement::Call { command, .. } if command == "h")),
         "call replaced"
     );
+}
+
+#[test]
+fn unresolved_native_entry_keeps_structural_calls() {
+    for (source, command) in [
+        (
+            "proc ::f {x} { switch -- {$x} {$x} { puts hit } default { puts miss } }\nf {$x}",
+            "f",
+        ),
+        (
+            "proc ::h {x} { if {$x} { return 1 }\n set y 2 }\nh 0\nputs done",
+            "h",
+        ),
+    ] {
+        let original = module_for(source);
+        assert!(
+            original
+                .source_entry
+                .invocation_dialect
+                .is_none_or(|dialect| dialect.core_point.is_none()),
+            "the refusal control must keep its unresolved native release"
+        );
+        assert_eq!(top_calls_to(&inline_module_default(original), command), 1);
+    }
 }
 
 #[test]

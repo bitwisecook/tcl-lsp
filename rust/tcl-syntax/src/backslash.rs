@@ -18,16 +18,10 @@
 
 //! Tcl backslash-escape decoding — the canonical decoder.
 //!
-//! Re-exports [`tcl_lexer::backslash_subst`] (the one byte-exact implementation
-//! of reference Tcl's `TclParseBackslash`, shared with the LSP/compiler) as
-//! [`decode`], its extent rule [`tcl_lexer::backslash_escape_end`] as
-//! [`escape_end`] (so scanners that decode one escape at a time advance by the
-//! same widths the decoder consumes), and adds a byte-slice convenience for the
-//! runtime, which holds Tcl string reps as UTF-8 bytes. There is intentionally
-//! **no** second decoder: the runtime's old hand-rolled `bs.rs` (which emitted
-//! a raw `0xFF` byte for `\xff`, invalid UTF-8) is retired in favour of this
-//! one (which yields `U+00FF`, matching Tcl 9 and the UTF-8-internal-rep
-//! invariant).
+//! The lexer owns lexical escape fragments and their selected extents. Native
+//! source values use [`native_source_string_bytes_in`], with an independently
+//! selected string recipe. Unicode presentation uses [`decode_in`]. These
+//! outputs have separate native-unit encoders and share one lexical grammar.
 //!
 //! The grammar is **release-variant** ([`EscapeSyntax`]): TIP 388 (8.6) capped
 //! `\x` at two hex digits, added `\U`, and guarded the octal third digit, so
@@ -44,30 +38,20 @@ pub use tcl_lexer::backslash_escape_end_in as escape_end_in;
 pub use tcl_lexer::backslash_subst as decode;
 pub use tcl_lexer::backslash_subst_in as decode_in;
 
-/// Decode Tcl backslash escapes in a byte slice that is a valid UTF-8 Tcl string
-/// rep (the runtime invariant), under **Tcl 9.0's** grammar. Borrows when there
-/// is nothing to decode (no backslash, or — defensively — non-UTF-8 input, which
-/// cannot occur for a well-formed internal rep). Otherwise returns freshly
-/// decoded bytes.
-///
-/// A caller that knows which release it evaluates for uses [`decode_bytes_in`];
-/// the grammar is release-variant (see [`EscapeSyntax`]) and 9.0 is the
-/// documented default for consumers with no release in scope.
+/// Decode escapes in original string bytes under Tcl 9.0's grammar.
+/// Backslash-free input borrows its exact bytes. A release-aware runtime uses
+/// [`decode_bytes_in`] with its retained escape grammar.
 #[must_use]
 pub fn decode_bytes(raw: &[u8]) -> Cow<'_, [u8]> {
     decode_bytes_in(raw, EscapeSyntax::default())
 }
 
-/// [`decode_bytes`] under `escapes` — the release-aware form.
+/// Byte-valued lexical presentation under the selected escape grammar.
+/// This entry point does not authenticate C native string units; a native
+/// source consumer uses [`native_source_string_bytes_in`] instead.
 #[must_use]
 pub fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
-    let Ok(s) = core::str::from_utf8(raw) else {
-        return Cow::Borrowed(raw);
-    };
-    match decode_in(s, escapes) {
-        Cow::Borrowed(b) => Cow::Borrowed(b.as_bytes()),
-        Cow::Owned(o) => Cow::Owned(o.into_bytes()),
-    }
+    tcl_lexer::backslash_subst_bytes_in(raw, escapes)
 }
 
 /// Collapse Tcl brace-word line continuations: a backslash immediately followed
@@ -82,7 +66,7 @@ pub fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
 /// continuation (the common case).
 #[must_use]
 pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
-    collapse_continuations(raw, false)
+    collapse_continuations(raw, false, tcl_lexer::SourceChannel::NativeValue)
 }
 
 /// [`collapse_brace_continuations`] for word-*separator* contexts: the spaces
@@ -95,24 +79,28 @@ pub fn collapse_brace_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
 /// contains no continuation.
 #[must_use]
 pub fn collapse_separator_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
-    collapse_continuations(raw, true)
+    collapse_continuations(raw, true, tcl_lexer::SourceChannel::NativeValue)
 }
 
 /// The shared continuation collapse; `trim_preceding` selects the separator
 /// rule (drop spaces/tabs already emitted before the backslash).
-fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
+fn collapse_continuations(
+    raw: &[u8],
+    trim_preceding: bool,
+    channel: tcl_lexer::SourceChannel,
+) -> Cow<'_, [u8]> {
     if !raw
         .iter()
         .enumerate()
-        .any(|(i, _)| tcl_lexer::backslash_continuation_end(raw, i).is_some())
+        .any(|(i, _)| tcl_lexer::source_backslash_continuation_end(raw, i, channel).is_some())
     {
-        return Cow::Borrowed(raw);
+        return source_literal_bytes(raw, channel);
     }
     let mut out = Vec::with_capacity(raw.len());
     let mut i = 0;
     while i < raw.len() {
         if raw[i] == b'\\' {
-            match tcl_lexer::backslash_continuation_end(raw, i) {
+            match tcl_lexer::source_backslash_continuation_end(raw, i, channel) {
                 Some(end) => {
                     i = end;
                     if trim_preceding {
@@ -140,10 +128,52 @@ fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
                 }
             }
         }
-        out.push(raw[i]);
+        if channel == tcl_lexer::SourceChannel::Document && raw[i] == b'\r' {
+            out.push(b'\n');
+            i += usize::from(raw.get(i + 1) == Some(&b'\n'));
+        } else {
+            out.push(raw[i]);
+        }
         i += 1;
     }
     Cow::Owned(out)
+}
+
+/// Literal value bytes selected by the original source channel. This produces
+/// a value view only; it never replaces the original source or its spans.
+#[must_use]
+pub fn source_literal_bytes(raw: &[u8], channel: tcl_lexer::SourceChannel) -> Cow<'_, [u8]> {
+    if channel != tcl_lexer::SourceChannel::Document || !raw.contains(&b'\r') {
+        return Cow::Borrowed(raw);
+    }
+    let mut value = Vec::with_capacity(raw.len());
+    let mut at = 0;
+    while at < raw.len() {
+        if raw[at] == b'\r' {
+            value.push(b'\n');
+            at += usize::from(raw.get(at + 1) == Some(&b'\n'));
+        } else {
+            value.push(raw[at]);
+        }
+        at += 1;
+    }
+    Cow::Owned(value)
+}
+
+/// Braced literal value under an explicit source channel and brace rule.
+/// Every span still belongs to the original image; only returned value bytes
+/// reflect channel translation and the selected continuation-folding rule.
+#[must_use]
+pub fn source_braced_word_bytes(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    rule: tcl_dialect::BraceBackslashNewline,
+) -> Cow<'_, [u8]> {
+    if rule.folds() {
+        collapse_continuations(raw, false, channel)
+    } else {
+        source_literal_bytes(raw, channel)
+    }
 }
 
 /// [`collapse_brace_continuations`], gated on the dialect's
@@ -209,6 +239,237 @@ fn collapsed_bytes_to_str<'s>(text: &'s str, collapsed: Cow<'s, [u8]>) -> Cow<'s
         Cow::Owned(bytes) => {
             Cow::Owned(String::from_utf8(bytes).expect("continuation collapse preserves UTF-8"))
         }
+    }
+}
+
+/// Unsupported source recipe or malformed host request, never a guest error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeSourceUnavailable {
+    /// Source grammar and independently selected string recipe disagree.
+    GrammarProtocolMismatch,
+    /// The requested position is not a backslash or has no valid bounded extent.
+    InvalidEscapePosition,
+}
+
+/// Unavailable original executable text, distinct from a guest syntax error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeArenaTextUnavailable {
+    /// The supplied component is not a text component of the retained arena.
+    NotText,
+    /// Its original byte extent is outside the arena's source image.
+    SourceGeometry,
+    /// The independently selected native source decoder declined the request.
+    Source(NativeSourceUnavailable),
+}
+
+/// Materialise a text component from its original executable source extent.
+/// `component` must come from `arena`; source spans address that arena's image.
+/// Original text retains counted native value bytes or returns the explicit
+/// Document channel's translated value view. Decoded text runs the native
+/// decoder over the original span, rather than treating advisory UTF-8 output
+/// as native string units. The string recipe is independent of compiler-local
+/// naming and runtime representation receipts.
+///
+/// # Errors
+/// Returns a typed ownership/decoder refusal, never a Tcl completion.
+pub fn native_arena_text<'a>(
+    arena: &'a tcl_lexer::ExecutablePartArena,
+    component: &tcl_lexer::SpannedExecutablePart,
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Cow<'a, [u8]>, NativeArenaTextUnavailable> {
+    let original = arena
+        .bytes(component.span)
+        .ok_or(NativeArenaTextUnavailable::SourceGeometry)?;
+    match &component.part {
+        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Original) => {
+            Ok(source_literal_bytes(original, arena.image().channel()))
+        }
+        tcl_lexer::ExecutablePart::Text(tcl_lexer::ExecutableText::Decoded(_)) => {
+            native_source_string_bytes_channel_in(
+                original,
+                arena.image().channel(),
+                escapes,
+                protocol,
+            )
+            .map_err(NativeArenaTextUnavailable::Source)
+        }
+        _ => Err(NativeArenaTextUnavailable::NotText),
+    }
+}
+
+/// Native bytes for one scanner-selected source escape token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSourceEscape {
+    /// End of the original selected token, in the supplied source buffer.
+    pub end: usize,
+    /// Exact resulting native string units.
+    pub bytes: Vec<u8>,
+}
+
+/// Decode one source escape through the shared lexer fragment scanner.
+///
+/// C source scanning selects a token extent before the evaluator decodes that
+/// bounded token. The distinction matters for truncated C8.6 astral input:
+/// scanning can select a high surrogate's one-byte extent, while decoding the
+/// selected token yields that original lead byte's native character unit.
+/// Literal bytes after the selected extent remain literal, independently of
+/// what the `subst` command does with its remaining string representation.
+///
+/// # Errors
+/// Returns an error for a grammar/recipe mismatch or an invalid requested escape extent.
+pub fn native_source_escape_in(
+    raw: &[u8],
+    pos: usize,
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<NativeSourceEscape, NativeSourceUnavailable> {
+    native_source_escape_channel_in(
+        raw,
+        pos,
+        tcl_lexer::SourceChannel::NativeValue,
+        escapes,
+        protocol,
+    )
+}
+
+/// Decode one original source escape under its explicit input channel.
+///
+/// # Errors
+/// Returns mismatched decoder policy or unavailable original extent.
+pub fn native_source_escape_channel_in(
+    raw: &[u8],
+    pos: usize,
+    channel: tcl_lexer::SourceChannel,
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<NativeSourceEscape, NativeSourceUnavailable> {
+    use tcl_lexer::{BackslashFragmentValue, source_backslash_fragment_in};
+    if escapes != protocol.escape_syntax() {
+        return Err(NativeSourceUnavailable::GrammarProtocolMismatch);
+    }
+    let scan = source_backslash_fragment_in(raw, pos, channel, escapes, |suffix| {
+        native_original_escape_unit(protocol, suffix)
+    })
+    .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
+    let decoded = source_backslash_fragment_in(&raw[..scan.end], pos, channel, escapes, |suffix| {
+        native_original_escape_unit(protocol, suffix)
+    })
+    .ok_or(NativeSourceUnavailable::InvalidEscapePosition)?;
+    let mut bytes = Vec::new();
+    match decoded.value {
+        BackslashFragmentValue::Byte(byte) => bytes.push(byte),
+        BackslashFragmentValue::Literal(range) => bytes.extend_from_slice(&raw[range]),
+        BackslashFragmentValue::Codepoint(value) => match protocol {
+            crate::native_string::NativeStringProtocol::Jim084 => {
+                tcl_lexer::encode_jim084_unicode(&mut bytes, value);
+            }
+            crate::native_string::NativeStringProtocol::C(version) => {
+                let value = if version < tcl_dialect::TclVersion::V9_0 && value > 0xffff {
+                    0xfffd
+                } else {
+                    value
+                };
+                crate::native_tcl_utf::NativeTclUtf::for_version(version).encode_unit(value, &mut bytes)
+                    .expect("shared numeric scanner and native input-unit decoder select a supported C unit");
+            }
+        },
+    }
+    Ok(NativeSourceEscape {
+        end: scan.end,
+        bytes,
+    })
+}
+
+/// Encode escaped source content as native string bytes. This does not parse
+/// word boundaries, perform substitutions, materialise byte arrays, decode
+/// file channels or grant compilation permission. The caller supplies already
+/// selected word content and retains its original source/object provenance.
+/// Backslash-free content borrows the complete original byte string.
+///
+/// # Errors
+/// Returns an error for a grammar/recipe mismatch or an invalid requested escape extent.
+pub fn native_source_string_bytes_in(
+    raw: &[u8],
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Cow<'_, [u8]>, NativeSourceUnavailable> {
+    native_source_string_bytes_channel_in(
+        raw,
+        tcl_lexer::SourceChannel::NativeValue,
+        escapes,
+        protocol,
+    )
+}
+
+/// Native value bytes decoded from original source under an explicit channel.
+/// Original source geometry and the returned channel-translated value remain
+/// distinct; no normalized buffer is used as lexical provenance.
+///
+/// # Errors
+/// Returns a native decoder policy or original escape-extent refusal.
+pub fn native_source_string_bytes_channel_in(
+    raw: &[u8],
+    channel: tcl_lexer::SourceChannel,
+    escapes: EscapeSyntax,
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Cow<'_, [u8]>, NativeSourceUnavailable> {
+    if escapes != protocol.escape_syntax() {
+        return Err(NativeSourceUnavailable::GrammarProtocolMismatch);
+    }
+    if !raw.contains(&b'\\') {
+        return Ok(source_literal_bytes(raw, channel));
+    }
+    let mut output = Vec::with_capacity(raw.len());
+    let mut pos = 0;
+    while pos < raw.len() {
+        if raw[pos] == b'\\' {
+            let fragment = native_source_escape_channel_in(raw, pos, channel, escapes, protocol)?;
+            output.extend_from_slice(&fragment.bytes);
+            pos = fragment.end;
+        } else {
+            if channel == tcl_lexer::SourceChannel::Document && raw[pos] == b'\r' {
+                output.push(b'\n');
+                pos += usize::from(raw.get(pos + 1) == Some(&b'\n'));
+            } else {
+                output.push(raw[pos]);
+            }
+            pos += 1;
+        }
+    }
+    Ok(Cow::Owned(output))
+}
+
+fn native_original_escape_unit(
+    protocol: crate::native_string::NativeStringProtocol,
+    suffix: &[u8],
+) -> tcl_lexer::EscapedInputUnit {
+    use tcl_lexer::{EscapedInputUnit, EscapedInputValue};
+    let crate::native_string::NativeStringProtocol::C(version) = protocol else {
+        return EscapedInputUnit {
+            width: 1,
+            value: EscapedInputValue::CopyOriginal,
+        };
+    };
+    let units = crate::native_tcl_utf::NativeTclUtf::for_version(version);
+    let first = units
+        .decode_unit(suffix, None)
+        .expect("unrecognised escape has an input byte");
+    if version == tcl_dialect::TclVersion::V8_6
+        && (0xd800..=0xdbff).contains(&first.value)
+        && let Some(low) = units.decode_unit(&suffix[first.width..], Some(first.value))
+        && (0xdc00..=0xdfff).contains(&low.value)
+    {
+        return EscapedInputUnit {
+            width: first.width + low.width,
+            value: EscapedInputValue::Codepoint(
+                ((first.value & 0x3ff) << 10 | (low.value & 0x3ff)) + 0x1_0000,
+            ),
+        };
+    }
+    EscapedInputUnit {
+        width: first.width,
+        value: EscapedInputValue::Codepoint(first.value),
     }
 }
 
@@ -395,5 +656,231 @@ mod tests {
         let raw = [0xff, 0xfe, b'a'];
         assert!(matches!(decode_bytes(&raw), Cow::Borrowed(_)));
         assert_eq!(&*decode_bytes(&raw), &raw);
+    }
+}
+
+#[cfg(test)]
+mod native_source_tests {
+    use super::*;
+    use crate::native_string::{NativeStringInput, NativeStringProtocol};
+    use tcl_dialect::TclVersion;
+
+    fn unhex(text: &str) -> Vec<u8> {
+        assert_eq!(text.len() % 2, 0);
+        text.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let digit = |byte| {
+                    char::from(byte)
+                        .to_digit(16)
+                        .expect("native vector has hex bytes")
+                };
+                u8::try_from(digit(pair[0]) * 16 + digit(pair[1]))
+                    .expect("two hex digits fit a byte")
+            })
+            .collect()
+    }
+
+    #[test]
+    fn source_values_match_actual_c84_through_c91_and_current_jim() {
+        let protocols = [
+            NativeStringProtocol::C(TclVersion::V8_4),
+            NativeStringProtocol::C(TclVersion::V8_5),
+            NativeStringProtocol::C(TclVersion::V8_6),
+            NativeStringProtocol::C(TclVersion::V9_0),
+            NativeStringProtocol::C(TclVersion::V9_1),
+            NativeStringProtocol::Jim084,
+        ];
+        let vectors = include_str!("../test-data/native-source-bytes.tsv");
+        let mut count = 0;
+        for row in vectors.lines().filter(|row| !row.starts_with('#')) {
+            let columns: Vec<_> = row.split('\t').collect();
+            assert_eq!(columns.len(), 8);
+            let original = unhex(columns[0]);
+            for (index, protocol) in protocols.into_iter().enumerate() {
+                let actual =
+                    native_source_string_bytes_in(&original, protocol.escape_syntax(), protocol)
+                        .unwrap();
+                assert_eq!(
+                    actual.as_ref(),
+                    unhex(columns[index + 1]),
+                    "{} under {protocol:?}",
+                    columns[7]
+                );
+            }
+            count += 1;
+        }
+        assert_eq!(count, 38);
+    }
+
+    #[test]
+    fn materialisation_source_escape_and_literal_bytes_keep_separate_inputs() {
+        let protocol = NativeStringProtocol::C(TclVersion::V9_0);
+        assert_eq!(
+            native_source_string_bytes_in(&[0], protocol.escape_syntax(), protocol)
+                .unwrap()
+                .as_ref(),
+            &[0]
+        );
+        assert_eq!(
+            native_source_string_bytes_in(br"\u0000", protocol.escape_syntax(), protocol)
+                .unwrap()
+                .as_ref(),
+            &[0xc0, 0x80]
+        );
+        assert_eq!(
+            protocol
+                .materialize(NativeStringInput::PureByteArray(&[0]))
+                .unwrap()
+                .as_ref(),
+            &[0xc0, 0x80]
+        );
+        assert_eq!(
+            protocol
+                .materialize(NativeStringInput::ResidentString(&[0]))
+                .unwrap()
+                .as_ref(),
+            &[0]
+        );
+        assert_eq!(
+            native_source_string_bytes_in(br"\u0000", EscapeSyntax::Jim, protocol),
+            Err(NativeSourceUnavailable::GrammarProtocolMismatch)
+        );
+        assert_eq!(
+            native_source_escape_in(b"ordinary", 0, protocol.escape_syntax(), protocol),
+            Err(NativeSourceUnavailable::InvalidEscapePosition)
+        );
+    }
+
+    #[test]
+    fn c86_selected_token_decode_retains_original_literal_suffix() {
+        let protocol = NativeStringProtocol::C(TclVersion::V8_6);
+        let source = [b'\\', 0xf0, 0x9f, 0x98];
+        let escape =
+            native_source_escape_in(&source, 0, protocol.escape_syntax(), protocol).unwrap();
+        assert_eq!(escape.end, 2);
+        assert_eq!(escape.bytes, [0xc3, 0xb0]);
+        assert_eq!(
+            native_source_string_bytes_in(&source, protocol.escape_syntax(), protocol)
+                .unwrap()
+                .as_ref(),
+            &[0xc3, 0xb0, 0x9f, 0x98]
+        );
+    }
+}
+
+#[cfg(test)]
+mod executable_text_tests {
+    use super::*;
+    use tcl_lexer::{ExecutablePartArena, LexerConfig, SourceImage, Span, SubstFlags};
+
+    #[test]
+    fn source_channel_changes_value_bytes_without_changing_original_extents() {
+        use tcl_lexer::SourceChannel::{Document, NativeValue};
+        let protocol = crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1);
+        let config =
+            LexerConfig::from_grammar(tcl_dialect::DialectProfile::find("tcl9.1").unwrap().grammar);
+        let source = b"A\\\r\n\t B";
+        for (channel, expected) in [
+            (Document, b"A B".as_slice()),
+            (NativeValue, b"A\r\n\t B".as_slice()),
+        ] {
+            let image = SourceImage::from_bytes(source.as_slice(), channel);
+            let arena = ExecutablePartArena::decompose(
+                image.clone(),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                SubstFlags::default(),
+                config,
+            )
+            .unwrap();
+            let part = &arena.list(arena.root())[0];
+            assert_eq!(
+                native_arena_text(&arena, part, config.escapes, protocol)
+                    .unwrap()
+                    .as_ref(),
+                expected
+            );
+            assert_eq!(arena.image(), &image);
+            assert_eq!(arena.bytes(part.span), Some(source.as_slice()));
+        }
+        assert_eq!(
+            source_braced_word_bytes(source, Document, config.brace_backslash_newline).as_ref(),
+            b"A B"
+        );
+        assert_eq!(
+            source_braced_word_bytes(source, NativeValue, config.brace_backslash_newline).as_ref(),
+            source
+        );
+        assert_eq!(source_literal_bytes(b"A\r\nB", Document).as_ref(), b"A\nB");
+        assert_eq!(
+            source_literal_bytes(b"A\r\nB", NativeValue).as_ref(),
+            b"A\r\nB"
+        );
+    }
+
+    #[test]
+    fn original_arena_text_keeps_raw_nul_separate_from_escaped_nul() {
+        for (name, protocol, escaped) in [
+            (
+                "tcl8.4",
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4),
+                b"\xc0\x80".as_slice(),
+            ),
+            (
+                "tcl8.5",
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_5),
+                b"\xc0\x80".as_slice(),
+            ),
+            (
+                "tcl8.6",
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
+                b"\xc0\x80".as_slice(),
+            ),
+            (
+                "tcl9.0",
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_0),
+                b"\xc0\x80".as_slice(),
+            ),
+            (
+                "tcl9.1",
+                crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1),
+                b"\xc0\x80".as_slice(),
+            ),
+            (
+                "jimtcl",
+                crate::native_string::NativeStringProtocol::Jim084,
+                b"\0".as_slice(),
+            ),
+        ] {
+            let grammar = if protocol == crate::native_string::NativeStringProtocol::Jim084 {
+                tcl_dialect::model::grammar(
+                    tcl_dialect::model::Family::Jim,
+                    tcl_dialect::model::Release::JIM_0_84,
+                )
+            } else {
+                tcl_dialect::DialectProfile::find(name).unwrap().grammar
+            };
+            let config = LexerConfig::from_grammar(grammar);
+            for (source, expected) in [
+                (b"\\u0000".as_slice(), escaped),
+                (b"\0".as_slice(), b"\0".as_slice()),
+            ] {
+                let arena = ExecutablePartArena::decompose(
+                    SourceImage::native(source),
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    SubstFlags::default(),
+                    config,
+                )
+                .unwrap();
+                let part = &arena.list(arena.root())[0];
+                assert_eq!(
+                    native_arena_text(&arena, part, config.escapes, protocol)
+                        .unwrap()
+                        .as_ref(),
+                    expected,
+                    "{name}: {source:?}"
+                );
+            }
+        }
     }
 }

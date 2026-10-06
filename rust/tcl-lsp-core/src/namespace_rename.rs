@@ -170,8 +170,11 @@ pub fn namespace_rename_edits(
     //    Tcl (`invalid export pattern "::foo": pattern can't specify a
     //    namespace`) — so they name no other namespace and need no edit.
     for imp in &analysis.namespace_imports {
-        if names_under(cell, &imp.pattern) {
-            record(imp.range, &imp.pattern, &mut considered);
+        if let Some(source) = &imp.source {
+            let pattern = source.constructed_pattern();
+            if names_under(cell, &pattern) {
+                record(imp.range, &pattern, &mut considered);
+            }
         }
     }
     for forget in &analysis.namespace_forgets {

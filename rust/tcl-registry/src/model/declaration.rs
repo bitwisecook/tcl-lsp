@@ -110,7 +110,7 @@ fn whole_document_axis() -> VersionSet {
 
 /// One argument of a declared command: its written name, its registry
 /// [`ArgRole`], and whether the directive wrapped it in `?…?`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeclaredArgument {
     /// Argument name as the directive wrote it (optional markers stripped).
     pub name: String,
@@ -213,6 +213,19 @@ pub struct DeclaredSurface {
     commands: BTreeMap<String, DeclaredCommand>,
 }
 
+impl std::hash::Hash for DeclaredSurface {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Hash is only an index. Full derived equality above retains declaration
+        // providers, availability, predicates, and provenance on collisions.
+        self.commands.len().hash(state);
+        for (name, command) in &self.commands {
+            name.hash(state);
+            command.name.hash(state);
+            command.arguments.hash(state);
+        }
+    }
+}
+
 impl DeclaredSurface {
     /// An empty surface — a document that declares nothing.
     #[must_use]
@@ -297,6 +310,13 @@ impl<'a> DocumentCommandSurface<'a> {
     #[must_use]
     pub const fn declared(&self) -> Option<&'a DeclaredSurface> {
         self.declared
+    }
+
+    /// Read one declared assistance contract through the document surface owner.
+    /// This is metadata from a document or workspace, not a runtime binding proof.
+    #[must_use]
+    pub fn declared_command(&self, name: &str) -> Option<&'a DeclaredCommand> {
+        self.declared?.get(name)
     }
 
     /// Whether this document declares `name` for itself.

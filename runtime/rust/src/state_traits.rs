@@ -32,9 +32,7 @@ use tcl_runtime_api::{
     Namespaces, NsId, ProcInfo, ProcParam, Procs, Traces, VarStore, VarUnsetError,
 };
 
-use crate::frame::Link;
 use crate::interp::{new_string, Interp};
-use crate::list::new_list_obj;
 use crate::obj::{self, TclObj};
 
 /// The Family-B variable store, honouring `FrameId` (the absolute frame level,
@@ -48,6 +46,237 @@ use crate::obj::{self, TclObj};
 /// [`set`](VarStore::set) has the table take its own `+1` on the value.
 impl VarStore for Interp {
     type Value = *mut TclObj;
+
+    fn variable_diagnostic_at(
+        &self,
+        operation: tcl_syntax::naming::NativeVariableDiagnosticOperation,
+        reason: tcl_syntax::naming::NativeVariableDiagnosticReason,
+        site: tcl_syntax::naming::NativeVariableFailureSite,
+        input: tcl_syntax::naming::NativeVariableInputForm<'_>,
+    ) -> Result<tcl_syntax::naming::NativeVariableDiagnosticProjection, tcl_syntax::value::ValueError>
+    {
+        let policy = self.name_policy_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable diagnostic"),
+        )?;
+        tcl_syntax::naming::report_native_variable_diagnostic_at(
+            policy.recipe(),
+            operation,
+            reason,
+            site,
+            input,
+        )
+        .map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable diagnostic input")
+        })
+    }
+
+    fn get_bytes(
+        &self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<Option<Self::Value>, tcl_syntax::value::ValueError> {
+        let value = self.var_get_at(name, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(value)
+    }
+
+    fn set_bytes(
+        &mut self,
+        frame: FrameId,
+        name: &[u8],
+        value: Self::Value,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let _ = self.var_set_at(name, value, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(())
+    }
+
+    fn unset_bytes(
+        &mut self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        let removed = self.var_unset_at(name, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(removed)
+    }
+
+    fn unset_command_bytes(
+        &mut self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<Result<bool, VarUnsetError>, tcl_syntax::value::ValueError> {
+        if self.is_constant_at(name, frame.0) {
+            return Ok(Err(VarUnsetError::IsConstant));
+        }
+        self.unset_bytes(frame, name).map(Ok)
+    }
+
+    fn exists_bytes(
+        &self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        let value = self.var_exists_at(name, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(value)
+    }
+
+    fn get_elem_bytes(
+        &self,
+        frame: FrameId,
+        root: &[u8],
+        element: &[u8],
+    ) -> Result<Option<Self::Value>, tcl_syntax::value::ValueError> {
+        let value = self.var_get_elem_at(root, element, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(value)
+    }
+
+    fn set_elem_bytes(
+        &mut self,
+        frame: FrameId,
+        root: &[u8],
+        element: &[u8],
+        value: Self::Value,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        let _ = self.var_set_elem_at(root, element, value, frame.0);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(())
+    }
+
+    fn array_target_bytes(
+        &self,
+        frame: FrameId,
+        name: &[u8],
+    ) -> Result<ArrayTarget, tcl_syntax::value::ValueError> {
+        self.require_variable_name_protocol().map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("variable naming")
+        })?;
+        Ok(
+            crate::vars::array_target_at(&self.frames.borrow(), &self.namespaces(), name, frame.0)
+                .map_or_else(
+                    || ArrayTarget::named_bytes(frame, name),
+                    |target| ArrayTarget::cell_bytes(frame, name, target.id()),
+                ),
+        )
+    }
+
+    fn array_default_state_at(
+        &self,
+        target: &ArrayTarget,
+    ) -> Result<tcl_runtime_api::ArrayDefaultState<Self::Value>, tcl_syntax::value::ValueError>
+    {
+        use tcl_syntax::value::ValueError;
+        self.native_invocation_dialect()
+            .native_array_default_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "array default storage",
+            ))?;
+        let Some(record) = self.array_operation_target(target) else {
+            return Ok(tcl_runtime_api::ArrayDefaultState::Undefined);
+        };
+        Ok(crate::vars::array_default_state_at_target(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &record,
+        ))
+    }
+
+    fn unset_array_default_at(
+        &mut self,
+        target: &ArrayTarget,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        self.native_invocation_dialect()
+            .native_array_default_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "array default storage",
+            ))?;
+        if let Some(record) = self.array_operation_target(target) {
+            crate::vars::unset_array_default_at_target(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces_mut(),
+                &record,
+            );
+        }
+        Ok(())
+    }
+
+    fn set_array_default_bytes(
+        &mut self,
+        frame: FrameId,
+        name: &[u8],
+        value: Self::Value,
+    ) -> Result<Result<(), tcl_runtime_api::ArrayDefaultSetFailure>, tcl_syntax::value::ValueError>
+    {
+        use tcl_runtime_api::ArrayDefaultSetFailure;
+        use tcl_syntax::value::ValueError;
+        self.native_invocation_dialect()
+            .native_array_default_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "array default storage",
+            ))?;
+        if frame != Frames::current(self) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "array default setter context",
+            ));
+        }
+        self.require_variable_name_protocol()
+            .map_err(|_| ValueError::CommandProtocolUnavailable("array default variable name"))?;
+        let outcome = crate::vars::set_array_default_classified(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces_mut(),
+            self.current_ns(),
+            name,
+            value,
+        );
+        match outcome {
+            Ok(outcome) => Ok(outcome),
+            Err(crate::frame::VarError::NameProtocolUnavailable) => Err(
+                ValueError::CommandProtocolUnavailable("array default variable name"),
+            ),
+            Err(error) => {
+                use tcl_syntax::naming::{
+                    NativeVariableDiagnosticOperation as Op,
+                    NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+                    NativeVariableInputForm as Input,
+                };
+                let reason = match error {
+                    crate::frame::VarError::NoSuchNamespace => Reason::MissingParentNamespace,
+                    crate::frame::VarError::DeletedNamespace => Reason::RetiredNamespace,
+                    crate::frame::VarError::DeletedArray => Reason::DetachedElement,
+                    crate::frame::VarError::IsConstant => Reason::Constant,
+                    crate::frame::VarError::IsArray => Reason::IsArray,
+                    _ => {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "array default lookup failure",
+                        ));
+                    }
+                };
+                Ok(Err(ArrayDefaultSetFailure::Lookup(
+                    self.variable_diagnostic_at(
+                        Op::Write,
+                        reason,
+                        Site::NameLookup,
+                        Input::Combined(name),
+                    )?,
+                )))
+            }
+        }
+    }
 
     fn get(&self, frame: FrameId, name: &str) -> Option<*mut TclObj> {
         if frame.0 == self.frames.borrow().current_level() {
@@ -122,6 +351,95 @@ impl VarStore for Interp {
         self.get_elem(frame, name, key).is_some()
     }
 
+    fn variable_container_model(&self) -> tcl_dialect::VariableContainerModel {
+        self.native_invocation_dialect()
+            .variable_container_model
+            .unwrap_or_default()
+    }
+
+    fn array_keys_checked_at(
+        &self,
+        target: &ArrayTarget,
+    ) -> Result<Option<Vec<String>>, tcl_syntax::value::ValueError> {
+        self.array_key_bytes_checked_at(target)?
+            .map(|keys| {
+                keys.into_iter()
+                    .map(|key| {
+                        tcl_syntax::raw_string::RawString::from_bytes(key)
+                            .unicode()
+                            .map(|key| key.to_string())
+                            .map_err(Into::into)
+                    })
+                    .collect()
+            })
+            .transpose()
+    }
+
+    fn array_key_bytes_checked_at(
+        &self,
+        target: &ArrayTarget,
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        if self.variable_container_model() == tcl_dialect::VariableContainerModel::DictionaryValue {
+            if let Some(root) = self.var_get_at(target.name_bytes(), target.frame().0) {
+                let protocol = self
+                    .name_policy_protocol()
+                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "variable container",
+                    ))?
+                    .recipe()
+                    .string_protocol();
+                if protocol.is_jim084() {
+                    crate::native_source::bind_context(root, &self.native_jim_object_context()?)?;
+                }
+                crate::dict::ensure_dict_native(root, protocol)?;
+            }
+        }
+        Ok(if target.cell_id().is_some() {
+            self.array_keys_at_target(target)
+        } else {
+            self.array_names(target.name_bytes())
+        })
+    }
+
+    fn array_search_key_bytes_at(
+        &self,
+        target: &ArrayTarget,
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        self.array_search_keys_at_target(target)
+    }
+
+    fn array_elem_exists_bytes_at(
+        &self,
+        target: &ArrayTarget,
+        key: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        self.array_search_element_exists_at_target(target, key)
+    }
+
+    fn array_read_elem_bytes_at(
+        &mut self,
+        target: &ArrayTarget,
+        key: &[u8],
+    ) -> Result<ArrayElementRead<*mut TclObj>, tcl_syntax::value::ValueError> {
+        let result = self.array_read_elem_at_target(target, key);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(result)
+    }
+
+    fn unset_elem_bytes_at(
+        &mut self,
+        target: &ArrayTarget,
+        key: &[u8],
+    ) -> Result<bool, tcl_syntax::value::ValueError> {
+        let removed = self.array_unset_elem_at_target(target, key);
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(removed)
+    }
+
     fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
         // `array_names` is `None` for a non-array, `Some(keys)` (possibly empty)
         // for an array — exactly the contract. Resolves against the active frame.
@@ -183,9 +501,13 @@ impl Introspect for Interp {
     }
 
     fn level_argv(&self, level: usize) -> Option<*mut TclObj> {
+        let original = self.frames.borrow().original_error_stack_argv_at(level);
+        if let Some(original) = original {
+            return Some(self.new_list_object(&original));
+        }
         let words = self.level_words(level)?;
         let objs: Vec<*mut TclObj> = words.iter().map(|w| new_string(w)).collect();
-        Some(new_list_obj(&objs))
+        Some(self.new_list_object(&objs))
     }
 }
 
@@ -197,18 +519,121 @@ impl Introspect for Interp {
 /// objects through `ValueOps`.
 impl Procs for Interp {
     fn proc_info(&self, name: &str) -> Option<ProcInfo> {
-        let def = self.proc_def(name.as_bytes())?;
-        Some(ProcInfo {
-            body: def.body.clone(),
-            params: def
+        self.proc_info_bytes(name.as_bytes()).ok().flatten()
+    }
+
+    fn formal_introspection_name_bytes(
+        &self,
+        name: &[u8],
+    ) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+        let protocol = self
+            .native_invocation_dialect()
+            .native_name_protocol()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "formal introspection",
+            ))?;
+        Ok(protocol
+            .formal_enumeration_name_input(name)
+            .selected()
+            .to_vec())
+    }
+
+    fn proc_body_bytes(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+        let Some(definition) = self.proc_def(name) else {
+            return Ok(None);
+        };
+        definition.check_native_liveness()?;
+        let mut context = self.clone();
+        tcl_syntax::value::ValueOps::native_string_bytes(
+            &mut context,
+            &definition.body.checked_ptr()?,
+        )
+        .map(|bytes| Some(bytes.to_vec()))
+    }
+
+    fn proc_formal_names_bytes(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<Vec<Vec<u8>>>, tcl_syntax::value::ValueError> {
+        let Some(definition) = self.proc_def(name) else {
+            return Ok(None);
+        };
+        definition.check_native_liveness()?;
+        Ok(Some(
+            definition
                 .params
                 .iter()
-                .map(|p| ProcParam {
-                    name: p.name.clone(),
-                    default: p.default.clone(),
-                })
+                .map(|parameter| parameter.name.clone())
                 .collect(),
-        })
+        ))
+    }
+
+    fn proc_default_value_bytes(
+        &mut self,
+        name: &[u8],
+        arg: &[u8],
+    ) -> Result<tcl_runtime_api::ProcDefaultValue<Self::Value>, tcl_syntax::value::ValueError> {
+        use tcl_runtime_api::ProcDefaultValue;
+        let selected = self.formal_introspection_name_bytes(arg)?;
+        let Some(definition) = self.proc_def(name) else {
+            return Ok(ProcDefaultValue::MissingProcedure);
+        };
+        definition.check_native_liveness()?;
+        for parameter in &definition.params {
+            if self.formal_introspection_name_bytes(&parameter.name)? == selected {
+                return Ok(ProcDefaultValue::Declared(
+                    parameter
+                        .default
+                        .as_ref()
+                        .map(crate::obj::ProcedureObject::checked_ptr)
+                        .transpose()?,
+                ));
+            }
+        }
+        Ok(ProcDefaultValue::MissingParameter)
+    }
+
+    fn proc_info_bytes(
+        &self,
+        name: &[u8],
+    ) -> Result<Option<ProcInfo>, tcl_syntax::value::ValueError> {
+        let Some(def) = self.proc_def(name) else {
+            return Ok(None);
+        };
+        def.check_native_liveness()?;
+        let mut context = self.clone();
+        let params = def
+            .params
+            .iter()
+            .map(|parameter| {
+                let default = parameter
+                    .default
+                    .as_ref()
+                    .map(|value| {
+                        tcl_syntax::value::ValueOps::native_string_bytes(
+                            &mut context,
+                            &value.checked_ptr()?,
+                        )
+                        .map(|bytes| bytes.to_vec())
+                    })
+                    .transpose()?;
+                Ok(ProcParam {
+                    name: parameter.name.clone(),
+                    default,
+                })
+            })
+            .collect::<Result<Vec<_>, tcl_syntax::value::ValueError>>()?;
+        Ok(Some(ProcInfo {
+            body: tcl_syntax::value::ValueOps::native_string_bytes(
+                &mut context,
+                &def.body.checked_ptr()?,
+            )?
+            .to_vec(),
+            params,
+        }))
     }
 }
 
@@ -239,6 +664,10 @@ pub(crate) fn capture_completion(
     interp: &mut Interp,
     code: crate::interp::Code,
 ) -> Completion<*mut TclObj> {
+    if interp.host_refusal_pending() {
+        // Transport only: callers inspect the retained host channel before publication.
+        return Completion::new(api_code(code), core::ptr::null_mut(), core::ptr::null_mut());
+    }
     let result = interp.result_obj();
     let options = crate::cmd_error::completion_options(interp, code);
     // SAFETY: `result` is interp-owned and `options` is fresh. Give the
@@ -338,6 +767,35 @@ impl Commands for Interp {
 impl Traces for Interp {
     type Value = *mut TclObj;
 
+    fn fire_bytes(
+        &mut self,
+        var: &[u8],
+        op: &str,
+    ) -> Result<Result<(), Self::Value>, tcl_syntax::value::ValueError> {
+        if self.host_refusal_pending() {
+            return Err(self
+                .native_access_refusal()
+                .unwrap_or(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "retained native trace activation",
+                    ),
+                )
+                .into());
+        }
+        let failure = self.fire_var_traces_for(var, op.as_bytes());
+        if self.host_refusal_pending() {
+            return Err(self
+                .native_access_refusal()
+                .unwrap_or(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "retained native trace activation",
+                    ),
+                )
+                .into());
+        }
+        Ok(failure.map_or(Ok(()), |message| Err(new_string(&message))))
+    }
+
     fn fire(&mut self, var: &str, op: &str) -> Result<(), *mut TclObj> {
         match self.fire_var_traces_for(var.as_bytes(), op.as_bytes()) {
             Some(msg) => Err(new_string(&msg)),
@@ -359,11 +817,15 @@ impl Frames for Interp {
         // arena index (`ROOT_NS`/`GLOBAL` both 0).
         let ns = ns.0 as usize;
         self.enter_namespace_activation(ns);
-        FrameId(self.frames.borrow_mut().push(ns))
+        let frame = FrameId(self.frames.borrow_mut().push(ns));
+        if let Err(error) = self.retain_native_jim_frame_namespace(ns) {
+            self.report_cmd_error(error.into());
+        }
+        frame
     }
 
     fn pop(&mut self) {
-        let popped = self.frames.borrow_mut().pop();
+        let popped = self.pop_native_call_frame();
         self.leave_namespace_activation(popped);
     }
 
@@ -377,13 +839,17 @@ impl Frames for Interp {
             self.frames.borrow().current_level(),
             "upvar installs in the current frame"
         );
-        let home = crate::vars::home_at(&self.frames.borrow(), target.0);
-        let target = Link {
-            home,
-            name: target_name.as_bytes().to_vec(),
-            elem: None,
-        };
-        self.make_upvar(target, local.as_bytes());
+        let (base, elem) = crate::frame::split_array_ref(target_name.as_bytes());
+        let target = crate::vars::link_target_at(
+            &self.frames.borrow(),
+            &self.namespaces(),
+            &base,
+            elem,
+            target.0,
+        );
+        if let Some(target) = target {
+            self.make_upvar(target, local.as_bytes());
+        }
     }
 
     fn in_proc(&self) -> bool {
@@ -401,6 +867,27 @@ impl Frames for Interp {
             .iter()
             .map(|s| String::from_utf8_lossy(s).into_owned())
             .collect()
+    }
+
+    fn var_names_bytes(&self, include_links: bool) -> Vec<Vec<u8>> {
+        let frames = self.frames.borrow();
+        if include_links {
+            frames.local_names()
+        } else {
+            frames.local_names_no_links()
+        }
+    }
+
+    fn var_names_bytes_checked(
+        &self,
+        include_links: bool,
+    ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+        self.selected_variable_table_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native variable table inventory",
+            ),
+        )?;
+        Ok(self.var_names_bytes(include_links))
     }
 
     fn const_names(&self) -> Vec<String> {
@@ -421,6 +908,22 @@ impl Frames for Interp {
 /// from `cxt` to an exact `(FQN, generation)` token and interns that as a stable
 /// `CommandId`.
 impl Namespaces for Interp {
+    fn namespace_import_binding(&self) -> Option<tcl_dialect::NamespaceImportBinding> {
+        self.dialect_profile().namespace_import_binding()
+    }
+
+    fn command_alias_prefix_bytes(&self, cmd: CommandId) -> Option<Vec<Vec<u8>>> {
+        let name = self.command_fqn(cmd.0)?;
+        let (target, mut prefix) = self.alias_info(&name)?;
+        prefix.insert(0, target);
+        Some(prefix)
+    }
+    fn variable_lookup_policy(&self) -> Option<tcl_dialect::VariableLookupPolicy> {
+        self.dialect_profile()
+            .variable_lookup_policy()
+            .or(Some(tcl_dialect::VariableLookupPolicy::Tcl))
+    }
+
     fn find_command(&self, cxt: NsId, name: &str) -> Option<CommandId> {
         // The contract's `NsId` is a `u32` newtype; the runtime's is a `usize`.
         self.find_command_id(cxt.0 as usize, name.as_bytes())
@@ -492,6 +995,18 @@ impl Namespaces for Interp {
             .collect()
     }
 
+    fn commands_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.visible_command_names_in(ns.0 as usize)
+    }
+
+    fn procs_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
+        self.namespaces()
+            .proc_names(ns.0 as usize)
+            .iter()
+            .map(|name| name.to_vec())
+            .collect()
+    }
+
     fn vars_in(&self, ns: NsId) -> Vec<String> {
         self.namespaces()
             .var_names(ns.0 as usize)
@@ -527,10 +1042,166 @@ impl Namespaces for Interp {
         self.find_command_id(cxt.0 as usize, name).map(CommandId)
     }
 
+    fn find_command_bytes_checked(
+        &self,
+        cxt: NsId,
+        original: &[u8],
+    ) -> Result<Option<CommandId>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::{naming::NativeNameContext, value::ValueError};
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("command lookup"))?;
+        if policy.recipe().is_jim084() {
+            self.namespaces()
+                .jim_namespace_bytes(cxt.0 as usize)
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "Jim command namespace object",
+                ))?;
+            return Ok(self
+                .find_command_id(cxt.0 as usize, original)
+                .map(CommandId));
+        }
+        let path = self
+            .namespaces()
+            .native_context_path(cxt.0 as usize)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "command lookup namespace context",
+            ))?;
+        let selected = policy
+            .recipe()
+            .command_lookup_input(NativeNameContext::new(&path), original)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("command lookup name purpose"))?;
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(self
+            .find_command_id(cxt.0 as usize, selected.selected())
+            .map(CommandId))
+    }
+
     fn find_namespace_bytes(&self, cxt: NsId, name: &[u8]) -> Option<NsId> {
         self.namespaces()
             .find_namespace(cxt.0 as usize, name)
             .map(|id| NsId(id as u32))
+    }
+
+    fn find_namespace_bytes_checked(
+        &self,
+        cxt: NsId,
+        original: &[u8],
+    ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::{naming::NativeNameContext, value::ValueError};
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable("namespace lookup"))?;
+        if policy.recipe().is_jim084() {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "Jim flat namespace object storage",
+            ));
+        }
+        let path = self
+            .namespaces()
+            .native_context_path(cxt.0 as usize)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace lookup context",
+            ))?;
+        let selected = policy
+            .recipe()
+            .namespace_address_input(NativeNameContext::new(&path), original)
+            .map_err(|_| ValueError::CommandProtocolUnavailable("namespace lookup name purpose"))?;
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(self
+            .namespaces()
+            .find_namespace(cxt.0 as usize, selected.selected())
+            .map(|id| NsId(id as u32)))
+    }
+
+    fn find_namespace_child_bytes_checked(
+        &self,
+        parent: NsId,
+        member: &[u8],
+    ) -> Result<Option<NsId>, tcl_syntax::value::ValueError> {
+        self.namespaces()
+            .child_token(parent.0 as usize, member)
+            .map(|child| {
+                u32::try_from(child).map(NsId).map_err(|_| {
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "namespace child-token width",
+                    )
+                })
+            })
+            .transpose()
+    }
+
+    fn namespace_variable_name_bytes_checked(
+        &self,
+        cxt: NsId,
+        original: &[u8],
+    ) -> Result<Option<Vec<u8>>, tcl_syntax::value::ValueError> {
+        use tcl_syntax::value::ValueError;
+        let policy = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace variable query issuer",
+            ))?;
+        let protocol = policy.recipe();
+        if protocol.is_jim084() {
+            let namespaces = self.namespaces();
+            let namespace = namespaces.jim_namespace_bytes(cxt.0 as usize).ok_or(
+                ValueError::CommandProtocolUnavailable("Jim retained namespace query object"),
+            )?;
+            let path = tcl_core_types::ByteNamespacePath::root();
+            let selected = protocol
+                .jim_namespace_canonical_input(
+                    tcl_syntax::naming::NativeNameContext::with_jim_namespace(&path, namespace),
+                    original,
+                )
+                .map_err(|_| {
+                    ValueError::CommandProtocolUnavailable("Jim namespace variable query name")
+                })?;
+            let mut rooted = b"::".to_vec();
+            rooted.extend_from_slice(selected.selected());
+            return Ok(Some(rooted));
+        }
+        self.require_variable_name_protocol().map_err(|_| {
+            ValueError::CommandProtocolUnavailable("namespace variable query issuer")
+        })?;
+        self.namespaces()
+            .native_context_path(cxt.0 as usize)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "namespace variable query context",
+            ))?;
+        let selected = protocol.namespace_variable_query_input(original);
+        let mut contexts = vec![cxt.0 as usize];
+        if protocol
+            .tcl_version()
+            .is_some_and(|version| version <= tcl_dialect::TclVersion::V8_6)
+            && cxt.0 != 0
+            && !selected.selected().starts_with(b"::")
+        {
+            contexts.push(crate::namespace::GLOBAL);
+        }
+        for context in contexts {
+            let ns = self.namespaces();
+            let Some((owner, simple)) = ns.var_home(context, selected.selected()) else {
+                continue;
+            };
+            if !ns.var_table(owner).has_native_namespace_cell(&simple) {
+                continue;
+            }
+            let mut qualified = ns.qualified_name(owner);
+            if owner != crate::namespace::GLOBAL {
+                qualified.extend_from_slice(b"::");
+            }
+            qualified.extend_from_slice(&simple);
+            return Ok(Some(qualified));
+        }
+        if let Some(refusal) = self.native_access_refusal() {
+            return Err(refusal.into());
+        }
+        Ok(None)
     }
 
     fn namespace_var_exists_bytes(&self, ns: NsId, simple: &[u8]) -> bool {
@@ -550,6 +1221,18 @@ impl Namespaces for Interp {
 
     fn vars_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
         self.namespaces().var_names(ns.0 as usize)
+    }
+
+    fn vars_in_bytes_checked(
+        &self,
+        ns: NsId,
+    ) -> Result<Vec<Vec<u8>>, tcl_syntax::value::ValueError> {
+        self.selected_variable_table_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native namespace variable table inventory",
+            ),
+        )?;
+        Ok(self.vars_in_bytes(ns))
     }
 
     fn consts_in_bytes(&self, ns: NsId) -> Vec<Vec<u8>> {
@@ -829,5 +1512,84 @@ mod tests {
                 obj::decr_ref_count(live.options);
             }
         });
+    }
+}
+
+impl tcl_cmd_core::native_array_search::NativeArraySearchBackend for Interp {
+    fn array_search_protocol(
+        &self,
+    ) -> Option<tcl_syntax::native_array_search::NativeArraySearchProtocol> {
+        self.native_invocation_dialect()
+            .native_array_search_protocol(
+                tcl_runtime_api::native_hash_abi::supported_backend_array_search_abi()?,
+            )
+    }
+    fn array_search_cache(
+        &self,
+        value: &*mut TclObj,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<Option<tcl_core_types::NativeArraySearchCache>, tcl_syntax::value::ValueError> {
+        crate::obj::native_array_search_cache_in(*value, protocol)
+    }
+    fn install_array_search_cache(
+        &self,
+        value: &*mut TclObj,
+        cache: tcl_core_types::NativeArraySearchCache,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        crate::obj::install_native_array_search_cache(*value, cache, protocol)
+    }
+    fn array_search_on_original(
+        &mut self,
+        target: &ArrayTarget,
+        sub: &str,
+        name: &[u8],
+        operand: Option<
+            &tcl_cmd_core::native_array_search::NativeArraySearchOperand<'_, *mut TclObj>,
+        >,
+        protocol: tcl_syntax::native_array_search::NativeArraySearchProtocol,
+    ) -> Result<
+        Result<*mut TclObj, tcl_syntax::native_array_search::NativeArraySearchFailure>,
+        tcl_syntax::value::ValueError,
+    > {
+        let (handle, bytes, cache) = operand.map_or((None, None, None), |operand| {
+            (Some(operand.original), Some(operand.bytes), operand.cache)
+        });
+        let record = self.array_operation_target(target).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
+        )?;
+        let cell = record.original_array_cell().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("original array search cell"),
+        )?;
+        let result =
+            cell.native_array_search(sub, name, handle.copied(), bytes, cache, protocol)?;
+        if sub == "startsearch" && protocol.start_handle_has_string_primary() {
+            if let Ok(value) = result {
+                let materialization = self
+                    .native_invocation_dialect()
+                    .native_string_materialization(None)
+                    .filter(|issuer| issuer.protocol().tcl_version() == Some(protocol.version()))
+                    .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native array search String producer",
+                    ))?;
+                crate::obj::retain_native_string_representation(value, materialization)?;
+            }
+        }
+        if sub == "anymore" && protocol.version() == tcl_dialect::TclVersion::V8_4 {
+            if let Ok(value) = result {
+                let scalar = self
+                    .native_invocation_dialect()
+                    .native_scalar_getter_protocol()
+                    .ok_or(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable)?;
+                crate::obj::adopt_native_scalar_cache(
+                    value,
+                    tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(crate::obj::wide_of(
+                        value,
+                    )),
+                    scalar,
+                )?;
+            }
+        }
+        Ok(result)
     }
 }

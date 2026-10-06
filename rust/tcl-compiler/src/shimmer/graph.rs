@@ -248,6 +248,8 @@ mod tests {
         ));
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(entry));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -267,6 +269,8 @@ mod tests {
         let next = block(&mut f, "next");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(goto(next));
         f.blocks.get_mut(&next).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -299,6 +303,8 @@ mod tests {
         ));
         f.blocks.get_mut(&body).unwrap().terminator = Some(goto(head));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -330,6 +336,8 @@ mod tests {
             exit,
         ));
         f.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -359,6 +367,8 @@ mod tests {
         f.blocks.get_mut(&mid).unwrap().terminator = Some(goto(c));
         f.blocks.get_mut(&c).unwrap().terminator = Some(branch(cond(), c, done));
         f.blocks.get_mut(&done).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -391,6 +401,8 @@ mod tests {
                 next,
             ));
             f.blocks.get_mut(&side).unwrap().terminator = Some(Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,
@@ -400,6 +412,8 @@ mod tests {
             prev = next;
         }
         f.blocks.get_mut(&prev).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,

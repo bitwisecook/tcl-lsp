@@ -11,7 +11,7 @@ needs. A script in tier N is expected to compile with no more framing than
 tier N introduces; anything the compiler still routes through
 `tcl_eval_code` for a lower tier is a gap, and `budgets.tsv` records exactly
 how much framing each sample still costs. The lowering contract itself is
-[`docs/design/compiler/wasm-native-lowering-plan.md`](../../docs/design/compiler/wasm-native-lowering-plan.md).
+[`docs/design/compiler/wasm-native-lowering.md`](../../docs/design/compiler/wasm-native-lowering.md).
 
 | Tier | Directory | Framing a correct compile needs |
 |---|---|---|

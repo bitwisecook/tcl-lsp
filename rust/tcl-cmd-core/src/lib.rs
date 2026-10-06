@@ -52,10 +52,20 @@ pub mod lseq;
 pub mod lsort;
 pub mod mathop;
 pub mod namespace;
+pub mod native_append;
+pub mod native_cat;
+pub mod native_dictionary;
+pub mod native_each_loop;
+pub mod native_increment;
+pub mod native_jim_lsearch;
+pub mod native_jim_switch;
+pub mod native_numeric;
+pub mod native_return_merge;
 pub mod path;
 pub mod platform;
 pub mod prefix;
 pub mod regex;
+pub mod return_options;
 pub mod scan;
 pub mod sort;
 pub mod string;
@@ -64,4 +74,6 @@ pub mod switch;
 pub mod trace;
 pub mod var;
 
-pub use error::CmdError;
+pub use error::{CmdError, CmdErrorCodeUpdate, CmdErrorDetails, ResolvedCmdErrorCodeUpdate};
+/// Original array search handlers, caches and persistent cursor matching.
+pub mod native_array_search;

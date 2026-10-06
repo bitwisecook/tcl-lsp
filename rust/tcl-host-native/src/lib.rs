@@ -54,6 +54,7 @@ pub struct NativeHost {
     process: NativeProcess,
     allow_filesystem: bool,
     allow_process: bool,
+    integer_formatter: Option<std::rc::Rc<dyn tcl_platform::NativeIntegerFormatter>>,
 }
 
 impl NativeHost {
@@ -68,6 +69,7 @@ impl NativeHost {
             process: NativeProcess,
             allow_filesystem: true,
             allow_process: true,
+            integer_formatter: None,
         }
     }
 
@@ -79,6 +81,17 @@ impl NativeHost {
             allow_process: false,
             ..Self::new()
         }
+    }
+
+    /// Install an explicitly selected, verified native Tcl integer updater.
+    /// Ordinary hosts do not load a Tcl library or infer formatter authority.
+    #[must_use]
+    pub fn with_integer_formatter(
+        mut self,
+        formatter: tcl_host_c_abi::LoadedNativeIntegerFormatter,
+    ) -> Self {
+        self.integer_formatter = Some(std::rc::Rc::new(formatter));
+        self
     }
 }
 
@@ -110,6 +123,17 @@ impl Host for NativeHost {
 
     fn env(&self) -> &dyn Env {
         &self.env
+    }
+
+    fn numeric_environment(&self) -> Option<&dyn tcl_platform::NumericEnvironment> {
+        static ENVIRONMENT: tcl_host_c_abi::NativeNumericEnvironment =
+            tcl_host_c_abi::NativeNumericEnvironment;
+        tcl_host_c_abi::NativeNumericEnvironment::supported()
+            .then_some(&ENVIRONMENT as &dyn tcl_platform::NumericEnvironment)
+    }
+
+    fn native_integer_formatter(&self) -> Option<&dyn tcl_platform::NativeIntegerFormatter> {
+        self.integer_formatter.as_deref()
     }
 
     fn system_encoding(&self) -> SystemEncoding {
@@ -284,6 +308,19 @@ impl Filesystem for NativeFs {
 
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError> {
         std::fs::read(path).map_err(|e| map_io(&e))
+    }
+
+    fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt as _;
+            std::fs::read(std::ffi::OsStr::from_bytes(path)).map_err(|e| map_io(&e))
+        }
+        #[cfg(not(unix))]
+        {
+            let path = std::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+            self.read(path)
+        }
     }
 
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError> {
@@ -524,6 +561,32 @@ impl Process for NativeProcess {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_file_reads_preserve_distinct_non_unicode_paths() {
+        use std::os::unix::ffi::{OsStrExt as _, OsStringExt as _};
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("tcl-native-path-{}-{stamp}", std::process::id()));
+        std::fs::create_dir(&directory).unwrap();
+        let raw = directory.join(std::ffi::OsString::from_vec(b"package-\xff.tcl".to_vec()));
+        let unicode = directory.join("package-\u{fffd}.tcl");
+        std::fs::write(&raw, b"RAW").unwrap();
+        std::fs::write(&unicode, b"UNICODE").unwrap();
+        let host = NativeHost::new();
+        let fs = host.filesystem().unwrap();
+        assert_eq!(fs.read_bytes(raw.as_os_str().as_bytes()).unwrap(), b"RAW");
+        assert_eq!(
+            fs.read_bytes(unicode.as_os_str().as_bytes()).unwrap(),
+            b"UNICODE"
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn system_encoding_follows_tcl_unix_locale_defaults() {

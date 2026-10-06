@@ -135,6 +135,14 @@ fails.
   inference.
 - [project-layout.md](contracts/project-layout.md) — repository layout and
   dependency direction.
+- [name-resolution-implementer-guide.md](compiler/name-resolution-implementer-guide.md)
+  — central query contracts, consumer requirements and native regression
+  test recipes.
+- [evaluated-tcl-semantics.md](compiler/evaluated-tcl-semantics.md)
+  — current command, variable, execution, dialect and host-domain semantics.
+- [resolved-semantic-queries.md](contracts/resolved-semantic-queries.md) — shared
+  command/cell/execution owners, API usage recipes, uncertainty and dialect
+  obligations, consumer inventory, and independent interpreter regression gates.
 - [registry-contract-tests.md](contracts/registry-contract-tests.md) — the
   language-agnostic registry shape contract, its golden fixtures, and the
   front-end-driven tests that validate them.
@@ -284,6 +292,9 @@ exports, and the ladder toward C tcltest parity.
 - [proc-call-and-stack-traces.md](runtime/proc-call-and-stack-traces.md) —
   the proc call protocol: argument binding, exception propagation, and
   `-errorinfo` / `-errorcode` stack-trace assembly across the call stack.
+- [procedure-body-activation.md](runtime/procedure-body-activation.md) —
+  original procedure source, deferred body preparation, native activation
+  ordering, and compiled-cache versus Script execution ownership.
 - [refcount-contract.md](runtime/refcount-contract.md) — ownership categories
   for every WASM-exported runtime function (callee-takes / caller-keeps /
   borrow), the linter that enforces them, and the decision rules for new
@@ -354,14 +365,6 @@ Starting shapes for a new design document.
 - [templates/README.md](templates/README.md) — the templates (contract,
   reference, ownership matrix), what a design doc looks like here, and the
   checklist to run before merging one.
-
-## lanes/
-
-Tracking documents for work handed to a background agent.
-
-- [lanes/README.md](lanes/README.md) — the protocol: tracking document,
-  checkpoint commits, explicit-path staging, orchestrator pushes. A file in
-  that folder means the work is in flight or was interrupted.
 
 ## spec-dsl-examples/
 

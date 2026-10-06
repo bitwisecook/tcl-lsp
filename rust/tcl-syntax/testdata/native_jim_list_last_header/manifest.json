@@ -1,0 +1,30 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "compile_command": [
+    "cc",
+    "-O2",
+    "-I/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-jim-list-last-header-source/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-o",
+    "/workspace/.proofs/2286-jim-list-last-header-source/probe"
+  ],
+  "compile_exit": 0,
+  "exit": 0,
+  "seconds": 0.0011682909680530429,
+  "windows": 11,
+  "files": {
+    "/workspace/.proofs/2286-jim-list-last-header-source/observations.tsv": "a08b7b0ca5d58805aae83b73268eee34dd3ffc708987c05177f0c6b505436c5a",
+    "/workspace/.proofs/2286-jim-list-last-header-source/stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/.proofs/2286-jim-list-last-header-source/probe": "0d53122008b06bfd000acbff0122feb001b1c513f2610216fe3bc88ca5c46e5d",
+    "/workspace/.proofs/2286-jim-list-last-header-source/compile.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/.proofs/2286-jim-list-last-header-source/probe.c": "f4f1fdee11a6830b340b7db0bce44ef837593e599b498387fde0eb66f0847a94",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff"
+  }
+}

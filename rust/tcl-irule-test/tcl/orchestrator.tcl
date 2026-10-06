@@ -70,12 +70,27 @@ namespace eval ::orch {
         ::itest::load_irule $source
     }
 
+    proc load_rule {identity source {register_events 1}} {
+        ::itest::load_rule $identity $source $register_events
+    }
+
     proc add_pool {name members args} {
         eval [list ::state::lb::add_pool $name $members] $args
     }
 
     proc configure_static {varname value} {
-        set ::static::$varname $value
+        if {[llength [info commands ::tmm::_static_configure]]} {
+            return [::tmm::_static_configure $varname $value]
+        }
+        variable _tmm_count
+        variable _tmm_interpreters
+        if {$_tmm_count > 1} {
+            foreach worker $_tmm_interpreters {
+                ::tmm::_orig_interp eval $worker [list set ::static::$varname $value]
+            }
+        } else {
+            set ::static::$varname $value
+        }
     }
 
     proc add_datagroup {name type records} {
@@ -377,11 +392,6 @@ namespace eval ::orch {
             }
         }
 
-        # In multi-TMM mode, save statics back to the TMM slot
-        if {[_tmm_enabled]} {
-            _tmm_save_statics
-        }
-
         return $results
     }
 
@@ -478,11 +488,6 @@ namespace eval ::orch {
                     set skip_rest 1
                 }
             }
-        }
-
-        # In multi-TMM mode, save statics back to the TMM slot
-        if {[_tmm_enabled]} {
-            _tmm_save_statics
         }
 
         return $results
@@ -1182,7 +1187,7 @@ namespace eval ::orch {
 
         # Run body
         set err ""
-        set code [catch {uplevel 1 $body} result opts]
+        set code [::tmm::_host_catch {uplevel 1 $body} result opts]
 
         # Cleanup (always runs)
         if {$cleanup ne ""} {
@@ -1270,9 +1275,10 @@ namespace eval ::orch {
 
     # Multi-TMM simulation
     #
-    # On real BIG-IP, each TMM core has its own copy of static::
-    # variables (RULE_INIT fires independently per TMM).  The table
-    # command is CMP-shared across all TMMs.  This mode lets you find
+    # The authored worker model gives each worker its own static:: cells
+    # and executes RULE_INIT independently there. Publishing declarations
+    # does not require equal initial values. The table mock shares host
+    # state across workers. This mode lets you find
     # bugs like "static variable updated on one TMM but not others".
     #
     # Usage:
@@ -1292,7 +1298,8 @@ namespace eval ::orch {
     #   }
     #
     # What is per-TMM (isolated):
-    #   - static:: variables
+    #   - namespace/global/static:: cells, aliases, arrays and traces
+    #   - user procedure definitions and command table mutations
     #   - RULE_INIT execution state
     #   - connection state (each connection lives on one TMM)
     #
@@ -1305,7 +1312,7 @@ namespace eval ::orch {
 
     variable _tmm_count      0       ;# 0 = single-TMM mode (default)
     variable _tmm_current    0       ;# currently active TMM index
-    variable _tmm_statics    [list]  ;# list of dicts: tmm_id -> {varname value ...}
+    variable _tmm_interpreters [list] ;# actual interpreter identities, indexed by worker
     variable _tmm_init_done  [list]  ;# list of booleans: has RULE_INIT fired?
 
     proc _tmm_enabled {} {
@@ -1314,62 +1321,27 @@ namespace eval ::orch {
     }
 
     proc _tmm_init_slots {} {
+        ::tmm::init
+        if {[llength [info commands ::tmm::_static_reset_domain]]} {
+            ::tmm::_static_reset_domain
+        }
         variable _tmm_count
-        variable _tmm_statics
+        variable _tmm_interpreters
         variable _tmm_init_done
-
-        set _tmm_statics [list]
+        if {[llength [info commands ::tmm::_static_domain]]} {
+            if {$_tmm_count > 1} { ::tmm::_static_domain children } else { ::tmm::_static_domain root }
+        }
+        foreach worker $_tmm_interpreters { catch {::tmm::_orig_interp delete $worker} }
+        set _tmm_interpreters [list]
         set _tmm_init_done [list]
         for {set i 0} {$i < $_tmm_count} {incr i} {
-            lappend _tmm_statics [dict create]
+            lappend _tmm_interpreters [::itest::create_worker "_irh_worker_$i"]
             lappend _tmm_init_done 0
         }
     }
 
-    # Save current ::static:: namespace into the current TMM slot
-    proc _tmm_save_statics {} {
-        variable _tmm_count
-        variable _tmm_current
-        variable _tmm_statics
-
-        if {$_tmm_count < 2} return
-
-        set snapshot [dict create]
-        foreach var [::tmm::_orig_info vars ::static::*] {
-            set name [::tmm::_orig_namespace tail $var]
-            if {[array exists $var]} {
-                # Array variable: store as dict
-                dict set snapshot $name [list array [array get $var]]
-            } else {
-                dict set snapshot $name [list scalar [set $var]]
-            }
-        }
-        lset _tmm_statics $_tmm_current $snapshot
-    }
-
-    # Restore ::static:: namespace from a TMM slot
-    proc _tmm_restore_statics {tmm_id} {
-        variable _tmm_statics
-
-        # Clear current statics
-        foreach var [::tmm::_orig_info vars ::static::*] {
-            catch { unset $var }
-        }
-
-        set snapshot [lindex $_tmm_statics $tmm_id]
-        dict for {name val} $snapshot {
-            set type [lindex $val 0]
-            set data [lindex $val 1]
-            if {$type eq "array"} {
-                array set ::static::$name $data
-            } else {
-                set ::static::$name $data
-            }
-        }
-    }
-
     # Select which TMM handles the next connection.
-    # Saves the current TMM's statics and restores the target TMM's.
+    # The worker interpreter retains its cells and command table.
     proc tmm_select {tmm_id} {
         variable _tmm_count
         variable _tmm_current
@@ -1381,22 +1353,14 @@ namespace eval ::orch {
             error "TMM $tmm_id out of range (0..[expr {$_tmm_count - 1}])"
         }
 
-        # Save current TMM state
-        _tmm_save_statics
-
         # Switch
         set _tmm_current $tmm_id
 
-        # Restore target TMM state
-        _tmm_restore_statics $tmm_id
-
-        # If RULE_INIT hasn't fired on this TMM yet, fire it
+        # If RULE_INIT has not been attempted in this worker lifetime, fire it
         variable _tmm_init_done
         if {![lindex $_tmm_init_done $tmm_id]} {
             lset _tmm_init_done $tmm_id 1
             catch {::itest::fire_event RULE_INIT}
-            # Save the statics after RULE_INIT
-            _tmm_save_statics
         }
 
         # Mark RULE_INIT as done for the orchestrator (so run_http_request
@@ -1414,41 +1378,16 @@ namespace eval ::orch {
     # Read a static variable from a specific TMM without switching to it.
     proc tmm_get_static {tmm_id varname} {
         variable _tmm_count
-        variable _tmm_current
-        variable _tmm_statics
-
+        variable _tmm_interpreters
         if {$_tmm_count < 2} {
-            # Single-TMM mode: just read from ::static::
-            if {[::tmm::_orig_info exists ::static::$varname]} {
-                return [set ::static::$varname]
-            }
+            if {[::tmm::_orig_info exists ::static::$varname]} { return [set ::static::$varname] }
             return ""
         }
-
-        # If it's the current TMM, read live
-        if {$tmm_id == $_tmm_current} {
-            if {[::tmm::_orig_info exists ::static::$varname]} {
-                return [set ::static::$varname]
-            }
-            return ""
-        }
-
-        # Otherwise read from snapshot
-        set snapshot [lindex $_tmm_statics $tmm_id]
-        if {[dict exists $snapshot $varname]} {
-            set val [dict get $snapshot $varname]
-            set type [lindex $val 0]
-            set data [lindex $val 1]
-            if {$type eq "scalar"} {
-                return $data
-            } else {
-                return $data  ;# return array as list for inspection
-            }
-        }
-        return ""
+        if {$tmm_id < 0 || $tmm_id >= $_tmm_count} { error "TMM $tmm_id out of range" }
+        set worker [lindex $_tmm_interpreters $tmm_id]
+        return [::tmm::_orig_interp eval $worker [list ::itest::_inspect_static $varname]]
     }
 
-    # List all TMM IDs
     proc tmm_ids {} {
         variable _tmm_count
         if {$_tmm_count < 2} { return {0} }

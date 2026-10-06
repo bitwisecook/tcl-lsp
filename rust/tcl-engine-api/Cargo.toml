@@ -18,7 +18,7 @@
 
 # The Tcl extension interface: the layer that plays, for our engines, the role
 # Tcl's C API plays for C Tcl — in modern idiomatic Rust, with owned structured
-# values and no interp pointers. Deliberately dependency-free: an engine
+# values and no interp pointers. Depends only on the shared leaf vocabulary: an engine
 # implements it (`tcl-engine-tclvm`), a host consumes it (`tcl-spec-hooks`),
 # and selecting one engine must never require another to be present.
 [package]
@@ -36,6 +36,7 @@ authors.workspace = true
 name = "tcl_engine_api"
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]
 workspace = true

@@ -2287,6 +2287,7 @@ const PRESENTATIONS: &[ArgPresentation] =
 const FRAME_LEVEL_WORDS: &[FrameLevelWord] = &[
     FrameLevelWord::None,
     FrameLevelWord::ArityParity,
+    FrameLevelWord::Upvar,
     FrameLevelWord::LeadingProbe,
 ];
 
@@ -2348,6 +2349,10 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Expr,
     InlineCodegenHookId::Incr,
     InlineCodegenHookId::InfoExists,
+    InlineCodegenHookId::InfoLevel,
+    InlineCodegenHookId::NamespaceCurrent,
+    InlineCodegenHookId::NamespaceOrigin,
+    InlineCodegenHookId::NamespaceCode,
     InlineCodegenHookId::String,
     InlineCodegenHookId::Lindex,
     InlineCodegenHookId::Lrange,
@@ -2363,6 +2368,8 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Break,
     InlineCodegenHookId::Continue,
     InlineCodegenHookId::Try,
+    InlineCodegenHookId::Yield,
+    InlineCodegenHookId::YieldTo,
 ];
 
 const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
@@ -2443,11 +2450,17 @@ const INTRINSICS: &[IntrinsicId] = &[
     IntrinsicId::StringIs,
     IntrinsicId::Regexp,
     IntrinsicId::InfoExists,
+    IntrinsicId::InfoLevel,
+    IntrinsicId::InfoCommandsResolve,
     IntrinsicId::ArrayExists,
     IntrinsicId::ArrayNames,
     IntrinsicId::ArraySize,
     IntrinsicId::Concat,
     IntrinsicId::ChannelWrite,
+    IntrinsicId::ProcedureNoOp,
+    IntrinsicId::NamespaceCurrent,
+    IntrinsicId::NamespaceOrigin,
+    IntrinsicId::NamespaceCode,
 ];
 
 /// `arity 3.. -step 2 -also 2` and its five simpler spellings, optionally
@@ -2497,6 +2510,10 @@ fn parse_arity(stmt: &Stmt, log: &mut Log) -> (Arity, Option<Lifecycle>) {
             continue;
         }
         match flag.as_str() {
+            "-positionals" => {
+                arity = arity.with_positionals();
+                log.v21(stmt.line, "-positionals");
+            }
             "-step" => arity.step = next_text(words, &mut i).parse().unwrap_or(0),
             "-also" => arity.also_exact = next_text(words, &mut i).parse().ok(),
             other => log.unknown_flag("arity", stmt.line, other),
@@ -2623,6 +2640,10 @@ fn parse_return_elements(text: &str, line: u32, log: &mut Log) -> Option<ReturnE
 fn parse_var_elements_effect(text: &str, line: u32, log: &mut Log) -> Option<VarElementsEffect> {
     let parts = list_words(text);
     match parts.split_first() {
+        Some((head, rest)) if head == "SetsArrayElementsFromList" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|values_at| VarElementsEffect::SetsArrayElementsFromList { values_at }),
         Some((head, rest)) if head == "AppendsListElements" && rest.len() == 1 => rest[0]
             .parse()
             .ok()
@@ -2648,7 +2669,7 @@ fn parse_var_elements_effect(text: &str, line: u32, log: &mut Log) -> Option<Var
     })
 }
 
-/// `None` / `{CopyOnWriteContainerMutation VAR MIN}`.
+/// Representation effect variant plus its authored argument-layout payload.
 fn parse_representation_effect(
     text: &str,
     line: u32,
@@ -2657,6 +2678,49 @@ fn parse_representation_effect(
     let parts = list_words(text);
     match parts.split_first() {
         Some((head, rest)) if head == "None" && rest.is_empty() => Some(RepresentationEffect::None),
+        Some((head, rest)) if head == "CoerceExpressionValues" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|arguments_from| RepresentationEffect::CoerceExpressionValues { arguments_from }),
+        Some((head, rest)) if head == "CoerceNumericValues" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|arguments_from| RepresentationEffect::CoerceNumericValues { arguments_from }),
+        Some((head, rest)) if head == "CoerceOrdinaryList" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|operand| RepresentationEffect::CoerceOrdinaryList { operand }),
+        Some((head, rest)) if head == "CoerceOrdinaryDictionary" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|operand| RepresentationEffect::CoerceOrdinaryDictionary { operand }),
+        Some((head, rest)) if head == "CoerceOrdinaryListPairs" && rest.len() == 1 => rest[0]
+            .parse()
+            .ok()
+            .map(|variables_from| RepresentationEffect::CoerceOrdinaryListPairs { variables_from }),
+        Some((head, rest)) if head == "CoerceOrdinaryListIndices" && rest.len() == 2 => {
+            match (rest[0].parse(), rest[1].parse()) {
+                (Ok(operand), Ok(indices_from)) => {
+                    Some(RepresentationEffect::CoerceOrdinaryListIndices {
+                        operand,
+                        indices_from,
+                    })
+                }
+                _ => None,
+            }
+        }
+        Some((head, rest)) if head == "CoerceOrdinaryListRange" && rest.len() == 3 => {
+            match (rest[0].parse(), rest[1].parse(), rest[2].parse()) {
+                (Ok(operand), Ok(first), Ok(last)) => {
+                    Some(RepresentationEffect::CoerceOrdinaryListRange {
+                        operand,
+                        first,
+                        last,
+                    })
+                }
+                _ => None,
+            }
+        }
         Some((head, rest)) if head == "CopyOnWriteContainerMutation" && rest.len() == 2 => {
             match (rest[0].parse(), rest[1].parse()) {
                 (Ok(variable_arg), Ok(minimum_arguments)) => {
@@ -3762,6 +3826,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         allow_omitted_final_body: false,
         keyword_patterns: &[],
         keyword_patterns_require_final: false,
+        exhaustive_keyword_patterns: &[],
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
     };
@@ -3803,6 +3868,9 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
                 spec.optional_subject_separator = Some(leak_str(&value));
             }
             "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
+            "exhaustive_keyword_patterns" => {
+                spec.exhaustive_keyword_patterns = leak_strs(&list_words(&value));
+            }
             "keyword_patterns" => {
                 spec.keyword_patterns = leak_strs(&list_words(&value));
                 spec.keyword_patterns_require_final =
@@ -4219,6 +4287,7 @@ fn builtin_object_method_row(stmt: &Stmt, log: &mut Log) -> BuiltinObjectMethod 
         name: leak_str(stmt.word_text(1)),
         visibility: MemberVisibility::Exported,
         receiver: BuiltinMethodReceiver::AnyObject,
+        operation: None,
         detail: "",
     };
     let words = &stmt.words;
@@ -4351,6 +4420,8 @@ const WORLD_STATE_DOMAINS: &[WorldStateDomain] = &[
     WorldStateDomain::CommandTraces,
     WorldStateDomain::OoDispatch,
     WorldStateDomain::InterpreterPolicy,
+    WorldStateDomain::InterpreterResult,
+    WorldStateDomain::CompletionState,
     WorldStateDomain::PackageState,
     WorldStateDomain::HostCapabilities,
 ];
@@ -4694,6 +4765,16 @@ struct CommandAcc {
     clause_grammar: Option<ClauseGrammar>,
 }
 
+fn validate_role_resolver_inputs(inputs: [bool; 3], line: u32, log: &mut Log) {
+    if inputs.into_iter().filter(|present| *present).count() > 1 {
+        log.say_classified(
+            line,
+            VocabularyClass::Semantic,
+            "argument role value/count/layout resolvers are mutually exclusive",
+        );
+    }
+}
+
 /// Build one command: defaults, the body (delivered by `fill` from the
 /// evaluation loader's staged nodes), sealing, containment, and §6.1
 /// degradation.
@@ -4769,8 +4850,17 @@ fn command_from_parts(
             }
         }
 
+        validate_role_resolver_inputs(
+            [
+                spec.arg_role_resolver.is_some(),
+                spec.arg_role_count_resolver.is_some(),
+                spec.arg_role_layout_resolver.is_some(),
+            ],
+            line,
+            log,
+        );
         validate_arg_role_capabilities(
-            spec.arg_role_resolver.is_some(),
+            spec.has_dynamic_argument_roles(),
             spec.arg_role_resolver_roles,
             "command",
             line,
@@ -4781,7 +4871,10 @@ fn command_from_parts(
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
             &args.roles,
-            spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
+            spec.arg_role_resolver.is_some()
+                || spec.arg_role_count_resolver.is_some()
+                || spec.arg_role_layout_resolver.is_some()
+                || spec.command_prefix_resolver.is_some(),
             spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
             &format!("command `{}`", spec.name),
             line,
@@ -5153,6 +5246,9 @@ fn apply_command_stmt(
                 acc.repeats.push(layout);
             }
         }
+        "option_prefix_words" => {
+            spec.option_prefix_words = value.parse().unwrap_or(0);
+        }
         "reserved_trailing_words" => {
             spec.reserved_trailing_words = value.parse().unwrap_or(0);
         }
@@ -5160,6 +5256,24 @@ fn apply_command_stmt(
         "creates_instance_at" => spec.creates_instance_at = value.parse().ok(),
         "defines_command_at" => spec.defines_command_at = value.parse().ok(),
         "body_arg_implicit_args" => spec.body_arg_implicit_args = value.parse().unwrap_or(0),
+        "successful_handler" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "native_compilation" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native compilation contracts require selected interpreter compiler and source-entry proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "procedure_definition" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native procedure_definition contracts require implementation and storage proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "body_execution" => {
+            // The studio's explicit native gap must not become a dropped
+            // execution contract when a provider authors it directly.
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native body_execution contracts require live implementation and hook proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
         "body_kind" => {
             if let Some(kind) = enum_by_name(BODY_KINDS, &value, "body kind", stmt.line, log) {
                 spec.body_kind = kind;
@@ -5196,6 +5310,12 @@ fn apply_command_stmt(
             }
         }
         "self_receiver_words" => spec.self_receiver_words = leak_strs(&list_words(&value)),
+        "arg_role_count_resolver" => {
+            spec.arg_role_count_resolver = native_count_role_resolver(stmt, log);
+        }
+        "arg_role_layout_resolver" => {
+            spec.arg_role_layout_resolver = native_layout_role_resolver(stmt, log);
+        }
         "arg_role_resolver_roles" => {
             log.v21(stmt.line, "arg_role_resolver_roles");
             spec.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
@@ -5583,6 +5703,76 @@ fn index_list(text: &str) -> Vec<u8> {
         .iter()
         .filter_map(|word| word.parse().ok())
         .collect()
+}
+
+/// Count hooks use a closed native descriptor; arbitrary Tcl hooks require a
+/// typed cardinality evaluator and are rejected rather than fed dummy words.
+fn native_count_role_resolver(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> Option<tcl_registry::spec::ArgRoleCountResolver> {
+    let selected = (stmt.words.len() == 3 && stmt.word_text(1) == "-native")
+        .then(|| stmt.word_text(2))
+        .and_then(|id| id.strip_suffix("::arg_role_count_resolver"));
+    let resolver = selected.and_then(|owner| {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(spec) = registry.get(owner) {
+            return spec.arg_role_count_resolver;
+        }
+        if let Some((command, subcommand)) = owner.rsplit_once("::") {
+            registry
+                .get(command)?
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == subcommand)?
+                .arg_role_count_resolver
+        } else {
+            registry.get(owner)?.arg_role_count_resolver
+        }
+    });
+    if resolver.is_none() {
+        log.say_classified(
+            stmt.line,
+            VocabularyClass::Semantic,
+            "`arg_role_count_resolver` requires a known native cardinality descriptor; Tcl count hooks are unsupported",
+        );
+    }
+    resolver
+}
+
+/// Structured hooks use a closed native descriptor; arbitrary Tcl hooks require a
+/// typed structured-operand evaluator and are rejected rather than fed dummy words.
+fn native_layout_role_resolver(
+    stmt: &Stmt,
+    log: &mut Log,
+) -> Option<tcl_registry::spec::ArgRoleLayoutResolver> {
+    let selected = (stmt.words.len() == 3 && stmt.word_text(1) == "-native")
+        .then(|| stmt.word_text(2))
+        .and_then(|id| id.strip_suffix("::arg_role_layout_resolver"));
+    let resolver = selected.and_then(|owner| {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        if let Some(spec) = registry.get(owner) {
+            return spec.arg_role_layout_resolver;
+        }
+        if let Some((command, subcommand)) = owner.rsplit_once("::") {
+            registry
+                .get(command)?
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == subcommand)?
+                .arg_role_layout_resolver
+        } else {
+            registry.get(owner)?.arg_role_layout_resolver
+        }
+    });
+    if resolver.is_none() {
+        log.say_classified(
+            stmt.line,
+            VocabularyClass::Semantic,
+            "`arg_role_layout_resolver` requires a known native structured descriptor; Tcl layout hooks are unsupported",
+        );
+    }
+    resolver
 }
 
 fn arg_role_capabilities(text: &str, line: u32, log: &mut Log) -> &'static [ArgRole] {
@@ -6166,6 +6356,18 @@ fn apply_refine_stmt(
     let key = stmt.word_text(0).to_owned();
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
+        "successful_handler" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "return_type"
+        | "arg_types"
+        | "byte_array_effect"
+        | "var_elements_effect"
+        | "safe_on_uninit" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native form value overrides are excluded from strong analysis until the refinement loader and renderer preserve explicit inheritance withdrawal");
+        }
         "arity" => match parse_arity(stmt, log) {
             (arity, None) => form.arity = arity,
             (arity, Some(_)) => {
@@ -6329,8 +6531,17 @@ fn subcommand_from_parts(
         };
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
+        validate_role_resolver_inputs(
+            [
+                sub.arg_role_resolver.is_some(),
+                sub.arg_role_count_resolver.is_some(),
+                sub.arg_role_layout_resolver.is_some(),
+            ],
+            line,
+            log,
+        );
         validate_arg_role_capabilities(
-            sub.arg_role_resolver.is_some(),
+            sub.has_dynamic_argument_roles(),
             sub.arg_role_resolver_roles,
             kind,
             line,
@@ -6340,7 +6551,10 @@ fn subcommand_from_parts(
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
             &args.roles,
-            sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
+            sub.arg_role_resolver.is_some()
+                || sub.arg_role_count_resolver.is_some()
+                || sub.arg_role_layout_resolver.is_some()
+                || sub.command_prefix_resolver.is_some(),
             sub.script_timing_resolver.is_some() || sub.traits.contains(Traits::DEFERS_BODY),
             &format!("{kind} `{name}`"),
             line,
@@ -6420,6 +6634,12 @@ fn apply_subcommand_stmt(
         "body_arg_implicit_args" => sub.body_arg_implicit_args = value.parse().unwrap_or(0),
         "credential_arg" => sub.credential_arg = value.parse().ok(),
         "sensitive_headers" => sub.sensitive_headers = leak_strs(&list_words(&value)),
+        "arg_role_count_resolver" => {
+            sub.arg_role_count_resolver = native_count_role_resolver(stmt, log);
+        }
+        "arg_role_layout_resolver" => {
+            sub.arg_role_layout_resolver = native_layout_role_resolver(stmt, log);
+        }
         "arg_role_resolver_roles" => {
             log.v21(stmt.line, "arg_role_resolver_roles");
             sub.arg_role_resolver_roles = arg_role_capabilities(&value, stmt.line, log);
@@ -6454,6 +6674,20 @@ fn apply_subcommand_stmt(
         }
         "taint_double_encode_colour" => {
             sub.taint_double_encode_colour = Some(parse_taint(&value, stmt.line, log));
+        }
+        "successful_handler" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native successful_handler contracts require converged implementation, physical storage and observer proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "native_compilation" => {
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native compilation contracts require selected interpreter compiler and source-entry proofs; this pack cannot supply them and is excluded from strong analysis");
+        }
+        "body_execution" => {
+            // The studio's explicit native gap must not become a dropped
+            // execution contract when a provider authors it directly.
+            log.say_classified(stmt.line, VocabularyClass::Semantic,
+                "native body_execution contracts require live implementation and hook proofs; this pack cannot supply them and is excluded from strong analysis");
         }
         "body_kind" => {
             if let Some(kind) = enum_by_name(BODY_KINDS, &value, "body kind", stmt.line, log) {
@@ -6490,6 +6724,9 @@ fn apply_subcommand_stmt(
             if let Some(mode) = enum_by_name(MATCHING, &value, "prefix matching", stmt.line, log) {
                 sub.prefix_matching = mode;
             }
+        }
+        "option_prefix_words" => {
+            sub.option_prefix_words = value.parse().unwrap_or(0);
         }
         "option_placement" => {
             const PLACEMENTS: &[OptionPlacement] =
@@ -6678,6 +6915,11 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
     let mut i = 2;
     while i < words.len() {
         match words[i].text.as_str() {
+            "-native_compilation" => {
+                let _ = next_text(words, &mut i);
+                log.say_classified(stmt.line, VocabularyClass::Semantic,
+                    "nested native compilation contracts require selected interpreter and actual worker identity proofs; this pack cannot supply them and is excluded from strong analysis");
+            }
             "-detail" => row.detail = leak_str(&next_text(words, &mut i)),
             "-synopsis" => row.synopsis = leak_str(&next_text(words, &mut i)),
             "-dialects" => {
@@ -6802,6 +7044,32 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn expression_representation_coercion_loads_without_a_native_hook() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command evaluate { \
+             representation_effect {CoerceExpressionValues 0} } }",
+        );
+        assert_eq!(
+            pack.command("evaluate").unwrap().spec.representation_effect,
+            Some(RepresentationEffect::CoerceExpressionValues { arguments_from: 0 })
+        );
+    }
+
+    #[test]
+    fn numeric_object_conversion_requirements_load_without_a_result_contract() {
+        let pack = evaluate_pack(
+            "speclib probe 1.1 { command convert { \
+             representation_effect {CoerceNumericValues 0} } }",
+        );
+        let spec = &pack.command("convert").unwrap().spec;
+        assert_eq!(
+            spec.representation_effect,
+            Some(RepresentationEffect::CoerceNumericValues { arguments_from: 0 })
+        );
+        assert!(spec.native_result.is_none());
+    }
+
     /// A pack can declare `DEFERS_BODY` for its own definer, and — the half
     /// that matters — a pack that says nothing leaves the trait **unset**.
     ///
@@ -6841,20 +7109,8 @@ mod tests {
         );
     }
 
-    /// #2140: `case_list { … }` authors **every** plain-data field of
-    /// `CaseListSpec`, and that claim is checked rather than counted.
-    ///
-    /// Three documents carried a numeral for this — nineteen in the
-    /// spec-DSL README, eighteen in the same README's descriptor list and
-    /// in the `case_list` spec's own hover text, against twenty-two fields
-    /// in the struct. A count in prose drifts; the property does not, so
-    /// the numerals are gone and this stands in their place.
-    ///
-    /// Every row is given a value that differs from the field's
-    /// zero/empty default, so a field the block cannot reach fails here.
-    /// `keyword_patterns` carries two fields (its `-final-only` flag sets
-    /// `keyword_patterns_require_final`), which is why twenty-one rows
-    /// author twenty-two fields.
+    /// Every plain case descriptor field has an authored row and a nondefault
+    /// assertion. The compile-time field count catches omitted DSL coverage.
     #[test]
     fn case_list_rows_author_every_descriptor_field_issue_2140() {
         let pack = evaluate_pack(
@@ -6871,7 +7127,7 @@ mod tests {
              clause_force_inline_flag -nobrace; clause_force_list_flag -brace; \
              clause_force_list_shape first_arg_only_remainder; \
              allow_omitted_final_body 1; \
-             keyword_patterns {default} -final-only; \
+             keyword_patterns {default} -final-only; exhaustive_keyword_patterns {default}; \
              warn_unbraced_bodies 1; \
              optional_subject_separator -- } } }",
         );
@@ -6907,6 +7163,7 @@ mod tests {
         assert!(case.allow_omitted_final_body);
         assert_eq!(case.keyword_patterns, ["default"]);
         assert!(case.keyword_patterns_require_final);
+        assert_eq!(case.exhaustive_keyword_patterns, ["default"]);
         assert!(case.warn_unbraced_bodies);
         assert_eq!(case.optional_subject_separator, Some("--"));
 
@@ -6925,8 +7182,8 @@ mod tests {
             .filter(|line| line.starts_with("    pub ") && line.contains(':'))
             .count();
         assert_eq!(
-            fields, 22,
-            "`CaseListSpec` has {fields} fields; the assertions above cover 22 — a new field needs a `case_list` row and an assertion here"
+            fields, 23,
+            "`CaseListSpec` has {fields} fields; the assertions above cover 23 — a new field needs a `case_list` row and an assertion here"
         );
     }
 
@@ -7141,6 +7398,107 @@ mod tests {
             dropped.len(),
             4,
             "each of `#`, `not`, `a`, `comment` drops: {dropped:?}"
+        );
+    }
+
+    #[test]
+    fn native_cardinality_role_contract_loads_and_tcl_count_hook_is_rejected() {
+        let pack = evaluate_pack(
+            r#"speclib counts 1.0 {
+            command copied {
+                arg_role_count_resolver -native foreach::arg_role_count_resolver
+                arg_role_resolver_roles Body
+            }
+            command unsupported {
+                arg_role_count_resolver {nwords} {return {2 Body}}
+                arg_role_resolver_roles Body
+            }
+        }"#,
+        );
+        let selected = pack.command("copied").expect("native contract loads");
+        let resolver = selected
+            .spec
+            .arg_role_count_resolver
+            .expect("actual count resolver");
+        assert_eq!(resolver(3), vec![(2, ArgRole::Body)]);
+        assert_eq!(resolver(5), vec![(4, ArgRole::Body)]);
+        assert!(pack.command("unsupported").is_none());
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("Tcl count hooks are unsupported"))
+        );
+    }
+
+    #[test]
+    fn native_scan_count_contracts_load_without_value_hooks() {
+        let pack = evaluate_pack(
+            r"speclib scans 1.0 {
+                command copiedscan {
+                    arg_role_count_resolver -native scan::arg_role_count_resolver
+                    arg_role_resolver_roles {ScanFormat VarWrite}
+                }
+                command copiedbinary {
+                    arg_role_count_resolver -native binary::scan::arg_role_count_resolver
+                    arg_role_resolver_roles {ScanFormat VarWrite}
+                }
+            }",
+        );
+        for name in ["copiedscan", "copiedbinary"] {
+            let spec = &pack
+                .command(name)
+                .expect("native cardinality descriptor")
+                .spec;
+            assert!(spec.arg_role_resolver.is_none());
+            assert_eq!(
+                spec.arg_role_count_resolver
+                    .expect("count-only native hook")(4),
+                vec![
+                    (1, ArgRole::ScanFormat),
+                    (2, ArgRole::VarWrite),
+                    (3, ArgRole::VarWrite)
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn native_structured_layout_loads_and_conflicting_inputs_are_rejected() {
+        let pack = evaluate_pack(
+            r#"speclib layouts 1.0 {
+            command copied {
+                arg_role_layout_resolver -native regsub::arg_role_layout_resolver
+                arg_role_resolver_roles {Pattern FormatString VarWrite}
+            }
+            command unsupported {
+                arg_role_layout_resolver {words options} {return {0 Pattern}}
+                arg_role_resolver_roles Pattern
+            }
+            command conflict {
+                arg_role_layout_resolver -native regsub::arg_role_layout_resolver
+                arg_role_count_resolver -native foreach::arg_role_count_resolver
+                arg_role_resolver_roles {Pattern FormatString VarWrite Body}
+            }
+        }"#,
+        );
+        assert!(
+            pack.command("copied")
+                .unwrap()
+                .spec
+                .arg_role_layout_resolver
+                .is_some()
+        );
+        assert!(pack.command("unsupported").is_none());
+        assert!(pack.command("conflict").is_none());
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("Tcl layout hooks are unsupported"))
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("mutually exclusive"))
         );
     }
 
@@ -8003,6 +8361,45 @@ mod tests {
             None,
             "below every window, the plain arity is the fallback"
         );
+    }
+
+    #[test]
+    fn positional_arity_preserves_scope_and_release_selection() {
+        let pack = evaluate_pack(
+            "speclib probe 2.1 {\n command demo {\n \
+             arity 0..1 -positionals\n \
+             arity 0..2 -positionals -introduced 3.0\n \
+             option -safe\n \
+             subcommand child { arity 1.. -positionals -step 2 -also 0 }\n \
+             refine Alternate { arity 2 -positionals }\n \
+             }\n command ordinary { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").unwrap().spec;
+        assert_eq!(spec.arity, Arity::new(0, 1).with_positionals());
+        assert_eq!(
+            ArityWindow::select(spec.arity_windows, Some("3.0")).map(|row| row.arity),
+            Some(Arity::new(0, 2).with_positionals())
+        );
+        assert_eq!(
+            spec.subcommand("child").unwrap().arity,
+            Arity::stepped(1, Arity::UNLIMITED, 2)
+                .with_also_exact(0)
+                .with_positionals()
+        );
+        assert_eq!(
+            spec.command_forms[0].arity,
+            Arity::exact(2).with_positionals()
+        );
+        assert_eq!(
+            pack.command("ordinary").unwrap().spec.arity,
+            Arity::exact(1)
+        );
+        let older = evaluate_pack("speclib probe 2.0 { command demo { arity 0..1 -positionals } }");
+        assert_eq!(older.command("demo").unwrap().spec.arity, spec.arity);
+        assert!(older.notices.iter().any(|notice| {
+            notice.message.contains("-positionals") && notice.message.contains("2.1")
+        }));
     }
 
     /// Two windows covering one release would make the selected signature
@@ -9278,6 +9675,60 @@ mod tests {
             "{:?}",
             pack.notices
         );
+    }
+
+    #[test]
+    fn native_successful_handler_contracts_are_explicit_semantic_exclusions() {
+        for block in [
+            "successful_handler -native Leaf",
+            "successful_handler -native ArithmeticSequenceArguments",
+            "successful_handler -native EnsembleLeaf",
+            "successful_handler -native EnsemblePathLeaf",
+            "subcommand capture {successful_handler -native CatchOutputs}",
+            "refine getter {arity 0; successful_handler -native Leaf}",
+            "refine getter {arity 0; successful_handler -native InitialiseEmptyVariable}",
+        ] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{command demo {{{block}}}; command neighbour {{arity 0}}}}"
+            ));
+            assert!(
+                pack.command("demo").is_none(),
+                "native claims cannot be asserted by a pack"
+            );
+            assert!(pack.command("neighbour").is_some());
+            assert!(
+                pack.notices.iter().any(|notice| {
+                    notice.class == VocabularyClass::Semantic
+                        && notice.message.contains("successful_handler")
+                        && notice.message.contains("excluded from strong analysis")
+                }),
+                "{:?}",
+                pack.notices
+            );
+        }
+    }
+
+    #[test]
+    fn native_form_value_overrides_are_explicit_semantic_exclusions() {
+        for property in [
+            "return_type",
+            "arg_types",
+            "byte_array_effect",
+            "var_elements_effect",
+            "safe_on_uninit",
+        ] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{command demo {{refine getter {{arity 0; {property} none}}}}; command neighbour {{arity 0}}}}"
+            ));
+            assert!(pack.command("demo").is_none());
+            assert!(pack.command("neighbour").is_some());
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.class == VocabularyClass::Semantic
+                        && notice.message.contains("native form value overrides"))
+            );
+        }
     }
 
     /// The classes apply **only** in §6.1's forward direction. An unknown

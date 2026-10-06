@@ -1,0 +1,56 @@
+{
+  "source": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_conditional_expression_results/math_binding.tcl",
+  "source_sha256": "efc5aa09e9540f2f6fff429de61de530637fa181f41ca3761fed18b66656b7e2",
+  "timeout_seconds": 60,
+  "slot": "global2/0",
+  "rows": [
+    {
+      "engine": "8.4",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "output": "stock 3\nreplaced 3\n",
+      "output_sha256": "1a6f1dca53b7656cb383df0a7819f3a26e88a243870b87849f7edbccef7d8a97"
+    },
+    {
+      "engine": "8.5",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "output": "stock 3\nreplaced 99\n",
+      "output_sha256": "d07627ee0cdb8aaf173c5f71f4d3e0e0c8c98d65c18cd4328ae7406fed5ba6f4"
+    },
+    {
+      "engine": "8.6",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "output": "stock 3\nreplaced 99\n",
+      "output_sha256": "d07627ee0cdb8aaf173c5f71f4d3e0e0c8c98d65c18cd4328ae7406fed5ba6f4"
+    },
+    {
+      "engine": "9.0",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "output": "stock 3\nreplaced 99\n",
+      "output_sha256": "d07627ee0cdb8aaf173c5f71f4d3e0e0c8c98d65c18cd4328ae7406fed5ba6f4"
+    },
+    {
+      "engine": "9.1",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "output": "stock 3\nreplaced 99\n",
+      "output_sha256": "d07627ee0cdb8aaf173c5f71f4d3e0e0c8c98d65c18cd4328ae7406fed5ba6f4"
+    },
+    {
+      "engine": "jim",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "output": "stock 3\nreplaced 3\n",
+      "output_sha256": "1a6f1dca53b7656cb383df0a7819f3a26e88a243870b87849f7edbccef7d8a97"
+    }
+  ]
+}

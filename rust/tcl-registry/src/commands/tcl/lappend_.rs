@@ -27,10 +27,54 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+const READ_OR_CREATE: crate::forms::CommandForm = crate::forms::CommandForm {
+    name: "read-or-create",
+    arity: Arity::exact(1),
+    arg_roles: &[(0, ArgRole::VarWrite)],
+    successful_handler: Some(
+        crate::native_compilation::SuccessfulHandlerSpec::InitialiseEmptyVariable,
+    ),
+    semantic_operation: Some(crate::SemanticOperationId::Invoke),
+    native_result: Some(crate::native_result::NativeResultContract::VariableValue {
+        variable_at: 0,
+        phase: crate::native_result::VariableResultPhase::AfterRead,
+    }),
+    return_type: Some(None),
+    byte_array_effect: Some(ByteArrayEffect::None),
+    var_elements_effect: Some(None),
+    representation_effect: Some(RepresentationEffect::None),
+    traits: Some(
+        Traits::FRAMELESS_RUNTIME
+            .union(Traits::FIRST_ARG_VARNAME)
+            .union(Traits::READS_BEFORE_WRITE)
+            .union(Traits::CONDITIONAL_VARIABLE_WRITE),
+    ),
+    ..crate::forms::CommandForm::DEFAULT
+};
+const COMMAND_FORMS: &[crate::forms::CommandForm] = &[READ_OR_CREATE];
+const JIM_COMMAND_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    // Jim does not parse an existing value as a list without appended values.
+    arg_types: Some(&[]),
+    ..READ_OR_CREATE
+}];
+
 /// Command spec for `lappend`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::VariableAppend(
+                crate::native_compilation::NativeAppendKind::List,
+            ),
+            operation: crate::SemanticOperationId::StructuredLowering(
+                LoweringHookId::AppendOrLappend,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -39,6 +83,11 @@ pub fn spec() -> CommandSpec {
             | Traits::FIRST_ARG_VARNAME
             | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(1),
+        command_forms: COMMAND_FORMS,
+        completion: Some(crate::CompletionDescriptor::exact(&[
+            crate::CompletionCode::Ok,
+            crate::CompletionCode::Error,
+        ])),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         // iRules embeds Tcl 8.4.6 and retains lappend's documented
@@ -78,4 +127,15 @@ pub fn spec() -> CommandSpec {
         analyser_hook: Some(crate::hooks::AnalyserHookId::Lappend),
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Current Jim's no-value form retains existing bytes without list validation.
+pub fn jim_spec() -> CommandSpec {
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.command_forms = JIM_COMMAND_FORMS;
+    command
 }

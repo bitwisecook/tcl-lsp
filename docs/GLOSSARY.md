@@ -1512,3 +1512,15 @@ so a worker thread can answer queries against a snapshot while the main
 thread sets new inputs.
 
 KCS tag: `codegen`.
+
+### Positioned semantic proof
+
+A result owned by one source invocation or variable read, with its interpreter,
+frame, dialect, and uncertainty retained. Its intended purpose determines what
+a consumer may conclude: a possible name candidate does not prove an executable
+handler, and a variable's unchanged contents do not prove an object's unchanged
+method table. Compiler admission, live lookup, and successful normal effects
+have separate query contracts.
+
+See also: [Resolved semantic queries](design/contracts/resolved-semantic-queries.md)
+and [Implementer guide](design/compiler/name-resolution-implementer-guide.md).

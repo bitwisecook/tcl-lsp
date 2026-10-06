@@ -34,11 +34,104 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("pwd", cmd_pwd);
-    vm.register("cd", cmd_cd);
-    vm.register("file", cmd_file);
-    vm.register("glob", cmd_glob);
-    vm.register("exec", cmd_exec);
+    vm.register_stock_builtin("pwd", cmd_pwd);
+    vm.register_stock_builtin("cd", cmd_cd);
+    register_file(vm);
+    vm.register_stock_builtin("glob", cmd_glob);
+    vm.register_stock_builtin("exec", cmd_exec);
+}
+
+fn register_file(vm: &mut Vm) {
+    use tcl_registry::invocation_words::EnsembleImplementationFamily;
+    let Some(namespace) = vm
+        .actual_native_invocation_dialect()
+        .ensemble_implementation_namespace(EnsembleImplementationFamily::File)
+    else {
+        vm.register_stock_builtin("file", cmd_file);
+        return;
+    };
+    let members = crate::environment::release_subcommands(
+        vm.actual_native_execution_profile().name,
+        "file",
+        FILE_SUBS,
+    );
+    vm.register_stock_namespace_ensemble("file", namespace, FILE_MEMBERS, members);
+}
+
+pub(crate) fn refresh_profile(vm: &mut Vm) {
+    if vm.stock_native_identity("file").as_deref() != Some("file") {
+        return;
+    }
+    for &(member, _) in FILE_MEMBERS {
+        let target = format!("::tcl::file::{member}");
+        if vm.stock_native_identity(&target).as_deref() == target.strip_prefix("::") {
+            vm.remove_registered_command(target.trim_start_matches("::"));
+        }
+    }
+    register_file(vm);
+    if vm
+        .actual_native_invocation_dialect()
+        .ensemble_implementation_namespace(
+            tcl_registry::invocation_words::EnsembleImplementationFamily::File,
+        )
+        .is_none()
+    {
+        vm.retire_unused_stock_ensemble_namespace("file");
+    }
+}
+
+macro_rules! file_members {
+    ($($function:ident => $member:literal),+ $(,)?) => {
+        const FILE_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
+            $(($member, $function)),+
+        ];
+        $(fn $function(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            let mut invocation = Vec::with_capacity(args.len() + 1);
+            invocation.push(Value::string($member));
+            invocation.extend_from_slice(args);
+            cmd_file(vm, &invocation)
+        })+
+    };
+}
+
+file_members! {
+    stock_file_atime => "atime",
+    stock_file_attributes => "attributes",
+    stock_file_channels => "channels",
+    stock_file_copy => "copy",
+    stock_file_delete => "delete",
+    stock_file_dirname => "dirname",
+    stock_file_executable => "executable",
+    stock_file_exists => "exists",
+    stock_file_extension => "extension",
+    stock_file_home => "home",
+    stock_file_isdirectory => "isdirectory",
+    stock_file_isfile => "isfile",
+    stock_file_join => "join",
+    stock_file_link => "link",
+    stock_file_lstat => "lstat",
+    stock_file_mkdir => "mkdir",
+    stock_file_mtime => "mtime",
+    stock_file_nativename => "nativename",
+    stock_file_normalize => "normalize",
+    stock_file_owned => "owned",
+    stock_file_pathtype => "pathtype",
+    stock_file_readable => "readable",
+    stock_file_readlink => "readlink",
+    stock_file_rename => "rename",
+    stock_file_rootname => "rootname",
+    stock_file_separator => "separator",
+    stock_file_size => "size",
+    stock_file_split => "split",
+    stock_file_stat => "stat",
+    stock_file_system => "system",
+    stock_file_tail => "tail",
+    stock_file_tempdir => "tempdir",
+    stock_file_tempfile => "tempfile",
+    stock_file_tildeexpand => "tildeexpand",
+    stock_file_type => "type",
+    stock_file_volumes => "volumes",
+    stock_file_writable => "writable",
 }
 
 /// `exec arg ?arg ...?` — run a subprocess via the shared
@@ -51,7 +144,7 @@ fn cmd_exec(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let host = vm.host_rc();
     match tcl_cmd_core::platform::exec(vm, &*host, args) {
         Ok(v) => ok(v),
-        Err(e) => err(e.into_message()),
+        Err(e) => crate::command::completion_from_cmd_error(vm, e),
     }
 }
 
@@ -67,7 +160,12 @@ fn cmd_cd(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let dir = match args {
         [] => env.get("HOME").unwrap_or_else(|| "/".to_string()),
         [d] => d.to_str().to_string(),
-        _ => return err("wrong # args: should be \"cd ?dirName?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"cd ?dirName?\"",
+            );
+        }
     };
     match env.chdir(&dir) {
         Ok(()) => ok(Value::empty()),
@@ -157,36 +255,57 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
         "join" => ok(Value::string(file_join(rest))),
         "dirname" => match rest {
             [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file dirname name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file dirname name\"",
+            ),
         },
         "tail" => match rest {
             [p] => path_str(tcl_cmd_core::path::tail(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file tail name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file tail name\"",
+            ),
         },
         "extension" => match rest {
             [p] => path_str(tcl_cmd_core::path::extension(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file extension name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file extension name\"",
+            ),
         },
         "rootname" => match rest {
             [p] => path_str(tcl_cmd_core::path::rootname(p.to_str().as_bytes())),
-            _ => err("wrong # args: should be \"file rootname name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file rootname name\"",
+            ),
         },
         "split" => match rest {
             [p] => ok(Value::list(
                 split_path(&s(p)).into_iter().map(Value::string).collect(),
             )),
-            _ => err("wrong # args: should be \"file split name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file split name\"",
+            ),
         },
         "normalize" => match rest {
             [p] => {
                 let cwd = vm.host().env().cwd().unwrap_or_else(|_| "/".to_string());
                 ok(Value::string(normalize(&s(p), &cwd)))
             }
-            _ => err("wrong # args: should be \"file normalize name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file normalize name\"",
+            ),
         },
         "nativename" => match rest {
             [p] => ok(Value::string(s(p))),
-            _ => err("wrong # args: should be \"file nativename name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file nativename name\"",
+            ),
         },
         "pathtype" => match rest {
             [p] => ok(Value::string(
@@ -197,7 +316,10 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
                 }
                 .to_string(),
             )),
-            _ => err("wrong # args: should be \"file pathtype name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file pathtype name\"",
+            ),
         },
         "separator" => ok(Value::string("/")),
         _ => return None,
@@ -206,7 +328,10 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
 
 fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"file subcommand ?arg ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"file subcommand ?arg ...?\"",
+        );
     };
     let s = |v: &Value| v.to_str().to_string();
     let sub_str = sub.to_str();
@@ -239,14 +364,12 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // `readable`/`writable`/`executable` only check existence (good enough
         // for the test host where files are owned by the runner).
         "exists" | "readable" | "writable" | "executable" => {
-            bool_query(vm.host().filesystem(), rest, |fs, p| fs.exists(p))
+            bool_query(vm, rest, |fs, p| fs.exists(p))
         }
-        "isdirectory" | "isdir" => bool_query(vm.host().filesystem(), rest, |fs, p| {
-            fs.metadata(p).is_ok_and(|m| m.is_dir)
-        }),
-        "isfile" => bool_query(vm.host().filesystem(), rest, |fs, p| {
-            fs.metadata(p).is_ok_and(|m| m.is_file)
-        }),
+        "isdirectory" | "isdir" => {
+            bool_query(vm, rest, |fs, p| fs.metadata(p).is_ok_and(|m| m.is_dir))
+        }
+        "isfile" => bool_query(vm, rest, |fs, p| fs.metadata(p).is_ok_and(|m| m.is_file)),
         "size" => match rest {
             [p] => match vm
                 .host()
@@ -256,11 +379,17 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Some(m) => ok(Value::int(i64::try_from(m.len).unwrap_or(i64::MAX))),
                 None => err(format!("could not read \"{}\": no such file", s(p))),
             },
-            _ => err("wrong # args: should be \"file size name\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file size name\"",
+            ),
         },
         "mtime" => match rest {
             [p] => file_mtime(vm.host().filesystem(), &s(p)),
-            _ => err("wrong # args: should be \"file mtime name ?time?\""),
+            _ => crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"file mtime name ?time?\"",
+            ),
         },
         // Filesystem mutation.
         "mkdir" => {
@@ -309,13 +438,20 @@ fn cmd_file(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// A boolean `file` query through the host filesystem. A host without a
 /// filesystem (`None`) answers `false` — nothing exists where there is no fs.
 fn bool_query(
-    fs: Option<&dyn Filesystem>,
+    vm: &mut Vm,
     rest: &[Value],
     pred: impl Fn(&dyn Filesystem, &str) -> bool,
 ) -> Completion<Value> {
     match rest {
-        [p] => ok(Value::bool(fs.is_some_and(|fs| pred(fs, &p.to_str())))),
-        _ => err("wrong # args: should be \"file <op> name\""),
+        [p] => ok(Value::bool(
+            vm.host()
+                .filesystem()
+                .is_some_and(|fs| pred(fs, &p.to_str())),
+        )),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"file <op> name\"",
+        ),
     }
 }
 
@@ -433,13 +569,21 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut types: Vec<char> = Vec::new();
     let mut i = 0;
     while i < args.len() {
-        let word = args[i].to_str();
+        let word = match vm.native_name_operand_bytes(&args[i]) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error).into(),
+                );
+            }
+        };
         // Only a `-`-leading word reaches the table, as in C — a bare word
         // (the empty one included) is the first pattern.
-        if !word.starts_with('-') {
+        if !word.starts_with(b"-") {
             break;
         }
-        match GLOB_OPTIONS.index_of_str(&word) {
+        match vm.native_static_option_index(&args[i], GLOB_OPTIONS.names(), false, "option") {
             // `-directory dir` and `-path prefix` are distinct in C; this
             // engine models both as the search root.
             Ok(0 | 3) => {
@@ -479,7 +623,7 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 i += 1;
                 break;
             }
-            Err(e) => return err(e.into_message()),
+            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
         }
     }
     if tails && dir.is_none() {

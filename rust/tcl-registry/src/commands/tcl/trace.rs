@@ -222,6 +222,7 @@ const LEGACY_TRACE_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
 
 const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(trace_add_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -236,6 +237,7 @@ const TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
 
 const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(trace_remove_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -248,6 +250,7 @@ const TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
 
 const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(legacy_trace_add_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[],
@@ -257,6 +260,7 @@ const LEGACY_TRACE_ADD_TRANSITIONS: StateTransitionDescriptor = StateTransitionD
 
 const LEGACY_TRACE_REMOVE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(legacy_trace_remove_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[],
@@ -1292,6 +1296,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted: `trace` carries an iRules row explicitly
         // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
         // mask, and every dialect that hosts a real Tcl core (irules, iapps,

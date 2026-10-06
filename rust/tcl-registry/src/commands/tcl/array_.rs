@@ -84,9 +84,125 @@ const NAMES_MODE_VALUES: &[ArgValue] = &[
     },
 ];
 
+const ARRAY_SPECIAL_LOOKUPS: &[crate::native_compilation::NativeCompilerImplementationLookup] = &[
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "exists",
+        slot: "::tcl::array::exists",
+        command: "array",
+        prepended: &["exists"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "set",
+        slot: "::tcl::array::set",
+        command: "array",
+        prepended: &["set"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "unset",
+        slot: "::tcl::array::unset",
+        command: "array",
+        prepended: &["unset"],
+    },
+];
+
+const fn array_special_compilation(
+    index: usize,
+    command: crate::native_compilation::NativeArrayCommand,
+    operation: SemanticOperationId,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::Array {
+            command,
+            lookup: &ARRAY_SPECIAL_LOOKUPS[index],
+        },
+        operation,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
+const ARRAY_NAMED_LOOKUPS: &[crate::native_compilation::NativeCompilerImplementationLookup] = &[
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "anymore",
+        slot: "::tcl::array::anymore",
+        command: "array",
+        prepended: &["anymore"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "donesearch",
+        slot: "::tcl::array::donesearch",
+        command: "array",
+        prepended: &["donesearch"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "get",
+        slot: "::tcl::array::get",
+        command: "array",
+        prepended: &["get"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "names",
+        slot: "::tcl::array::names",
+        command: "array",
+        prepended: &["names"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "nextelement",
+        slot: "::tcl::array::nextelement",
+        command: "array",
+        prepended: &["nextelement"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "size",
+        slot: "::tcl::array::size",
+        command: "array",
+        prepended: &["size"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "startsearch",
+        slot: "::tcl::array::startsearch",
+        command: "array",
+        prepended: &["startsearch"],
+    },
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::array",
+        member: "statistics",
+        slot: "::tcl::array::statistics",
+        command: "array",
+        prepended: &["statistics"],
+    },
+];
+
+const fn array_named_compilation(
+    index: usize,
+    arity: Arity,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup: &ARRAY_NAMED_LOOKUPS[index],
+            implementation_from: tcl_dialect::TclVersion::V8_6,
+            hook_from: tcl_dialect::TclVersion::V8_6,
+            arity,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "anymore",
+        surface: Some(SpecSurface::ALL_TCL),
+        native_compilation: Some(array_named_compilation(0, Arity::exact(2))),
         arity: Arity::exact(2),
         detail: "Returns 1 if there are any more elements left to be processed in an array search, 0 if all elements have already been returned.",
         synopsis: "array anymore arrayName searchId",
@@ -101,6 +217,22 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "default",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::array",
+                    member: "default",
+                    slot: "::tcl::array::default",
+                    command: "array",
+                    prepended: &["default"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V9_0,
+                hook_from: tcl_dialect::TclVersion::V9_0,
+                arity: Arity::new(2, 3),
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `default exists|get|unset arrayName` is 2 words after `default`;
         // only `default set arrayName value` reaches 3 (TIP 508: `set`
         // takes a `value`, the other three verbs take only `arrayName`).
@@ -127,6 +259,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "donesearch",
+        surface: Some(SpecSurface::ALL_TCL),
+        native_compilation: Some(array_named_compilation(1, Arity::exact(2))),
         arity: Arity::exact(2),
         detail: "Terminates an array search and destroys all the state associated with that search.",
         synopsis: "array donesearch arrayName searchId",
@@ -141,6 +275,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        native_compilation: Some(array_special_compilation(
+            0,
+            crate::native_compilation::NativeArrayCommand::Exists,
+            SemanticOperationId::Intrinsic(IntrinsicId::ArrayExists),
+        )),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArrayExists)),
         arity: Arity::exact(1),
         detail: "Returns 1 if arrayName is an array variable, 0 if there is no variable by that name or if it is a scalar variable.",
@@ -156,6 +295,18 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "for",
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::ArrayIteration),
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::array_iteration::IMPLEMENTATION_LOOKUP,
+                arity: Arity::exact(3),
+                implementation_from: tcl_dialect::TclVersion::V9_0,
+                hook_from: tcl_dialect::TclVersion::V9_0,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::ScriptObject,
+        }),
         traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Iterates over array entries. The first argument is a two-element list of variable names for the key and value of each entry.",
@@ -182,6 +333,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        native_compilation: Some(array_named_compilation(2, Arity::new(1, 2))),
         arity: Arity::new(1, 2),
         detail: "Returns a list containing pairs of elements.",
         synopsis: "array get arrayName ?pattern?",
@@ -196,6 +348,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "names",
+        native_compilation: Some(array_named_compilation(3, Arity::new(1, 3))),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArrayNames)),
         arity: Arity::new(1, 3),
         detail: "Returns a list containing the names of all of the elements in the array that match pattern.",
@@ -216,6 +369,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "nextelement",
+        surface: Some(SpecSurface::ALL_TCL),
+        native_compilation: Some(array_named_compilation(4, Arity::exact(2))),
         arity: Arity::exact(2),
         detail: "Returns the name of the next element in arrayName, or an empty string if all elements have already been returned in this search.",
         synopsis: "array nextelement arrayName searchId",
@@ -230,8 +385,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "set",
+        native_compilation: Some(array_special_compilation(
+            1,
+            crate::native_compilation::NativeArrayCommand::Set,
+            SemanticOperationId::Invoke,
+        )),
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
         arity: Arity::exact(2),
         detail: "Sets the values of one or more elements in arrayName.",
+        var_elements_effect: Some(crate::types::VarElementsEffect::SetsArrayElementsFromList {
+            values_at: 1,
+        }),
         synopsis: "array set arrayName list",
         return_type: Some(TclType::String),
         arg_roles: &[(0, ArgRole::VarWrite)],
@@ -245,6 +411,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "size",
+        native_compilation: Some(array_named_compilation(5, Arity::exact(1))),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ArraySize)),
         arity: Arity::exact(1),
         detail: "Returns a decimal string giving the number of elements in the array.",
@@ -260,6 +427,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "startsearch",
+        surface: Some(SpecSurface::ALL_TCL),
+        native_compilation: Some(array_named_compilation(6, Arity::exact(1))),
         arity: Arity::exact(1),
         detail: "Initializes an element-by-element search through the array given by arrayName.",
         synopsis: "array startsearch arrayName",
@@ -274,6 +443,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "statistics",
+        native_compilation: Some(array_named_compilation(7, Arity::exact(1))),
         arity: Arity::exact(1),
         detail: "Returns statistics about the distribution of data within the hashtable that represents the array.",
         synopsis: "array statistics arrayName",
@@ -288,7 +458,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unset",
-        traits: Traits::FIRE_AND_FORGET_TEARDOWN,
+        native_compilation: Some(array_special_compilation(
+            2,
+            crate::native_compilation::NativeArrayCommand::Unset,
+            SemanticOperationId::Invoke,
+        )),
+        traits: Traits::FIRE_AND_FORGET_TEARDOWN.union(Traits::DESTROYS_VARIABLE),
         arity: Arity::new(1, 2),
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",
@@ -316,6 +491,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The `unset` subform destroys elements or the whole array
         // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the
@@ -377,5 +560,15 @@ mod tests {
             for_.traits
                 .contains(Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY),
         );
+    }
+
+    #[test]
+    fn array_unset_carries_variable_destruction() {
+        let unset = SUBCOMMANDS
+            .iter()
+            .find(|sub| sub.name == "unset")
+            .expect("array unset subcommand");
+        assert!(unset.traits.contains(Traits::DESTROYS_VARIABLE));
+        assert!(unset.destructive);
     }
 }

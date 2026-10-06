@@ -57,15 +57,16 @@ use std::collections::HashMap;
 use tcl_core_types::DiagCode;
 
 use tcl_lexer::Span;
-use tcl_registry::{ByteArrayEffect, BytePayloadSpec, CommandRegistry, TclType, Traits};
+use tcl_registry::{ByteArrayEffect, BytePayloadSpec, CommandRegistry, TclType};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
-use crate::ir::Statement;
+use crate::ir::{Statement, WordExpr, WordPart};
 use crate::naming::normalise_var_name;
+use crate::registry_invocation::{
+    NormalRepresentationInvocation, normal_representation_invocation,
+};
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
-use crate::var_refs::vars_in_word;
 
 use std::collections::HashSet;
 
@@ -137,7 +138,17 @@ struct CmdEffect {
 }
 
 impl CmdEffect {
+    fn selected(invocation: &NormalRepresentationInvocation) -> Self {
+        Self {
+            effect: invocation.byte_array_effect(),
+            returns_byte_array: invocation.returns_byte_array(),
+            operand_start: invocation.argument_offset(),
+            label: invocation.diagnostic_label(),
+        }
+    }
+
     /// An inert classification labelled with the bare command word.
+    #[cfg(test)]
     fn inert(cmd: &str) -> Self {
         Self {
             effect: ByteArrayEffect::None,
@@ -153,6 +164,7 @@ impl CmdEffect {
 /// classification on the resolved subcommand; a bare command carries it at the
 /// command level; an unknown command (or an unresolved first word, e.g. a
 /// `TCP::payload <size>` getter) is inert.
+#[cfg(test)]
 fn resolve_cmd_effect(registry: &CommandRegistry, cmd: &str, args: &[String]) -> CmdEffect {
     let Some(spec) = registry.get(cmd) else {
         return CmdEffect::inert(cmd);
@@ -186,12 +198,50 @@ fn resolve_cmd_effect(registry: &CommandRegistry, cmd: &str, args: &[String]) ->
 
 /// True when `[cmd args]` reads raw payload bytes (the getter form of a
 /// registry `*::payload` byte command).
+#[cfg(test)]
 fn is_payload_getter(
     layouts: &HashMap<&'static str, BytePayloadSpec>,
     cmd: &str,
     args: &[String],
 ) -> bool {
     layouts.contains_key(cmd) && BytePayloadSpec::is_getter_call(args.first().map(String::as_str))
+}
+
+fn with_payload_arguments<T>(
+    invocation: &NormalRepresentationInvocation,
+    select: impl FnOnce(tcl_registry::InvocationArguments<'_>) -> T,
+) -> T {
+    let values: Vec<_> = (0..invocation.argument_count())
+        .map(|index| invocation.argument_literal(index))
+        .collect();
+    let words: Vec<_> = values
+        .iter()
+        .enumerate()
+        .map(
+            |(index, value)| match invocation.effective_words().words.get(index + 1) {
+                Some(WordExpr::Expand { .. }) => tcl_registry::InvocationWord::Expanded,
+                Some(WordExpr::Opaque { .. }) => tcl_registry::InvocationWord::Opaque,
+                _ => value.as_deref().map_or(
+                    tcl_registry::InvocationWord::Dynamic,
+                    tcl_registry::InvocationWord::Literal,
+                ),
+            },
+        )
+        .collect();
+    select(tcl_registry::InvocationArguments::structured(&words))
+}
+
+fn payload_is_getter(invocation: &NormalRepresentationInvocation) -> bool {
+    with_payload_arguments(invocation, BytePayloadSpec::is_getter_invocation) == Some(true)
+}
+
+fn payload_data_index(
+    layout: BytePayloadSpec,
+    invocation: &NormalRepresentationInvocation,
+) -> Option<usize> {
+    with_payload_arguments(invocation, |arguments| {
+        layout.replace_data_arg_for_invocation(arguments)
+    })
 }
 
 /// Join byte provenance over several inputs — DAMAGED dominates BINARY
@@ -256,7 +306,6 @@ fn byte_warning(
 /// Forward byte-provenance dataflow state for one function.
 struct ByteCorruption<'a> {
     registry: &'a CommandRegistry,
-    payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
     prov: HashMap<ValueKey, ByteProvInfo>,
     warnings: Vec<ShimmerWarning>,
 }
@@ -264,11 +313,10 @@ struct ByteCorruption<'a> {
 impl<'a> ByteCorruption<'a> {
     fn new(
         registry: &'a CommandRegistry,
-        payload_layouts: &'a HashMap<&'static str, BytePayloadSpec>,
+        _payload_layouts: &HashMap<&'static str, BytePayloadSpec>,
     ) -> Self {
         Self {
             registry,
-            payload_layouts,
             prov: HashMap::new(),
             warnings: Vec::new(),
         }
@@ -314,19 +362,17 @@ impl<'a> ByteCorruption<'a> {
                         }
                     }
                 }
+                let source = crate::ssa::SsaSourceView::at_statement(ssa, block_id, index);
                 match &ss.statement {
-                    Statement::AssignValue {
-                        name, value, span, ..
-                    } => self.track_assign_value(name, value, *span, &ss.defs, &ss.uses, ssa),
-                    Statement::AssignExpr { name, span, .. } => {
-                        self.track_assign_expr(name, *span, &ss.defs, &ss.uses, ssa);
+                    Statement::AssignValue { name, span, .. } => {
+                        self.track_assign_value(name, *span, &ss.defs, source);
                     }
-                    Statement::Call {
-                        command,
-                        args,
-                        span,
-                        ..
-                    } => self.track_call(command, args, *span, &ss.defs, &ss.uses, ssa),
+                    Statement::AssignExpr { name, span, .. } => {
+                        self.track_assign_expr(name, *span, &ss.defs, source);
+                    }
+                    Statement::Call { span, .. } => {
+                        self.track_call(*span, &ss.defs, &ss.uses, source);
+                    }
                     _ => {}
                 }
             }
@@ -334,81 +380,81 @@ impl<'a> ByteCorruption<'a> {
         self.warnings
     }
 
-    /// Normalised variable names referenced via `$var` / `${var}` in `text`.
-    fn vars_in(&self, text: &str) -> Vec<String> {
-        vars_in_word(text, self.registry).into_iter().collect()
+    fn selected_invocation(
+        &self,
+        ssa: crate::ssa::SsaSourceView<'_>,
+    ) -> Option<NormalRepresentationInvocation> {
+        normal_representation_invocation(self.registry, None, ssa.source_tokens()?)
     }
 
-    /// Joined provenance of the value operands of `[cmd args…]` (the args
-    /// after the resolved subcommand word, when there is one).
+    fn nested_invocation(
+        &self,
+        word: &WordExpr,
+        ssa: crate::ssa::SsaSourceView<'_>,
+    ) -> Option<NormalRepresentationInvocation> {
+        let parent = ssa.source_tokens()?;
+        let config = parent
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.variable_context.invocation_dialect)
+            .map_or_else(
+                || tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+                |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+            );
+        let mut tokens = crate::word_subst::whole_word_command_tokens(word, config)?;
+        tokens.inherit_nested_bindings(parent);
+        normal_representation_invocation(self.registry, None, &tokens)
+    }
+
     fn operand_prov(
         &self,
-        ce: &CmdEffect,
-        cargs: &[String],
-        uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
+        invocation: &NormalRepresentationInvocation,
+        ssa: crate::ssa::SsaSourceView<'_>,
+        depth: u32,
     ) -> Option<ByteProvInfo> {
+        if invocation.byte_array_effect() == ByteArrayEffect::Encodes {
+            return self.arg_byte_prov(&invocation.encoded_value_word()?, ssa, depth);
+        }
+        let start = invocation.argument_offset().saturating_add(1);
         join_prov(
-            cargs[ce.operand_start.min(cargs.len())..]
+            invocation
+                .effective_words()
+                .words
+                .get(start..)?
                 .iter()
-                .map(|c| self.arg_byte_prov(c, uses, ssa)),
+                .map(|word| self.arg_byte_prov(word, ssa, depth)),
         )
     }
 
-    /// Provenance of a single argument expression (var ref, command
-    /// substitution, or interpolation).
+    /// Object provenance follows the exact executed read, including reads
+    /// before and after an embedded alias or contents mutation.
     fn arg_byte_prov(
         &self,
-        arg_text: &str,
-        uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
+        word: &WordExpr,
+        ssa: crate::ssa::SsaSourceView<'_>,
+        depth: u32,
     ) -> Option<ByteProvInfo> {
-        let a = arg_text.trim();
-        if a.is_empty() {
+        if crate::depth_guard::MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
             return None;
         }
-        if is_pure_var_ref(a) {
-            let name = crate::naming::element_var_name(a);
-            let sym = ssa.var_symbol(name)?;
-            let ver = uses.get(&sym).copied().unwrap_or(0);
-            return (ver > 0)
-                .then(|| self.prov.get(&(sym, ver)).cloned())
-                .flatten();
+        if word.sole_variable_substitution().is_some() {
+            return self.read_byte_provenance(word, ssa);
         }
-        if let Some((cmd, cargs)) = parse_command_substitution_with_config(
-            a,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        ) {
-            let ce = resolve_cmd_effect(self.registry, &cmd, &cargs);
-            if is_payload_getter(self.payload_layouts, &cmd, &cargs) {
-                return Some(ByteProvInfo::binary(None, cmd));
+        if let Some(invocation) = self.nested_invocation(word, ssa) {
+            let ce = CmdEffect::selected(&invocation);
+            if invocation.byte_array_payload().is_some() && payload_is_getter(&invocation) {
+                return Some(ByteProvInfo::binary(None, ce.label));
             }
-            // An encoder is *not* the clean source its byte-array return type
-            // suggests when its operand is already binary — that is the
-            // double-encode case, handled in the effect dispatch below so an
-            // inline sink form `<proto>::payload replace … [encoding
-            // convertto …]` is damaged, not clean.
             if ce.effect != ByteArrayEffect::Encodes && ce.returns_byte_array {
                 return Some(ByteProvInfo::binary(None, ce.label));
             }
-            // A transform applied to a (possibly binary) operand inside the
-            // arg — the registry effect decides whether the byte-array
-            // survives.
-            let operand = self.operand_prov(&ce, &cargs, uses, ssa);
+            let operand = self.operand_prov(&invocation, ssa, depth + 1);
             return match ce.effect {
-                // Encoding a binary operand double-encodes it (DAMAGED); on
-                // non-binary data the result is a legitimate byte source.
                 ByteArrayEffect::Encodes => Some(match operand {
                     Some(op) => ByteProvInfo::damaged(&op, None, ce.label),
                     None => ByteProvInfo::binary(None, ce.label),
                 }),
-                // Result keeps the byte-array rep — propagate provenance as-is.
                 ByteArrayEffect::Transparent => operand,
-                // Case-fold / coerce turn a binary operand into a damaged
-                // string. An unmodelled transform (`None`) or a nested
-                // re-binarifier (whose in-place effect applies only as a
-                // command statement) conservatively damages an inner binary
-                // operand too (the prior default).
                 ByteArrayEffect::CaseFolds
                 | ByteArrayEffect::Coerces
                 | ByteArrayEffect::None
@@ -417,118 +463,120 @@ impl<'a> ByteCorruption<'a> {
                 }
             };
         }
-        if a.contains('$') || a.contains('[') {
-            let joined = join_prov(self.interpolated_prov(a, uses, ssa));
-            if let Some(joined) = joined {
-                return Some(ByteProvInfo::damaged(
-                    &joined,
-                    None,
-                    "interpolation".to_owned(),
-                ));
-            }
-        }
-        None
+        let WordExpr::Template { parts, .. } = word else {
+            return None;
+        };
+        let joined = join_prov(parts.iter().map(|part| {
+            let expression = match part {
+                WordPart::Variable { spelling, source } => WordExpr::Variable {
+                    spelling: spelling.clone(),
+                    source: source.clone(),
+                },
+                WordPart::CommandSubstitution { spelling, source } => {
+                    WordExpr::CommandSubstitution {
+                        spelling: spelling.clone(),
+                        source: source.clone(),
+                    }
+                }
+                WordPart::Text { .. } | WordPart::Opaque { .. } => return None,
+            };
+            self.arg_byte_prov(&expression, ssa, depth + 1)
+        }));
+        joined.map(|info| ByteProvInfo::damaged(&info, None, "interpolation".to_owned()))
     }
 
-    /// Provenance of each `$var` referenced inside an interpolated word.
-    fn interpolated_prov(
+    /// A positioned read may have several represented reaching writes even
+    /// when no single SSA version describes its contents. The shared contents
+    /// owner proves their physical cells; display names never select producers.
+    fn read_byte_provenance(
         &self,
-        text: &str,
-        uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
-    ) -> Vec<Option<ByteProvInfo>> {
-        self.vars_in(text)
-            .into_iter()
-            .filter_map(|name| {
-                let sym = ssa.var_symbol(&name)?;
-                let ver = uses.get(&sym).copied().unwrap_or(0);
-                (ver > 0).then(|| self.prov.get(&(sym, ver)).cloned())
-            })
-            .collect()
+        word: &WordExpr,
+        source: crate::ssa::SsaSourceView<'_>,
+    ) -> Option<ByteProvInfo> {
+        let read = source.read_word(word)?;
+        if let Some(version) = read.version {
+            return self.prov.get(&(read.symbol, version)).cloned();
+        }
+        let contents = source.read_word_contents(word, self.registry)?;
+        if contents.unknown_residual || contents.includes_incoming {
+            return None;
+        }
+        join_prov(contents.writes.iter().map(|&(block, index)| {
+            let statement = source
+                .function()
+                .blocks
+                .get(&block)?
+                .statements
+                .get(index)?;
+            let version = *statement.defs.get(&read.symbol)?;
+            self.prov.get(&(read.symbol, version)).cloned()
+        }))
     }
 
-    /// Transfer function for `set name value`.
     fn track_assign_value(
         &mut self,
         name: &str,
-        value: &str,
         span: Span,
         defs: &HashMap<Symbol, u32>,
-        uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
+        ssa: crate::ssa::SsaSourceView<'_>,
     ) {
-        let nm = normalise_var_name(name).to_owned();
-        let Some(sym) = ssa.var_symbol(&nm) else {
+        let Some(assignment) = self
+            .selected_invocation(ssa)
+            .and_then(|invocation| invocation.value_assignment())
+        else {
             return;
         };
-        let Some(&ver) = defs.get(&sym) else {
-            return;
-        };
-        let key = (sym, ver);
-        let val = value.trim();
+        self.track_stored_value(name, &assignment.value, span, defs, ssa);
+    }
 
-        if let Some((cmd, cargs)) = parse_command_substitution_with_config(
-            val,
-            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
-        ) {
-            if is_payload_getter(self.payload_layouts, &cmd, &cargs) {
-                self.prov.insert(key, ByteProvInfo::binary(Some(span), cmd));
-                return;
-            }
-            let ce = resolve_cmd_effect(self.registry, &cmd, &cargs);
-            // An encoder on an already-binary value is the double-encode bug —
-            // warn, then treat the (byte-array) result as binary.
+    fn track_stored_value(
+        &mut self,
+        name: &str,
+        word: &WordExpr,
+        span: Span,
+        defs: &HashMap<Symbol, u32>,
+        ssa: crate::ssa::SsaSourceView<'_>,
+    ) {
+        let nm = normalise_var_name(name);
+        let Some(sym) = ssa.symbol(nm) else {
+            return;
+        };
+        let Some(&version) = defs.get(&sym) else {
+            return;
+        };
+        let key = (sym, version);
+        if let Some(nested) = self.nested_invocation(word, ssa) {
+            let ce = CmdEffect::selected(&nested);
+            let operand = self.operand_prov(&nested, ssa, 1);
             if ce.effect == ByteArrayEffect::Encodes {
-                let operand = self.operand_prov(&ce, &cargs, uses, ssa);
                 if let Some(op) = operand {
-                    let msg = format!(
-                        "Byte-array corruption: '{label}' on binary data from \
-                         {src} double-encodes it — the bytes are reinterpreted as characters \
-                         and re-encoded. Decode with 'encoding convertfrom' or keep it a byte \
-                         array (S110)",
-                        label = ce.label,
-                        src = op.source_label,
+                    let message = format!(
+                        "Byte-array corruption: '{}' on binary data from {} double-encodes it — \
+                         the bytes are reinterpreted as characters and re-encoded. Decode with \
+                         'encoding convertfrom' or keep it a byte array (S110)",
+                        ce.label, op.source_label
                     );
-                    self.warnings.push(byte_warning(span, &nm, &op, msg));
+                    self.warnings.push(byte_warning(span, nm, &op, message));
                 }
                 self.prov
                     .insert(key, ByteProvInfo::binary(Some(span), ce.label));
                 return;
             }
-            if ce.returns_byte_array {
+            if nested.byte_array_payload().is_some() && payload_is_getter(&nested)
+                || ce.returns_byte_array
+            {
                 self.prov
                     .insert(key, ByteProvInfo::binary(Some(span), ce.label));
                 return;
             }
-            // Registry-declared byte-array effect of this transform (the
-            // resolved subcommand's effect, or a whole command's) — never a
-            // hardcoded command name.
-            let operand = self.operand_prov(&ce, &cargs, uses, ssa);
-            self.apply_byte_array_effect(&ce, key, span, &nm, operand);
+            self.apply_byte_array_effect(&ce, key, span, nm, operand);
             return;
         }
-
-        if is_pure_var_ref(val) {
-            let src = normalise_var_name(val);
-            if let Some(src_sym) = ssa.var_symbol(src) {
-                let src_ver = uses.get(&src_sym).copied().unwrap_or(0);
-                if src_ver > 0
-                    && let Some(info) = self.prov.get(&(src_sym, src_ver)).cloned()
-                {
-                    self.prov.insert(key, info);
-                }
+        if let Some(mut info) = self.arg_byte_prov(word, ssa, 0) {
+            if info.coercion_label == "interpolation" {
+                info.coercion_range = Some(span);
             }
-            return;
-        }
-
-        if val.contains('$') || val.contains('[') {
-            let joined = join_prov(self.interpolated_prov(val, uses, ssa));
-            if let Some(joined) = joined {
-                self.prov.insert(
-                    key,
-                    ByteProvInfo::damaged(&joined, Some(span), "string interpolation".to_owned()),
-                );
-            }
+            self.prov.insert(key, info);
         }
     }
 
@@ -598,21 +646,25 @@ impl<'a> ByteCorruption<'a> {
         name: &str,
         span: Span,
         defs: &HashMap<Symbol, u32>,
-        uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
+        ssa: crate::ssa::SsaSourceView<'_>,
     ) {
         let nm = normalise_var_name(name);
-        let Some(sym) = ssa.var_symbol(nm) else {
+        let Some(sym) = ssa.symbol(nm) else {
             return;
         };
         let Some(&ver) = defs.get(&sym) else {
             return;
         };
         let joined = join_prov(
-            uses.iter()
-                .filter(|(_, v)| **v > 0)
-                .map(|(&n, v)| self.prov.get(&(n, *v)).cloned())
-                .collect::<Vec<_>>(),
+            ssa.source_tokens()
+                .into_iter()
+                .flat_map(|tokens| {
+                    tokens.variable_accesses.iter().filter_map(|access| {
+                        let read = ssa.read_reference(&access.source, &access.original_spelling)?;
+                        self.prov.get(&(read.symbol, read.version?)).cloned()
+                    })
+                })
+                .map(Some),
         );
         if let Some(joined) = joined {
             self.prov.insert(
@@ -629,14 +681,24 @@ impl<'a> ByteCorruption<'a> {
     /// registry data.
     fn track_call(
         &mut self,
-        command: &str,
-        args: &[String],
         span: Span,
         defs: &HashMap<Symbol, u32>,
         uses: &HashMap<Symbol, u32>,
-        ssa: &SsaFunction,
+        ssa: crate::ssa::SsaSourceView<'_>,
     ) {
-        let ce = resolve_cmd_effect(self.registry, command, args);
+        let Some(invocation) = self.selected_invocation(ssa) else {
+            return;
+        };
+        if let Some(assignment) = invocation.value_assignment() {
+            self.track_stored_value(&assignment.name, &assignment.value, span, defs, ssa);
+            return;
+        }
+        let ce = CmdEffect::selected(&invocation);
+        let words = &invocation.effective_words().words;
+
+        if self.track_encoder(span, &invocation, ssa) {
+            return;
+        }
 
         // A re-binarifier reads its value operand *as bytes*, re-installing
         // the byte-array rep in place (the documented fix) and clearing
@@ -644,21 +706,15 @@ impl<'a> ByteCorruption<'a> {
         // args its cursors read as bytes depends on the format string, so a
         // damaged operand conservatively stays damaged.)
         if let ByteArrayEffect::Rebinarifies { value_arg } = ce.effect {
-            if let Some(arg) = args.get(ce.operand_start + usize::from(value_arg)) {
-                let a = arg.trim();
-                if is_pure_var_ref(a)
-                    && let Some(sym) = ssa.var_symbol(normalise_var_name(a))
-                {
-                    let v = uses.get(&sym).copied().unwrap_or(0);
-                    if v > 0
-                        && let Some(old) = self.prov.get(&(sym, v)).cloned()
-                    {
-                        self.prov.insert(
-                            (sym, v),
-                            ByteProvInfo::binary(old.source_range, old.source_label),
-                        );
-                    }
-                }
+            if let Some(word) = words.get(ce.operand_start + usize::from(value_arg) + 1)
+                && let Some(read) = ssa.read_word(word)
+                && let Some(version) = read.version
+                && let Some(old) = self.prov.get(&(read.symbol, version)).cloned()
+            {
+                self.prov.insert(
+                    (read.symbol, version),
+                    ByteProvInfo::binary(old.source_range, old.source_label),
+                );
             }
             return;
         }
@@ -669,15 +725,17 @@ impl<'a> ByteCorruption<'a> {
         // data: a corrupting command-level effect on a command that
         // reads-then-writes the variable it assigns.
         if ce.effect.corrupts()
-            && let Some(spec) = self.registry.get(command)
-            && spec.traits.contains(Traits::READS_BEFORE_WRITE)
-            && let Some(var_idx) = spec.assigns_variable_at
+            && invocation.reads_before_write()
+            && let Some((var_idx, _)) = invocation
+                .operand_roles()
+                .iter()
+                .find(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
         {
-            let var_idx = usize::from(var_idx);
-            let Some(target) = args.get(var_idx) else {
+            let var_idx = usize::from(*var_idx) + ce.operand_start;
+            let Some(target) = invocation.argument_literal(var_idx) else {
                 return;
             };
-            let Some(target_sym) = ssa.var_symbol(normalise_var_name(target)) else {
+            let Some(target_sym) = ssa.symbol(normalise_var_name(&target)) else {
                 return;
             };
             if let Some(&new_ver) = defs.get(&target_sym) {
@@ -687,9 +745,9 @@ impl<'a> ByteCorruption<'a> {
                     .cloned();
                 let operand = join_prov(
                     std::iter::once(old).chain(
-                        args[var_idx + 1..]
+                        words[var_idx + 2..]
                             .iter()
-                            .map(|a| self.arg_byte_prov(a, uses, ssa)),
+                            .map(|word| self.arg_byte_prov(word, ssa, 0)),
                     ),
                 );
                 if let Some(op) = operand {
@@ -702,15 +760,58 @@ impl<'a> ByteCorruption<'a> {
             return;
         }
 
-        // Sink: `<proto>::payload replace … <data>` (the data index is
-        // per-protocol registry layout data).
-        if let Some(layout) = self.payload_layouts.get(command)
-            && let Some(data_idx) = layout.replace_data_arg(args)
+        self.track_payload_sink(span, &invocation, ssa);
+    }
+
+    /// Encoding reads the data even when its result is discarded.
+    fn track_encoder(
+        &mut self,
+        span: Span,
+        invocation: &NormalRepresentationInvocation,
+        source: crate::ssa::SsaSourceView<'_>,
+    ) -> bool {
+        if invocation.byte_array_effect() != ByteArrayEffect::Encodes {
+            return false;
+        }
+        if let Some(operand) = self.operand_prov(invocation, source, 0) {
+            self.warnings.push(byte_warning(
+                span,
+                "",
+                &operand,
+                format!(
+                    "Byte-array corruption: '{}' on binary data from {} double-encodes it — \
+                     the bytes are reinterpreted as characters and re-encoded. Decode with \
+                     'encoding convertfrom' or keep it a byte array (S110)",
+                    invocation.diagnostic_label(),
+                    operand.source_label
+                ),
+            ));
+        }
+        true
+    }
+
+    /// Check the descriptor-selected payload value at its positioned read.
+    fn track_payload_sink(
+        &mut self,
+        span: Span,
+        invocation: &NormalRepresentationInvocation,
+        ssa: crate::ssa::SsaSourceView<'_>,
+    ) {
+        let command = invocation.diagnostic_command();
+        let words = &invocation.effective_words().words;
+        if let Some(layout) = invocation.byte_array_payload()
+            && let Some(data_idx) = payload_data_index(layout, invocation)
         {
-            let info = self.arg_byte_prov(&args[data_idx], uses, ssa);
+            let Some(data_word) = words.get(data_idx + 1) else {
+                return;
+            };
+            let info = self.arg_byte_prov(data_word, ssa, 0);
             if let Some(info) = info.filter(|i| i.state == ByteProv::Damaged) {
-                let data_arg = args[data_idx].trim();
-                let data_var = if is_pure_var_ref(data_arg) {
+                let data_arg = data_word
+                    .sole_variable_substitution()
+                    .map_or("", |(spelling, _)| spelling)
+                    .trim();
+                let data_var = if data_word.sole_variable_substitution().is_some() {
                     normalise_var_name(data_arg).to_owned()
                 } else {
                     String::new()
@@ -762,10 +863,10 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
-    fn irules_registry() -> CommandRegistry {
-        let mut reg = CommandRegistry::build_default();
-        reg.load_irules();
-        reg
+    fn irules_registry() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("f5-irules")
+            .commands()
+            .clone()
     }
 
     /// Run the detector over `src`, returning the S110 warnings.
@@ -783,6 +884,61 @@ mod tests {
             ));
         }
         out
+    }
+
+    fn assignment_proof_summary(src: &str, registry: &CommandRegistry) -> Vec<String> {
+        let unit = CompilationUnit::build_for(src, registry, false);
+        let layouts = registry.byte_array_payload_layouts();
+        let tracker = ByteCorruption::new(registry, &layouts);
+        let mut summary = Vec::new();
+        for function in unit.analysable_functions() {
+            for (&block, body) in &function.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    let name = match &statement.statement {
+                        Statement::AssignValue { name, .. } => name,
+                        Statement::Call { command, .. } => command,
+                        _ => continue,
+                    };
+                    let source =
+                        crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                    let selected = tracker.selected_invocation(source);
+                    let nested = selected
+                        .as_ref()
+                        .and_then(|call| call.effective_words().words.get(2))
+                        .and_then(|word| tracker.nested_invocation(word, source));
+                    let reads = source
+                        .source_tokens()
+                        .into_iter()
+                        .flat_map(|tokens| &tokens.variable_accesses)
+                        .map(|access| {
+                            let read =
+                                source.read_reference(&access.source, &access.original_spelling);
+                            let contents = source.read_contents_at(
+                                &access.source,
+                                &access.original_spelling,
+                                registry,
+                            );
+                            (access.original_spelling.clone(), read, contents)
+                        })
+                        .collect::<Vec<_>>();
+                    summary.push(format!(
+                        "{name}: defs {:?}; selected {:?}; nested {:?}; reads {reads:?}",
+                        statement.defs,
+                        selected.as_ref().map(|call| (
+                            call.diagnostic_label(),
+                            call.byte_array_effect(),
+                            call.argument_offset()
+                        )),
+                        nested.as_ref().map(|call| (
+                            call.diagnostic_label(),
+                            call.returns_byte_array(),
+                            call.byte_array_effect()
+                        ))
+                    ));
+                }
+            }
+        }
+        summary
     }
 
     /// A `TCP::payload` getter coerced via `string map` and written back
@@ -828,21 +984,41 @@ mod tests {
         );
     }
 
-    /// Control for the re-binarifier arg index: `binary encode`'s *format*
-    /// word is not the value operand, so a damaged variable used elsewhere in
-    /// the call is not cleared.
+    /// A wrap-character option is read as text, separately from the binary
+    /// input. Encoding another value cannot repair that option's provenance.
     #[test]
     fn binary_encode_does_not_clear_non_value_args() {
-        let reg = irules_registry();
-        let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
-                   binary encode hex extra $q\n  TCP::payload replace 0 100 $q\n}";
-        // `binary encode hex extra $q` puts `$q` outside the modelled
-        // `value_arg` slot (sub-relative 1 is `extra`), so the damage must
-        // survive to the sink.
-        let w = warnings(src, &reg);
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let src = "proc f {} {set p [binary format c 200]; set q [string map {a b} $p]; binary encode base64 -maxlen 1 -wrapchar $q extra; encoding convertto utf-8 $q}";
+        let w = warnings(src, reg);
         assert!(
             w.iter().any(|w| w.code == DiagCode::S110),
-            "damage outside the value_arg slot must survive, got: {w:?}"
+            "damage outside the value_arg slot must survive, got: {w:?}; {:?}",
+            assignment_proof_summary(src, reg)
+        );
+    }
+
+    #[test]
+    fn standalone_encoder_reads_only_its_data_operand() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let data = "proc f {} {set p [binary format c 200]; encoding convertto utf-8 $p}";
+        assert!(
+            warnings(data, registry)
+                .iter()
+                .any(|warning| warning.code == DiagCode::S110)
+        );
+        let name =
+            "proc f {} {set codec [binary format a* utf-8]; encoding convertto $codec ordinary}";
+        assert!(
+            warnings(name, registry)
+                .iter()
+                .all(|warning| warning.code != DiagCode::S110)
+        );
+        let replaced = "rename encoding native_encoding; proc encoding args {return unchanged}; proc f {} {set p [binary format c 200]; encoding convertto utf-8 $p}";
+        assert!(
+            warnings(replaced, registry)
+                .iter()
+                .all(|warning| warning.code != DiagCode::S110)
         );
     }
 
@@ -852,31 +1028,43 @@ mod tests {
         let reg = irules_registry();
         let src = "when CLIENT_DATA {\n  set p [TCP::payload]\n  TCP::payload replace 0 100 $p\n}";
         let w = warnings(src, &reg);
-        assert!(w.is_empty(), "clean writeback must be silent, got: {w:?}");
+        assert_eq!(w.len(), 0, "clean writeback must be silent, got: {w:?}");
     }
 
     /// Plain-Tcl `string toupper` on a `binary format` value fires immediately
     /// (case folding corrupts directly, no sink needed).
     #[test]
     fn plain_tcl_toupper_case_fold_fires() {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set u [string toupper $b]\n}";
         let w = warnings(src, &reg);
         assert!(
             w.iter().any(|w| w.code == DiagCode::S110),
-            "expected S110 for case fold on binary, got: {w:?}"
+            "expected S110 for case fold on binary, got: {w:?}; {:?}",
+            assignment_proof_summary(src, &reg)
         );
     }
 
     /// `encoding convertto` on an already-binary value double-encodes (S110).
     #[test]
     fn encoding_convertto_double_encode_fires() {
-        let reg = CommandRegistry::build_default();
+        let reg = CommandRegistry::build_default().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let src = "proc f {} {\n  set b [binary format a* hello]\n  set e [encoding convertto utf-8 $b]\n}";
         let w = warnings(src, &reg);
         assert!(
             w.iter().any(|w| w.code == DiagCode::S110),
             "expected S110 for convertto double-encode, got: {w:?}"
+        );
+        let replaced = format!("proc ::tcl::encoding::convertto {{args}} {{return safe}}\n{src}");
+        assert!(
+            warnings(&replaced, &reg)
+                .iter()
+                .all(|warning| warning.code != DiagCode::S110),
+            "a replaced private conversion worker cannot donate the stock encoding effect"
         );
     }
 
@@ -886,7 +1074,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let src = "proc f {} {\n  set s \"hello\"\n  set u [string toupper $s]\n}";
         let w = warnings(src, &reg);
-        assert!(w.is_empty(), "plain string toupper must be silent: {w:?}");
+        assert_eq!(w.len(), 0, "plain string toupper must be silent: {w:?}");
     }
 
     /// A document that merely names `*::payload` under a non-iRules dialect must
@@ -897,8 +1085,9 @@ mod tests {
         let src = "proc f {} {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
                    TCP::payload replace 0 100 $q\n}";
         let w = warnings(src, &reg);
-        assert!(
-            w.is_empty(),
+        assert_eq!(
+            w.len(),
+            0,
             "payload names under plain Tcl must be silent: {w:?}"
         );
     }
@@ -917,12 +1106,48 @@ mod tests {
         );
     }
 
+    #[test]
+    fn inert_word_text_never_creates_a_binary_source_or_read() {
+        let reg = irules_registry();
+        for value in ["{[TCP::payload]}", "{$binary}"] {
+            let source = format!(
+                "when CLIENT_DATA {{
+set binary [TCP::payload]
+set p {value}
+\
+                set q [string map {{a b}} $p]
+TCP::payload replace 0 1 $q
+}}"
+            );
+            assert!(
+                !fires_s110(&source, &reg),
+                "inert value {value}: {:?}",
+                warnings(&source, &reg)
+            );
+        }
+    }
+
+    #[test]
+    fn replacement_binary_command_does_not_inherit_a_source_contract() {
+        let registry = CommandRegistry::build_default();
+        let source = "rename binary saved_binary
+proc binary {args} {return TEXT}
+\
+            set p [binary format c 200]
+set q [string tolower $p]";
+        assert!(
+            !fires_s110(source, &registry),
+            "{:?}",
+            warnings(source, &registry)
+        );
+    }
+
     /// Empty source: no warnings, no panic.
     #[test]
     fn empty_source_silent() {
         let reg = irules_registry();
         let w = warnings("", &reg);
-        assert!(w.is_empty());
+        assert_eq!(w, [] as [crate::shimmer::ShimmerWarning; 0]);
     }
 
     fn fires_s110(src: &str, reg: &CommandRegistry) -> bool {
@@ -973,8 +1198,6 @@ mod tests {
         for op in [
             "string map {a b} $p",
             "string replace $p 0 0 Z",
-            "string insert $p 0 Z",
-            "string cat $p $p",
             "string repeat $p 2",
         ] {
             let src = format!(
@@ -987,6 +1210,16 @@ mod tests {
                 warnings(&src, &reg),
             );
         }
+    }
+
+    #[test]
+    fn string_insert_damage_uses_the_release_where_the_handler_exists() {
+        let reg = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source = "proc f {} {set p [binary format c 200]; set q [string insert $p 0 Z]; set e [encoding convertto utf-8 $q]}";
+        assert!(fires_s110(source, reg), "{:?}", warnings(source, reg));
+        let reg = irules_registry();
+        let unavailable = "when CLIENT_DATA {set p [TCP::payload]; set q [string insert $p 0 Z]; TCP::payload replace 0 100 $q}";
+        assert!(!fires_s110(unavailable, &reg));
     }
 
     /// Fire half: `string trim`/`trimleft`/`trimright` build a fresh

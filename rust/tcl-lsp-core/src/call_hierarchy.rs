@@ -516,21 +516,21 @@ fn enclosing_proc<'a>(
     best
 }
 
-/// `true` when `inv` (a command invocation) targets `proc_def`.
+/// `true` when an execution site targets `proc_def`.
 ///
-/// Delegates to [`crate::references::invocation_references_proc`] — the one
-/// shared matching rule behind Find-All-References, the code-lens count,
-/// and Rename — so Call Hierarchy can never disagree with them about
-/// whether a given call site is a reference (in particular the namespace
-/// gate that keeps a bare call in a different namespace from cross-matching
-/// a same-named proc).
+/// Retains the lookup-purpose distinction before delegating target identity
+/// to [`crate::references::invocation_calls_proc`]. Introspection and
+/// deferred registrations remain references without becoming calls. Actual
+/// heads share the namespace and allocation checks used by references and
+/// rename.
 fn invocation_targets(
     analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     proc_def: &ProcDef,
     qname: &str,
+    source: &str,
 ) -> bool {
-    crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
+    crate::references::invocation_calls_proc(analysis, inv, qname, proc_def, source)
 }
 
 /// One incoming-call entry: the caller proc plus the spans at
@@ -619,14 +619,14 @@ pub fn unresolved_outgoing_calls_in_program(
         let mut by_head: std::collections::BTreeMap<String, (Option<String>, Vec<LspRange>)> =
             std::collections::BTreeMap::new();
         for inv in &analysis.command_invocations {
-            if !span_contains(source_proc.body_span, inv.range) {
+            if !inv.lookup.is_execution_site() || !span_contains(source_proc.body_span, inv.range) {
                 continue;
             }
             // Skip call sites the local pass already resolves.
             if analysis
                 .all_procs
                 .iter()
-                .any(|(qname, proc_def)| invocation_targets(analysis, inv, proc_def, qname))
+                .any(|(qname, proc_def)| invocation_targets(analysis, inv, proc_def, qname, source))
             {
                 continue;
             }
@@ -789,19 +789,23 @@ pub fn incoming_calls_for_target(
     let mut by_caller: std::collections::BTreeMap<String, (CallHierarchyItem, Vec<LspRange>)> =
         std::collections::BTreeMap::new();
     for inv in &analysis.command_invocations {
-        // Delegate to the shared matching rule (`invocation_references_proc`
+        if !inv.lookup.is_execution_site() {
+            continue;
+        }
+        // Delegate to the shared matching rule (`invocation_calls_proc`
         // takes a `ProcDef`; this caller may not have one — cross-document
         // callers are gathered from a target the calling document never
         // defines — so route through the string-keyed core directly). This
         // adds the namespace gate a bare simple-name match needs: without
         // it, a bare call in one namespace falsely credited *any* same-named
         // proc anywhere as an incoming caller.
-        if !crate::references::invocation_references_named(
+        if !crate::references::invocation_calls_named(
             analysis,
             inv,
             target_qualified,
             target_simple,
             target_qualified,
+            source,
         ) {
             continue;
         }
@@ -890,7 +894,7 @@ pub fn outgoing_calls_in_program(
         }
         // Find the user-proc this invocation targets, if any.
         for (qname, proc_def) in &analysis.all_procs {
-            if invocation_targets(analysis, inv, proc_def, qname) {
+            if invocation_targets(analysis, inv, proc_def, qname, source) {
                 let inv_range = span_to_range(source, &line_index, inv.range);
                 let entry = by_target
                     .entry(CallItemKey::for_proc(qname, proc_def))
@@ -1408,6 +1412,53 @@ mod tests {
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "caller");
         assert_eq!(incoming[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn consumed_command_names_remain_references_without_becoming_calls() {
+        let source =
+            "proc target {} {return yes}\nproc caller {} {info body target; target}\ncaller\n";
+        let analysis = analyse(source);
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let target = prepare(source, 0, 6, &analysis).remove(0);
+        let caller = prepare(source, 1, 6, &analysis).remove(0);
+        let references = analysis
+            .command_invocations
+            .iter()
+            .filter(|invocation| invocation.name == "target")
+            .collect::<Vec<_>>();
+        assert_eq!(references.len(), 2);
+        assert!(references.iter().any(|invocation| matches!(
+            invocation.lookup,
+            tcl_compiler::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
+        )));
+        let incoming = incoming_calls(source, dialect, &target, &analysis);
+        assert_eq!(incoming.len(), 1);
+        assert_eq!(incoming[0].from_ranges.len(), 1);
+        let outgoing = outgoing_calls(source, dialect, &caller, &analysis);
+        assert_eq!(outgoing.len(), 1);
+        assert_eq!(outgoing[0].to.name, "target");
+        assert_eq!(outgoing[0].from_ranges.len(), 1);
+    }
+
+    #[test]
+    fn deferred_command_prefixes_do_not_create_incoming_call_edges() {
+        let source = "proc target args {}\nproc registrar {} {trace add command target delete target}\nregistrar\n";
+        let analysis = analyse(source);
+        let target = prepare(source, 0, 6, &analysis).remove(0);
+        assert!(analysis.command_invocations.iter().any(|invocation| {
+            invocation.name == "target"
+                && invocation.lookup
+                    == tcl_compiler::signature_scan::types::SignatureCommandLookup::DeferredReference
+        }));
+        let incoming = incoming_calls(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            &target,
+            &analysis,
+        );
+        assert!(incoming.is_empty(), "{incoming:?}");
     }
 
     #[test]

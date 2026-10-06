@@ -22,10 +22,10 @@
 //! Tcl parsing primitives that both the LSP/compiler suite and the WASM runtime
 //! need, so neither side re-derives (and drifts) its own copy.
 //!
-//! It depends only on [`tcl_lexer`] (the canonical scanner +
-//! [`tcl_lexer::backslash_subst`]) and so stays `wasm32`-clean. Everything is
-//! `&str`-based — Tcl strings are UTF-8 internally, and byte consumers convert
-//! at the call (the UTF-8-internal-rep invariant).
+//! The dependency-light owners remain `wasm32`-clean. Native resident strings
+//! and names retain exact length-delimited bytes, including modified UTF-8,
+//! surrogates and non-Unicode byte units. Analytical Unicode views are checked
+//! projections and do not replace native identity or source provenance.
 //!
 //! What each module owns:
 //! - [`backslash`] — the canonical `TclParseBackslash` decoder.
@@ -39,7 +39,8 @@
 //! - [`glob`] — `Tcl_StringCaseMatch` (`string match`).
 //! - [`list`] — `Tcl_SplitList` / `Tcl_Merge`.
 //! - [`mro`] — `TclOO` method resolution order.
-//! - [`naming`] — variable/command name normalisation.
+//! - [`naming`] — purpose-specific name inputs and constructed byte identities.
+//! - [`native_string`] — native resident-string and pure-byte-array recipes.
 //! - [`number`] — the `TclParseNumber` numeric-literal grammar.
 //! - [`number_tower`] — the integer operator semantics of `tclExecute.c`,
 //!   generic over the big-integer backend.
@@ -58,17 +59,46 @@ pub mod backslash;
 pub mod boolean;
 pub mod case_list;
 pub mod event_handler;
+pub mod execution_conformance;
 pub mod expr;
 pub mod formal_params;
 pub mod format;
 pub mod glob;
+pub mod jim_script_layout;
+pub mod jim_script_objects;
 pub mod list;
+pub mod list_result;
+pub mod logical_numeric_simulation;
 pub mod mro;
 pub mod naming;
+/// Native array-search handle conversion and failure presentation.
+pub mod native_array_search;
+pub mod native_bytecode;
+pub mod native_equality;
+pub mod native_glob;
+pub mod native_instruction_name;
+pub mod native_jim_index;
+pub mod native_jim_local;
+pub mod native_jim_lookup;
+pub mod native_jim_substitution;
+pub mod native_jim_switch;
+/// Physical C namespace-name primary and lifecycle recipes.
+pub mod native_namespace_name;
+pub mod native_object;
+pub mod native_object_append;
+pub mod native_parse_context;
+pub mod native_regex;
+pub mod native_string;
+pub mod native_tcl_case;
+pub mod native_tcl_utf;
+pub mod native_variable_name;
+pub mod native_variable_words;
 pub mod ns_op_conformance;
 pub mod number;
 pub mod number_tower;
+pub mod raw_string;
 pub mod release_expectations;
+pub mod scalar_getter;
 pub mod scan;
 pub mod switch_body;
 pub mod value;

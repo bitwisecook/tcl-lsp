@@ -19,9 +19,9 @@ use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
 
 use crate::analyses::LatticeValue;
 use crate::cfg::{Block, BlockId};
-use crate::command_binding::{BindingKind, CommandBinding, analyse_command_binding};
+use crate::command_binding::BindingKind;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
+use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::{CommandTokens, Procedure, Statement};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
 use crate::representation_plan::{SharingState, VarStorage};
@@ -191,6 +191,11 @@ pub fn semantic_operation_binding_is_trusted(
 /// Why common analysis did not select a direct procedure call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectProcDecline {
+    /// A genuine provider must admit the body before validating its formals.
+    NativeCompilationAdmissionRequired,
+    /// Actual caller or callee constants depend on math bindings which this
+    /// direct execution plan cannot retain and validate.
+    MathBindingPrerequisiteRequired,
     /// The pass is disabled by default and was not explicitly enabled.
     PassDisabled,
     /// No resolved environment was carried by the unit's semantic bundle.
@@ -213,8 +218,12 @@ pub enum DirectProcDecline {
     InvalidFormalList,
     /// Defaulted parameters are deliberately outside this first direct tier.
     DefaultArgumentUnsupported,
-    /// A trailing `args` formal is deliberately outside this first direct tier.
+    /// A native rest binding is outside this first direct tier.
     VariadicUnsupported,
+    /// Native caller-variable reference bindings need the ordinary frame owner.
+    ReferenceArgumentUnsupported,
+    /// Multiple formals share one native name rather than independent direct slots.
+    SharedFormalSlotUnsupported,
     /// The already-evaluated argv does not match the fixed formal count.
     ArityMismatch {
         /// Number of fixed required formals.
@@ -222,6 +231,8 @@ pub enum DirectProcDecline {
         /// Number of already-evaluated actual arguments.
         actual: usize,
     },
+    /// The direct tier cannot preserve an original argv expansion operation.
+    ExpandedArgumentsUnsupported,
     /// Escape/call analysis found a dynamic frame or nested fallback surface.
     DynamicCallee,
     /// Current completion planning cannot yet rewrite a CFG with exceptional edges.
@@ -233,6 +244,8 @@ impl DirectProcDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::NativeCompilationAdmissionRequired => "native-compilation-admission-required",
+            Self::MathBindingPrerequisiteRequired => "math-binding-prerequisite-required",
             Self::PassDisabled => "pass-disabled",
             Self::ContextUnavailable => "context-unavailable",
             Self::BindingNotProcedure { .. } => "binding-not-procedure",
@@ -243,7 +256,10 @@ impl DirectProcDecline {
             Self::InvalidFormalList => "invalid-formal-list",
             Self::DefaultArgumentUnsupported => "default-argument-unsupported",
             Self::VariadicUnsupported => "variadic-unsupported",
+            Self::ReferenceArgumentUnsupported => "reference-argument-unsupported",
+            Self::SharedFormalSlotUnsupported => "shared-formal-slot-unsupported",
             Self::ArityMismatch { .. } => "arity-mismatch",
+            Self::ExpandedArgumentsUnsupported => "expanded-arguments-unsupported",
             Self::DynamicCallee => "dynamic-callee",
             Self::ExceptionalControlFlow => "exceptional-control-flow",
         }
@@ -395,6 +411,9 @@ pub enum MaterialisationRecipe {
 /// Why an SSA value cannot use a materialisable slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MaterialisableSlotDecline {
+    /// This slot's analysis world retains implicit math prerequisites which
+    /// the materialisation plan cannot validate before native execution.
+    MathBindingPrerequisiteRequired,
     /// The pass is disabled by default and was not explicitly enabled.
     PassDisabled,
     /// Escape analysis did not allocate a local slot for this name.
@@ -416,6 +435,7 @@ impl MaterialisableSlotDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::MathBindingPrerequisiteRequired => "math-binding-prerequisite-required",
             Self::PassDisabled => "pass-disabled",
             Self::NoLocalSlot => "no-local-slot",
             Self::EscapesToFrame => "escapes-to-frame",
@@ -662,8 +682,7 @@ struct CallCandidate<'a> {
     statement_index: u32,
     command: String,
     args: Vec<String>,
-    tokens: Option<&'a CommandTokens>,
-    ssa_statement: &'a crate::ssa::SsaStatement,
+    tokens: Option<std::borrow::Cow<'a, CommandTokens>>,
 }
 
 fn function_units(unit: &CompilationUnit) -> impl Iterator<Item = (&str, &FunctionUnit)> {
@@ -685,9 +704,9 @@ fn call_sites<'a>(
             continue;
         };
         for (index, statement) in cfg_block.statements.iter().enumerate() {
-            let Some(ssa_statement) = ssa_block.statements.get(index) else {
+            if ssa_block.statements.get(index).is_none() {
                 continue;
-            };
+            }
             let Statement::Call {
                 command,
                 args,
@@ -709,8 +728,7 @@ fn call_sites<'a>(
                 statement_index,
                 command: command.clone(),
                 args: args.clone(),
-                tokens: tokens.as_ref(),
-                ssa_statement,
+                tokens: tokens.as_ref().map(std::borrow::Cow::Borrowed),
             });
             for (argument_index, argument) in args.iter().enumerate() {
                 if let Some((nested, nested_args)) =
@@ -732,14 +750,26 @@ fn call_sites<'a>(
                         statement_index,
                         command: nested,
                         args: nested_args,
-                        tokens: None,
-                        ssa_statement,
+                        tokens: nested_call_tokens(tokens.as_ref(), argument_index, lexer_config)
+                            .map(std::borrow::Cow::Owned),
                     });
                 }
             }
         }
     }
     out
+}
+
+fn nested_call_tokens(
+    parent: Option<&CommandTokens>,
+    argument: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<CommandTokens> {
+    let parent = parent?;
+    let word = parent.words().get(argument.checked_add(1)?)?;
+    let mut commands =
+        crate::value_shapes::command_substitution_tokens(word, Some(parent), config)?;
+    (commands.len() == 1).then(|| commands.remove(0))
 }
 
 struct DirectCollection {
@@ -770,22 +800,35 @@ fn collect_direct_calls(
     // fact.
     let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
     for (caller_name, function) in function_units(unit) {
-        let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(
-            caller_name,
-            function,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        ) {
-            let binding =
-                bindings.binding_at(site.block, site.statement_index as usize, &site.command);
-            let resolved =
-                crate::interprocedural::resolve_internal_call(&site.command, caller_name, &known)
-                    .or_else(|| {
-                        binding
-                            .target
-                            .clone()
-                            .filter(|target| known.contains(target))
-                    });
+        for site in call_sites(caller_name, function, unit.ir_module.lexer_config) {
+            let binding = site
+                .tokens
+                .as_deref()
+                .and_then(|tokens| tokens.source_binding.as_ref());
+            let terminal = binding
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target);
+            let target = binding.and_then(|binding| binding.direct_procedure_target(&site.command));
+            let resolved = terminal
+                .and_then(|target| {
+                    unit.ir_module
+                        .procedures
+                        .iter()
+                        .find_map(|(name, procedure)| {
+                            target
+                                .matches_authored_implementation_image(
+                                    &unit.ir_module.source,
+                                    procedure.span.start(),
+                                )
+                                .then(|| name.clone())
+                        })
+                })
+                .or_else(|| {
+                    crate::interprocedural::resolve_internal_call(
+                        &site.command,
+                        caller_name,
+                        &known,
+                    )
+                });
             let Some(callee_name) = resolved else {
                 continue;
             };
@@ -797,8 +840,9 @@ fn collect_direct_calls(
                 registry,
                 function,
                 site: &site,
-                binding_kind: binding.kind,
-                binding_target: binding.target.as_deref(),
+                binding_kind: terminal.map_or(BindingKind::Unknown, |target| target.kind),
+                binding_target: terminal.map(|target| target.command.as_str()),
+                source_target: target,
                 callee_name: &callee_name,
                 proc_def,
                 summary: escape.get(&callee_name),
@@ -867,12 +911,7 @@ fn collect_semantic_calls(
 ) -> BTreeMap<DirectCallSiteId, SemanticCallDecision> {
     let mut decisions = BTreeMap::new();
     for (caller, function) in function_units(unit) {
-        let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(
-            caller,
-            function,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        ) {
+        for site in call_sites(caller, function, unit.ir_module.lexer_config) {
             if site.id.nested_argument.is_some() {
                 continue;
             }
@@ -881,7 +920,6 @@ fn collect_semantic_calls(
                 registry,
                 context,
                 site: &site,
-                bindings: &bindings,
                 mutations,
                 direct_calls,
                 enabled: config
@@ -898,7 +936,6 @@ struct SemanticCallInputs<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     context: Option<SemanticContext>,
     site: &'a CallCandidate<'a>,
-    bindings: &'a crate::command_binding::CommandBinding<'a>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     direct_calls: &'a BTreeMap<DirectCallSiteId, DirectProcDecision>,
     enabled: bool,
@@ -915,7 +952,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if input.mutations.has_dynamic_mutation() {
         return decline(SemanticCallDecline::DynamicCommandMutation);
     }
-    let Some(tokens) = input.site.tokens else {
+    let Some(tokens) = input.site.tokens.as_deref() else {
         return decline(SemanticCallDecline::TokensUnavailable);
     };
     let Ok(RegistryInvocationResolution::Resolved(facts)) =
@@ -926,13 +963,15 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if facts.operation == SemanticOperationId::Invoke {
         return decline(SemanticCallDecline::GenericInvocation);
     }
-    let binding = input.bindings.binding_at(
-        input.site.block,
-        input.site.statement_index as usize,
-        &facts.canonical_command,
-    );
-    if !binding.is_original_builtin() {
-        return decline(SemanticCallDecline::BindingNotOriginal { kind: binding.kind });
+    let binding = tokens.source_binding.as_ref();
+    if binding
+        .and_then(|binding| binding.direct_registry_target(&input.site.command))
+        .is_none()
+    {
+        let kind = binding
+            .and_then(crate::command_binding::SourceInvocationBinding::called_slot_kind)
+            .unwrap_or(BindingKind::Unknown);
+        return decline(SemanticCallDecline::BindingNotOriginal { kind });
     }
     if !input.mutations.trusts(&facts.canonical_command) {
         return decline(SemanticCallDecline::ReboundOrAliased);
@@ -948,7 +987,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         let outer_argument = u32::try_from(index).unwrap_or(u32::MAX);
         if crate::value_shapes::parse_command_substitution_with_config(
             argument,
-            tcl_lexer::LexerConfig::for_profile(input.registry.profile()),
+            input.unit.ir_module.lexer_config,
         )
         .is_some()
         {
@@ -1027,20 +1066,131 @@ fn closed_program_linear_entry(function: &FunctionUnit) -> Option<(&Block, &SsaB
         .map(|ssa| (block, ssa))
 }
 
-struct ClosedStatementInputs<'a, 'binding> {
+struct ClosedStatementInputs<'a> {
     unit: &'a CompilationUnit,
     registry: &'a tcl_registry::CommandRegistry,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     direct_calls: &'a BTreeMap<DirectCallSiteId, DirectProcDecision>,
     semantic_calls: &'a BTreeMap<DirectCallSiteId, SemanticCallDecision>,
     function: &'a FunctionUnit,
-    bindings: &'binding CommandBinding<'a>,
     direct_actuals: &'a HashSet<SsaValueIdentity>,
     set_operation: SemanticOperationId,
 }
 
+fn closed_constant_store(
+    input: &ClosedStatementInputs<'_>,
+    index: usize,
+    statement: &Statement,
+) -> bool {
+    if matches!(statement, Statement::AssignConst { .. }) {
+        return true;
+    }
+    let Some(tokens) = statement.tokens() else {
+        return false;
+    };
+    let site = DirectCallSiteId {
+        function: input.function.name.clone(),
+        block: input.function.cfg.entry,
+        statement_index: u32::try_from(index).unwrap_or(u32::MAX),
+        nested_argument: None,
+    };
+    if !matches!(
+        input.semantic_calls.get(&site),
+        Some(SemanticCallDecision::Selected(semantic)) if semantic.operation == input.set_operation
+    ) {
+        return false;
+    }
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return false;
+    };
+    crate::registry_invocation::normal_transfer_invocation(
+        input.registry,
+        input.function.semantic_facts.context(),
+        tokens,
+    )
+    .and_then(|normal| normal.stored_value_literal(&binding.variable_context, input.registry))
+    .is_some()
+}
+
+fn closed_native_store_binding(input: &ClosedStatementInputs<'_>, statement: &Statement) -> bool {
+    let Statement::AssignConst { value, .. } = statement else {
+        return false;
+    };
+    input
+        .function
+        .cfg
+        .command_binding_sites
+        .iter()
+        .filter(|site| site.span == statement.span())
+        .filter_map(|site| site.source_tokens.as_deref())
+        .any(|tokens| {
+            let Some(binding) = tokens.source_binding.as_ref() else {
+                return false;
+            };
+            binding
+                .evaluated_command_word()
+                .is_some_and(|head| binding.direct_registry_target(head).is_some())
+                && crate::registry_invocation::normal_transfer_invocation(
+                    input.registry,
+                    input.function.semantic_facts.context(),
+                    tokens,
+                )
+                .and_then(|normal| {
+                    normal.stored_value_literal(&binding.variable_context, input.registry)
+                })
+                .as_deref()
+                    == Some(value.as_str())
+        })
+}
+
+fn cover_closed_constant_store(
+    input: &ClosedStatementInputs<'_>,
+    statement: &Statement,
+    ssa: &SsaStatement,
+    statement_id: CfgStatementId,
+) -> Option<ClosedProgramStatementEvidence> {
+    if input.unit.ir_module.has_dynamic_trace
+        || !semantic_operation_binding_is_trusted(
+            input.registry,
+            input.mutations,
+            input.set_operation,
+        )
+        || semantic_operation_has_execution_trace(
+            input.registry,
+            &input.unit.ir_module,
+            input.set_operation,
+        )
+        || (matches!(statement, Statement::AssignConst { .. })
+            && !closed_native_store_binding(input, statement))
+    {
+        return None;
+    }
+    let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
+        let value = SsaValueIdentity {
+            function: input.function.name.clone(),
+            symbol: *symbol,
+            version: *version,
+        };
+        input
+            .direct_actuals
+            .contains(&value)
+            .then_some((*symbol, *version))
+    })?;
+    let constant = input.function.sccp.values.get(&(symbol, version))?.clone();
+    Some(ClosedProgramStatementEvidence::DirectActualConstant {
+        statement: statement_id,
+        value: SsaValueIdentity {
+            function: input.function.name.clone(),
+            symbol,
+            version,
+        },
+        constant,
+        operation: input.set_operation,
+    })
+}
+
 fn cover_closed_statement(
-    input: &ClosedStatementInputs<'_, '_>,
+    input: &ClosedStatementInputs<'_>,
     index: usize,
     statement: &Statement,
     ssa: &SsaStatement,
@@ -1051,51 +1201,8 @@ fn cover_closed_statement(
         block: input.function.cfg.entry,
         statement_index,
     };
-    if matches!(statement, Statement::AssignConst { .. }) {
-        if input.unit.ir_module.has_dynamic_trace
-            || !semantic_operation_binding_is_trusted(
-                input.registry,
-                input.mutations,
-                input.set_operation,
-            )
-            || semantic_operation_has_execution_trace(
-                input.registry,
-                &input.unit.ir_module,
-                input.set_operation,
-            )
-            || !input
-                .registry
-                .command_names_for_semantic_operation(input.set_operation)
-                .any(|command| {
-                    input
-                        .bindings
-                        .is_original_builtin_at(input.function.cfg.entry, index, command)
-                })
-        {
-            return None;
-        }
-        let (symbol, version) = ssa.defs.iter().find_map(|(symbol, version)| {
-            let value = SsaValueIdentity {
-                function: input.function.name.clone(),
-                symbol: *symbol,
-                version: *version,
-            };
-            input
-                .direct_actuals
-                .contains(&value)
-                .then_some((*symbol, *version))
-        })?;
-        let constant = input.function.sccp.values.get(&(symbol, version))?.clone();
-        return Some(ClosedProgramStatementEvidence::DirectActualConstant {
-            statement: statement_id,
-            value: SsaValueIdentity {
-                function: input.function.name.clone(),
-                symbol,
-                version,
-            },
-            constant,
-            operation: input.set_operation,
-        });
+    if closed_constant_store(input, index, statement) {
+        return cover_closed_constant_store(input, statement, ssa, statement_id);
     }
     let Statement::Call { .. } = statement else {
         return None;
@@ -1174,7 +1281,6 @@ fn prove_closed_program_coverage(
             DirectActualValue::Unproven => None,
         })
         .collect();
-    let bindings = analyse_command_binding(&function.cfg, registry, &[]);
     let set_operation = SemanticOperationId::StructuredLowering(LoweringHookId::Set);
     let input = ClosedStatementInputs {
         unit,
@@ -1183,7 +1289,6 @@ fn prove_closed_program_coverage(
         direct_calls,
         semantic_calls,
         function,
-        bindings: &bindings,
         direct_actuals: &direct_actuals,
         set_operation,
     };
@@ -1215,6 +1320,7 @@ struct DirectInputs<'a> {
     site: &'a CallCandidate<'a>,
     binding_kind: BindingKind,
     binding_target: Option<&'a str>,
+    source_target: Option<&'a crate::command_binding::SourceCommandTarget>,
     callee_name: &'a str,
     proc_def: &'a Procedure,
     summary: Option<&'a ProcEscapeSummary>,
@@ -1224,6 +1330,18 @@ struct DirectInputs<'a> {
     enabled: bool,
     frame_elision_enabled: bool,
     native_integer_enabled: bool,
+}
+
+fn direct_prerequisite_decline(input: &DirectInputs<'_>) -> Option<DirectProcDecline> {
+    if crate::native_compilation_admission::script_requires_admission(&input.proc_def.body) {
+        return Some(DirectProcDecline::NativeCompilationAdmissionRequired);
+    }
+    (input.function.requires_native_math_binding_validation()
+        || input
+            .unit
+            .function(input.callee_name)
+            .is_some_and(FunctionUnit::requires_native_math_binding_validation))
+    .then_some(DirectProcDecline::MathBindingPrerequisiteRequired)
 }
 
 fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
@@ -1243,6 +1361,13 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     {
         return decline(DirectProcDecline::ReboundOrAliased);
     }
+    if input.unit.ir_module.has_dynamic_trace {
+        return decline(DirectProcDecline::DynamicExecutionTrace);
+    }
+    let trace_name = input.callee_name.trim_start_matches("::");
+    if input.unit.ir_module.traced_commands.contains(trace_name) {
+        return decline(DirectProcDecline::ExecutionTrace);
+    }
     if input.binding_kind == BindingKind::Alias
         || input
             .binding_target
@@ -1255,12 +1380,17 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
             kind: input.binding_kind,
         });
     }
-    if input.unit.ir_module.has_dynamic_trace {
-        return decline(DirectProcDecline::DynamicExecutionTrace);
+    if !input.source_target.is_some_and(|target| {
+        target.prepended.is_empty()
+            && target.matches_authored_implementation_image(
+                &input.unit.ir_module.source,
+                input.proc_def.span.start(),
+            )
+    }) {
+        return decline(DirectProcDecline::ReboundOrAliased);
     }
-    let trace_name = input.callee_name.trim_start_matches("::");
-    if input.unit.ir_module.traced_commands.contains(trace_name) {
-        return decline(DirectProcDecline::ExecutionTrace);
+    if let Some(reason) = direct_prerequisite_decline(input) {
+        return decline(reason);
     }
     if !input.function.cfg.exception_edges.is_empty()
         || input
@@ -1271,42 +1401,43 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     {
         return decline(DirectProcDecline::ExceptionalControlFlow);
     }
-    // The lowered module's own dialect — the same `Module::dialect` the
-    // interval pass reads below — so the formals divide the way this unit's
-    // runtime divides them.
-    let word_rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(
-        input.unit.ir_module.dialect.as_deref(),
-    );
-    let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
-        &input.proc_def.params_raw,
-        word_rules,
-    ) else {
-        return decline(DirectProcDecline::InvalidFormalList);
+    if input.site.tokens.as_deref().is_some_and(|tokens| {
+        tokens
+            .words()
+            .iter()
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+    }) {
+        return decline(DirectProcDecline::ExpandedArgumentsUnsupported);
+    }
+    let Some(grammar) = input.unit.ir_module.parameter_grammar() else {
+        return decline(DirectProcDecline::ContextUnavailable);
     };
-    if formals.last().is_some_and(|formal| formal.name == "args") {
-        return decline(DirectProcDecline::VariadicUnsupported);
-    }
-    if formals.iter().any(|formal| formal.default.is_some()) {
-        return decline(DirectProcDecline::DefaultArgumentUnsupported);
-    }
-    if formals.len() != input.site.args.len() {
-        return decline(DirectProcDecline::ArityMismatch {
-            expected: formals.len(),
-            actual: input.site.args.len(),
-        });
-    }
+    let formals =
+        match direct_formal_bindings(&input.proc_def.params_raw, input.site.args.len(), grammar) {
+            Ok(formals) => formals,
+            Err(reason) => return decline(reason),
+        };
     let Some(summary) = input.summary else {
         return decline(DirectProcDecline::DynamicCallee);
     };
+    select_direct_evidence(input, &formals, summary)
+}
+
+fn select_direct_evidence(
+    input: &DirectInputs<'_>,
+    formals: &[tcl_syntax::formal_params::FormalParameter],
+    summary: &ProcEscapeSummary,
+) -> DirectProcDecision {
     let actual_facts: Vec<_> = input
         .site
         .args
         .iter()
-        .map(|argument| actual_fact(input.function, input.site.ssa_statement, argument))
+        .enumerate()
+        .map(|(index, _)| actual_fact(input.function, input.site, index))
         .collect();
     let actual_types = actual_facts.iter().map(|fact| fact.0.clone()).collect();
     let actual_values = actual_facts.into_iter().map(|fact| fact.1).collect();
-    let body = direct_body_decision(input, &formals);
+    let body = direct_body_decision(input, formals);
     let frame_elidable =
         matches!(body, DirectProcBodyDecision::Selected(_)) && summary.safe_for_frame_elision();
     DirectProcDecision::Selected(DirectProcEvidence {
@@ -1315,7 +1446,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
             definition_start: input.proc_def.span.start(),
             definition_end: input.proc_def.span.end(),
         },
-        formals: formals.into_iter().map(|formal| formal.name).collect(),
+        formals: formals.iter().map(|formal| formal.name.clone()).collect(),
         actual_types,
         actual_values,
         context: input.context,
@@ -1328,6 +1459,54 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     })
 }
 
+fn direct_formal_bindings(
+    source: &str,
+    actual: usize,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<tcl_syntax::formal_params::FormalParameter>, DirectProcDecline> {
+    use tcl_syntax::formal_params::{
+        FormalArgumentBinding, bind_formal_arguments, parse_formal_parameters_in,
+    };
+    let formals = parse_formal_parameters_in(source, grammar)
+        .map_err(|_| DirectProcDecline::InvalidFormalList)?;
+    // Inspect the shared activation plan with a sufficient argument count,
+    // before selecting the actual call. Native rest/reference/default slots
+    // cannot be replaced by positional direct-call slots.
+    let shape = bind_formal_arguments(&formals, formals.len(), grammar)
+        .map_err(|_| DirectProcDecline::InvalidFormalList)?;
+    for binding in &shape {
+        match binding {
+            FormalArgumentBinding::Rest { .. } => {
+                return Err(DirectProcDecline::VariadicUnsupported);
+            }
+            FormalArgumentBinding::CallerLink { .. } => {
+                return Err(DirectProcDecline::ReferenceArgumentUnsupported);
+            }
+            FormalArgumentBinding::Default { .. } | FormalArgumentBinding::Value { .. } => {}
+        }
+    }
+    let mut slots = std::collections::HashSet::new();
+    if formals.iter().any(|formal| !slots.insert(&formal.name)) {
+        return Err(DirectProcDecline::SharedFormalSlotUnsupported);
+    }
+    if formals.iter().any(|formal| formal.default.is_some()) {
+        return Err(DirectProcDecline::DefaultArgumentUnsupported);
+    }
+    let bindings = bind_formal_arguments(&formals, actual, grammar).map_err(|_| {
+        DirectProcDecline::ArityMismatch {
+            expected: formals.len(),
+            actual,
+        }
+    })?;
+    if !bindings.iter().all(|binding| {
+        matches!(binding,
+        FormalArgumentBinding::Value { parameter, argument } if parameter == argument)
+    }) {
+        return Err(DirectProcDecline::ContextUnavailable);
+    }
+    Ok(formals)
+}
+
 fn direct_body_decision(
     input: &DirectInputs<'_>,
     formals: &[tcl_syntax::formal_params::FormalParameter],
@@ -1338,18 +1517,6 @@ fn direct_body_decision(
     }
     if !input.native_integer_enabled {
         return decline(DirectProcBodyDecline::NativeIntegerPassDisabled);
-    }
-    let [
-        Statement::Return {
-            expr: Some(expr), ..
-        },
-    ] = input.proc_def.body.statements.as_slice()
-    else {
-        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
-    };
-    let formal_names: HashSet<&str> = formals.iter().map(|formal| formal.name.as_str()).collect();
-    if !closed_integer_add_expression(expr, &formal_names) {
-        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
     }
     let operations = vec![
         SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
@@ -1364,6 +1531,22 @@ fn direct_body_decision(
             return decline(DirectProcBodyDecline::InternalExecutionTrace { operation });
         }
     }
+    let [
+        Statement::Return {
+            expr: Some(expr), ..
+        },
+    ] = input.proc_def.body.statements.as_slice()
+    else {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    };
+    let formal_names: HashSet<&str> = formals.iter().map(|formal| formal.name.as_str()).collect();
+    if !closed_integer_add_expression(
+        expr,
+        &formal_names,
+        input.unit.ir_module.native_lexer_config(),
+    ) {
+        return decline(DirectProcBodyDecline::UnsupportedBodyShape);
+    }
     DirectProcBodyDecision::Selected(DirectProcBodyEvidence {
         operations,
         dispatch_dependencies: DispatchDependencies::CONSERVATIVE,
@@ -1373,16 +1556,20 @@ fn direct_body_decision(
 fn closed_integer_add_expression(
     expression: &tcl_syntax::expr::ast::ExprNode,
     formals: &HashSet<&str>,
+    config: tcl_lexer::LexerConfig,
 ) -> bool {
     match expression {
-        tcl_syntax::expr::ast::ExprNode::Var { name, .. } => formals.contains(name.as_str()),
+        tcl_syntax::expr::ast::ExprNode::Var { text, .. } => matches!(
+            crate::native_lowering::cells::variable_reference_place(text, config),
+            Ok(crate::native_lowering::cells::CellPlace::Named { name }) if formals.contains(name.as_str())
+        ),
         tcl_syntax::expr::ast::ExprNode::Binary {
             op: tcl_syntax::expr::ast::BinOp::Add,
             left,
             right,
         } => {
-            closed_integer_add_expression(left, formals)
-                && closed_integer_add_expression(right, formals)
+            closed_integer_add_expression(left, formals, config)
+                && closed_integer_add_expression(right, formals, config)
         }
         _ => false,
     }
@@ -1405,16 +1592,29 @@ fn semantic_operation_has_execution_trace(
 
 fn actual_fact(
     function: &FunctionUnit,
-    statement: &crate::ssa::SsaStatement,
-    argument: &str,
+    site: &CallCandidate<'_>,
+    argument: usize,
 ) -> (TypeLattice, DirectActualValue) {
-    if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument)
-        && let Some(symbol) = function.ssa.var_symbol(name)
-        && let Some(version) = statement.uses.get(&symbol)
+    let read = site
+        .tokens
+        .as_deref()
+        .and_then(|tokens| tokens.words().get(argument.checked_add(1)?))
+        .and_then(|word| {
+            crate::ssa::SsaSourceView::at_statement(
+                &function.ssa,
+                site.block,
+                site.statement_index as usize,
+            )
+            .read_word(word)
+        });
+    if let Some(crate::ssa::SsaReadReference {
+        symbol,
+        version: Some(version),
+    }) = read
     {
         let ty = function
             .types
-            .get(&(symbol, *version))
+            .get(&(symbol, version))
             .cloned()
             .unwrap_or_else(TypeLattice::unknown);
         return (
@@ -1422,16 +1622,66 @@ fn actual_fact(
             DirectActualValue::Ssa(SsaValueIdentity {
                 function: function.name.clone(),
                 symbol,
-                version: *version,
+                version,
             }),
         );
     }
-    // The compatibility CFG stores flattened argument text rather than the
-    // executable WordExpr. It is unsound to infer a literal type here because
-    // that text may have originated from a template or substitution. Exact
-    // variable uses retain SSA identity above; every other word stays unknown
-    // until this proof is keyed directly from executable IR.
+    // Neither flattened bytes nor a statement-wide use map can identify the
+    // object read before later arguments run. Missing original read evidence
+    // leaves the contents fact and materialisation prerequisite unproved.
     (TypeLattice::unknown(), DirectActualValue::Unproven)
+}
+
+fn direct_call_tokens<'a>(
+    unit: &'a CompilationUnit,
+    id: &DirectCallSiteId,
+) -> Option<std::borrow::Cow<'a, CommandTokens>> {
+    let function = unit.function(&id.function)?;
+    let statement = function
+        .ssa
+        .blocks
+        .get(&id.block)?
+        .statements
+        .get(id.statement_index as usize)?;
+    let original = statement.statement.tokens()?;
+    if let Some(outer) = id.nested_argument {
+        Some(std::borrow::Cow::Owned(nested_call_tokens(
+            Some(original),
+            outer as usize,
+            unit.ir_module.lexer_config,
+        )?))
+    } else {
+        Some(std::borrow::Cow::Borrowed(original))
+    }
+}
+
+/// Contents dependency of one original direct-call value operand.
+/// This proves no object representation or permission to erase its coercions.
+pub(crate) fn direct_call_argument_read(
+    unit: &CompilationUnit,
+    id: &DirectCallSiteId,
+    argument: usize,
+) -> Option<crate::ssa::SsaReadReference> {
+    let function = unit.function(&id.function)?;
+    let tokens = direct_call_tokens(unit, id)?;
+    let word = tokens.words().get(argument.checked_add(1)?)?;
+    crate::ssa::SsaSourceView::at_statement(&function.ssa, id.block, id.statement_index as usize)
+        .read_word(word)
+}
+
+/// Exact captured contents of a selected, unexpanded direct-call operand.
+/// The native tier must independently preserve the original operand evaluation.
+pub(crate) fn direct_call_argument_value(
+    unit: &CompilationUnit,
+    id: &DirectCallSiteId,
+    argument: usize,
+) -> Option<String> {
+    let tokens = direct_call_tokens(unit, id)?;
+    tokens
+        .source_binding
+        .as_ref()?
+        .evaluated_written_argument_value(argument)
+        .map(str::to_owned)
 }
 
 fn ssa_value_keys(function: &FunctionUnit, proc_def: Option<&Procedure>) -> BTreeSet<ValueKey> {
@@ -1512,9 +1762,7 @@ fn collect_materialisable_slots(
             &function.cfg,
             &function.ssa,
             &function.sccp.values,
-            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
-                crate::environment_ingress::resolve_environment(name).analyser_profile()
-            })),
+            unit.ir_module.number_syntax(),
         );
         for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
             let identity = SsaValueIdentity {
@@ -1558,6 +1806,9 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if !input.enabled {
         return decline(MaterialisableSlotDecline::PassDisabled);
     }
+    if input.function.requires_native_math_binding_validation() {
+        return decline(MaterialisableSlotDecline::MathBindingPrerequisiteRequired);
+    }
     if input.qname == "::top" && input.environment == CommonAotEnvironment::Hosted {
         return decline(MaterialisableSlotDecline::HostedTopLevelObservable);
     }
@@ -1588,11 +1839,14 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if input.key.1 == 0
         && let Some(proc_def) = input.unit.ir_module.procedures.get(input.qname)
         && let Some(index) = proc_def.params.iter().position(|name| name == &variable)
-        && let Some(propagated) = input
-            .propagated
-            .get(&(input.qname.to_owned(), index))
-            .and_then(Option::as_ref)
+        && let Some(propagated) = input.propagated.get(&(input.qname.to_owned(), index))
     {
+        let Some(propagated) = propagated else {
+            // A missing actual type on one reached caller is a retained poison
+            // fact. Arithmetic use inside the body cannot establish the entry
+            // object's representation for that caller.
+            return decline(MaterialisableSlotDecline::TypeNotSingleton);
+        };
         ty = type_join(&ty, propagated);
     }
     let Some(shape) = ty.single_shape().cloned() else {
@@ -1621,6 +1875,38 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn direct_formals_consume_native_activation_plan() {
+        use tcl_dialect::ParameterGrammar;
+        for grammar in [ParameterGrammar::Tcl, ParameterGrammar::Jim] {
+            assert!(super::direct_formal_bindings("x y", 2, grammar).is_ok());
+            assert_eq!(
+                super::direct_formal_bindings("x x", 2, grammar),
+                Err(super::DirectProcDecline::SharedFormalSlotUnsupported)
+            );
+            assert_eq!(
+                super::direct_formal_bindings("x y", 1, grammar),
+                Err(super::DirectProcDecline::ArityMismatch {
+                    expected: 2,
+                    actual: 1
+                })
+            );
+            assert_eq!(
+                super::direct_formal_bindings("x args", 2, grammar),
+                Err(super::DirectProcDecline::VariadicUnsupported)
+            );
+        }
+        assert!(super::direct_formal_bindings("args x", 2, ParameterGrammar::Tcl).is_ok());
+        assert_eq!(
+            super::direct_formal_bindings("args x", 2, ParameterGrammar::Jim),
+            Err(super::DirectProcDecline::VariadicUnsupported)
+        );
+        assert_eq!(
+            super::direct_formal_bindings("&x", 1, ParameterGrammar::Jim),
+            Err(super::DirectProcDecline::ReferenceArgumentUnsupported)
+        );
+        assert!(super::direct_formal_bindings("&x", 1, ParameterGrammar::Tcl).is_ok());
+    }
 
     use super::*;
     use tcl_registry::{IntrinsicId, TclType};
@@ -1656,6 +1942,40 @@ mod tests {
 
     const ADD: &str =
         "proc add {b c} { return [expr {$b+$c}] }\nset d 2\nset e 4\nputs [add $d $e]\n";
+
+    #[test]
+    fn direct_procedure_selection_preserves_native_preformal_admission() {
+        use crate::native_compilation_admission::NativeCompilationAdmission;
+        use std::sync::Arc;
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut unit = CompilationUnit::build_for_dialect(
+            "proc p {} {return 1}; p",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        unit.ir_module
+            .procedures
+            .get_mut("::p")
+            .unwrap()
+            .body
+            .native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+            source: None,
+            failure: None,
+            provider_required: true,
+        }));
+        let plan = CommonAotProofPlan::build(
+            &unit,
+            &registry,
+            unit.top_level.semantic_facts.context(),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert!(plan.direct_calls().any(|(_, decision)| matches!(
+            decision,
+            DirectProcDecision::Declined(DirectProcDecline::NativeCompilationAdmissionRequired)
+        )));
+    }
 
     #[test]
     fn a_declined_caller_poisons_propagated_actual_types() {
@@ -1784,7 +2104,7 @@ mod tests {
         for (source, expected) in [
             (
                 "proc add {b c} {return [expr {$b+$c}]}\nrename puts q\nq [add 2 4]\n",
-                SemanticCallDecline::RegistryUnresolved,
+                SemanticCallDecline::ReboundOrAliased,
             ),
             (
                 "proc add {b c} {return [expr {$b+$c}]}\nrename puts coreputs\ninterp alias {} puts {} coreputs\nputs [add 2 4]\n",
@@ -1793,7 +2113,7 @@ mod tests {
                 },
             ),
             (
-                "proc add {b c} {return [expr {$b+$c}]}\ntrace add execution puts enter cb\nputs [add 2 4]\n",
+                "proc cb args {}; proc add {b c} {return [expr {$b+$c}]}\ntrace add execution puts enter cb\nputs [add 2 4]\n",
                 SemanticCallDecline::ExecutionTrace,
             ),
             (
@@ -1930,7 +2250,7 @@ mod tests {
                 true,
             ),
             (
-                "proc add {b c} {return [expr {$b+$c}]}\ntrace add execution expr enter cb\nadd 2 4\n",
+                "proc cb args {}; proc add {b c} {return [expr {$b+$c}]}\ntrace add execution expr enter cb\nadd 2 4\n",
                 SemanticOperationId::StructuredLowering(LoweringHookId::Expr),
                 false,
             ),
@@ -1972,10 +2292,30 @@ mod tests {
     }
 
     #[test]
+    fn known_computed_rename_preserves_callee_identity_and_rejects_its_internal_operation() {
+        let proof = plan(
+            "proc add {b c} {return [expr {$b+$c}]}; set command expr; rename $command saved_expr; add 2 4",
+            enabled(),
+        );
+        assert!(
+            proof.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Selected(DirectProcEvidence {
+                    body: DirectProcBodyDecision::Declined(
+                        DirectProcBodyDecline::InternalDispatchUntrusted { .. }
+                    ),
+                    ..
+                })
+            )),
+            "{proof:#?}"
+        );
+    }
+
+    #[test]
     fn dynamic_binding_transition_still_declines_direct_call_identity() {
         let plan = plan(
             "proc add {b c} {return [expr {$b+$c}]}\n\
-             set command expr\nrename $command saved_expr\nadd 2 4\n",
+             set command [lindex $argv 0]\nrename $command saved_expr\nadd 2 4\n",
             enabled(),
         );
         assert!(plan.direct_calls().any(|(_, decision)| matches!(
@@ -2029,21 +2369,51 @@ mod tests {
     #[test]
     fn unknown_actual_type_poisons_cross_call_formal_propagation() {
         let plan = plan(
-            "proc add {b c} {return [expr {$b+$c}]}\nset d 2\nset e 4\nadd $d $e\nset x [lindex $argv 0]\nadd $d $x\n",
+            "proc add {b c} {return [expr {$b+$c}]}\nproc caller {x} {set d 2; add $d $x}\nset d 2\nset e 4\nadd $d $e\n",
             enabled(),
         );
+        // The caller formal exists by its native activation contract but has
+        // unknown contents. Reading an unprovided global argv would instead
+        // introduce an unrelated entry/dispatch refusal before this join.
+        // Exact source reads can be retained without a scalar SSA entry key.
+        // Join the same selected-caller type owner used by materialisation;
+        // absence of a physical formal SSA key cannot be replaced by fake v0.
+        let mut propagated = HashMap::new();
+        let mut selected_callers = 0;
+        for (_, decision) in plan.direct_calls() {
+            if let DirectProcDecision::Selected(evidence) = decision
+                && evidence.callee.qualified_name == "::add"
+            {
+                selected_callers += 1;
+                propagate_actual_types(&mut propagated, "::add", decision);
+            }
+        }
+        assert_eq!(selected_callers, 2, "{plan:#?}");
+        let actual = propagated
+            .get(&("::add".to_owned(), 1))
+            .expect("both callers recorded");
         assert!(
-            plan.materialisable_slots().any(|(identity, decision)| {
-                identity.function == "::add"
-                    && matches!(
-                        decision,
-                        MaterialisableSlotDecision::Declined(
-                            MaterialisableSlotDecline::TypeNotSingleton
-                        )
-                    )
-            }),
-            "{plan:#?}"
+            actual
+                .as_ref()
+                .is_none_or(|value| value.single_shape().is_none())
         );
+        assert!(!plan.materialisable_slots().any(|(identity, decision)| {
+            identity.function == "::add"
+                && matches!(decision, MaterialisableSlotDecision::Selected(_))
+        }));
+    }
+
+    #[test]
+    fn direct_calls_retain_native_argv_expansion_at_the_generic_boundary() {
+        let proof = plan("proc p {x y} {return $x}; p {*}{2 4}", enabled());
+        assert!(
+            proof.direct_calls().any(|(_, decision)| matches!(
+                decision,
+                DirectProcDecision::Declined(DirectProcDecline::ExpandedArgumentsUnsupported)
+            )),
+            "{proof:#?}"
+        );
+        assert!(proof.has_declined_direct_call_to("::p"));
     }
 
     #[test]

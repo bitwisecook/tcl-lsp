@@ -20,6 +20,52 @@
 
 use tcl_lexer::{Lexer, Span, TokenType};
 
+/// Parse one authored Tcl word through the canonical word model. Multiple
+/// words or commands do not supply a value shape.
+#[must_use]
+pub fn value_word_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<crate::ir::WordExpr> {
+    let mut commands = crate::segmenter::segment_commands_with_offset_and_config(text, 0, config);
+    if commands.len() != 1 {
+        return None;
+    }
+    let command = commands.pop()?;
+    let tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(text),
+        config,
+        &command,
+    );
+    (tokens.words().len() == 1).then(|| tokens.words()[0].clone())
+}
+
+/// Retain the exact lookup evidence of commands inside a sole substitution.
+/// An unrecorded nested site inherits explicit uncertainty from its parent.
+#[must_use]
+pub fn command_substitution_tokens(
+    word: &crate::ir::WordExpr,
+    parent: Option<&crate::ir::CommandTokens>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::ir::CommandTokens>> {
+    let (spelling, site) = word.sole_command_substitution()?;
+    let inner = spelling.strip_prefix('[')?.strip_suffix(']')?;
+    let base = site.span.start().checked_add(1)?;
+    let map = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
+    Some(
+        crate::segmenter::segment_commands_with_offset_and_config(inner, base, config)
+            .iter()
+            .map(|command| {
+                let mut tokens = crate::ir::CommandTokens::from_segmented(&map, config, command);
+                if let Some(parent) = parent {
+                    tokens.inherit_nested_bindings(parent);
+                }
+                tokens
+            })
+            .collect(),
+    )
+}
+
 /// Scan one Tcl variable reference starting at `text[at]`, returning the
 /// byte index just past its end, or `None` when `text[at..]` does not
 /// start with a valid reference.
@@ -455,7 +501,7 @@ mod tests {
             parse_command_substitution_with_config("[pwd]", tcl_lexer::LexerConfig::default())
                 .unwrap();
         assert_eq!(cmd, "pwd");
-        assert!(args.is_empty());
+        assert_eq!(args, [] as [std::string::String; 0]);
     }
 
     #[test]

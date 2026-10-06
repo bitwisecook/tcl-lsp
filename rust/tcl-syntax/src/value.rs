@@ -30,7 +30,8 @@
 //!
 //! Two deliberate contract decisions:
 //!
-//! 1. **Char-correct strings.** [`ValueOps::as_str`] yields a UTF-8 `Rc<str>`.
+//! 1. **Checked Unicode.** [`ValueOps::try_as_str`] yields a UTF-8 `Rc<str>`
+//!    or an operational Unicode access refusal, without replacing native bytes.
 //!    Tcl 8 character operations use UTF-16-style code units while Tcl 9 uses
 //!    Unicode scalars; [`string_char_len`] centralises that release split. A
 //!    byte-oriented runtime conforms inside its own impl; the seam never exposes
@@ -52,6 +53,10 @@ use std::rc::Rc;
 use tcl_dialect::TclVersion;
 
 use crate::number::Radix;
+use crate::raw_string::{
+    NativeFatalCondition, NativeMaterializationLimitError, NativeStringAccessError,
+    NativeValueAccessRefusal, UnicodeAccessError,
+};
 
 /// Count the release-defined Tcl characters in a UTF-8 string value.
 ///
@@ -80,15 +85,66 @@ pub fn string_char_len(value: &str, version: TclVersion) -> usize {
 /// here once via [`ValueError::message`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueError {
+    /// Native fatal behavior remains an outer host refusal.
+    NativeFatalCondition(NativeFatalCondition),
+    /// Selected primitive failure retaining stage, cache origin, exact bytes and
+    /// error-state update. The physical adapter already applied its cache.
+    NativeScalarGetter(Box<crate::scalar_getter::NativeScalarGetterError>),
     /// The value is not a wide integer (`expected integer but got "…"`).
     NotInteger(String),
+    /// Native integer failure retaining the actual non-Unicode input bytes.
+    NotIntegerBytes(Vec<u8>),
     /// The value is not a float (`expected floating-point number but got "…"`).
     NotDouble(String),
+    /// Native floating-point failure retaining actual input bytes.
+    NotDoubleBytes(Vec<u8>),
     /// The value is not a boolean (`expected boolean value but got "…"`).
     NotBoolean(String),
+    /// Native boolean failure retaining actual input bytes.
+    NotBooleanBytes(Vec<u8>),
     /// The value is not a well-formed list; carries the verbatim parser message
     /// (e.g. `unmatched open brace in list`).
     BadList(String),
+    /// A list parser message whose exact native bytes need not be Unicode.
+    BadListBytes(Vec<u8>),
+    /// Typed list syntax failure retaining original byte input.
+    ListParse {
+        /// Native parser failure identity.
+        error: crate::list::ListError,
+        /// Actual original list bytes.
+        source: Vec<u8>,
+    },
+    /// Actual list converter failure with its independently selected object
+    /// producer. This receipt does not grant a successful List conversion.
+    NativeListParse {
+        error: crate::list::ListError,
+        source: Vec<u8>,
+        protocol: crate::native_string::NativeStringProtocol,
+    },
+    /// Typed dictionary syntax failure using the shared element grammar.
+    DictionaryParse {
+        /// Native parser failure identity.
+        error: crate::list::ListError,
+        /// Actual original dictionary bytes.
+        source: Vec<u8>,
+    },
+    /// A dictionary has an odd number of key/value elements.
+    MissingDictionaryValue,
+    /// A host operation requires Unicode that the native byte value cannot supply.
+    /// This is operational refusal, never a guest coercion completion.
+    UnicodeAccess(UnicodeAccessError),
+    /// Native string access exceeded retained storage; a host-only refusal.
+    NativeStringAccess(NativeStringAccessError),
+    /// Eager host construction exceeded its capacity; never a guest coercion.
+    NativeMaterialization(NativeMaterializationLimitError),
+    /// A reached operation requires an expression engine absent from the host.
+    ExpressionEngineUnavailable,
+    /// A native character operation has no selected unit model.
+    CharacterModelUnavailable,
+    /// A scalar numeric getter has no selected actual-engine input policy.
+    ScalarNumericInputUnavailable,
+    /// A reached command lacks its independently selected native protocol.
+    CommandProtocolUnavailable(&'static str),
     /// An integer operation overflowed the runtime's wide-integer range
     /// (`integer value too large to represent`). The bignum-capable runtime
     /// never raises this from [`ValueOps::int_add`] (it widens); the fixed-`i64`
@@ -97,10 +153,72 @@ pub enum ValueError {
 }
 
 impl ValueError {
+    /// Exact guest error bytes; host refusal is represented separately.
+    #[must_use]
+    pub fn message_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::NativeScalarGetter(error) => error.message_bytes().to_vec(),
+            Self::BadListBytes(bytes) => bytes.clone(),
+            Self::ListParse { error, source } | Self::NativeListParse { error, source, .. } => {
+                error.full_message_bytes(source)
+            }
+            Self::DictionaryParse { error, source } => dictionary_parse_message(*error, source),
+            Self::MissingDictionaryValue => b"missing value to go with key".to_vec(),
+            Self::NotIntegerBytes(bytes) => quoted_byte_error(b"expected integer but got ", bytes),
+            Self::NotDoubleBytes(bytes) => {
+                quoted_byte_error(b"expected floating-point number but got ", bytes)
+            }
+            Self::NotBooleanBytes(bytes) => {
+                quoted_byte_error(b"expected boolean value but got ", bytes)
+            }
+            _ => self.message().into_bytes(),
+        }
+    }
+
+    /// Operational native value access failure, never a guest completion.
+    #[must_use]
+    pub fn native_access_refusal(&self) -> Option<NativeValueAccessRefusal> {
+        match self {
+            Self::NativeFatalCondition(error) => {
+                Some(NativeValueAccessRefusal::FatalCondition(*error))
+            }
+            Self::UnicodeAccess(error) => Some((*error).into()),
+            Self::NativeStringAccess(error) => Some((*error).into()),
+            Self::NativeMaterialization(error) => Some((*error).into()),
+            Self::ExpressionEngineUnavailable => {
+                Some(NativeValueAccessRefusal::ExpressionEngineUnavailable)
+            }
+            Self::ScalarNumericInputUnavailable => {
+                Some(NativeValueAccessRefusal::ScalarNumericInputUnavailable)
+            }
+            Self::CharacterModelUnavailable => {
+                Some(NativeValueAccessRefusal::CharacterModelUnavailable)
+            }
+            Self::CommandProtocolUnavailable(command) => Some(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(command),
+            ),
+            _ => None,
+        }
+    }
+
+    /// Operational Unicode refusal, which adapters must keep outside guest completion.
+    #[must_use]
+    pub fn unicode_refusal(&self) -> Option<UnicodeAccessError> {
+        match self {
+            Self::UnicodeAccess(error) => Some(*error),
+            _ => None,
+        }
+    }
+
     /// The canonical Tcl error message for this coercion failure.
     #[must_use]
     pub fn message(&self) -> String {
         match self {
+            ValueError::NativeScalarGetter(error) => std::str::from_utf8(error.message_bytes())
+                .map_or_else(
+                    |_| format!("native byte getter error: {:?}", error.message_bytes()),
+                    str::to_owned,
+                ),
             ValueError::NotInteger(s) => {
                 format!(
                     "expected integer but got {}",
@@ -117,10 +235,66 @@ impl ValueError {
                     crate::list::describe_bad_value(s)
                 )
             }
+            ValueError::NotIntegerBytes(bytes)
+            | ValueError::NotDoubleBytes(bytes)
+            | ValueError::NotBooleanBytes(bytes) => {
+                format!("native byte coercion error: {bytes:?}")
+            }
+            ValueError::ListParse { error, .. }
+            | ValueError::NativeListParse { error, .. }
+            | ValueError::DictionaryParse { error, .. } => error.message().to_owned(),
+            ValueError::MissingDictionaryValue => "missing value to go with key".to_owned(),
             ValueError::BadList(msg) => msg.clone(),
+            ValueError::BadListBytes(bytes) => format!("native byte list error: {bytes:?}"),
+            ValueError::NativeFatalCondition(error) => error.to_string(),
+            ValueError::NativeStringAccess(error) => error.to_string(),
+            ValueError::NativeMaterialization(error) => error.to_string(),
+            ValueError::ExpressionEngineUnavailable => {
+                NativeValueAccessRefusal::ExpressionEngineUnavailable.to_string()
+            }
+            ValueError::ScalarNumericInputUnavailable => {
+                NativeValueAccessRefusal::ScalarNumericInputUnavailable.to_string()
+            }
+            ValueError::CharacterModelUnavailable => {
+                NativeValueAccessRefusal::CharacterModelUnavailable.to_string()
+            }
+            ValueError::CommandProtocolUnavailable(command) => {
+                NativeValueAccessRefusal::CommandProtocolUnavailable(command).to_string()
+            }
+            ValueError::UnicodeAccess(error) => {
+                format!("host Unicode access refused at byte {}", error.valid_up_to)
+            }
             ValueError::IntegerOverflow => "integer value too large to represent".to_string(),
         }
     }
+}
+
+/// Dictionary wording of an actual typed list-element parse failure.
+#[must_use]
+pub fn dictionary_parse_message(error: crate::list::ListError, source: &[u8]) -> Vec<u8> {
+    let message = error.full_message_bytes(source);
+    let (prefix, replacement): (&[u8], &[u8]) = match error {
+        crate::list::ListError::UnmatchedBrace => (
+            b"unmatched open brace in list",
+            b"unmatched open brace in dict",
+        ),
+        crate::list::ListError::UnmatchedQuote => (
+            b"unmatched open quote in list",
+            b"unmatched open quote in dict",
+        ),
+        _ => (b"list element in ", b"dict element in "),
+    };
+    let mut output = replacement.to_vec();
+    output.extend_from_slice(&message[prefix.len()..]);
+    output
+}
+
+fn quoted_byte_error(prefix: &[u8], bytes: &[u8]) -> Vec<u8> {
+    let mut message = prefix.to_vec();
+    message.push(b'"');
+    message.extend_from_slice(bytes);
+    message.push(b'"');
+    message
 }
 
 impl core::fmt::Display for ValueError {
@@ -130,6 +304,38 @@ impl core::fmt::Display for ValueError {
 }
 
 impl std::error::Error for ValueError {}
+
+impl From<NativeStringAccessError> for ValueError {
+    fn from(error: NativeStringAccessError) -> Self {
+        Self::NativeStringAccess(error)
+    }
+}
+impl From<NativeValueAccessRefusal> for ValueError {
+    fn from(error: NativeValueAccessRefusal) -> Self {
+        match error {
+            NativeValueAccessRefusal::FatalCondition(error) => Self::NativeFatalCondition(error),
+            NativeValueAccessRefusal::Unicode(error) => error.into(),
+            NativeValueAccessRefusal::StringAccess(error) => error.into(),
+            NativeValueAccessRefusal::Materialization(error) => Self::NativeMaterialization(error),
+            NativeValueAccessRefusal::ExpressionEngineUnavailable => {
+                Self::ExpressionEngineUnavailable
+            }
+            NativeValueAccessRefusal::CharacterModelUnavailable => Self::CharacterModelUnavailable,
+            NativeValueAccessRefusal::ScalarNumericInputUnavailable => {
+                Self::ScalarNumericInputUnavailable
+            }
+            NativeValueAccessRefusal::CommandProtocolUnavailable(command) => {
+                Self::CommandProtocolUnavailable(command)
+            }
+        }
+    }
+}
+
+impl From<UnicodeAccessError> for ValueError {
+    fn from(error: UnicodeAccessError) -> Self {
+        Self::UnicodeAccess(error)
+    }
+}
 
 /// Tcl's dict canonicalisation rule, as slot indices — **the** implementation of
 /// "first-occurrence key position, last value wins".
@@ -221,9 +427,279 @@ pub struct IntegerMagnitude {
     pub digits: String,
 }
 
+/// Representation evidence independent of a value's known string contents.
+/// A list and an equal string may take different native operations in Jim.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ValueRepresentation {
+    /// Known native ordinary string representation.
+    String,
+    /// Known native list internal representation, retaining element values.
+    List,
+    /// Known native dictionary internal representation, retaining key/value objects.
+    Dict,
+    /// Native representation is not established by the available value facts.
+    #[default]
+    Unknown,
+}
+
+/// Selected ordinary integer or effect-free safe integer-expression conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IntegerOperandGrammar {
+    /// Convert an ordinary integer with the selected native tower.
+    Integer,
+    /// Try an ordinary integer, then the shared safe-expression evaluator.
+    SafeIntegerExpression,
+}
+
+/// Integer operand preparation retains numeric and safe-expression errors separately.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IntegerOperandError {
+    /// An ordinary native integer conversion failed.
+    Integer(ValueError),
+    /// The selected safe expression did not produce an integer.
+    SafeExpression,
+}
+
+impl IntegerOperandGrammar {
+    /// Normalize through the selected value adapter without reading a variable.
+    /// The caller chooses the authored validation phase before calling this.
+    pub fn prepare<O: ValueOps>(
+        self,
+        ops: &mut O,
+        amount: &O::Value,
+    ) -> Result<O::Value, IntegerOperandError> {
+        match ops.int_add(None, amount) {
+            Ok(value) => Ok(value),
+            Err(error) if self == Self::Integer || error.native_access_refusal().is_some() => {
+                Err(IntegerOperandError::Integer(error))
+            }
+            Err(_) => {
+                // The safe numeric grammar rejects a raw non-Unicode token;
+                // its diagnostic still contains the original operand bytes.
+                let source = ops
+                    .try_as_str(amount)
+                    .map_err(|_| IntegerOperandError::SafeExpression)?;
+                let value = ops.eval_index_expression(&source).map_err(|error| {
+                    if error.native_access_refusal().is_some() {
+                        IntegerOperandError::Integer(error)
+                    } else {
+                        IntegerOperandError::SafeExpression
+                    }
+                })?;
+                Ok(ops.new_int(value))
+            }
+        }
+    }
+}
+
+impl IntegerOperandError {
+    /// Exact safe-expression presentation, preserving the original byte spelling.
+    /// Ordinary numeric diagnostics are presented by their numeric owner.
+    #[must_use]
+    pub fn safe_expression_message_bytes(&self, amount: &[u8]) -> Option<Vec<u8>> {
+        if !matches!(self, Self::SafeExpression) {
+            return None;
+        }
+        let mut message = b"expected integer expression but got \"".to_vec();
+        message.extend_from_slice(amount);
+        message.push(b'"');
+        Some(message)
+    }
+}
+
+/// Outcome from a selected same-original static option lookup.
+/// The adapter retains the native table/cache authority; callers retain the
+/// original value and receive byte-exact guest diagnostics separately from
+/// operational host refusal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OriginalOptionLookup {
+    Index(usize),
+    Failure {
+        message: Vec<u8>,
+        error_code: Vec<u8>,
+        string_result: Option<crate::native_string::NativeStringProtocol>,
+    },
+}
+
+/// Nonconverting shape of the same original at native concatenation.
+/// This metadata does not license a List getter, header copy or mutation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeConcatListShape {
+    /// Actual ordinary List flag and existing byte length.
+    List {
+        /// Actual member count, without parsing or inspecting any child.
+        length: usize,
+        /// Whether the original backing has its canonical flag set.
+        canonical: bool,
+        /// Existing resident length; None does not invoke an updater.
+        resident_length: Option<usize>,
+    },
+    /// Actual abstract List with the selected native index procedure.
+    Indexed,
+    /// Another original representation, without conversion.
+    Other,
+}
+
+/// Native concat's reached first-member lookup and its independent temporary.
+/// Ordinary members are borrowed; an abstract index hook can return a fresh
+/// refcount-zero original that must be bounced after append or fallback.
+pub struct NativeConcatFirstElement<T> {
+    /// Bytes produced by the selected getter on that exact original child.
+    pub bytes: Rc<[u8]>,
+    /// Actual fresh abstract child; None adds no member reference.
+    pub temporary: Option<T>,
+}
+
+/// Backend value operations consumed by shared command implementations.
 pub trait ValueOps {
     /// The runtime's value type (a cheap-to-clone handle).
     type Value: Clone;
+
+    /// Resolve an actual original object against an immutable declaration table.
+    /// `None` selects the portable matcher for non-native models or Jim; a
+    /// concrete adapter without its physical protocol must return a refusal.
+    fn original_option_index(
+        &mut self,
+        _original: &Self::Value,
+        _words: &'static [&'static str],
+        _exact: bool,
+        _noun: &'static str,
+    ) -> Result<Option<OriginalOptionLookup>, ValueError> {
+        Ok(None)
+    }
+
+    /// Actual or explicitly authored native string/name policy issuer.
+    /// Purpose-specific owners select their own operation from this receipt.
+    fn name_policy_protocol(&self) -> Option<crate::naming::NamePolicyProtocol> {
+        None
+    }
+
+    /// Compare retained physical object identities without converting values.
+    fn same_object(&self, _left: &Self::Value, _right: &Self::Value) -> Option<bool> {
+        None
+    }
+
+    /// Inspect the actual primary representation without materialization.
+    fn native_object_snapshot(
+        &self,
+        _value: &Self::Value,
+    ) -> Result<crate::native_object::NativeObjectSnapshot, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native physical object snapshot",
+        ))
+    }
+
+    /// Retire the actual primary cache after a selected native temporary lookup.
+    /// The already-resident exact string and storage identity stay unchanged.
+    fn discard_native_internal_representation(
+        &mut self,
+        _value: &Self::Value,
+    ) -> Result<(), ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native cache retirement",
+        ))
+    }
+
+    /// Reach actual C Unicode preparation on the original object.
+    fn native_unicode_units(&mut self, _value: &Self::Value) -> Result<Rc<[u32]>, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native original object Unicode",
+        ))
+    }
+
+    /// Selected native concat protocol; unknown adapters abstain.
+    fn concat_policy(&self) -> Option<tcl_dialect::ConcatPolicy> {
+        None
+    }
+
+    /// Whether this value currently has a native list representation.
+    /// This query must not coerce or shimmer the value.
+    fn has_list_representation(&self, _value: &Self::Value) -> bool {
+        false
+    }
+
+    /// Inspect the original native concat List shape without conversion.
+    /// Concrete adapters authenticate the actual physical string issuer.
+    fn native_concat_list_shape(
+        &self,
+        _value: &Self::Value,
+    ) -> Result<NativeConcatListShape, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat List shape",
+        ))
+    }
+
+    /// Create the actual selected empty List constructor result.
+    fn native_concat_empty_list(&mut self) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat List constructor",
+        ))
+    }
+
+    /// Apply C8.5+ `TclListObjCopy` to the original: ordinary Lists share
+    /// backing; actual abstract length-hook headers duplicate before `GetElements`.
+    fn native_concat_copy_list(&mut self, _value: &Self::Value) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat List copy",
+        ))
+    }
+
+    /// Append the same original List members to the unshared result header.
+    /// The result's backing owner performs the native child-reference COW.
+    fn native_concat_append_list(
+        &mut self,
+        _result: &Self::Value,
+        _source: &Self::Value,
+    ) -> Result<(), ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat List append",
+        ))
+    }
+
+    /// Get only the first original List member's native string.
+    /// A missing member stays distinct from an empty member.
+    fn native_concat_first_bytes(
+        &mut self,
+        _value: &Self::Value,
+    ) -> Result<Option<NativeConcatFirstElement<Self::Value>>, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat first member",
+        ))
+    }
+
+    /// Retire the actual fresh abstract Index result at its native bounce point.
+    /// Ordinary borrowed members have no temporary to release.
+    fn release_native_concat_first(&mut self, first: NativeConcatFirstElement<Self::Value>) {
+        drop(first);
+    }
+
+    /// Materialize one original through the physical concat string updater.
+    fn native_concat_string_bytes(&mut self, value: &Self::Value) -> Result<Rc<[u8]>, ValueError> {
+        self.native_string_bytes(value)
+    }
+
+    /// Construct the real release-selected string fallback result primary.
+    fn native_concat_string_result(&mut self, _bytes: &[u8]) -> Result<Self::Value, ValueError> {
+        Err(ValueError::CommandProtocolUnavailable(
+            "native concat string result",
+        ))
+    }
+
+    /// Retire an abandoned fresh concat result, including its member owners.
+    fn discard_native_concat_result(&mut self, value: Self::Value) {
+        drop(value);
+    }
+
+    /// Complete selected container index policy. Unknown adapters abstain.
+    fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
+        None
+    }
+
+    /// Evaluate Jim's safe integer expression without invoking public commands.
+    /// Engines reject variable, script and interpolated-word requests.
+    fn eval_index_expression(&mut self, source: &str) -> Result<i64, ValueError> {
+        Err(ValueError::NotInteger(source.to_owned()))
+    }
 
     // -- construction / shimmer --
 
@@ -258,16 +734,35 @@ pub trait ValueOps {
 
     // -- string access (UTF-8; char-indexed downstream) --
 
-    /// The string representation, generated and cached on first call
-    /// (`Tcl_GetString`). Always valid UTF-8 — the seam never exposes bytes.
-    fn as_str(&mut self, v: &Self::Value) -> Rc<str>;
+    /// Independently selected native character-unit protocol. Unknown adapters
+    /// retain checked Unicode access rather than assuming a byte interpreter.
+    fn string_character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
+        None
+    }
 
-    /// The character length for this runtime's selected Tcl release.
-    ///
-    /// Stateless adapters default to Tcl 9 scalar counting. Runtime adapters
-    /// with a selectable release override this using [`string_char_len`].
-    fn char_len(&mut self, v: &Self::Value) -> usize {
-        self.as_str(v).chars().count()
+    /// Checked Unicode projection of the actual native bytes. Failure preserves
+    /// the value and must propagate as a host refusal, outside guest completion.
+    fn try_as_str(&mut self, v: &Self::Value) -> Result<Rc<str>, UnicodeAccessError> {
+        let bytes = self.as_bytes(v);
+        std::str::from_utf8(&bytes)
+            .map(Rc::from)
+            .map_err(|error| UnicodeAccessError {
+                valid_up_to: error.valid_up_to(),
+                error_len: error.error_len(),
+            })
+    }
+
+    /// Checked character count for adapters that require Unicode. Native byte
+    /// character engines may override this without asking for a Unicode view.
+    fn try_char_len(&mut self, v: &Self::Value) -> Result<usize, UnicodeAccessError> {
+        Ok(self.try_as_str(v)?.chars().count())
+    }
+
+    /// Reach a checked native character count, retaining original cache effects.
+    /// Unicode adapters use their checked projection; physical native adapters
+    /// authenticate their own string recipe and preserve capability refusals.
+    fn native_char_len(&mut self, v: &Self::Value) -> Result<usize, ValueError> {
+        self.try_char_len(v).map_err(Into::into)
     }
 
     // -- numeric / boolean coercion (closed error set) --
@@ -318,16 +813,10 @@ pub trait ValueOps {
     /// `None` left operand denotes an **absent value treated as zero** — `incr`
     /// of an unset variable starts at 0.
     ///
-    /// This is a seam, not a convenience: the two runtimes have **different
-    /// integer towers**. The default coerces both operands to `i64` and reports
-    /// [`ValueError::IntegerOverflow`] on wrap — exactly the fixed-width VM's
-    /// behaviour. A runtime with arbitrary-precision integers (the WASM runtime's
-    /// bignum) overrides this to widen instead of overflowing, so `incr` shared
-    /// in `tcl-cmd-core` stays faithful to each runtime's number model without
-    /// the core ever naming a representation. Folding the unset → zero case into
-    /// the seam keeps the shared core free of a throwaway zero value (the runtime
-    /// would otherwise have to refcount-release it); each implementor supplies its
-    /// own zero.
+    /// The compatibility default reports fixed-wide overflow. Production
+    /// adapters override this seam with the selected native arithmetic policy:
+    /// Tcl 8.4 and Jim wrap, while Tcl 8.5 and later promote to arbitrary precision.
+    /// The absent-to-zero rule stays here so adapters own their transient values.
     fn int_add(
         &mut self,
         a: Option<&Self::Value>,
@@ -385,17 +874,15 @@ pub trait ValueOps {
     fn dict_pairs(&mut self, v: &Self::Value) -> DictPairs<Self::Value> {
         let elems = self.list_elements(v)?;
         if elems.len() % 2 != 0 {
-            return Err(ValueError::BadList(
-                "missing value to go with key".to_string(),
-            ));
+            return Err(ValueError::MissingDictionaryValue);
         }
         // The canonicalisation rule itself lives in `canonical_dict_slots` —
         // this method binds it to a value model, it does not restate it.
-        let keys: Vec<Rc<str>> = elems
+        let keys: Vec<Rc<[u8]>> = elems
             .as_chunks::<2>()
             .0
             .iter()
-            .map(|chunk| self.as_str(&chunk[0]))
+            .map(|chunk| self.as_bytes(&chunk[0]))
             .collect();
         Ok(canonical_dict_slots(keys.iter().map(AsRef::as_ref))
             .into_iter()
@@ -442,24 +929,71 @@ pub trait ValueOps {
         self.new_dict(pairs)
     }
 
-    // -- bytes (byte-exact; the value-representation seam for append/binary) --
-
-    /// The value's **raw bytes**, byte-exact — unlike [`as_str`](Self::as_str) it
-    /// must not lose information for a value holding non-UTF-8 data. The default
-    /// reuses the (UTF-8) string rep, correct for a string-only value model (the
-    /// VM's `Rc<str>`); a byte-oriented runtime (the WASM `*mut TclObj`) overrides
-    /// it to return the real bytes, so a shared `append` core stays byte-exact
-    /// (`append data $binary` must not corrupt a byte > 127).
-    fn as_bytes(&mut self, v: &Self::Value) -> Rc<[u8]> {
-        Rc::from(self.as_str(v).as_bytes())
+    /// Construct native dictionary keys through checked original-object access.
+    /// Unicode-only value models may use their ordinary dictionary constructor.
+    ///
+    /// # Errors
+    /// Returns an unavailable native key updater or issuer.
+    fn new_dict_checked(
+        &mut self,
+        pairs: Vec<(Self::Value, Self::Value)>,
+    ) -> Result<Self::Value, ValueError> {
+        Ok(self.new_dict(pairs))
     }
 
-    /// A value from raw bytes. The default routes through
-    /// [`new_string`](Self::new_string) (lossy for non-UTF-8 on a string-only
-    /// model, but such a runtime only ever builds from valid UTF-8); a byte
-    /// runtime overrides it to be byte-exact.
-    fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
-        self.new_string(String::from_utf8_lossy(bytes).into_owned())
+    /// Checked dictionary construction retaining the copied table bucket count.
+    ///
+    /// # Errors
+    /// Returns the same original-key failures as `new_dict_checked`.
+    fn new_dict_with_hash_bucket_count_checked(
+        &mut self,
+        pairs: Vec<(Self::Value, Self::Value)>,
+        bucket_count: usize,
+    ) -> Result<Self::Value, ValueError> {
+        Ok(self.new_dict_with_hash_bucket_count(pairs, bucket_count))
+    }
+
+    // -- bytes (byte-exact; the value-representation seam for append/binary) --
+
+    /// The value's exact raw bytes. Every adapter must preserve invalid Unicode.
+    fn as_bytes(&mut self, v: &Self::Value) -> Rc<[u8]>;
+
+    /// Materialise the native string representation before a byte consumer
+    /// selects its own input extent. The default requires an adapter whose
+    /// `as_bytes` already supplies an authoritative resident string. Adapters
+    /// with pure binary storage override this with their independently selected
+    /// native storage recipe; absence is an operational host refusal.
+    fn native_string_bytes(&mut self, v: &Self::Value) -> Result<Rc<[u8]>, ValueError> {
+        Ok(self.as_bytes(v))
+    }
+
+    /// Construct a native value retaining every supplied byte. There is no
+    /// Unicode fallback; a string-only test model must keep its inputs bounded.
+    fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value;
+
+    /// Native Jim string constructor with the character-count receipt authored
+    /// by its range operation. Concrete Jim adapters retain this string intrep
+    /// until a later conversion replaces it; equal bytes alone do not recover
+    /// the receipt. Non-native fixture adapters may use the ordinary byte value.
+    fn new_jim_string(&mut self, bytes: &[u8], _character_count: usize) -> Self::Value {
+        self.new_bytes(bytes)
+    }
+
+    /// Apply native Jim trim cuts through the actual physical object owner.
+    /// Concrete Jim adapters preserve an unshared suffix cut's cached count,
+    /// copy shared cuts, and perform the required string-intrep conversion.
+    /// Non-native fixture models may construct the ordinary byte value.
+    fn jim_string_trim_result(
+        &mut self,
+        value: &Self::Value,
+        plan: crate::raw_string::JimStringTrimPlan,
+    ) -> Self::Value {
+        let bytes = self.as_bytes(value);
+        if plan.byte_start() == 0 && plan.byte_end() == bytes.len() {
+            value.clone()
+        } else {
+            self.new_bytes(&bytes[plan.byte_start()..plan.byte_end()])
+        }
     }
 
     // -- copy-on-write escape hatches (amortised in-place growth) --
@@ -520,9 +1054,13 @@ mod tests {
                     .as_str(),
             )
         }
-        fn as_str(&mut self, v: &Rc<str>) -> Rc<str> {
-            v.clone()
+        fn as_bytes(&mut self, v: &Rc<str>) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
         }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
+        }
+
         fn as_int(&mut self, v: &Rc<str>) -> Result<i64, ValueError> {
             v.parse::<i64>()
                 .map_err(|_| ValueError::NotInteger(v.to_string()))
@@ -542,6 +1080,26 @@ mod tests {
     }
 
     #[test]
+    fn an_absent_expression_engine_remains_a_host_refusal() {
+        let refusal = NativeValueAccessRefusal::ExpressionEngineUnavailable;
+        let error = ValueError::from(refusal);
+        assert_eq!(error.native_access_refusal(), Some(refusal));
+        assert_eq!(error.unicode_refusal(), None);
+    }
+
+    #[test]
+    fn an_unselected_command_protocol_remains_a_typed_host_refusal() {
+        let refusal = NativeValueAccessRefusal::CommandProtocolUnavailable("namespace code");
+        let error = ValueError::from(refusal);
+        assert_eq!(error.native_access_refusal(), Some(refusal));
+        assert_eq!(error.unicode_refusal(), None);
+        assert_eq!(
+            error.message(),
+            "namespace code native handler policy is not selected"
+        );
+    }
+
+    #[test]
     fn construction_defaults() {
         let mut o = Strs;
         // new_string defaults through new_str; empty is "".
@@ -557,9 +1115,9 @@ mod tests {
         // tclsh9.0: `string length héllo` == 5 (code points), not bytes.
         let mut o = Strs;
         let v = o.new_str("héllo");
-        assert_eq!(o.char_len(&v), 5);
+        assert_eq!(o.try_char_len(&v).unwrap(), 5);
         let ascii = o.new_str("abc");
-        assert_eq!(o.char_len(&ascii), 3);
+        assert_eq!(o.try_char_len(&ascii).unwrap(), 3);
     }
 
     #[test]
@@ -637,12 +1195,9 @@ mod tests {
         assert_eq!(dp[0].1.as_ref(), "2");
         // Odd-length list → the canonical "missing value to go with key" error.
         let odd = o.new_str("a 1 b");
-        assert_eq!(
-            o.dict_pairs(&odd),
-            Err(ValueError::BadList(
-                "missing value to go with key".to_string()
-            ))
-        );
+        let error = o.dict_pairs(&odd).unwrap_err();
+        assert_eq!(error, ValueError::MissingDictionaryValue);
+        assert_eq!(error.message_bytes(), b"missing value to go with key");
     }
 
     #[test]

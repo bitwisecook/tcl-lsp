@@ -392,7 +392,7 @@ fn plan_word(
                 text: text.clone(),
             })
         }
-        WordExpr::Variable { spelling, source } => plan_variable(spelling, source, slot),
+        WordExpr::Variable { spelling, source } => plan_variable(spelling, source, slot, config),
         WordExpr::CommandSubstitution { spelling, source } => {
             let inner = nested_words(spelling, source, config)?;
             Ok(WasmWordPlan::Invoke(Box::new(plan_invoke(
@@ -457,7 +457,7 @@ fn plan_part(
                 text: text.clone(),
             })
         }
-        WordPart::Variable { spelling, source } => plan_variable(spelling, source, slot),
+        WordPart::Variable { spelling, source } => plan_variable(spelling, source, slot, config),
         WordPart::CommandSubstitution { spelling, source } => {
             let inner = nested_words(spelling, source, config)?;
             Ok(WasmWordPlan::Invoke(Box::new(plan_invoke(
@@ -481,8 +481,9 @@ fn plan_variable(
     spelling: &str,
     source: &SourceSite,
     slot: usize,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
-    match variable_word_place(spelling, source) {
+    match variable_word_place(spelling, source, config) {
         Ok(CellPlace::Named { name }) => Ok(WasmWordPlan::Scalar { slot, name }),
         Ok(CellPlace::Element { name, key }) => Ok(WasmWordPlan::Element { slot, name, key }),
         Err(VariableWordDecline::Dynamic) => Err(WasmLeafInvokeDecline::DynamicVariableName),
@@ -589,8 +590,8 @@ mod tests {
         );
     }
 
-    /// `$a(b)` is an element access; `${a(b)}` names a scalar. The
-    /// compatibility spelling is identical, so the lexical extent decides.
+    /// Both literal reference spellings perform element lookup. Braces select
+    /// literal index bytes; they do not establish a scalar with parentheses.
     #[test]
     fn array_and_brace_spellings_are_told_apart() {
         let element = plan("puts $a(b)").expect("array element read plans");
@@ -602,12 +603,13 @@ mod tests {
                 key: "b".to_owned(),
             }
         );
-        let scalar = plan("puts ${a(b)}").expect("odd scalar name plans");
+        let scalar = plan("puts ${a(b)}").expect("literal element name plans");
         assert_eq!(
             scalar.root.words[1],
-            WasmWordPlan::Scalar {
+            WasmWordPlan::Element {
                 slot: scalar.root.argv_slot + 1,
-                name: "a(b)".to_owned(),
+                name: "a".to_owned(),
+                key: "b".to_owned(),
             }
         );
     }
@@ -617,6 +619,15 @@ mod tests {
         assert_eq!(
             plan("puts $a($i)"),
             Err(WasmLeafInvokeDecline::DynamicVariableName)
+        );
+        let literal = plan("puts ${a($i)}").expect("braced index is literal");
+        assert_eq!(
+            literal.root.words[1],
+            WasmWordPlan::Element {
+                slot: literal.root.argv_slot + 1,
+                name: "a".to_owned(),
+                key: "$i".to_owned(),
+            }
         );
     }
 
@@ -682,7 +693,7 @@ mod tests {
             WasmLeafInvokeDecline::WordNestingTooDeep,
             WasmLeafInvokeDecline::FrameTooLarge,
         ] {
-            assert!(!decline.as_str().is_empty());
+            assert_ne!(decline.as_str(), "");
         }
     }
 
@@ -711,6 +722,11 @@ mod tests {
         ) else {
             panic!("expected a typed backend decline");
         };
-        assert!(!attempts.is_empty());
+        assert_ne!(
+            attempts,
+            [] as [crate::backend_registry::SelectorAttempt<
+                crate::codegen::wasm::leaf_invoke::WasmLeafInvokeDecline,
+            >; 0]
+        );
     }
 }

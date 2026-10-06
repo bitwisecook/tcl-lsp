@@ -743,7 +743,10 @@ mod tests {
             command_subst_texts_cfg("foo [bar $x] baz"),
             vec!["bar $x".to_owned()]
         );
-        assert!(command_subst_texts_cfg("no subst here").is_empty());
+        assert_eq!(
+            command_subst_texts_cfg("no subst here"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -956,7 +959,7 @@ mod tests {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("", &reg);
-        assert!(vars.is_empty());
+        assert_eq!(vars.len(), 0);
     }
 
     #[test]
@@ -964,7 +967,7 @@ mod tests {
         let reg = default_registry();
         let mut scanner = VarReferenceScanner::new(VarScanOptions::default());
         let vars = scanner.scan_word("hello world", &reg);
-        assert!(vars.is_empty());
+        assert_eq!(vars.len(), 0);
     }
 
     #[test]
@@ -974,7 +977,7 @@ mod tests {
         scanner.scan_word("$x", &reg);
         assert_eq!(scanner.cache.len(), 1);
         scanner.clear_cache();
-        assert!(scanner.cache.is_empty());
+        assert_eq!(scanner.cache.len(), 0);
     }
 
     #[test]

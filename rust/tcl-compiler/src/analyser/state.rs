@@ -308,6 +308,8 @@ impl VarCommandSite {
 pub struct CmdCommandSite {
     /// Text of the bracketed command substitution (no brackets).
     pub cmd_text: String,
+    /// Original nested invocation carriers stamped by the source owner.
+    pub commands: Vec<crate::ir::CommandTokens>,
     /// Optional method name.
     pub method_name: Option<String>,
     /// Content span of the method-name word (delimiters trimmed), when
@@ -334,6 +336,9 @@ impl CmdCommandSite {
     /// [`VarCommandSite::rebase`] for why this is a method rather than a
     /// per-field loop at the call site.
     pub(crate) fn rebase(&mut self, delta: u32) {
+        for tokens in &mut self.commands {
+            crate::lattice_rebase::rebase_command_tokens(tokens, i64::from(delta));
+        }
         self.cmd_span = shift_span(self.cmd_span, delta);
         self.method_span = self.method_span.map(|sp| shift_span(sp, delta));
     }
@@ -345,16 +350,12 @@ fn shift_span(span: Span, delta: u32) -> Span {
     Span::new(span.start() + delta, span.end() + delta)
 }
 
-/// Single-pass Tcl analyser.
-///
-/// Constructed once per document, walked end-to-end, then dropped.
-// False positive: a flat accumulator whose bools are independent pass
-// flags / config toggles (`structure_only`, `defer_proc_bodies`,
-// `deep_param_traits`, `took_fast_path`, the two `probe_skip_*` test hooks,
-// …) that combine freely — not a state machine, so no natural enum.
+/// Tcl analysis state and the retained inputs for successive document walks.
+// False positive: independent pass flags, not mutually exclusive states.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct Analyser {
+    pub(super) resolved_input: Option<super::input::ResolvedAnalysisInput>,
     /// Public accumulator returned by [`Analyser::analyse`].
     pub result: AnalysisResult,
     /// Path through ``result.global_scope`` to the currently-active
@@ -626,6 +627,10 @@ pub struct Analyser {
     /// (reset) at the top of `process_command`, so recursion *below* the
     /// built command — a literal body among its words — behaves normally.
     pub presubstituted_args: bool,
+    /// Exact evaluated-body entry for a reanchored single-command list script.
+    /// The display span remains authored; semantic origin and phase belong to
+    /// the retained body invocation, rather than the list construction site.
+    pub evaluated_body_invocation: Option<(u32, crate::command_binding::SourceInvocationBinding)>,
     /// Whether **E207** (nesting depth exceeds the analysis limit — see
     /// `commands::MAX_BODY_DEPTH`) has already been emitted for this walk.
     /// The depth cap trips once per nested body past the limit — on
@@ -690,7 +695,7 @@ pub struct Analyser {
     ///
     /// Populated once by [`Self::finalise_invocation_resolutions`] from the
     /// already-settled `command_invocations`, and consulted by
-    /// [`Self::fact_live_for_call`] when the call site under test is itself
+    /// [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] when the call site under test is itself
     /// nested inside a body: a proven invocation of the *enclosing*
     /// definition that ran before a later unconditional deletion means that
     /// invocation's own nested calls already resolved (`proc helper {}`,
@@ -753,6 +758,7 @@ pub struct Analyser {
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
     pub(super) seed_namespace_key: Option<String>,
+    path_constant_source_namespace: Option<String>,
     /// Scope path of the innermost seeded namespace scope (empty when not
     /// seeded) — the base path for the top-level walk.
     pub(super) seed_scope_path: Vec<usize>,
@@ -1120,6 +1126,9 @@ pub struct Analyser {
     /// `None` for the whole-file `analyse` path (byte-identical: it builds
     /// the unit itself, exactly as before).
     pub(super) cu_override: Option<std::sync::Arc<crate::compilation_unit::CompilationUnit>>,
+    /// Driver-supplied execution entry shared by realm, lowering and diagnostics.
+    pub(super) source_analysis_entry:
+        Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
     /// When `Some`, an isolated proc-body analysis (the per-item path) records
     /// every qualified (`::` / `static::`) variable read that fell through to
     /// the (empty) enclosing global scope here, instead of dropping it.  The
@@ -1269,7 +1278,7 @@ pub struct Analyser {
     /// true; the `static::` half needs no index.  Built lazily from
     /// [`Self::irules_event_bodies`] and cleared with it at the top of each
     /// analysis run.
-    pub(super) irules_debug_flags: Option<Vec<String>>,
+    pub(super) irules_debug_flags: Option<Vec<crate::connection_scope::EventCell>>,
     /// Creation calls the walk could not classify because their head was not
     /// yet known to be a class factory — replayed once the parameterised-class
     /// observation join has settled.
@@ -1352,7 +1361,10 @@ impl Analyser {
     /// grammar, never the default's. [`Self::file_lexer_config`] is the
     /// whole-file form.
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(self.grammar())
+        self.resolved_input.as_ref().map_or_else(
+            || tcl_lexer::LexerConfig::from_grammar(self.grammar()),
+            |input| input.config,
+        )
     }
 
     /// This document dialect's word-value rules: how a braced word's
@@ -1371,7 +1383,10 @@ impl Analyser {
     /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
     /// and genuinely fails on such a file.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_file_grammar(self.grammar())
+        tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LexerConfig::for_file_grammar(self.grammar()).leading_bom,
+            ..self.lexer_config()
+        }
     }
 
     /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
@@ -1537,6 +1552,7 @@ impl Analyser {
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             ingress_grammar: None,
             unit_profile: None,
+            resolved_input: None,
             environment: None,
             context: None,
             pack_overlay: 0,
@@ -1571,6 +1587,7 @@ impl Analyser {
             irules_debug_gate_depth: 0,
             body_depth: 0,
             presubstituted_args: false,
+            evaluated_body_invocation: None,
             e207_emitted: false,
             body_scope_stack: Vec::new(),
             command_aliases: HashMap::new(),
@@ -1584,6 +1601,7 @@ impl Analyser {
             pending_const_dispatches: Vec::new(),
             pending_instance_class_sites: Vec::new(),
             seed_namespace_key: None,
+            path_constant_source_namespace: None,
             seed_scope_path: Vec::new(),
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
@@ -1626,6 +1644,7 @@ impl Analyser {
             deferred_bodies: Vec::new(),
             minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
+            source_analysis_entry: None,
             capture_global_reads: None,
             capture_global_defs: None,
             pending_disabled_commands: Vec::new(),
@@ -1686,6 +1705,9 @@ impl Analyser {
         if let Some(context) = &self.context {
             return std::sync::Arc::clone(context);
         }
+        if let Some(input) = &self.resolved_input {
+            return std::sync::Arc::clone(&input.context);
+        }
         let environment = crate::environment_ingress::resolve_environment(self.profile.name);
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
@@ -1699,6 +1721,14 @@ impl Analyser {
     /// carried as a placement query on the walk's own context, not as an
     /// `availability_for_name` `TK`-bit union).
     pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
+        if let Some(input) = &self.resolved_input {
+            self.profile = input.profile;
+            self.ingress_grammar = Some(input.config.grammar_over(input.profile.grammar));
+            self.unit_profile = Some(input.unit_profile);
+            self.context = Some(std::sync::Arc::clone(&input.context));
+            self.environment = None;
+            return input.context.context().ambient_package("Tk");
+        }
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
         self.ingress_grammar = Some(environment.grammar());
@@ -1941,6 +1971,54 @@ impl Analyser {
         self
     }
 
+    /// Retain the driver's actual command/package entry for every analysis phase.
+    /// Package advertisements and assistance declarations do not supply this proof.
+    #[must_use]
+    pub fn with_source_analysis_entry(
+        mut self,
+        entry: std::sync::Arc<crate::command_binding::SourceAnalysisEntry>,
+    ) -> Self {
+        self.source_analysis_entry = Some(entry);
+        self
+    }
+
+    /// Use the driver's retained editing inputs at every full, chunked and
+    /// per-item ingress. The dialect string passed to `analyse` remains a
+    /// presentation label. Reusing this analyser preserves the explicit input;
+    /// no display-name lookup replaces its grammar or command generation.
+    #[must_use]
+    pub fn with_resolved_input(mut self, input: super::input::ResolvedAnalysisInput) -> Self {
+        self.resolved_input = Some(input);
+        self
+    }
+
+    /// Retain the current walk's editing generation and exact body grammar for
+    /// isolated analysis or a cache key. Call after resolving the walk input;
+    /// this does not retain the document's temporal execution world.
+    #[must_use]
+    pub fn resolved_analysis_input(&self) -> super::input::ResolvedAnalysisInput {
+        super::input::ResolvedAnalysisInput::new(
+            self.profile,
+            self.unit_profile.unwrap_or(self.profile),
+            self.analysis_context(),
+            self.lexer_config(),
+        )
+    }
+
+    pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {
+        let registry = self.registry.as_deref().expect("registry just stashed");
+        if let Some(entry) = &self.source_analysis_entry {
+            crate::realm::document_realm_bindings_with_source_entry(
+                source,
+                self.lexer_config(),
+                registry,
+                entry,
+            )
+        } else {
+            crate::realm::document_realm_bindings_with_config(source, self.lexer_config(), registry)
+        }
+    }
+
     /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
     /// CFG/SSA diagnostic tail, so [`Self::emit_cfg_ssa_diagnostics`] consumes
     /// it (once) instead of rebuilding the whole-file unit.  The supplied unit
@@ -1998,6 +2076,7 @@ impl Analyser {
     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
         use std::collections::HashSet;
 
+        self.unresolved_commands_emitted = false;
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
@@ -2011,6 +2090,8 @@ impl Analyser {
         // turn.
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2078,11 +2159,8 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         // Precompute the iRules file-profile stack (no-op off f5-irules) so
         // the per-command IRULE1001 hint can consult it without recomputing.
         self.compute_irules_file_profiles();
@@ -2125,6 +2203,7 @@ impl Analyser {
         // absolute ones stay put, and call-site candidates gain the seeded
         // tier, all through the ordinary scope machinery.
         if let Some(seed) = self.seed_namespace_key.take() {
+            self.path_constant_source_namespace = Some(seed.clone());
             let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
             let mut base: Vec<usize> = Vec::new();
             for segment in crate::naming::key_segments(&seed) {
@@ -2415,6 +2494,8 @@ impl Analyser {
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2452,11 +2533,8 @@ impl Analyser {
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
@@ -2512,6 +2590,8 @@ impl Analyser {
         self.irules_debug_flags = None;
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_ambient, &self.package_provides);
@@ -2545,11 +2625,8 @@ impl Analyser {
         // ``process_command`` silently skips body recursion on
         // the incremental path.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::realm::document_realm_bindings_with_config(
-            source,
-            self.lexer_config(),
-            self.registry.as_deref().expect("registry just stashed"),
-        );
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(Arc::new(self.head_identities.clone()));
         self.recovery_known_commands = super::utils::recovery_known_commands(
             source,
             self.registry.as_deref().expect("registry just stashed"),
@@ -2606,6 +2683,7 @@ impl Analyser {
         new_text: &str,
         dialect: &str,
     ) -> AnalysisResult {
+        self.resolve_walk_environment(dialect);
         // Error recovery (ghost-token re-lex, stray-closer repair) and
         // inline `# tcl-lsp: stub` overlays are only applied on the full
         // `analyse` path; when either could be in play, re-analyse fully
@@ -2619,9 +2697,7 @@ impl Analyser {
             new_text,
             // The document's whole-file grammar, resolved once through the
             // ingress exactly as `analyse` resolves it for the full walk.
-            tcl_lexer::LexerConfig::for_file_grammar(
-                crate::environment_ingress::resolve_environment(dialect).grammar(),
-            ),
+            self.file_lexer_config(),
         );
         // `analyse` segments with *error recovery*; the fast path uses plain
         // incremental segmentation.  `script_is_complete` only checks overall
@@ -2633,16 +2709,13 @@ impl Analyser {
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let environment = crate::environment_ingress::resolve_environment(dialect);
-        let keyed =
-            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let generation = self.analysis_context();
         let known: std::collections::HashSet<&str> =
             generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
             &known,
-            tcl_lexer::LexerConfig::from_grammar(environment.analyser_profile().grammar),
+            self.lexer_config(),
         );
         if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
             return self.fresh_full_analyse(new_text, dialect);
@@ -2676,9 +2749,13 @@ impl Analyser {
     /// safe way to take the full-rebuild fallback mid-call.
     pub(super) fn fresh_full_analyse(&self, new_text: &str, dialect: &str) -> AnalysisResult {
         let mut fresh = Analyser::with_disabled_diagnostics(self.disabled_diagnostics.clone())
+            .with_resolved_input(self.resolved_analysis_input())
             .with_non_ascii_mode(self.non_ascii_mode)
             .with_shared_extra_commands(Arc::clone(&self.extra_commands))
             .with_package_provides(self.package_provides.clone());
+        fresh
+            .source_analysis_entry
+            .clone_from(&self.source_analysis_entry);
         fresh.analyse(new_text, dialect)
     }
 
@@ -2692,8 +2769,12 @@ impl Analyser {
     /// poisoning applied at fold time, where the whole document's write
     /// counts are in view.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        self.result.path_constant_assignments.extend(
-            crate::auto_path_eval::constant_path_assignments_from_commands(commands, self.profile),
+        self.result.path_constant_assignments.append(
+            crate::auto_path_eval::constant_path_assignments_in_namespace(
+                commands,
+                self.profile,
+                self.path_constant_source_namespace.as_deref(),
+            ),
         );
     }
 
@@ -3002,6 +3083,7 @@ impl Analyser {
         // every definition in the file (a local candidate defined later in
         // the file still wins; an absent one falls back to global).
         self.finalise_invocation_resolutions();
+        self.retain_positioned_command_definitions();
         self.publish_load_level_destructions();
         // Attach every namespace-qualified occurrence to the cell it names,
         // now that the whole file's `namespace eval` bodies have been walked
@@ -3061,6 +3143,7 @@ impl Analyser {
                 .cmp(&b.range.start())
                 .then(a.range.end().cmp(&b.range.end()))
                 .then_with(|| a.name.cmp(&b.name))
+                .then(a.lookup.cmp(&b.lookup))
         });
         sort_scope_refs(&mut self.result.global_scope);
         for v in self.result.all_variables.values_mut() {
@@ -3154,18 +3237,20 @@ impl Analyser {
             return Some(std::sync::Arc::clone(trust));
         }
         let registry = self.registry.as_deref()?;
-        let module = crate::lowering::lower_to_ir_with_dialect(
-            &self.source,
-            registry,
-            self.lexer_config(),
-            // `None`, not `Some(plain_tcl)`, when the analysis named no
-            // dialect: an unstated dialect is not the same input as an
-            // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
-            // source selection. `self.profile` is always populated (it
-            // defaults to the plain fallback), so gate on the recorded
-            // spelling the way the pre-refactor `&str` boundary did.
-            (!self.result.dialect.is_empty()).then_some(self.profile),
-        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, self.lexer_config())
+            .with_dialect(
+                // `None`, not `Some(plain_tcl)`, when the analysis named no
+                // dialect: an unstated dialect is not the same input as an
+                // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
+                // source selection. `self.profile` is always populated (it
+                // defaults to the plain fallback), so gate on the recorded
+                // spelling the way the pre-refactor `&str` boundary did.
+                (!self.result.dialect.is_empty()).then_some(self.profile),
+            );
+        if let Some(entry) = &self.source_analysis_entry {
+            lowerer.set_source_analysis_options(entry.options());
+        }
+        let module = crate::lowering::lower_to_ir_with(lowerer, &self.source);
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,
         ));
@@ -3196,6 +3281,7 @@ impl Analyser {
         self.objdefine_abort_candidates.clear();
         self.objdefine_unresolved_receiver = false;
         self.seed_namespace_key = None;
+        self.path_constant_source_namespace = None;
         self.seed_scope_path.clear();
         self.recovery_known_commands.clear();
         self.minted_synthetic_names.clear();
@@ -3345,23 +3431,29 @@ mod tests {
     fn new_analyser_starts_at_global_scope_with_empty_state() {
         let a = Analyser::new();
         assert_eq!(a.result.global_scope.kind, ScopeKind::Global);
-        assert!(a.current_scope_path.is_empty());
-        assert!(a.source.is_empty());
-        assert!(a.disabled_diagnostics.is_empty());
+        assert_eq!(a.current_scope_path, [] as [usize; 0]);
+        assert_eq!(a.source, "");
+        assert_eq!(a.disabled_diagnostics.len(), 0);
         assert_eq!(a.conditional_depth, 0);
         assert_eq!(a.body_depth, 0);
-        assert!(a.last_comment.is_empty());
+        assert_eq!(a.last_comment, "");
         assert!(a.file_path.is_none());
-        assert!(a.command_aliases.is_empty());
-        assert!(a.var_command_sites.is_empty());
-        assert!(a.cmd_command_sites.is_empty());
-        assert!(a.const_strings.is_empty());
-        assert!(a.regex_vars.is_empty());
+        assert_eq!(a.command_aliases.len(), 0);
+        assert_eq!(
+            a.var_command_sites,
+            [] as [crate::analyser::state::VarCommandSite; 0]
+        );
+        assert_eq!(
+            a.cmd_command_sites,
+            [] as [crate::analyser::state::CmdCommandSite; 0]
+        );
+        assert_eq!(a.const_strings.len(), 0);
+        assert_eq!(a.regex_vars.len(), 0);
         assert!(a.builtin_names.is_none());
         assert!(a.builtin_dialect.is_none());
         assert!(a.current_event.is_none());
-        assert!(a.ensemble_namespaces.is_empty());
-        assert!(a.objdefined_vars.is_empty());
+        assert_eq!(a.ensemble_namespaces.len(), 0);
+        assert_eq!(a.objdefined_vars.len(), 0);
         assert!(!a.unresolved_commands_emitted);
     }
 
@@ -3796,7 +3888,7 @@ mod tests {
         // records nothing.
         let mut a = Analyser::new();
         let r = a.analyse("set d [Widget new]\n", "tcl");
-        assert!(r.instance_classes.is_empty(), "{:?}", r.instance_classes);
+        assert_eq!(r.instance_classes.len(), 0, "{:?}", r.instance_classes);
     }
 
     #[test]
@@ -3811,8 +3903,8 @@ mod tests {
     fn analyse_empty_source_is_empty_result() {
         let mut a = Analyser::new();
         let r = a.analyse("", "tcl");
-        assert!(r.all_procs.is_empty());
-        assert!(r.diagnostics.is_empty());
+        assert_eq!(r.all_procs.len(), 0);
+        assert_eq!(r.diagnostics, [] as [crate::analyser::types::Diagnostic; 0]);
     }
 
     #[test]
@@ -4028,8 +4120,9 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W220" | "W211" | "O109" | "O126"))
             .map(|d| d.code.to_string())
             .collect();
-        assert!(
-            codes.is_empty(),
+        assert_eq!(
+            codes.len(),
+            0,
             "RMW read in cmd-sub keeps set i 0 alive: {codes:?}"
         );
         // TP control: no read-modify-write of `i` — the first assignment is
@@ -4102,7 +4195,7 @@ mod tests {
         let codes = rbs_codes(
             "proc f {fp} {\n  while {[gets $fp line] >= 0} {\n    set n [string length $line]\n    puts \"$line ($n chars)\"\n  }\n}\n",
         );
-        assert!(codes.is_empty(), "gets-in-condition writes line: {codes:?}");
+        assert_eq!(codes.len(), 0, "gets-in-condition writes line: {codes:?}");
     }
 
     #[test]
@@ -4112,7 +4205,7 @@ mod tests {
         let codes = rbs_codes(
             "proc f {sock} {\n  set eof [expr {[catch {eof $sock} tmp] || $tmp}]\n  return $eof\n}\n",
         );
-        assert!(codes.is_empty(), "catch-in-expr writes tmp: {codes:?}");
+        assert_eq!(codes.len(), 0, "catch-in-expr writes tmp: {codes:?}");
     }
 
     #[test]
@@ -4226,8 +4319,9 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W210" | "W214"))
             .map(|d| d.code.to_string())
             .collect();
-        assert!(
-            offenders.is_empty(),
+        assert_eq!(
+            offenders.len(),
+            0,
             "method params / instance vars must not fire W210/W214: {offenders:?}",
         );
     }
@@ -4618,10 +4712,10 @@ mod tests {
         let r = a.analyse("interp alias {} a {} b\ninterp alias {} b {} expr\n", "tcl");
         let alias_a = r.command_aliases.get("::a").expect("::a recorded");
         assert_eq!(alias_a.target, "b");
-        assert!(alias_a.extras.is_empty());
+        assert_eq!(alias_a.extras, [] as [std::string::String; 0]);
         let alias_b = r.command_aliases.get("::b").expect("::b recorded");
         assert_eq!(alias_b.target, "expr");
-        assert!(alias_b.extras.is_empty());
+        assert_eq!(alias_b.extras, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4634,7 +4728,7 @@ mod tests {
         );
         let alias = r.command_aliases.get("::myop").expect("::myop recorded");
         assert_eq!(alias.target, "puts");
-        assert!(alias.extras.is_empty());
+        assert_eq!(alias.extras, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4753,7 +4847,10 @@ mod tests {
             .iter()
             .filter(|p| p.command == "switch")
             .collect();
-        assert!(switch_pats.is_empty());
+        assert_eq!(
+            switch_pats,
+            [] as [&crate::analyser::types::RegexPattern; 0]
+        );
     }
 
     #[test]
@@ -4831,7 +4928,10 @@ mod tests {
         // pattern arg is dropped.
         let mut a = Analyser::new();
         let r = a.analyse("regexp $p $line\n", "tcl");
-        assert!(r.regex_patterns.is_empty());
+        assert_eq!(
+            r.regex_patterns,
+            [] as [crate::analyser::types::RegexPattern; 0]
+        );
     }
 
     // -- W105 unbraced-body emitter
@@ -5168,8 +5268,9 @@ mod tests {
             .iter()
             .filter(|d| d.code == DiagCode::W110)
             .collect();
-        assert!(
-            unbraced.is_empty(),
+        assert_eq!(
+            unbraced.len(),
+            0,
             "unbraced expr must not fire W110, got {:?}",
             r.diagnostics
         );
@@ -5574,7 +5675,7 @@ mod tests {
             .iter()
             .find(|d| d.code == DiagCode::W302)
             .expect("W302");
-        assert!(!w302.fixes.is_empty());
+        assert_ne!(w302.fixes, [] as [crate::irules_checks::CodeFix; 0]);
         assert!(
             w302.fixes.iter().all(|f| !f.safety.is_bulk_applicable()),
             "got {:?}",
@@ -6022,13 +6123,13 @@ mod tests {
     #[test]
     fn fp_leading_else_is_not_malformed() {
         let r_diags = e004_diags("if else { x }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     #[test]
     fn fp_leading_elseif_is_not_malformed() {
         let r_diags = e004_diags("if elseif { x }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     #[test]
@@ -6038,35 +6139,50 @@ mod tests {
         // either (verified against tclsh 8.6: runs body "a", not a
         // wrong-#args error).
         let r_diags = e004_diags("if {1} { a } elseif else { b }\n");
-        assert!(r_diags.is_empty(), "got {r_diags:?}");
+        assert_eq!(r_diags.len(), 0, "got {r_diags:?}");
     }
 
     // -- TN: well-formed shapes never flagged.
 
     #[test]
     fn tn_single_clause_if() {
-        assert!(e004_diags("if {1} { a }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_else() {
-        assert!(e004_diags("if {1} { a } else { b }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a } else { b }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_elseif_else_chain() {
-        assert!(e004_diags("if {$a} { x } elseif {$b} { y } else { z }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {$a} { x } elseif {$b} { y } else { z }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_if_with_then_keyword() {
-        assert!(e004_diags("if {1} then { a }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} then { a }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
     fn tn_implicit_else_single_body() {
         // ``if {1} { a } { b }`` — one implicit-else body, no keyword.
-        assert!(e004_diags("if {1} { a } { b }\n").is_empty());
+        assert_eq!(
+            e004_diags("if {1} { a } { b }\n"),
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]
@@ -6096,7 +6212,7 @@ mod tests {
     fn fn_renamed_if_is_not_currently_checked() {
         let src = "rename if myif\nmyif {1} { a } { b } { c }\n";
         let e004 = e004_diags(src);
-        assert!(e004.is_empty(), "got {e004:?}");
+        assert_eq!(e004.len(), 0, "got {e004:?}");
     }
 
     // -- Redundant-diagnostic fix: `if`'s registry `arity` floor no
@@ -6141,7 +6257,7 @@ mod tests {
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } {{ b } { c }}");
         // The fixed source must itself be shape-well-formed.
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6151,7 +6267,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } else {{ b } extra}");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6162,7 +6278,7 @@ mod tests {
         assert_eq!(e004[0].fixes[0].new_text, "");
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6172,7 +6288,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6182,7 +6298,7 @@ mod tests {
         assert_eq!(e004[0].fixes.len(), 1, "got {:?}", e004[0].fixes);
         let fixed = apply_fix(src, &e004[0].fixes[0]);
         assert_eq!(fixed, "if {1} { a } ");
-        assert!(e004_diags(&fixed).is_empty(), "fixed={fixed:?}");
+        assert_eq!(e004_diags(&fixed).len(), 0, "fixed={fixed:?}");
     }
 
     #[test]
@@ -6192,8 +6308,9 @@ mod tests {
         for src in ["if", "if {1}", "if {1} then"] {
             let e004 = e004_diags(src);
             assert_eq!(e004.len(), 1, "src={src:?}");
-            assert!(
-                e004[0].fixes.is_empty(),
+            assert_eq!(
+                e004[0].fixes.len(),
+                0,
                 "src={src:?} got {:?}",
                 e004[0].fixes
             );
@@ -6235,7 +6352,7 @@ mod tests {
         // Pattern starts with `(` — non-dynamic, doesn't start with
         // `-`, so the OFF gate suppresses regardless of command.
         let diags = w304_diags("regexp {(a+)+$} $text\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6268,13 +6385,13 @@ mod tests {
         // (variable resolved via constant-prop to a `-`-prefixed
         // value).
         let diags = w304_diags("exec foo -bad\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_regexp_with_terminator() {
         let diags = w304_diags("regexp -- $pattern $text\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6296,7 +6413,7 @@ mod tests {
         // ``subst`` does not declare a ``--`` option — registry-
         // level filter suppresses W304 entirely.
         let diags = w304_diags("subst $template\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6308,28 +6425,28 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_exec_with_terminator() {
         let diags = w304_diags("exec -- $cmd\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_glob_safe_literal() {
         // ``*.tcl`` does not start with `-`; OFF gate suppresses.
         let diags = w304_diags("glob *.tcl\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_string_match() {
         // ``string match`` does not support ``--`` — registry filter.
         let diags = w304_diags("string match $pattern $value\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w304_for_lsearch() {
         // ``lsearch`` does not declare ``--`` either.
         let diags = w304_diags("lsearch -exact $domain c\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6343,7 +6460,7 @@ mod tests {
     #[test]
     fn analyse_no_w304_for_file_delete_with_terminator() {
         let diags = w304_diags("file delete -- $path\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6445,13 +6562,13 @@ mod tests {
     #[test]
     fn analyse_no_w101_for_eval_braced_script() {
         let diags = w101_diags("eval {puts hello}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_multiple_braced() {
         let diags = w101_diags("eval {set x 1} {puts $x}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6467,7 +6584,7 @@ mod tests {
         // ``eval puts hello`` — both args are bare literals; no
         // substitution at any level.
         let diags = w101_diags("eval puts hello\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6475,20 +6592,20 @@ mod tests {
         // ``eval [list ...]`` — ``list`` produces a canonical list,
         // safe re-parse.
         let diags = w101_diags("eval [list set $varname $value]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_linsert_idiom() {
         // ``linsert`` returns TclType::List → canonical.
         let diags = w101_diags("eval [linsert $cmdlist 0 extraarg]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
     fn analyse_no_w101_for_eval_split_idiom() {
         let diags = w101_diags("eval [split $line :]\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6505,7 +6622,7 @@ mod tests {
         // substitution-bearing commands are handled elsewhere (W301
         // covers uplevel; W312 covers interp eval).
         let diags = w101_diags("uplevel 1 \"puts $x\"\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6538,7 +6655,7 @@ mod tests {
         // source-byte scan that looks for unescaped ``$`` / ``[``
         // outside ``{...}``.
         let diags = w101_diags("eval foo{bar}\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]
@@ -6548,7 +6665,7 @@ mod tests {
         // word-span scan must skip the next byte after ``\`` to
         // avoid mis-detecting the literal ``$``.
         let diags = w101_diags("eval no\\$x\n");
-        assert!(diags.is_empty(), "got {diags:?}");
+        assert_eq!(diags.len(), 0, "got {diags:?}");
     }
 
     #[test]

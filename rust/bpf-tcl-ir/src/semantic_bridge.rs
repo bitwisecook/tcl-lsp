@@ -66,6 +66,7 @@ impl SemanticOperationKey for EbpfOperationKey {}
 impl EbpfOperationKey {
     fn from_descriptor(descriptor: BpfOpSpec) -> Result<Self, EbpfOperationKindDecline> {
         match descriptor.kind {
+            BpfOpKind::Conditional => Err(EbpfOperationKindDecline::UnexpandedConditional),
             BpfOpKind::ScalarSet(_) => Ok(Self::Scalar),
             BpfOpKind::BindPacket | BpfOpKind::PacketLoad { .. } | BpfOpKind::PacketLen => {
                 Ok(Self::PacketAccess)
@@ -85,6 +86,8 @@ impl EbpfOperationKey {
 /// A registry BPF descriptor that is not an executable eBPF operation yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EbpfOperationKindDecline {
+    /// Conditional syntax must become CFG branches before legalisation.
+    UnexpandedConditional,
     /// `loop` must have been expanded before an executable eBPF region exists.
     UnexpandedLoopMacro,
     /// A framework declaration belongs to frontend processing, not an eBPF body.
@@ -289,7 +292,8 @@ fn audit_executable_shape(
                 | ExecutableInstruction::IterateLists { .. }
                 | ExecutableInstruction::JoinCompletion { .. }
                 | ExecutableInstruction::WriteCompletionCell { .. }
-                | ExecutableInstruction::CompleteStructuredRegion(_) => {
+                | ExecutableInstruction::CompleteStructuredRegion(_)
+                | ExecutableInstruction::CompleteEvaluatedRegion(_) => {
                     declines.push(EbpfExecutableShapeDecline::NonInvocationInstruction {
                         block: block.id.index(),
                         instruction,
@@ -312,6 +316,12 @@ fn audit_executable_shape(
                 declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
                     block: block.id.index(),
                     kind: EbpfControlFlowKind::Branch,
+                });
+            }
+            Some(ExecutableTerminator::RegionChoice { .. }) => {
+                declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
+                    block: block.id.index(),
+                    kind: EbpfControlFlowKind::RegionChoice,
                 });
             }
             None => declines.push(EbpfExecutableShapeDecline::UnsupportedControlFlow {
@@ -453,6 +463,8 @@ pub enum EbpfControlFlowKind {
     Goto,
     /// A value-dependent CFG branch.
     Branch,
+    /// External runtime state selects entry of an evaluated script region.
+    RegionChoice,
     /// An incomplete executable block.
     MissingTerminator,
 }
@@ -661,6 +673,9 @@ mod tests {
                     ..
                 }
                 | tcl_compiler::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
+                    _,
+                )
+                | tcl_compiler::executable_ir::ExecutableInstruction::CompleteEvaluatedRegion(
                     _,
                 ) => None,
             })

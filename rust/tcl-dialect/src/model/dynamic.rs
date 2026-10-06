@@ -473,7 +473,7 @@ mod tests {
         assert!(outcome.changed);
         assert_eq!(outcome.families, 1);
         assert_eq!(outcome.cores, 1);
-        assert!(outcome.rejected.is_empty());
+        assert_eq!(outcome.rejected, [] as [DynamicFamilyError; 0]);
         assert!(resolve_dynamic_family("probepack/picol2").is_some());
         assert!(resolve_dynamic_family("picol2").is_some());
         let grammar = dynamic_core_grammar("picol-shell").expect("the bound grammar");

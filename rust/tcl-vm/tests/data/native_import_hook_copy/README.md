@@ -1,0 +1,3 @@
+# Native imported compiler attachments
+
+The five Tcl releases record raw command compiler hooks and compiler epochs before result observation. Tcl 8.5 and later use Tcl_SetEnsembleFlags to attach and remove the real ensemble compiler. Existing imports retain the function copied at publication; new imports copy the current function. Rename, hide, expose, successful configuration, and source deletion inspect the same command tokens. Tcl 8.4 records an ordinary procedure import without an ensemble API. The manifest records exact source, header, static library, executable hashes, process exits, and raw reports.

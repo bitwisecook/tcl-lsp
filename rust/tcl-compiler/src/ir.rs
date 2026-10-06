@@ -162,7 +162,7 @@ pub enum WordExpr {
     },
     /// A single variable substitution word.
     Variable {
-        /// Compatibility argv spelling, including a Tcl variable wrapper.
+        /// Verbatim source spelling, including its Tcl variable wrapper.
         spelling: String,
         /// Exact lexical source site.
         source: SourceSite,
@@ -201,6 +201,35 @@ pub enum WordExpr {
 }
 
 impl WordExpr {
+    /// A sole variable reference, including the reference inside quotes.
+    /// The returned site belongs to the read, rather than its enclosing word;
+    /// compound, expanded and opaque words provide no single read identity.
+    #[must_use]
+    pub fn sole_variable_substitution(&self) -> Option<(&str, &SourceSite)> {
+        match self {
+            Self::Variable { spelling, source } => Some((spelling, source)),
+            Self::Template { parts, .. } => match parts.as_slice() {
+                [WordPart::Variable { spelling, source }] => Some((spelling, source)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// A sole command substitution retains the command result object, including
+    /// when quotes surround it. Compound words concatenate their values.
+    #[must_use]
+    pub fn sole_command_substitution(&self) -> Option<(&str, &SourceSite)> {
+        match self {
+            Self::CommandSubstitution { spelling, source } => Some((spelling, source)),
+            Self::Template { parts, .. } => match parts.as_slice() {
+                [WordPart::CommandSubstitution { spelling, source }] => Some((spelling, source)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Return this word's source site.
     #[must_use]
     pub const fn source(&self) -> &SourceSite {
@@ -222,9 +251,10 @@ impl WordExpr {
             Self::Literal { text, .. }
             | Self::BracedLiteral { text, .. }
             | Self::Opaque { text, .. } => text.clone(),
-            Self::Variable { spelling, .. } | Self::CommandSubstitution { spelling, .. } => {
-                spelling.clone()
+            Self::Variable { spelling, .. } => {
+                crate::word_expr::compatibility_variable_spelling(spelling)
             }
+            Self::CommandSubstitution { spelling, .. } => spelling.clone(),
             Self::Template { parts, .. } => parts.iter().map(WordPart::legacy_text).collect(),
             Self::Expand { word, .. } => word.legacy_text(),
         }
@@ -289,7 +319,7 @@ pub enum WordPart {
     },
     /// A variable substitution.
     Variable {
-        /// Compatibility argv spelling.
+        /// Verbatim source spelling of this individual reference.
         spelling: String,
         /// Exact lexical source site.
         source: SourceSite,
@@ -314,9 +344,10 @@ impl WordPart {
     fn legacy_text(&self) -> String {
         match self {
             Self::Text { text, .. } | Self::Opaque { text, .. } => text.clone(),
-            Self::Variable { spelling, .. } | Self::CommandSubstitution { spelling, .. } => {
-                spelling.clone()
+            Self::Variable { spelling, .. } => {
+                crate::word_expr::compatibility_variable_spelling(spelling)
             }
+            Self::CommandSubstitution { spelling, .. } => spelling.clone(),
         }
     }
 }
@@ -382,6 +413,25 @@ pub enum WordOpacity {
 /// identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SyntheticMarker {
+    /// Evaluate a proved wrapper's original words before its script phases.
+    /// This boundary performs no direct command invocation effects.
+    EvaluatedArguments,
+    /// Residual wrapper effects/completion after its semantic script phases.
+    /// Original words are provenance and must not substitute again.
+    EvaluatedWrapper,
+    /// Map frozen dictionary inputs into caller variables before the script.
+    DictionaryScopeEntry,
+    /// Perform completion-sensitive dictionary writeback without replaying argv.
+    DictionaryScopeWriteback(tcl_registry::completion_route::InvocationCompletionRoute),
+    /// Bind the next iteration's variables after a proved loop dispatch.
+    /// The readable command label and value words are provenance; this node
+    /// does not invoke the source command again. Its payload is the input
+    /// representation minted by the genuine typed iterator producer; None
+    /// means this iterator selects named storage rather than a value operand.
+    IterationBindings(Option<tcl_registry::TclType>),
+    /// Store a proved catch's output values after its body has completed.
+    /// Original argv and binding evidence are retained without reevaluation.
+    CapturedCatchOutputs,
     /// The `if` / `while` condition kill-set: a [`Statement::Call`] whose
     /// `defs` are the variables the condition's own substitutions write, so a
     /// value-motion pass cannot carry a stale value across the branch.
@@ -451,9 +501,62 @@ pub struct CommandTokens {
     /// lowering path calls. That is the whole point: command *names* are
     /// forgeable (see [`SyntheticMarker`]), a private constructor is not.
     pub synthetic: Option<SyntheticMarker>,
+    /// Proved immediate caller-frame script semantics, retaining runtime argv.
+    pub evaluated_body: Option<Box<crate::execution_region::EvaluatedBodyRegion>>,
+    /// Point-specific dispatch alternatives after source argument evaluation.
+    ///
+    /// `None` is an unqueried compatibility snapshot. An explicitly uncertain
+    /// answer must never be replaced with a written-head catalogue lookup.
+    pub source_binding: Option<crate::command_binding::SourceInvocationBinding>,
+    /// Exact nested dispatch proofs keyed by the nested command head's source offset.
+    pub nested_bindings: Vec<(u32, crate::command_binding::SourceInvocationBinding)>,
+    /// Bindings at reached reads during original argument evaluation or the
+    /// selected native expression. Temporal owners distinguish those phases;
+    /// executed script bodies are excluded. Reads can differ within one word.
+    /// A missing record supplies no proof of the cell read.
+    pub variable_accesses: Vec<crate::command_binding::SourceVariableAccess>,
 }
 
 impl CommandTokens {
+    /// Retained execution grammar for nested source parsing. An unqueried or
+    /// dialect-unknown carrier keeps the caller's lexical configuration.
+    #[must_use]
+    pub fn native_lexer_config(&self, fallback: tcl_lexer::LexerConfig) -> tcl_lexer::LexerConfig {
+        self.source_binding
+            .as_ref()
+            .and_then(|binding| binding.variable_context.invocation_dialect)
+            .map_or(fallback, |native| {
+                fallback.with_grammar(native.lexer_grammar)
+            })
+    }
+
+    /// Relocate physical cells in retained source proofs; lexical spans and command allocations remain source-owned.
+    pub fn relocate_variable_proofs(
+        &mut self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) {
+        if let Some(binding) = &mut self.source_binding {
+            binding.relocate_variable_proofs(relocation);
+        }
+        for (_, binding) in &mut self.nested_bindings {
+            binding.relocate_variable_proofs(relocation);
+        }
+        for access in &mut self.variable_accesses {
+            *access = access.relocated_variables(relocation);
+        }
+    }
+
+    /// Refresh actual source ownership while preserving the lowered word layout.
+    /// Synthetic iteration inputs contain a selected argv projection, rather
+    /// than the original command's entire argument vector. Source restoration
+    /// must neither replace that projection nor make it execute again.
+    pub fn restore_source_proofs(&mut self, original: &Self) {
+        self.source_binding.clone_from(&original.source_binding);
+        self.nested_bindings.clone_from(&original.nested_bindings);
+        self.variable_accesses
+            .clone_from(&original.variable_accesses);
+    }
+
     /// Build a token snapshot from the segmenter without losing word shape.
     ///
     /// `sm` is the buffer the segment's spans index into — the document, or a
@@ -513,6 +616,10 @@ impl CommandTokens {
             expand_word: seg.expand_word.clone(),
             // Came from a Tcl word, so it is a command however it is spelled.
             synthetic: None,
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
         }
     }
 
@@ -536,6 +643,10 @@ impl CommandTokens {
             all_tokens: Vec::new(),
             expand_word: None,
             synthetic: Some(kind),
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
         }
     }
 
@@ -582,13 +693,127 @@ impl CommandTokens {
             expand_word,
             // A lossy snapshot of real words is still a command.
             synthetic: None,
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
         }
+    }
+
+    /// Attach proved script semantics without changing invocation tokens.
+    #[must_use]
+    pub fn with_evaluated_body(
+        mut self,
+        region: crate::execution_region::EvaluatedBodyRegion,
+    ) -> Self {
+        self.evaluated_body = region.valid().then(|| Box::new(region));
+        self
+    }
+
+    /// Retain the shared command owner's answer, including explicit uncertainty.
+    #[must_use]
+    pub fn with_source_binding(
+        mut self,
+        binding: crate::command_binding::SourceInvocationBinding,
+    ) -> Self {
+        self.source_binding = Some(binding);
+        self
+    }
+
+    /// Resolve a retained read by its exact source reference and spelling.
+    /// The invocation context is sampled later and cannot replace this query.
+    #[must_use]
+    pub fn variable_access_at(
+        &self,
+        source: &SourceSite,
+        spelling: &str,
+    ) -> Option<&crate::command_binding::SourceVariableAccess> {
+        crate::command_binding::SourceVariableAccess::find_at_source(
+            &self.variable_accesses,
+            source,
+            spelling,
+        )
+    }
+
+    /// Query a unique original read site without interpreting a compatibility
+    /// spelling. Conflicting records at that exact site remain unresolved.
+    #[must_use]
+    pub fn variable_access_for_site(
+        &self,
+        source: &SourceSite,
+    ) -> Option<&crate::command_binding::SourceVariableAccess> {
+        crate::command_binding::SourceVariableAccess::find_at_site(&self.variable_accesses, source)
+    }
+
+    /// Inherit exact nested dispatch proofs from the owning source invocation.
+    /// A missing or non-source nested site stays explicitly unknown when the
+    /// parent was queried; it never recovers meaning from a written head.
+    pub fn inherit_nested_bindings(&mut self, parent: &Self) {
+        self.nested_bindings.clone_from(&parent.nested_bindings);
+        self.variable_accesses.clone_from(&parent.variable_accesses);
+        if parent.source_binding.is_none() {
+            return;
+        }
+        let offset = self
+            .words()
+            .first()
+            .filter(|word| word.source().provenance == Provenance::Source)
+            .map(|word| word.source().span.start());
+        self.source_binding = Some(
+            offset
+                .and_then(|offset| {
+                    parent
+                        .nested_bindings
+                        .iter()
+                        .find(|(site, _)| *site == offset)
+                        .map(|(_, binding)| binding.clone())
+                })
+                .unwrap_or_else(crate::command_binding::SourceInvocationBinding::unknown),
+        );
+    }
+
+    /// Whether this snapshot explicitly declines a unique registry target.
+    ///
+    /// This is distinct from an old snapshot that has never been queried.
+    #[must_use]
+    pub fn has_unproved_source_binding(&self) -> bool {
+        self.source_binding.as_ref().is_some_and(|binding| {
+            binding
+                .proved_execution_target()
+                .is_none_or(|target| !target.registry_backed)
+        })
+    }
+
+    /// Return an attached execution plan only when its routing is complete.
+    ///
+    /// Consumers use this fact to avoid recovering script effects a second time.
+    #[must_use]
+    pub fn evaluated_body(&self) -> Option<&crate::execution_region::EvaluatedBodyRegion> {
+        self.evaluated_body
+            .as_deref()
+            .filter(|region| region.valid())
     }
 
     /// Structured word expressions in argv order.
     #[must_use]
     pub fn words(&self) -> &[WordExpr] {
         &self.word_exprs
+    }
+
+    /// Whether this boundary evaluates its written words. Residual wrapper
+    /// boundaries refer to the argv already evaluated before entering phases.
+    #[must_use]
+    pub fn evaluates_words(&self) -> bool {
+        !matches!(
+            self.synthetic,
+            Some(
+                SyntheticMarker::EvaluatedWrapper
+                    | SyntheticMarker::DictionaryScopeEntry
+                    | SyntheticMarker::DictionaryScopeWriteback(_)
+                    | SyntheticMarker::IterationBindings(_)
+                    | SyntheticMarker::CapturedCatchOutputs
+            )
+        )
     }
 
     /// Whether the structured compatibility view still aligns with argv text.
@@ -622,8 +847,15 @@ impl CommandTokens {
     /// the def/use naming layer all ask it here rather than re-deriving it.
     #[must_use]
     pub fn arg_is_braced_literal(&self, idx: usize) -> bool {
-        self.argv_kinds.get(idx + 1) == Some(&tcl_lexer::TokenType::Str)
-            && self.single_token_word.get(idx + 1).copied().unwrap_or(true)
+        let Some(word_index) = idx.checked_add(1) else {
+            return false;
+        };
+        self.argv_kinds.get(word_index) == Some(&tcl_lexer::TokenType::Str)
+            && self
+                .single_token_word
+                .get(word_index)
+                .copied()
+                .unwrap_or(true)
     }
 }
 
@@ -638,6 +870,8 @@ impl CommandTokens {
 pub enum ExecutionNamespace {
     /// The selected frame's defining namespace is statically known.
     Exact(String),
+    /// Retained native or reached source-allocation identity and exact geometry.
+    SourceContext(crate::command_binding::SourceNamespaceKey),
     /// A receiver- or caller-selected namespace is known only at runtime.
     RuntimeSelected,
 }
@@ -649,16 +883,65 @@ impl ExecutionNamespace {
         Self::Exact(namespace.into())
     }
 
+    /// Select an identity-aware lookup context without parsing a display name.
+    #[must_use]
+    pub fn for_head_context(
+        &self,
+        head: &str,
+    ) -> Option<std::borrow::Cow<'_, crate::command_binding::SourceNamespaceKey>> {
+        use crate::command_binding::SourceNamespaceKey;
+        match self {
+            Self::SourceContext(context) => Some(std::borrow::Cow::Borrowed(context)),
+            Self::Exact(namespace) => Some(std::borrow::Cow::Owned(SourceNamespaceKey::authored(
+                if head.starts_with("::") {
+                    "::"
+                } else {
+                    namespace
+                },
+            ))),
+            Self::RuntimeSelected if head.starts_with("::") => {
+                Some(std::borrow::Cow::Owned(SourceNamespaceKey::authored("::")))
+            }
+            Self::RuntimeSelected => None,
+        }
+    }
+
+    /// Use the original evaluated head with the same identity-aware selector.
+    #[must_use]
+    pub fn for_invocation_context(
+        &self,
+        head: &str,
+        tokens: Option<&CommandTokens>,
+    ) -> Option<std::borrow::Cow<'_, crate::command_binding::SourceNamespaceKey>> {
+        let evaluated = tokens
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::evaluated_command_word);
+        self.for_head_context(evaluated.unwrap_or(head))
+    }
+
+    /// Select the lookup route from the captured evaluated head. A lowered
+    /// implementation name does not replace an absolute original invocation.
+    #[must_use]
+    pub fn for_invocation(&self, head: &str, tokens: Option<&CommandTokens>) -> Option<&str> {
+        let evaluated = tokens
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(crate::command_binding::SourceInvocationBinding::evaluated_command_word);
+        self.for_head(evaluated.unwrap_or(head))
+    }
+
     /// Resolve one command head. Absolute names remain exact even in a
     /// runtime-selected frame; relative names do not.
     #[must_use]
     pub fn for_head(&self, head: &str) -> Option<&str> {
+        if matches!(self, Self::SourceContext(_)) {
+            return None;
+        }
         if head.starts_with("::") {
             Some("::")
         } else {
             match self {
                 Self::Exact(namespace) => Some(namespace),
-                Self::RuntimeSelected => None,
+                Self::SourceContext(_) | Self::RuntimeSelected => None,
             }
         }
     }
@@ -678,6 +961,15 @@ impl ExecutionNamespace {
 /// during lowering.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Script {
+    /// Actual namespace owner for this retained executable body.
+    pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
+    /// Exact evaluated source instance. Absence means no source mapping proof.
+    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    /// Original function occurrences, with reached proofs or conditional
+    /// topology retaining an unmet actual binding-validation obligation.
+    pub implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Successful native expression preparation, before reached operand effects.
+    pub expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     /// Statements in execution order.
     pub statements: Vec<Statement>,
     /// Registry-resolved command heads consumed by typed lowering.
@@ -688,6 +980,13 @@ pub struct Script {
     /// Exact user-procedure definitions whose bodies were copied into this
     /// script by an executable inlining transform.
     pub procedure_binding_requirements: ProcedureBindingRequirements,
+    /// Rejection proved at this chunk's actual native compilation entry.
+    /// An inventory of possible failures cannot populate this field.
+    pub native_compilation_failure:
+        Option<Box<crate::command_binding::SourceNativeCompilationFailure>>,
+    /// Target-neutral chunk admission, preserving unresolved compiler paths.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
 }
 
 /// Compact storage for the uncommon typed-lowering dependency sidecar.
@@ -708,6 +1007,48 @@ impl CommandBindingSites {
     /// Mutably iterate over the retained typed-lowering dependencies.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut CommandBindingSite> {
         self.0.iter_mut()
+    }
+
+    /// Unanimous original carrier of one actual statement. A synthetic marker
+    /// owns its explicit phase carrier; consumed runtime-command sites at the
+    /// same wrapper span cannot donate or contradict that different phase.
+    pub(crate) fn unanimous_statement_source_tokens<'a>(
+        sites: impl IntoIterator<Item = &'a CommandBindingSite>,
+        statement: &'a Statement,
+    ) -> Option<&'a CommandTokens> {
+        if let Some(tokens) = statement.tokens()
+            && tokens.synthetic.is_some()
+        {
+            return Some(tokens);
+        }
+        let mut candidates = statement.tokens().into_iter().chain(
+            sites
+                .into_iter()
+                .filter(|site| site.span == statement.span())
+                .filter_map(|site| site.source_tokens.as_deref()),
+        );
+        let first = candidates.next()?;
+        candidates
+            .all(|candidate| candidate == first)
+            .then_some(first)
+    }
+}
+
+impl CommandBindingSite {
+    /// Relocate physical variable proof while retaining the consumed dispatch and lexical site.
+    pub fn relocate_variable_proofs(
+        &mut self,
+        relocation: &crate::var_resolve::VariableProofRelocation,
+    ) {
+        if let Some(context) = &self.variable_context {
+            self.variable_context = Some(std::sync::Arc::new(context.relocated(relocation)));
+        }
+        if let Some(frame) = &self.variable_frame {
+            self.variable_frame = Some(relocation.frame(frame));
+        }
+        if let Some(tokens) = &mut self.source_tokens {
+            tokens.relocate_variable_proofs(relocation);
+        }
     }
 }
 
@@ -741,9 +1082,117 @@ pub struct CommandBindingSite {
     pub span: Span,
     /// Source spelling and registry-resolved implementation identity.
     pub binding: tcl_runtime_api::CommandBindingIdentity,
+    /// Namespace objects proved to exist at this exact dispatch site. `None`
+    /// denotes a compatibility node with no source-state query.
+    pub known_namespaces: Option<Vec<String>>,
+    /// Actual variable activation proved at this dispatch site.
+    pub variable_frame: Option<crate::var_resolve::VariableExecutionFrame>,
+    /// Complete shared variable binding snapshot, including aliases and generations.
+    pub variable_context: Option<std::sync::Arc<crate::var_resolve::ResolveContext>>,
+    /// Namespace cells allocated on every reaching path at this site.
+    pub existing_namespace_cells: Option<Vec<crate::var_resolve::VariableCellKey>>,
+    /// Original source words and exact nested/read proofs consumed by typed IR.
+    /// Generated dependencies have no source carrier and retain `None`.
+    pub source_tokens: Option<Box<CommandTokens>>,
+}
+
+/// Whether a command's normal result contributes to its enclosing script.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatementResultUse {
+    /// A later real command discards the preceding normal result.
+    Discarded,
+    /// The final command supplies the enclosing completion's result.
+    EnclosingCompletion,
+    /// The requested command or its source ownership is unavailable.
+    Unknown,
 }
 
 impl Script {
+    /// Prefer a retained namespace owner over a presentation-derived default.
+    #[must_use]
+    pub fn execution_namespace(&self, fallback: ExecutionNamespace) -> ExecutionNamespace {
+        self.namespace_context.as_deref().map_or(fallback, |key| {
+            ExecutionNamespace::SourceContext(key.clone())
+        })
+    }
+
+    /// Original invocation carrier for a statement owned by this script.
+    /// Typed lowering can move that carrier into a consumed binding site.
+    /// Conflicting retained carriers or synthetic boundaries provide no answer.
+    #[must_use]
+    pub fn retained_source_tokens_for_statement<'a>(
+        &'a self,
+        statement: &'a Statement,
+    ) -> Option<&'a CommandTokens> {
+        if !self
+            .statements
+            .iter()
+            .any(|candidate| std::ptr::eq(candidate, statement))
+        {
+            return None;
+        }
+        CommandBindingSites::unanimous_statement_source_tokens(
+            self.command_binding_sites.iter(),
+            statement,
+        )
+        .filter(|tokens| tokens.synthetic.is_none())
+    }
+
+    /// Classify normal result use without confusing synthetic phase boundaries
+    /// with real Tcl commands. Abrupt completion and effects remain separate.
+    #[must_use]
+    pub fn statement_result_use(&self, index: usize) -> StatementResultUse {
+        let Some(statement) = self.statements.get(index) else {
+            return StatementResultUse::Unknown;
+        };
+        if !self.is_authored_source() || statement.source_edit_span().is_none() {
+            return StatementResultUse::Unknown;
+        }
+        if self.statements[index + 1..].iter().any(|statement| {
+            statement.source_edit_span().is_some()
+                && statement
+                    .tokens()
+                    .is_none_or(|tokens| tokens.synthetic.is_none())
+        }) {
+            StatementResultUse::Discarded
+        } else {
+            StatementResultUse::EnclosingCompletion
+        }
+    }
+
+    /// Whether every byte belongs to an original authored source instance.
+    #[must_use]
+    pub fn is_authored_source(&self) -> bool {
+        self.executed_source.as_ref().is_some_and(|source| {
+            matches!(
+                source.origin.kind(),
+                crate::command_binding::SourceOriginKind::Authored(_)
+            )
+        })
+    }
+
+    /// Whether this script and every retained child have authored mappings.
+    /// Whole structured rewrites cannot insert a derived body's bytes by offset.
+    #[must_use]
+    pub fn is_fully_authored_source(&self) -> bool {
+        let mut pending = vec![self];
+        while let Some(script) = pending.pop() {
+            if !script.is_authored_source() {
+                return false;
+            }
+            for statement in &script.statements {
+                pending.extend(statement.child_scripts());
+            }
+        }
+        true
+    }
+
+    /// Project an edit only when this script has an authored source mapping.
+    #[must_use]
+    pub fn source_edit_span(&self, span: Span) -> Option<Span> {
+        self.is_authored_source().then_some(span)
+    }
+
     /// Create an empty script.
     #[must_use]
     pub fn new() -> Self {
@@ -751,6 +1200,12 @@ impl Script {
             statements: Vec::new(),
             command_binding_sites: CommandBindingSites::default(),
             procedure_binding_requirements: ProcedureBindingRequirements::default(),
+            native_compilation_failure: None,
+            native_compilation_admission: None,
+            namespace_context: None,
+            executed_source: None,
+            implicit_math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
         }
     }
 
@@ -761,6 +1216,12 @@ impl Script {
             statements,
             command_binding_sites: CommandBindingSites::default(),
             procedure_binding_requirements: ProcedureBindingRequirements::default(),
+            native_compilation_failure: None,
+            native_compilation_admission: None,
+            namespace_context: None,
+            executed_source: None,
+            implicit_math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
         }
     }
 
@@ -774,6 +1235,12 @@ impl Script {
             statements,
             command_binding_sites: command_binding_sites.into(),
             procedure_binding_requirements: ProcedureBindingRequirements::default(),
+            native_compilation_failure: None,
+            native_compilation_admission: None,
+            namespace_context: None,
+            executed_source: None,
+            implicit_math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
         }
     }
 
@@ -789,6 +1256,12 @@ impl Script {
             statements,
             command_binding_sites: command_binding_sites.into(),
             procedure_binding_requirements: procedure_binding_requirements.into(),
+            native_compilation_failure: None,
+            native_compilation_admission: None,
+            namespace_context: None,
+            executed_source: None,
+            implicit_math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
         }
     }
 }
@@ -825,64 +1298,26 @@ pub fn for_each_statement(script: &Script, visit: &mut impl FnMut(&Statement)) {
     for_each_statement_inner(script, visit, 0);
 }
 
+/// Visit every retained script, including nested bodies, without native-stack
+/// recursion. The visitor may update metadata; it must retain the body tree.
+pub fn for_each_script_mut(script: &mut Script, visit: &mut impl FnMut(&mut Script)) {
+    let mut pending = vec![script];
+    while let Some(script) = pending.pop() {
+        visit(script);
+        for statement in script.statements.iter_mut().rev() {
+            pending.extend(statement.child_scripts_mut().into_iter().rev());
+        }
+    }
+}
+
 fn for_each_statement_inner(script: &Script, visit: &mut impl FnMut(&Statement), depth: u32) {
     if MAX_FOR_EACH_STATEMENT_DEPTH.exceeded(depth) {
         return;
     }
     for stmt in &script.statements {
         visit(stmt);
-        match stmt {
-            Statement::Block { body, .. }
-            | Statement::UpFrame { body, .. }
-            | Statement::While { body, .. }
-            | Statement::Catch { body, .. }
-            | Statement::Foreach { body, .. } => {
-                for_each_statement_inner(body, visit, depth + 1);
-            }
-            Statement::If {
-                clauses, else_body, ..
-            } => {
-                for c in clauses {
-                    for_each_statement_inner(&c.body, visit, depth + 1);
-                }
-                if let Some(b) = else_body {
-                    for_each_statement_inner(b, visit, depth + 1);
-                }
-            }
-            Statement::For {
-                init, next, body, ..
-            } => {
-                for_each_statement_inner(init, visit, depth + 1);
-                for_each_statement_inner(next, visit, depth + 1);
-                for_each_statement_inner(body, visit, depth + 1);
-            }
-            Statement::Try {
-                body,
-                handlers,
-                finally_body,
-                ..
-            } => {
-                for_each_statement_inner(body, visit, depth + 1);
-                for h in handlers {
-                    for_each_statement_inner(&h.body, visit, depth + 1);
-                }
-                if let Some(fb) = finally_body {
-                    for_each_statement_inner(fb, visit, depth + 1);
-                }
-            }
-            Statement::Switch {
-                arms, default_body, ..
-            } => {
-                for a in arms {
-                    if let Some(b) = &a.body {
-                        for_each_statement_inner(b, visit, depth + 1);
-                    }
-                }
-                if let Some(b) = default_body {
-                    for_each_statement_inner(b, visit, depth + 1);
-                }
-            }
-            _ => {}
+        for body in stmt.child_scripts() {
+            for_each_statement_inner(body, visit, depth + 1);
         }
     }
 }
@@ -993,6 +1428,14 @@ pub struct ForeachIterator {
 /// to text or `(line, character)` via a `SourceMap` on demand.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
+    /// Exact native words evaluated by the ordinary runtime dispatcher.
+    /// Their byte/source identities grant no catalogue or inline authority.
+    NativeCall {
+        /// Original complete command extent.
+        span: Span,
+        /// Original operands, including expansion and substitution structure.
+        words: Vec<tcl_lexer::word_parts::NativeWord>,
+    },
     /// Constant assignment: `set name value` where value is a literal.
     AssignConst {
         /// Source span of the full command.
@@ -1113,10 +1556,10 @@ pub enum Statement {
         command: String,
         /// Canonical command name resolved against the
         /// registry.  `None` when the lowerer hasn't (yet)
-        /// populated it or when the command is unknown to the
-        /// registry; downstream dispatch sites use
-        /// [`Statement::canonical_command_or_source`] so a `None`
-        /// canonical falls back to `command`.  The lowerer populates
+        /// populated it or when the command is unknown to the registry.
+        /// This spelling is presentation metadata; semantic consumers resolve
+        /// the retained point proof through the shared invocation adapter.
+        /// The lowerer populates
         /// it when an alias resolves (`interp alias {} foo {} ::ns::bar; foo
         /// 1 2` lowers to a `Call` with `command="foo"` and
         /// `canonical_command=Some("::ns::bar")`).
@@ -1147,6 +1590,8 @@ pub enum Statement {
     Return {
         /// Source span.
         span: Span,
+        /// Original return invocation and nested substitution lookup proofs.
+        tokens: Option<CommandTokens>,
         /// Return value text, if any.
         value: Option<String>,
         /// Canonical source word for [`Self::Return::value`], when the simple
@@ -1155,6 +1600,8 @@ pub enum Statement {
         value_word: Option<WordExpr>,
         /// Return expression, if any (for `return [expr ...]`).
         expr: Option<ExprNode>,
+        /// Exact expression source base, absent when decoded bytes lack an affine source mapping.
+        expr_base: Option<u32>,
         /// Live command binding whose registry identity justified compiling a
         /// nested command substitution directly into [`expr`](Self::Return::expr).
         ///
@@ -1290,7 +1737,7 @@ pub enum Statement {
         /// braced `{cond}` / `{body}` words verbatim and substituted words
         /// (`$body`) interpolated — exactly as written. `None` for
         /// synthetically-constructed loops that never take the fallback.
-        raw_tokens: Option<CommandTokens>,
+        raw_tokens: Option<Box<CommandTokens>>,
     },
 
     /// `while` loop: `while cond body`.
@@ -1443,6 +1890,28 @@ pub enum Statement {
     },
 }
 
+/// Traverse only retained child scripts; opaque operands are never reparsed.
+pub(crate) fn statements_have_opaque_native_accesses<'a>(
+    statements: impl IntoIterator<Item = &'a Statement>,
+) -> bool {
+    let mut nested = Vec::new();
+    for statement in statements {
+        if statement.has_opaque_native_accesses() {
+            return true;
+        }
+        nested.extend(statement.child_scripts());
+    }
+    while let Some(script) = nested.pop() {
+        for statement in &script.statements {
+            if statement.has_opaque_native_accesses() {
+                return true;
+            }
+            nested.extend(statement.child_scripts());
+        }
+    }
+    false
+}
+
 impl Statement {
     /// Return the synthetic marker attached to this statement, when it has
     /// one. Markers carry analysis-only effects beside their source command.
@@ -1452,6 +1921,147 @@ impl Statement {
             Self::Call { tokens, .. } | Self::Barrier { tokens, .. } => {
                 tokens.as_ref().and_then(|tokens| tokens.synthetic)
             }
+            _ => None,
+        }
+    }
+
+    /// Whether native byte operands lack a named-variable/effect projection.
+    /// Empty SSA read or definition maps for this statement do not prove that
+    /// it leaves variables, command bindings or other runtime state unchanged.
+    #[must_use]
+    pub const fn has_opaque_native_accesses(&self) -> bool {
+        matches!(self, Self::NativeCall { .. })
+    }
+
+    /// Retained child scripts in source/phase order. Only the original generic
+    /// invocation owns an evaluated region; synthetic phase boundaries carry
+    /// provenance without owning another copy of its scripts.
+    #[must_use]
+    pub fn child_scripts(&self) -> Vec<&Script> {
+        match self {
+            Self::Block { body, .. }
+            | Self::UpFrame { body, .. }
+            | Self::While { body, .. }
+            | Self::Catch { body, .. }
+            | Self::Foreach { body, .. } => vec![body],
+            Self::If {
+                clauses, else_body, ..
+            } => clauses
+                .iter()
+                .map(|clause| &clause.body)
+                .chain(else_body.iter())
+                .collect(),
+            Self::For {
+                init, next, body, ..
+            } => vec![init, next, body],
+            Self::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => std::iter::once(body)
+                .chain(handlers.iter().map(|handler| &handler.body))
+                .chain(finally_body.iter())
+                .collect(),
+            Self::Switch {
+                arms, default_body, ..
+            } => arms
+                .iter()
+                .filter_map(|arm| arm.body.as_ref())
+                .chain(default_body.iter())
+                .collect(),
+            Self::Call {
+                tokens: Some(tokens),
+                ..
+            }
+            | Self::Barrier {
+                tokens: Some(tokens),
+                ..
+            } if tokens.synthetic.is_none() => {
+                tokens.evaluated_body().map_or_else(Vec::new, |region| {
+                    region.phases.iter().map(|phase| &phase.script).collect()
+                })
+            }
+            _ => Vec::new(),
+        }
+    }
+
+    /// Mutable projection of the same owned scripts as [`Self::child_scripts`].
+    /// Visitors may change metadata while preserving the retained phase graph.
+    pub fn child_scripts_mut(&mut self) -> Vec<&mut Script> {
+        match self {
+            Self::Block { body, .. }
+            | Self::UpFrame { body, .. }
+            | Self::While { body, .. }
+            | Self::Catch { body, .. }
+            | Self::Foreach { body, .. } => vec![body],
+            Self::If {
+                clauses, else_body, ..
+            } => clauses
+                .iter_mut()
+                .map(|clause| &mut clause.body)
+                .chain(else_body.iter_mut())
+                .collect(),
+            Self::For {
+                init, next, body, ..
+            } => vec![init, next, body],
+            Self::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => std::iter::once(body)
+                .chain(handlers.iter_mut().map(|handler| &mut handler.body))
+                .chain(finally_body.iter_mut())
+                .collect(),
+            Self::Switch {
+                arms, default_body, ..
+            } => arms
+                .iter_mut()
+                .filter_map(|arm| arm.body.as_mut())
+                .chain(default_body.iter_mut())
+                .collect(),
+            Self::Call {
+                tokens: Some(tokens),
+                ..
+            }
+            | Self::Barrier {
+                tokens: Some(tokens),
+                ..
+            } if tokens.synthetic.is_none() => tokens
+                .evaluated_body
+                .as_deref_mut()
+                .filter(|region| region.valid())
+                .map_or_else(Vec::new, |region| {
+                    region
+                        .phases
+                        .iter_mut()
+                        .map(|phase| &mut phase.script)
+                        .collect()
+                }),
+            _ => Vec::new(),
+        }
+    }
+
+    /// Original invocation words when retained by lowering. Typed operations
+    /// without this carrier retain their consumed proof in `CommandBindingSite`.
+    #[must_use]
+    pub fn tokens(&self) -> Option<&CommandTokens> {
+        match self {
+            Self::AssignValue { tokens, .. }
+            | Self::Return { tokens, .. }
+            | Self::Call { tokens, .. }
+            | Self::Barrier { tokens, .. }
+            | Self::Block { tokens, .. }
+            | Self::Catch { tokens, .. }
+            | Self::UpFrame { tokens, .. }
+            | Self::While {
+                raw_tokens: tokens, ..
+            }
+            | Self::Foreach {
+                raw_tokens: tokens, ..
+            } => tokens.as_ref(),
+            Self::For { raw_tokens, .. } => raw_tokens.as_deref(),
             _ => None,
         }
     }
@@ -1470,7 +2080,56 @@ impl Statement {
         )
     }
 
-    /// Return the source span of this statement.
+    /// Mutable invocation carrier, for owner-controlled provenance transfer.
+    pub fn tokens_mut(&mut self) -> Option<&mut CommandTokens> {
+        match self {
+            Self::AssignValue { tokens, .. }
+            | Self::Return { tokens, .. }
+            | Self::Call { tokens, .. }
+            | Self::Barrier { tokens, .. }
+            | Self::Block { tokens, .. }
+            | Self::Catch { tokens, .. }
+            | Self::UpFrame { tokens, .. }
+            | Self::While {
+                raw_tokens: tokens, ..
+            }
+            | Self::Foreach {
+                raw_tokens: tokens, ..
+            } => tokens.as_mut(),
+            Self::For { raw_tokens, .. } => raw_tokens.as_deref_mut(),
+            _ => None,
+        }
+    }
+    /// A source command range eligible for command-level editing. Typed CFG
+    /// boundaries may retain a diagnostic span on an enclosing operand, but
+    /// they are not commands and must never delete that operand's delimiters.
+    /// Consumers still need their usual reachability/effect and origin proof.
+    #[must_use]
+    pub fn source_edit_span(&self) -> Option<Span> {
+        if self.has_opaque_native_accesses() {
+            return None;
+        }
+        if self.tokens().is_some_and(|tokens| {
+            tokens.synthetic.is_some()
+                || tokens
+                    .source_binding
+                    .as_ref()
+                    .and_then(|binding| binding.source_origin())
+                    .is_some_and(|origin| {
+                        matches!(
+                            origin.kind(),
+                            crate::command_binding::SourceOriginKind::Derived { .. }
+                        )
+                    })
+        }) {
+            return None;
+        }
+        let span = self.span();
+        (!span.is_empty()).then_some(span)
+    }
+
+    /// Return the source span of this statement, including diagnostic spans
+    /// retained by synthetic boundaries. Use `source_edit_span` for editing.
     #[must_use]
     pub fn span(&self) -> Span {
         match self {
@@ -1482,6 +2141,7 @@ impl Statement {
             | Self::Call { span, .. }
             | Self::Return { span, .. }
             | Self::Barrier { span, .. }
+            | Self::NativeCall { span, .. }
             | Self::Block { span, .. }
             | Self::UpFrame { span, .. }
             | Self::If { span, .. }
@@ -1494,13 +2154,10 @@ impl Statement {
         }
     }
 
-    /// Dispatch helper that returns the canonical command name
-    /// when populated, falling back to the source-surface `command`
-    /// otherwise.  Use from downstream dispatch sites (codegen hook
-    /// lookup, side-effect classification, GVN purity) so a single
-    /// canonical key drives every consumer; use the bare `command`
-    /// field directly when rendering source-surface text in
-    /// diagnostics.
+    /// Return the recorded canonical spelling, or the written head, for display
+    /// and compatibility metadata. This does not prove implementation identity.
+    /// Semantic consumers must use `registry_invocation::resolved_statement_invocation`
+    /// so an unresolved source binding cannot recover catalogue semantics.
     ///
     /// Returns `""` for non-Call / non-Barrier statements.
     #[must_use]
@@ -1696,15 +2353,53 @@ pub enum TopLevelKind {
 /// methods during lowering.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Module {
+    /// Exact source-word grammar used at ingress. A profile name cannot
+    /// reconstruct custom or independently selected grammar axes.
+    pub lexer_config: tcl_lexer::LexerConfig,
+    /// Resolved profile retained by ingress; presentation names cannot recreate it.
+    pub dialect_profile: Option<&'static tcl_dialect::DialectProfile>,
+    /// Exact command registry snapshot which produced this module.
+    pub registry_snapshot: Option<tcl_registry::RegistrySnapshot>,
+    /// Execution entry and selected provider provenance shared by source,
+    /// CFG, and invocation consumers. It is part of the module cache input.
+    pub source_entry: crate::command_binding::SourceAnalysisEntry,
+    /// Original source interpretation shared by lowering and command-effect queries.
+    /// Its owner checks source, grammar, entry, frame and registry before reuse.
+    pub retained_source_bindings:
+        Option<std::sync::Arc<crate::command_binding::RetainedSourceModuleBindings>>,
+    /// Possible future callers, separate from actual normal document entry.
+    /// This inventory only retracts caller assumptions; it grants no execution.
+    pub future_call_sites: Vec<crate::command_binding::SourceFutureCallSite>,
+    /// Analysis-only body units recovered from actual native installations.
+    /// Full allocation/source identity groups their retention limits; neither
+    /// the tag nor the body unit installs a callable or licenses compilation.
+    pub installed_procedure_body_units:
+        std::collections::BTreeMap<String, crate::command_binding::CommandAllocation>,
+    /// Analysis-only units for original procedure declarations, independent
+    /// of current installation or actual entry. Labels index internal units;
+    /// allocation, original source and namespace context retain their identity.
+    pub original_declaration_body_units:
+        std::collections::BTreeMap<String, crate::command_binding::CommandAllocation>,
+    /// Original body metadata for exact procedure implementations, including
+    /// retired incarnations. This does not select a callable or grant entry,
+    /// completion, compilation or an executable replacement.
+    pub procedure_implementation_bodies:
+        std::sync::Arc<[crate::command_binding::SourceInstalledProcedureBody]>,
     /// The original source text this module was lowered from. Spans on the
     /// lowered statements index into it, so codegen can recover each command's
     /// surface text for `errorInfo` (`while executing "…"`). Empty when not
     /// supplied (older construction paths / hand-built test modules).
-    pub source: String,
+    pub source: tcl_lexer::SourceImage,
+    /// Retained native namespace path for executable compilation. Symbolic
+    /// analysis names never reconstruct an opaque native namespace.
+    pub native_namespace: Option<tcl_core_types::ByteNamespacePath>,
     /// Rooted constructed namespace in which [`Self::top_level`] resolves
     /// command names. This is `"::"` for an ordinary source module and the
     /// procedure's defining namespace for a runtime procedure-body compile.
     pub top_level_namespace: String,
+    /// Exact analysis namespace identity. Printed names never reconstruct native
+    /// component boundaries or select an actual namespace incarnation.
+    pub top_level_namespace_context: Option<crate::command_binding::SourceNamespaceKey>,
     /// The dialect this module was lowered for (`"tcl8.6"`, `"f5-irules"`, …),
     /// `None` for an unnamed/permissive compile.
     ///
@@ -1733,7 +2428,8 @@ pub struct Module {
     pub methods: std::collections::HashMap<String, MethodDef>,
     /// Synthetic *body units* — the bodies of commands that run their script
     /// argument in a fresh frame but are **not** real named procedures:
-    /// `apply` lambdas and `namespace eval` bodies (keyed by a synthetic
+    /// `apply` lambdas, `namespace eval` bodies and installed procedure
+    /// bodies retained only for analysis (keyed by a synthetic
     /// qualified name like `::apply#0`, or `::NS::namespace-eval#0` — `NS`
     /// *prefixes* the marker, matching every other qname's "everything
     /// before the last `::` is the enclosing namespace" convention, so a
@@ -1854,6 +2550,104 @@ fn execution_namespace_for_qname(qname: &str) -> String {
 }
 
 impl Module {
+    /// Checked analytical namespace key. Native component boundaries must
+    /// round-trip through the constructed-key owner before advice can use it.
+    #[must_use]
+    pub fn advisory_top_level_namespace(&self) -> Option<String> {
+        if let Some(path) = &self.native_namespace {
+            let segments = tcl_syntax::naming::checked_namespace_path_utf8(path).ok()?;
+            let key = if segments.is_empty() {
+                String::from("::")
+            } else {
+                format!("::{}", segments.join("::"))
+            };
+            return (tcl_syntax::naming::key_segments(&key) == segments).then_some(key);
+        }
+        Some(if self.top_level_namespace.is_empty() {
+            String::from("::")
+        } else {
+            self.top_level_namespace.clone()
+        })
+    }
+
+    /// Retained resolved profile, with presentation-name compatibility only for
+    /// manually constructed modules which predate the explicit ingress carrier.
+    #[must_use]
+    pub fn resolved_profile(&self) -> Option<&'static tcl_dialect::DialectProfile> {
+        self.dialect_profile.or_else(|| {
+            self.dialect.as_deref().map(|name| {
+                crate::environment_ingress::resolve_environment(name).analyser_profile()
+            })
+        })
+    }
+
+    /// Exact ingress registry, including workspace and custom command metadata.
+    /// Compatibility modules fall back to their resolved catalogue profile.
+    #[must_use]
+    pub fn resolved_registry(&self) -> &tcl_registry::CommandRegistry {
+        self.registry_snapshot.as_ref().map_or_else(
+            || {
+                self.resolved_profile().map_or_else(
+                    || tcl_registry::model::ingress::static_context_for("tcl").commands(),
+                    |profile| {
+                        tcl_registry::model::ingress::static_context_for_profile(profile).commands()
+                    },
+                )
+            },
+            tcl_registry::RegistrySnapshot::registry,
+        )
+    }
+
+    /// Actual source variable/word grammar, independent of assistance metadata.
+    /// Preserve source coordinates and parser-mode knobs while selecting native
+    /// lexical axes; syntax alone supplies no execution or storage proof.
+    #[must_use]
+    pub fn native_lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.source_entry
+            .options()
+            .native_lexer_config(self.lexer_config)
+    }
+
+    /// Native numeral ingress retained by this module. Actual invocation axes
+    /// precede the assistance profile and its legacy display-name adapter.
+    #[must_use]
+    pub fn number_syntax(&self) -> tcl_dialect::NumberSyntax {
+        self.source_entry.invocation_dialect.map_or_else(
+            || tcl_dialect::NumberSyntax::of_profile(self.resolved_profile()),
+            |dialect| dialect.numbers,
+        )
+    }
+
+    /// Native word/list value rules, independent of catalogue display names.
+    #[must_use]
+    pub fn word_values(&self) -> tcl_syntax::word_rules::WordValueRules {
+        self.source_entry.invocation_dialect.map_or_else(
+            || tcl_syntax::word_rules::WordValueRules::from_config(&self.lexer_config),
+            |dialect| dialect.word_values,
+        )
+    }
+
+    /// Native parameter activation grammar. Unknown execution axes abstain;
+    /// assistance list syntax cannot select a procedure's binding protocol.
+    #[must_use]
+    pub fn parameter_grammar(&self) -> Option<tcl_dialect::ParameterGrammar> {
+        if self.source_entry.native_entry.is_some() {
+            return self
+                .source_entry
+                .options()
+                .logical_invocation_dialect()?
+                .parameter_grammar();
+        }
+        self.source_entry.invocation_dialect.map_or_else(
+            || {
+                self.resolved_profile().and_then(|profile| {
+                    tcl_registry::InvocationDialect::of_profile(profile).parameter_grammar()
+                })
+            },
+            tcl_registry::InvocationDialect::parameter_grammar,
+        )
+    }
+
     /// Executable roots whose invocation is independent of an enclosing
     /// statement: the module load script, retained procedures and methods,
     /// and retained replacement methods.
@@ -1869,11 +2663,20 @@ impl Module {
     pub(crate) fn independent_executable_script_roots(&self) -> Vec<(&Script, ExecutionNamespace)> {
         let mut roots = vec![(
             &self.top_level,
-            ExecutionNamespace::exact(if self.top_level_namespace.is_empty() {
-                "::".to_owned()
-            } else {
-                self.top_level_namespace.clone()
-            }),
+            self.top_level_namespace_context.as_ref().map_or_else(
+                || {
+                    self.advisory_top_level_namespace().map_or(
+                        ExecutionNamespace::RuntimeSelected,
+                        ExecutionNamespace::exact,
+                    )
+                },
+                |context| match context {
+                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                        ExecutionNamespace::exact(namespace)
+                    }
+                    _ => ExecutionNamespace::SourceContext(context.clone()),
+                },
+            ),
         )];
 
         let mut procedures: Vec<_> = self.procedures.iter().collect();
@@ -1881,26 +2684,36 @@ impl Module {
         roots.extend(procedures.into_iter().map(|(qname, procedure)| {
             (
                 &procedure.body,
-                ExecutionNamespace::exact(execution_namespace_for_qname(qname)),
+                procedure
+                    .body
+                    .execution_namespace(ExecutionNamespace::exact(execution_namespace_for_qname(
+                        qname,
+                    ))),
             )
         }));
 
         let mut methods: Vec<_> = self.methods.iter().collect();
         methods.sort_by(|a, b| a.0.cmp(b.0));
-        roots.extend(
-            methods
-                .into_iter()
-                .map(|(_, method)| (&method.body, method.execution_namespace.clone())),
-        );
+        roots.extend(methods.into_iter().map(|(_, method)| {
+            (
+                &method.body,
+                method
+                    .body
+                    .execution_namespace(method.execution_namespace.clone()),
+            )
+        }));
 
         let mut redefined_methods: Vec<_> = self.redefined_methods.iter().collect();
         redefined_methods.sort_by(|a, b| a.0.cmp(b.0));
         for (_, replacements) in redefined_methods {
-            roots.extend(
-                replacements
-                    .iter()
-                    .map(|method| (&method.body, method.execution_namespace.clone())),
-            );
+            roots.extend(replacements.iter().map(|method| {
+                (
+                    &method.body,
+                    method
+                        .body
+                        .execution_namespace(method.execution_namespace.clone()),
+                )
+            }));
         }
 
         roots
@@ -1921,12 +2734,22 @@ impl Module {
 
         let mut body_units: Vec<_> = self.body_units.iter().collect();
         body_units.sort_by(|a, b| a.0.cmp(b.0));
-        roots.extend(body_units.into_iter().map(|(qname, unit)| {
-            (
-                &unit.body,
-                ExecutionNamespace::exact(execution_namespace_for_qname(qname)),
-            )
-        }));
+        roots.extend(
+            body_units
+                .into_iter()
+                .filter(|(qname, _)| {
+                    !self.installed_procedure_body_units.contains_key(*qname)
+                        && !self.original_declaration_body_units.contains_key(*qname)
+                })
+                .map(|(qname, unit)| {
+                    (
+                        &unit.body,
+                        unit.body.execution_namespace(ExecutionNamespace::exact(
+                            execution_namespace_for_qname(qname),
+                        )),
+                    )
+                }),
+        );
 
         roots
     }
@@ -1948,13 +2771,209 @@ pub fn when_event_name(qualified_name: &str) -> &str {
 }
 
 #[cfg(test)]
+pub(crate) fn native_call_for_test(bytes: &[u8]) -> Statement {
+    let image = tcl_lexer::SourceImage::native(bytes);
+    let config = tcl_lexer::LexerConfig::default();
+    let tokens = tcl_lexer::Lexer::with_source_image(&image, config)
+        .tokenise_all()
+        .expect("complete original native words");
+    let groups = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+    assert_eq!(groups.len(), 1, "one native invocation");
+    let words: Vec<_> = groups[0]
+        .words
+        .iter()
+        .map(|word| {
+            tcl_lexer::word_parts::NativeWord::from_group(image.clone(), config, &tokens, word)
+                .expect("original token word extent")
+        })
+        .collect();
+    let first = words.first().expect("command head");
+    let last = words.last().expect("final operand");
+    Statement::NativeCall {
+        span: Span::new(first.span().start(), last.span().end()),
+        words,
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn statement_carriers_require_unanimous_ownership_and_keep_synthetic_phases_distinct() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            "set x 1",
+            registry,
+            LexerConfig::from_grammar(profile.grammar),
+            Some(profile),
+        );
+        let mut script = module.top_level;
+        let original = script.statements[0].clone();
+        assert!(original.tokens().is_none(), "typed store consumed its argv");
+        let carrier = script
+            .retained_source_tokens_for_statement(&script.statements[0])
+            .expect("retained typed store carrier")
+            .clone();
+        assert!(
+            script
+                .retained_source_tokens_for_statement(&original)
+                .is_none()
+        );
+
+        let mut function = crate::cfg::Function::new("::top", "entry");
+        function.command_binding_sites = script.command_binding_sites.iter().cloned().collect();
+        function
+            .blocks
+            .get_mut(&function.entry)
+            .unwrap()
+            .statements
+            .push(original.clone());
+        assert_eq!(
+            function.source_input_tokens_at(function.entry, 0),
+            Some(&carrier)
+        );
+
+        let mut conflict = function.command_binding_sites[0].clone();
+        conflict.source_tokens.as_mut().unwrap().argv_texts[0].replace_range(.., "other");
+        function.command_binding_sites.push(conflict.clone());
+        assert!(function.source_input_tokens_at(function.entry, 0).is_none());
+        let mut sites = script
+            .command_binding_sites
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        sites.push(conflict);
+        script.command_binding_sites = sites.into();
+        assert!(
+            script
+                .retained_source_tokens_for_statement(&script.statements[0])
+                .is_none()
+        );
+
+        let mut phase = carrier;
+        phase.synthetic = Some(SyntheticMarker::EvaluatedArguments);
+        let boundary = Statement::Barrier {
+            span: original.span(),
+            reason: "captured original argv".to_owned(),
+            command: "set".to_owned(),
+            canonical_command: None,
+            args: vec!["x".to_owned(), "1".to_owned()],
+            tokens: Some(phase.clone()),
+        };
+        function.blocks.get_mut(&function.entry).unwrap().statements[0] = boundary.clone();
+        assert_eq!(
+            function.source_input_tokens_at(function.entry, 0),
+            Some(&phase)
+        );
+        script.statements[0] = boundary;
+        assert!(
+            script
+                .retained_source_tokens_for_statement(&script.statements[0])
+                .is_none()
+        );
+        assert!(function.source_input_tokens_at(function.entry, 1).is_none());
+    }
+
+    #[test]
+    fn braced_argument_query_rejects_command_head_and_out_of_range_indices() {
+        let source = "{lappend} {name} {$value} $other";
+        let config = LexerConfig::default();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+        assert!(tokens.arg_is_braced_literal(0));
+        assert!(tokens.arg_is_braced_literal(1));
+        assert!(!tokens.arg_is_braced_literal(2));
+        assert!(!tokens.arg_is_braced_literal(3));
+        assert!(!tokens.arg_is_braced_literal(usize::MAX));
+    }
+
+    #[test]
+    fn module_value_rules_retain_actual_axes_before_assistance_names() {
+        let assistance =
+            crate::environment_ingress::resolve_environment("tcl9.1").analyser_profile();
+        let mut module = Module {
+            dialect: Some("tcl8.4".into()),
+            dialect_profile: Some(assistance),
+            lexer_config: tcl_lexer::LexerConfig::for_profile(Some(assistance)),
+            ..Module::default()
+        };
+        assert_eq!(
+            module.number_syntax(),
+            tcl_dialect::NumberSyntax::of_profile(Some(assistance))
+        );
+        let actual = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4);
+        module.source_entry.invocation_dialect = Some(actual);
+        assert_eq!(module.number_syntax(), actual.numbers);
+        assert_eq!(module.word_values(), actual.word_values);
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        module.source_entry.invocation_dialect = Some(jim);
+        assert_eq!(module.number_syntax(), jim.numbers);
+        assert_eq!(module.word_values(), jim.word_values);
+    }
+
+    #[test]
+    fn quoted_variable_identity_uses_the_reference_site() {
+        let source = "list \"${a}\" \"$a[upvar 0 y a]$a\" {$a}";
+        let config = LexerConfig::default();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let tokens = CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+        let (spelling, read) = tokens.words()[1]
+            .sole_variable_substitution()
+            .expect("sole quoted read");
+        assert_eq!(spelling, "${a}");
+        assert_eq!(read, &SourceSite::source(Span::new(6, 9)));
+        assert!(tokens.words()[2].sole_variable_substitution().is_none());
+        assert!(tokens.words()[3].sole_variable_substitution().is_none());
+    }
+
+    #[test]
+    fn structured_variable_references_preserve_original_syntax() {
+        let source = r#"list $a "${a}" "$a" $a(k) ${a(k)} "$a($i)" "$a$a" {$a}"#;
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let config =
+                LexerConfig::for_profile(Some(registry.profile().expect("actual native grammar")));
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            let tokens =
+                CommandTokens::from_segmented(&SourceMap::new(source), config, &commands[0]);
+            for (index, expected) in [
+                (1, "$a"),
+                (2, "${a}"),
+                (3, "$a"),
+                (4, "$a(k)"),
+                (5, "${a(k)}"),
+                (6, "$a($i)"),
+            ] {
+                let (spelling, site) = tokens.words()[index]
+                    .sole_variable_substitution()
+                    .expect("one original reference");
+                assert_eq!(spelling, expected, "{dialect}, word {index}");
+                assert_eq!(site.provenance, Provenance::Source);
+                let start = site.span.start() as usize;
+                assert!(source[start..].starts_with(spelling));
+            }
+            // Two lexical reads cannot acquire one read identity; a braced
+            // data word supplies none, despite containing the same name.
+            assert!(tokens.words()[7].sole_variable_substitution().is_none());
+            assert!(tokens.words()[8].sole_variable_substitution().is_none());
+            assert_eq!(tokens.argv_texts[1], "${a}");
+            assert_eq!(tokens.words()[1].legacy_text(), "${a}");
+            assert_eq!(
+                tokens.words()[1].sole_variable_substitution().unwrap().0,
+                "$a"
+            );
+        }
+    }
+
+    #[test]
     fn empty_script() {
         let script = Script::new();
-        assert!(script.statements.is_empty());
+        assert_eq!(script.statements, [] as [crate::ir::Statement; 0]);
     }
 
     #[test]
@@ -2022,6 +3041,60 @@ mod tests {
             seen.push(name);
         });
         assert_eq!(seen, vec!["if", "inner1", "inner2"]);
+    }
+
+    #[test]
+    fn retained_region_phases_have_one_visitor_owner() {
+        use crate::execution_region::{
+            EvaluatedBodyRegion, ExecutionRegionDependency, RegionSelection,
+        };
+        let phase = |name: &str| {
+            Script::from_statements(vec![Statement::AssignConst {
+                span: Span::new(0, 0),
+                name: name.into(),
+                name_braced: false,
+                value: "1".into(),
+                value_span: None,
+            }])
+        };
+        let region = EvaluatedBodyRegion::captured_lifecycle(
+            SourceSite::source(Span::new(0, 10)),
+            phase("setup"),
+            phase("body"),
+            phase("cleanup"),
+            RegionSelection::MaySkip,
+            vec![ExecutionRegionDependency::Implementation("proved".into())],
+        );
+        let tokens = CommandTokens::from_lossy_parts(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+        )
+        .with_evaluated_body(region);
+        let original = Statement::Barrier {
+            span: Span::new(0, 10),
+            reason: "wrapper".into(),
+            command: "wrapper".into(),
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: Some(tokens),
+        };
+        let mut boundary = original.clone();
+        boundary.tokens_mut().unwrap().synthetic = Some(SyntheticMarker::EvaluatedWrapper);
+        let mut script = Script::from_statements(vec![original, boundary]);
+        let mut names = Vec::new();
+        for_each_statement(&script, &mut |statement| {
+            if let Statement::AssignConst { name, .. } = statement {
+                names.push(name.clone());
+            }
+        });
+        assert_eq!(names, ["setup", "body", "cleanup"]);
+        let mut scripts = 0;
+        for_each_script_mut(&mut script, &mut |_| scripts += 1);
+        assert_eq!(scripts, 4);
     }
 
     /// `for_each_statement` recurses
@@ -2330,11 +3403,11 @@ mod tests {
     #[test]
     fn module_default() {
         let module = Module::default();
-        assert!(module.top_level.statements.is_empty());
-        assert!(module.procedures.is_empty());
-        assert!(module.methods.is_empty());
-        assert!(module.redefined_procedures.is_empty());
-        assert!(module.redefined_methods.is_empty());
+        assert_eq!(module.top_level.statements, [] as [crate::ir::Statement; 0]);
+        assert_eq!(module.procedures.len(), 0);
+        assert_eq!(module.methods.len(), 0);
+        assert_eq!(module.redefined_procedures.len(), 0);
+        assert_eq!(module.redefined_methods.len(), 0);
     }
 
     #[test]
@@ -2476,6 +3549,8 @@ mod tests {
     #[test]
     fn return_with_expr() {
         let stmt = Statement::Return {
+            expr_base: None,
+            tokens: None,
             span: Span::new(0, 20),
             value: None,
             value_word: None,

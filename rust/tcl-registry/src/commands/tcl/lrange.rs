@@ -75,7 +75,25 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "lrange",
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryListRange {
+            operand: 0,
+            first: 1,
+            last: 2,
+        }),
+        native_result: Some(crate::native_result::NativeResultContract::ListRange {
+            list_at: 0,
+            first_at: 1,
+            last_at: 2,
+        }),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ListRange,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListRange),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a

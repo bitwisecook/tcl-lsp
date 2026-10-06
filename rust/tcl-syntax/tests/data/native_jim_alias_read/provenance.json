@@ -1,0 +1,546 @@
+{
+  "scope": "Original alias/link target read diagnostic result and catch completion across all six native engines; no refcount/cache/return-options claim",
+  "cases_sha256": "07d5db5df01e9cc19e9cad4bce857ce86785cc26b39c37092914fbc083d167d8",
+  "rows": [
+    {
+      "engine": "8.4",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0031969379633665085,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0022438150481320918,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.002335480006877333,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774206163636573732022746172676574286b29223a207661726961626c652069736e2774206172726179",
+      "seconds": 0.0023368520196527243,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.0019836120191030204,
+      "budget": 60
+    },
+    {
+      "engine": "8.4",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.4",
+        "/workspace/.proofs/2286-jim-alias-read/8.4-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0023207179619930685,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.004839448956772685,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.002495925989933312,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.002292836958076805,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774206163636573732022746172676574286b29223a207661726961626c652069736e2774206172726179",
+      "seconds": 0.0025905960355885327,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.002477850008290261,
+      "budget": 60
+    },
+    {
+      "engine": "8.5",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.5",
+        "/workspace/.proofs/2286-jim-alias-read/8.5-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0024959160364232957,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.005732769030146301,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.004286232986487448,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.003763357992284,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774206163636573732022746172676574286b29223a207661726961626c652069736e2774206172726179",
+      "seconds": 0.00307470397092402,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.004641317005734891,
+      "budget": 60
+    },
+    {
+      "engine": "8.6",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh8.6",
+        "/workspace/.proofs/2286-jim-alias-read/8.6-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.00335336901480332,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.00912707403767854,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.007706110016442835,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.007157562009524554,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774206163636573732022746172676574286b29223a207661726961626c652069736e2774206172726179",
+      "seconds": 0.007094255008269101,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.00757295498624444,
+      "budget": 60
+    },
+    {
+      "engine": "9.0",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.0",
+        "/workspace/.proofs/2286-jim-alias-read/9.0-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.006999214005190879,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.008341376029420644,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.006298187014181167,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0057961170095950365,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774206163636573732022746172676574286b29223a207661726961626c652069736e2774206172726179",
+      "seconds": 0.006050041003618389,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.006146483006887138,
+      "budget": 60
+    },
+    {
+      "engine": "9.1",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/bin/tclsh9.1",
+        "/workspace/.proofs/2286-jim-alias-read/9.1-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0057997729745693505,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "missing-one",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-missing-one.tcl"
+      ],
+      "source_sha256": "73b898d102a7f057826d3c372e90b898777a4e3bafcf93842c7f66b43dd44f5b",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420226669727374223a206e6f2073756368207661726961626c65",
+      "seconds": 0.005426002026069909,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "missing-chain",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-missing-chain.tcl"
+      ],
+      "source_sha256": "55d2c67014d109402d0d959c4d56dbf3a042b8a4c7403237379513617eec7afe",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0038936699857003987,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "missing-element",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-missing-element.tcl"
+      ],
+      "source_sha256": "6f82060d736c7b6b98664391aa008d9cfed5c718b0bbaa295af42489ca6e00cf",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0034746130113489926,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "scalar-element",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-scalar-element.tcl"
+      ],
+      "source_sha256": "ba8f274e5c5a42ba5725d6f9237066eb25d39a4d572a1ca3a8bf6dce1f20aba8",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0035152669879607856,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "defined-chain",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-defined-chain.tcl"
+      ],
+      "source_sha256": "1203df6db920860ceb340067ecf4f798127f0d179cf18cd04a044c5a65eb22a7",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "0\t56414c5545",
+      "seconds": 0.003117921994999051,
+      "budget": 60
+    },
+    {
+      "engine": "jim",
+      "case": "unset-chain",
+      "command": [
+        "/tmp/2286-oracles/jimtcl/jimsh",
+        "/workspace/.proofs/2286-jim-alias-read/jim-unset-chain.tcl"
+      ],
+      "source_sha256": "2d92f643576d6272acad4284690b14f19b6d8ddba9c5bf53ca52bbf57302e5e9",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "stderr_bytes": 0,
+      "stdout": "1\t63616e2774207265616420227365636f6e64223a206e6f2073756368207661726961626c65",
+      "seconds": 0.0031264349818229675,
+      "budget": 60
+    }
+  ]
+}

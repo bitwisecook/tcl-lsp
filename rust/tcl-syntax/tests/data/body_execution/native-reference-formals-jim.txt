@@ -1,0 +1,7 @@
+&x 0 0 AFTER AFTER
+&a(k) 0 1 {bad variable name "a(k)": upvar won't create a scalar variable that looks like an array element} BEFORE
+&::alias 0 1 {bad variable name "::alias": upvar won't create namespace variable that refers to procedure variable} BEFORE
+&n::alias 0 0 AFTER AFTER
+elementtarget {0 AFTER AFTER}
+emptybody {0 {}}
+default {&x DEFAULT}

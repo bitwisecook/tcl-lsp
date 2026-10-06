@@ -242,6 +242,10 @@ pub enum PackEvalFailure {
     /// The program raised an uncaught Tcl error (a sandbox denial reaches the
     /// caller this way, carrying the denial message its handler produced).
     Script(String),
+    /// Exact non-Unicode guest error bytes.
+    ScriptBytes(Vec<u8>),
+    /// The engine cannot execute the requested host protocol.
+    ExecutionRefusal(String),
     /// The program outran its budget on the named axis.
     Budget(&'static str),
     /// The engine panicked; the payload is whatever the boundary recovered.
@@ -265,6 +269,15 @@ impl std::fmt::Display for PackEvalFailure {
         match self {
             Self::Compile(message) => write!(f, "the pack does not compile as Tcl: {message}"),
             Self::Script(message) => write!(f, "{message}"),
+            Self::ScriptBytes(message) => {
+                for byte in message {
+                    for escaped in byte.escape_ascii() {
+                        write!(f, "{}", char::from(escaped))?;
+                    }
+                }
+                Ok(())
+            }
+            Self::ExecutionRefusal(reason) => write!(f, "engine execution unavailable: {reason}"),
             Self::Budget(axis) => {
                 write!(f, "the evaluation budget was exhausted on the {axis} axis")
             }
@@ -303,9 +316,20 @@ impl PackEvalCtx<'_> {
         match self.vm.eval_source(body) {
             Ok(completion) => match completion.code {
                 Code::Ok | Code::Return => Ok(()),
-                _ => Err(completion.result.to_str().to_string()),
+                _ => {
+                    let bytes = completion.result.string_bytes();
+                    match std::str::from_utf8(&bytes) {
+                        Ok(message) => Err(message.to_owned()),
+                        Err(_) => {
+                            let _ = self.vm.refuse_host_command(
+                                "SpecTcl declaration errors require Unicode".into(),
+                            );
+                            Err("SpecTcl declaration errors require Unicode".into())
+                        }
+                    }
+                }
             },
-            Err(error) => Err(error.message),
+            Err(error) => Err(tcl_vm::VmCompilationError::Tcl(error).to_string()),
         }
     }
 }
@@ -344,12 +368,24 @@ fn completion_of(outcome: Result<Option<String>, String>) -> Completion<tcl_vm::
     }
 }
 
+fn unicode_words(values: &[tcl_vm::Value]) -> Result<Vec<String>, &'static str> {
+    values
+        .iter()
+        .map(|value| {
+            let bytes = value.string_bytes();
+            std::str::from_utf8(&bytes)
+                .map(str::to_owned)
+                .map_err(|_| "SpecTcl declaration vocabulary requires Unicode")
+        })
+        .collect()
+}
+
 impl NativeCommand for WordAdapter {
     fn invoke(&self, vm: &mut Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let words: Vec<String> = args
-            .iter()
-            .map(|value| value.to_str().to_string())
-            .collect();
+        let words = match unicode_words(args) {
+            Ok(words) => words,
+            Err(reason) => return vm.refuse_host_command(reason.into()),
+        };
         let mut ctx = PackEvalCtx {
             vm,
             line: self.line.get(),
@@ -367,10 +403,10 @@ struct UnknownAdapter {
 
 impl NativeCommand for UnknownAdapter {
     fn invoke(&self, vm: &mut Vm, args: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
-        let words: Vec<String> = args
-            .iter()
-            .map(|value| value.to_str().to_string())
-            .collect();
+        let words = match unicode_words(args) {
+            Ok(words) => words,
+            Err(reason) => return vm.refuse_host_command(reason.into()),
+        };
         let Some((name, rest)) = words.split_first() else {
             return completion_of(Ok(None));
         };
@@ -466,7 +502,16 @@ pub fn run_pack_program(
         }
         Ok(Err(EngineError::Compile(message))) => Err(PackEvalFailure::Compile(message)),
         Ok(Err(EngineError::Script { message, .. })) => Err(PackEvalFailure::Script(message)),
-        Ok(Err(other)) => Err(PackEvalFailure::Script(other.to_string())),
+        Ok(Err(EngineError::ScriptBytes { message, .. })) => {
+            Err(match String::from_utf8(message) {
+                Ok(message) => PackEvalFailure::Script(message),
+                Err(error) => PackEvalFailure::ScriptBytes(error.into_bytes()),
+            })
+        }
+        Ok(Err(EngineError::ExecutionRefusal(reason))) => {
+            Err(PackEvalFailure::ExecutionRefusal(reason))
+        }
+        Ok(Err(other)) => Err(PackEvalFailure::ExecutionRefusal(other.to_string())),
         Err(payload) => Err(PackEvalFailure::Panic(panic_text(payload.as_ref()))),
     }
 }

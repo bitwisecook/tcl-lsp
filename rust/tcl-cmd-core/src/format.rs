@@ -64,7 +64,7 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
     let Some((fmt, rest)) = args.split_first() else {
         return Err(CmdError::wrong_args("format formatString ?arg ...?"));
     };
-    let fmt = ops.as_str(fmt).to_string();
+    let fmt = ops.try_as_str(fmt)?.to_string();
     let rendered = render(ops, &fmt, rest, syntax)?;
     Ok(ops.new_string(rendered))
 }
@@ -288,7 +288,7 @@ fn utf8_len(b: u8) -> usize {
 /// objects modulo 2^64, then applies the conversion's selected width. Tcl 8.4
 /// and Jim have no corresponding bignum format path, so they retain the legacy
 /// wide-integer coercion and overflow error.
-fn fixed_integer_value<O: ValueOps>(
+pub(crate) fn fixed_integer_value<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     syntax: tcl_dialect::NumberSyntax,
@@ -412,7 +412,7 @@ fn render_spec<O: ValueOps>(
             ))
         }
         b's' => {
-            let mut s = ops.as_str(arg).to_string();
+            let mut s = ops.try_as_str(arg)?.to_string();
             if let Some(p) = spec.precision {
                 s = s.chars().take(p).collect();
             }
@@ -629,63 +629,14 @@ fn float_digits(x: f64, spec: &Spec) -> String {
             }
             out
         }
-        // g/G (C semantics): precision P (0 → 1) is the number of significant
-        // digits. Using the decimal exponent X (from an %e render at P-1
-        // fractional digits), pick %e when X < -4 or X >= P, else %f with
-        // P-1-X fractional digits; then strip trailing zeros / a bare `.`
-        // (unless the `#` alternate form keeps them).
-        _ => {
-            let p = prec.max(1);
-            let upper = spec.verb == b'G';
-            let probe = format!("{m:.*e}", p - 1);
-            let exp: i32 = probe
-                .find('e')
-                .and_then(|i| probe[i + 1..].parse().ok())
-                .unwrap_or(0);
-            let keep_zeros = spec.flags.contains(FmtFlags::HASH);
-            if exp < -4 || exp >= i32::try_from(p).unwrap_or(i32::MAX) {
-                let body = c_style_exp(&format!("{m:.*e}", p - 1));
-                let mut out = if keep_zeros { body } else { trim_g_exp(&body) };
-                if x.is_finite() && keep_zeros {
-                    let exponent = out.find(['e', 'E']).unwrap_or(out.len());
-                    if !out[..exponent].contains('.') {
-                        out.insert(exponent, '.');
-                    }
-                }
-                if upper { out.replace('e', "E") } else { out }
-            } else {
-                let fprec = usize::try_from(i32::try_from(p).unwrap_or(0) - 1 - exp).unwrap_or(0);
-                let body = format!("{m:.fprec$}");
-                if keep_zeros {
-                    if body.contains('.') {
-                        body
-                    } else {
-                        format!("{body}.")
-                    }
-                } else if !body.contains('.') {
-                    body
-                } else {
-                    body.trim_end_matches('0').trim_end_matches('.').to_string()
-                }
-            }
-        }
+        // Shared `%g` owner also drives native legacy double strings.
+        _ => tcl_syntax::number::format_general_float(
+            m,
+            prec,
+            spec.flags.contains(FmtFlags::HASH),
+            spec.verb == b'G',
+        ),
     }
-}
-
-/// Trim trailing mantissa zeros (and a bare `.`) from a C-style `%e` body
-/// without disturbing the exponent: `1.20000e+06` → `1.2e+06`,
-/// `1.00000e+06` → `1e+06`.
-fn trim_g_exp(body: &str) -> String {
-    let Some(epos) = body.find(['e', 'E']) else {
-        return body.to_string();
-    };
-    let (mantissa, exp) = body.split_at(epos);
-    let trimmed = if mantissa.contains('.') {
-        mantissa.trim_end_matches('0').trim_end_matches('.')
-    } else {
-        mantissa
-    };
-    format!("{trimmed}{exp}")
 }
 
 /// Left-pad `mag` with `0` up to `.precision` digits. Tcl 8.5+ and Tcl 9

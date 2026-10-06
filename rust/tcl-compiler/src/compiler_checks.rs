@@ -97,7 +97,7 @@ impl Diagnostic {
             category: "sccp".into(),
             severity: Severity::Hint,
             message: format!(
-                "condition in block {} is a constant {} — take target `{}`",
+                "condition in block {} is {} on normal completion — target `{}`",
                 cb.block, cb.value, cb.taken_target
             ),
             replacement: None,
@@ -352,7 +352,7 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
-    for cb in &fu.sccp.constant_branches {
+    for cb in fu.diagnostic_value_facts().constant_branches() {
         out.push(Diagnostic::from_constant_branch(cb));
     }
     for r in find_redundancies_for_function(registry, fu, dialect) {
@@ -651,7 +651,7 @@ mod tests {
         for diagnostic in o105 {
             assert_eq!(diagnostic.severity, Severity::Suggestion);
             assert!(diagnostic.replacement.is_none());
-            assert!(diagnostic.fixes.is_empty());
+            assert_eq!(diagnostic.fixes, [] as [crate::irules_checks::CodeFix; 0]);
         }
     }
 
@@ -678,7 +678,10 @@ mod tests {
     #[test]
     fn run_all_checks_on_empty_source_is_empty() {
         let cu = CompilationUnit::build_for("", &registry(), false);
-        assert!(run_all_checks(&cu, &registry(), None).is_empty());
+        assert_eq!(
+            run_all_checks(&cu, &registry(), None),
+            [] as [crate::compiler_checks::Diagnostic; 0]
+        );
     }
 
     /// (FP guard) `my variable count` links an object-instance variable whose
@@ -694,8 +697,9 @@ mod tests {
             .iter()
             .filter(|d| matches!(d.code.as_str(), "S100" | "S101"))
             .collect();
-        assert!(
-            shimmer.is_empty(),
+        assert_eq!(
+            shimmer.len(),
+            0,
             "'my variable'-linked instance var must not spuriously shimmer: {shimmer:?}"
         );
     }
@@ -740,17 +744,28 @@ mod tests {
         assert_eq!(s100.severity, Severity::Info, "S100 must be Info: {s100:?}");
         assert_eq!(s100.severity.as_str(), "info");
 
-        // S101 — a per-iteration shimmer inside a loop is a warning. `$x` is a
-        // loop element of unknown value used in arithmetic: a non-constant pure
-        // string is not provably a valid number, so the conversion is flagged
-        // per iteration (unlike a list target, where any string is a valid
-        // list — see `is_uncommitted_first_conversion`).
+        // An unknown iterable does not establish its elements' object class.
+        // Preserve the original source as a representation-withdrawal control.
         let cu = CompilationUnit::build_for(
             "proc f {l} {\n  foreach x $l {\n    set y [expr {$x + 1}]\n  }\n}\n",
             &registry(),
             false,
         );
         let diags = run_all_checks(&cu, &registry(), None);
+        assert!(diags.iter().all(|diag| diag.code != DiagCode::S101));
+
+        // Each reached iteration constructs a List before numeric conversion.
+        // All five C releases and current Jim observe List -> Int on this path.
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let native_registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = environment.analyser_profile();
+        let cu = CompilationUnit::build_for_profile(
+            "proc f {item} {foreach i [list $item $item] {set x [list $i]; set y [expr {$x+1}]}}; f 7",
+            native_registry,
+            false,
+            profile,
+        );
+        let diags = run_all_checks(&cu, native_registry, Some(profile));
         let s101 = diags
             .iter()
             .find(|d| d.code == DiagCode::S101)
@@ -778,17 +793,16 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_irule3001_end_to_end() {
-        let cu = CompilationUnit::build_for(
+        let profile = tcl_dialect::DialectProfile::irules();
+        let registry = registry().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(
             "set u [HTTP::uri]\nHTTP::respond 200 content $u",
-            &registry(),
+            &registry,
             false,
+            profile,
         )
-        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
-        let diagnostics = run_all_checks(
-            &cu,
-            &registry(),
-            Some(tcl_dialect::DialectProfile::irules()),
-        );
+        .with_interprocedural(&registry, Some(profile));
+        let diagnostics = run_all_checks(&cu, &registry, Some(profile));
         assert!(
             diagnostics
                 .iter()
@@ -816,18 +830,17 @@ mod tests {
 
     #[test]
     fn run_all_checks_reports_s110_payload_roundtrip_end_to_end() {
-        let cu = CompilationUnit::build_for(
+        let profile = tcl_dialect::DialectProfile::irules();
+        let registry = registry().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(
             "when CLIENT_DATA {\n  set p [TCP::payload]\n  set q [string map {a b} $p]\n  \
              TCP::payload replace 0 100 $q\n}",
-            &registry(),
+            &registry,
             false,
+            profile,
         )
-        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
-        let diagnostics = run_all_checks(
-            &cu,
-            &registry(),
-            Some(tcl_dialect::DialectProfile::irules()),
-        );
+        .with_interprocedural(&registry, Some(profile));
+        let diagnostics = run_all_checks(&cu, &registry, Some(profile));
         let hit = diagnostics
             .iter()
             .find(|d| d.code == DiagCode::S110)

@@ -222,15 +222,9 @@ const NOT_REQUIRED: &[(&str, &str)] = &[
     ),
 ];
 
-/// Core commands that *should* be backed but are not yet — real gaps, each
-/// with its own reason below. Allow-listed so
-/// the gate stays green while they are implemented one by one; removing a
-/// name here (as it gains a handler) is the visible progress marker. Names
-/// are canonical (no leading `::`). Kept sorted.
-///
-/// The Tcl 9.1 entries below (everything but `link`/`tcl::zipfs`/`zipfs`)
-/// are visible to this gate because `core_commands()` includes every
-/// `TCL90_PLUS`-gated command; they are genuinely unbacked.
+/// Core commands without runtime backing and their current limitations.
+/// Names are canonical (no leading `::`) and sorted. The gate includes
+/// version-gated core commands independently of the selected runtime release.
 const KNOWN_UNBACKED: &[(&str, &str)] = &[
     (
         "callback",
@@ -238,19 +232,19 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "divmod",
-        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) combined quotient/remainder list command; unsupported in runtime/rust",
     ),
     (
         "frexp",
-        "TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; unsupported in runtime/rust",
     ),
     (
         "fpclassify",
-        "Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust",
+        "Tcl 9.0 floating-point classifier (TIP 521); unsupported in runtime/rust",
     ),
     (
         "lfilter",
-        "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
+        "Tcl 9.1 list-filter command; unsupported in runtime/rust",
     ),
     (
         "link",
@@ -258,7 +252,7 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "modf",
-        "TIP 745 (Tcl 9.1) integer/fractional split; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) integer/fractional split; unsupported in runtime/rust",
     ),
     (
         "mymethod",
@@ -266,27 +260,27 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
     ),
     (
         "remquo",
-        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; not yet implemented in runtime/rust",
+        "TIP 745 (Tcl 9.1) IEEE remainder with low quotient bits; unsupported in runtime/rust",
     ),
     (
         "tcl::zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
+        "ZIP virtual filesystem; unsupported in runtime/rust",
     ),
     (
         "tcl::unsupported::grapheme",
-        "Tcl 9.1.0 grapheme-cluster ensemble; needs UAX #29 segmentation tables not yet in runtime/rust",
+        "Tcl 9.1.0 grapheme-cluster ensemble; requires UAX #29 segmentation tables absent from runtime/rust",
     ),
     (
         "timer",
-        "Tcl 9.1 timer command; not yet implemented in runtime/rust",
+        "Tcl 9.1 timer command; unsupported in runtime/rust",
     ),
     (
         "unicode",
-        "Tcl 9.1 Unicode-introspection ensemble; not yet implemented in runtime/rust",
+        "Tcl 9.1 Unicode-introspection ensemble; unsupported in runtime/rust",
     ),
     (
         "zipfs",
-        "ZIP virtual filesystem — no runtime implementation yet; pre-existing gap, unrelated to issue #923",
+        "ZIP virtual filesystem; unsupported in runtime/rust",
     ),
 ];
 
@@ -394,14 +388,9 @@ fn is_mathfunc_command(c: &str) -> bool {
 const MATHFUNC_COMMAND_REASON: &str = "`::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop \
      (register_builtin(&full, …) — not a literal the scan can see)";
 
-/// Whether `c` is a standalone `::tcl::dict::*` ensemble-implementation
-/// spelling. These are real, separately-callable commands
-/// in C Tcl (the `dict` ensemble's default map targets), so the registry
-/// carries them — but `runtime/rust` implements only the `dict` ensemble head
-/// (`register_builtin(b"dict", …)`), not the qualified spellings: a direct
-/// `::tcl::dict::get …` call raises `invalid command name` there. Classified as
-/// a genuine, visible runtime gap ([`Status::KnownGap`]) rather than hidden
-/// under [`HANDLER_EXTRA`] as if `dict`'s handler backed them.
+/// Whether an unscanned name is a standalone `::tcl::dict::*` worker.
+/// Actual typed stock ensemble registrations are scanned first. This residual
+/// classification applies only when no genuinely registered worker was found.
 fn is_tcl_dict_qualified(c: &str) -> bool {
     c.strip_prefix("::")
         .unwrap_or(c)
@@ -411,8 +400,8 @@ fn is_tcl_dict_qualified(c: &str) -> bool {
 
 /// The reason attached to every [`is_tcl_dict_qualified`] command in the
 /// report.
-const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): \
-     runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name`";
+const TCL_DICT_QUALIFIED_REASON: &str =
+    "qualified dictionary worker without a matching actual Runtime stock registration";
 
 /// Whether `c` is a qualified `::oo::Helpers::*` spelling.
 ///
@@ -421,7 +410,7 @@ const TCL_DICT_QUALIFIED_REASON: &str = "standalone `::tcl::dict::*` ensemble-im
 /// alongside their method-context-only bare twins. `runtime/rust` registers
 /// only the bare names its method dispatch installs, so calling the
 /// qualified spelling there is `invalid command name`: the same genuine,
-/// visible gap [`is_tcl_dict_qualified`] records for `::tcl::dict::*`,
+/// visible gap an unregistered qualified worker records,
 /// rather than hiding it under [`HANDLER_EXTRA`] as if the bare handler
 /// backed it.
 fn is_oo_helpers_qualified(c: &str) -> bool {
@@ -490,6 +479,65 @@ static SPEC_REGISTRATION_RE: LazyLock<Regex> = LazyLock::new(|| {
         .expect("static direct register_spec_builtin regex")
 });
 
+/// Genuine stock-ensemble allocation includes a typed implementation family
+/// followed by the actual public name and callback; a reference to a family
+/// elsewhere does not register its public command.
+static ENSEMBLE_REGISTRATION_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)register_stock_ensemble\(\s*(?:[A-Za-z_][A-Za-z0-9_]*::)*EnsembleImplementationFamily::[A-Za-z_][A-Za-z0-9_]*\s*,\s*b"([^"]+)"\s*,"#)
+        .expect("static stock ensemble registration regex")
+});
+
+static STOCK_MEMBERS_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?s)register_stock_ensemble\(\s*(?:[A-Za-z_][A-Za-z0-9_]*::)*EnsembleImplementationFamily::(\w+)\s*,\s*b"([^"]+)"\s*,\s*\w+\s*,\s*(\w+)\s*,"#)
+        .expect("static stock member allocation regex")
+});
+
+/// A private worker is backed only when its callback appears in the actual
+/// registered roster and is admitted by the selected release's member table.
+fn scan_stock_members(text: &str, names: &mut BTreeSet<String>) {
+    use tcl_registry::invocation_words::{EnsembleImplementationFamily, InvocationDialect};
+    let profile = crate::environment::profile_for_dialect("tcl9.1");
+    let dialect = InvocationDialect::of_profile(profile);
+    let query = profile.surface_query();
+    let member = Regex::new(r#"\(b"([^"]+)",\s*\w+\)"#).expect("static member tuple regex");
+    for allocation in STOCK_MEMBERS_RE.captures_iter(text) {
+        let family = match &allocation[1] {
+            "Info" => EnsembleImplementationFamily::Info,
+            "Namespace" => EnsembleImplementationFamily::Namespace,
+            "Dict" => EnsembleImplementationFamily::Dict,
+            "String" => EnsembleImplementationFamily::String,
+            "Array" => EnsembleImplementationFamily::Array,
+            "Binary" => EnsembleImplementationFamily::Binary,
+            _ => continue,
+        };
+        let Some(namespace) = dialect.ensemble_implementation_namespace(family) else {
+            continue;
+        };
+        let marker = format!("const {}:", &allocation[3]);
+        let Some((_, roster)) = text.split_once(&marker) else {
+            continue;
+        };
+        let Some((roster, _)) = roster.split_once("];") else {
+            continue;
+        };
+        let Some(spec) = crate::environment::store_for_profile(profile)
+            .get_for_surface(&allocation[2], Some(query))
+        else {
+            continue;
+        };
+        for callback in member.captures_iter(roster) {
+            if spec.subcommands.iter().any(|sub| {
+                sub.name == &callback[1]
+                    && sub.surface.is_none_or(|surface| {
+                        tcl_dialect::model::surface_admits(surface, Some(&query))
+                    })
+            }) {
+                names.insert(format!("{}::{}", canon(namespace), &callback[1]));
+            }
+        }
+    }
+}
+
 /// Scan one runtime source file for registry-backed command registrations.
 ///
 /// Ordinary handlers expose their name directly through
@@ -510,12 +558,16 @@ fn scan_handler_source(text: &str) -> BTreeSet<String> {
         }
     }
 
-    for captures in SPEC_REGISTRATION_RE.captures_iter(text) {
+    for captures in SPEC_REGISTRATION_RE
+        .captures_iter(text)
+        .chain(ENSEMBLE_REGISTRATION_RE.captures_iter(text))
+    {
         if let Some(name) = captures.get(1).map(|capture| capture.as_str()) {
             names.insert(canon(name).to_string());
         }
     }
 
+    scan_stock_members(text, &mut names);
     names
 }
 
@@ -675,7 +727,7 @@ fn render_report(core: &BTreeSet<String>, backed: &BTreeSet<String>) -> String {
          > command, or on a stale classification entry.\n\n\
          Source of truth: `tcl-registry` core command specs (`required_package == None`),\n\
          restricted to those available at Tcl 9.0 or later. Backing: a literal `register_builtin`\n\
-         handler or registry-derived `register_spec_builtin` handler in `runtime/rust/`,\n\
+         handler, registry-derived `register_spec_builtin`, or actual public `register_stock_ensemble` allocation in `runtime/rust/`,\n\
          a native registration outside those scans (TclOO metaclass, per-object `my`),\n\
          or an explicit *not required* classification.\n\n\
          | status | count |\n| --- | --- |\n\
@@ -798,6 +850,14 @@ mod tests {
         let source = r#"
             interp.register_builtin(b"::literal", literal_handler);
 
+            interp.register_stock_ensemble(
+                tcl_registry::invocation_words::EnsembleImplementationFamily::Array,
+                b"array",
+                array_handler,
+                MEMBERS,
+                admitted,
+            );
+
             interp.register_spec_builtin(
                 registry.get("string").expect("core string spec"),
                 string_handler,
@@ -813,7 +873,11 @@ mod tests {
 
         assert_eq!(
             scan_handler_source(source),
-            BTreeSet::from(["literal".to_owned(), "string".to_owned()]),
+            BTreeSet::from([
+                "array".to_owned(),
+                "literal".to_owned(),
+                "string".to_owned()
+            ]),
         );
     }
 

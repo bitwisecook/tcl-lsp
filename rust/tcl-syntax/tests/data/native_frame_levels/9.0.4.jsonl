@@ -1,0 +1,16 @@
+{"case":0,"before":"string","after":"int","code":0,"result":"31"}
+{"case":1,"before":"string","after":"int","code":0,"result":"31"}
+{"case":2,"before":"string","after":"levelReference","code":0,"result":"31"}
+{"case":3,"before":"string","after":"levelReference","code":0,"result":"31"}
+{"case":4,"before":"string","after":"int","code":1,"result":"626164206c6576656c20222d3122"}
+{"case":5,"before":"string","after":"int","code":0,"result":"31"}
+{"case":6,"before":"string","after":"int","code":0,"result":"31"}
+{"case":7,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d652022312e3022"}
+{"case":8,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d6520224e614e22"}
+{"case":9,"before":"string","after":"int","code":1,"result":"626164206c6576656c20223231343734383336343822"}
+{"case":10,"before":"string","after":"int","code":1,"result":"626164206c6576656c20223432393439363732393522"}
+{"case":11,"before":"string","after":"int","code":0,"result":"32"}
+{"case":12,"before":"string","after":"string","code":1,"result":"696e76616c696420636f6d6d616e64206e616d65202262616422"}
+{"case":13,"before":"int","after":"int","code":0,"result":"31"}
+{"case":14,"before":"double","after":"double","code":1,"result":"696e76616c696420636f6d6d616e64206e616d652022312e3022"}
+{"case":15,"before":"double","after":"double","code":1,"result":"696e76616c696420636f6d6d616e64206e616d6520224e614e22"}

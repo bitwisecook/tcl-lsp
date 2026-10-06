@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name = "tcl-host-c-abi"
+publish.workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Safe native thread numeric environment access over the host C ABI"
+
+[dependencies]
+libc = "0.2"
+sha2 = "0.11"
+tcl-platform = { path = "../tcl-platform" }
+
+# This leaf owns the C calls and thread-local errno pointer. Its callers remain
+# under the workspace's unsafe-code prohibition.
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

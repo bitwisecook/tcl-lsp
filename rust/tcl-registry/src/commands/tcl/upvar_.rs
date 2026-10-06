@@ -18,14 +18,12 @@
 
 //! `upvar` — create link to variable in a different stack frame.
 
+use crate::StateTransitionWidening;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
-const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
-    level_word: FrameLevelWord::ArityParity,
-    layout: FrameArgLayout::AliasPairs,
-};
+const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec::UPVAR;
 
 const UPVAR_REPEATED_ARGS: &[RepeatedArgLayout] = &[RepeatedArgLayout {
     optional_leading_word: true,
@@ -50,12 +48,12 @@ const UPVAR_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
 
 const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: Some(upvar_success_transitions),
     resolver: Some(upvar_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
-    dynamic_widening: &[StateTransitionWideningRule {
-        operands: StateTransitionOperandLayout::EveryArgument,
-        domains: UPVAR_TRANSITION_DOMAINS,
-    }],
+    // Each alias transition already carries its unknown source/destination.
+    // Registering a link does not write other cells or erase their traces.
+    dynamic_widening: &[],
     effect_coverage: UPVAR_EFFECT_COVERAGE,
     // Alias pairs are processed in order and can be observed through traces
     // before a later pair fails.
@@ -63,15 +61,36 @@ const UPVAR_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
 };
 
 fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    upvar_transitions_for_layout(arguments, UPVAR_FRAME_EFFECT.resolve_arguments(arguments))
+}
+
+fn upvar_success_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    upvar_transitions_for_layout(
+        arguments,
+        UPVAR_FRAME_EFFECT.successful_layout(arguments).layout,
+    )
+}
+
+fn upvar_transitions_for_layout(
+    arguments: InvocationArguments<'_>,
+    layout: crate::frame_effect::FrameArgumentResolution,
+) -> StateTransitions {
     let mut transitions = StateTransitions::default();
-    let Some(level_word_len) =
-        UPVAR_FRAME_EFFECT.level_word_len_for_argument_count(arguments.len())
-    else {
-        return transitions;
+    let level_word_len = match layout {
+        crate::frame_effect::FrameArgumentResolution::Valid { level_word_len, .. } => {
+            level_word_len
+        }
+        crate::frame_effect::FrameArgumentResolution::Invalid => return transitions,
+        crate::frame_effect::FrameArgumentResolution::Unknown => {
+            if let Some(subject) = TransitionSubject::from_argument(arguments, 0) {
+                transitions.push(StateTransition::Widen(StateTransitionWidening {
+                    domains: UPVAR_TRANSITION_DOMAINS.to_vec(),
+                    subject,
+                }));
+            }
+            return transitions;
+        }
     };
-    if UPVAR_FRAME_EFFECT.layout != FrameArgLayout::AliasPairs {
-        return transitions;
-    }
 
     let frame = match level_word_len {
         0 => CallerFrameSelection::DefaultCaller,
@@ -91,6 +110,8 @@ fn upvar_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitio
         };
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
+                destination:
+                    crate::state_transition::VariableAliasDestination::CurrentNamespaceOrLocal,
                 local,
                 target: VariableAliasTarget::CallerSelectedFrame {
                     frame: frame.clone(),
@@ -138,6 +159,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "upvar",
+        native_result: Some(crate::native_result::NativeResultContract::EmptyString),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Upvar,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         // A pure variable-scoping primitive — no filesystem, process, or
         // network access — so every dialect that hosts a real Tcl core carries
         // it unmodified, the same reasoning `global`/`variable` use for their
@@ -176,17 +208,14 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Create link to variable in a different stack frame",
             synopsis: &["upvar ?level? otherVar myVar ?otherVar myVar ...?"],
-            snippet: "Links each myVar in the current procedure to the variable named otherVar in the call frame named by level (or the global scope, when level is #0); afterwards, reading, writing, or unsetting myVar reads, writes, or unsets otherVar directly. otherVar need not exist beforehand — it is created, just like an ordinary variable, the first time myVar is referenced. myVar must not already exist as a variable when upvar runs, and is always treated as a plain variable name, never an array element: since Tcl 8.5, a myVar that looks like an array element (e.g. a(b)) is a hard error (\"can't create a scalar variable that looks like an array element\"); Tcl 8.4 instead silently created an ordinary scalar variable literally named that. otherVar itself may be a scalar, a whole array, or a single array element. level takes any uplevel-style form — a plain integer counts call frames up from the current one (each namespace eval body also counts as one frame), #N is an absolute frame number, and it defaults to 1 (the immediate caller) whenever the first otherVar doesn't itself look like a level specifier; a level outside the current call stack is a \"bad level\" error. There is no way to remove an upvar link short of leaving the procedure that created it, though a later upvar call can retarget myVar to a different otherVar. A variable trace on otherVar fires on accesses through myVar but is passed myVar's name, not otherVar's; when otherVar names one element of an array, Tcl 8.4 through 8.6 do not fire a whole-array trace on that array for accesses through myVar (only a trace on that specific element fires), while Tcl 9.0 and 9.1 pass the element name as the trace procedure's second argument, so a whole-array trace does observe the access.",
+            snippet: "Links each myVar in the current procedure to the variable named otherVar in the call frame named by level (or the global scope, when level is #0); afterwards, reading, writing, or unsetting myVar reads, writes, or unsets otherVar directly. otherVar need not exist beforehand — it is created, just like an ordinary variable, the first time myVar is referenced. myVar must not already exist as a variable when upvar runs, and is always treated as a plain variable name, never an array element: since Tcl 8.5, a myVar that looks like an array element (e.g. a(b)) is a hard error (\"can't create a scalar variable that looks like an array element\"); Tcl 8.4 instead silently created an ordinary scalar variable literally named that. otherVar itself may be a scalar, a whole array, or a single array element. level takes any uplevel-style form — a plain integer counts call frames up from the current one (each namespace eval body also counts as one frame), #N is an absolute frame number, and it defaults to 1 (the immediate caller) when level is omitted (argument parity selects it in Tcl 8.6+, while Tcl 8.4/8.5 probe a leading digit or #); a level outside the current call stack is a \"bad level\" error. There is no way to remove an upvar link short of leaving the procedure that created it, though a later upvar call can retarget myVar to a different otherVar. A variable trace on otherVar fires on accesses through myVar but is passed myVar's name, not otherVar's; when otherVar names one element of an array, Tcl 8.4 through 8.6 do not fire a whole-array trace on that array for accesses through myVar (only a trace on that specific element fires), while Tcl 9.0 and 9.1 pass the element name as the trace procedure's second argument, so a whole-array trace does observe the access.",
             source: "Tcl upvar(n)",
             examples: "proc add2 name {\n    upvar $name x\n    set x [expr {$x + 2}]\n}\nset n 5\nadd2 n\nputs $n\n\n# level defaults to 1 (the caller); an explicit level reaches further up the stack\nproc decr {varName {decrement 1}} {\n    upvar 1 $varName var\n    incr var [expr {-$decrement}]\n}\n\n# level #0 links straight to the global scope, regardless of call depth\nproc bumpCounter {} {\n    upvar #0 counter c\n    incr c\n}",
             return_value: "The empty string.",
         }),
-        // `upvar ?level? otherVar myVar …` — C Tcl reads the level word off
-        // the *argument count parity* (`Tcl_UpvarObjCmd` tests `objc`), never
-        // off the word's text, so `upvar 1 b` aliases the caller variable
-        // literally named `1` while `upvar $lvl a b` really does take `$lvl`
-        // as its level.  tclsh 9.0.4 / 8.6.14 agree; see
-        // `FrameLevelWord::ArityParity` for the pinned table.
+        // Presence is dialect-aware: pre-8.6 probes the leading word,
+        // while 8.6+ and Jim use count parity. All role/transition consumers
+        // share the registry frame grammar.
         frame_effect: Some(UPVAR_FRAME_EFFECT),
         repeated_args: UPVAR_REPEATED_ARGS,
         lowering_hook: Some(LoweringHookId::Upvar),

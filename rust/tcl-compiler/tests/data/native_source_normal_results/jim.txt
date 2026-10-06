@@ -1,0 +1,14 @@
+final_set 0 3
+numeric_call 0 21.0
+caller_three 0 3
+caller_four 0 4
+variadic_numeric 0 10
+return_arm 0 3
+fallthrough_arm 0 4
+arithmetic_error 1 {}
+default_return 0 42
+level_two_return 2 42
+error_return 1 42
+unknown_prefix 1 {}
+unrelated_rename 0 42
+replaced_numeric_call 0 21.0

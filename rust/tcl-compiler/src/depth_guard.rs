@@ -37,7 +37,8 @@
 //! module docs prescribe.
 //!
 //! [`MAX_SOURCE_NEST_DEPTH`] joins them for the third category — the
-//! *braced-body* descent — and, unlike the two above, is not a convention
+//! *braced-body* descent, including source binding interpretation — and,
+//! unlike the two above, is not a convention
 //! number at all: it is arithmetic over a stated stack budget and a measured
 //! per-level cost. See its docs for why 256 does not fit.
 
@@ -105,29 +106,33 @@ const SOURCE_WALK_STACK_RESERVE: u32 = MIN_SOURCE_WALK_STACK / 4;
 /// Worst per-level native-stack cost across the braced-body walk family,
 /// **measured**, rounded up.
 ///
-/// Taken with a stack-pointer probe at the depth-guarded entry of each
-/// walk, on x86-64 Linux, in a `dev`-profile build — the fattest frames the
+/// Measured from native entry-frame allocations along each recursive
+/// call chain, on x86-64 Linux, in a `dev`-profile build — the fattest frames the
 /// code ever has, and the profile `cargo test` and every developer run use:
 ///
 /// | walk | bytes per nesting level |
 /// |---|---|
-/// | `lowering::Lowerer::lower_body` ↔ `lower_segmented` ↔ `lower_command` ↔ `lower_foreach` | < 24,576 |
-/// | `cfg_builder::CfgBuilder::lower_script` | 8,288 |
+/// | `lowering::Lowerer::lower_body` ↔ `lower_segmented` ↔ `lower_command` ↔ structured hook ↔ `lower_foreach` | about 19 KiB |
+/// | `cfg_builder::CfgBuilder::lower_script` ↔ `lower_foreach` | 10,256 |
 /// | `analyser::commands::Analyser::analyse_body` | 3,840 |
+/// | `command_binding::SourceCommandBindings` source/command/native/conditional/body chain | 17,952 conditional / 19,440 loop |
 ///
-/// The lowering chain sets the number: eight Rust frames per braced-body
-/// level, several of them large — measured at 18,864 bytes, and more once
-/// registry-resolved structured-command dependencies are retained in the
-/// recursive IR, which is why a 20 KiB envelope fails this module's
-/// constrained-stack test.
-/// 24 KiB is the next conservative envelope, revalidated by that same test, so
-/// the arithmetic below keeps slack even before the reserve.
+/// Both structured lowering and source binding retain several frames per
+/// braced-body level. Full registry invocation materialisation and selected-frame construction must happen
+/// in a nonrecursive projection helper, so only the selected contract remains
+/// live during descent. Chunk preflight, dispatch carriers and continuation
+/// snapshots follow the same rule: moving only their return values to boxes
+/// leaves their construction frames live unless construction is a leaf call.
+/// The source frame fell from 4,832 to 1,600 bytes after that extraction.
+/// A 20 KiB envelope fails the constrained-stack test;
+/// 24 KiB accommodates the measured recursive chains and is checked against
+/// both fully proved typed bodies and over-cap inputs.
 pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 24 * 1024;
 
-/// Depth cap for the braced-body descent shared by the lowering, CFG-builder
-/// and analyser walks.
+/// Depth cap for the braced-body descent shared by source binding analysis,
+/// lowering, CFG-builder and analyser walks.
 ///
-/// All three recurse once per `{ … }` nesting level over the same document,
+/// These walks recurse over `{ … }` nesting in the same document,
 /// and all three carried a hand-picked 256 that matched this crate's
 /// full-tree convention. That number was never checked against a stack: at
 /// the lowering walk's measured 18,864 bytes a level, 256 levels want about
@@ -143,7 +148,10 @@ pub(crate) const SOURCE_WALK_BYTES_PER_LEVEL: u32 = 24 * 1024;
 /// re-measured; the answer falls out. `the_source_walk_cap_fits_its_stack_budget`
 /// re-checks the claim by running a cap-deep document on a thread sized to
 /// the budget, so frame growth in any of the three walks fails a test
-/// instead of resurfacing as an abort.
+/// instead of resurfacing as an abort. Source interpretation runs both before
+/// lowering and at isolated-script ingress. Its large descriptor snapshots
+/// must be resolved in nonrecursive heap-producing helpers: retaining those
+/// materialization frames through descent spends the same budget twice.
 ///
 /// The result is far below 256 and still far above anything a human writes;
 /// past it each walk degrades the way it already did — the lowering emits a
@@ -167,6 +175,96 @@ mod tests {
             .chain(std::iter::once("set inner 1\n".to_owned()))
             .chain((0..levels).map(|_| "}\n".to_owned()))
             .collect()
+    }
+
+    fn nested_computed_if(levels: usize) -> String {
+        (0..levels)
+            .map(|_| "if [set selected] {\n")
+            .chain(std::iter::once("set inner 1\n"))
+            .chain((0..levels).map(|_| "}\n"))
+            .collect()
+    }
+
+    #[test]
+    fn proved_structured_bodies_fit_the_shared_stack_budget() {
+        let levels = MAX_SOURCE_NEST_DEPTH.0 as usize - 2;
+        let source = nested_foreach(levels);
+        let lowered_levels = std::thread::Builder::new()
+            .stack_size(
+                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
+                    .expect("stack budget fits usize"),
+            )
+            .spawn(move || {
+                let registry =
+                    tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+                let module = crate::lowering::lower_to_ir_with_dialect(
+                    &source,
+                    registry,
+                    tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                    Some(tcl_dialect::DialectProfile::find("tcl9.0").expect("profile")),
+                );
+                // Over-cap source proof widens and can suppress typed lowering
+                // early. A below-cap input must actually retain every recursive
+                // structured body, not only return a shallow opaque barrier.
+                let mut script = &module.top_level;
+                let mut count = 0;
+                while let Some(crate::ir::Statement::Foreach { body, .. }) =
+                    script.statements.first()
+                {
+                    count += 1;
+                    script = body;
+                }
+                count
+            })
+            .expect("spawn budget-sized thread")
+            .join()
+            .expect("proved structured descent must fit the shared budget");
+        assert_eq!(lowered_levels, levels);
+    }
+
+    #[test]
+    fn source_bindings_with_computed_conditions_fit_the_shared_stack_budget() {
+        let source = format!(
+            "set selected 1\n{}",
+            nested_computed_if(MAX_SOURCE_NEST_DEPTH.0 as usize * 4)
+        );
+        let statements = std::thread::Builder::new()
+            .stack_size(
+                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
+                    .expect("stack budget fits usize"),
+            )
+            .spawn(move || {
+                let registry =
+                    tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+                let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                    &source,
+                    tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                    registry,
+                    crate::command_binding::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                            tcl_dialect::TclVersion::V9_0,
+                        )),
+                        ..crate::command_binding::SourceAnalysisOptions::default()
+                    },
+                );
+                drop(bindings);
+                crate::lowering::lower_to_ir_with_dialect(
+                    &source,
+                    registry,
+                    tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+                    Some(tcl_dialect::DialectProfile::find("tcl9.0").expect("profile")),
+                )
+                .top_level
+                .statements
+                .len()
+            })
+            .expect("spawn budget-sized thread")
+            .join()
+            .expect("computed conditions must return rather than overflow");
+        assert!(
+            statements > 0,
+            "over-budget input retains a real outer script"
+        );
     }
 
     /// Whether analysing `levels`-deep nesting reports having stopped.
@@ -270,6 +368,18 @@ mod tests {
                     .expect("the budget fits a usize"),
             )
             .spawn(move || {
+                let binding_registry = tcl_registry::CommandRegistry::build_default();
+                let _bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+                    &source,
+                    tcl_lexer::LexerConfig::default(),
+                    &binding_registry,
+                    crate::command_binding::SourceAnalysisOptions {
+                        invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                            tcl_dialect::TclVersion::V9_0,
+                        )),
+                        ..crate::command_binding::SourceAnalysisOptions::default()
+                    },
+                );
                 let diagnostics = crate::analyser::Analyser::new()
                     .analyse(&source, "tcl9.0")
                     .diagnostics

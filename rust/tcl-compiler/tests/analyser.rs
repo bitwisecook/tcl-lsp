@@ -1836,7 +1836,7 @@ mod interp_alias {
             .analyse(src, D)
             .command_aliases
             .get(name)
-            .map(|a| (a.target.clone(), a.extras.clone()))
+            .map(|a| (a.target.as_str().to_owned(), a.extras.clone()))
     }
 
     #[test]
@@ -2042,7 +2042,7 @@ mod interp_value_flow {
             .analyse(src, D)
             .command_aliases
             .iter()
-            .map(|(k, v)| (k.clone(), v.target.clone()))
+            .map(|(k, v)| (k.clone(), v.target.as_str().to_owned()))
             .collect()
     }
 

@@ -154,6 +154,12 @@ fn glob_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `Some(SpecSurface::ALL_TCL)`, deliberately: `glob` is banned in F5
         // iRules (the TMM sandbox has no real filesystem), and that exclusion
         // is now modelled by this explicit surface — `ALL_TCL` does NOT carry

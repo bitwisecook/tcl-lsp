@@ -34,19 +34,28 @@
 //!   non-RULE_INIT event).
 //! - The CFG/SSA RBS / unused-var emitters (cross-event
 //!   suppression).  The analyser threads
-//!   `connection_scope.cross_event_defs` /
-//!   `cross_event_imports` through
+//!   source labels selected from per-handler typed cross-event keys through
 //!   `emit_cfg_ssa_diagnostics_for_function` so a
 //!   ``set::ip [IP::client_addr]`` in `CLIENT_ACCEPTED` that's
 //!   read in `HTTP_REQUEST` is not falsely flagged as unused.
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::events::EventRegistry;
+use tcl_registry::events::{EventLifecycleRelation, EventRegistry, EventVariableFrame};
+use tcl_registry::{CommandRegistry, Traits};
 
 use crate::compilation_unit::FunctionUnit;
-use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::ir::{Statement, when_event_name};
+use crate::var_resolve::{VariableCellKey, VariableCellSet, VariableCellTable};
+
+/// A resolved cross-event cell; namespace cells and flow locals never alias.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum EventCell {
+    /// A Tcl namespace cell in the executing interpreter/worker.
+    Namespace(VariableCellKey),
+    /// A variable in the current connection frame.
+    Connection(String),
+}
 
 /// Variable summary for a single ``when`` event handler.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +70,16 @@ pub struct EventVarSummary {
     pub uses_before_def: HashSet<String>,
     /// Variable names explicitly ``unset`` in this event.
     pub unsets: HashSet<String>,
+    /// Resolved cells possibly defined, with their scalar SSA keys.
+    pub cell_defs: HashMap<EventCell, VariableCellSet>,
+    /// Resolved observable reads, including entry imports and namespace reads.
+    pub cell_reads: HashMap<EventCell, VariableCellSet>,
+    /// Cells defined on every normal exit path, after destructive writes.
+    pub must_defs: HashSet<EventCell>,
+    /// Worker-static storage selected by the actual binding policy.
+    worker_static_cells: HashSet<EventCell>,
+    /// Written labels captured at the operation selecting each exact key.
+    source_labels: VariableCellTable<HashSet<String>>,
 }
 
 /// Cross-event variable scope analysis result.
@@ -72,17 +91,121 @@ pub struct EventVarSummary {
 pub struct ConnectionScope {
     /// Per-event summaries keyed by event name.
     pub summaries: HashMap<String, EventVarSummary>,
-    /// Variables defined in one event AND used-before-def in a
-    /// different event.  Suppresses dead-store / unused-var
-    /// diagnostics on the producer side.
+    /// Individual handlers retained separately; priority order is not a union.
+    pub handlers: HashMap<String, EventVarSummary>,
+    /// Reporting labels for variables defined here and read in another event.
+    /// Consumers obtain protection labels through `handler_source_names`;
+    /// this presentation set does not identify storage.
     pub cross_event_defs: HashSet<String>,
-    /// Variables used-before-def in one event AND defined in a
-    /// different event.  Suppresses W210 on the consumer side.
+    /// Reporting labels for variables read here and defined in another event.
+    /// This presentation set does not identify storage.
     pub cross_event_imports: HashSet<String>,
     /// ``static::`` vars defined in a non-RULE_INIT event and
     /// used cross-event — feeds the **IRULE4005** racy-static
     /// emitter.
     pub racy_static_defs: HashSet<String>,
+    /// Exact worker namespace roots read across event boundaries.
+    pub racy_static_cells: HashSet<EventCell>,
+    cross_event_def_keys: HashMap<String, VariableCellSet>,
+    cross_event_import_keys: HashMap<String, VariableCellSet>,
+    cross_event_cells: HashMap<String, HashSet<EventCell>>,
+    /// Per-handler connection cells whose readers can precede their writers.
+    pub scope_concerns: HashMap<String, HashMap<EventCell, HashSet<String>>>,
+}
+
+impl ConnectionScope {
+    /// Project written labels only after matching this handler's exact keys.
+    /// These labels protect source-walking passes; they never select cells.
+    #[must_use]
+    pub fn handler_source_names(&self, handler: &str, imports_only: bool) -> HashSet<String> {
+        let Some(summary) = self.handlers.get(handler) else {
+            return HashSet::new();
+        };
+        let mut names = HashSet::new();
+        let keys = self
+            .cross_event_import_keys
+            .get(handler)
+            .into_iter()
+            .flat_map(|keys| keys.iter());
+        for key in keys {
+            if let Some(labels) = summary.source_labels.get(key) {
+                names.extend(labels.iter().cloned());
+            }
+        }
+        if !imports_only {
+            for key in self
+                .cross_event_def_keys
+                .get(handler)
+                .into_iter()
+                .flat_map(|keys| keys.iter())
+            {
+                if let Some(labels) = summary.source_labels.get(key) {
+                    names.extend(labels.iter().cloned());
+                }
+            }
+        }
+        names
+    }
+
+    /// Whether this resolved operation touches a proved cross-event root.
+    #[must_use]
+    pub fn observes_cross_event_place(&self, handler: &str, place: &crate::place::Place) -> bool {
+        cell_from_place(place).is_some_and(|cell| {
+            self.cross_event_cells
+                .get(handler)
+                .is_some_and(|cells| cells.contains(&cell))
+        })
+    }
+
+    /// Conservative source-only protection union, after per-handler key matching.
+    #[must_use]
+    pub fn source_names(&self) -> HashSet<String> {
+        self.handlers
+            .keys()
+            .flat_map(|handler| self.handler_source_names(handler, false))
+            .collect()
+    }
+}
+
+/// Canonical entry frame for an iRules handler. Host namespaces provide
+/// namespace availability only; they do not imply values or prior writers.
+#[must_use]
+pub fn event_resolve_context(event: &str) -> crate::var_resolve::ResolveContext {
+    let mut entry = crate::var_resolve::ResolveContext::for_namespace("::");
+    let frame = EventRegistry::build().variable_frame(event);
+    entry.frame_kind = if frame == EventVariableFrame::InitialisationNamespace {
+        crate::var_resolve::VariableFrameKind::Global
+    } else {
+        crate::var_resolve::VariableFrameKind::Local
+    };
+    entry.dynamic_bindings = frame == EventVariableFrame::Unknown;
+    // A connection event can receive values from earlier handlers or the host.
+    // Their unknown contents do not make the local physical bindings dynamic.
+    // Explicit stores and unsets still publish precise presence afterwards.
+    if frame != EventVariableFrame::InitialisationNamespace {
+        entry.contents_world = crate::var_resolve::ContentsWorld::Unknown;
+    }
+    entry.known_namespaces.extend(
+        tcl_registry::f5::runtime_namespaces(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+            .iter()
+            .map(|namespace| (*namespace).to_owned()),
+    );
+    entry
+}
+
+/// F5 function entry shared by diagnostics and execution adapters.
+#[must_use]
+pub fn irules_function_resolve_context(qname: &str) -> crate::var_resolve::ResolveContext {
+    if qname.starts_with("::when::") {
+        return event_resolve_context(when_event_name(qname));
+    }
+    let mut context = crate::var_resolve::ResolveContext::for_function(qname);
+    context.known_namespaces.extend(
+        tcl_registry::f5::runtime_namespaces(tcl_registry::f5::BigIpExecutionContext::TmmIRule)
+            .iter()
+            .map(|namespace| (*namespace).to_owned()),
+    );
+    context
 }
 
 /// Build a [`ConnectionScope`] from compiled ``when``
@@ -92,259 +215,618 @@ pub struct ConnectionScope {
 /// should be the subset of `CompilationUnit::procedures` whose
 /// qualified names start with ``::when::``.
 ///
-/// **Branch-condition vars.**  A dedicated branch-condition scan
-/// (walking `Terminator::Branch.condition`) is omitted — branch-condition
-/// vars at version 0 are already part of the SSA statement uses,
-/// so the sweep is rarely load-bearing.
+/// Actual command and condition reads come from the shared place bridge.
+/// Array elements project to their root storage cell for possible liveness;
+/// the element-sensitive cell SSA owns value and existence proofs.
 #[must_use]
 pub fn build_connection_scope<S: std::hash::BuildHasher>(
     when_procedures: &HashMap<String, FunctionUnit, S>,
 ) -> ConnectionScope {
-    let registry = EventRegistry::build();
+    let registry =
+        CommandRegistry::build_default().project_for_profile(tcl_dialect::DialectProfile::irules());
+    build_connection_scope_with_registry(when_procedures, &registry)
+}
+
+/// Resolve cross-event cells through the document's shared registry and bindings.
+#[must_use]
+pub fn build_connection_scope_with_registry<S: std::hash::BuildHasher>(
+    when_procedures: &HashMap<String, FunctionUnit, S>,
+    commands: &CommandRegistry,
+) -> ConnectionScope {
+    let events = EventRegistry::build();
     let mut summaries: HashMap<String, EventVarSummary> = HashMap::new();
+    let mut handlers = HashMap::new();
     for (qname, fu) in when_procedures {
-        let event = when_event_name(qname).to_string();
-        let summary = extract_event_summary(&event, fu);
-        // Multiple ``when EVENT`` handlers for the same event
-        // get merged — union the def / use / unset sets.
-        if let Some(prev) = summaries.get(&event) {
-            let merged = EventVarSummary {
-                event: event.clone(),
-                defs: prev.defs.union(&summary.defs).cloned().collect(),
-                uses_before_def: prev
-                    .uses_before_def
-                    .union(&summary.uses_before_def)
-                    .cloned()
-                    .collect(),
-                unsets: prev.unsets.union(&summary.unsets).cloned().collect(),
-            };
-            summaries.insert(event, merged);
+        let event = when_event_name(qname);
+        let summary = extract_event_summary(event, fu, commands);
+        handlers.insert(qname.clone(), summary.clone());
+        if let Some(previous) = summaries.get_mut(event) {
+            previous.defs.extend(summary.defs);
+            previous.uses_before_def.extend(summary.uses_before_def);
+            previous.unsets.extend(summary.unsets);
+            previous
+                .worker_static_cells
+                .extend(summary.worker_static_cells);
+            for (key, labels) in summary.source_labels {
+                previous
+                    .source_labels
+                    .entry(key)
+                    .or_default()
+                    .extend(labels);
+            }
+            merge_cell_names(&mut previous.cell_defs, summary.cell_defs);
+            merge_cell_names(&mut previous.cell_reads, summary.cell_reads);
+            // An event-name union does not prove which handlers execute or
+            // their order. Definite facts remain on the individual handlers.
+            previous.must_defs.clear();
         } else {
-            summaries.insert(event, summary);
+            summaries.insert(event.to_owned(), summary);
         }
     }
+    let cross_defs = HashSet::new();
+    let cross_imports = HashSet::new();
+    let racy_statics = HashSet::new();
+    let racy_static_cells = HashSet::new();
+    let cross_event_def_keys: HashMap<String, VariableCellSet> = HashMap::new();
+    let cross_event_import_keys: HashMap<String, VariableCellSet> = HashMap::new();
+    let cross_event_cells: HashMap<String, HashSet<EventCell>> = HashMap::new();
+    let scope_concerns: HashMap<String, HashMap<EventCell, HashSet<String>>> = HashMap::new();
+    let mut scope = ConnectionScope {
+        summaries,
+        handlers,
+        cross_event_defs: cross_defs,
+        cross_event_imports: cross_imports,
+        racy_static_defs: racy_statics,
+        racy_static_cells,
+        cross_event_def_keys,
+        cross_event_import_keys,
+        cross_event_cells,
+        scope_concerns,
+    };
+    collect_handler_relations(&events, &mut scope);
+    scope
+}
 
-    let mut cross_defs: HashSet<String> = HashSet::new();
-    let mut cross_imports: HashSet<String> = HashSet::new();
-    let mut racy_statics: HashSet<String> = HashSet::new();
-
-    let events: Vec<&String> = summaries.keys().collect();
-    for (i, ev_a) in events.iter().enumerate() {
-        let sum_a = &summaries[ev_a.as_str()];
-        for (j, ev_b) in events.iter().enumerate() {
-            if i == j {
+fn collect_handler_relations(events: &EventRegistry, scope: &mut ConnectionScope) {
+    let ConnectionScope {
+        handlers,
+        cross_event_defs: cross_defs,
+        cross_event_imports: cross_imports,
+        racy_static_defs: racy_statics,
+        racy_static_cells,
+        cross_event_def_keys,
+        cross_event_import_keys,
+        cross_event_cells,
+        scope_concerns,
+        ..
+    } = scope;
+    for (writer_name, writer) in handlers.iter() {
+        for (reader_name, reader) in handlers.iter() {
+            if writer_name == reader_name {
                 continue;
             }
-            let sum_b = &summaries[ev_b.as_str()];
-            // Variables defined in A and used-before-def in B.
-            for var in sum_a.defs.intersection(&sum_b.uses_before_def) {
-                if registry.variable_scope_note(ev_a, ev_b).is_none() {
-                    // No scoping concern → valid cross-event
-                    // flow.
-                    cross_defs.insert(var.clone());
-                    cross_imports.insert(var.clone());
-                    if var.starts_with("static::") && ev_a.as_str() != "RULE_INIT" {
-                        racy_statics.insert(var.clone());
+            if writer.event != reader.event {
+                for cell in writer
+                    .cell_defs
+                    .keys()
+                    .filter(|cell| matches!(cell, EventCell::Connection(_)))
+                {
+                    if reader.cell_reads.contains_key(cell)
+                        && let Some(note) = events.variable_scope_note(&writer.event, &reader.event)
+                    {
+                        scope_concerns
+                            .entry(writer_name.clone())
+                            .or_default()
+                            .entry(cell.clone())
+                            .or_default()
+                            .insert(note);
                     }
+                }
+            }
+            let relation = events.lifecycle_relation(&writer.event, &reader.event);
+            if !matches!(
+                relation,
+                EventLifecycleRelation::InitialisationBeforeTraffic
+                    | EventLifecycleRelation::MayPrecede
+            ) {
+                continue;
+            }
+            for (cell, names) in &writer.cell_defs {
+                let Some(read_names) = reader.cell_reads.get(cell) else {
+                    continue;
+                };
+                cross_event_def_keys
+                    .entry(writer_name.clone())
+                    .or_default()
+                    .extend(names.iter().cloned());
+                cross_event_import_keys
+                    .entry(reader_name.clone())
+                    .or_default()
+                    .extend(read_names.iter().cloned());
+                cross_event_cells
+                    .entry(writer_name.clone())
+                    .or_default()
+                    .insert(cell.clone());
+                cross_event_cells
+                    .entry(reader_name.clone())
+                    .or_default()
+                    .insert(cell.clone());
+                for key in names {
+                    if let Some(labels) = writer.source_labels.get(key) {
+                        cross_defs.extend(labels.iter().cloned());
+                    }
+                }
+                for key in read_names {
+                    if let Some(labels) = reader.source_labels.get(key) {
+                        cross_imports.extend(labels.iter().cloned());
+                    }
+                }
+                if writer.event != "RULE_INIT" && writer.worker_static_cells.contains(cell) {
+                    for key in names {
+                        if let Some(labels) = writer.source_labels.get(key) {
+                            racy_statics.extend(labels.iter().cloned());
+                        }
+                    }
+                    racy_static_cells.insert(cell.clone());
                 }
             }
         }
     }
+}
 
-    ConnectionScope {
-        summaries,
-        cross_event_defs: cross_defs,
-        cross_event_imports: cross_imports,
-        racy_static_defs: racy_statics,
+fn merge_cell_names(
+    destination: &mut HashMap<EventCell, VariableCellSet>,
+    source: HashMap<EventCell, VariableCellSet>,
+) {
+    for (cell, names) in source {
+        destination.entry(cell).or_default().extend(names);
     }
 }
 
-/// Build a per-event variable summary from a compiled ``when``
-/// procedure.
-///
-/// Walks the SSA
-/// statements collecting:
-///
-/// - Names defined on at least one path (excluding global
-///   ``::`` names and ``static::`` names destroyed by
-///   ``unset``).
-/// - Names used at SSA version 0 (i.e. read before any local
-///   def — candidate cross-event imports).
-/// - Names explicitly ``unset`` in this event.
-///
-/// Record every `info exists <name>` literal-variable read found in `text`
-/// (the base name, namespace-global `::`-prefixed excluded — those aren't
-/// connection-scoped). Catches the pattern wherever it appears: a bare
-/// statement, a `[info exists …]` command substitution, or a branch condition.
-pub(crate) fn scan_info_exists(text: &str, out: &mut HashSet<String>) {
-    const NEEDLE: &str = "info exists";
-    let mut search = text;
-    while let Some(pos) = search.find(NEEDLE) {
-        let after = search[pos + NEEDLE.len()..].trim_start();
-        // The variable name runs until the first non-name byte (whitespace,
-        // `(` array index, `]`/`}` closer, etc.). Keep the base (pre-`(`) name.
-        let name: String = after
-            .chars()
-            .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == ':')
-            .collect();
-        let base = name.split('(').next().unwrap_or(&name);
-        if !base.is_empty() && !base.starts_with("::") {
-            out.insert(base.to_string());
-        }
-        search = &search[pos + NEEDLE.len()..];
+pub(crate) fn statement_destroys(statement: &Statement, commands: &CommandRegistry) -> bool {
+    let (Statement::Call {
+        tokens: Some(tokens),
+        ..
+    }
+    | Statement::Barrier {
+        tokens: Some(tokens),
+        ..
+    }) = statement
+    else {
+        return false;
+    };
+    if crate::registry_invocation::normal_transfer_invocation(
+        commands,
+        commands
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    )
+    .is_some_and(|normal| normal.variable_traits().contains(Traits::DESTROYS_VARIABLE))
+    {
+        return true;
+    }
+    matches!(
+        crate::registry_invocation::resolve_command_tokens(
+            commands,
+            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+                tcl_dialect::DialectProfile::irules(),
+            )),
+            tokens,
+        ),
+        Ok(crate::registry_invocation::RegistryInvocationResolution::Resolved(facts))
+            if facts.traits.contains(Traits::DESTROYS_VARIABLE) ||
+                facts.subcommand.canonical_name().and_then(|name| {
+                    commands.get(&facts.canonical_command).and_then(|spec| spec.resolve_subcommand(name))
+                }).is_some_and(|subcommand| subcommand.destructive)
+    )
+}
+
+pub(crate) fn cell_from_place(place: &crate::place::Place) -> Option<EventCell> {
+    if place.dynamic {
+        return None;
+    }
+    if place.is_global() {
+        Some(EventCell::Namespace(crate::var_resolve::cell_key(place)))
+    } else if place.ns == crate::place::LOCAL_NS {
+        Some(EventCell::Connection(place.name.clone()))
+    } else {
+        None
     }
 }
 
-/// Walk an expression for embedded command substitutions / raw text and scan
-/// each for `info exists` reads (branch conditions hold the `[info exists …]`
-/// as a `Command` node).
-fn scan_expr_info_exists(node: &crate::expr_ast::ExprNode, out: &mut HashSet<String>, depth: u32) {
-    use crate::expr_ast::ExprNode;
-    // Native-stack safety net: walks the `ExprNode` tree, one
-    // native frame per level. Past the cap, stop descending — a collector
-    // that returns the `info exists` reads gathered so far is the safe
-    // fallback (reads buried deeper than the cap go unrecorded; never a
-    // crash).
-    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
-        return;
+/// Source labels are selected through exact operation symbols. Authored
+/// qualified labels remain useful reporting aliases; native debug encodings
+/// never enter either presentation or source-walking protection sets.
+fn labels_at(
+    fu: &FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    key: &VariableCellKey,
+    place: &crate::place::Place,
+) -> HashSet<String> {
+    let mut labels: HashSet<String> = fu
+        .ssa
+        .source_symbols_at(block, index)
+        .into_iter()
+        .flat_map(|symbols| symbols.iter())
+        .filter(|(_, symbol)| fu.ssa.cell_key(**symbol) == key)
+        .map(|(name, _)| name.clone())
+        .collect();
+    if place.ns == crate::place::LOCAL_NS {
+        labels.insert(place.name.clone());
     }
-    match node {
-        ExprNode::Command { text, .. } | ExprNode::Raw { text } => scan_info_exists(text, out),
-        ExprNode::Binary { left, right, .. } => {
-            scan_expr_info_exists(left, out, depth + 1);
-            scan_expr_info_exists(right, out, depth + 1);
+    match key.root() {
+        VariableCellKey::Authored(name) => {
+            labels.insert(name.clone());
         }
-        ExprNode::Unary { operand, .. } => scan_expr_info_exists(operand, out, depth + 1),
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
+        VariableCellKey::Namespace {
+            identity: crate::command_binding::SourceNamespaceKey::Authored(_),
+            ..
         } => {
-            scan_expr_info_exists(condition, out, depth + 1);
-            scan_expr_info_exists(true_branch, out, depth + 1);
-            scan_expr_info_exists(false_branch, out, depth + 1);
-        }
-        ExprNode::Call { args, .. } => {
-            for a in args {
-                scan_expr_info_exists(a, out, depth + 1);
-            }
+            labels.insert(crate::naming::qualify(&place.ns, &place.name));
         }
         _ => {}
     }
+    labels
 }
 
-fn extract_event_summary(event: &str, fu: &FunctionUnit) -> EventVarSummary {
+fn extract_event_summary(
+    event: &str,
+    fu: &FunctionUnit,
+    commands: &CommandRegistry,
+) -> EventVarSummary {
+    let entry = event_resolve_context(event);
+    let fallback_contexts;
+    let contexts = if let Some(contexts) = &fu.ssa.point_contexts {
+        contexts
+    } else {
+        fallback_contexts = crate::variable_bindings::build_point_resolve_contexts_with_entry(
+            &fu.cfg, entry, commands,
+        );
+        &fallback_contexts
+    };
+    let mut cell_defs: HashMap<EventCell, VariableCellSet> = HashMap::new();
+    let mut cell_reads: HashMap<EventCell, VariableCellSet> = HashMap::new();
+    let mut worker_static_cells = HashSet::new();
+    let mut source_labels: VariableCellTable<HashSet<String>> = VariableCellTable::default();
     let mut defs: HashSet<String> = HashSet::new();
     let mut uses_v0: HashSet<String> = HashSet::new();
     let mut unsets: HashSet<String> = HashSet::new();
 
-    for block in fu.ssa.blocks.values() {
-        for stmt in &block.statements {
-            // Accept both the source surface and the resolved canonical
-            // name: lowering stamps `::unset` on a resolved call, and a
-            // surface-only test silently misses every `::unset` spelling.
-            let is_unset = match &stmt.statement {
-                Statement::Call { command, .. } => {
-                    command == "unset" || stmt.statement.canonical_command_or_source() == "::unset"
-                }
-                _ => false,
+    for (block_id, block) in &fu.ssa.blocks {
+        for (statement_index, stmt) in block.statements.iter().enumerate() {
+            let context = contexts.before_statement(*block_id, statement_index);
+            let is_unset = statement_destroys(&stmt.statement, commands);
+            let places = if is_unset {
+                crate::place_bridge::statement_mutation_places_with_continuation(
+                    &stmt.statement,
+                    context,
+                    contexts.after_statement(*block_id, statement_index),
+                    commands,
+                )
+            } else {
+                crate::place_bridge::def_places_with_continuation(
+                    &stmt.statement,
+                    context,
+                    contexts.after_statement(*block_id, statement_index),
+                    commands,
+                )
             };
-
-            for &sym in stmt.defs.keys() {
-                let name = fu.ssa.var_name(sym);
-                if name.starts_with("::") {
+            for place in places {
+                let Some(cell) = cell_from_place(&place) else {
                     continue;
-                }
-                if !(name.starts_with("static::") && is_unset) {
-                    defs.insert(name.to_owned());
-                }
-            }
-
-            for (&sym, ver) in &stmt.uses {
-                let name = fu.ssa.var_name(sym);
-                if *ver == 0 && !name.starts_with("::") {
-                    uses_v0.insert(name.to_owned());
-                }
-            }
-
-            // Track unsets explicitly so the racy-static check
-            // can ignore them.  It's the same condition as
-            // ``is_unset`` above, but walking ``stmt.defs`` for
-            // the names is the canonical shape.
-            if is_unset && let Statement::Call { args, .. } = &stmt.statement {
-                for a in args {
-                    if !a.starts_with("::") && !a.starts_with('-') {
-                        unsets.insert(a.clone());
+                };
+                let Some(key) = crate::var_resolve::canonical_binding_value_key(&place) else {
+                    continue;
+                };
+                if is_unset {
+                    let labels = labels_at(fu, *block_id, statement_index, &key, &place);
+                    unsets.extend(labels);
+                } else {
+                    if place.cell.as_ref().is_some_and(|cell| {
+                        cell.storage_domain
+                            == Some(tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+                    }) {
+                        worker_static_cells.insert(cell.clone());
                     }
+                    let labels = labels_at(fu, *block_id, statement_index, &key, &place);
+                    defs.extend(labels.iter().cloned());
+                    source_labels.entry(key.clone()).or_default().extend(labels);
+                    cell_defs.entry(cell).or_default().insert(key);
                 }
             }
         }
     }
 
-    // `info exists VAR` reads VAR by *literal name*, not a `$`-substitution, so
-    // the SSA never records it as a use — yet it observes cross-event state
-    // (e.g. `if {[info exists ans_cleared]}` in DNS_RESPONSE reads a flag set in
-    // DNS_REQUEST). Scan statement words AND branch conditions for the pattern
-    // so the cross-event sweep keeps the producing store alive (else O126
-    // deletes `set ans_cleared 1` and SCCP folds `info exists` to 0 — a
-    // miscompile). Conservative: any `info exists <name>` counts as a use.
-    for block in fu.cfg.blocks.values() {
-        for stmt in &block.statements {
-            match stmt {
-                Statement::Call { args, .. } | Statement::Barrier { args, .. } => {
-                    for a in args {
-                        scan_info_exists(a.as_str(), &mut uses_v0);
-                    }
-                }
-                Statement::AssignValue { value, .. } => {
-                    scan_info_exists(value.as_str(), &mut uses_v0);
-                }
-                _ => {}
-            }
-        }
-        if let Some(crate::cfg::Terminator::Branch { condition, .. }) = &block.terminator {
-            scan_expr_info_exists(condition, &mut uses_v0, 0);
-        }
-    }
-
+    collect_event_reads(
+        fu,
+        contexts,
+        commands,
+        &mut uses_v0,
+        &mut source_labels,
+        &mut cell_reads,
+    );
+    let must_defs = definite_exit_cells(fu, commands, contexts);
     EventVarSummary {
         event: event.to_string(),
         defs,
         uses_before_def: uses_v0,
         unsets,
+        cell_defs,
+        cell_reads,
+        must_defs,
+        worker_static_cells,
+        source_labels,
+    }
+}
+
+fn collect_event_reads(
+    fu: &FunctionUnit,
+    contexts: &crate::variable_bindings::PointResolveContexts,
+    commands: &CommandRegistry,
+    uses_v0: &mut HashSet<String>,
+    source_labels: &mut VariableCellTable<HashSet<String>>,
+    cell_reads: &mut HashMap<EventCell, VariableCellSet>,
+) {
+    // The common place reader includes registry VarRead roles, nested
+    // substitutions and conditions. Literal text never manufactures a read.
+    for (block_id, block) in &fu.cfg.blocks {
+        for (index, statement) in block.statements.iter().enumerate() {
+            for place in
+                crate::place_bridge::read_places_at(statement, *block_id, index, contexts, commands)
+            {
+                let Some(cell) = cell_from_place(&place) else {
+                    continue;
+                };
+                let Some(key) = crate::var_resolve::canonical_binding_value_key(&place) else {
+                    continue;
+                };
+                let labels = labels_at(fu, *block_id, index, &key, &place);
+                uses_v0.extend(labels.iter().cloned());
+                source_labels.entry(key.clone()).or_default().extend(labels);
+                cell_reads.entry(cell).or_default().insert(key);
+            }
+        }
+        if let Some(terminator) = &block.terminator {
+            for place in crate::place_bridge::terminator_read_places_at(
+                terminator, *block_id, contexts, commands,
+            ) {
+                let Some(cell) = cell_from_place(&place) else {
+                    continue;
+                };
+                let Some(key) = crate::var_resolve::canonical_binding_value_key(&place) else {
+                    continue;
+                };
+                let labels = labels_at(fu, *block_id, usize::MAX, &key, &place);
+                uses_v0.extend(labels.iter().cloned());
+                source_labels.entry(key.clone()).or_default().extend(labels);
+                cell_reads.entry(cell).or_default().insert(key);
+            }
+        }
+    }
+}
+
+fn definite_exit_cells(
+    fu: &FunctionUnit,
+    commands: &CommandRegistry,
+    contexts: &crate::variable_bindings::PointResolveContexts,
+) -> HashSet<EventCell> {
+    use std::collections::VecDeque;
+    let mut incoming: HashMap<crate::cfg::BlockId, HashSet<EventCell>> =
+        HashMap::from([(fu.cfg.entry, HashSet::new())]);
+    let mut outgoing = HashMap::new();
+    let mut queue = VecDeque::from([fu.cfg.entry]);
+    while let Some(id) = queue.pop_front() {
+        let Some(block) = fu.cfg.blocks.get(&id) else {
+            continue;
+        };
+        let before = incoming[&id].clone();
+        let mut state = before.clone();
+        if let Some(ssa) = fu.ssa.blocks.get(&id) {
+            for (index, statement) in ssa.statements.iter().enumerate() {
+                let context = contexts.before_statement(id, index);
+                if crate::memory_ssa::is_clobber(
+                    &statement.statement,
+                    commands,
+                    commands
+                        .profile()
+                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                ) {
+                    // A proved native command without callbacks keeps existing
+                    // cells. An unresolved or evaluating call can destroy them.
+                    state.clear();
+                }
+                let destroys = statement_destroys(&statement.statement, commands);
+                let places = if destroys {
+                    crate::place_bridge::statement_mutation_places_with_continuation(
+                        &statement.statement,
+                        context,
+                        contexts.after_statement(id, index),
+                        commands,
+                    )
+                } else {
+                    crate::place_bridge::def_places_with_continuation(
+                        &statement.statement,
+                        context,
+                        contexts.after_statement(id, index),
+                        commands,
+                    )
+                };
+                for place in places {
+                    let Some(cell) = cell_from_place(&place) else {
+                        continue;
+                    };
+                    if destroys {
+                        state.remove(&cell);
+                    } else if !place.observed
+                        && crate::var_resolve::canonical_binding_value_key(&place).is_some_and(
+                            |key| {
+                                statement.defs.keys().any(|symbol| {
+                                    !statement.may_defs.contains(symbol)
+                                        && fu.ssa.cell_key(*symbol) == &key
+                                })
+                            },
+                        )
+                    {
+                        state.insert(cell);
+                    }
+                }
+            }
+        }
+        outgoing.insert(id, state.clone());
+        for successor in block.successors() {
+            propagate_definite_cells(&mut incoming, &mut queue, successor, &state);
+        }
+        // An exception can arise before any statement in this block completes.
+        for &(source, handler) in &fu.cfg.exception_edges {
+            if source == id {
+                propagate_definite_cells(&mut incoming, &mut queue, handler, &before);
+            }
+        }
+    }
+    let mut exits = fu.cfg.blocks.iter().filter_map(|(id, block)| {
+        if block.successors().is_empty() {
+            outgoing.get(id).cloned()
+        } else {
+            None
+        }
+    });
+    let Some(mut definite) = exits.next() else {
+        return HashSet::new();
+    };
+    for exit in exits {
+        definite.retain(|cell| exit.contains(cell));
+    }
+    definite
+}
+
+fn propagate_definite_cells(
+    incoming: &mut HashMap<crate::cfg::BlockId, HashSet<EventCell>>,
+    queue: &mut std::collections::VecDeque<crate::cfg::BlockId>,
+    successor: crate::cfg::BlockId,
+    state: &HashSet<EventCell>,
+) {
+    if let Some(previous) = incoming.get_mut(&successor) {
+        let old = previous.len();
+        previous.retain(|cell| state.contains(cell));
+        if previous.len() != old {
+            queue.push_back(successor);
+        }
+    } else {
+        incoming.insert(successor, state.clone());
+        queue.push_back(successor);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cross_event_namespace_cells_keep_native_incarnations_separate() {
+        use crate::{
+            command_binding::SourceNamespaceKey,
+            place::{CellGeneration, CellIdentity, CellOwner},
+        };
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+
+        let interpreter = NativeInterpreterIdentity {
+            owner: NativeInterpreterIdentity::fresh_owner(),
+            interpreter: 0,
+        };
+        let native = |token| {
+            let mut place = crate::place::scalar("x", "::static", false);
+            place.cell = Some(CellIdentity {
+                owner: CellOwner::NamespaceIdentity(Box::new(SourceNamespaceKey::Native(
+                    NativeNamespaceContext {
+                        interpreter,
+                        token,
+                        path: tcl_core_types::ByteNamespacePath::from_segments(["static"]),
+                    },
+                ))),
+                name: "x".into(),
+                generation: CellGeneration::Incoming,
+                interpreter: None,
+                storage_domain: Some(tcl_registry::f5::VariableStorageDomain::InterpreterNamespace),
+                execution: None,
+            });
+            place
+        };
+        let original = cell_from_place(&native(1)).unwrap();
+        let recreated = cell_from_place(&native(2)).unwrap();
+        let authored = cell_from_place(&crate::place::scalar("x", "::static", false)).unwrap();
+        assert_ne!(original, recreated);
+        assert_ne!(original, authored);
+        let definitions = HashMap::from([(original.clone(), VariableCellSet::default())]);
+        assert!(definitions.contains_key(&cell_from_place(&native(1)).unwrap()));
+        assert!(!definitions.contains_key(&recreated));
+        assert!(!definitions.contains_key(&authored));
+        let original_key = crate::var_resolve::cell_key(&native(1))
+            .with_lifetime(4)
+            .with_index("k");
+        let recreated_key = crate::var_resolve::cell_key(&native(2))
+            .with_lifetime(4)
+            .with_index("k");
+        let handler = "::when::HTTP_REQUEST".to_owned();
+        let summary = EventVarSummary {
+            event: "HTTP_REQUEST".to_owned(),
+            defs: HashSet::new(),
+            uses_before_def: HashSet::new(),
+            unsets: HashSet::new(),
+            cell_defs: HashMap::new(),
+            cell_reads: HashMap::new(),
+            must_defs: HashSet::new(),
+            worker_static_cells: HashSet::new(),
+            source_labels: [
+                (
+                    original_key.clone(),
+                    HashSet::from(["static::x(k)".to_owned()]),
+                ),
+                (
+                    recreated_key,
+                    HashSet::from(["wrong_incarnation".to_owned()]),
+                ),
+                (
+                    VariableCellKey::Authored(original_key.compatibility_name()),
+                    HashSet::from(["forged_label".to_owned()]),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let mut scope = ConnectionScope::default();
+        scope.handlers.insert(handler.clone(), summary);
+        scope
+            .cross_event_import_keys
+            .insert(handler.clone(), [original_key].into());
+        scope
+            .cross_event_cells
+            .insert(handler.clone(), HashSet::from([original]));
+        // Public labels cannot donate a cell or an imported source binding.
+        scope.cross_event_imports.insert("forged_label".to_owned());
+        assert_eq!(
+            scope.handler_source_names(&handler, true),
+            HashSet::from(["static::x(k)".to_owned()])
+        );
+        assert_eq!(
+            scope.source_names(),
+            HashSet::from(["static::x(k)".to_owned()])
+        );
+        assert!(scope.observes_cross_event_place(&handler, &native(1)));
+        assert!(!scope.observes_cross_event_place(&handler, &native(2)));
+        assert!(
+            !scope.observes_cross_event_place(
+                &handler,
+                &crate::place::scalar("x", "::static", false)
+            )
+        );
+        assert!(!scope.observes_cross_event_place("::when::HTTP_RESPONSE", &native(1)));
+    }
+
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
-
-    /// `scan_expr_info_exists` recurses
-    /// once per `ExprNode` level, so it needs a depth cap. A tree
-    /// built directly is unbounded (the Pratt parser caps its own output at
-    /// 256) and empirically overflowed the native stack (SIGABRT) in the low
-    /// thousands of levels on a 2 MiB thread. 3000 is past that crash range
-    /// and past `MAX_EXPR_NODE_DEPTH` (256); the assertion is that it returns
-    /// at all.
-    #[test]
-    fn deeply_nested_scan_expr_info_exists_survives() {
-        use crate::expr_ast::{ExprNode, UnaryOp};
-        let mut node = ExprNode::Command {
-            text: "[info exists x]".into(),
-            start: 0,
-            end: 15,
-        };
-        for _ in 0..3000 {
-            node = ExprNode::Unary {
-                op: UnaryOp::Not,
-                operand: Box::new(node),
-            };
-        }
-        let mut out = HashSet::new();
-        scan_expr_info_exists(&node, &mut out, 0);
-    }
 
     fn cu(source: &str) -> CompilationUnit {
         // `when` is registry-resolved.  This
@@ -354,8 +836,8 @@ mod tests {
         // ::When`.  Without the load, `when` would fall through
         // to `lower_default` and no `::when::*` procedures would
         // be registered for the connection-scope builder to walk.
-        let mut registry = CommandRegistry::build_default();
-        registry.load_irules();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::irules());
         CompilationUnit::build_for(source, &registry, false)
     }
 
@@ -365,6 +847,65 @@ mod tests {
             .filter(|(qn, _)| qn.starts_with("::when::"))
             .map(|(qn, fu)| (qn.clone(), fu.clone()))
             .collect()
+    }
+
+    #[test]
+    fn cross_event_labels_follow_exact_native_operation_symbols() {
+        use crate::command_binding::SourceNamespaceKey;
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+
+        let unit = cu("when HTTP_REQUEST { set static::x 1; log local0. $static::x }");
+        let mut fu = when_procs(&unit).into_values().next().unwrap();
+        let (block, index, symbol) = fu
+            .cfg
+            .blocks
+            .iter()
+            .find_map(|(&block, data)| {
+                (0..data.statements.len()).find_map(|index| {
+                    fu.ssa
+                        .source_symbols_at(block, index)?
+                        .get("static::x")
+                        .map(|&symbol| (block, index, symbol))
+                })
+            })
+            .expect("original written variable has a positioned SSA symbol");
+        let interpreter = NativeInterpreterIdentity {
+            owner: NativeInterpreterIdentity::fresh_owner(),
+            interpreter: 0,
+        };
+        let native_key = |token| VariableCellKey::Namespace {
+            identity: SourceNamespaceKey::Native(NativeNamespaceContext {
+                interpreter,
+                token,
+                path: tcl_core_types::ByteNamespacePath::from_segments(["static"]),
+            }),
+            simple: "x".to_owned(),
+        };
+        let selected = native_key(1);
+        let relocation = crate::var_resolve::VariableProofRelocation {
+            storage_keys: HashMap::from([(fu.ssa.cell_key(symbol).clone(), selected.clone())]),
+            ..Default::default()
+        };
+        fu.ssa.relocate_variable_proofs(&relocation);
+        let place = crate::place::scalar("x", "::static", false);
+        assert_eq!(
+            labels_at(&fu, block, index, &selected, &place),
+            HashSet::from(["static::x".to_owned()])
+        );
+        assert!(labels_at(&fu, block, index, &native_key(2), &place).is_empty());
+        assert!(
+            labels_at(
+                &fu,
+                block,
+                index,
+                &VariableCellKey::Authored(selected.compatibility_name()),
+                &place
+            )
+            .iter()
+            .all(|label| label != "static::x")
+        );
     }
 
     #[test]
@@ -388,9 +929,35 @@ mod tests {
         ";
         let cu = cu(source);
         let cs = build_connection_scope(&when_procs(&cu));
-        // ``ip`` is in cross_event_imports / cross_event_defs.
+        // Each handler keeps its own captured SSA proof key, while the
+        // lifecycle joins their common physical connection cell.
+        let cell = EventCell::Connection("ip".to_owned());
+        assert!(
+            cs.summaries["CLIENT_ACCEPTED"].cell_defs[&cell]
+                .iter()
+                .all(|key| cs
+                    .cross_event_def_keys
+                    .values()
+                    .any(|keys| keys.contains(key))),
+            "{cs:?}"
+        );
+        assert!(
+            cs.summaries["HTTP_REQUEST"].cell_reads[&cell]
+                .iter()
+                .all(|key| cs
+                    .cross_event_import_keys
+                    .values()
+                    .any(|keys| keys.contains(key))),
+            "{cs:?}"
+        );
         assert!(cs.cross_event_defs.contains("ip"));
         assert!(cs.cross_event_imports.contains("ip"));
+        assert!(cs.source_names().contains("ip"));
+        assert!(
+            cs.cross_event_defs
+                .iter()
+                .all(|name| !name.starts_with("@frame:"))
+        );
         // No static:: var ⇒ no racy_static_defs.
         assert!(cs.racy_static_defs.is_empty());
     }
@@ -406,7 +973,7 @@ mod tests {
         ";
         let cu = cu(source);
         let cs = build_connection_scope(&when_procs(&cu));
-        assert!(cs.racy_static_defs.contains("static::counter"));
+        assert!(cs.racy_static_defs.contains("::static::counter"));
     }
 
     #[test]
@@ -419,7 +986,7 @@ mod tests {
         ";
         let cu = cu(source);
         let cs = build_connection_scope(&when_procs(&cu));
-        assert!(!cs.racy_static_defs.contains("static::config"));
+        assert!(!cs.racy_static_defs.contains("::static::config"));
     }
 
     #[test]
@@ -439,7 +1006,7 @@ mod tests {
         let bare = unsets_for("when HTTP_REQUEST { set static::c 1\nunset static::c }");
         let qualified = unsets_for("when HTTP_REQUEST { set static::c 1\n::unset static::c }");
         assert!(
-            bare.contains("static::c"),
+            bare.contains("::static::c"),
             "bare spelling records the unset"
         );
         assert_eq!(bare, qualified, "both spellings are the same command");
@@ -460,6 +1027,148 @@ mod tests {
             .summaries
             .get("CLIENT_ACCEPTED")
             .expect("CLIENT_ACCEPTED summary");
-        assert!(s.defs.contains("a") && s.defs.contains("b"));
+        assert!(
+            s.cell_defs
+                .contains_key(&EventCell::Connection("a".to_owned()))
+                && s.cell_defs
+                    .contains_key(&EventCell::Connection("b".to_owned())),
+            "{s:?}"
+        );
+    }
+    #[test]
+    fn initialisation_globals_do_not_define_connection_locals() {
+        let unit = cu("when RULE_INIT {set config 1}\nwhen HTTP_REQUEST {log local0. $config}");
+        let scope = build_connection_scope(&when_procs(&unit));
+        assert!(!scope.cross_event_imports.contains("config"));
+        assert!(
+            scope.summaries["RULE_INIT"]
+                .cell_defs
+                .contains_key(&EventCell::Namespace("::config".into()),)
+        );
+    }
+
+    #[test]
+    fn absolute_and_relative_static_spellings_share_the_worker_cell() {
+        let unit = cu(
+            "when RULE_INIT {set static::app_flag 1}\nwhen HTTP_REQUEST {log local0. $::static::app_flag}",
+        );
+        let scope = build_connection_scope(&when_procs(&unit));
+        assert!(scope.cross_event_defs.contains("::static::app_flag"));
+        assert!(scope.cross_event_imports.contains("::static::app_flag"));
+    }
+
+    #[test]
+    fn conditional_assignment_is_a_may_definition() {
+        let unit = cu(
+            "when CLIENT_ACCEPTED {if {[IP::client_addr] eq {x}} {set flag 1}}\nwhen HTTP_REQUEST {log local0. $flag}",
+        );
+        let scope = build_connection_scope(&when_procs(&unit));
+        let summary = &scope.summaries["CLIENT_ACCEPTED"];
+        assert!(
+            summary
+                .cell_defs
+                .contains_key(&EventCell::Connection("flag".to_owned()))
+        );
+        assert!(
+            !summary
+                .must_defs
+                .contains(&EventCell::Connection("flag".to_owned()))
+        );
+    }
+
+    #[test]
+    fn unknown_connection_subject_preserves_possible_switch_body_definitions() {
+        let sources = [
+            "when CLIENT_ACCEPTED {switch $mode {loud {set debug 1} default {set debug 0}}}\nwhen HTTP_REQUEST {if {$debug} {log local0. hi}}",
+            "when CLIENT_ACCEPTED { switch $mode { loud { set debug 1 } default { set debug 0 } } }\nwhen HTTP_REQUEST { if {$debug} { log local0. hi } }",
+        ];
+        for source in sources {
+            let unit = cu(source);
+            let scope = build_connection_scope(&when_procs(&unit));
+            let debug = EventCell::Connection("debug".to_owned());
+            assert!(
+                scope.summaries["CLIENT_ACCEPTED"]
+                    .cell_defs
+                    .contains_key(&debug),
+                "scope: {scope:?}; dispatches: {:?}",
+                possible_body_dispatch_evidence(&unit)
+            );
+            assert!(
+                !scope.summaries["CLIENT_ACCEPTED"]
+                    .must_defs
+                    .contains(&debug)
+            );
+            assert!(
+                scope.summaries["CLIENT_ACCEPTED"].cell_defs[&debug]
+                    .iter()
+                    .all(|key| scope
+                        .cross_event_def_keys
+                        .values()
+                        .any(|keys| keys.contains(key))),
+                "{scope:?}"
+            );
+            assert!(
+                scope.summaries["HTTP_REQUEST"].cell_reads[&debug]
+                    .iter()
+                    .all(|key| scope
+                        .cross_event_import_keys
+                        .values()
+                        .any(|keys| keys.contains(key))),
+                "{scope:?}"
+            );
+        }
+    }
+
+    fn possible_body_dispatch_evidence(unit: &CompilationUnit) -> Vec<String> {
+        let registry = unit.ir_module.resolved_registry();
+        let mut evidence = Vec::new();
+        for (name, function) in &unit.procedures {
+            for block in function.cfg.blocks.values() {
+                for statement in &block.statements {
+                    let Some(tokens) = statement.tokens() else {
+                        continue;
+                    };
+                    let Some(binding) = &tokens.source_binding else {
+                        continue;
+                    };
+                    let topology = crate::registry_invocation::possible_body_invocation(
+                        registry, None, tokens,
+                    )
+                    .map(|body| body.topology);
+                    let handler_layout = crate::registry_invocation::resolved_handler_invocation(
+                        registry, None, tokens,
+                    )
+                    .map(|invocation| {
+                        format!(
+                            "contract={:?}, roles={}, arity={:?}, frame={:?}, words={:?}",
+                            invocation.facts.successful_handler,
+                            invocation.facts.arg_roles_complete,
+                            invocation.facts.arity_accepts_frozen_arguments(),
+                            binding.variable_context.alias_frame(),
+                            invocation.evaluated_words
+                        )
+                    });
+                    evidence.push(format!(
+                        "{name} {:?}: reached={:?}, unknown={}, frame={:?}, contents={:?}, handler={:?}, topology={topology:?}, layout={handler_layout:?}",
+                        tokens.argv_texts,
+                        binding.runtime_reachability(),
+                        binding.unknown,
+                        binding.variable_frame,
+                        binding.variable_context.contents_world,
+                        binding.proved_handler_target().map(|target| &target.command),
+                    ));
+                }
+            }
+        }
+        evidence
+    }
+
+    #[test]
+    fn literal_info_exists_text_is_not_a_cross_event_read() {
+        let unit = cu(
+            "when CLIENT_ACCEPTED {set value 1}\nwhen HTTP_REQUEST {log local0. {info exists value}}",
+        );
+        let scope = build_connection_scope(&when_procs(&unit));
+        assert!(!scope.cross_event_defs.contains("value"));
     }
 }

@@ -30,22 +30,32 @@
 //! runtime still implements itself, so a host can fall back to its own
 //! body for the few not routed here.
 
+use tcl_syntax::raw_string::RawString;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::index;
 
 /// `string length str` — the character count.
-pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let n = ops.char_len(s);
-    ops.new_int(i64::try_from(n).unwrap_or(i64::MAX))
+pub fn length<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    let n = ops.native_char_len(s)?;
+    Ok(ops.new_int(i64::try_from(n).unwrap_or(i64::MAX)))
 }
 
 /// `string index str charIndex` — the one-character string at `idx`, or empty
 /// when out of range.
 pub fn index<O: ValueOps>(ops: &mut O, s: &O::Value, idx: &O::Value) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let i = index::resolve(&ops.as_str(idx), chars.len())?;
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let raw = RawString::from_bytes(ops.as_bytes(s));
+        let len = ops.native_char_len(s)?;
+        let i = index::resolve_value(ops, idx, len)?;
+        return Ok(match usize::try_from(i) {
+            Ok(i) => ops.new_bytes(&raw.jim084_character_bytes(i, len)?),
+            Err(_) => ops.empty(),
+        });
+    }
+    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
+    let i = index::resolve_value(ops, idx, chars.len())?;
     if i < 0 {
         return Ok(ops.empty());
     }
@@ -62,10 +72,24 @@ pub fn range<O: ValueOps>(
     first: &O::Value,
     last: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let raw = RawString::from_bytes(ops.as_bytes(s));
+        let len = ops.native_char_len(s)?;
+        let first = index::resolve_value(ops, first, len)?.max(0);
+        let last = index::resolve_value(ops, last, len)?;
+        return Ok(match (usize::try_from(first), usize::try_from(last)) {
+            (Ok(0), Ok(last)) if last.saturating_add(1) >= len => s.clone(),
+            (Ok(first), Ok(last)) => {
+                let (bytes, count) = raw.jim084_range_bytes(first, last, len)?;
+                ops.new_jim_string(&bytes, count)
+            }
+            _ => ops.empty(),
+        });
+    }
+    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
     let len = chars.len();
-    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
-    let hi = index::resolve(&ops.as_str(last), len)?;
+    let lo = index::resolve_value(ops, first, len)?.max(0);
+    let hi = index::resolve_value(ops, last, len)?;
     let Ok(lo) = usize::try_from(lo) else {
         return Ok(ops.empty());
     };
@@ -78,9 +102,13 @@ pub fn range<O: ValueOps>(
 }
 
 /// `string reverse str`.
-pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> O::Value {
-    let out: String = ops.as_str(s).chars().rev().collect();
-    ops.new_string(out)
+pub fn reverse<O: ValueOps>(ops: &mut O, s: &O::Value) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let raw = RawString::from_bytes(ops.as_bytes(s)).jim084_reversed();
+        return Ok(ops.new_bytes(&raw.bytes()));
+    }
+    let out: String = ops.try_as_str(s)?.chars().rev().collect();
+    Ok(ops.new_string(out))
 }
 
 /// `string repeat str count` — `count` (clamped at 0) copies, with the result
@@ -108,11 +136,52 @@ pub fn repeat<O: ValueOps>(
     s: &O::Value,
     count: &O::Value,
 ) -> Result<O::Value, CmdError> {
-    let n = ops.as_int(count)?;
+    let count = prepare_repeat_count(ops, count)?;
+    repeat_with_count(ops, s, count)
+}
+
+/// Convert a repeat count using the selected native operand grammar.
+///
+/// Hosts with allocation limits can retain this result, charge the actual
+/// source byte length times its nonnegative count, then call
+/// [`repeat_with_count`] without evaluating or coercing the operand again.
+pub fn prepare_repeat_count<O: ValueOps>(ops: &mut O, count: &O::Value) -> Result<i64, CmdError> {
+    // Jim_GetWideExpr is shared with increment's amount conversion. Its safe
+    // expression phase cannot dispatch public commands or read variables.
+    let n = if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        use tcl_syntax::value::{IntegerOperandError, IntegerOperandGrammar};
+        let value = match IntegerOperandGrammar::SafeIntegerExpression.prepare(ops, count) {
+            Ok(value) => value,
+            Err(IntegerOperandError::Integer(error)) => return Err(error.into()),
+            Err(error @ IntegerOperandError::SafeExpression) => {
+                return Err(CmdError::new_bytes(
+                    error
+                        .safe_expression_message_bytes(&ops.as_bytes(count))
+                        .expect("safe expression failure has its authored byte message"),
+                ));
+            }
+        };
+        ops.pin_value(&value);
+        let integer = ops.as_int(&value);
+        ops.unpin_value(&value);
+        integer?
+    } else {
+        ops.as_int(count)?
+    };
+    Ok(n)
+}
+
+/// Build a repeated string from a count already converted by
+/// [`prepare_repeat_count`]. Source bytes are copied without Unicode projection.
+pub fn repeat_with_count<O: ValueOps>(
+    ops: &mut O,
+    s: &O::Value,
+    n: i64,
+) -> Result<O::Value, CmdError> {
     if n <= 0 {
         return Ok(ops.empty());
     }
-    let src = ops.as_str(s);
+    let src = ops.as_bytes(s);
     let len = i64::try_from(src.len()).unwrap_or(i64::MAX);
     if len == 0 {
         return Ok(ops.empty());
@@ -139,13 +208,13 @@ pub fn repeat<O: ValueOps>(
     // recover from (the unbounded `str::repeat` this replaces aborted the
     // process with `memory allocation of 200000000000 bytes failed`).
     let capacity = usize::try_from(total).map_err(|_| overflow())?;
-    let mut out = String::new();
+    let mut out = Vec::new();
     out.try_reserve_exact(capacity).map_err(|_| overflow())?;
     let n = usize::try_from(n).unwrap_or(0);
     for _ in 0..n {
-        out.push_str(&src);
+        out.extend_from_slice(&src);
     }
-    Ok(ops.new_string(out))
+    Ok(ops.new_bytes(&out))
 }
 
 /// The result form of [`compare`].
@@ -172,6 +241,9 @@ pub fn compare<O: ValueOps>(
         CompareMode::Compare => "compare",
     };
     let usage = format!("string {name} ?-nocase? ?-length int? string1 string2");
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        return jim_compare(ops, args, mode, &usage);
+    }
     if !(2..=5).contains(&args.len()) {
         return Err(CmdError::wrong_args(&usage));
     }
@@ -191,7 +263,7 @@ pub fn compare<O: ValueOps>(
     let mut i = 0;
     let option_end = args.len() - 2;
     while i < option_end {
-        let option = ops.as_str(&args[i]);
+        let option = ops.try_as_str(&args[i])?;
         if option.len() > 1 && "-nocase".starts_with(&*option) {
             nocase = true;
             i += 1;
@@ -208,17 +280,69 @@ pub fn compare<O: ValueOps>(
         }
     }
 
-    let key = |ops: &mut O, value: &O::Value| {
-        let mut chars: Vec<char> = ops.as_str(value).chars().collect();
+    let key = |ops: &mut O, value: &O::Value| -> Result<Vec<char>, CmdError> {
+        let mut chars: Vec<char> = ops.try_as_str(value)?.chars().collect();
         if nocase {
             chars = chars.iter().flat_map(|c| c.to_lowercase()).collect();
         }
         if let Some(n) = length {
             chars.truncate(n);
         }
-        chars
+        Ok(chars)
     };
-    let ordering = key(ops, &args[i]).cmp(&key(ops, &args[i + 1]));
+    let ordering = key(ops, &args[i])?.cmp(&key(ops, &args[i + 1])?);
+    Ok(match mode {
+        CompareMode::Equal => ops.new_bool(ordering.is_eq()),
+        CompareMode::Compare => ops.new_int(match ordering {
+            core::cmp::Ordering::Less => -1,
+            core::cmp::Ordering::Equal => 0,
+            core::cmp::Ordering::Greater => 1,
+        }),
+    })
+}
+
+fn jim_compare<O: ValueOps>(
+    ops: &mut O,
+    args: &[O::Value],
+    mode: CompareMode,
+    usage: &str,
+) -> Result<O::Value, CmdError> {
+    if args.len() < 2 {
+        return Err(CmdError::wrong_args(usage));
+    }
+    let option_end = args.len() - 2;
+    let mut i = 0;
+    let mut nocase = false;
+    let mut length = None;
+    while i < option_end {
+        let option = ops.as_bytes(&args[i]);
+        if option.len() > 1 && b"-nocase".starts_with(&option) {
+            nocase = true;
+            i += 1;
+        } else if option.len() > 1 && b"-length".starts_with(&option) && i + 1 < option_end {
+            length = usize::try_from(ops.as_int(&args[i + 1])?).ok();
+            i += 2;
+        } else {
+            return Err(CmdError::wrong_args(usage));
+        }
+    }
+    let left = ops.as_bytes(&args[i]);
+    let right = ops.as_bytes(&args[i + 1]);
+    if matches!(mode, CompareMode::Equal) && !nocase && length.is_none() {
+        return Ok(ops.new_bool(left == right));
+    }
+    let mut left_count = ops.native_char_len(&args[i])?;
+    let mut right_count = ops.native_char_len(&args[i + 1])?;
+    if let Some(limit) = length {
+        left_count = left_count.min(limit);
+        right_count = right_count.min(limit);
+    }
+    let ordering = RawString::from_bytes(left).jim084_compare(
+        left_count,
+        &RawString::from_bytes(right),
+        right_count,
+        nocase,
+    )?;
     Ok(match mode {
         CompareMode::Equal => ops.new_bool(ordering.is_eq()),
         CompareMode::Compare => ops.new_int(match ordering {
@@ -249,23 +373,36 @@ pub fn case_convert<O: ValueOps>(
     mode: CaseMode,
     usage: &str,
 ) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        use tcl_syntax::raw_string::JimCaseMapping;
+        let (mapping, usage) = match mode {
+            CaseMode::Upper => (JimCaseMapping::Upper, "string toupper string"),
+            CaseMode::Lower => (JimCaseMapping::Lower, "string tolower string"),
+            CaseMode::Title => (JimCaseMapping::Title, "string totitle string"),
+        };
+        let [value] = args else {
+            return Err(CmdError::wrong_args(usage));
+        };
+        let mapped = RawString::from_bytes(ops.as_bytes(value)).jim084_case_mapped(mapping);
+        return Ok(ops.new_bytes(&mapped.bytes()));
+    }
     let (s, first_spec, last_spec) = match args {
         [s] => (s, None, None),
         [s, f] => (s, Some(f), None),
         [s, f, l] => (s, Some(f), Some(l)),
         _ => return Err(CmdError::wrong_args(usage)),
     };
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
     let len = chars.len();
     if len == 0 {
         return Ok(ops.empty());
     }
     let first = match first_spec {
         None => 0,
-        Some(f) => index::resolve(&ops.as_str(f), len)?.max(0),
+        Some(f) => index::resolve_value(ops, f, len)?.max(0),
     };
     let last = match last_spec {
-        Some(l) => index::resolve(&ops.as_str(l), len)?,
+        Some(l) => index::resolve_value(ops, l, len)?,
         None if first_spec.is_some() => first,
         None => i64::try_from(len).unwrap_or(i64::MAX) - 1,
     };
@@ -453,11 +590,11 @@ pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, 
             "string replace string first last ?string?",
         ));
     }
-    let chars: Vec<char> = ops.as_str(&args[0]).chars().collect();
+    let chars: Vec<char> = ops.try_as_str(&args[0])?.chars().collect();
     let len = chars.len();
     let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
-    let first = index::resolve(&ops.as_str(&args[1]), len)?;
-    let last = index::resolve(&ops.as_str(&args[2]), len)?;
+    let first = index::resolve_value(ops, &args[1], len)?;
+    let last = index::resolve_value(ops, &args[2], len)?;
     if last < 0 || first > end || last < first {
         let unchanged: String = chars.iter().collect();
         return Ok(ops.new_string(unchanged));
@@ -468,7 +605,7 @@ pub fn replace<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, 
     let hi_excl = usize::try_from(last + 1).unwrap_or(0).min(len);
     let mut out: String = chars[..lo].iter().collect();
     if args.len() == 4 {
-        out.push_str(&ops.as_str(&args[3]));
+        out.push_str(&ops.try_as_str(&args[3])?);
     }
     out.extend(chars[hi_excl..].iter());
     Ok(ops.new_string(out))
@@ -483,27 +620,27 @@ pub fn insert<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
             "string insert string index insertString",
         ));
     };
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
+    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
     let len = chars.len();
-    let at = index::resolve(&ops.as_str(idx), len + 1)?;
+    let at = index::resolve_value(ops, idx, len + 1)?;
     let at = if at < 0 {
         0
     } else {
         usize::try_from(at).unwrap_or(len).min(len)
     };
     let mut out: String = chars[..at].iter().collect();
-    out.push_str(&ops.as_str(ins));
+    out.push_str(&ops.try_as_str(ins)?);
     out.extend(chars[at..].iter());
     Ok(ops.new_string(out))
 }
 
 /// `string cat ?arg ...?` — concatenate the string reps of all arguments.
 pub fn cat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
-    let mut out = String::new();
-    for a in args {
-        out.push_str(&ops.as_str(a));
+    let mut output = Vec::new();
+    for value in args {
+        output.extend_from_slice(&ops.as_bytes(value));
     }
-    ops.new_string(out)
+    ops.new_bytes(&output)
 }
 
 /// The default `string trim` set — every Unicode space character plus NUL
@@ -523,9 +660,19 @@ pub fn trim<O: ValueOps>(
     chars: Option<&O::Value>,
     left: bool,
     right: bool,
-) -> O::Value {
-    let string = ops.as_str(s).to_string();
-    let custom: Option<Vec<char>> = chars.map(|c| ops.as_str(c).chars().collect());
+) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let string = tcl_syntax::raw_string::RawString::from_bytes(ops.as_bytes(s));
+        let characters = tcl_syntax::raw_string::RawString::from_bytes(chars.map_or_else(
+            || std::rc::Rc::from(&b" \t\n\r\0"[..]),
+            |value| ops.as_bytes(value),
+        ));
+        let plan = string.jim084_trim_plan(&characters, left, right);
+        return Ok(ops.jim_string_trim_result(s, plan));
+    }
+    let string = ops.try_as_str(s)?.to_string();
+    let custom = chars.map(|c| ops.try_as_str(c)).transpose()?;
+    let custom: Option<Vec<char>> = custom.map(|c| c.chars().collect());
     let pred = |c: char| match &custom {
         Some(set) => set.contains(&c),
         None => DEFAULT_TRIM_SET.contains(&c),
@@ -536,7 +683,7 @@ pub fn trim<O: ValueOps>(
         (false, true) => string.trim_end_matches(pred),
         (false, false) => string.as_str(),
     };
-    ops.new_string(trimmed.to_string())
+    Ok(ops.new_string(trimmed.to_string()))
 }
 
 /// `string first needleString haystackString ?startIndex?` — the character index
@@ -547,11 +694,27 @@ pub fn first<O: ValueOps>(
     haystack: &O::Value,
     start: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let needle_count = ops.native_char_len(needle)?;
+        let count = ops.native_char_len(haystack)?;
+        let start = start
+            .map(|value| index::resolve_value(ops, value, count))
+            .transpose()?
+            .unwrap_or(0)
+            .max(0);
+        let found = RawString::from_bytes(ops.as_bytes(haystack)).jim084_first(
+            count,
+            &RawString::from_bytes(ops.as_bytes(needle)),
+            needle_count,
+            usize::try_from(start).unwrap_or(usize::MAX),
+        )?;
+        return Ok(ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX))));
+    }
+    let hay: Vec<char> = ops.try_as_str(haystack)?.chars().collect();
+    let needle: Vec<char> = ops.try_as_str(needle)?.chars().collect();
     let start = match start {
         None => 0,
-        Some(s) => usize::try_from(index::resolve(&ops.as_str(s), hay.len())?.max(0)).unwrap_or(0),
+        Some(s) => usize::try_from(index::resolve_value(ops, s, hay.len())?.max(0)).unwrap_or(0),
     };
     if needle.is_empty() {
         return Ok(ops.new_int(-1));
@@ -576,11 +739,26 @@ pub fn last<O: ValueOps>(
     haystack: &O::Value,
     last_index: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    let hay: Vec<char> = ops.as_str(haystack).chars().collect();
-    let needle: Vec<char> = ops.as_str(needle).chars().collect();
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let needle_count = ops.native_char_len(needle)?;
+        let count = ops.native_char_len(haystack)?;
+        let prefix = last_index
+            .map(|value| index::resolve_value(ops, value, count))
+            .transpose()?
+            .unwrap_or_else(|| i64::try_from(count).unwrap_or(i64::MAX))
+            .max(0);
+        let found = RawString::from_bytes(ops.as_bytes(haystack)).jim084_last(
+            usize::try_from(prefix).unwrap_or(usize::MAX),
+            &RawString::from_bytes(ops.as_bytes(needle)),
+            needle_count,
+        )?;
+        return Ok(ops.new_int(found.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX))));
+    }
+    let hay: Vec<char> = ops.try_as_str(haystack)?.chars().collect();
+    let needle: Vec<char> = ops.try_as_str(needle)?.chars().collect();
     let last: i64 = match last_index {
         None => i64::try_from(hay.len()).unwrap_or(i64::MAX) - 1,
-        Some(s) => index::resolve(&ops.as_str(s), hay.len())?,
+        Some(s) => index::resolve_value(ops, s, hay.len())?,
     };
     // An empty haystack can hold no non-empty needle — return -1 before the
     // clamp below, whose `saturating_sub(1)` would otherwise yield index 0 and
@@ -611,9 +789,30 @@ pub fn last<O: ValueOps>(
 
 /// `string match ?-nocase? pattern string` — glob match, returning a boolean.
 pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
+        let (nocase, pattern, subject) = match args {
+            [pattern, subject] => (false, pattern, subject),
+            [option, pattern, subject]
+                if {
+                    let option = ops.as_bytes(option);
+                    option.len() >= 2 && b"-nocase".starts_with(&option)
+                } =>
+            {
+                (true, pattern, subject)
+            }
+            _ => {
+                return Err(CmdError::wrong_args(
+                    "string match ?-nocase? pattern string",
+                ));
+            }
+        };
+        let matched = RawString::from_bytes(ops.as_bytes(subject))
+            .jim084_matches(&RawString::from_bytes(ops.as_bytes(pattern)), nocase)?;
+        return Ok(ops.new_bool(matched));
+    }
     let (nocase, pat, s) = match args {
         [p, s] => (false, p, s),
-        [opt, p, s] if is_nocase(&ops.as_str(opt)) => (true, p, s),
+        [opt, p, s] if is_nocase(&ops.try_as_str(opt)?) => (true, p, s),
         // Three arguments whose first is not `-nocase` is a bad option, not a
         // wrong count (C's `StringMatchCmd`): `string match -bogus a b` and
         // `string match -- a a` both report `bad option "…": must be -nocase`
@@ -621,7 +820,7 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
         [opt, _, _] => {
             return Err(CmdError::new(format!(
                 "bad option \"{}\": must be -nocase",
-                ops.as_str(opt)
+                ops.try_as_str(opt)?
             )));
         }
         _ => {
@@ -630,8 +829,8 @@ pub fn string_match<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Va
             ));
         }
     };
-    let pattern = ops.as_str(pat).to_string();
-    let text = ops.as_str(s).to_string();
+    let pattern = ops.try_as_str(pat)?.to_string();
+    let text = ops.try_as_str(s)?.to_string();
     Ok(ops.new_bool(tcl_syntax::glob::string_case_match(&pattern, &text, nocase)))
 }
 
@@ -660,14 +859,14 @@ fn fold_chars(cs: &[char]) -> Vec<char> {
 pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
     let (nocase, pairs, text) = match args {
         [m, s] => (false, m, s),
-        [opt, m, s] if is_nocase(&ops.as_str(opt)) => (true, m, s),
+        [opt, m, s] if is_nocase(&ops.try_as_str(opt)?) => (true, m, s),
         // Three arguments whose first is not `-nocase` is a bad option, not a
         // wrong count (C's `StringMapCmd`): `string map {a b} abba oops`
         // reports `bad option "a b"` (string-10.2).
         [opt, _, _] => {
             return Err(CmdError::new(format!(
                 "bad option \"{}\": must be -nocase",
-                ops.as_str(opt)
+                ops.try_as_str(opt)?
             )));
         }
         _ => return Err(CmdError::wrong_args("string map ?-nocase? charMap string")),
@@ -678,9 +877,12 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
     }
     let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
     for c in items.as_chunks::<2>().0 {
-        map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
+        map.push((
+            ops.try_as_str(&c[0])?.to_string(),
+            ops.try_as_str(&c[1])?.to_string(),
+        ));
     }
-    let string = ops.as_str(text).to_string();
+    let string = ops.try_as_str(text)?.to_string();
 
     // Case-insensitive matching folds full Unicode case (like `string equal
     // -nocase` and `tolower`), not just ASCII, and matches/advances by
@@ -735,8 +937,8 @@ fn trim_dispatch<O: ValueOps>(
     right: bool,
 ) -> Result<O::Value, CmdError> {
     match rest {
-        [s] => Ok(trim(ops, s, None, left, right)),
-        [s, c] => Ok(trim(ops, s, Some(c), left, right)),
+        [s] => trim(ops, s, None, left, right),
+        [s, c] => trim(ops, s, Some(c), left, right),
         _ => Err(CmdError::wrong_args(usage)),
     }
 }
@@ -762,12 +964,12 @@ pub fn dispatch_canon<O: ValueOps>(
         }
     };
     match sub {
-        "length" => arity(1, "string length string").or_else(|| Some(Ok(length(ops, &rest[0])))),
+        "length" => arity(1, "string length string").or_else(|| Some(length(ops, &rest[0]))),
         "index" => arity(2, "string index string charIndex")
             .or_else(|| Some(index(ops, &rest[0], &rest[1]))),
         "range" => arity(3, "string range string first last")
             .or_else(|| Some(range(ops, &rest[0], &rest[1], &rest[2]))),
-        "reverse" => arity(1, "string reverse string").or_else(|| Some(Ok(reverse(ops, &rest[0])))),
+        "reverse" => arity(1, "string reverse string").or_else(|| Some(reverse(ops, &rest[0]))),
         "repeat" => {
             arity(2, "string repeat string count").or_else(|| Some(repeat(ops, &rest[0], &rest[1])))
         }
@@ -850,8 +1052,8 @@ pub fn word_bound<O: ValueOps>(
     idx: &O::Value,
     start: bool,
 ) -> Result<O::Value, CmdError> {
-    let chars: Vec<char> = ops.as_str(s).chars().collect();
-    let index = index::resolve(&ops.as_str(idx), chars.len())?;
+    let chars: Vec<char> = ops.try_as_str(s)?.chars().collect();
+    let index = index::resolve_value(ops, idx, chars.len())?;
     let result = if start {
         word_start(&chars, index)
     } else {
@@ -926,7 +1128,10 @@ fn is_connector_punct(c: char) -> bool {
 /// subcommand). Convenience over [`dispatch_canon`] for a runtime that does not
 /// pre-resolve abbreviations; exact subcommand names only.
 pub fn dispatch<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Option<Result<O::Value, CmdError>> {
-    let sub = ops.as_str(args.first()?).to_string();
+    let sub = match ops.try_as_str(args.first()?) {
+        Ok(sub) => sub,
+        Err(error) => return Some(Err(error.into())),
+    };
     dispatch_canon(ops, &sub, &args[1..])
 }
 
@@ -943,6 +1148,11 @@ mod tests {
     struct StrOps;
 
     impl ValueOps for StrOps {
+        fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
+            Some(tcl_dialect::IndexSyntax::for_version(
+                tcl_dialect::TclVersion::V9_0,
+            ))
+        }
         type Value = String;
         fn new_str(&mut self, s: &str) -> String {
             s.to_owned()
@@ -959,9 +1169,13 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             items.join(" ")
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
         }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
+        }
+
         fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse()
                 .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
@@ -1049,7 +1263,8 @@ mod tests {
                 CompareMode::Equal,
             )
             .unwrap_err()
-            .message(),
+            .message()
+            .unwrap(),
             "bad option \"-bogus\": must be -nocase or -length"
         );
     }
@@ -1163,7 +1378,7 @@ mod tests {
         //   string size overflow: unable to alloc 200000000000 bytes
         let err = repeat_of("ab", "100000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc 200000000000 bytes"
         );
         // The byte count is the *byte* length of the string rep, not the
@@ -1171,7 +1386,7 @@ mod tests {
         // 100000000000` as 200000000000 bytes too.
         let err = repeat_of("\u{e9}", "100000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc 200000000000 bytes"
         );
         // `count * length` is computed in `Tcl_Size` and wraps, and C reports
@@ -1180,7 +1395,7 @@ mod tests {
         //   string size overflow: unable to alloc -8446744073709551616 bytes
         let err = repeat_of("ab", "5000000000000000000").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "string size overflow: unable to alloc -8446744073709551616 bytes"
         );
         // `count > TCL_SIZE_MAX - 1` is a different message — tclsh 9.0.4:
@@ -1188,7 +1403,7 @@ mod tests {
         //   max size for a Tcl value (9223372036854775807 bytes) exceeded
         let err = repeat_of("ab", "9223372036854775807").expect_err("bounded");
         assert_eq!(
-            err.message(),
+            err.message().unwrap(),
             "max size for a Tcl value (9223372036854775807 bytes) exceeded"
         );
         // …but an empty string short-circuits before either check, so even that

@@ -1,0 +1,172 @@
+{
+  "command": [
+    "cc",
+    "-I",
+    "/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-command-jim-lsearch/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/2286-command-jim-lsearch/probe"
+  ],
+  "compile_exit": 0,
+  "stderr": "",
+  "sha256": {
+    "/workspace/.proofs/2286-command-jim-lsearch/probe.c": "f2637ff9cf2a2088e6ac2394d247a960ff2b90f9ecf00312dcb933843181a899",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/tmp/2286-oracles/jimtcl/jimautoconf.h": "c72023de18863d3d368bbb135692e92848cc79b5a49ed96cc68cf97b8fd49e89"
+  },
+  "captures": [
+    {
+      "case": 0,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tlist\t1\t1\nargument\t2\tstring\t1\t1\nbytes\t31\n",
+      "stderr": ""
+    },
+    {
+      "case": 1,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tstring\t1\t1\nargument\t1\tnone\t1\t2\nargument\t2\tnone\t1\t2\nargument\t3\tnone\t1\t2\nbytes\t626164206f7074696f6e20222d67223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465\n",
+      "stderr": ""
+    },
+    {
+      "case": 2,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tnone\t1\t1\nbytes\t30\n",
+      "stderr": ""
+    },
+    {
+      "case": 3,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tregexp\t1\t1\nbytes\t30\n",
+      "stderr": ""
+    },
+    {
+      "case": 4,
+      "exit": 0,
+      "stdout": "callback\t3\tcommand:4\tnone:3\tsource:2\ncallback\t3\tcommand:4\tnone:3\tsource:2\ncode\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tcommand\t1\t1\nargument\t3\tlist\t1\t1\nargument\t4\tnone\t1\t1\nbytes\t2d31\n",
+      "stderr": ""
+    },
+    {
+      "case": 5,
+      "exit": 0,
+      "stdout": "callback\t3\tcommand:4\tnone:3\tsource:2\ncode\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tcommand\t1\t1\nargument\t4\tlist\t1\t1\nargument\t5\tnone\t1\t1\nbytes\t32\n",
+      "stderr": ""
+    },
+    {
+      "case": 6,
+      "exit": 0,
+      "stdout": "callback\t3\tcommand:4\tnone:3\tsource:2\ncallback\t3\tcommand:4\tnone:3\tsource:2\ncode\t0\nresult\tlist\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tget-enum\t1\t1\nargument\t4\tcommand\t1\t1\nargument\t5\tlist\t1\t1\nargument\t6\tnone\t1\t1\nbytes\t322032\n",
+      "stderr": ""
+    },
+    {
+      "case": 7,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tnone\t1\t5\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tstring\t1\t1\nbytes\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 8,
+      "exit": 0,
+      "stdout": "callback\t4\tcommand:2\tnone:1\tnone:3\tsource:2\ncallback\t4\tcommand:2\tnone:1\tnone:3\tsource:2\ncode\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tlist\t1\t1\nargument\t4\tnone\t1\t1\nbytes\t32\n",
+      "stderr": ""
+    },
+    {
+      "case": 9,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tlist\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tget-enum\t1\t1\nargument\t4\tint\t1\t1\nargument\t5\tlist\t1\t1\nargument\t6\tstring\t1\t1\nbytes\t612041\n",
+      "stderr": ""
+    },
+    {
+      "case": 10,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tlist\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tget-enum\t1\t1\nargument\t4\tint\t1\t1\nargument\t5\tget-enum\t1\t1\nargument\t6\tlist\t1\t1\nargument\t7\tlist\t1\t1\nargument\t8\tstring\t1\t1\nbytes\t612041\n",
+      "stderr": ""
+    },
+    {
+      "case": 11,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tlist\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tint\t1\t1\nargument\t4\tget-enum\t1\t1\nargument\t5\tlist\t1\t1\nargument\t6\tlist\t1\t1\nargument\t7\tstring\t1\t1\nbytes\t612041\n",
+      "stderr": ""
+    },
+    {
+      "case": 12,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tstring\t1\t2\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tlist\t1\t1\nargument\t4\tlist\t1\t1\nargument\t5\tstring\t1\t1\nbytes\t41\n",
+      "stderr": ""
+    },
+    {
+      "case": 13,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tlist\t1\t1\nargument\t4\tstring\t1\t1\nbytes\t31\n",
+      "stderr": ""
+    },
+    {
+      "case": 14,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tlist\t1\t1\nargument\t4\tstring\t1\t1\nbytes\t30\n",
+      "stderr": ""
+    },
+    {
+      "case": 15,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tstring\t1\t1\nbytes\t31\n",
+      "stderr": ""
+    },
+    {
+      "case": 16,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tstring\t1\t1\nbytes\t30\n",
+      "stderr": ""
+    },
+    {
+      "case": 17,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tint\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tnone\t1\t1\nbytes\t2d31\n",
+      "stderr": ""
+    },
+    {
+      "case": 18,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tnone\t1\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tlist\t1\t1\nargument\t3\tnone\t1\t2\nbytes\t636f756c646e277420636f6d70696c6520726567756c61722065787072657373696f6e207061747465726e3a20627261636b657473205b5d206e6f742062616c616e636564\n",
+      "stderr": ""
+    },
+    {
+      "case": 19,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tnone\t1\t1\nargument\t1\tget-enum\t1\t2\nargument\t2\tcommand\t1\t2\nargument\t3\tlist\t1\t2\nargument\t4\tnone\t1\t2\nbytes\t4f524947494e414c5f52455455524e\n",
+      "stderr": ""
+    },
+    {
+      "case": 20,
+      "exit": 0,
+      "stdout": "code\t0\nresult\tlist\t0\t1\nargument\t1\tget-enum\t1\t1\nargument\t2\tget-enum\t1\t1\nargument\t3\tget-enum\t1\t1\nargument\t4\tint\t1\t1\nargument\t5\tlist\t1\t1\nargument\t6\tstring\t1\t1\nbytes\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 21,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tstring\t1\t1\nargument\t1\tnone\t1\t2\nargument\t2\tnone\t1\t2\nargument\t3\tnone\t1\t2\nbytes\t626164206f7074696f6e20222d2d223a206d757374206265202d616c6c2c202d626f6f6c2c202d636f6d6d616e642c202d65786163742c202d676c6f622c202d696e6465782c202d696e6c696e652c202d6e6f636173652c202d6e6f742c202d7265676578702c206f72202d737472696465\n",
+      "stderr": ""
+    },
+    {
+      "case": 22,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tnone\t1\t1\nargument\t1\tget-enum\t1\t2\nargument\t2\tget-enum\t1\t2\nargument\t3\tint\t1\t2\nargument\t4\tlist\t1\t2\nargument\t5\tnone\t1\t2\nbytes\t6c6973742073697a65206d7573742062652061206d756c7469706c65206f662074686520737472696465206c656e677468\n",
+      "stderr": ""
+    },
+    {
+      "case": 23,
+      "exit": 0,
+      "stdout": "code\t1\nresult\tnone\t1\t1\nargument\t1\tget-enum\t1\t2\nargument\t2\tlist\t1\t2\nargument\t3\tlist\t1\t2\nargument\t4\tnone\t1\t2\nbytes\t696e6465782022656e642b3122206f7574206f662072616e6765\n",
+      "stderr": ""
+    }
+  ],
+  "binary_sha256": "a11d5161db6907803871f9348b6295c0c751ac4343ac726c7c0a141cd319f63f"
+}

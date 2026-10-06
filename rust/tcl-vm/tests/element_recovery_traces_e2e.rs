@@ -45,76 +45,16 @@
 //!
 //! The axis is a `tcl-dialect` fact, `TclVersion::
 //! traces_recover_linked_array_element`, so both engines read one truth table.
-//! Measured on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1b0.
+//! Runs with matching actual cores/source compilers and every pinned C oracle;
+//! an absent or invalid interpreter fails the comparison.
 
-use std::cell::RefCell;
-use std::io::Write as _;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_test_support::required_tclshs;
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
-        .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
-    let capture = Capture::default();
-    let mut vm = Vm::with_output(Box::new(capture.clone()));
-    vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
-    let completion = vm.run_module(&asm);
-    assert!(
-        completion.code.is_ok(),
-        "VM run failed: {}",
-        completion.result.to_str()
-    );
-    String::from_utf8_lossy(&capture.0.borrow())
-        .trim()
-        .to_owned()
-}
-
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    let mut candidates = std::env::var(bin_env).ok().into_iter().collect::<Vec<_>>();
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write Tcl script");
-        let output = child.wait_with_output().expect("run Tcl script");
-        if output.status.success() {
-            return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
-        }
-    }
-    None
+fn vm_output(source: &str, version: TclVersion) -> String {
+    common::vm_output(source, version.dialect_name())
 }
 
 /// Proc callbacks, not `apply`: 8.4 has neither `apply` nor `lassign`.
@@ -170,40 +110,28 @@ E n1=<d> n2=<k> op=write";
 struct Vector {
     version: TclVersion,
     expected: &'static str,
-    env: &'static str,
-    tclsh: &'static [&'static str],
 }
 
 const VECTORS: &[Vector] = &[
     Vector {
         version: TclVersion::V8_4,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH84",
-        tclsh: &["tclsh8.4"],
     },
     Vector {
         version: TclVersion::V8_5,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH85",
-        tclsh: &["tclsh8.5"],
     },
     Vector {
         version: TclVersion::V8_6,
         expected: EXPECT_8X,
-        env: "TCL_LSP_TCLSH86",
-        tclsh: &["tclsh8.6"],
     },
     Vector {
         version: TclVersion::V9_0,
         expected: EXPECT_9X,
-        env: "TCL_LSP_TCLSH90",
-        tclsh: &["tclsh9.0"],
     },
     Vector {
         version: TclVersion::V9_1,
         expected: EXPECT_9X,
-        env: "TCL_LSP_TCLSH91",
-        tclsh: &["tclsh9.1"],
     },
 ];
 
@@ -221,15 +149,17 @@ fn element_recovery_follows_the_selected_release() {
 
 #[test]
 fn vectors_match_real_tclsh_when_available() {
-    let mut ran = 0;
-    for vector in VECTORS {
-        if let Some(actual) = tclsh_output(vector.env, vector.tclsh, SCRIPT) {
-            assert_eq!(actual, vector.expected, "{:?}", vector.version);
-            ran += 1;
-        }
-    }
-    if ran == 0 {
-        eprintln!("skipping: no versioned tclsh binaries found");
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned C Tcl oracles") {
+        let vector = VECTORS
+            .iter()
+            .find(|vector| vector.version == oracle.version)
+            .expect("every pinned release has an original recovery vector");
+        assert_eq!(
+            common::oracle_output(&oracle.path, SCRIPT),
+            vector.expected,
+            "{}",
+            oracle.patchlevel
+        );
     }
 }
 

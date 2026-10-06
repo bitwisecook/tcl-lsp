@@ -174,6 +174,7 @@ const TAG_FORMS: &[SubCommandForm] = &[
         name: "bind-set",
         arity: Arity::exact(4),
         literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["bind"])),
+        arg_roles: &[(3, ArgRole::Body)],
         traits: Some(Traits::DEFERS_BODY),
         mutator: Some(true),
         side_effects: Some(super::common::TTK_WIDGET_READS_WRITES),

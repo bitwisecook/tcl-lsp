@@ -1,0 +1,176 @@
+[
+  {
+    "purpose": "nextto",
+    "version": "8.6.18",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-8.6.18"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "f433ea2995c54e600ac1bfef323c27de2731ef4256ea796538e9b7570352bf69",
+    "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=4\nafter\tcode=1\targType=list\targRefs=3\ncall\tcount=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=3\ncall\tcount=3\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=1\ttype2=list\trefs2=3\n",
+      "stderr": ""
+    }
+  },
+  {
+    "purpose": "nextto",
+    "version": "9.0.4",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-9.0.4"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "f433ea2995c54e600ac1bfef323c27de2731ef4256ea796538e9b7570352bf69",
+    "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=4\nafter\tcode=1\targType=list\targRefs=3\ncall\tcount=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=3\ncall\tcount=3\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=1\ttype2=list\trefs2=3\n",
+      "stderr": ""
+    }
+  },
+  {
+    "purpose": "nextto",
+    "version": "9.1.0",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/nextto-argv-9.1.0"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "f433ea2995c54e600ac1bfef323c27de2731ef4256ea796538e9b7570352bf69",
+    "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=4\nafter\tcode=1\targType=list\targRefs=3\ncall\tcount=3\tsame0=0\ttype0=none\trefs0=3\tsame1=0\ttype1=cmdName\trefs1=3\tsame2=1\ttype2=list\trefs2=3\ncall\tcount=3\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=1\ttype2=list\trefs2=3\n",
+      "stderr": ""
+    }
+  },
+  {
+    "purpose": "constructor",
+    "version": "8.6.18",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-8.6.18"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "c2ef9dac4a852156801a3f52fe1bbf595a86aa4c655d0413097f49babaa8f90c",
+    "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=4\tsame0=0\ttype0=cmdName\trefs0=1\tsame1=0\ttype1=TclOO method name\trefs1=2\tsame2=0\ttype2=none\trefs2=1\tsame3=1\ttype3=list\trefs3=2\nafter\tcode=1\targType=list\targRefs=2\ncall\tcount=4\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=0\ttype2=none\trefs2=2\tsame3=1\ttype3=list\trefs3=2\n",
+      "stderr": ""
+    }
+  },
+  {
+    "purpose": "constructor",
+    "version": "9.0.4",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-9.0.4"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "c2ef9dac4a852156801a3f52fe1bbf595a86aa4c655d0413097f49babaa8f90c",
+    "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=4\tsame0=0\ttype0=cmdName\trefs0=1\tsame1=0\ttype1=TclOO method name\trefs1=2\tsame2=0\ttype2=none\trefs2=1\tsame3=1\ttype3=list\trefs3=2\nafter\tcode=1\targType=list\targRefs=2\ncall\tcount=4\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=0\ttype2=none\trefs2=2\tsame3=1\ttype3=list\trefs3=2\n",
+      "stderr": ""
+    }
+  },
+  {
+    "purpose": "constructor",
+    "version": "9.1.0",
+    "compile": [
+      "cc",
+      "-DSTDC_HEADERS=1",
+      "-DHAVE_UNISTD_H=1",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/private-error-headers/constructor-argv-9.1.0"
+    ],
+    "compile_exit": 0,
+    "compile_error": "",
+    "source_sha256": "c2ef9dac4a852156801a3f52fe1bbf595a86aa4c655d0413097f49babaa8f90c",
+    "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "run": {
+      "exit": 0,
+      "stdout": "frame\tobjc=4\tsame0=0\ttype0=cmdName\trefs0=1\tsame1=0\ttype1=TclOO method name\trefs1=2\tsame2=0\ttype2=none\trefs2=1\tsame3=1\ttype3=list\trefs3=2\nafter\tcode=1\targType=list\targRefs=2\ncall\tcount=4\tsame0=0\ttype0=cmdName\trefs0=2\tsame1=0\ttype1=TclOO method name\trefs1=3\tsame2=0\ttype2=none\trefs2=2\tsame3=1\ttype3=list\trefs3=2\n",
+      "stderr": ""
+    }
+  }
+]

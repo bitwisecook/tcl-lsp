@@ -49,6 +49,7 @@ const OBJECT_CREATE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(object_create_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -61,6 +62,7 @@ const OBJECT_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDesc
 
 const OBJECT_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(object_new_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[],
@@ -191,6 +193,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::object",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         // `NOT_PROC_FACTORY`: `oo::object create Name { … }` is a
         // four-token `HEAD NAME BRACED BRACED` call — the same shape
         // `oo::class` / `oo::abstract` / `oo::configurable` match, so it

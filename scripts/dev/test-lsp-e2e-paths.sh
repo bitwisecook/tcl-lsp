@@ -64,7 +64,7 @@ expect_relevant editors/vscode/testFixture/variableContexts.tcl
 expect_relevant samples/sslictcl/example.sslictcl
 expect_relevant specs/sdc_base.tclspec
 expect_unrelated README.md
-expect_unrelated docs/design/compiler/wasm-native-lowering-plan.md
+expect_unrelated docs/design/compiler/wasm-native-lowering.md
 expect_unrelated editors/vscode/src/test/runTest.ts
 expect_unrelated rust/tcl-lsp-server-wasm/src/lib.rs
 expect_unrelated rust/tcl-irule-test/src/lib.rs

@@ -54,8 +54,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use tcl_core_types::Code as CompletionCode;
 use tcl_runtime_api::codegen_abi::{
-    CodegenAbiImportId, NATIVE_PROC_STATUS_RAN, WASM32_COMPLETION_CODE_OFFSET,
-    WASM32_COMPLETION_OPTIONS_OFFSET, WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
+    CodegenAbiImportId, NATIVE_PROC_STATUS_HOST_REFUSED, NATIVE_PROC_STATUS_RAN,
+    WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
+    WASM32_COMPLETION_RESULT_OFFSET, WASM32_POINTER_BYTES,
 };
 use tcl_syntax::expr::{BinOp, UnaryOp};
 
@@ -117,6 +118,7 @@ pub(super) struct NativeImports {
     proc_define_native: u32,
     log_command: u32,
     return_state: u32,
+    host_refusal_pending: u32,
 }
 
 /// Declare every import the native tier uses.
@@ -159,6 +161,37 @@ pub(super) fn add_native_imports(
         proc_define_native: add(wasm, CodegenAbiImportId::ProcDefineNative),
         log_command: add(wasm, CodegenAbiImportId::LogCommand),
         return_state: add(wasm, CodegenAbiImportId::ReturnState),
+        host_refusal_pending: add(wasm, CodegenAbiImportId::HostRefusalPending),
+    }
+}
+
+impl NativeImports {
+    /// Only transport imports can omit the check. Unlisted imports remain
+    /// checked, including future operation imports and compiled proc calls.
+    fn requires_host_refusal_check(self, index: u32) -> bool {
+        use CodegenAbiImportId as Id;
+        let transport = [
+            (self.activation_enter, Id::ActivationEnter),
+            (self.activation_leave, Id::ActivationLeave),
+            (self.frame_push, Id::FramePush),
+            (self.frame_pop, Id::FramePop),
+            (self.call_frame_alloc, Id::CallFrameAlloc),
+            (self.call_frame_free, Id::CallFrameFree),
+            (self.new_owned_string, Id::NewOwnedString),
+            (self.obj_new_string, Id::ObjectNewString),
+            (self.obj_retain, Id::ObjectRetain),
+            (self.obj_release, Id::ObjectRelease),
+            (self.value_new_wide_int, Id::ValueNewWideInt),
+            (self.value_new_double, Id::ValueNewDouble),
+            (self.value_new_bool, Id::ValueNewBool),
+            (self.log_command, Id::LogCommand),
+            (self.return_state, Id::ReturnState),
+            (self.host_refusal_pending, Id::HostRefusalPending),
+        ];
+        transport
+            .into_iter()
+            .find_map(|(candidate, id)| (candidate == index).then_some(id))
+            .is_none_or(CodegenAbiImportId::requires_host_refusal_check)
     }
 }
 
@@ -733,6 +766,19 @@ impl Emitter<'_, '_> {
     }
 
     fn call(&mut self, index: u32) {
+        self.call_unchecked(index);
+        if self.labels.contains(&Label::Exit) && self.imports.requires_host_refusal_check(index) {
+            // A reached host refusal is not a Tcl completion. Branch before
+            // adopting out slots or dispatching catch/try, then run the same
+            // null-safe ownership cleanup as every other function exit.
+            self.call_unchecked(self.imports.host_refusal_pending);
+            self.open(WasmOp::If, Label::Plain);
+            self.br(Label::Exit);
+            self.close();
+        }
+    }
+
+    fn call_unchecked(&mut self, index: u32) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::Call,
             leb128_unsigned(u64::from(index)),
@@ -970,7 +1016,10 @@ impl Emitter<'_, '_> {
         self.call(self.imports.call_frame_free);
         self.push(WasmOp::Drop);
         if self.proc_entry() {
+            self.i32(i64::from(NATIVE_PROC_STATUS_HOST_REFUSED));
             self.i32(i64::from(NATIVE_PROC_STATUS_RAN));
+            self.call_unchecked(self.imports.host_refusal_pending);
+            self.push(WasmOp::Select);
         } else {
             self.get(LOCAL_EXIT_CODE);
             self.call(self.imports.activation_leave);

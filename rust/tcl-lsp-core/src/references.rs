@@ -23,12 +23,10 @@
 //! * `$var` references → `VarDef.definition_span` plus every
 //!   span in `VarDef.references` (already collected by the
 //!   analyser's body walk).
-//! * proc references → `ProcDef.name_span` plus every command
-//!   invocation in `analysis.command_invocations` whose head
-//!   matches the proc's simple or qualified name.
-//! * class references → `ClassDef.name_span` plus every command
-//!   invocation whose head matches the class's simple or
-//!   qualified name.
+//! * proc and class references → the declaration plus positioned lookups
+//!   retaining its exact original allocation. Terminal alias references can
+//!   be reported without becoming target rename edits. A known non-definition
+//!   or foreign allocation blocks name-based assistance.
 //!
 //! Two entry points:
 //!
@@ -54,8 +52,7 @@
 //! cursor sits on the method-name token of a `$obj method`
 //! call (or inside the class body), the provider additionally
 //! scans the whole document for `$v method` / `[$v method]`
-//! call sites where `v`'s class (per
-//! `analysis.instance_classes`) matches — plus, when the member is a
+//! call sites whose retained object and method receipts match — plus, when the member is a
 //! `classmethod`, every bare `ClassName method` dispatch on the class's
 //! own command (a classmethod is never dispatched via an instance).  See
 //! [`find_obj_method_call_sites`] for the scan's full coverage.
@@ -70,29 +67,11 @@
 //!   the workspace index to find which documents to scan and (for a
 //!   classmethod) which class names are valid bare-dispatch heads when the
 //!   scanned document doesn't declare the class itself.
-//! * A classmethod's class-command dispatch is matched by *resolving* the
-//!   written head against the call site's own lexical namespace with C Tcl's
-//!   rule (current namespace, then `namespace path`, then global — see
-//!   [`CommandReceivers::class_head_matches`]), so two classes sharing a
-//!   simple name in different namespaces are never cross-linked.
-//!   A `CLASS create NAME` **object command** resolves the same way: the analyser records each creation site's namespace
-//!   (`AnalysisResult::instance_command_bindings`), so `::a::Factory create
-//!   rex` binds `::a::rex` and `::b::Widget create rex` binds `::b::rex`, and
-//!   a bare `rex make` reaches whichever its own namespace resolves to.  An
-//!   object command bound
-//!   by a *registry* object factory (a Tk widget path, a tcllib naming
-//!   factory) carries no creating user class, so it keeps the bare-name
-//!   match; it has no class identity to mis-attribute in the first place.
-//! * An **explicit** `namespace import ::a::Factory` is followed: the imported
-//!   name is a real command in the importing namespace, so it joins the
-//!   resolver's `exists` universe and resolves through to the source command
-//!   for the class-identity test ([`explicit_import_aliases`]).  A **wildcard**
-//!   import (`namespace import ::a::*`) is **not**: reproducing it needs the
-//!   export-gated import *snapshot* — which commands existed in `::a` when the
-//!   import ran — and treating every exported command
-//!   as imported regardless of definition order would invent aliases the
-//!   runtime never created.  So a wildcard-imported class's bare dispatch is
-//!   still not matched, and a rename still leaves it stale.
+//! * Method references require the original retained receiver and method
+//!   declaration. Class commands and imports use their actual source-world
+//!   receipts; nominal class names, candidate object types and workspace-only
+//!   names cannot grant editable references. Unknown receiver or method
+//!   mutation paths decline matching.
 //! * [incr Tcl]'s class-scoped `proc` uses a different dispatch shape
 //!   entirely — a single `::`-qualified command word (`Factory::make`), not
 //!   two words — so it is matched by [`crate::definition::itcl_class_proc_target`]
@@ -168,13 +147,21 @@ pub(crate) fn proc_reference_spans(
     ctx: crate::definition::CallResolution<'_>,
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    source: &str,
 ) -> Vec<tcl_lexer::Span> {
     let indirect = indirect_names_reaching(analysis, &proc_def.qualified_name);
     analysis
         .command_invocations
         .iter()
         .filter(|inv| {
-            (invocation_references_proc(analysis, inv, qname, proc_def)
+            if let RetainedDefinition::Known(definition) =
+                retained_definition(inv, true, &proc_def.qualified_name)
+            {
+                return definition
+                    .and_then(|definition| analysis.proc_for_definition(definition, source))
+                    .is_some_and(|selected| selected.name_span == proc_def.name_span);
+            }
+            (invocation_references_proc(analysis, inv, qname, proc_def, source)
                 && !forced_shadow_takes_the_call(
                     analysis,
                     ctx,
@@ -382,18 +369,13 @@ fn invocation_references_via_wildcard_import(
 /// definition — simple name `def_name`, fully-qualified name
 /// `def_qualified` (whose lookup key is `qname`).
 ///
-/// This is the **single** matching rule behind every proc/class-oriented
-/// consumer: Find-All-References ([`proc_reference_spans`],
-/// [`class_reference_spans`]), the code-lens reference count
-/// (`code_lens::code_lenses`), Rename (`rename::rename_proc`,
-/// `rename::rename_class`), and Call Hierarchy
-/// (`call_hierarchy::invocation_targets`) all resolve through this one
-/// function (via [`invocation_references_proc`] / [`invocation_references_class`])
-/// so none of them can disagree about whether a given call site is a
-/// reference — a rename that rewrote a call the reference finder does not
-/// report would corrupt a *different* same-named definition, and a
-/// call-hierarchy edge that disagreed with the reference count would be a
-/// visible inconsistency in the same editor session.
+/// Retained declaration identity wins over all lexical name assistance. Edit
+/// consumers select direct called slots through [`invocation_references_proc`]
+/// and [`invocation_references_class`]; call-edge consumers separately select
+/// executed terminal declarations through [`invocation_calls_proc`] and
+/// [`invocation_calls_named`]. A known non-definition cannot borrow a final
+/// namespace table entry. The compatibility rules below apply only when no
+/// positioned declaration/reference receipt is available.
 ///
 /// A bare simple-name call (`helper`) counts only when it resolves to this
 /// definition, or — since the analyser resolves a namespace-internal call to
@@ -409,7 +391,24 @@ pub(crate) fn invocation_references_named(
     qname: &str,
     def_name: &str,
     def_qualified: &str,
+    source: &str,
 ) -> bool {
+    if let RetainedDefinition::Known(definition) = retained_definition(inv, true, def_qualified) {
+        return definition.is_some_and(|definition| {
+            analysis
+                .proc_for_definition(definition, source)
+                .is_some_and(|selected| {
+                    selected.qualified_name.trim_start_matches("::")
+                        == def_qualified.trim_start_matches("::")
+                })
+                || analysis
+                    .class_for_definition(definition, source)
+                    .is_some_and(|selected| {
+                        selected.qualified_name.trim_start_matches("::")
+                            == def_qualified.trim_start_matches("::")
+                    })
+        });
+    }
     let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
     let target_q = def_qualified.trim_start_matches("::");
     // The definition's own namespace (`a::helper` → `a`; top-level → ``).
@@ -536,6 +535,104 @@ fn definition_displaced_from_its_name(
     }
 }
 
+enum RetainedDefinition<'a> {
+    Absent,
+    Known(Option<&'a tcl_compiler::command_binding::SourceCommandDefinition>),
+}
+
+/// Exact selected declaration, with called-slot identity for edits and terminal
+/// identity for call edges. A known non-definition retains an explicit refusal and
+/// blocks lexical assistance; foreign allocations are validated against the
+/// caller's document bytes by the declaration helpers.
+fn retained_definition<'a>(
+    inv: &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    terminal: bool,
+    qualified: &str,
+) -> RetainedDefinition<'a> {
+    if let Some(reference) = &inv.resolved_command_reference {
+        let definition = if terminal {
+            reference
+                .linked_definition()
+                .or_else(|| reference.definition())
+        } else if reference.is_direct_definition()
+            && reference.slot().trim_start_matches("::") == qualified.trim_start_matches("::")
+        {
+            reference.definition()
+        } else {
+            None
+        };
+        return RetainedDefinition::Known(definition);
+    }
+    inv.resolved_definition
+        .as_ref()
+        .map_or(RetainedDefinition::Absent, |definition| {
+            RetainedDefinition::Known(Some(definition))
+        })
+}
+
+/// Match a real executed call to its terminal retained procedure declaration.
+/// Alias names remain call edges without becoming editable target spellings.
+#[must_use]
+pub(crate) fn invocation_calls_proc(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    qname: &str,
+    proc_def: &tcl_compiler::analyser::ProcDef,
+    source: &str,
+) -> bool {
+    if !inv.lookup.is_execution_site() {
+        return false;
+    }
+    if let RetainedDefinition::Known(definition) =
+        retained_definition(inv, true, &proc_def.qualified_name)
+    {
+        return definition
+            .and_then(|definition| analysis.proc_for_definition(definition, source))
+            .is_some_and(|selected| selected.name_span == proc_def.name_span);
+    }
+    invocation_references_proc(analysis, inv, qname, proc_def, source)
+}
+
+/// Match an executed procedure call for an external target query. A retained
+/// foreign procedure identifies its terminal name for reporting a call edge;
+/// it never supplies an editable declaration in this document. Local receipts
+/// must match their exact original declaration against the actual source.
+#[must_use]
+pub(crate) fn invocation_calls_named(
+    analysis: &AnalysisResult,
+    inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
+    qname: &str,
+    def_name: &str,
+    def_qualified: &str,
+    source: &str,
+) -> bool {
+    if !inv.lookup.is_execution_site() {
+        return false;
+    }
+    if let RetainedDefinition::Known(definition) = retained_definition(inv, true, def_qualified) {
+        let Some(definition) = definition else {
+            return false;
+        };
+        if definition.kind()
+            != tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
+        {
+            return false;
+        }
+        if let Some(selected) = analysis.proc_for_definition(definition, source) {
+            return selected.qualified_name.trim_start_matches("::")
+                == def_qualified.trim_start_matches("::");
+        }
+        if matches!(definition.allocation().site.source.kind(),
+            tcl_compiler::command_binding::SourceOriginKind::Authored(authored) if authored.as_ref() == source.as_bytes())
+        {
+            return false;
+        }
+        return definition.allocation().command.trim_start_matches("::")
+            == def_qualified.trim_start_matches("::");
+    }
+    invocation_references_named(analysis, inv, qname, def_name, def_qualified, source)
+}
+
 /// [`invocation_references_named`] specialised for a [`ProcDef`](tcl_compiler::analyser::ProcDef).
 ///
 /// Gated by [`definition_displaced_from_its_name`]: a call written after an
@@ -547,7 +644,15 @@ pub(crate) fn invocation_references_proc(
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     qname: &str,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    source: &str,
 ) -> bool {
+    if let RetainedDefinition::Known(definition) =
+        retained_definition(inv, false, &proc_def.qualified_name)
+    {
+        return definition
+            .and_then(|definition| analysis.proc_for_definition(definition, source))
+            .is_some_and(|selected| selected.name_span == proc_def.name_span);
+    }
     if definition_displaced_from_its_name(
         analysis,
         &proc_def.qualified_name,
@@ -562,6 +667,7 @@ pub(crate) fn invocation_references_proc(
         qname,
         &proc_def.name,
         &proc_def.qualified_name,
+        source,
     )
 }
 
@@ -576,7 +682,15 @@ pub(crate) fn invocation_references_class(
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
+    source: &str,
 ) -> bool {
+    if let RetainedDefinition::Known(definition) =
+        retained_definition(inv, false, &class_def.qualified_name)
+    {
+        return definition
+            .and_then(|definition| analysis.class_for_definition(definition, source))
+            .is_some_and(|selected| selected.name_span == class_def.name_span);
+    }
     if definition_displaced_from_its_name(
         analysis,
         &class_def.qualified_name,
@@ -591,6 +705,7 @@ pub(crate) fn invocation_references_class(
         qname,
         &class_def.name,
         &class_def.qualified_name,
+        source,
     )
 }
 
@@ -691,19 +806,18 @@ pub fn references_in_program(
     };
 
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((provider, is_classmethod)) =
-        list_built_self_method_target_at_cursor(source, dialect, analysis, &word, cursor_offset)
-        && let Some((decl, mut sites)) =
-            method_references_for_class(source, dialect, analysis, &provider, &word, is_classmethod)
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+        && selected.method.name == word
     {
-        sites.extend(method_next_dispatch_spans(
-            analysis,
+        let (decl, sites) = method_references_for_declaration(
             source,
             dialect,
-            &provider,
-            &word,
-            is_classmethod,
-        ));
+            analysis,
+            selected.class,
+            selected.method,
+            selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+        );
         let mut out = Vec::new();
         if include_declaration {
             out.push(span_to_range(source, &line_index, decl));
@@ -715,6 +829,12 @@ pub fn references_in_program(
         );
         dedup_ranges(&mut out);
         return out;
+    }
+
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor_offset)
+        .is_some()
+    {
+        return Vec::new();
     }
 
     // Class references (checked first, before proc names).
@@ -1041,13 +1161,21 @@ pub(crate) fn class_reference_spans(
     ctx: crate::definition::CallResolution<'_>,
     qname: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
+    source: &str,
 ) -> Vec<tcl_lexer::Span> {
     let indirect = indirect_names_reaching(analysis, &class_def.qualified_name);
     analysis
         .command_invocations
         .iter()
         .filter(|inv| {
-            (invocation_references_class(analysis, inv, qname, class_def)
+            if let RetainedDefinition::Known(definition) =
+                retained_definition(inv, true, &class_def.qualified_name)
+            {
+                return definition
+                    .and_then(|definition| analysis.class_for_definition(definition, source))
+                    .is_some_and(|selected| selected.name_span == class_def.name_span);
+            }
+            (invocation_references_class(analysis, inv, qname, class_def, source)
                 && !forced_shadow_takes_the_call(
                     analysis,
                     ctx,
@@ -1100,7 +1228,7 @@ fn class_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     // `class_reference_spans` (over `command_invocations`) already covers them,
     // in this document and, via the workspace index, across files.  Rename and
     // the code-lens count read the same collection, so the three never diverge.
-    for span in class_reference_spans(analysis, ctx.resolution, qname, class_def) {
+    for span in class_reference_spans(analysis, ctx.resolution, qname, class_def, source) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -1141,7 +1269,7 @@ fn proc_references(ctx: &RefCtx<'_>, word: &str) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
     }
-    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def) {
+    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def, source) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -1190,7 +1318,7 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
     if include_declaration {
         out.push(span_to_range(source, line_index, proc_def.name_span));
     }
-    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def) {
+    for span in proc_reference_spans(analysis, ctx.resolution, qname, proc_def, source) {
         out.push(span_to_range(source, line_index, span));
     }
     dedup_ranges(&mut out);
@@ -1212,73 +1340,33 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (inst, method, is_dollar) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
-    )?;
-    // Three receiver spellings reach an instance method, and all must be
-    // recognised here — `definition.rs` and `hover.rs` already handle them.
-    // `$obj m` names an instance *variable* whose class is known; `my m` /
-    // `[self] m` / `[self object] m` are internal dispatches whose receiver
-    // is the class whose body lexically encloses the call, and they also
-    // reach unexported methods.  Without them find-references at a
-    // `my duplListCheck` call site answers nothing at all, because
-    // `analysis.instance_classes` has no entry named `my` — and likewise for
-    // the `[self]` spellings.
+    // Method identity comes from the actual temporal receiver receipt,
+    // independently of the selector's compatibility spelling.
     let line_index_local = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index_local, source, line, character);
-    let (class_q, external) =
-        match crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor) {
-            Some(class_q) => (class_q.clone(), true),
-            None if crate::definition::is_self_dispatch_keyword(&inst)
-                || crate::definition::is_self_receiver_call(
-                    &inst,
-                    tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
-                ) =>
-            {
-                (
-                    crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
-                    false,
-                )
-            }
-            None => return None,
-        };
-    // The class that actually *declares* the implementation this call
-    // reaches — which is not the receiver's own class when the method comes
-    // from a `mixin` or a `superclass`: a scan keyed off the receiver class
-    // alone gives up whenever the method is purely inherited, while
-    // go-to-definition resolves it.
-    // One shared linearisation walk with definition and hover.
-    let provider_q = crate::oo_dispatch::method_dispatch_provider(
-        analysis,
-        &class_q,
-        &method,
-        external,
-        crate::definition::MethodBucket::Instance,
-    )
-    .map_or(class_q, |(provider, _)| provider.to_owned());
-    // `$obj method` dispatch is always an instance-method receiver — a
-    // `classmethod` is never reached this way.
-    let (decl_span, mut call_spans) =
-        method_references_for_class(source, dialect, analysis, &provider_q, &method, false)?;
-    // `next` / `nextto` super-dispatch is a reference (but never a rename site).
-    call_spans.extend(method_next_dispatch_spans(
-        analysis,
-        source,
-        dialect,
-        &provider_q,
-        &method,
-        false,
-    ));
-    Some(build_member_ranges(
-        source,
-        line_index,
-        decl_span,
-        call_spans,
-        include_declaration,
-    ))
+    if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor) {
+        let is_classmethod =
+            selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class;
+        let (decl_span, call_spans) = method_references_for_declaration(
+            source,
+            dialect,
+            analysis,
+            selected.class,
+            selected.method,
+            is_classmethod,
+        );
+        if decl_span != selected.method.name_span {
+            return None;
+        }
+        return Some(build_member_ranges(
+            source,
+            line_index,
+            decl_span,
+            call_spans,
+            include_declaration,
+        ));
+    }
+    None
 }
 
 /// Build references for a bare `ClassName method` call site: the reverse of
@@ -1298,21 +1386,22 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (inst, method, is_dollar) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
-    )?;
-    if is_dollar {
+    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+    if selected.receiver != tcl_compiler::command_binding::SourceMethodReceiver::Class {
         return None;
     }
-    let class_q = crate::definition::classmethod_dispatch_class(analysis, &inst, &method)?;
-    let (decl_span, mut call_spans) =
-        method_references_for_class(source, dialect, analysis, &class_q, &method, true)?;
-    call_spans.extend(method_next_dispatch_spans(
-        analysis, source, dialect, &class_q, &method, true,
-    ));
+    let (decl_span, call_spans) = method_references_for_declaration(
+        source,
+        dialect,
+        analysis,
+        selected.class,
+        selected.method,
+        true,
+    );
+    if decl_span != selected.method.name_span {
+        return None;
+    }
     Some(build_member_ranges(
         source,
         line_index,
@@ -1508,11 +1597,7 @@ pub(crate) fn resolve_member_span(
         .copied()
 }
 
-/// Resolve a method's declaration span plus every call site —
-/// intra-class (re-segment the class's own method bodies plus any
-/// inheriting subclass's bodies) and external (`$obj method` across the
-/// document).  Returns `None` when `class_q` has no method / classmethod
-/// named `method`.
+/// Resolve the current declaration's receipt-backed method call sites.
 pub(crate) fn method_references_for_class(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -1521,171 +1606,74 @@ pub(crate) fn method_references_for_class(
     method: &str,
     is_classmethod: bool,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
-    use tcl_lexer::Span;
-    let class_def = analysis.all_classes.get(class_q)?;
-    let method_def = if is_classmethod {
-        class_def.class_methods.get(method)
+    let class = analysis.all_classes.get(class_q)?;
+    let method = if is_classmethod {
+        &class.class_methods
     } else {
-        class_def.methods.get(method)
-    }?;
-    let decl_span = method_def.name_span;
-
-    let mut call_spans: Vec<Span> = Vec::new();
-    // Intra-class `my method` dispatch: `self`/`my` is bound to the instance
-    // for a plain method (and its constructors/destructor) and to the class
-    // object itself for a classmethod — the two tables never merge
-    // (confirmed against tclsh 9.0.4), so the re-segmented body set must
-    // stay scoped to the same table `is_classmethod` selects on both sides
-    // (see `collect_member_bodies_scoped`) — mixing them lets a classmethod
-    // wrongly "reach" an unrelated instance method (or vice versa) whenever
-    // the two happen to share a name.
-    //
-    // For a plain method, scan `class_q`'s own bodies **and** the bodies of
-    // every subclass that *inherits* this definition — a class whose MRO
-    // resolves `method` to `class_q` (i.e. it does not override).  A pure
-    // inheritor is not itself a rename family member (it declares no copy of
-    // `method`), but its `my method` calls dispatch to `class_q`'s
-    // definition, so they must rename with it; omitting them leaves those
-    // call sites pointing at the old name.  A subclass that *overrides* `method`
-    // resolves to itself, not `class_q`, so its bodies are handled under its
-    // own family entry — never here.  A classmethod has no equivalent
-    // inheriting-subclass walk here: unlike the instance MRO, there's no
-    // established evidence in this codebase of how classmethod inheritance
-    // should fold into this specific intra-class scan, so this stays scoped
-    // to `class_q`'s own class-method bodies only.
-    if is_classmethod {
-        let bodies: Vec<Span> = collect_member_bodies_scoped(class_def, true);
-        call_spans.extend(scan_method_sites(
-            source,
-            dialect,
-            &bodies,
-            method,
-            Some(decl_span),
-            method_def.visibility == "public",
-        ));
-    } else {
-        let bodies: Vec<Span> = collect_member_bodies_scoped(class_def, false);
-        call_spans.extend(scan_method_sites(
-            source,
-            dialect,
-            &bodies,
-            method,
-            Some(decl_span),
-            method_def.visibility == "public",
-        ));
-        for (other_q, other_cd) in &analysis.all_classes {
-            if other_q.as_str() == class_q {
-                continue;
-            }
-            // The two dispatch kinds are asked separately because they can
-            // genuinely land on different classes.  An inheritor can `export`
-            // / `unexport` an inherited name without redeclaring it, and each
-            // `mixin` branch decides for itself, so whether a captured
-            // `[self]` object command reaches *this* declaration is a fact
-            // about that receiver's external dispatch — not about the
-            // provider's own visibility, and not the same question `my` asks.
-            // Oracle, byte-identical on tclsh 8.6.16 and
-            // 9.0.4: with `MChild {superclass MBase; unexport m}` mixed into
-            // `D {superclass A}`, `my m` inside `D` reaches `MBase::m` while
-            // `[list [self] m]` reaches `A::m`.
-            //
-            // Both are asked through the shared dispatch walk rather than
-            // re-read here, so this direction and the cursor-origin
-            // resolution in `list_built_self_method_target_at_cursor` cannot
-            // disagree about which family a site belongs to — the exact
-            // invariant a half-applied rename would break.
-            let provider_for = |external| {
-                crate::oo_dispatch::method_dispatch_provider(
-                    analysis,
-                    other_q,
-                    method,
-                    external,
-                    crate::definition::MethodBucket::Instance,
-                )
-                .is_some_and(|(provider, _)| provider == class_q)
-            };
-            let dispatches_internally = provider_for(false);
-            let external_callback_allowed = provider_for(true);
-            if !dispatches_internally && !external_callback_allowed {
-                continue;
-            }
-            let inherited_bodies = collect_member_bodies_scoped(other_cd, false);
-            call_spans.extend(scan_method_sites_by_kind(
-                source,
-                dialect,
-                &inherited_bodies,
-                method,
-                Some(decl_span),
-                external_callback_allowed,
-                // `my` sites here belong to whichever family the *internal*
-                // dispatch reaches; when that is a different class, only the
-                // deferred captures are this declaration's.
-                !dispatches_internally,
-            ));
-        }
+        &class.methods
     }
-    // External `$obj method` / bare `ClassName method` sites.
-    call_spans.extend(find_obj_method_call_sites(
+    .get(method)?;
+    Some(method_references_for_declaration(
         source,
         dialect,
         analysis,
-        class_q,
+        class,
         method,
         is_classmethod,
-    ));
-    // Definition-body words that *name* the member — `export m` / `unexport m`
-    // / `filter m` / `deletemethod m` (the registry's
-    // `MemberRefKind::Method` members).  These are references, and rewriting
-    // them is load-bearing: an `export` left naming the old name leaves the
-    // renamed method unexported and every call to it fails (tclsh 9.0.4 /
-    // 8.6.16 alike).
-    call_spans.extend(member_reference_spans(source, dialect, class_def, method));
-    Some((decl_span, call_spans))
+    ))
 }
 
-/// Resolve a list-built `[self]` callback method word under `cursor_offset`
-/// to the class that provides it and the matching method table.
-///
-/// This is the cursor-side twin of [`method_references_for_class`].  It first
-/// resolves the enclosing receiver through the ordinary `TclOO` hierarchy, then
-/// accepts the position only when the shared declaration-driven scan reports
-/// the exact word span as one of its callback references.  Definition,
-/// references, prepare-rename, and rename therefore cannot infer a callback
-/// target from looser syntax than the code lens uses.
-///
-/// An **inherited** provider is a normal answer: the walk
-/// applies the receiver's own effective export state, so a captured `[self]`
-/// callback in a subclass joins the provider's edit family exactly when
-/// `method_references_for_class` collects it from the other direction, and
-/// abstains — through the same [`crate::oo_dispatch::method_dispatch_provider`]
-/// reading — when the receiver has unexported the name.
+/// Select an original declaration independently of a later same-name class.
+pub(crate) fn method_references_for_declaration(
+    source: &str,
+    _dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    class: &tcl_compiler::analyser::ClassDef,
+    method: &tcl_compiler::analyser::MethodDef,
+    is_classmethod: bool,
+) -> (tcl_lexer::Span, Vec<tcl_lexer::Span>) {
+    let receiver = if is_classmethod {
+        tcl_compiler::command_binding::SourceMethodReceiver::Class
+    } else {
+        tcl_compiler::command_binding::SourceMethodReceiver::Instance
+    };
+    let mut calls =
+        crate::receiver_identity::method_call_spans(analysis, source, class, method, receiver);
+    calls.extend(crate::receiver_identity::captured_method_reference_spans(
+        analysis, source, class, method, receiver,
+    ));
+    calls.extend(crate::receiver_identity::definition_method_reference_spans(
+        analysis, source, class, method, receiver,
+    ));
+    (method.name_span, calls)
+}
+
+/// Resolve a method operand only through its actual receiver entry.
+/// Stored prefix syntax alone cannot grant a captured receiver allocation.
 pub(crate) fn list_built_self_method_target_at_cursor(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<(String, bool)> {
-    let (receiver_q, is_classmethod, external) =
-        callback_prefix_method_receiver_at_cursor(source, dialect, analysis, word, cursor_offset)?;
-    let bucket = if is_classmethod {
-        crate::definition::MethodBucket::Class
-    } else {
-        crate::definition::MethodBucket::Instance
-    };
-    let (provider, _) = crate::oo_dispatch::method_dispatch_provider(
-        analysis,
-        &receiver_q,
-        word,
-        external,
-        bucket,
-    )?;
-    Some((provider.to_owned(), is_classmethod))
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
+    let current = analysis.all_classes.get(&selected.class.qualified_name)?;
+    // This compatibility tuple can represent only the same recorded declaration.
+    // Original-incarnation consumers use the full entry adapter directly.
+    (selected.method.name == word
+        && selected.editable_selector().is_some()
+        && current.name_span == selected.class.name_span)
+        .then(|| {
+            (
+                selected.class.qualified_name.clone(),
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+            )
+        })
 }
 
-/// Classify a static `TclOO` callback prefix at the cursor without requiring its
-/// method provider to be declared in the current document.  Hosts combine this
-/// receiver/access fact with the workspace dispatch chain for cross-file MRO.
+/// A retained receiver at the cursor, independently of lexical class scopes.
+/// Unexecuted callback prefixes need their own capture receipt.
 #[must_use]
 pub fn callback_prefix_method_receiver_at_cursor(
     source: &str,
@@ -1694,37 +1682,38 @@ pub fn callback_prefix_method_receiver_at_cursor(
     word: &str,
     cursor_offset: u32,
 ) -> Option<(String, bool, bool)> {
-    let receiver_q = crate::definition::enclosing_class_at(analysis, cursor_offset)?;
-    let receiver = analysis.all_classes.get(receiver_q)?;
-    let is_classmethod = receiver
-        .class_methods
+    let (class, is_classmethod) =
+        list_built_self_method_target_at_cursor(source, dialect, analysis, word, cursor_offset)?;
+    Some((class, is_classmethod, true))
+}
+
+/// A syntactically possible captured selector without an actual entry receipt.
+/// This is a whole-rename hazard only, never a reference or replacement span.
+pub(crate) fn unproved_callback_method_selector(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    method: &str,
+) -> Option<tcl_lexer::Span> {
+    for class in analysis
+        .all_classes
         .values()
-        .any(|method| span_contains_offset(method.body_span, cursor_offset));
-    let body = if is_classmethod {
-        receiver
-            .class_methods
-            .values()
-            .find(|method| span_contains_offset(method.body_span, cursor_offset))?
-            .body_span
-    } else {
-        receiver
-            .methods
-            .values()
-            .chain(receiver.constructors.iter())
-            .chain(receiver.destructor.iter())
-            .find(|method| span_contains_offset(method.body_span, cursor_offset))?
-            .body_span
-    };
-    let target = command_prefix_target_at_cursor(source, dialect, body, cursor_offset)?;
-    let external = target.kind == tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod;
-    if target.kind == tcl_registry::CommandPrefixTarget::DirectCommandHead {
-        return None;
+        .chain(analysis.superseded_classes.values().flatten())
+    {
+        for body in collect_member_bodies(class) {
+            for span in
+                scan_method_sites_by_kind(source, dialect, &[body], method, None, true, true)
+            {
+                if command_prefix_target_at_cursor(source, dialect, body, span.start()).is_some()
+                    && crate::receiver_identity::method_at_cursor(analysis, source, span.start())
+                        .is_none()
+                {
+                    return Some(span);
+                }
+            }
+        }
     }
-    let span = target.span;
-    if source_span_text(source, span) != word {
-        return None;
-    }
-    Some((receiver_q.to_owned(), is_classmethod, external))
+    None
 }
 
 fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
@@ -2927,43 +2916,22 @@ pub struct InheritedReceiverFacts<'a> {
 #[must_use]
 pub(crate) fn inherited_method_call_sites(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
+    _dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
     is_classmethod: bool,
-    workspace: InheritedReceiverFacts<'_>,
+    _workspace: InheritedReceiverFacts<'_>,
 ) -> Vec<tcl_lexer::Span> {
-    let InheritedReceiverFacts {
-        extra_classmethod_cmd_names,
-        external_callback_allowed,
-    } = workspace;
-    let Some(class_def) = analysis.all_classes.get(class_q) else {
+    let Some(class) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
-    // Scoped to the same table `is_classmethod` selects (see
-    // `collect_member_bodies_scoped`) — `class_q` here is the pure
-    // inheritor itself, so its own classmethod bodies may still contain a
-    // `my <method>` call reaching the inherited classmethod.
-    let bodies = collect_member_bodies_scoped(class_def, is_classmethod);
-    let mut spans = scan_method_sites(
-        source,
-        dialect,
-        &bodies,
-        method,
-        None,
-        external_callback_allowed,
-    );
-    spans.extend(find_obj_method_call_sites_with_extra_cmd_names(
-        source,
-        dialect,
-        analysis,
-        class_q,
-        method,
-        is_classmethod,
-        extra_classmethod_cmd_names,
-    ));
-    spans
+    let receiver = if is_classmethod {
+        tcl_compiler::command_binding::SourceMethodReceiver::Class
+    } else {
+        tcl_compiler::command_binding::SourceMethodReceiver::Instance
+    };
+    crate::receiver_identity::method_calls_on_receiver(analysis, source, class, method, receiver)
 }
 
 /// Find a class member's declaration span plus every call
@@ -3036,13 +3004,10 @@ fn find_class_member_references(
     Some((member_span, call_spans))
 }
 
-/// Find every external `$v method` / `[$v method]` call site
-/// in the document where `v` is an instance variable whose
-/// class qualified-name is `class_q` (per
-/// `analysis.instance_classes`), plus — when `method` is a
-/// `classmethod` — every bare `ClassName method` dispatch on the
-/// defining class's own command (and any inheriting subclass's own
-/// command).  Returns the spans of the method-name tokens.
+/// Find external object and class method reads whose temporal receiver entry
+/// identifies the desired original declaration. Candidate class maps and
+/// command spellings cannot supply editable reference authority.
+/// Returns spans of the written method-name tokens.
 ///
 /// Scans three region kinds — the top-level command stream,
 /// each user proc body, and each class method body — and
@@ -3120,197 +3085,38 @@ fn itcl_class_proc_call_sites(
         })
         .collect()
 }
-/// The receiver sets a dispatch scan for `method` on `class_q` must match:
-/// the `$v method` variables, and the bare-word command receivers.
-///
-/// `target` is `(class_q, method, is_classmethod)`, bundled to keep the
-/// parameter count inside the lint budget; `is_classmethod` is the caller's
-/// already-resolved fact about which of a possibly-same-named
-/// `method` / `classmethod` pair is meant, never re-derived here.
-fn dispatch_receivers<'a>(
-    analysis: &'a AnalysisResult,
+/// Editable receiver targets retain their original declaration spans. Names
+/// supplied by a workspace caller remain candidates until a local source
+/// declaration and the temporal method entry agree.
+fn dispatch_receivers(
+    analysis: &AnalysisResult,
     dialect: &'static tcl_dialect::DialectProfile,
     target: (&str, &str, bool),
     extra_cmd_names: &[String],
-) -> (FxHashSet<&'a str>, CommandReceivers) {
+) -> CommandReceivers {
     let (class_q, method, is_classmethod) = target;
-    let hierarchy = analysis.class_hierarchy();
-    // A classmethod dispatches on the class's own command, never an
-    // instance — instance-receiver matching only ever applies to a `method`.
-    // Variables whose `$obj method` dispatch resolves to `class_q`'s copy of
-    // `method` — its own instances **plus** instances of any subclass that
-    // *inherits* this definition (the subclass's MRO resolves `method` to
-    // `class_q`).  An exact-class-equality filter dropped the inheriting-
-    // subclass sites, silently leaving them pointing at the old name after an
-    // inherited-method rename.  A subclass that *overrides* `method` resolves
-    // to itself, so its instances are excluded here and rewritten under that
-    // subclass's own family entry — each site is attributed to exactly one
-    // family member (no double count).
-    let var_set: FxHashSet<&str> = if is_classmethod {
-        FxHashSet::default()
-    } else {
-        analysis
-            .instance_classes
-            .iter()
-            .filter(|(_, c)| {
-                c.as_str() == class_q || hierarchy.method_target(c, method) == Some(class_q)
-            })
-            .map(|(v, _)| v.as_str())
-            .collect()
-    };
-    // Receivers that are also *object commands* — bound by `CLASS create NAME`
-    // (so `NAME` is a command, dispatched bare as `NAME method`, not `$NAME
-    // method`).  A `set v [CLASS new]` receiver is a *variable* only and never
-    // enters this set, so a bare `v method` is (correctly) not matched.
-    //
-    // A name the analyser recorded a *namespace-qualified* binding for is
-    // matched by resolving the written head against the call site's own
-    // namespace.  The bare-name set below is kept only for names
-    // with no such binding — the registry object-factories (Tk widget paths,
-    // tcllib naming factories) and the external-package `create NAME` shape,
-    // neither of which carries a creating user class to attribute a dispatch
-    // to in the first place.
-    let bound_tails: FxHashSet<&str> = analysis
-        .instance_command_bindings
-        .iter()
-        .filter_map(|b| {
-            std::str::from_utf8(tcl_syntax::naming::written_command_tail(
-                b.qualified_name.as_bytes(),
-            ))
-            .ok()
-        })
-        .collect();
     let mut receivers = CommandReceivers {
-        object_commands: var_set
-            .iter()
-            .copied()
-            .filter(|name| {
-                analysis.created_instance_commands.contains(*name) && !bound_tails.contains(*name)
-            })
-            .map(str::to_owned)
-            .collect(),
-        class_targets: FxHashSet::default(),
-        class_tails: FxHashSet::default(),
-        object_command_targets: FxHashSet::default(),
-        object_command_tails: FxHashSet::default(),
-        object_command_universe: analysis
-            .instance_command_bindings
-            .iter()
-            .map(|b| b.qualified_name.clone())
-            .collect(),
-        import_aliases: explicit_import_aliases(analysis),
+        class_targets: FxHashMap::default(),
+        instance_target: None,
     };
-    // A `classmethod` never dispatches on an instance, so object commands are
-    // only receivers for a plain `method` — the same rule that leaves
-    // `var_set` empty above.
-    if !is_classmethod {
-        for binding in &analysis.instance_command_bindings {
-            if binding.class_q == class_q
-                || hierarchy.method_target(&binding.class_q, method) == Some(class_q)
-            {
-                receivers.add_object_command_target(&binding.qualified_name);
+    if let Some(class) = analysis.all_classes.get(class_q) {
+        if is_classmethod && !is_itcl_class(class, dialect) {
+            if let Some(member) = class.class_methods.get(method) {
+                receivers.add_class_target(
+                    &class.qualified_name,
+                    Some((class.name_span, member.name_span)),
+                );
             }
+        } else if !is_classmethod && let Some(member) = class.methods.get(method) {
+            receivers.instance_target = Some((class.name_span, member.name_span));
         }
     }
-    // A `classmethod` dispatches on the *class's own* command (`Factory
-    // make`) — never on an instance: TclOO's `classmethod` sugar puts the
-    // method on the class object's own class, which no instance's MRO
-    // reaches.  When the caller says `method` is a classmethod, and
-    // `class_q`'s definer family actually uses this two-word dispatch shape,
-    // fold in the defining class's fully qualified name plus that of any
-    // subclass that inherits (does not override) it — the same inheritance
-    // test as the instance `var_set` above, so a `Sub make` dispatch on an
-    // inheriting subclass counts too.  Never runs for a plain `method` — even
-    // one that shares a name with a `classmethod` on the same class — which
-    // must never gain a phantom `ClassName method` match.
-    //
-    // Only the *qualified* name goes in: a written head is matched by
-    // resolving it against the call site's own namespace
-    // ([`CommandReceivers::class_head_matches`]), not by name-set membership,
-    // so a bare `Factory` inside `namespace eval ::b` reaches `::b::Factory`
-    // and never `::a::Factory`.
-    //
-    // The definer-family check matters because [incr Tcl]'s class-scoped
-    // `proc` lands in this same `class_methods` bucket (so the declaration
-    // side finds it) but dispatches as a single `::`-qualified identifier
-    // (`Factory::make`) — a bare two-word `Factory make` in itcl source is
-    // unrelated instance-creation syntax (`ClassName instanceName`), not a
-    // call to this proc.  The dispatch shape is registry data
-    // (`DefinerFamily`), not something to infer from the shared storage
-    // bucket.
-    //
-    // Unlike `ooutil`'s `classmethod` keyword (which propagates to a
-    // subclass's own bound command via its `Delegate`-mixin machinery —
-    // confirmed against tclsh 9.0.4/8.6), a plain stock-`TclOO` `self
-    // method` is visible ONLY on the exact class that declared it, so the
-    // inheriting-subclass half of this loop is skipped for those
-    // (`MethodDef::is_self_method`).
-    if is_classmethod
-        && let Some(cq_method) = analysis
-            .all_classes
-            .get(class_q)
-            .filter(|cd| !is_itcl_class(cd, dialect))
-            .and_then(|cd| cd.class_methods.get(method))
-    {
-        if let Some(cd) = analysis.all_classes.get(class_q) {
-            receivers.add_class_target(&cd.qualified_name);
-        }
-        if !cq_method.is_self_method {
-            for (other_q, other_cd) in &analysis.all_classes {
-                if other_q.as_str() != class_q
-                    && hierarchy.method_target(other_q, method) == Some(class_q)
-                    && !is_itcl_class(other_cd, dialect)
-                {
-                    receivers.add_class_target(&other_cd.qualified_name);
-                }
-            }
-        }
-    }
-    // The caller's workspace-wide classmethod knowledge, for a document where
-    // the class itself isn't known locally.  Meaningless for a plain method.
-    // Qualified names, so the same namespace-resolution rule applies to a
-    // pure-consumer document as to one that declares the class.
     if is_classmethod {
         for name in extra_cmd_names {
-            receivers.add_class_target(name);
+            receivers.class_targets.entry(name.clone()).or_insert(None);
         }
     }
-    (var_set, receivers)
-}
-
-/// The classes whose instances dispatch `class_q`'s copy of `method`, for the
-/// object-type-lattice half of the `$v method` scan:
-/// `class_q` itself plus every class that *inherits* (does not override) the
-/// definition — the same inheritance rule as `dispatch_receivers`' `var_set`.
-///
-/// A `$v` site whose lattice binding (`by_scope`, resolved at the site's own
-/// offset) is a **singleton** in this set is a call site of the method even
-/// when the analyser's `instance_classes` walk never bound `v` — a handle
-/// that flowed through an alias, a proc return, a proc/constructor parameter,
-/// or a `$var method` return.  Empty for a classmethod (never dispatched on
-/// an instance) and when the document has no lattice bindings at all.
-fn lattice_dispatch_family(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-    is_classmethod: bool,
-) -> FxHashSet<String> {
-    if is_classmethod || analysis.object_handle_facts.by_scope.is_empty() {
-        return FxHashSet::default();
-    }
-    let hierarchy = analysis.class_hierarchy();
-    let mut family: FxHashSet<String> = FxHashSet::default();
-    for classes in analysis.object_handle_facts.by_scope.values() {
-        for c in classes {
-            if family.contains(c) {
-                continue;
-            }
-            if c == class_q || hierarchy.method_target(c, method) == Some(class_q) {
-                family.insert(c.clone());
-            }
-        }
-    }
-    family
+    receivers
 }
 
 /// [`find_obj_method_call_sites`], plus `extra_cmd_names` — bare command
@@ -3356,27 +3162,30 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     } else {
         Vec::new()
     };
-    let (var_set, receivers) = dispatch_receivers(
+    let receivers = dispatch_receivers(
         analysis,
         dialect,
         (class_q, method, is_classmethod),
         extra_cmd_names,
     );
-    let lattice_family = lattice_dispatch_family(analysis, class_q, method, is_classmethod);
-    if var_set.is_empty() && lattice_family.is_empty() && !receivers.has_any() {
+    if !receivers.has_any() {
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
-    let registry = crate::registry_for_dialect_profile(dialect);
-    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
+    let registry = crate::registry_for_analysis(analysis);
+    let Some(identities) = analysis.retained_command_realm() else {
+        return out;
+    };
+    let Some(config) = analysis.body_lexer_config else {
+        return out;
+    };
     let ctx = ObjMethodScan {
         source,
         dialect,
         registry,
-        identities: &identities,
+        config,
+        identities,
         analysis,
-        var_set: &var_set,
-        lattice_family: &lattice_family,
         receivers: &receivers,
         method,
         var_receivers_in_scope: true,
@@ -3417,244 +3226,57 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     out
 }
 
-/// The bare-word command receivers a dispatch scan matches — the two kinds
-/// are matched by *different* rules, because the analysis knows different
-/// things about them.
-///
-/// * `class_targets` — the fully `::`-qualified names of the classes whose
-///   own class command dispatches the method (`Factory make`).  A written
-///   head is matched by **resolving** it against the call site's lexical
-///   namespace with Tcl's own rule and comparing the winner against this
-///   set, never by comparing the text.  So, with a class in `::a` and
-///   another in `::b`, a bare `Factory make` written inside `namespace eval
-///   ::b` reaches `::b::Factory` and is *not* attributed to `::a::Factory`
-///   (pinned against tclsh 8.6.14 and 9.0.4, which answer
-///   `b-made` there, `invalid command name "Factory"` where no candidate
-///   exists, and the global class where only that exists).
-///
-/// * `object_command_targets` — the object commands bound by `CLASS create
-///   NAME`, by the **qualified** name the creation site's namespace produced
-///   (`AnalysisResult::instance_command_bindings`).  Matched by the same
-///   namespace resolution as `class_targets`, so `::a::Factory create rex`
-///   and `::b::Widget create rex` are two commands, not one name.
-///
-/// * `object_commands` — the residual bare-name set, for instance commands
-///   with **no** qualified binding: those bound by a registry object factory
-///   (a Tk widget path, a tcllib naming factory) or by an unresolved
-///   external-package `create NAME`.  Neither records a creating user class,
-///   so there is no class identity to mis-attribute; an exact text match is
-///   all the data supports and all it needs to.
+/// Candidate declarations for an editable method reference. Every match also
+/// needs the actual retained receiver and original method-entry receipt.
 struct CommandReceivers {
-    class_targets: FxHashSet<String>,
-    /// The `::`-rooted **qualified** names of the object commands (`CLASS
-    /// create NAME`) whose creating class dispatches the method — matched by
-    /// resolving a written head against the call site's own namespace, the
-    /// same rule `class_targets` uses.  Populated from
-    /// [`tcl_compiler::analyser::AnalysisResult::instance_command_bindings`],
-    /// which records the creation site's namespace: `::a::Factory create rex`
-    /// binds `::a::rex` and
-    /// `::b::Widget create rex` binds `::b::rex`, and a bare `rex make`
-    /// reaches whichever of the two its own namespace resolves to — never
-    /// both, as the bare-name set below could not help doing.
-    object_command_targets: FxHashSet<String>,
-    /// Simple (tail) names of every entry in `object_command_targets` — the
-    /// same cheap pre-filter `class_tails` is for `class_targets`.
-    object_command_tails: FxHashSet<String>,
-    /// Every qualified object-command name the document binds, whatever class
-    /// bound it — the `exists` universe for the resolution above, so a
-    /// sibling namespace's same-named object command properly *shadows*
-    /// rather than being invisible.
-    object_command_universe: FxHashSet<String>,
-    /// Simple (tail) names of every entry in `class_targets` — the cheap
-    /// pre-filter that keeps the namespace resolution off every command head
-    /// in the document.
-    class_tails: FxHashSet<String>,
-    object_commands: FxHashSet<String>,
-    /// `namespace import`-created command aliases: the *imported* name in the
-    /// importing namespace (`::b::Factory`) mapped to the source command
-    /// (`::a::Factory`).  See [`explicit_import_aliases`].
-    import_aliases: FxHashMap<String, String>,
-}
-
-/// The command aliases an **explicit** (pattern-free) `namespace import`
-/// creates, as `imported qualified name → source qualified name`.
-///
-/// `namespace import ::a::Factory` inside `::b` creates a real command
-/// `::b::Factory` that dispatches `::a::Factory` — tclsh 9.0.4 (probe
-/// `ns981.tcl`) confirms both halves: `Factory make` inside `::b` prints
-/// `A-MADE`, and `info commands ::b::Factory` lists `::b::Factory`.  Without
-/// these entries the bare-dispatch resolver's `exists` universe has no
-/// candidate for the imported name at all, so the call site is invisible and
-/// a rename leaves it stale.
-///
-/// **Wildcard imports are deliberately excluded.**  `namespace import ::a::*`
-/// needs the export-gated import *snapshot* model (which commands existed in
-/// `::a` at the moment the import ran, filtered by `namespace export`).
-/// Half-building it here, by treating every exported command as
-/// imported regardless of definition order, would invent aliases the runtime
-/// never created.  A pattern containing any glob metacharacter is skipped.
-fn explicit_import_aliases(analysis: &AnalysisResult) -> FxHashMap<String, String> {
-    analysis
-        .namespace_imports
-        .iter()
-        .filter(|import| !import.pattern.contains(['*', '?', '[']))
-        .filter_map(|import| {
-            let tail = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
-                import.pattern.as_bytes(),
-            ))
-            .ok()?;
-            (!tail.is_empty()).then(|| {
-                (
-                    tcl_syntax::naming::qualify(&import.ns, tail),
-                    tcl_syntax::naming::normalise_qualified_name(&import.pattern),
-                )
-            })
-        })
-        .collect()
+    class_targets: FxHashMap<String, Option<(tcl_lexer::Span, tcl_lexer::Span)>>,
+    instance_target: Option<(tcl_lexer::Span, tcl_lexer::Span)>,
 }
 
 impl CommandReceivers {
     /// Register a class whose own command dispatches the method, by its
     /// fully qualified name.
-    fn add_class_target(&mut self, qualified_name: &str) {
-        let tail = tcl_syntax::naming::written_command_tail(qualified_name.as_bytes());
-        if let Ok(tail) = std::str::from_utf8(tail) {
-            self.class_tails.insert(tail.to_owned());
-        }
-        self.class_targets.insert(qualified_name.to_owned());
+    fn add_class_target(
+        &mut self,
+        qualified_name: &str,
+        declaration: Option<(tcl_lexer::Span, tcl_lexer::Span)>,
+    ) {
+        self.class_targets
+            .insert(qualified_name.to_owned(), declaration);
     }
 
     fn has_any(&self) -> bool {
-        !self.class_targets.is_empty()
-            || !self.object_commands.is_empty()
-            || !self.object_command_targets.is_empty()
+        !self.class_targets.is_empty() || self.instance_target.is_some()
     }
 
-    /// Register an object command bound by `CLASS create NAME`, by the
-    /// qualified name the creation site's namespace produced.
-    fn add_object_command_target(&mut self, qualified_name: &str) {
-        if let Ok(tail) = std::str::from_utf8(tcl_syntax::naming::written_command_tail(
-            qualified_name.as_bytes(),
-        )) {
-            self.object_command_tails.insert(tail.to_owned());
-        }
-        self.object_command_targets
-            .insert(qualified_name.to_owned());
-    }
-
-    /// Whether the bare head `raw`, written at byte offset `offset`, is one of
-    /// the object commands in `object_command_targets` — resolved the way Tcl
-    /// resolves it, from the namespace lexically in effect there.
-    ///
-    /// The `exists` universe is every object command the document binds plus
-    /// its procs and classes, so a same-named object command in a nearer
-    /// namespace shadows a farther one exactly as it would at runtime
-    /// (`Factory create rex` in `::a` and `Widget create rex` in `::b`:
-    /// tclsh 9.0.4 / 8.6.16 dispatch `rex make` inside `::a` to `::a::rex`
-    /// and inside `::b` to `::b::rex`).
-    fn object_command_head_matches(
-        &self,
-        analysis: &AnalysisResult,
-        raw: &str,
-        offset: u32,
-    ) -> bool {
-        if self.object_command_targets.is_empty() {
-            return false;
-        }
-        let Ok(tail) =
-            std::str::from_utf8(tcl_syntax::naming::written_command_tail(raw.as_bytes()))
-        else {
-            return false;
+    fn matches(&self, selected: &crate::receiver_identity::RetainedReceiverMethod<'_>) -> bool {
+        use tcl_compiler::command_binding::SourceMethodReceiver;
+        let expected = match selected.receiver {
+            SourceMethodReceiver::Instance => self.instance_target,
+            SourceMethodReceiver::Class => self
+                .class_targets
+                .get(&selected.class.qualified_name)
+                .copied()
+                .flatten(),
         };
-        if !self.object_command_tails.contains(tail) {
-            return false;
-        }
-        let namespace = crate::definition::namespace_context_at(
-            &analysis.global_scope,
-            offset,
-            &analysis.namespace_overrides,
-        );
-        crate::definition::resolved_command_name(analysis, &namespace, raw, &|candidate| {
-            self.object_command_universe.contains(candidate)
-                || analysis.all_classes.contains_key(candidate)
-                || analysis.all_procs.contains_key(candidate)
-        })
-        .is_some_and(|winner| self.object_command_targets.contains(&winner))
-    }
-
-    /// Whether the bare head `raw`, written at byte offset `offset`, is a
-    /// class command in `class_targets` — resolved the way Tcl resolves it,
-    /// from the namespace lexically in effect there.
-    ///
-    /// The `exists` universe is this document's procs and classes, the
-    /// caller-supplied targets themselves, and every explicit
-    /// `namespace import` alias: a pure-consumer document does not declare the
-    /// class it calls, so without the targets no candidate would ever "exist"
-    /// and every cross-file consumer site would be lost.  A same-named proc or
-    /// class at a higher-priority candidate still shadows the target, exactly
-    /// as it would at runtime.
-    ///
-    /// An imported name is a real command in the importing namespace, so it
-    /// both *exists* as a candidate and, when it wins, resolves through to the
-    /// source command for the class-identity test — otherwise
-    /// `namespace import ::a::Factory; Factory make` inside `::b` matches
-    /// nothing (the winning `::b::Factory` is not itself a class target).
-    fn class_head_matches(&self, analysis: &AnalysisResult, raw: &str, offset: u32) -> bool {
-        if self.class_targets.is_empty() {
-            return false;
-        }
-        let Ok(tail) =
-            std::str::from_utf8(tcl_syntax::naming::written_command_tail(raw.as_bytes()))
-        else {
-            return false;
-        };
-        if !self.class_tails.contains(tail) {
-            return false;
-        }
-        let namespace = crate::definition::namespace_context_at(
-            &analysis.global_scope,
-            offset,
-            &analysis.namespace_overrides,
-        );
-        crate::definition::resolved_command_name(analysis, &namespace, raw, &|candidate| {
-            self.class_targets.contains(candidate)
-                || analysis.all_classes.contains_key(candidate)
-                || analysis.all_procs.contains_key(candidate)
-                || self.import_aliases.contains_key(candidate)
-        })
-        .is_some_and(|winner| {
-            let dispatched = self.import_aliases.get(&winner).unwrap_or(&winner);
-            self.class_targets.contains(dispatched)
-        })
+        expected == Some((selected.class.name_span, selected.method.name_span))
     }
 }
 
-/// Read-only context for the object-method call-site scan: the document
-/// `source`, its `dialect`, its `analysis`, the `method` being looked up, and
-/// the receiver sets — `var_set` matches `$v method` dispatch (variables
-/// holding an object, keyed by bare name) and `receivers` matches `NAME
-/// method` dispatch (object commands bound by `CLASS create NAME`, and class
-/// commands resolved namespace-aware).
+/// Actual analysis context and editable declaration targets for method reads.
+/// The retained realm and grammar came from the original analysis ingress.
 #[derive(Clone, Copy)]
 struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     analysis: &'a AnalysisResult,
-    var_set: &'a FxHashSet<&'a str>,
-    /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
-    /// scope-keyed lattice binding must singleton-resolve to for the site to
-    /// count when `var_set` has no entry for it.
-    lattice_family: &'a FxHashSet<String>,
     receivers: &'a CommandReceivers,
     method: &'a str,
-    /// `false` once the scan has descended through a frame-shifting region
-    /// ([`frame_shifted_dispatch_regions`]), where a `$var` receiver's bare
-    /// name no longer names the enclosing frame's variable — so `var_set`
-    /// (and the lattice lookup, which resolves the same frame's names)
-    /// stops matching while `receivers` (ordinary commands, resolvable from
-    /// any frame) keep going.
+    /// Variable receivers are withheld in frame-shifting regions until the
+    /// scan retains that region's exact body and read coordinate mapping.
     var_receivers_in_scope: bool,
 }
 
@@ -3670,34 +3292,8 @@ impl ObjMethodScan<'_> {
     /// Whether this context can still match anything — a frame-shifted scan
     /// with no command receivers to look for has nothing left to do.
     fn has_receivers(&self) -> bool {
-        self.receivers.has_any()
-            || (self.var_receivers_in_scope
-                && !(self.var_set.is_empty() && self.lattice_family.is_empty()))
-    }
-
-    /// Whether the `$var` receiver `name` at `offset` dispatches the method:
-    /// bound by the analyser's `instance_classes` walk (`var_set`), or
-    /// singleton-resolved by the object-type lattice's scope-keyed map to a
-    /// class in [`Self::lattice_family`].  The singleton requirement keeps
-    /// the scan inside the rename-grade soundness bar: a multi-class binding
-    /// abstains rather than rewrite a site it cannot prove.
-    fn var_receiver_matches(&self, name: &str, offset: u32) -> bool {
-        self.var_set.contains(name)
-            || (!self.lattice_family.is_empty()
-                && crate::definition::lattice_singleton_class(self.analysis, name, offset)
-                    .is_some_and(|c| self.lattice_family.contains(c)))
-    }
-
-    /// Whether the bare-word head `raw` at `offset` names a receiver whose
-    /// dispatch this scan is looking for.
-    fn command_receiver_matches(&self, raw: &str, offset: u32) -> bool {
-        self.receivers.object_commands.contains(raw)
-            || self
-                .receivers
-                .object_command_head_matches(self.analysis, raw, offset)
-            || self
-                .receivers
-                .class_head_matches(self.analysis, raw, offset)
+        !self.receivers.class_targets.is_empty()
+            || (self.var_receivers_in_scope && self.receivers.instance_target.is_some())
     }
 }
 
@@ -3730,8 +3326,7 @@ fn scan_obj_method_body(
 /// same-frame (`Plain` `BodyKind`) control-flow / `eval` body argument
 /// ([`nested_dispatch_regions`]), so a dispatch nested inside an `if` /
 /// `while` / `foreach` / `switch` / `try` / `catch` body is found too
-/// `var_set` holds the bare names of
-/// in-scope instance variables.  `depth` guards against runaway recursion
+/// `depth` guards against runaway recursion
 /// — see [`MAX_DISPATCH_SCAN_DEPTH`].
 fn scan_obj_method_region(
     ctx: ObjMethodScan<'_>,
@@ -3741,7 +3336,6 @@ fn scan_obj_method_region(
     sink: &mut SpanSink<'_>,
 ) {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    use tcl_lexer::TokenType;
     let source = ctx.source;
     if start >= end || end > source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
         return;
@@ -3750,30 +3344,24 @@ fn scan_obj_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        ctx.config,
     );
     for cmd in &commands {
-        // Head + method at argv[1].  Two dispatch shapes resolve to the same
-        // receiver class: `$v method` (head is a `$`-var whose bare name is in
-        // `var_set`) and `NAME method` (head is a bare word naming an object
-        // command in `cmd_set`).
+        // Only a written method selector may become an editable reference.
+        // Receiver matching uses its retained post-argv declaration receipt.
         if let (Some(head), Some(method_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
             let h_start = head.span.start() as usize;
             let h_end = head.span.end() as usize;
             if h_start < source.len() && h_end <= source.len() {
-                let raw = &source[h_start..h_end];
-                let receiver_matches = if head.kind == TokenType::Var {
-                    ctx.var_receivers_in_scope
-                        && strip_var_decoration(raw)
-                            .is_some_and(|name| ctx.var_receiver_matches(name, head.span.start()))
-                } else {
-                    // A bare-word object command (`rex bark`) or class command
-                    // (`Factory make`).  Both receiver sets hold only plain
-                    // names, and a braced / bracketed / substituted head's
-                    // source slice keeps its delimiters (`{rex}`, `[x]`), so
-                    // neither can admit anything but a genuine bare word.
-                    ctx.command_receiver_matches(raw, head.span.start())
-                };
+                let receiver_matches =
+                    crate::receiver_identity::method_at_command(ctx.analysis, source, cmd)
+                        .is_some_and(|selected| {
+                            selected.editable_selector().is_some()
+                                && (ctx.var_receivers_in_scope
+                                || selected.receiver
+                                    == tcl_compiler::command_binding::SourceMethodReceiver::Class)
+                                && ctx.receivers.matches(&selected)
+                        });
                 if receiver_matches {
                     let m_start = method_tok.span.start() as usize;
                     let m_end = method_tok.span.end() as usize;
@@ -4345,7 +3933,7 @@ fn class_highlights(
         span_to_range(source, line_index, class_def.name_span),
         HighlightKind::Text,
     )];
-    for span in class_reference_spans(analysis, resolution, qname, class_def) {
+    for span in class_reference_spans(analysis, resolution, qname, class_def, source) {
         out.push((span_to_range(source, line_index, span), HighlightKind::Text));
     }
     Some(dedup_kinded(out))
@@ -4397,6 +3985,32 @@ pub fn document_highlights_in_program(
     let line_index = LineIndex::new(source);
 
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, byte_offset)
+    {
+        let (declaration, references) = method_references_for_declaration(
+            source,
+            dialect,
+            analysis,
+            selected.class,
+            selected.method,
+            selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+        );
+        return std::iter::once(declaration)
+            .chain(references)
+            .map(|span| {
+                (
+                    span_to_range(source, &line_index, span),
+                    HighlightKind::Text,
+                )
+            })
+            .collect();
+    }
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, byte_offset)
+        .is_some()
+    {
+        return Vec::new();
+    }
     // Shared `$ref` gate — see `substituting_var_at_position`.
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
@@ -4454,21 +4068,11 @@ pub fn document_highlights_in_program(
                 span_to_range(source, &line_index, proc_def.name_span),
                 HighlightKind::Text,
             ));
-            let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname.as_str());
-            for inv in &analysis.command_invocations {
-                if inv.name == proc_def.name
-                    || inv.name == proc_def.qualified_name
-                    || inv.name == qname_no_prefix
-                    || inv
-                        .resolved_qualified_name
-                        .as_deref()
-                        .is_some_and(|r| r == proc_def.qualified_name)
-                {
-                    out.push((
-                        span_to_range(source, &line_index, inv.range),
-                        HighlightKind::Text,
-                    ));
-                }
+            for span in proc_reference_spans(analysis, resolution, qname, proc_def, source) {
+                out.push((
+                    span_to_range(source, &line_index, span),
+                    HighlightKind::Text,
+                ));
             }
             return dedup_kinded(out);
         }
@@ -4571,6 +4175,228 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn execution_at<'a>(
+        analysis: &'a AnalysisResult,
+        source: &str,
+        written: &str,
+    ) -> &'a tcl_compiler::signature_scan::types::SignatureCommandInvocation {
+        let offset = u32::try_from(source.rfind(written).unwrap()).unwrap();
+        analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.lookup.is_execution_site() && invocation.range.start() == offset
+            })
+            .expect("actual command head must retain its positioned lookup")
+    }
+
+    #[test]
+    fn loaded_terminal_can_report_an_external_call_without_local_edit_authority() {
+        use std::sync::Arc;
+        use tcl_compiler::command_binding::{
+            SourceAnalysisEntry, SourceOriginKind, TrustedSourceModuleLoader,
+        };
+        let source = "proc greet {} {return local}\nsource provider.tcl\nset cmd greet\n$cmd\n";
+        let entry = Arc::new(SourceAnalysisEntry {
+            trusted_source_modules: vec![TrustedSourceModuleLoader::new(
+                tcl_dialect::model::Family::Tcl,
+                "provider.tcl".to_owned(),
+                None,
+                "loaded-provider".to_owned(),
+                &Arc::from("proc greet {} {return loaded}"),
+            )],
+            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            )),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let analysis = Analyser::new()
+            .with_source_analysis_entry(entry)
+            .analyse(source, "tcl8.6")
+            .clone();
+        let local = &analysis.all_procs["::greet"];
+        let call = execution_at(&analysis, source, "$cmd");
+        let reference = call.resolved_command_reference.as_ref().unwrap();
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())
+            .unwrap();
+        assert!(matches!(
+            definition.allocation().site.source.kind(),
+            SourceOriginKind::Loaded { .. }
+        ));
+        assert!(!invocation_calls_proc(
+            &analysis, call, "::greet", local, source
+        ));
+        assert!(!invocation_references_proc(
+            &analysis, call, "::greet", local, source
+        ));
+        assert!(!invocation_references_named(
+            &analysis, call, "::greet", "greet", "::greet", source
+        ));
+        assert!(invocation_calls_named(
+            &analysis, call, "::greet", "greet", "::greet", source
+        ));
+        assert!(
+            call.indirect,
+            "the frozen command value is not a written head"
+        );
+        assert!(crate::rename::prepare_rename(source, 2, 9, &analysis).is_none());
+
+        let local_source = "proc greet {} {return local}\nset cmd greet\n$cmd\n";
+        let local_analysis = analyse(local_source);
+        let local_call = execution_at(&local_analysis, local_source, "$cmd");
+        assert!(local_call.indirect && local_call.rename_safe);
+        assert!(local_call.resolved_command_reference.is_some());
+        assert!(crate::rename::prepare_rename(local_source, 1, 9, &local_analysis).is_some());
+    }
+
+    fn retained_method_sites(source: &str, is_classmethod: bool) -> Vec<tcl_lexer::Span> {
+        let analysis = analyse(source);
+        find_obj_method_call_sites(
+            source,
+            analysis.resolved_profile().unwrap(),
+            &analysis,
+            "::C",
+            "ping",
+            is_classmethod,
+        )
+    }
+
+    #[test]
+    fn class_method_references_require_the_original_temporal_entry() {
+        let source = "oo::class create C {self method ping {} {return CLASS}}; C ping";
+        let sites = retained_method_sites(source, true);
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        assert_eq!(sites[0].start() as usize, source.rfind("ping").unwrap());
+    }
+
+    #[test]
+    fn class_method_references_refuse_replacement_during_arguments() {
+        for source in [
+            "oo::class create C {self method ping {x} {return CLASS}}; C ping [oo::objdefine C method ping {x} {return REPLACED}]",
+            "oo::class create C {self method ping {} {return CLASS}}; rename C old; proc C args {return DECOY}; C ping",
+        ] {
+            assert!(retained_method_sites(source, true).is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn instance_method_references_require_the_retained_head_object() {
+        let source =
+            "oo::class create C {method ping {} {return INSTANCE}}; set obj [C new]; $obj ping";
+        let sites = retained_method_sites(source, false);
+        assert_eq!(sites.len(), 1, "{sites:?}");
+        assert_eq!(sites[0].start() as usize, source.rfind("ping").unwrap());
+    }
+
+    #[test]
+    fn instance_method_references_refuse_mutated_dispatch_and_nominal_decoys() {
+        for source in [
+            "oo::class create C {method ping {x} {return INSTANCE}}; set obj [C new]; $obj ping [oo::define C method ping {x} {return REPLACED}]",
+            "oo::class create C {method ping {} {return INSTANCE}}; set obj [C new]; set obj ::puts; $obj ping",
+        ] {
+            assert!(retained_method_sites(source, false).is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn retained_alias_calls_do_not_become_target_rename_edits() {
+        let source =
+            "proc target {} {return OK}\ninterp alias {} wrapper {} target\nwrapper\ntarget\n";
+        let analysis = analyse(source);
+        let proc_def = &analysis.all_procs["::target"];
+        let alias = execution_at(&analysis, source, "wrapper\n");
+        assert!(
+            alias
+                .resolved_command_reference
+                .as_ref()
+                .unwrap()
+                .linked_definition()
+                .is_some()
+        );
+        assert!(invocation_calls_proc(
+            &analysis, alias, "::target", proc_def, source
+        ));
+        assert!(!invocation_references_proc(
+            &analysis, alias, "::target", proc_def, source
+        ));
+        let direct = execution_at(&analysis, source, "target\n");
+        assert!(invocation_calls_proc(
+            &analysis, direct, "::target", proc_def, source
+        ));
+        assert!(invocation_references_proc(
+            &analysis, direct, "::target", proc_def, source
+        ));
+    }
+
+    #[test]
+    fn retained_proc_redefinitions_keep_original_reference_sets_separate() {
+        let source = "proc p {} {return OLD}\np\nrename p old\nproc p {} {return NEW}\nold\np\n";
+        let analysis = analyse(source);
+        let first = analysis
+            .proc_declarations("::p")
+            .min_by_key(|proc_def| proc_def.name_span.start())
+            .unwrap();
+        let second = &analysis.all_procs["::p"];
+        assert_ne!(first.name_span, second.name_span);
+        let old = execution_at(&analysis, source, "old\n");
+        let new = execution_at(&analysis, source, "p\n");
+        assert!(invocation_calls_proc(&analysis, old, "::p", first, source));
+        assert!(!invocation_calls_proc(
+            &analysis, old, "::p", second, source
+        ));
+        assert!(invocation_references_proc(
+            &analysis, new, "::p", second, source
+        ));
+        assert!(!invocation_references_proc(
+            &analysis, new, "::p", first, source
+        ));
+        let first_spans = proc_reference_spans(
+            &analysis,
+            crate::definition::CallResolution::document_only(),
+            "::p",
+            first,
+            source,
+        );
+        assert!(first_spans.contains(&old.range));
+        assert!(!first_spans.contains(&new.range));
+    }
+
+    #[test]
+    fn retained_builtin_wrapper_cannot_borrow_an_old_class_name() {
+        let source = "oo::class create C {}\nrename C saved\ninterp alias {} C {} list\nC VALUE\n";
+        let analysis = analyse(source);
+        let class_def = &analysis.all_classes["::C"];
+        let call = execution_at(&analysis, source, "C VALUE");
+        let reference = call
+            .resolved_command_reference
+            .as_ref()
+            .expect("known alias slot");
+        assert!(reference.definition().is_none());
+        assert!(reference.linked_definition().is_none());
+        assert!(!invocation_references_class(
+            &analysis, call, "::C", class_def, source
+        ));
+        assert!(!invocation_references_named(
+            &analysis, call, "::C", "C", "::C", source
+        ));
+        assert!(
+            !class_reference_spans(
+                &analysis,
+                crate::definition::CallResolution::document_only(),
+                "::C",
+                class_def,
+                source
+            )
+            .contains(&call.range)
+        );
     }
 
     #[test]
@@ -5873,10 +5699,8 @@ mod tests {
                 link_target_span: None,
             },
         );
-        let a = Result {
-            global_scope: scope,
-            ..Result::default()
-        };
+        let mut a = Result::default();
+        a.global_scope = scope;
         // Source matches the spans we injected so
         // line/character translation works.
         let src = "set x 1\nputs $x\n";
@@ -7129,10 +6953,10 @@ mod tests {
         // inherited-via-superclass sibling (`Table find`, ooutil's
         // `classmethod` propagates to a subclass's own bound command).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let sites = find_obj_method_call_sites(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             &analysis,
             "::ActiveRecord",
             "find",
@@ -7160,11 +6984,14 @@ mod tests {
                        method inst {} { apply {{} { Factory make }} }\n\
                        method nsev {} { namespace eval ::zz { Factory make } }\n\
                    }\n\
-                   namespace eval ::top2 { Factory make }\n";
-        let analysis = analyse(src);
+                   namespace eval ::top2 { Factory make }\n\
+                   Factory create obj\n\
+                   obj inst\n\
+                   obj nsev\n";
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let sites = find_obj_method_call_sites(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             &analysis,
             "::Factory",
             "make",
@@ -7218,10 +7045,10 @@ mod tests {
                        classmethod make {} { return 1 }\n\
                    }\n\
                    apply {{} Factory\\ make}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let sites = find_obj_method_call_sites(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             &analysis,
             "::Factory",
             "make",
@@ -7263,11 +7090,11 @@ mod tests {
         // none missed (requires Part 3 in addition to Part 2: Part 2 alone
         // only fixes single-cursor lookups, not this whole-document scan).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on the declaration (line 1, `find` at col 16).
         let refs = references(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             1,
             16,
             &analysis,
@@ -7289,11 +7116,11 @@ mod tests {
         // invoking Find All References with the cursor ON the class-command
         // call site (not the declaration) must resolve identically.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on `find` in `ActiveRecord find foo bar` (line 3, col 13).
         let refs = references(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             3,
             13,
             &analysis,
@@ -7622,6 +7449,27 @@ mod tests {
         assert!(
             refs.iter().any(|r| r.start_line == 0) && refs.iter().any(|r| r.start_line == 1),
             "switch braced body reference missing: {refs:?}"
+        );
+    }
+    #[test]
+    fn stale_instance_candidate_does_not_add_a_variable_method_reference() {
+        let source =
+            "oo::class create C {method run {} {return 1}}\nset receiver 0\n$receiver run\n";
+        let mut analysis = analyse(source);
+        analysis
+            .instance_classes
+            .insert("receiver".to_owned(), "::C".to_owned());
+        let calls = find_obj_method_call_sites(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            &analysis,
+            "::C",
+            "run",
+            false,
+        );
+        assert!(
+            calls.is_empty(),
+            "a filewide candidate is not an actual object read: {calls:?}"
         );
     }
 }

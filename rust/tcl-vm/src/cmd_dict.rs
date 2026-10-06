@@ -18,6 +18,8 @@
 
 //! The `dict` ensemble over the VM's typed dictionary representation.
 
+use std::rc::Rc;
+
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 use tcl_runtime_api::{Code, Completion};
 
@@ -25,30 +27,208 @@ use crate::command::{BuiltinFn, settle_control_options};
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
-pub(crate) fn register(vm: &mut Vm) {
-    vm.register("dict", cmd_dict);
-    // Ensemble member commands the codegen rewrites `dict <sub>` into.
-    let registry = crate::environment::universal_store();
-    let mut member = |name: &'static str, handler: BuiltinFn| {
-        let spec = registry.get(name).expect("qualified dict member spec");
-        vm.register_spec_builtin(spec, handler);
-    };
-    member("::tcl::dict::create", |vm, a| member_op(vm, "create", a));
-    member("::tcl::dict::get", |vm, a| member_op(vm, "get", a));
-    member("::tcl::dict::exists", |vm, a| member_op(vm, "exists", a));
-    member("::tcl::dict::keys", |vm, a| member_op(vm, "keys", a));
-    member("::tcl::dict::values", |vm, a| member_op(vm, "values", a));
-    member("::tcl::dict::size", |vm, a| member_op(vm, "size", a));
-    member("::tcl::dict::merge", |vm, a| member_op(vm, "merge", a));
-    member("::tcl::dict::set", |vm, a| member_op(vm, "set", a));
-    member("::tcl::dict::unset", |vm, a| member_op(vm, "unset", a));
-    member("::tcl::dict::for", |vm, a| member_op(vm, "for", a));
-    member("::tcl::dict::map", |vm, a| member_op(vm, "map", a));
-    member("::tcl::dict::incr", |vm, a| member_op(vm, "incr", a));
-    member("::tcl::dict::info", |vm, a| member_op(vm, "info", a));
-    member("::tcl::dict::append", |vm, a| member_op(vm, "append", a));
-    member("::tcl::dict::lappend", |vm, a| member_op(vm, "lappend", a));
+pub(crate) struct VmDictionaryObjects {
+    string: tcl_syntax::native_string::NativeStringProtocol,
+    names: tcl_syntax::naming::NativeNameProtocol,
+    preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    jim_context: Option<Rc<crate::value::NativeJimObjectContext>>,
 }
+
+impl VmDictionaryObjects {
+    pub(crate) const fn string_protocol(&self) -> tcl_syntax::native_string::NativeStringProtocol {
+        self.string
+    }
+    pub(crate) fn with_preparation(
+        mut self,
+        preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    ) -> Self {
+        self.preparation = preparation;
+        self
+    }
+    pub(crate) fn selected(vm: &Vm) -> Result<Self, tcl_cmd_core::CmdError> {
+        let dialect = vm.native_invocation_dialect();
+        let string = dialect.native_string_materialization(Some(
+            tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation,
+        )).ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable("native dictionary object protocol"))?.protocol();
+        let names = dialect.native_name_protocol().ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native dictionary diagnostic protocol",
+            ),
+        )?;
+        Ok(Self {
+            string,
+            names,
+            jim_context: if string.is_jim084() {
+                Some(vm.native_jim_object_context()?)
+            } else {
+                None
+            },
+            preparation:
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
+        })
+    }
+}
+
+impl tcl_cmd_core::native_dictionary::NativeDictionaryObjects for VmDictionaryObjects {
+    type Value = Value;
+    type Prepared = crate::value::PreparedNativeDictionary;
+
+    fn prepare(&self, original: Option<&Value>) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        if let (Some(original), Some(context)) = (original, &self.jim_context) {
+            original.bind_native_jim_context(context)?;
+        }
+        match original {
+            Some(value) => match self.preparation {
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion => value.prepare_native_dictionary(self.string),
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy => value.prepare_native_dictionary_after_conversion(self.string),
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::IncrementCommand => value.prepare_native_dictionary_for_increment(self.string),
+            },
+            None => Value::dict(Vec::new()).prepare_native_dictionary(self.string),
+        }
+        .map_err(Into::into)
+    }
+
+    fn prepare_child(
+        &self,
+        original: Option<&Value>,
+    ) -> Result<Self::Prepared, tcl_cmd_core::CmdError> {
+        if let (Some(original), Some(context)) = (original, &self.jim_context) {
+            original.bind_native_jim_context(context)?;
+        }
+        match original {
+            Some(value) => value.prepare_native_dictionary_after_conversion(self.string),
+            None => Value::dict(Vec::new()).prepare_native_dictionary(self.string),
+        }
+        .map_err(Into::into)
+    }
+
+    fn with_member<R>(
+        &self,
+        dictionary: &Self::Prepared,
+        key: &Value,
+        operation: impl FnOnce(Option<&Value>) -> Result<R, tcl_cmd_core::CmdError>,
+    ) -> Result<R, tcl_cmd_core::CmdError> {
+        dictionary.with_member(key, operation)?
+    }
+
+    fn set_member(
+        &self,
+        dictionary: &mut Self::Prepared,
+        key: &Value,
+        value: Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        dictionary
+            .set_member(key.clone(), value)
+            .map_err(Into::into)
+    }
+
+    fn remove_member(
+        &self,
+        dictionary: &mut Self::Prepared,
+        key: &Value,
+    ) -> Result<(), tcl_cmd_core::CmdError> {
+        dictionary
+            .remove_member(key)
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    fn missing_key(&self, key: &Value) -> tcl_cmd_core::CmdError {
+        let original = match key.native_string_bytes(self.string) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native dictionary missing key string",
+                )
+                .into();
+            }
+        };
+        match tcl_syntax::naming::report_native_dictionary_missing_key(
+            self.names,
+            tcl_syntax::naming::NativeDictionaryMissingKeyOperation::UnsetIntermediate,
+            &original,
+        ) {
+            Ok(report) => match report.error_code {
+                Some(code) => tcl_cmd_core::CmdError::with_error_code_bytes(report.message, code),
+                None => tcl_cmd_core::CmdError::new_bytes(report.message),
+            },
+            Err(_) => tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native dictionary missing-key diagnostic",
+            )
+            .into(),
+        }
+    }
+
+    fn finish(&self, dictionary: Self::Prepared) -> Value {
+        dictionary.into_value()
+    }
+}
+
+pub(crate) fn register(vm: &mut Vm) {
+    vm.refresh_scripted_dictionary_wrappers();
+    let Some(namespace) = vm
+        .native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
+    else {
+        vm.register_stock_builtin("dict", cmd_dict);
+        return;
+    };
+    let subs = crate::environment::release_subcommands(
+        vm.actual_native_execution_profile().name,
+        "dict",
+        DICT_SUBS,
+    );
+    vm.register_stock_namespace_ensemble("dict", namespace, DICT_MEMBERS, subs);
+}
+
+/// Repinning retains replaced public commands and selects native member tokens.
+pub(crate) fn refresh_profile(vm: &mut Vm) {
+    vm.refresh_scripted_dictionary_wrappers();
+    if vm.stock_native_identity("dict").as_deref() != Some("dict") {
+        return;
+    }
+    for &(member, _) in DICT_MEMBERS {
+        let target = format!("::tcl::dict::{member}");
+        if vm.stock_native_identity(&target).as_deref() == target.strip_prefix("::") {
+            vm.remove_registered_command(target.trim_start_matches("::"));
+        }
+    }
+    register(vm);
+    if vm
+        .native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::Dict)
+        .is_none()
+    {
+        vm.retire_unused_stock_ensemble_namespace("dict");
+    }
+}
+
+const DICT_MEMBERS: &[(&str, BuiltinFn)] = &[
+    ("append", |vm, args| member_op(vm, "append", args)),
+    ("create", |vm, args| member_op(vm, "create", args)),
+    ("exists", |vm, args| member_op(vm, "exists", args)),
+    ("filter", |vm, args| member_op(vm, "filter", args)),
+    ("for", |vm, args| member_op(vm, "for", args)),
+    ("get", |vm, args| member_op(vm, "get", args)),
+    ("getdef", |vm, args| member_op(vm, "getdef", args)),
+    ("getwithdefault", |vm, args| {
+        member_op(vm, "getwithdefault", args)
+    }),
+    ("incr", |vm, args| member_op(vm, "incr", args)),
+    ("info", |vm, args| member_op(vm, "info", args)),
+    ("keys", |vm, args| member_op(vm, "keys", args)),
+    ("lappend", |vm, args| member_op(vm, "lappend", args)),
+    ("map", |vm, args| member_op(vm, "map", args)),
+    ("merge", |vm, args| member_op(vm, "merge", args)),
+    ("remove", |vm, args| member_op(vm, "remove", args)),
+    ("replace", |vm, args| member_op(vm, "replace", args)),
+    ("set", |vm, args| member_op(vm, "set", args)),
+    ("size", |vm, args| member_op(vm, "size", args)),
+    ("unset", |vm, args| member_op(vm, "unset", args)),
+    ("update", |vm, args| member_op(vm, "update", args)),
+    ("values", |vm, args| member_op(vm, "values", args)),
+    ("with", |vm, args| member_op(vm, "with", args)),
+];
 
 /// `dict`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it. The
 /// registry filters this full implemented table for the selected Tcl release.
@@ -77,37 +257,57 @@ const DICT_SUBS: &[&str] = &[
     "with",
 ];
 
+#[cfg(test)]
 type StringPairs = Vec<(String, Value)>;
-type DictPathFrame = (StringPairs, String, Option<usize>);
 
 /// `dict subcommand ?arg ...?` — dispatch to the subcommand handler.
 fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"dict subcommand ?arg ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"dict subcommand ?arg ...?\"",
+        );
     };
-    let word = sub.to_str();
+    let word = match vm.native_name_operand_bytes(sub) {
+        Ok(word) => word,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
     // prefix, so `dict k` is `dict keys`.
     // `getdef`/`getwithdefault` are Tcl 9 (TIP 342): under an 8.6 pin they
     // must not resolve, and — the reason this matters for words that have
     // nothing to do with them — must not make `dict g` ambiguous either.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        vm.command_surface_profile().name,
         "dict",
         DICT_SUBS,
     );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, word.as_bytes(), true)
-    else {
-        return err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                word.as_bytes(),
-                true,
-                b"::tcl::dict",
-            ))
-            .into_owned(),
-        );
+    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
+        return err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+            subs,
+            &word,
+            true,
+            b"::tcl::dict",
+        ));
     };
+    if let Some(dispatch) = tcl_registry::dictionary_scope::scripted_dictionary_dispatch(
+        vm.native_invocation_dialect(),
+        subs[index],
+        &word,
+        rest.len(),
+    ) {
+        let Some(count) = dispatch.arguments() else {
+            return crate::command::native_wrong_args_bytes(vm, dispatch.usage());
+        };
+        let target = Value::from_native_string_bytes(dispatch.command().to_vec());
+        return vm.invoke_command_value_at(
+            vm.current_ns_id(),
+            &target,
+            &rest[..count],
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        );
+    }
     let invoked = vm.invoked_name().unwrap_or("dict").to_owned();
     let usage_prefix = format!("{invoked} {}", subs[index]);
     dict_op(vm, subs[index], rest, &usage_prefix)
@@ -129,33 +329,9 @@ fn member_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
 /// (`SetDictFromAny`, tclDictObj.c(9.0.4):589 → `Tcl_DictObjPut`). Decoding the
 /// list rep straight into `chunks_exact(2)` pairs instead leaves both values of
 /// a duplicate key present, so every [`lookup`] reads the *first*.
+#[cfg(test)]
 pub(crate) fn pairs(vm: &mut Vm, v: &Value) -> Result<StringPairs, Completion<Value>> {
     vm.dict_pairs(v)
-}
-
-fn from_pairs(ps: &[(String, Value)]) -> Value {
-    from_pairs_with_hash_bucket_count(ps, None)
-}
-
-fn from_pairs_with_hash_bucket_count(ps: &[(String, Value)], bucket_count: Option<usize>) -> Value {
-    let mut v = Vec::with_capacity(ps.len());
-    for (k, val) in ps {
-        v.push((Value::string(k.as_str()), val.clone()));
-    }
-    Value::dict_with_hash_bucket_count(v, bucket_count)
-}
-
-fn mutation_hash_state(
-    v: &Value,
-    owned_references: usize,
-    parent_was_copied: bool,
-) -> Result<(Option<usize>, bool), Completion<Value>> {
-    v.dict_mutation_hash_state(owned_references, parent_was_copied)
-        .map_err(|e| crate::exec::dict_parse_err(&e.message))
-}
-
-fn lookup<'a>(ps: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
-    ps.iter().find(|(k, _)| k == key).map(|(_, v)| v)
 }
 
 /// Read the dict in variable `varname`, transform the value at `key` via `f`
@@ -165,146 +341,267 @@ fn dict_update(
     vm: &mut Vm,
     varname: &Value,
     key: &Value,
-    f: impl FnOnce(Option<&Value>) -> Result<Value, String>,
+    preparation: tcl_cmd_core::native_dictionary::NativeDictionaryPreparation,
+    operation: impl FnOnce(&mut Vm, Option<&Value>) -> Result<Value, tcl_cmd_core::CmdError>,
 ) -> Completion<Value> {
-    let name = varname.to_str();
-    let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-    let (bucket_count, _) = match mutation_hash_state(&cur, 2, false) {
-        Ok(state) => state,
-        Err(c) => return c,
+    let name = match vm.native_name_operand_bytes(varname) {
+        Ok(name) => name,
+        Err(_) => {
+            return vm
+                .refuse_host_command("native dictionary variable string is unavailable".into());
+        }
     };
-    let mut ps = match pairs(vm, &cur) {
-        Ok(pairs) => pairs,
-        Err(c) => return c,
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects.with_preparation(preparation),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let k = key.to_str();
-    let newv = match f(lookup(&ps, &k)) {
-        Ok(v) => v,
-        Err(e) => return err(e),
-    };
-    upsert(&mut ps, &k, newv);
-    let result = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-    if let Err(e) = vm.set_var(&name, result.clone()) {
-        return e;
+    match vm.dictionary_variable_update_bytes(
+        &name,
+        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+        &objects,
+        |vm, prepared| {
+            tcl_cmd_core::native_dictionary::update_prepared_member(
+                &objects,
+                prepared,
+                key,
+                |member| operation(vm, member),
+            )
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+        },
+    ) {
+        Ok(result) => Completion::new(Code::Ok, result.value, result.options),
+        Err(error) => error,
     }
-    ok(result)
 }
 
-/// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
-/// dicts as needed (`dict set` with multiple keys).
-///
-/// `dict set d {*}[lrepeat 100000 k] v` inflates `keys` to arbitrary length
-/// trivially, so recursing once per key segment natively would have no depth
-/// cap. This walks with an explicit work-stack instead of one native call per
-/// key, the same pattern
-/// [`get_path`] (this file) already uses to walk a key path without native
-/// recursion at all: walk down recording each level's parsed pairs and the
-/// key being set, then rebuild bottom-up. This eliminates the native-stack
-/// risk entirely rather than just capping it, and is byte-for-byte
-/// equivalent to a naive recursive version (same `pairs`/`upsert` calls, in
-/// the same order, so error precedence is unaffected).
+fn dictionary_path_update(
+    vm: &mut Vm,
+    name: &Value,
+    keys: &[Value],
+    value: Option<Value>,
+) -> Completion<Value> {
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(name) => name,
+        Err(_) => {
+            return vm
+                .refuse_host_command("native dictionary variable string is unavailable".into());
+        }
+    };
+    match dictionary_path_update_bytes(
+        vm,
+        &name,
+        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+        keys,
+        value,
+    ) {
+        Ok(result) => Completion::new(Code::Ok, result.value, result.options),
+        Err(error) => error,
+    }
+}
+
+fn dictionary_append(
+    vm: &mut Vm,
+    name: &Value,
+    key: &Value,
+    sources: &[Value],
+) -> Completion<Value> {
+    let Some(policy) = vm
+        .native_invocation_dialect()
+        .native_dictionary_append_policy()
+    else {
+        return vm.refuse_host_command(
+            "native dictionary append primitive policy is unavailable".into(),
+        );
+    };
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(name) => name,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    match vm.dictionary_variable_update_bytes(&name,
+        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+        &objects, |vm, prepared| {
+            tcl_cmd_core::native_dictionary::update_prepared_member_if(&objects, prepared, key, |member| {
+                if member.is_some() && sources.is_empty()
+                    && policy.empty == tcl_registry::native_dictionary::NativeDictionaryEmptyAppend::StoreOnly {
+                    Ok(None)
+                } else {
+                    append_member_values(vm, member, sources).map(Some)
+                }
+            }).map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+        }) {
+        Ok(result) => Completion::new(Code::Ok, result.value, result.options),
+        Err(error) => error,
+    }
+}
+
+pub(crate) fn dictionary_path_update_bytes(
+    vm: &mut Vm,
+    name: &[u8],
+    publication: crate::interp::native_dictionary::DictionaryVariablePublication,
+    keys: &[Value],
+    value: Option<Value>,
+) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    vm.dictionary_variable_update_bytes(name, publication, &objects, |vm, prepared| {
+        match value {
+            Some(value) => {
+                tcl_cmd_core::native_dictionary::set_prepared_path(&objects, prepared, keys, value)
+            }
+            None => tcl_cmd_core::native_dictionary::remove_prepared_path(&objects, prepared, keys),
+        }
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    })
+}
+
+pub(crate) fn dictionary_member_update_bytes(
+    vm: &mut Vm,
+    name: &[u8],
+    publication: crate::interp::native_dictionary::DictionaryVariablePublication,
+    key: &Value,
+    operation: impl FnOnce(&mut Vm, Option<&Value>) -> Result<Value, tcl_cmd_core::CmdError>,
+) -> Result<tcl_runtime_api::VariableUpdateResult<Value>, Completion<Value>> {
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    vm.dictionary_variable_update_bytes(name, publication, &objects, |vm, prepared| {
+        tcl_cmd_core::native_dictionary::update_prepared_member(&objects, prepared, key, |member| {
+            operation(vm, member)
+        })
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    })
+}
+
+/// A missing compiled/implied member is a fresh integer; a generic explicit
+/// amount is validated by the copying Bignum getter and retained unchanged.
+pub(crate) fn increment_dictionary_member(
+    vm: &mut Vm,
+    original: Option<&Value>,
+    amount: &Value,
+    fresh_missing: bool,
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    let objects = crate::value_ops::VmIncrementObjects::selected(vm.native_invocation_dialect())?;
+    if original.is_none() {
+        if fresh_missing {
+            return Ok(amount.clone());
+        }
+        return tcl_cmd_core::native_increment::missing_dictionary_member(&objects, amount);
+    }
+    tcl_cmd_core::native_increment::increment(&objects, original, amount)
+}
+
+pub(crate) fn append_member_value(
+    vm: &mut Vm,
+    original: Option<&Value>,
+    source: &Value,
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    append_member_values(vm, original, std::slice::from_ref(source))
+}
+
+pub(crate) fn append_member_values(
+    vm: &mut Vm,
+    original: Option<&Value>,
+    sources: &[Value],
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    use tcl_registry::native_dictionary::NativeDictionaryMissingAppendMember;
+    let policy = vm
+        .native_invocation_dialect()
+        .native_dictionary_append_policy()
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native dictionary member append policy",
+        ))?;
+    let issued = vm
+        .native_invocation_dialect()
+        .native_object_append_protocol(None)
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native dictionary member append",
+        ))?;
+    let empty = Value::empty();
+    let receiver = if sources.is_empty()
+        || policy.missing == NativeDictionaryMissingAppendMember::FreshEmptyReceiver
+    {
+        original.or(Some(&empty))
+    } else {
+        original
+    };
+    if let tcl_registry::native_dictionary::NativeDictionaryAppendInputs::Concatenate(cat) =
+        policy.inputs
+    {
+        if sources.len() > 1 {
+            let source = tcl_cmd_core::native_cat::concatenate(
+                &crate::value::VmAppendObjects,
+                cat.recipe(),
+                sources,
+                true,
+            )?;
+            return tcl_cmd_core::native_append::append_dictionary_operands(
+                &crate::value::VmAppendObjects,
+                issued.recipe(),
+                receiver,
+                std::slice::from_ref(&source),
+            )
+            .map_err(Into::into);
+        }
+    }
+    tcl_cmd_core::native_append::append_dictionary_operands(
+        &crate::value::VmAppendObjects,
+        issued.recipe(),
+        receiver,
+        sources,
+    )
+    .map_err(Into::into)
+}
+
+pub(crate) fn lappend_member_values(
+    vm: &mut Vm,
+    original: Option<&Value>,
+    elements: &[Value],
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    let protocol = VmDictionaryObjects::selected(vm)?.string_protocol();
+    Value::native_list_append_elements(original, elements, protocol).map_err(Into::into)
+}
+
+pub(crate) fn put_original_member(
+    vm: &mut Vm,
+    current: &Value,
+    key: &Value,
+    value: Value,
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    let objects = VmDictionaryObjects::selected(vm)?;
+    tcl_cmd_core::native_dictionary::set_path(
+        &objects,
+        Some(current),
+        std::slice::from_ref(key),
+        value,
+    )
+}
+
+#[cfg(test)]
 fn set_path(
     vm: &mut Vm,
-    cur: &Value,
+    current: &Value,
     keys: &[Value],
     value: Value,
 ) -> Result<Value, Completion<Value>> {
-    let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());
-    let mut node = cur.clone();
-    let mut parent_was_copied = false;
-    for key in keys {
-        // `node` has the variable/traversal owner, the caller's root handle and
-        // this loop's handle. Extra references are Tcl-level aliases.
-        let (bucket_count, copied) = mutation_hash_state(&node, 3, parent_was_copied)?;
-        let ps = pairs(vm, &node)?;
-        let k = key.to_str().to_string();
-        let next = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
-        frames.push((ps, k, bucket_count));
-        node = next;
-        parent_was_copied = copied;
-    }
-    let mut new_value = value;
-    for (mut ps, k, bucket_count) in frames.into_iter().rev() {
-        upsert(&mut ps, &k, new_value);
-        new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-    }
-    Ok(new_value)
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let retained_input = current.clone();
+    tcl_cmd_core::native_dictionary::set_path(&objects, Some(&retained_input), keys, value)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
 }
 
-/// Remove the nested `keys` path from dict `cur` (`dict unset` with multiple
-/// keys). A missing intermediate key is a no-op, matching `dict unset`.
-///
-/// Same unbounded per-key-segment recursion hazard as [`set_path`]
-/// (`dict unset d {*}[lrepeat 100000 k]`), walked iteratively for the
-/// same reason. Walk down while each key is present, recording each level's
-/// parsed pairs and the key followed; stop early — without erroring or
-/// descending further — at the first missing intermediate key, matching
-/// `dict unset`'s no-op semantics for that case exactly (the halted level's
-/// pairs are simply re-serialised unchanged, precisely what a naive
-/// recursive version would do by falling through its `if`/`else if` with
-/// neither arm taken. The final key is removed via `retain`, matching that
-/// leaf case. Rebuild bottom-up via the recorded frames.
-fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
-    let mut frames: Vec<DictPathFrame> = Vec::with_capacity(keys.len());
-    let mut node = cur.clone();
-    let mut parent_was_copied = false;
-    let mut new_value;
-    let mut i = 0;
-    loop {
-        let (bucket_count, copied) = mutation_hash_state(&node, 3, parent_was_copied)?;
-        let ps = pairs(vm, &node)?;
-        let k = keys[i].to_str().to_string();
-        if i + 1 == keys.len() {
-            // Last key: remove it outright, regardless of whether it was
-            // present (matching `dict unset`'s leaf semantics).
-            let mut ps = ps;
-            ps.retain(|(pk, _)| pk != &k);
-            new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-            break;
-        }
-        if let Some(sub) = lookup(&ps, &k).cloned() {
-            frames.push((ps, k, bucket_count));
-            node = sub;
-            parent_was_copied = copied;
-            i += 1;
-        } else {
-            // Missing intermediate key: no-op at and below this level.
-            new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-            break;
-        }
-    }
-    for (mut ps, k, bucket_count) in frames.into_iter().rev() {
-        upsert(&mut ps, &k, new_value);
-        new_value = from_pairs_with_hash_bucket_count(&ps, bucket_count);
-    }
-    Ok(new_value)
+#[cfg(test)]
+fn unset_path(vm: &mut Vm, current: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let retained_input = current.clone();
+    tcl_cmd_core::native_dictionary::remove_path(&objects, Some(&retained_input), keys)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
 }
 
-fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
-    if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
-        slot.1 = value;
-    } else {
-        ps.push((key.to_owned(), value));
-    }
-}
-
-/// Follow the nested `keys` path into dict `cur`, returning the value at the
-/// leaf (`cur` itself when `keys` is empty). Errors if a key is absent or an
-/// intermediate value is not a dict (`dict get` / `dict with` path semantics).
-fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
-    let mut v = cur.clone();
-    for key in keys {
-        let ps = pairs(vm, &v)?;
-        let ks = key.to_str();
-        match lookup(&ps, &ks) {
-            Some(found) => v = found.clone(),
-            None => return Err(err(format!("key \"{ks}\" not known in dictionary"))),
-        }
-    }
-    Ok(v)
-}
-
-#[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<Value> {
     // Pure dict subcommands live in the shared command core; the VM is a thin
     // adapter. Only the variable-*mutating* subcommands fall through to the
@@ -315,96 +612,90 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
     // and not merely inert: a `create` arm built with a plain `Value::list` of
     // the arguments would re-introduce the duplicate-key bug these
     // subcommands must avoid, so no such arm exists here.
-    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, invoked, sub, rest) {
+    if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, invoked.as_bytes(), sub, rest) {
         return match result {
             Ok(v) => ok(v),
-            // A *value-parse* failure is re-worded to C's dict spelling and
-            // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
-            // args, unknown key) passes through unchanged.
-            Err(e) if e.error_code().is_some() => crate::command::completion_from_cmd_error(e),
-            Err(e) => crate::exec::dict_parse_err(&e.into_message()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         };
     }
     match sub {
         "set" => {
             // dict set dictVarName key ?key ...? value
             let [varname, keys @ .., value] = rest else {
-                return err("wrong # args: should be \"dict set dictVarName key ?key ...? value\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict set dictVarName key ?key ...? value\"",
+                );
             };
             if keys.is_empty() {
-                return err("wrong # args: should be \"dict set dictVarName key ?key ...? value\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict set dictVarName key ?key ...? value\"",
+                );
             }
-            let name = varname.to_str();
-            let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let result = match set_path(vm, &cur, keys, value.clone()) {
-                Ok(v) => v,
-                Err(c) => return c,
-            };
-            if let Err(e) = vm.set_var(&name, result.clone()) {
-                return e;
-            }
-            ok(result)
+            dictionary_path_update(vm, varname, keys, Some(value.clone()))
         }
         "unset" => {
             let [varname, keys @ ..] = rest else {
-                return err("wrong # args: should be \"dict unset dictVarName key ?key ...?\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict unset dictVarName key ?key ...?\"",
+                );
             };
             if keys.is_empty() {
-                return err("wrong # args: should be \"dict unset dictVarName key ?key ...?\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict unset dictVarName key ?key ...?\"",
+                );
             }
-            let name = varname.to_str();
-            let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let result = match unset_path(vm, &cur, keys) {
-                Ok(v) => v,
-                Err(c) => return c,
-            };
-            if let Err(e) = vm.set_var(&name, result.clone()) {
-                return e;
-            }
-            ok(result)
+            dictionary_path_update(vm, varname, keys, None)
         }
         "incr" => {
             let [varname, key, amt @ ..] = rest else {
-                return err("wrong # args: should be \"dict incr dictVarName key ?increment?\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict incr dictVarName key ?increment?\"",
+                );
             };
-            // The same tower addition `incr` uses (`value_ops::int_add`): a sum
-            // past `i64` promotes to `i128` and past that to an
-            // arbitrary-precision bignum, matching tclsh ( —
-            // `dict incr` at `i64::MAX` yields `9223372036854775808`, never an
-            // overflow error).
+            if amt.len() > 1 {
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict incr dictVarName key ?increment?\"",
+                );
+            }
             let one = Value::int(1);
             let inc = amt.first().unwrap_or(&one);
-            dict_update(vm, varname, key, |old| {
-                crate::value_ops::int_add(old, inc).map_err(|e| e.message())
-            })
+            dict_update(
+                vm,
+                varname,
+                key,
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::IncrementCommand,
+                |vm, old| increment_dictionary_member(vm, old, inc, amt.is_empty()),
+            )
         }
         "append" => {
             let [varname, key, strs @ ..] = rest else {
-                return err("wrong # args: should be \"dict append dictVarName key ?value ...?\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict append dictVarName key ?value ...?\"",
+                );
             };
-            dict_update(vm, varname, key, |old| {
-                let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
-                for v in strs {
-                    s.push_str(&v.to_str());
-                }
-                Ok(Value::string(s))
-            })
+            dictionary_append(vm, varname, key, strs)
         }
         "lappend" => {
             let [varname, key, vals @ ..] = rest else {
-                return err("wrong # args: should be \"dict lappend dictVarName key ?value ...?\"");
+                return crate::command::native_wrong_arguments_message(
+                    vm,
+                    "wrong # args: should be \"dict lappend dictVarName key ?value ...?\"",
+                );
             };
-            dict_update(vm, varname, key, |old| {
-                let mut items = match old {
-                    Some(v) => match v.as_list() {
-                        Ok(i) => (*i).clone(),
-                        Err(e) => return Err(e.message),
-                    },
-                    None => Vec::new(),
-                };
-                items.extend(vals.iter().cloned());
-                Ok(Value::list(items))
-            })
+            dict_update(
+                vm,
+                varname,
+                key,
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::CopyBeforeConversion,
+                |vm, old| lappend_member_values(vm, old, vals),
+            )
         }
         "for" => cmd_dict_for(vm, rest),
         "map" => cmd_dict_map(vm, rest),
@@ -414,265 +705,454 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value], invoked: &str) -> Completion<
         // Unreachable from `cmd_dict` (every `DICT_SUBS` name is handled above
         // or by the shared core); the registered `::tcl::dict::*` entry points
         // pass canonical names.
-        other => err(
-            String::from_utf8_lossy(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                DICT_SUBS,
-                other.as_bytes(),
-                true,
-                b"::tcl::dict",
-            ))
-            .into_owned(),
-        ),
+        other => err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+            DICT_SUBS,
+            other.as_bytes(),
+            true,
+            b"::tcl::dict",
+        )),
     }
 }
 
-/// `dict for {keyVar valueVar} dictionary body`.
-/// `dict with dictVarName ?key ...? body` — map the keys of the dict (at the
-/// `key` path) to like-named local variables, run `body`, then reflect the
-/// variables back into the dictionary and store it: an originally-mapped key
-/// whose variable still exists is updated, one whose variable was unset is
-/// removed, and variables the body merely created are not added. The write-back
-/// happens even when the body raises (matching C), after which the body's
-/// completion (its result on success, else the error/break/continue/return) is
-/// returned.
-fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let Some((dictvar, tail)) = rest.split_first() else {
-        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
-    };
-    let Some((body, keys)) = tail.split_last() else {
-        return err("wrong # args: should be \"dict with dictVarName ?key ...? script\"");
-    };
-    let varname = dictvar.to_str().to_string();
-    let Some(root_dict) = vm.get_var(&varname) else {
-        return err(format!("can't read \"{varname}\": no such variable"));
-    };
-    let leaf = match get_path(vm, &root_dict, keys) {
-        Ok(v) => v,
-        Err(c) => return c,
-    };
-    let leaf_pairs = match pairs(vm, &leaf) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
-    for (k, v) in &leaf_pairs {
-        if let Err(e) = vm.set_var(k, v.clone()) {
-            return e;
+fn dictionary_scope_plan(
+    vm: &mut Vm,
+    spec: tcl_registry::dictionary_scope::DictionaryScopeSpec,
+    count: usize,
+) -> Result<tcl_registry::dictionary_scope::DictionaryScopePlan, Completion<Value>> {
+    let words = vec![tcl_registry::InvocationWord::Dynamic; count];
+    match spec.select(
+        tcl_registry::InvocationArguments::structured(&words)
+            .with_dialect(vm.native_invocation_dialect()),
+        0,
+    ) {
+        tcl_registry::dictionary_scope::DictionaryScopeSelection::Selected(plan) => Ok(plan),
+        _ => Err(vm.refuse_host_command("native dictionary scope protocol is unavailable".into())),
+    }
+}
+
+fn reflect_dictionary_scope_leaf(
+    vm: &mut Vm,
+    mut leaf: crate::value::PreparedNativeDictionary,
+    mappings: &[(Value, Value)],
+) -> Result<Value, tcl_cmd_core::CmdError> {
+    for (key, variable) in mappings {
+        let name = vm.native_name_operand_bytes(variable).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "dictionary scope variable string",
+            )
+        })?;
+        match vm.read_variable_result_bytes(&name, None) {
+            Ok(value) => {
+                let value = if leaf.is_same_object(&value) {
+                    leaf.duplicate_value(&value)
+                } else {
+                    value
+                };
+                leaf.set_member(key.clone(), value)?;
+            }
+            Err(_) => {
+                if vm.refused_completion().is_some() {
+                    return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "dictionary scope target read",
+                    )
+                    .into());
+                }
+                vm.publish_swallowed_trace_error();
+                leaf.remove_member(key)?;
+            }
         }
     }
+    Ok(leaf.into_value())
+}
 
-    // These traversal handles are implementation detail. Keep only the
-    // canonical key/value snapshot needed for write-back, so re-reading the
-    // variable below observes actual Tcl aliases rather than our own handles.
-    drop(leaf);
-    drop(root_dict);
-    let outcome = vm.eval_source(&body.to_str());
+pub(crate) fn expand_dictionary_scope(
+    vm: &mut Vm,
+    dictionary: &Value,
+    path: &Value,
+) -> Result<Value, Completion<Value>> {
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let path = vm
+        .native_object_list_elements_in(path, objects.string_protocol())
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    let leaf = if path.is_empty() {
+        dictionary.clone()
+    } else {
+        tcl_cmd_core::dict::get(vm, dictionary, &path)
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+    };
+    let pairs = native_dictionary_pairs(vm, &leaf)?;
+    let keys = pairs.into_iter().map(|(key, _)| key).collect::<Vec<_>>();
+    for key in &keys {
+        let bytes = key
+            .native_string_bytes(objects.string_protocol())
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        let value = leaf
+            .with_cached_dictionary_member(&bytes, |member| member.cloned())
+            .expect("selected Dictionary cache")
+            .expect("retained Dictionary key");
+        let name = vm
+            .native_name_operand_bytes(key)
+            .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+        vm.store_var_result_bytes(&name, value)?;
+    }
+    Ok(Value::native_list_constructor(
+        keys,
+        objects.string_protocol(),
+    ))
+}
 
-    // Reflect the mapped variables back into the dictionary. Re-read the
-    // variable first (the body may have replaced it outright); if the body
-    // unset it, skip the write-back entirely (matching C).
-    if let Some(cur) = vm.get_var(&varname)
-        && let Ok((_, root_was_copied)) = mutation_hash_state(&cur, 2, false)
-        && let Ok(cur_leaf) = get_path(vm, &cur, keys)
-        && let Ok((bucket_count, _)) = mutation_hash_state(
-            &cur_leaf,
-            if keys.is_empty() { 3 } else { 2 },
-            root_was_copied,
+pub(crate) fn recombine_dictionary_scope(
+    vm: &mut Vm,
+    name: &[u8],
+    publication: crate::interp::native_dictionary::DictionaryVariablePublication,
+    path: &Value,
+    state: &Value,
+) -> Result<(), Completion<Value>> {
+    let objects = VmDictionaryObjects::selected(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?
+        .with_preparation(
+            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+        );
+    let path = vm
+        .native_object_list_elements_in(path, objects.string_protocol())
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    vm.dictionary_scope_writeback_bytes(name, publication, &objects, |vm, root| {
+        tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
+            &objects,
+            root,
+            &path,
+            |leaf| {
+                let keys = vm.native_object_list_elements_in(state, objects.string_protocol())?;
+                let mappings = keys
+                    .iter()
+                    .cloned()
+                    .map(|key| (key.clone(), key))
+                    .collect::<Vec<_>>();
+                reflect_dictionary_scope_leaf(vm, leaf, &mappings)
+            },
         )
-        && let Ok(mut new_pairs) = pairs(vm, &cur_leaf)
-    {
-        for (k, _) in &leaf_pairs {
-            match vm.get_var(k) {
-                Some(val) => upsert(&mut new_pairs, k, val),
-                None => new_pairs.retain(|(pk, _)| pk != k),
-            }
-        }
-        let new_leaf = from_pairs_with_hash_bucket_count(&new_pairs, bucket_count);
-        let new_dict = if keys.is_empty() {
-            new_leaf
-        } else {
-            match set_path(vm, &cur, keys, new_leaf) {
-                Ok(d) => d,
-                Err(c) => return c,
-            }
-        };
-        if let Err(e) = vm.set_var(&varname, new_dict) {
-            return e;
-        }
-    }
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+    })
+}
 
-    match outcome {
-        Ok(c) if c.code == Code::Ok => ok(c.result),
-        Ok(c) => c,
-        Err(e) => err(e.message),
+/// Map original dictionary keys into actual caller variables and synchronize
+/// the reached subtree according to the selected native completion policy.
+fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let Some((variable, tail)) = rest.split_first() else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
+        );
+    };
+    let Some((body, path)) = tail.split_last() else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"dict with dictVarName ?key ...? script\"",
+        );
+    };
+    let plan = match dictionary_scope_plan(
+        vm,
+        tcl_registry::dictionary_scope::DictionaryScopeSpec::With,
+        rest.len(),
+    ) {
+        Ok(plan) => plan,
+        Err(error) => return error,
+    };
+    let name = match vm.native_name_operand_bytes(variable) {
+        Ok(name) => name,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let root = match vm.read_variable_result_bytes(&name, None) {
+        Ok(root) => root,
+        Err(error) => return error,
+    };
+    let leaf = if path.is_empty() {
+        root.clone()
+    } else {
+        match tcl_cmd_core::dict::get(vm, &root, path) {
+            Ok(leaf) => leaf,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        }
+    };
+    let pairs = match native_dictionary_pairs(vm, &leaf) {
+        Ok(pairs) => pairs,
+        Err(error) => return error,
+    };
+    let mut mappings = Vec::with_capacity(pairs.len());
+    for (key, value) in pairs {
+        let written = match vm.native_name_operand_bytes(&key) {
+            Ok(name) => name,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        if let Err(error) = vm.store_var_result_bytes(&written, value) {
+            return error;
+        }
+        mappings.push((key.clone(), key));
     }
+    drop(leaf);
+    drop(root);
+    let outcome = vm.eval_value_at_level(vm.current_level(), body);
+    if let Some(refusal) = vm.refused_completion() {
+        return refusal;
+    }
+    if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
+        && outcome.code != Code::Ok
+    {
+        return outcome;
+    }
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects.with_preparation(
+            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+        ),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let publication = if objects.string_protocol().is_jim084() {
+        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName
+    } else {
+        crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell
+    };
+    let writeback =
+        vm.dictionary_scope_writeback_bytes(&name, publication, &objects, |vm, root| {
+            tcl_cmd_core::native_dictionary::transform_existing_prepared_path(
+                &objects,
+                root,
+                path,
+                |leaf| reflect_dictionary_scope_leaf(vm, leaf, &mappings),
+            )
+            .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+        });
+    if let Some(refusal) = vm.refused_completion() {
+        return refusal;
+    }
+    if let Err(mut error) = writeback {
+        if plan.writeback_failure
+            == tcl_registry::dictionary_scope::DictionaryWritebackFailure::NormalWithErrorResult
+        {
+            error.code = Code::Ok;
+        }
+        return error;
+    }
+    outcome
+}
+
+fn native_dictionary_pairs(
+    vm: &mut Vm,
+    value: &Value,
+) -> Result<Vec<(Value, Value)>, Completion<Value>> {
+    tcl_syntax::value::ValueOps::dict_pairs(vm, value)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))
+}
+
+fn native_dictionary_loop_names(
+    vm: &mut Vm,
+    vars: &Value,
+) -> Result<(std::rc::Rc<[u8]>, std::rc::Rc<[u8]>), Completion<Value>> {
+    let names = tcl_syntax::value::ValueOps::list_elements(vm, vars)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+    let [key, value] = names.as_slice() else {
+        return Err(err("must have exactly two variable names"));
+    };
+    let key = vm
+        .native_name_operand_bytes(key)
+        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+    let value = vm
+        .native_name_operand_bytes(value)
+        .map_err(|error| vm.refuse_host_command(error.to_string()))?;
+    Ok((key, value))
 }
 
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let [vars, dict, body] = rest else {
-        return err("wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"");
+    let [vars, dictionary, body] = rest else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"dict for {keyVar valueVar} dictionary script\"",
+        );
     };
-    let vnames = match vars.as_list() {
-        Ok(v) => v,
-        Err(e) => return err(e.message),
+    let (key_name, value_name) = match native_dictionary_loop_names(vm, vars) {
+        Ok(names) => names,
+        Err(error) => return error,
     };
-    let [kvar, vvar] = vnames.as_slice() else {
-        return err("must have exactly two variable names");
+    let pairs = match native_dictionary_pairs(vm, dictionary) {
+        Ok(pairs) => pairs,
+        Err(error) => return error,
     };
-    let ps = match pairs(vm, dict) {
-        Ok(p) => p,
-        Err(c) => return c,
-    };
-    let body_src = body.to_str();
-    for (k, v) in ps {
-        if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k)) {
-            return e;
+    for (key, value) in pairs {
+        if let Err(error) = vm.store_var_result_bytes(&key_name, key) {
+            return error;
         }
-        if let Err(e) = vm.set_var(&vvar.to_str(), v) {
-            return e;
+        if let Err(error) = vm.store_var_result_bytes(&value_name, value) {
+            return error;
         }
-        match vm.eval_source(&body_src) {
-            Ok(c) => match c.code {
-                Code::Ok | Code::Continue => {}
-                Code::Break => break,
-                _ => return c,
-            },
-            Err(e) => return err(e.message),
+        let completion = vm.eval_value_at_level(vm.current_level(), body);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        match completion.code {
+            Code::Ok | Code::Continue => {}
+            Code::Break => break,
+            _ => return completion,
         }
     }
     settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
-/// `dict map {keyVar valueVar} dictionary body` — like `dict for`, but collect
-/// each iteration's body result into a new dictionary keyed by the (possibly
-/// body-modified) `keyVar`. `continue` drops the pair, `break` stops, and an
-/// error/`return` propagates.
+/// Map preserves original key objects, including a key assigned by the body.
 fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let [vars, dict, body] = rest else {
-        return err(
+    let [vars, dictionary, body] = rest else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
             "wrong # args: should be \"dict map {keyVarName valueVarName} dictionary script\"",
         );
     };
-    let vnames = match vars.as_list() {
-        Ok(v) => v,
-        Err(e) => return err(e.message),
+    let (key_name, value_name) = match native_dictionary_loop_names(vm, vars) {
+        Ok(names) => names,
+        Err(error) => return error,
     };
-    let [kvar, vvar] = vnames.as_slice() else {
-        return err("must have exactly two variable names");
+    let pairs = match native_dictionary_pairs(vm, dictionary) {
+        Ok(pairs) => pairs,
+        Err(error) => return error,
     };
-    let ps = match pairs(vm, dict) {
-        Ok(p) => p,
-        Err(c) => return c,
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let (kname, vname) = (kvar.to_str(), vvar.to_str());
-    let body_src = body.to_str();
-    let mut out: Vec<(String, Value)> = Vec::new();
+    let mut output =
+        match Value::dict(Vec::new()).prepare_native_dictionary(objects.string_protocol()) {
+            Ok(output) => output,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        };
     let mut last_options = Value::empty();
-    for (k, v) in ps {
-        if let Err(e) = vm.set_var(&kname, Value::string(k.clone())) {
-            return e;
+    for (key, value) in pairs {
+        if let Err(error) = vm.store_var_result_bytes(&key_name, key) {
+            return error;
         }
-        if let Err(e) = vm.set_var(&vname, v) {
-            return e;
+        if let Err(error) = vm.store_var_result_bytes(&value_name, value) {
+            return error;
         }
-        match vm.eval_source(&body_src) {
-            Ok(c) => match c.code {
-                Code::Ok => {
-                    let key = vm.get_var(&kname).map_or(k, |kv| kv.to_str().to_string());
-                    upsert(&mut out, &key, c.result);
-                    last_options = c.options;
+        let completion = vm.eval_value_at_level(vm.current_level(), body);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        match completion.code {
+            Code::Ok => {
+                let key = match vm.read_variable_result_bytes(&key_name, None) {
+                    Ok(key) => key,
+                    Err(error) => return error,
+                };
+                if let Err(error) = output.set_member(key, completion.result) {
+                    return crate::command::completion_from_cmd_error(vm, error.into());
                 }
-                Code::Continue => last_options = c.options,
-                // `break` discards the *whole* accumulated result (C
-                // `DictMapNRCmd` drops it on TCL_BREAK), returning the empty dict
-                // — not the pairs collected before the break.
-                Code::Break => {
-                    return settle_control_options(
-                        ok(Value::empty()),
-                        ControlOptionPolicy::FRESH_SETTLED,
-                    );
-                }
-                _ => return c,
-            },
-            Err(e) => return err(e.message),
+                last_options = completion.options;
+            }
+            Code::Continue => last_options = completion.options,
+            Code::Break => {
+                return settle_control_options(
+                    ok(Value::empty()),
+                    ControlOptionPolicy::FRESH_SETTLED,
+                );
+            }
+            _ => return completion,
         }
     }
     settle_control_options(
-        Completion::new(Code::Ok, from_pairs(&out), last_options),
+        Completion::new(Code::Ok, output.into_value(), last_options),
         ControlOptionPolicy::FRESH_FORWARDED,
     )
 }
 
-/// `dict update dictVar key varName ?key varName ...? body` — expose the named
-/// keys as local variables, run `body`, then reflect the variables back into the
-/// dictionary (an unset variable removes its key). The write-back re-reads the
-/// dict variable (the body may have changed it) and runs even when the body
-/// raises, after which the body's completion is returned.
+/// Explicit original key/variable pairs surround a caller-frame body.
 fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     const USAGE: &str =
         "wrong # args: should be \"dict update dictVarName key varName ?key varName ...? script\"";
-    let [dictvar, pairs_and_body @ ..] = rest else {
-        return err(USAGE);
+    let [variable, tail @ ..] = rest else {
+        return crate::command::native_wrong_arguments_message(vm, USAGE);
     };
-    let Some((body, kv)) = pairs_and_body.split_last() else {
-        return err(USAGE);
+    let Some((body, pairs)) = tail.split_last() else {
+        return crate::command::native_wrong_arguments_message(vm, USAGE);
     };
-    if kv.is_empty() || !kv.len().is_multiple_of(2) {
-        return err(USAGE);
+    if pairs.is_empty() || !pairs.len().is_multiple_of(2) {
+        return crate::command::native_wrong_arguments_message(vm, USAGE);
     }
-    let dname = dictvar.to_str().to_string();
-    let cur = vm.get_var(&dname).unwrap_or_else(Value::empty);
-    let ps = match pairs(vm, &cur) {
-        Ok(p) => p,
-        Err(c) => return c,
+    let plan = match dictionary_scope_plan(
+        vm,
+        tcl_registry::dictionary_scope::DictionaryScopeSpec::Update,
+        rest.len(),
+    ) {
+        Ok(plan) => plan,
+        Err(error) => return error,
     };
-    // Bind each key's value to its variable (a missing key leaves it unset).
-    let mut i = 0;
-    while i + 1 < kv.len() {
-        let key = kv[i].to_str();
-        let var = kv[i + 1].to_str();
-        match lookup(&ps, &key) {
-            Some(v) => {
-                if let Err(e) = vm.set_var(&var, v.clone()) {
-                    return e;
-                }
-            }
-            None => {
-                let _ = vm.unset_one(&var, false);
-            }
-        }
-        i += 2;
-    }
-    // The initial read and decoded snapshot are command-internal handles, not
-    // Tcl-level aliases. Release them before the post-body COW decision.
-    drop(ps);
-    drop(cur);
-    let comp = match vm.eval_source(&body.to_str()) {
-        Ok(c) => c,
-        Err(e) => return err(e.message),
-    };
-    // Write-back (always, even on error): re-read the dict, apply each variable.
-    let cur2 = vm.get_var(&dname).unwrap_or_else(Value::empty);
-    if let Ok((bucket_count, _)) = mutation_hash_state(&cur2, 2, false)
-        && let Ok(mut ps2) = pairs(vm, &cur2)
+    if plan.implementation
+        != tcl_registry::dictionary_scope::DictionaryScopeImplementation::NativePrimitive
     {
-        let mut i = 0;
-        while i + 1 < kv.len() {
-            let key = kv[i].to_str().to_string();
-            let var = kv[i + 1].to_str();
-            match vm.get_var(&var) {
-                Some(v) => upsert(&mut ps2, &key, v),
-                None => ps2.retain(|(k, _)| k != &key),
-            }
-            i += 2;
-        }
-        if let Err(e) = vm.set_var(
-            &dname,
-            from_pairs_with_hash_bucket_count(&ps2, bucket_count),
-        ) {
-            return e;
-        }
+        return vm
+            .refuse_host_command("dictionary update requires its actual scripted wrapper".into());
     }
-    comp
+    let name = match vm.native_name_operand_bytes(variable) {
+        Ok(name) => name,
+        Err(error) => return vm.refuse_host_command(error.to_string()),
+    };
+    let root = match vm.read_variable_result_bytes(&name, None) {
+        Ok(root) => root,
+        Err(error) => return error,
+    };
+    let objects = match VmDictionaryObjects::selected(vm) {
+        Ok(objects) => objects.with_preparation(
+            tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::ConvertBeforeCopy,
+        ),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    if let Err(error) = vm.native_object_dict_pairs_in(&root, objects.string_protocol()) {
+        return crate::command::completion_from_cmd_error(vm, error.into());
+    }
+    let mut mappings = Vec::with_capacity(pairs.len() / 2);
+    for pair in pairs.as_chunks::<2>().0 {
+        let name = match vm.native_name_operand_bytes(&pair[1]) {
+            Ok(name) => name,
+            Err(error) => return vm.refuse_host_command(error.to_string()),
+        };
+        let selected = match tcl_cmd_core::dict::getdef(vm, &root, &pair[..1], &Value::empty()) {
+            Ok(value) => value,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let exists = match tcl_cmd_core::dict::exists(vm, &root, &pair[..1]) {
+            Ok(exists) => exists,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        };
+        let exists = match tcl_syntax::value::ValueOps::as_bool(vm, &exists) {
+            Ok(exists) => exists,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        };
+        if exists {
+            if let Err(error) = vm.store_var_result_bytes(&name, selected) {
+                return error;
+            }
+        } else {
+            let _ = vm.unset_var_bytes(&name);
+            if let Some(refusal) = vm.refused_completion() {
+                return refusal;
+            }
+        }
+        mappings.push((pair[0].clone(), pair[1].clone()));
+    }
+    drop(root);
+    let outcome = vm.eval_value_at_level(vm.current_level(), body);
+    if let Some(refusal) = vm.refused_completion() {
+        return refusal;
+    }
+    match vm.dictionary_scope_writeback_bytes(
+        &name,
+        crate::interp::native_dictionary::DictionaryVariablePublication::CommandName,
+        &objects,
+        |vm, root| {
+            reflect_dictionary_scope_leaf(vm, root, &mappings)
+                .map(Some)
+                .map_err(|error| crate::command::completion_from_cmd_error(vm, error))
+        },
+    ) {
+        Ok(()) => outcome,
+        Err(error) => error,
+    }
 }
 
 /// `dict filter dictionary script {keyVar valueVar} body` — the Family-B `script`
@@ -681,51 +1161,72 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// pair whose body result is true; the body's completion code drives the loop
 /// (OK ⇒ keep iff true; CONTINUE ⇒ skip; BREAK ⇒ stop; else ⇒ propagate).
 fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let [dict, _script, vars, body] = rest else {
-        return err(
+    let [dictionary, _script, vars, body] = rest else {
+        return crate::command::native_wrong_arguments_message(
+            vm,
             "wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"",
         );
     };
-    let ps = match pairs(vm, dict) {
-        Ok(p) => p,
-        Err(c) => return c,
+    let pairs = match native_dictionary_pairs(vm, dictionary) {
+        Ok(pairs) => pairs,
+        Err(error) => return error,
     };
-    let vnames = match vars.as_list() {
-        Ok(v) => v,
-        Err(e) => return err(e.message),
+    let (key_name, value_name) = match native_dictionary_loop_names(vm, vars) {
+        Ok(names) => names,
+        Err(error) => return error,
     };
-    let [kvar, vvar] = vnames.as_slice() else {
-        return err("must have exactly two variable names");
-    };
-    let body_src = body.to_str();
-    let mut kept: Vec<(String, Value)> = Vec::new();
-    for (k, v) in ps {
-        if let Err(e) = vm.set_var(&kvar.to_str(), Value::string(k.as_str())) {
-            return e;
+    let mut kept = Vec::new();
+    for (key, value) in pairs {
+        if let Err(error) = vm.store_var_result_bytes(&key_name, key.clone()) {
+            return error;
         }
-        if let Err(e) = vm.set_var(&vvar.to_str(), v.clone()) {
-            return e;
+        if let Err(error) = vm.store_var_result_bytes(&value_name, value.clone()) {
+            return error;
         }
-        match vm.eval_source(&body_src) {
-            Ok(c) => match c.code {
-                Code::Ok => match c.result.as_bool() {
-                    Ok(true) => kept.push((k, v)),
-                    Ok(false) => {}
-                    Err(e) => return err(e.message),
-                },
-                Code::Continue => {}
-                Code::Break => break,
-                _ => return c,
+        let completion = vm.eval_value_at_level(vm.current_level(), body);
+        if let Some(refusal) = vm.refused_completion() {
+            return refusal;
+        }
+        match completion.code {
+            Code::Ok => match tcl_syntax::value::ValueOps::as_bool(vm, &completion.result) {
+                Ok(true) => kept.push((key, value)),
+                Ok(false) => {}
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
             },
-            Err(e) => return err(e.message),
+            Code::Continue => {}
+            Code::Break => break,
+            _ => return completion,
         }
     }
-    ok(from_pairs(&kept))
+    ok(Value::dict(kept))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn host_dictionary_surface_is_independent_of_embedded_source_grammar() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        assert!(vm.set_command_surface_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+        ));
+        let result = cmd_dict(
+            &mut vm,
+            &[
+                Value::string("create"),
+                Value::string("key"),
+                Value::string("value"),
+            ],
+        );
+        assert_eq!(result.code, crate::Code::Ok);
+        assert_eq!(&*result.result.to_str(), "key value");
+        assert_eq!(
+            vm.runtime_version(),
+            tcl_dialect::DialectProfile::irules().vm_runtime_version
+        );
+    }
 
     /// A dict `Value`'s top-level `(key, value-string)` pairs.
     fn top_pairs(vm: &mut Vm, v: &Value) -> Vec<(String, String)> {
@@ -830,12 +1331,275 @@ mod tests {
         let nested_unset = unset_path(vm, &outer, &[s("a"), s("b")]).unwrap();
         assert_eq!(top_pairs(vm, &nested_unset), [("a".into(), "c 2".into())]);
 
-        // A missing intermediate key two levels deep is a no-op, not an
-        // error, and does not disturb sibling keys.
-        let nested_absent = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]).unwrap();
+        let error = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]).unwrap_err();
         assert_eq!(
-            top_pairs(vm, &nested_absent),
-            [("a".into(), "b 1 c 2".into())]
+            error.result.string_bytes().as_ref(),
+            b"key \"z\" not known in dictionary"
         );
     }
 }
+
+#[cfg(test)]
+mod native_rmw_fixture_tests {
+    use crate::interp::Vm;
+    use tcl_syntax::value::ValueOps;
+
+    fn unhex(hex: &str) -> Vec<u8> {
+        assert_eq!(hex.len() % 2, 0);
+        hex.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn dictionary_body_writeback_matches_329_complete_native_processes() {
+        let sources = include_str!("../tests/data/native_dictionary_body/cases.tsv")
+            .lines()
+            .map(|row| row.split_once('\t').unwrap())
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let engines = [
+            (
+                "tcl8.4",
+                56,
+                include_str!("../tests/data/native_dictionary_body/8.4.20.tsv"),
+            ),
+            (
+                "tcl8.5",
+                56,
+                include_str!("../tests/data/native_dictionary_body/8.5.19.tsv"),
+            ),
+            (
+                "tcl8.6",
+                55,
+                include_str!("../tests/data/native_dictionary_body/8.6.18.tsv"),
+            ),
+            (
+                "tcl9.0",
+                53,
+                include_str!("../tests/data/native_dictionary_body/9.0.4.tsv"),
+            ),
+            (
+                "tcl9.1",
+                53,
+                include_str!("../tests/data/native_dictionary_body/9.1.0.tsv"),
+            ),
+            (
+                "jim",
+                56,
+                include_str!("../tests/data/native_dictionary_body/Jim.tsv"),
+            ),
+        ];
+        let mut compared = 0;
+        for (engine, count, expected) in engines {
+            assert_eq!(expected.lines().count(), count);
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            for row in expected.lines() {
+                let mut fields = row.splitn(3, '\t');
+                let name = fields.next().unwrap();
+                let code: i64 = fields.next().unwrap().parse().unwrap();
+                let result = unhex(fields.next().unwrap());
+                let source = unhex(sources[name]);
+                let receipt_start = std::time::Instant::now();
+                tcl_test_support::oracle_row_progress("dictionary-body329", engine, name, None);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "vm-new-start",
+                    receipt_start,
+                );
+                let mut vm = Vm::new();
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "vm-new-complete",
+                    receipt_start,
+                );
+                vm.set_dialect_profile(profile);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "profile-complete",
+                    receipt_start,
+                );
+                vm.set_compiler(Box::new(
+                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                ));
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "compiler-complete",
+                    receipt_start,
+                );
+                let completion = vm
+                    .try_eval_source_bytes(&source)
+                    .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "eval-complete",
+                    receipt_start,
+                );
+                assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
+                let actual = vm.native_string_bytes(&completion.result).unwrap();
+                assert_eq!(actual.as_ref(), result.as_slice(), "{engine}/{name}");
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "assertions-complete",
+                    receipt_start,
+                );
+                drop(vm);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    "vm-drop-complete",
+                    receipt_start,
+                );
+                compared += 1;
+                tcl_test_support::oracle_row_progress(
+                    "dictionary-body329",
+                    engine,
+                    name,
+                    Some(compared),
+                );
+            }
+        }
+        assert_eq!(compared, 329);
+    }
+
+    #[test]
+    fn dictionary_command_and_local_cell_publication_match_345_complete_native_processes() {
+        const CASES: &str = include_str!("../tests/data/native_dictionary_rmw/cases.tsv");
+        let sources = CASES
+            .lines()
+            .map(|row| row.split_once('\t').unwrap())
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let engines = [
+            (
+                "tcl8.4",
+                60,
+                include_str!("../tests/data/native_dictionary_rmw/8.4.20.tsv"),
+            ),
+            (
+                "tcl8.5",
+                57,
+                include_str!("../tests/data/native_dictionary_rmw/8.5.19.tsv"),
+            ),
+            (
+                "tcl8.6",
+                56,
+                include_str!("../tests/data/native_dictionary_rmw/8.6.18.tsv"),
+            ),
+            (
+                "tcl9.0",
+                56,
+                include_str!("../tests/data/native_dictionary_rmw/9.0.4.tsv"),
+            ),
+            (
+                "tcl9.1",
+                56,
+                include_str!("../tests/data/native_dictionary_rmw/9.1.0.tsv"),
+            ),
+            (
+                "jim",
+                60,
+                include_str!("../tests/data/native_dictionary_rmw/Jim.tsv"),
+            ),
+        ];
+        let mut compared = 0;
+        for (engine, count, expected) in engines {
+            assert_eq!(expected.lines().count(), count);
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            for row in expected.lines() {
+                let mut fields = row.splitn(3, '\t');
+                let name = fields.next().unwrap();
+                let code: i64 = fields.next().unwrap().parse().unwrap();
+                let result = unhex(fields.next().unwrap());
+                let source = unhex(sources[name]);
+                let receipt_start = std::time::Instant::now();
+                tcl_test_support::oracle_row_progress("dictionary-rmw345", engine, name, None);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "vm-new-start",
+                    receipt_start,
+                );
+                let mut vm = Vm::new();
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "vm-new-complete",
+                    receipt_start,
+                );
+                vm.set_dialect_profile(profile);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "profile-complete",
+                    receipt_start,
+                );
+                vm.set_compiler(Box::new(
+                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+                ));
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "compiler-complete",
+                    receipt_start,
+                );
+                let completion = vm
+                    .try_eval_source_bytes(&source)
+                    .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "eval-complete",
+                    receipt_start,
+                );
+                assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
+                let actual = vm.native_string_bytes(&completion.result).unwrap();
+                assert_eq!(actual.as_ref(), result.as_slice(), "{engine}/{name}");
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "assertions-complete",
+                    receipt_start,
+                );
+                drop(vm);
+                tcl_test_support::oracle_phase_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    "vm-drop-complete",
+                    receipt_start,
+                );
+                compared += 1;
+                tcl_test_support::oracle_row_progress(
+                    "dictionary-rmw345",
+                    engine,
+                    name,
+                    Some(compared),
+                );
+            }
+        }
+        assert_eq!(compared, 345);
+    }
+}
+
+#[cfg(test)]
+#[path = "cmd_dict/scripted_tests.rs"]
+mod scripted_tests;

@@ -627,7 +627,8 @@ what makes the studio a *browser* of the registry as well as an editor.
 
 ### Fields that cannot round-trip
 
-Some fields hold a function pointer (`arg_role_resolver`, `const_fold`,
+Some fields hold a function pointer (`arg_role_resolver`, `arg_role_count_resolver`,
+`arg_role_layout_resolver`, `const_fold`,
 `taint_sink_gate`, …) or a reference to a **named** registry descriptor or
 constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
 `bpf_op`, `event_requires`, `event_requirement_forms`, `data_collection`,
@@ -635,10 +636,24 @@ constant (`definition_body`, `case_list`, `body_scope`, `frame_effect`,
 can observe that such a field is set, but not recover the expression — the
 constant's path — that set it.
 
+Argument-role callbacks select exactly one input contract: literal values,
+exact cardinality, or structured operands with ingress-selected options.
+The SpecTcl renderer preserves native count/layout references; the loader
+rejects unsupported Tcl count/layout bodies and conflicting contracts. It
+never invents empty operand values to invoke them.
+
 Seeding records those keys under `draft::UNRENDERABLE_KEY` (`__unrenderable`).
 The form warns about them and the renderer emits a `TODO` comment naming each
 one. **A field the studio cannot recover is never dropped silently** — the
 rendered file says what is missing.
+
+`CaseListSpec`'s SpecTcl block loader and declaration grammar expose all its
+plain fields, including `exhaustive_keyword_patterns`. That row identifies
+catch-all clauses for the shared no-match completion projection; a keyword
+pattern alone does not establish exhaustive coverage. Studio records the whole
+`case_list` descriptor as unrenderable and emits its explicit TODO because the
+form retains a Rust constant expression rather than a structured descriptor.
+It does not render a partial block or silently discard coverage information.
 
 Those fields use `FieldKind::RustExpr`: the value is a string emitted
 verbatim, so it carries its own `Some(…)` and type path. The schema's `hint`
@@ -958,6 +973,15 @@ holds); a
 cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
 the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
 on meaning changes, and the loader keeps accepting every older vocabulary.
+
+Native `CommandForm` value overrides (`return_type`, `arg_types`,
+`byte_array_effect`, `var_elements_effect`, and `safe_on_uninit`) can explicitly
+withdraw a mutating parent's guarantees. The `form_value_effects` gap records
+that the refinement DSL cannot preserve those tri-state withdrawals. The
+loader rejects these rows as semantic exclusions, and Studio marks their draft
+unrecovered instead of silently exporting the inherited parent contract.
+
+Nested `SubSubCommand::native_compilation` is deliberately excluded from pack authoring. The loader rejects `sub_subcommand NAME -native_compilation CONTRACT` as a semantic exclusion. Studio marks the nested draft incomplete and both renderers preserve an explicit omission; the SpecTcl renderer records `nested_native_compilation` in `GAPS`. Recovered names, availability and options do not establish a native worker's compiler identity.
 
 ## Publishing
 

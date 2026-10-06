@@ -1,0 +1,41 @@
+if-zero 0 1 OK
+if-zero-float 0 1 OK
+if-zero-hex 0 1 OK
+if-off 0 1 OK
+if-expression-zero 0 1 OK
+if-variable-zero 0 1 OK
+if-dead-else 0 1 OK
+if-dead-elseif 0 1 OK
+while-zero 0 1 OK
+while-expression-zero 0 1 OK
+for-zero 0 1 OK
+foreach-empty 0 1 OK
+protected-catch 0 1 {wrong # args: should be "set varName ?newValue?"}
+return-before-error 0 1 OK
+expr-premature 1 1 {syntax error in expression "+": premature end of expression}
+expr-multiple-arguments 1 1 {wrong # args: should be "expr expression"}
+expr-substituted 1 1 {syntax error in expression "+": premature end of expression}
+if-premature 1 1 {syntax error in expression "+": premature end of expression}
+while-premature 1 1 {syntax error in expression "+": premature end of expression}
+for-premature 1 1 {syntax error in expression "+": premature end of expression}
+if-error-order 1 1 {syntax error in expression "+": premature end of expression}
+while-error-order 1 1 {syntax error in expression "+": premature end of expression}
+for-error-order 1 1 {syntax error in expression "+": premature end of expression}
+catch-expression-error 0 1 {syntax error in expression "+": premature end of expression}
+command 1 1 {wrong # args: should be "set varName ?newValue?"}
+short-and 0 1 0
+short-or 0 1 1
+conditional 0 1 1
+array-index 1 1 {wrong # args: should be "incr varName ?increment?"}
+for-initial 1 1 {wrong # args: should be "incr varName ?increment?"}
+math-unknown-syntax 1 1 {syntax error in expression: "future_function(1+)"}
+math-unknown-trailing 1 1 {syntax error in expression: "future_function(1,)"}
+math-unknown-first 1 1 {syntax error in expression: "future_function([set x extra bad])"}
+math-required-extra 1 1 {too many arguments for math function}
+math-required-missing 1 1 {too few arguments for math function}
+math-nested-unknown 1 1 {syntax error in expression: "abs(unknown(1),2)"}
+math-extra-not-visited 1 1 {too many arguments for math function}
+math-second-required 1 1 {too many arguments for math function}
+error-message-before-argv 0 1 CUSTOM
+error-info-before-argv 0 1 CUSTOM
+renamed-set-error 1 {wrong # args: should be "native_set varName ?newValue?"}

@@ -1,0 +1,15 @@
+8.6|caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6|unwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6|return|{INNER {invokeStk1 r}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6|shifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}
+8.6|explicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}
+9.0|caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0|unwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0|return|{INNER {invokeStk1 r}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0|shifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.0|explicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}
+9.1|caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1|unwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1|return|{INNER {invokeStk r}} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1|shifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}
+9.1|explicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}

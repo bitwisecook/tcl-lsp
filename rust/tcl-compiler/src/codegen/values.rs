@@ -23,31 +23,167 @@
 //! reference markers.
 
 use super::format::esc;
-use super::statements::has_unescaped_subst;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 
-/// Whether `name` is a whole **bare** Tcl variable name — the run of characters
-/// a `$name` reference consumes: ASCII alphanumerics, `_`, and `:` (namespace
-/// separators). A name with any other character (`-`, `.`, `(`, `$`) is *not* a
-/// whole bare reference, so e.g. `$item-suffix` is `$item` followed by literal
-/// `-suffix`, not a variable called `item-suffix`.
-///
-/// This is the deliberately *looser* codegen-side contract recorded in
-/// `docs/design/contracts/shared-utility-contracts-rust.md`, distinct from the
-/// stricter `::`-segmented `tcl_syntax::naming::is_bare_var_name` that quick
-/// fixes use. `pub(crate)` so
-/// [`native_lowering::cells`](crate::native_lowering::cells) consumes this one
-/// rather than re-deriving the charset.
-pub(crate) fn is_bare_var_name(name: &str) -> bool {
-    !name.is_empty()
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+struct OriginalCompilerWords {
+    words: Vec<tcl_lexer::NativeWord>,
+    version: tcl_dialect::TclVersion,
+    protocol: tcl_syntax::native_string::NativeStringProtocol,
 }
 
 // Literal emission.
 
 impl CodegenCtx<'_> {
+    pub(super) fn push_native_pool_literal(&mut self, index: usize) {
+        let instruction = self.emit(
+            if index < 256 { Op::PUSH1 } else { Op::PUSH4 },
+            vec![Operand::Imm(super::bytecode_imm(index))],
+        );
+        self.instructions[instruction].push_verbatim = true;
+    }
+
+    /// Register an unchanged original C command head through its actual owner.
+    /// Authored compiler simulations and other engines supply no C cache action.
+    pub(super) fn intern_original_native_command_literal(
+        &mut self,
+        words: &[tcl_lexer::NativeWord],
+    ) -> Option<usize> {
+        let entry = self.native_entry?;
+        if entry.execution_point?.tcl_version().is_none()
+            || entry.name_protocol?.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
+        {
+            return None;
+        }
+        let selected = entry.source_string_protocol.and_then(|protocol| {
+            let captured =
+                tcl_registry::native_compiler_words::NativeCompilerWords::capture(words, protocol)
+                    .ok()?;
+            Some(
+                tcl_registry::native_command_literal::native_compiled_command_literal(
+                    entry, &captured,
+                ),
+            )
+        });
+        let Some(Ok(selected)) = selected else {
+            self.refuse_native_dependency();
+            return None;
+        };
+        let selected = selected?;
+        Some(self.intern_native_command_recipe(selected))
+    }
+
+    pub(super) fn intern_native_command_recipe(
+        &mut self,
+        selected: tcl_registry::native_command_literal::NativeCompiledCommandLiteral,
+    ) -> usize {
+        let index = self.literals.intern_native_command_bytes(
+            &selected.bytes,
+            &selected.context,
+            selected.fully_qualified,
+        );
+        if let Some(priming) = selected.priming
+            && !self.literals.prime_native_command_name(index, priming)
+        {
+            self.refuse_native_dependency();
+        }
+        if selected.hide && !self.literals.hide_native_literal(index) {
+            self.refuse_native_dependency();
+        }
+        index
+    }
+
+    /// Emit a private command name from its retained original selection.
+    /// The compiler-produced name is not parsed as a synthetic source word.
+    pub(super) fn emit_selected_native_command_name(
+        &mut self,
+        tokens: &crate::ir::CommandTokens,
+        named: &crate::command_binding::SourceNamedInvocationProof,
+    ) {
+        let Some(entry) = self.native_entry else {
+            self.push_lit_exact(named.captured_name());
+            return;
+        };
+        if entry
+            .execution_point
+            .and_then(tcl_dialect::model::DialectPoint::tcl_version)
+            .is_none()
+            || entry.name_protocol.is_none_or(|protocol| {
+                protocol.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
+            })
+        {
+            self.push_lit_exact(named.captured_name());
+            return;
+        }
+        if tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.admitted_named_invocation())
+            != Some(named)
+            || crate::registry_invocation::native_compiler_replay_source(
+                tokens,
+                &named.compilation_site,
+            )
+            .is_none()
+        {
+            self.refuse_native_dependency();
+            self.push_lit_exact(named.captured_name());
+            return;
+        }
+        let selected = if let Some(required) = &named.compiler_prerequisite {
+            let namespace = entry
+                .namespaces
+                .iter()
+                .find(|namespace| namespace.token == entry.current_namespace);
+            match (entry.execution_point, entry.name_protocol, namespace) {
+                (Some(point), Some(protocol), Some(namespace)) => tcl_registry::native_command_literal::native_compiled_selected_command_name_literal_from_lookup(
+                    point, protocol, tcl_runtime_api::native_command_name::NativeLiteralContext {
+                        interpreter: entry.interpreter,
+                        namespace_token: entry.current_namespace,
+                        entry_epoch: entry.epoch,
+                        namespace_path: namespace.path.clone(),
+                    }, named.captured_name().as_bytes(), required.as_ref().clone(),
+                ),
+                _ => Err(tcl_registry::native_command_literal::NativeCommandLiteralUnavailable::Context),
+            }
+        } else {
+            tcl_registry::native_command_literal::native_compiled_command_name_literal(
+                entry,
+                named.captured_name().as_bytes(),
+            )
+        };
+        if let Ok(selected) = selected {
+            let index = self.intern_native_command_recipe(selected);
+            self.push_native_pool_literal(index);
+        } else {
+            self.refuse_native_dependency();
+            self.push_lit_exact(named.captured_name());
+        }
+    }
+
+    /// Emit the original head only when the caller kept its original operand.
+    /// Derived private worker names require their own compiler recipe.
+    pub(super) fn try_emit_original_command_head(&mut self, value: &str) -> bool {
+        if self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.argv_texts.first())
+            .is_none_or(|original| original != value)
+        {
+            return false;
+        }
+        let Some(original) = self.original_compiler_words() else {
+            return false;
+        };
+        if let Some(index) = self.intern_original_native_command_literal(&original.words) {
+            self.push_native_pool_literal(index);
+        } else if let Some(head) = original.words.first() {
+            self.emit_original_native_word(head);
+        } else {
+            return false;
+        }
+        true
+    }
+
     /// Registry-owned constant command-substitution folds and the two `list`
     /// inlinings that sit beside them — one copy, shared by both value
     /// emitters.
@@ -70,15 +206,40 @@ impl CodegenCtx<'_> {
         if self.plain_command_dispatch {
             return false;
         }
+        // Actual native folds require this value's unchanged original bracket
+        // operand, not a representative string rebuilt as a new source image.
+        if let Some(entry) = self.native_entry {
+            let Some(words) = self.original_constant_command_words(value) else {
+                return false;
+            };
+            if let Ok(crate::native_byte_compilation::NativeByteCommandPlan::Registered(selected)) =
+                crate::native_byte_compilation::native_byte_command_plan(
+                    &words,
+                    entry,
+                    self.registry,
+                    self.native_compilation,
+                )
+                && selected.spec.grammar
+                    == tcl_registry::native_compilation::NativeCompilationGrammar::ArgumentList
+            {
+                self.emit_native_words(&words);
+                return true;
+            }
+        }
         let fold = value
             .strip_prefix('[')
             .and_then(|inner| inner.strip_suffix(']'))
             .and_then(|inner| {
                 let trusts = |name: &str| self.trusts_builtin(name);
                 let lookup = |_name: &str| None;
+                let namespace = self.resolution_namespace()?;
                 crate::const_subst::ConstSubstCtx {
                     registry: self.registry,
-                    resolution_namespace: self.resolution_namespace(),
+                    resolution_namespace: namespace,
+                    namespace_context: self
+                        .invocation_tokens
+                        .as_deref()
+                        .and_then(crate::registry_invocation::compiled_namespace_context),
                     version: self
                         .dialect
                         .and_then(tcl_dialect::DialectProfile::const_fold_version),
@@ -128,6 +289,32 @@ impl CodegenCtx<'_> {
             return true;
         }
         false
+    }
+    /// Select one retained bare bracket word whose source spelling is unchanged.
+    /// Its arena owns the nested body range in the original source image.
+    fn original_constant_command_words(&self, value: &str) -> Option<Vec<tcl_lexer::NativeWord>> {
+        let original = self.original_compiler_words()?;
+        let mut matches = original.words.iter().filter(|word| {
+            word.group().kind == tcl_lexer::WordKind::Bare
+                && word.image().bytes().get(word.span().as_range()) == Some(value.as_bytes())
+        });
+        let word = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        let arena = word.executable_parts();
+        let [part] = arena.list(arena.root()) else {
+            return None;
+        };
+        let tcl_lexer::ExecutablePart::Command { body } = &part.part else {
+            return None;
+        };
+        let plan =
+            tcl_lexer::native_script_words_in(arena.image().clone(), *body, word.config()).ok()?;
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return None;
+        }
+        Some(plan.commands.into_iter().next()?.words)
     }
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
@@ -191,6 +378,24 @@ impl CodegenCtx<'_> {
             &format!("\"{}\"", esc(value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+    }
+
+    /// Push an already decoded native byte string without substitution.
+    pub fn push_lit_bytes_exact(&mut self, value: &[u8]) {
+        let idx = self.literals.intern_bytes(value);
+        let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
+        let pos = self.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(idx))],
+            &format!("\"{}\"", tcl_bytecode::format::esc_bytes(value, 40)),
+        );
+        self.instructions[pos].push_verbatim = true;
+    }
+
+    /// Decode an authored literal fragment with the actual native escape policy.
+    pub fn push_decoded_literal(&mut self, source: &str) {
+        let bytes = tcl_lexer::backslash_subst_bytes_in(source.as_bytes(), self.escapes);
+        self.push_lit_bytes_exact(&bytes);
     }
 
     /// Push a word's **finished value** — text every word-level rule has
@@ -312,27 +517,13 @@ pub fn is_array_ref(name: &str) -> bool {
     split_array_ref(name).is_some()
 }
 
-/// Return `true` for namespace-qualified variable names (`::foo`).
+/// Whether a resolved variable's scalar or array base is namespace-qualified.
 #[must_use]
 pub fn is_qualified(name: &str) -> bool {
-    name.starts_with("::")
-}
-
-/// True when a store/load needs the name/key pushed onto the stack
-/// first (i.e. uses `*Stk` instructions).
-///
-/// `compiles_locals` is [`CodegenCtx::compiles_locals`], not
-/// [`CodegenCtx::is_proc`]: a name inside a folded same-frame `eval` body is
-/// not a compiled local even though the enclosing function is a proc.
-#[must_use]
-pub fn needs_stk_var_ref(name: &str, compiles_locals: bool) -> bool {
-    if !compiles_locals {
-        return true;
-    }
-    if is_qualified(name) {
-        return true;
-    }
-    is_array_ref(name)
+    let original = name.as_bytes();
+    let base =
+        tcl_syntax::naming::split_element_ref_bytes(original).map_or(original, |(base, _)| base);
+    tcl_syntax::naming::is_qualified(base)
 }
 
 // Variable load/store.
@@ -349,132 +540,189 @@ impl CodegenCtx<'_> {
     /// unexpanded and the element lookup fails. A pure literal key is pushed
     /// verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
-        if let Some(inner) = parse_simple_var_ref(elem, self.braced_var) {
-            // Whole braced variable reference: `${var}`.
-            //
-            // Resolved through the same release-aware decoder as every other
-            // `${…}` consumer. Hand-rolling the scan here —
-            // `strip_suffix('}')` plus a
-            // `.filter(|inner| !inner.contains(['{', '}']))` guard — would be
-            // another copy of the close rule, and it gets two shapes wrong:
-            //
-            //   set {a\}b} K; set arr(K) V; puts $arr(${a\}b})
-            //   set {a\{b} K; set arr(K) V; puts $arr(${a\{b})
-            //
-            // A whole `${…}` key containing a backslash falls past such a
-            // guard (which rejects any brace in the name), past the bare-`$`
-            // arm, and past the composite arm (one part, not >1), landing in
-            // the trailing `elem.contains('\\')` literal arm — which runs
-            // `backslash_subst_in` over the *whole* `${…}` spelling. Inside
-            // `${}` the name is literal in C, so that decodes escapes that
-            // must stay verbatim: the first vector fails at 9.x and the
-            // second at **every** release. Composite keys (`x${a\}b}`) are
-            // unaffected.
-            self.load_var(inner);
-        } else if let Some(var) = elem.strip_prefix('$').filter(|v| is_bare_var_name(v)) {
-            // Whole bare variable reference: `$var` (the name runs to the end).
-            self.load_var(var);
-        } else if has_unescaped_subst(elem)
-            && let Some(parts) =
-                super::helpers::parse_subst_template(elem, self.escapes, self.braced_var)
-            && parts.len() > 1
-        {
-            // Composite key with an embedded substitution (`-$opt`, `x$item`,
-            // `${item}suf`, `$a([f])`): build the index string at compile time
-            // by concatenating the decoded parts. The runtime `subst_word`
-            // fallback only resolves a *normalised* `${name}`, so a bare `$item`
-            // inside the index would otherwise never expand.
-            for part in &parts {
-                match part {
-                    // Already decoded by the template parser, so byte-exact —
-                    // see the finished-key arms below.
-                    super::helpers::SubstPart::Lit(text) => self.push_lit_exact(text),
-                    super::helpers::SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
-                    super::helpers::SubstPart::Var(name) => self.load_var(name),
-                }
-            }
-            self.emit(
-                Op::STR_CONCAT1,
-                vec![Operand::Imm(
-                    i32::try_from(parts.len()).expect("array-key part count fits in i32"),
-                )],
-            );
-        } else if has_unescaped_subst(elem) {
-            // A live `$` / `[` the template parser left whole (`a([f])`): only
-            // the VM’s runtime word substitution can resolve it, so this is the
-            // one key shape that still goes out through the substituting push.
-            self.push_lit(elem);
-        } else if elem.contains('\\') {
-            // Pure literal key carrying backslash escapes (`be(\w\w)`,
-            // `be(a\ a)`): a non-braced array index is an ordinary Tcl word, so
-            // its escapes are decoded (`\w` → `w`, `\ ` → space) before the
-            // element lookup — matching C Tcl. (Braced keys like `set {a($x)} 1`
-            // never reach here; `push_var_ref` pushes those literally.)
-            self.push_lit_exact(&tcl_lexer::backslash_subst_in(elem, self.escapes));
-        } else {
-            // Pure literal key: finished here, so it is pushed byte-exactly for
-            // the same reason a resolved *name* is (see `push_var_ref`) — the
-            // VM must not substitute it a second time. An index is not a word:
-            // a brace in it is an ordinary key byte, so `subst_word` would strip
-            // it and read the wrong element. tclsh 8.4.20 / 8.5.19 / 8.6.16 all
-            // agree, and the store side already resolves the key this way:
-            //
-            // ```text
-            // set a({a}) BRACED ; set b(\{a\}) ESCBRACE
-            // array names a -> {a} ; array names b -> {a}
-            // set v $b(\{a\}) -> ESCBRACE   (a substituting push read `b(a)`)
-            // ```
-            self.push_lit_exact(elem);
-        }
+        let image =
+            tcl_lexer::SourceImage::from_bytes(elem.as_bytes().to_vec(), self.source.channel());
+        let extent = tcl_lexer::Span::new(
+            0,
+            u32::try_from(elem.len()).expect("array index fits source coordinates"),
+        );
+        let arena = tcl_lexer::word_parts::ExecutablePartArena::decompose(
+            image,
+            extent,
+            tcl_lexer::word_parts::SubstFlags::default(),
+            self.lexer_config(),
+        )
+        .expect("the complete original array index has valid geometry");
+        self.emit_executable_arena(&arena);
     }
 
-    /// Emit load instructions for a variable reference.
-    ///
-    /// Proc context uses LVT-based opcodes; top-level uses stack-based.
-    /// Array references are decomposed into base + element.
-    pub fn load_var(&mut self, name: &str) {
-        if self.compiles_locals() && !is_qualified(name) {
-            if let Some((base, elem)) = split_array_ref(name) {
-                let slot = self.lvt.intern(base);
-                self.push_array_key(elem);
-                self.emit_comment(
-                    Op::LOAD_ARRAY1,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{base}\""),
-                );
-            } else {
-                let slot = self.lvt.intern(name);
-                let op = if slot < 256 {
+    /// Emit exactly one original variable operand, using its actual grammar.
+    /// A braced parenthesised name selects an element with a finished key;
+    /// only a bare index is evaluated as source. Declining emits nothing.
+    pub(crate) fn emit_variable_reference(&mut self, spelling: &str) -> bool {
+        let Some(_) =
+            tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), self.lexer_config())
+                .ok()
+                .flatten()
+        else {
+            return false;
+        };
+        let image =
+            tcl_lexer::SourceImage::from_bytes(spelling.as_bytes().to_vec(), self.source.channel());
+        let arena = tcl_lexer::word_parts::ExecutablePartArena::decompose(
+            image,
+            tcl_lexer::Span::new(
+                0,
+                u32::try_from(spelling.len()).expect("variable reference fits source coordinates"),
+            ),
+            tcl_lexer::word_parts::SubstFlags::default(),
+            self.lexer_config(),
+        )
+        .expect("the complete original reference has valid geometry");
+        self.emit_executable_arena(&arena);
+        true
+    }
+
+    /// Prepare one original variable component and return its selected load.
+    /// Array source components evaluate their index separately. A single
+    /// parenthesised component remains one complete name and only borrows an
+    /// already existing slot for that complete name.
+    pub(super) fn prepare_original_variable_load(
+        &mut self,
+        original: &[u8],
+        source_index: bool,
+    ) -> (Op, Vec<Operand>) {
+        use tcl_syntax::naming::NativeCompiledVariableLookup;
+
+        let lookup = self.compiled_variable_protocol.map_or(
+            NativeCompiledVariableLookup::DynamicName,
+            |protocol| {
+                protocol.substitution_lookup(
+                    original,
+                    !source_index,
+                    self.source_variable_environment(),
+                )
+            },
+        );
+        let slot = self.select_native_variable_slot(original, lookup);
+        if let Some(slot) = slot {
+            (
+                if source_index && slot < 256 {
+                    Op::LOAD_ARRAY1
+                } else if source_index {
+                    Op::LOAD_ARRAY4
+                } else if slot < 256 {
                     Op::LOAD_SCALAR1
                 } else {
                     Op::LOAD_SCALAR4
-                };
-                self.emit_comment(
-                    op,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{name}\""),
-                );
-            }
+                },
+                vec![Operand::Imm(bytecode_imm(slot))],
+            )
         } else {
-            // The name is already *resolved* (`parse_simple_var_ref` /
-            // `SubstPart::Var` hand this method a variable name, never a word),
-            // so it goes out verbatim for the same reason a store name does:
-            // the VM must not word-substitute a name a second time and strip
-            // its outer braces — `set {{}} Z; puts ${{}}` reads the variable
-            // `{}` on tclsh 9.0.4 / 9.1, and substituting again reports
-            // `can't read ""`. Only the element key still substitutes.
-            //
-            // Byte-exact, not `push_lit_verbatim`: a resolved name is not a
-            // braced *word*, so its `\<newline>` bytes are name content and
-            // must not collapse — see `push_lit_exact`.
-            if let Some((base, elem)) = split_array_ref(name) {
-                self.push_lit_exact(base);
-                self.push_array_key(elem);
-                self.emit(Op::LOAD_ARRAY_STK, vec![]);
-            } else {
-                self.push_lit_exact(name);
-                self.emit(Op::LOAD_STK, vec![]);
+            self.push_lit_bytes_exact(original);
+            (
+                if source_index {
+                    Op::LOAD_ARRAY_STK
+                } else {
+                    Op::LOAD_STK
+                },
+                vec![],
+            )
+        }
+    }
+
+    /// Resolve a command's finished scalar name or array base through the
+    /// selected compiler, retaining the receipt when borrowing a frame layout.
+    pub(super) fn command_variable_slot(&mut self, original: &[u8]) -> Option<usize> {
+        let lookup = self.compiled_variable_protocol.map_or(
+            tcl_syntax::naming::NativeCompiledVariableLookup::DynamicName,
+            |protocol| protocol.command_lookup(original, self.source_variable_environment()),
+        );
+        self.select_native_variable_slot(original, lookup)
+    }
+
+    fn select_native_variable_slot(
+        &mut self,
+        original: &[u8],
+        lookup: tcl_syntax::naming::NativeCompiledVariableLookup,
+    ) -> Option<usize> {
+        use tcl_syntax::naming::NativeCompiledVariableLookup;
+        let protocol = self.compiled_variable_protocol?;
+        let slot = match lookup {
+            NativeCompiledVariableLookup::DynamicName => None,
+            NativeCompiledVariableLookup::CreateLocal => {
+                Some(self.lvt.intern_native(protocol, original))
             }
+            NativeCompiledVariableLookup::ExistingLocalOnly => {
+                self.lvt.find_native(protocol, original)
+            }
+        };
+        if slot.is_some()
+            && self.source_variable_environment()
+                == tcl_syntax::naming::NativeCompiledVariableEnvironment::BorrowFrameSlots
+        {
+            self.required_compiled_local_layout
+                .clone_from(&self.borrowed_local_layout);
+        }
+        slot
+    }
+
+    /// Prepare the target slot before emitting the right-hand side, so source
+    /// local allocation follows the native command's operand order.
+    pub(super) fn target_needs_stack(&mut self, name: &str) -> bool {
+        let (base, index) = split_array_ref(name).map_or((name, false), |(base, _)| (base, true));
+        self.command_variable_slot(base.as_bytes()).is_none() || index
+    }
+
+    /// Read a resolved name whose element key retains the legacy source policy.
+    /// Original word and expression operands use `emit_variable_reference`.
+    pub fn load_var(&mut self, name: &str) {
+        if let Some((base, key)) = split_array_ref(name) {
+            self.load_array_element(base, key, true);
+        } else if let Some(slot) = self.command_variable_slot(name.as_bytes()) {
+            let op = if slot < 256 {
+                Op::LOAD_SCALAR1
+            } else {
+                Op::LOAD_SCALAR4
+            };
+            self.emit_comment(
+                op,
+                vec![Operand::Imm(bytecode_imm(slot))],
+                &format!("var \"{name}\""),
+            );
+        } else {
+            self.push_lit_exact(name);
+            self.emit(Op::LOAD_STK, vec![]);
+        }
+    }
+
+    /// A decoded braced name's key is data, including dollars and backslashes.
+    pub(crate) fn load_literal_element(&mut self, base: &str, key: &str) {
+        self.load_array_element(base, key, false);
+    }
+
+    fn load_array_element(&mut self, base: &str, key: &str, substitute_key: bool) {
+        let slot = self.command_variable_slot(base.as_bytes());
+        if slot.is_none() {
+            self.push_lit_exact(base);
+        }
+        if substitute_key {
+            self.push_array_key(key);
+        } else {
+            self.push_lit_exact(key);
+        }
+        if let Some(slot) = slot {
+            self.emit_comment(
+                if slot < 256 {
+                    Op::LOAD_ARRAY1
+                } else {
+                    Op::LOAD_ARRAY4
+                },
+                vec![Operand::Imm(bytecode_imm(slot))],
+                &format!("var \"{base}\""),
+            );
+        } else {
+            self.emit(Op::LOAD_ARRAY_STK, vec![]);
         }
     }
 
@@ -484,210 +732,295 @@ impl CodegenCtx<'_> {
     /// `storeScalar1`/`storeArray1`.  For top-level, caller must have
     /// pushed name (and key for arrays) before the value.
     pub fn store_var(&mut self, name: &str) {
-        if self.compiles_locals() && !is_qualified(name) {
-            if let Some((base, _elem)) = split_array_ref(name) {
-                let slot = self.lvt.intern(base);
-                self.emit_comment(
-                    Op::STORE_ARRAY1,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{base}\""),
-                );
-            } else {
-                let slot = self.lvt.intern(name);
-                let op = if slot < 256 {
-                    Op::STORE_SCALAR1
-                } else {
-                    Op::STORE_SCALAR4
-                };
-                self.emit_comment(
-                    op,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{name}\""),
-                );
-            }
-        } else if is_array_ref(name) {
-            self.emit(Op::STORE_ARRAY_STK, vec![]);
+        let (base, array) = split_array_ref(name).map_or((name, false), |(base, _)| (base, true));
+        if let Some(slot) = self.command_variable_slot(base.as_bytes()) {
+            let op = match (array, slot < 256) {
+                (true, true) => Op::STORE_ARRAY1,
+                (true, false) => Op::STORE_ARRAY4,
+                (false, true) => Op::STORE_SCALAR1,
+                (false, false) => Op::STORE_SCALAR4,
+            };
+            self.emit_comment(
+                op,
+                vec![Operand::Imm(bytecode_imm(slot))],
+                &format!("var \"{base}\""),
+            );
         } else {
-            self.emit(Op::STORE_STK, vec![]);
+            self.emit(
+                if array {
+                    Op::STORE_ARRAY_STK
+                } else {
+                    Op::STORE_STK
+                },
+                vec![],
+            );
         }
+    }
+
+    /// Retain original lexical operands from their source owner. Original
+    /// compiler rules use the physical entry; source values use their separate
+    /// issuer. Unlocated/derived IR cannot manufacture lexical words.
+    fn original_compiler_words(&self) -> Option<OriginalCompilerWords> {
+        let tokens = self.invocation_tokens.as_deref()?;
+        if tokens.synthetic.is_some()
+            || tokens.words().is_empty()
+            || tokens
+                .words()
+                .iter()
+                .any(|word| word.source().provenance != crate::ir::Provenance::Source)
+        {
+            return None;
+        }
+        let version = if let Some(entry) = self.native_entry {
+            entry.execution_point?.tcl_version()?
+        } else if let Some(binding) = tokens.source_binding.as_ref() {
+            binding.native_compiler_dialect()?.tcl_version?
+        } else {
+            crate::environment_ingress::authoring_invocation_dialect(
+                self.registry,
+                self.dialect,
+                self.lexer_config(),
+            )
+            .tcl_version?
+        };
+        let protocol = self.source_string_protocol?;
+        if self
+            .native_entry
+            .is_some_and(|entry| entry.source_string_protocol != Some(protocol))
+        {
+            return None;
+        }
+        let image = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+            .map_or_else(
+                || self.source_image().clone(),
+                |site| site.source.source_image().clone(),
+            );
+        let span = tcl_lexer::Span::new(
+            tokens.words().first()?.source().span.start(),
+            tokens.words().last()?.source().span.end(),
+        );
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            span,
+            tokens.native_lexer_config(self.lexer_config()),
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
+            return None;
+        }
+        let words = plan.commands.into_iter().next()?.words;
+        if words.len() != tokens.words().len()
+            || words
+                .iter()
+                .zip(tokens.words())
+                .any(|(original, word)| original.span() != word.source().span)
+        {
+            return None;
+        }
+        Some(OriginalCompilerWords {
+            words,
+            version,
+            protocol,
+        })
+    }
+
+    /// Project only this operand's original C variable compiler layout. A
+    /// synthetic/captured operand without a unique written slot stays unknown.
+    pub(super) fn original_variable_operand(
+        &self,
+        word: &crate::ir::WordExpr,
+    ) -> Option<tcl_syntax::native_variable_words::NativeVariableWordOperand> {
+        let original = self.original_compiler_words()?;
+        let mut matches = original
+            .words
+            .iter()
+            .filter(|original| original.span() == word.source().span);
+        let selected = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        tcl_syntax::native_variable_words::native_variable_word(
+            selected,
+            original.version,
+            original.protocol,
+        )
+        .ok()
+    }
+
+    /// A literal scalar operand alone can use a compiler local slot. Source
+    /// array and computed words retain their own stack evaluation. Hand-built
+    /// authoring contexts keep their distinct checked compatibility projection.
+    pub(super) fn original_scalar_operand_slot(
+        &mut self,
+        word: &crate::ir::WordExpr,
+    ) -> Option<usize> {
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+        let name = match self.original_variable_operand(word) {
+            Some(NativeVariableWordOperand::Literal {
+                name, index: None, ..
+            }) => name,
+            None if self.native_entry.is_none()
+                && self
+                    .invocation_tokens
+                    .as_deref()
+                    .is_none_or(|tokens| tokens.source_binding.is_none()) =>
+            {
+                crate::registry_invocation::compiled_local_name_value(
+                    word,
+                    self.escapes,
+                    self.word_rules,
+                )?
+                .into_bytes()
+            }
+            Some(_) | None => return None,
+        };
+        self.command_variable_slot(&name)
+    }
+
+    /// Both typed and inline increments consume one original operand layout.
+    /// Registration/admission is established by the caller, independently.
+    pub(super) fn try_emit_original_increment(&mut self) -> bool {
+        use tcl_registry::native_compiler_words::NativeCompilerWords;
+        use tcl_syntax::native_variable_words::{NativeVariableWordOperand, native_variable_word};
+        let Some(original) = self.original_compiler_words() else {
+            if self.native_entry.is_some() {
+                self.refuse_native_dependency();
+            }
+            return false;
+        };
+        if !matches!(original.words.len(), 2 | 3) {
+            return false;
+        }
+        let Ok(view) = NativeCompilerWords::capture(&original.words, original.protocol) else {
+            self.refuse_native_dependency();
+            return false;
+        };
+        let Ok(target) =
+            native_variable_word(&original.words[1], original.version, original.protocol)
+        else {
+            self.refuse_native_dependency();
+            return false;
+        };
+        let (slot, array) = match target {
+            NativeVariableWordOperand::Literal { name, index, .. } => {
+                let slot = self.command_variable_slot(&name).filter(|slot| *slot < 256);
+                if slot.is_none() {
+                    self.push_lit_bytes_exact(&name);
+                }
+                let array = index.is_some();
+                if let Some(index) = index {
+                    self.push_lit_bytes_exact(&index);
+                }
+                (slot, array)
+            }
+            NativeVariableWordOperand::CompoundArray { name, index, .. } => {
+                let slot = self.command_variable_slot(&name).filter(|slot| *slot < 256);
+                if slot.is_none() {
+                    self.push_lit_bytes_exact(&name);
+                }
+                self.emit_executable_arena(&index);
+                (slot, true)
+            }
+            NativeVariableWordOperand::DynamicWord => {
+                self.emit_original_native_word(&original.words[1]);
+                (None, false)
+            }
+        };
+        let amount = original.words.get(2);
+        let immediate = amount.map_or(Some(1), |_| view.increment_immediate(2, original.version));
+        if immediate.is_none() {
+            self.emit_original_native_word(amount.expect("non-immediate original amount"));
+        }
+        self.finish_increment(slot, array, immediate);
+        true
+    }
+
+    fn finish_increment(&mut self, slot: Option<usize>, array: bool, immediate: Option<i32>) {
+        let op = match (array, slot.is_some(), immediate.is_some()) {
+            (false, true, true) => Op::INCR_SCALAR1_IMM,
+            (false, true, false) => Op::INCR_SCALAR1,
+            (true, true, true) => Op::INCR_ARRAY1_IMM,
+            (true, true, false) => Op::INCR_ARRAY1,
+            (false, false, true) => Op::INCR_STK_IMM,
+            (false, false, false) => Op::INCR_STK,
+            (true, false, true) => Op::INCR_ARRAY_STK_IMM,
+            (true, false, false) => Op::INCR_ARRAY_STK,
+        };
+        let mut operands = Vec::new();
+        if let Some(slot) = slot {
+            operands.push(Operand::Imm(bytecode_imm(slot)));
+        }
+        if let Some(immediate) = immediate {
+            operands.push(Operand::Imm(immediate));
+        }
+        self.emit(op, operands);
     }
 
     /// Emit incr bytecode, leaving the new value on TOS.
     ///
-    /// Handles literal amounts (immediate or pushed), and variable
-    /// amounts (load + incr).  For non-proc contexts, falls back to
-    /// `invokeStk` when the amount is large or complex.
+    /// Evaluate the original amount once and select the native scalar/array
+    /// instruction family. One-byte local operands use dynamic lookup when the
+    /// selected slot exceeds the native instruction's index extent.
     ///
     /// `name` is a [resolved store name](CodegenCtx::store_target) and
     /// `key_is_literal` its element-key half — the same contract
     /// [`push_var_ref`](CodegenCtx::push_var_ref) documents, so a name the
     /// compiler already resolved is never word-substituted again by the VM.
     pub fn emit_incr(&mut self, name: &str, key_is_literal: bool, amount: Option<&str>) {
-        if self.compiles_locals() && !is_qualified(name) {
-            self.emit_incr_local(name, amount);
-        } else {
-            self.emit_incr_global_or_array(name, key_is_literal, amount);
+        if self.try_emit_original_increment() {
+            return;
         }
-    }
-
-    /// `incr` against a local proc slot (LVT).
-    fn emit_incr_local(&mut self, name: &str, amount: Option<&str>) {
-        let slot = self.lvt.intern(name);
-        match amount {
-            None => {
-                self.emit_comment(
-                    Op::INCR_SCALAR1_IMM,
-                    vec![Operand::Imm(bytecode_imm(slot)), Operand::Imm(1)],
-                    &format!("var \"{name}\""),
-                );
-            }
-            Some(amt) if is_integer_literal(amt) => {
-                if let Some(imm) = self.parse_int_operand(amt) {
-                    if (-128..=127).contains(&imm) {
-                        self.emit_comment(
-                            Op::INCR_SCALAR1_IMM,
-                            vec![
-                                Operand::Imm(bytecode_imm(slot)),
-                                Operand::Imm(
-                                    i32::try_from(imm)
-                                        .expect("incr literal fits in i32 after range check"),
-                                ),
-                            ],
-                            &format!("var \"{name}\""),
-                        );
-                    } else {
-                        self.push_lit(amt);
-                        self.emit_comment(
-                            Op::INCR_SCALAR1,
-                            vec![Operand::Imm(bytecode_imm(slot))],
-                            &format!("var \"{name}\""),
-                        );
-                    }
-                } else {
-                    // Overflow — fall back to push + incr
-                    self.push_lit(amt);
-                    self.emit_comment(
-                        Op::INCR_SCALAR1,
-                        vec![Operand::Imm(bytecode_imm(slot))],
-                        &format!("var \"{name}\""),
-                    );
-                }
-            }
-            Some(amt) => {
-                // Variable amount — try to resolve as ${var} reference
-                let var_ref = parse_simple_var_ref(amt, self.braced_var);
-                self.load_var(var_ref.unwrap_or(amt));
-                self.emit_comment(
-                    Op::INCR_SCALAR1,
-                    vec![Operand::Imm(bytecode_imm(slot))],
-                    &format!("var \"{name}\""),
-                );
-            }
+        // Authored, already-evaluated IR compatibility does not attest original
+        // token shapes or an actual native compiler entry.
+        let (base, key) =
+            split_array_ref(name).map_or((name, None), |(base, key)| (base, Some(key)));
+        // C's increment instructions have one-byte local operands. The
+        // compiler still allocates a large slot before choosing its stack form.
+        let slot = self
+            .command_variable_slot(base.as_bytes())
+            .filter(|slot| *slot < 256);
+        if slot.is_none() {
+            self.push_lit_exact(base);
         }
-    }
-
-    /// Push the `incr` target's name halves. A resolved name / array base is a
-    /// finished literal and goes out verbatim (see
-    /// [`push_var_ref`](CodegenCtx::push_var_ref)); an element key keeps the
-    /// substituting `push_lit` path until `key_is_literal` says it is finished
-    /// too.
-    fn push_incr_target(&mut self, name: &str, key_is_literal: bool) {
-        match split_array_ref(name) {
-            Some((base, elem)) => {
-                self.push_lit_exact(base);
-                if key_is_literal {
-                    self.push_lit_exact(elem);
-                } else {
-                    self.push_lit(elem);
-                }
-            }
-            None => self.push_lit_exact(name),
-        }
-    }
-
-    /// `incr` against a global / qualified / array element.
-    fn emit_incr_global_or_array(
-        &mut self,
-        name: &str,
-        key_is_literal: bool,
-        amount: Option<&str>,
-    ) {
-        let is_array = split_array_ref(name).is_some();
-        let step = |ctx: &mut Self, imm: i32| {
-            let op = if is_array {
-                Op::INCR_ARRAY_STK_IMM
+        if let Some(key) = key {
+            if key_is_literal {
+                self.push_lit_exact(key);
             } else {
-                Op::INCR_STK_IMM
-            };
-            ctx.emit(op, vec![Operand::Imm(imm)]);
-        };
-        match amount {
-            None => {
-                self.push_incr_target(name, key_is_literal);
-                step(self, 1);
-            }
-            Some(amt) if is_integer_literal(amt) => {
-                match self.parse_int_operand(amt) {
-                    Some(imm) if (-128..=127).contains(&imm) => {
-                        self.push_incr_target(name, key_is_literal);
-                        step(
-                            self,
-                            i32::try_from(imm).expect("incr literal fits in i32 after range check"),
-                        );
-                    }
-                    // Out of the immediate range (or unparseable) — the generic
-                    // `incr` invoke.
-                    _ => self.invoke_incr_fallback(name, key_is_literal, amt),
-                }
-            }
-            Some(amt) => {
-                let var_ref = parse_simple_var_ref(amt, self.braced_var);
-                if let (false, Some(vr)) = (is_array, var_ref) {
-                    self.push_incr_target(name, key_is_literal);
-                    self.load_var(vr);
-                    self.emit(Op::INCR_STK, vec![]);
-                } else {
-                    self.invoke_incr_fallback(name, key_is_literal, amt);
-                }
+                self.push_array_key(key);
             }
         }
+        let immediate = match amount {
+            None => Some(1),
+            Some(text) if self.native_entry.is_none() && is_integer_literal(text) => self
+                .parse_int_operand(text)
+                .filter(|value| (-127..=127).contains(value))
+                .and_then(|value| i32::try_from(value).ok()),
+            Some(_) => None,
+        };
+        if immediate.is_none() {
+            self.emit_increment_amount(amount.expect("non-immediate amount is present"));
+        }
+        self.finish_increment(slot, key.is_some(), immediate);
     }
 
-    /// Fallback: emit `incr name amt` as a generic invokeStk1 — the shape an
-    /// out-of-immediate-range or non-literal amount takes.
-    ///
-    /// The name word must reach the command *already resolved*. Pushing a
-    /// [resolved store name](CodegenCtx::store_target) through the plain
-    /// `push_lit` path sends it back through the VM's `subst_word`, which
-    /// re-substitutes a base whose escapes the compiler has already decoded:
-    /// `incr a\133b\135($i) 999` names the array `a[b]`, and re-substituting
-    /// `a[b]($i)` executed the command `b` and incremented the array `a7`.
-    /// tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1 all agree:
-    ///
-    /// ```text
-    /// proc b {} { puts "BOOM-b-ran" ; return 7 }
-    /// set i K ; set a\133b\135(K) 5 ; incr a\133b\135($i) 999
-    /// -> array `a[b]` (4 bytes) is `K 1004`, and `b` never runs
-    /// ```
-    ///
-    /// So the halves are pushed separately — the resolved base verbatim, the
-    /// live key through the substituting path — and joined into the one word
-    /// the command takes. A fully resolved name (the scalar case, and any
-    /// braced or escape-only target) is a single verbatim push as before.
-    fn invoke_incr_fallback(&mut self, name: &str, key_is_literal: bool, amt: &str) {
-        self.push_lit("incr");
-        match split_array_ref(name) {
-            Some((base, elem)) if !key_is_literal => {
-                self.push_lit_exact(base);
-                self.push_lit_exact("(");
-                self.push_lit(elem);
-                self.push_lit_exact(")");
-                self.emit(Op::STR_CONCAT1, vec![Operand::Imm(4)]);
-            }
-            _ => self.push_lit_exact(name),
+    /// Evaluate the original amount word once, retaining its brace semantics.
+    fn emit_increment_amount(&mut self, amount: &str) {
+        let word = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.words().get(2))
+            .cloned();
+        if let Some(word) = word {
+            let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+            self.emit_word_from_source(amount, braced, Some(&word));
+        } else {
+            // Unlocated IR amounts have already been evaluated. Their bytes
+            // cannot establish a new command or variable substitution.
+            self.push_lit_exact(amount);
         }
-        self.push_lit(amt);
-        self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
     }
 }
 
@@ -798,6 +1131,23 @@ mod tests {
     #[allow(clippy::unnecessary_wraps)] // test callback follows ConstFoldFn
     fn owned_list_fold(args: &[&str]) -> Option<String> {
         Some(format!("owned:{}", args.join(",")))
+    }
+
+    #[test]
+    fn native_decoded_literals_are_exact_bytes_and_never_replayed_as_source() {
+        let environment = tcl_registry::model::ingress::resolve_environment("jim");
+        let context = environment.default_context_registry();
+        let mut ctx = CodegenCtx::new(false, &[], context.commands());
+        ctx.escapes = environment.analyser_profile().grammar.escapes;
+        ctx.push_decoded_literal(r"\xff");
+        ctx.push_decoded_literal(r"\u00ff");
+        assert_eq!(ctx.literals.entries()[0].bytes(), &[0xff]);
+        assert_eq!(ctx.literals.entries()[1].unicode(), Ok("ÿ"));
+        assert!(
+            ctx.instructions
+                .iter()
+                .all(|instruction| instruction.push_verbatim)
+        );
     }
 
     #[test]
@@ -963,11 +1313,14 @@ mod tests {
     #[test]
     fn is_qualified_yes() {
         assert!(is_qualified("::foo"));
+        assert!(is_qualified("n::foo"));
+        assert!(is_qualified("k\0n::foo"));
     }
 
     #[test]
     fn is_qualified_no() {
         assert!(!is_qualified("foo"));
+        assert!(!is_qualified("a(k::z)"));
     }
 
     // parse_simple_var_ref.
@@ -1088,6 +1441,51 @@ mod tests {
     }
 
     #[test]
+    fn original_variable_operands_keep_literal_keys_and_evaluate_bare_indices() {
+        let registry = CommandRegistry::build_default();
+        for is_proc in [false, true] {
+            let mut literal = CodegenCtx::new(is_proc, &[], &registry);
+            assert!(literal.emit_variable_reference("${arr($i)}"));
+            let mut dynamic = CodegenCtx::new(is_proc, &[], &registry);
+            assert!(dynamic.emit_variable_reference("$arr($i)"));
+            assert_eq!(
+                literal
+                    .instructions
+                    .iter()
+                    .map(|instruction| instruction.op)
+                    .collect::<Vec<_>>(),
+                vec![Op::PUSH1, Op::LOAD_STK]
+            );
+            assert_eq!(
+                dynamic.instructions.last().unwrap().op,
+                if is_proc {
+                    Op::LOAD_ARRAY1
+                } else {
+                    Op::LOAD_ARRAY_STK
+                }
+            );
+            assert!(
+                literal
+                    .literals
+                    .entries()
+                    .iter()
+                    .any(|value| value == "arr($i)")
+            );
+            assert!(!literal.literals.entries().iter().any(|value| value == "$i"));
+            assert!(!dynamic.literals.entries().iter().any(|value| value == "$i"));
+            assert!(
+                dynamic
+                    .instructions
+                    .iter()
+                    .any(|instruction| matches!(instruction.op, Op::LOAD_SCALAR1 | Op::LOAD_STK))
+            );
+            let mut compound = CodegenCtx::new(is_proc, &[], &registry);
+            assert!(!compound.emit_variable_reference("$arr(k)suffix"));
+            assert!(compound.instructions.is_empty());
+        }
+    }
+
+    #[test]
     fn load_var_scalar_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
@@ -1153,6 +1551,361 @@ mod tests {
         assert_eq!(ctx.instructions[0].op, Op::STORE_STK);
     }
 
+    fn increment_entry(
+        version: tcl_dialect::TclVersion,
+    ) -> tcl_runtime_api::NativeCompilationEntry {
+        use tcl_runtime_api::native_compilation::{
+            NativeCompilationFrame, NativeInterpreterIdentity, NativeVariableObserverPresence,
+        };
+        let profile =
+            tcl_dialect::DialectProfile::find(&format!("tcl{}", version.version_string())).unwrap();
+        let point = tcl_dialect::model::DialectPoint::for_tcl_version(version);
+        let dialect = tcl_registry::InvocationDialect::of_point(point);
+        tcl_runtime_api::NativeCompilationEntry {
+            interpreter: NativeInterpreterIdentity {
+                owner: 1,
+                interpreter: 0,
+            },
+            epoch: 0,
+            profile: profile.cache_key(),
+            invocation_policy: Some(profile.cache_key()),
+            execution_point: Some(point),
+            name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
+            compiled_variable_protocol:
+                tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
+            compiled_local_layout: None,
+            ensemble_target_objects: None,
+            source_string_protocol: dialect.native_source_string_protocol(),
+            lexer_grammar: Some(profile.grammar),
+            inline_compilation_disabled: false,
+            authored_tmm_static: None,
+            namespace_variable_tables: None,
+            variable_observers: NativeVariableObserverPresence::Unknown,
+            math_functions: None,
+            closed: true,
+            commands: vec![],
+            namespaces: vec![],
+            current_namespace: 0,
+            frame: NativeCompilationFrame::Global,
+        }
+    }
+
+    fn increment_tokens(
+        source: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> crate::ir::CommandTokens {
+        let segment =
+            crate::segmenter::segment_commands_image_with_offset_and_config(source, 0, config)
+                .unwrap()
+                .remove(0);
+        crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::from_image(source),
+            config,
+            &segment,
+        )
+    }
+
+    #[test]
+    fn named_unit_dependencies_require_the_original_entry_world() {
+        use std::sync::Arc;
+        use tcl_runtime_api::native_compilation::{
+            NativeCommandCompiler, NativeCommandCompilerPrerequisite, NativeCommandImplementation,
+            NativeCompilationBinding, NativeCompilationNamespace, NativeCompilerHookPresence,
+            NativeCompilerSelectionPrerequisite, NativeEnsembleCompiler,
+        };
+        let registry = CommandRegistry::build_default();
+        let mut entry = increment_entry(tcl_dialect::TclVersion::V9_0);
+        entry.namespaces.push(NativeCompilationNamespace {
+            path: tcl_core_types::ByteNamespacePath::root(),
+            jim_namespace_object: None,
+            token: 0,
+            visible: true,
+            exports: vec![],
+            command_path: vec![],
+            unknown_handler: None,
+        });
+        let compiler = NativeCommandCompiler {
+            registry_identity: "info".to_owned(),
+            ensemble: Some(NativeEnsembleCompiler {
+                namespace_token: 0,
+                map: vec![],
+                subcommands: None,
+                prefixes: true,
+                parameters: vec![],
+                unknown_handler: None,
+            }),
+        };
+        let binding = NativeCompilationBinding {
+            slot: tcl_core_types::NativeByteCommandSlot::new(
+                tcl_core_types::ByteNamespacePath::root(),
+                "info".into(),
+            ),
+            namespace_token: 0,
+            token: 7,
+            implementation_generation: 11,
+            implementation: NativeCommandImplementation::Opaque,
+            compiler_hook: NativeCompilerHookPresence::Present,
+            compiler: Some(compiler.clone()),
+            procedure_header: None,
+            has_execution_trace: false,
+        };
+        entry.commands.push(binding.clone());
+        let required = NativeCommandCompilerPrerequisite {
+            interpreter: entry.interpreter,
+            lookup_namespace_token: 0,
+            invocation_word: "info".into(),
+            slot: binding.slot.clone(),
+            namespace_token: 0,
+            token: binding.token,
+            implementation_generation: binding.implementation_generation,
+            compiler,
+            selected_worker: None,
+            nested_compilers: Vec::new(),
+            guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
+        };
+        for changed_axis in 0..6 {
+            let mut selected = required.clone();
+            match changed_axis {
+                0 => {}
+                1 => selected.interpreter.owner += 1,
+                2 => selected.lookup_namespace_token += 1,
+                3 => selected.token += 1,
+                4 => selected.implementation_generation += 1,
+                5 => selected.compiler.ensemble.as_mut().unwrap().prefixes = false,
+                _ => unreachable!(),
+            }
+            let selected = Arc::new(selected);
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            ctx.native_entry = Some(&entry);
+            ctx.retain_entry_named_compiler_prerequisite(&selected);
+            if changed_axis == 0 {
+                let mut entry_required = selected.as_ref().clone();
+                entry_required.guard = tcl_runtime_api::CommandBindingGuard::ChunkEntry;
+                assert_eq!(
+                    ctx.native_compiler_prerequisites,
+                    vec![NativeCompilerSelectionPrerequisite::Ensemble(Arc::new(
+                        entry_required
+                    ))]
+                );
+            } else {
+                assert!(
+                    ctx.native_compiler_prerequisites.is_empty(),
+                    "axis {changed_axis}"
+                );
+            }
+            // Every original selection retains its own temporal guard even
+            // when a future or foreign world cannot become a unit dependency.
+            assert_eq!(
+                selected.guard,
+                tcl_runtime_api::CommandBindingGuard::BeforeArguments
+            );
+        }
+        entry.commands[0].has_execution_trace = true;
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.native_entry = Some(&entry);
+        ctx.retain_entry_named_compiler_prerequisite(&Arc::new(required));
+        assert!(ctx.native_compiler_prerequisites.is_empty());
+    }
+
+    #[test]
+    fn native_command_literal_actions_retain_data_first_and_hide_only_c85_one_word() {
+        use tcl_bytecode::{NativeLiteralAction, NativeLiteralAllocation};
+        use tcl_runtime_api::native_compilation::NativeCompilationNamespace;
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            for source in ["missing", "missing argument"] {
+                let mut entry = increment_entry(version);
+                entry.namespaces.push(NativeCompilationNamespace {
+                    path: tcl_core_types::ByteNamespacePath::root(),
+                    jim_namespace_object: None,
+                    token: 0,
+                    visible: true,
+                    exports: vec![],
+                    command_path: vec![],
+                    unknown_handler: None,
+                });
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let config = tcl_lexer::LexerConfig::from_grammar(entry.lexer_grammar.unwrap());
+                let tokens = tcl_lexer::Lexer::with_source_image(&image, config)
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let words = tcl_lexer::group_commands_bytes(&tokens, image.bytes(), config);
+                let native_words = words[0]
+                    .words
+                    .iter()
+                    .map(|word| {
+                        tcl_lexer::NativeWord::from_group(image.clone(), config, &tokens, word)
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap();
+                let mut ctx = CodegenCtx::new(false, &[], &registry);
+                ctx.native_entry = Some(&entry);
+                let data = ctx.literals.intern_bytes(b"missing");
+                let command = ctx
+                    .intern_original_native_command_literal(&native_words)
+                    .unwrap();
+                assert_eq!(command, data, "{version:?} {source}");
+                assert_eq!(
+                    ctx.literals.entries()[data].allocation(),
+                    &NativeLiteralAllocation::RegisteredData
+                );
+                assert_eq!(
+                    ctx.literals.native_actions(),
+                    if version == tcl_dialect::TclVersion::V8_5 && source == "missing" {
+                        vec![
+                            NativeLiteralAction::Register(data),
+                            NativeLiteralAction::Hide(data),
+                        ]
+                    } else {
+                        vec![NativeLiteralAction::Register(data)]
+                    }
+                );
+                assert!(!ctx.native_dependency_refusal);
+            }
+        }
+    }
+
+    #[test]
+    fn source_increment_uses_physical_amount_recipe_and_original_array_layout() {
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            for (source, immediate) in [
+                ("incr arr($key) -127", Some(-127)),
+                ("incr arr($key) -128", None),
+                (
+                    "incr arr($key) 4294967295",
+                    (version <= tcl_dialect::TclVersion::V8_5).then_some(-1),
+                ),
+                (
+                    "incr arr($key) \\x31",
+                    (version >= tcl_dialect::TclVersion::V9_1).then_some(1),
+                ),
+            ] {
+                let entry = increment_entry(version);
+                let image = tcl_lexer::SourceImage::native(source.as_bytes());
+                let config = tcl_lexer::LexerConfig::from_grammar(entry.lexer_grammar.unwrap());
+                let tokens = increment_tokens(&image, config);
+                let mut ctx = CodegenCtx::new(true, &["key"], &registry);
+                ctx.native_entry = Some(&entry);
+                ctx.dialect = tcl_dialect::DialectProfile::find("tcl8.4");
+                ctx.ingress_lexer_config = Some(config);
+                ctx.source_string_protocol = entry.source_string_protocol;
+                ctx.compiled_variable_protocol = entry.compiled_variable_protocol;
+                ctx.set_source_image(image);
+                ctx.with_invocation_tokens(Some(&tokens), |ctx| {
+                    ctx.emit_incr("arr($key)", false, Some("ignored"))
+                });
+                assert_eq!(
+                    ctx.instructions.last().unwrap().op,
+                    if immediate.is_some() {
+                        Op::INCR_ARRAY1_IMM
+                    } else {
+                        Op::INCR_ARRAY1
+                    },
+                    "{version:?} {source}"
+                );
+                if let Some(value) = immediate {
+                    assert_eq!(
+                        ctx.instructions.last().unwrap().operands.last(),
+                        Some(&Operand::Imm(value))
+                    );
+                }
+                assert_eq!(
+                    ctx.instructions
+                        .iter()
+                        .filter(|instruction| instruction.op == Op::LOAD_SCALAR1)
+                        .count(),
+                    1
+                );
+                assert!(!ctx.native_dependency_refusal);
+            }
+        }
+    }
+
+    #[test]
+    fn original_scalar_operand_slot_borrows_only_current_existing_layout_names() {
+        use tcl_runtime_api::native_compilation::{
+            NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind, NativeInterpreterIdentity,
+        };
+        let registry = CommandRegistry::build_default();
+        let entry = increment_entry(tcl_dialect::TclVersion::V9_0);
+        let layout = NativeCompiledLocalLayout {
+            owner: NativeInterpreterIdentity {
+                owner: 1,
+                interpreter: 0,
+            },
+            token: 7,
+            epoch: 1,
+            kind: NativeCompiledLocalLayoutKind::Procedure,
+            names: vec![Some(tcl_runtime_api::NameBytes::from(
+                b"retained".as_slice(),
+            ))],
+        };
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.native_entry = Some(&entry);
+        ctx.source_string_protocol = entry.source_string_protocol;
+        ctx.compiled_variable_protocol = entry.compiled_variable_protocol;
+        ctx.lvt = tcl_bytecode::LocalVarTable::from_native_slot_names(&layout.names);
+        ctx.lvt
+            .set_native_protocol(entry.compiled_variable_protocol);
+        ctx.borrowed_local_layout = Some(layout.clone());
+        let config = tcl_lexer::LexerConfig::from_grammar(entry.lexer_grammar.unwrap());
+        ctx.ingress_lexer_config = Some(config);
+        for (source, expected) in [
+            ("info exists retained", Some(0)),
+            ("info exists missing", None),
+            ("info exists retained($key)", None),
+            ("info exists ret\\x61ined", None),
+        ] {
+            let image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let tokens = increment_tokens(&image, config);
+            let word = tokens.words()[2].clone();
+            ctx.set_source_image(image);
+            let slot = ctx.with_invocation_tokens(Some(&tokens), |ctx| {
+                ctx.original_scalar_operand_slot(&word)
+            });
+            assert_eq!(slot, expected, "{source}");
+            assert_eq!(ctx.lvt.len(), 1);
+        }
+        assert_eq!(ctx.required_compiled_local_layout, Some(layout));
+    }
+
+    #[test]
+    fn unlocated_increment_amount_is_an_evaluated_value() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        ctx.emit_incr("x", true, Some("${amount}"));
+        assert_eq!(ctx.instructions.last().unwrap().op, Op::INCR_SCALAR1);
+        assert!(ctx.instructions.iter().all(|instruction| !matches!(
+            instruction.op,
+            Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 | Op::LOAD_STK
+        )));
+        assert!(
+            ctx.literals
+                .entries()
+                .iter()
+                .any(|literal| literal == "${amount}")
+        );
+    }
+
+    #[test]
+    fn supplied_unknown_compiler_point_cannot_borrow_authoring_increment_rules() {
+        let registry = CommandRegistry::build_default();
+        let mut entry = increment_entry(tcl_dialect::TclVersion::V9_0);
+        entry.execution_point = None;
+        let image = tcl_lexer::SourceImage::native(b"incr x 5".as_slice());
+        let config = tcl_lexer::LexerConfig::from_grammar(entry.lexer_grammar.unwrap());
+        let tokens = increment_tokens(&image, config);
+        let mut ctx = CodegenCtx::new(true, &["x"], &registry);
+        ctx.native_entry = Some(&entry);
+        ctx.source_string_protocol = entry.source_string_protocol;
+        ctx.ingress_lexer_config = Some(config);
+        ctx.set_source_image(image);
+        ctx.with_invocation_tokens(Some(&tokens), |ctx| ctx.emit_incr("x", true, Some("5")));
+        assert!(ctx.native_dependency_refusal);
+        assert_eq!(ctx.instructions.last().unwrap().op, Op::INCR_SCALAR1);
+    }
+
     #[test]
     fn emit_incr_default_proc() {
         let registry = CommandRegistry::build_default();
@@ -1203,8 +1956,15 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         ctx.emit_incr("x", true, Some("999"));
-        // Large → invokeStk fallback
-        assert!(ctx.instructions.iter().any(|i| i.op == Op::INVOKE_STK1));
+        assert_eq!(
+            ctx.instructions
+                .iter()
+                .map(|instruction| instruction.op)
+                .collect::<Vec<_>>(),
+            vec![Op::PUSH1, Op::PUSH1, Op::INCR_STK]
+        );
+        assert_eq!(ctx.literals.entries()[0].bytes(), b"x");
+        assert_eq!(ctx.literals.entries()[1].bytes(), b"999");
     }
 
     #[test]
@@ -1226,14 +1986,146 @@ mod tests {
     }
 
     #[test]
-    fn needs_stk_var_ref_cases() {
-        // Top-level always needs stack
-        assert!(needs_stk_var_ref("x", false));
-        // Proc scalar doesn't
-        assert!(!needs_stk_var_ref("x", true));
-        // Proc qualified does
-        assert!(needs_stk_var_ref("::x", true));
-        // Proc array does (for key)
-        assert!(needs_stk_var_ref("a(1)", true));
+    fn resolved_targets_prepare_slot_and_stack_operands() {
+        let registry = CommandRegistry::build_default();
+        let mut top = CodegenCtx::new(false, &[], &registry);
+        assert!(top.target_needs_stack("x"));
+        let mut procedure = CodegenCtx::new(true, &[], &registry);
+        assert!(!procedure.target_needs_stack("x"));
+        assert!(procedure.target_needs_stack("::x"));
+        assert!(procedure.target_needs_stack("a(1)"));
+    }
+
+    #[test]
+    fn borrowed_native_commands_reuse_cells_without_declaring_slots() {
+        use tcl_runtime_api::native_compilation::{
+            NativeCompiledLocalLayout, NativeCompiledLocalLayoutKind, NativeInterpreterIdentity,
+        };
+        let registry = CommandRegistry::build_default();
+        for (point, borrows) in [
+            (
+                tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_4),
+                false,
+            ),
+            (
+                tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_5),
+                false,
+            ),
+            (
+                tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_6),
+                true,
+            ),
+            (
+                tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V9_0),
+                true,
+            ),
+            (
+                tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V9_1),
+                true,
+            ),
+        ] {
+            let protocol =
+                tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point)
+                    .unwrap();
+            let names = vec![Some(tcl_runtime_api::NameBytes::from(b"k\0a".as_slice()))];
+            let layout = NativeCompiledLocalLayout {
+                owner: NativeInterpreterIdentity {
+                    owner: 23,
+                    interpreter: 5,
+                },
+                token: 7,
+                epoch: 1,
+                kind: NativeCompiledLocalLayoutKind::Procedure,
+                names,
+            };
+            let mut context = CodegenCtx::new(false, &[], &registry);
+            context.compiled_variable_protocol = Some(protocol);
+            context.lvt = tcl_bytecode::LocalVarTable::from_native_slot_names(&layout.names);
+            context.lvt.set_native_protocol(Some(protocol));
+            context.borrowed_local_layout = Some(layout.clone());
+            assert_eq!(context.target_needs_stack("k\0b"), !borrows);
+            if !borrows {
+                context.push_var_ref("k\0b", true);
+            }
+            context.push_lit_exact("ALTER");
+            context.store_var("k\0b");
+            assert_eq!(
+                context.instructions.last().unwrap().op,
+                if borrows {
+                    Op::STORE_SCALAR1
+                } else {
+                    Op::STORE_STK
+                }
+            );
+            assert!(context.target_needs_stack("missing"));
+            assert_eq!(context.lvt.len(), 1);
+            let assembly = context.into_function_asm("borrowed".into());
+            assert_eq!(
+                assembly.required_compiled_local_layout,
+                borrows.then_some(layout)
+            );
+        }
+    }
+    #[test]
+    fn full_depth_text_indices_use_the_same_iterative_operand_emitter() {
+        let registry = CommandRegistry::build_default();
+        let source = include_str!("../../tests/data/native_deep_array_source.tcl");
+        let operand = source.strip_prefix("set a(x) x; list ").unwrap();
+        let mut context = CodegenCtx::new(true, &[], &registry);
+        assert!(context.emit_variable_reference(operand));
+        assert_eq!(
+            context
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::LOAD_ARRAY1)
+                .count(),
+            2000,
+        );
+        assert_eq!(context.lvt.len(), 1);
+        assert!(
+            context
+                .literals
+                .entries()
+                .iter()
+                .any(|entry| entry.bytes() == b"x")
+        );
+    }
+
+    #[test]
+    fn source_local_loads_select_counted_compiler_purposes_before_runtime_names() {
+        use tcl_syntax::naming::NativeCompiledVariableProtocol;
+
+        let registry = CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut context = CodegenCtx::new(true, &[], &registry);
+            let protocol = NativeCompiledVariableProtocol::for_native_point(
+                tcl_dialect::model::DialectPoint::for_tcl_version(version),
+            )
+            .unwrap();
+            context.compiled_variable_protocol = Some(protocol);
+            context.lvt.set_native_protocol(Some(protocol));
+            for original in [b"k\0a".as_slice(), b"k\0b".as_slice()] {
+                let (operation, operands) = context.prepare_original_variable_load(original, false);
+                assert_eq!(operation, Op::LOAD_SCALAR1);
+                assert_eq!(operands, vec![Operand::Imm(0)]);
+            }
+            assert_eq!(context.lvt.len(), 1);
+            let (operation, operands) = context.prepare_original_variable_load(b"k\0bb", false);
+            assert_eq!(operation, Op::LOAD_SCALAR1);
+            assert_eq!(operands, vec![Operand::Imm(1)]);
+            for original in [b"k\0z::x".as_slice(), b"a(k::z)".as_slice()] {
+                let (operation, operands) = context.prepare_original_variable_load(original, false);
+                assert_eq!(operation, Op::LOAD_STK);
+                assert!(operands.is_empty());
+                assert!(
+                    context
+                        .literals
+                        .entries()
+                        .iter()
+                        .any(|entry| entry.bytes() == original)
+                );
+            }
+            assert_eq!(context.lvt.len(), 2);
+        }
     }
 }

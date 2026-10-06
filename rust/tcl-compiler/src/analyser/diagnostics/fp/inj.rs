@@ -156,12 +156,19 @@ fn fp_inj_04_dash_prefix_still_warns() {
 #[test]
 fn fp_inj_04_generic_taint_still_warns() {
     // TP: generic tainted data (no PATH_PREFIXED colour) still fires.
-    let src = "set x [read $fd]\nregexp $x test";
+    let src = "when HTTP_REQUEST {set x [HTTP::header value X-Input]; regexp $x test}";
     assert!(
         fires(src, IRULES, "T102"),
         "FP-INJ-04 TP: generic tainted data must fire T102; emitted {:?}",
         codes(src, IRULES)
     );
+}
+
+#[test]
+fn fp_inj_04_loader_refusal_does_not_create_a_tainted_read_result() {
+    let src = "when HTTP_REQUEST {set x [gets stdin]; regexp $x test}";
+    assert!(fires(src, IRULES, "IRULE2004"), "{:?}", codes(src, IRULES));
+    assert!(!fires(src, IRULES, "T102"), "{:?}", codes(src, IRULES));
 }
 
 // FP-INJ-05 — `eval "$cmd $x"` (TP) → W101.

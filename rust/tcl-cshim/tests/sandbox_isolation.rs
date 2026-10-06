@@ -28,7 +28,7 @@ use std::ffi::{c_int, c_void};
 use std::rc::Rc;
 
 use tcl_cshim::{Interp, InterpState, Obj, ffi};
-use tcl_engine_api::{CompileUnit, Engine, EngineError, Value};
+use tcl_engine_api::{CompileUnit, Engine, Value};
 use tcl_engine_tclvm::TclVmEngine;
 use tcl_spec_hooks::SANDBOX_COMMANDS;
 use tcl_spec_hooks::pack_eval::{
@@ -127,8 +127,10 @@ fn a_hook_body_cannot_reach_a_shimmed_command_either() {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect_err("but cannot run it");
         assert!(
-            matches!(&error, EngineError::Script { message, .. }
-                if message.contains("invalid command name")),
+            error
+                .script_message_bytes()
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .is_some_and(|message| message.contains("invalid command name")),
             "{body}: {error:?}"
         );
     }
@@ -142,8 +144,7 @@ fn only_the_interpreter_that_loaded_the_extension_has_it() {
         .eval("host_only")
         .expect_err("a second engine has nothing");
     assert!(
-        matches!(&error, EngineError::Script { message, .. }
-            if message == "invalid command name \"host_only\""),
+        error.script_message_bytes() == Some("invalid command name \"host_only\"".as_bytes()),
         "{error:?}"
     );
     assert!(other.commands().is_empty());

@@ -1,0 +1,6 @@
+case	hook	variables	nsupvars	locals	literal_count	literals
+0	1	0	0	6e73,76616c,76	5	parsedVarName:76,list:56414c5545,cmdName:7661726961626c65,list:56414c5545,list:4c415445
+1	1	0	0	6e73,76616c,76	6	parsedVarName:76,list:56414c5545,cmdName:7661726961626c65,list:56414c5545,parsedVarName:6129,list:4c415445
+2	1	0	0	6e73,76616c,76	6	none:3a3a,list:3a3a4e,none:3a3a76,cmdName:676c6f62616c,list:3a3a4e,none:76
+3	1	0	0	6e73,76616c,76	6	none:3a3a,list:3a3a4e,none:3a3a76,cmdName:676c6f62616c,list:3a3a4e,parsedVarName:6129
+4	1	0	0	6e73,76616c,76	8	list:3a3a4e,none:3a3a76,list:56414c5545,cmdName:7661726961626c65,list:3a3a4e,list:56414c5545,none:76,list:4c415445

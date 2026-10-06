@@ -30,8 +30,8 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("format", cmd_format);
-    vm.register("scan", cmd_scan);
+    vm.register_stock_builtin("format", cmd_format);
+    vm.register_stock_builtin("scan", cmd_scan);
 }
 
 /// `scan string format ?varName ...?` — parse `string` per the conversion
@@ -42,7 +42,12 @@ pub(crate) fn register(vm: &mut Vm) {
 fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (input, fmt, vars) = match args {
         [s, f, vars @ ..] => (s.to_str(), f.to_str(), vars),
-        _ => return err("wrong # args: should be \"scan string format ?varName ...?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"scan string format ?varName ...?\"",
+            );
+        }
     };
     let inp: Vec<char> = input.chars().collect();
     let fch: Vec<char> = fmt.chars().collect();
@@ -51,6 +56,7 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err(msg);
     }
     let outcome = scan_match(&inp, &fch);
+    let dialect = vm.native_invocation_dialect();
     if vars.is_empty() {
         // Inline form: the conversions as a list (a failed field is an empty
         // string); an outright EOF-before-anything is the empty string (the
@@ -62,7 +68,10 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             outcome
                 .values
                 .iter()
-                .map(|v| v.as_ref().map_or_else(Value::empty, scanned_value))
+                .map(|v| {
+                    v.as_ref()
+                        .map_or_else(Value::empty, |value| scanned_value(value, dialect))
+                })
                 .collect(),
         ));
     }
@@ -73,7 +82,7 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let mut count = 0;
     for (v, var) in outcome.values.iter().zip(vars.iter()) {
         let Some(value) = v else { break };
-        if let Err(c) = vm.set_var(&var.to_str(), scanned_value(value)) {
+        if let Err(c) = vm.set_var(&var.to_str(), scanned_value(value, dialect)) {
             return c;
         }
         count += 1;
@@ -83,10 +92,10 @@ fn cmd_scan(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Build the VM value for a scanned conversion (`%d`/`%x`/`%c`→int,
 /// `%e`/`%f`/`%g`→double, `%s`/`%[`→string).
-fn scanned_value(v: &Scanned) -> Value {
+fn scanned_value(v: &Scanned, dialect: tcl_registry::InvocationDialect) -> Value {
     match v {
         Scanned::Int(n) => Value::int(*n),
-        Scanned::Double(d) => Value::double(*d),
+        Scanned::Double(d) => Value::native_double(*d, dialect),
         Scanned::Str(s) => Value::string(s.as_str()),
     }
 }
@@ -95,6 +104,6 @@ fn cmd_format(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let syntax = vm.runtime_version().number_syntax();
     match tcl_cmd_core::format::format_cmd_with_syntax(vm, args, syntax) {
         Ok(v) => ok(v),
-        Err(e) => crate::command::completion_from_cmd_error(e),
+        Err(e) => crate::command::completion_from_cmd_error(vm, e),
     }
 }

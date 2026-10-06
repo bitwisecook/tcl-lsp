@@ -101,6 +101,8 @@ fn chain_cfg(n: usize) -> Function {
             Terminator::Goto { target, span: None }
         } else {
             Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,

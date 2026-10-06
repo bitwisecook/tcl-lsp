@@ -139,9 +139,11 @@ impl NativeCommand for CompileOrInvokeHandle {
                     *self.0.borrow_mut() = Some(handle);
                     Completion::new(Code::Ok, Value::empty(), Value::empty())
                 }
-                Err(error) => {
-                    Completion::new(Code::Error, Value::string(error.message), Value::empty())
-                }
+                Err(error) => Completion::new(
+                    Code::Error,
+                    error.into_value().expect("guest fixture compilation error"),
+                    Value::empty(),
+                ),
             },
             Some("invoke") => {
                 let handle = self.0.borrow().clone().expect("handle compiled first");
@@ -170,6 +172,87 @@ impl NativeCommand for RunCompiledFunction {
 
 impl CompileService for OptimisedOnlyCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        _target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "plain script compilation unavailable".into(),
+        ))
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        _target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "plain script compilation unavailable".into(),
+        ))
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            return Err(tcl_runtime_api::CompileError::Unsupported(
+                "plain procedure compilation unavailable".into(),
+            ));
+        }
+        self.0
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            return Err(tcl_runtime_api::CompileError::Unsupported(
+                "plain procedure compilation unavailable".into(),
+            ));
+        }
+        self.0
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -182,7 +265,7 @@ impl CompileService for OptimisedOnlyCompilerSvc {
         dispatch: ProcedureDispatch,
     ) -> Result<Self::Module, CompileError> {
         if dispatch == ProcedureDispatch::Plain {
-            return Err(CompileError(
+            return Err(CompileError::Unsupported(
                 "plain procedure compilation unavailable".into(),
             ));
         }
@@ -193,6 +276,100 @@ impl CompileService for OptimisedOnlyCompilerSvc {
 
 impl CompileService for DishonestPlainCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_script_bytes_for_profile(target, profile)?;
+        module.top_level.command_bindings.clear();
+        for procedure in module.procedures.values_mut() {
+            procedure.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self
+            .0
+            .compile_script_bytes_with_entry(target, profile, entry)?;
+        module.top_level.command_bindings.clear();
+        for procedure in module.procedures.values_mut() {
+            procedure.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_procedure_bytes_for_profile(
+            target,
+            profile,
+            tcl_runtime_api::ProcedureDispatch::Optimised,
+        )?;
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            module.top_level.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let mut module = self.0.compile_procedure_bytes_with_entry(
+            target,
+            profile,
+            entry,
+            tcl_runtime_api::ProcedureDispatch::Optimised,
+        )?;
+        if dispatch == tcl_runtime_api::ProcedureDispatch::Plain {
+            module.top_level.command_bindings.clear();
+        }
+        Ok(module)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -228,6 +405,86 @@ impl CompileService for DishonestPlainCompilerSvc {
 
 impl CompileService for ScriptOnlyCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        _target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "procedure compilation unavailable".into(),
+        ))
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        _target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        _profile: &'static tcl_dialect::DialectProfile,
+        _entry: &tcl_runtime_api::NativeCompilationEntry,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        Err(tcl_runtime_api::CompileError::Unsupported(
+            "procedure compilation unavailable".into(),
+        ))
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.0.compile_script_with_entry(target, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -252,6 +509,153 @@ impl CompileService for ScriptOnlyCompilerSvc {
 
 impl CompileService for InliningCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            false,
+            None,
+        )
+        .map_err(|error| match error {
+            tcl_lexer::NativeWordError::Parse(message) => {
+                tcl_runtime_api::CompileError::Message(message.into())
+            }
+            error => tcl_runtime_api::CompileError::Unsupported(format!(
+                "original native word unavailable: {error:?}"
+            )),
+        })?;
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            false,
+            Some(BytecodeCompileService::native_entry_options(
+                entry,
+                Some(profile),
+            )),
+        )
+        .map_err(|error| match error {
+            tcl_lexer::NativeWordError::Parse(message) => {
+                tcl_runtime_api::CompileError::Message(message.into())
+            }
+            error => tcl_runtime_api::CompileError::Unsupported(format!(
+                "original native word unavailable: {error:?}"
+            )),
+        })?;
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let ir = tcl_compiler::lowering::lower_script_module_for_bytecode_with_options(
+            target.source,
+            target.namespace,
+            registry,
+            config,
+            Some(profile),
+            false,
+            Some(BytecodeCompileService::native_entry_options(
+                entry,
+                Some(profile),
+            )),
+        );
+        let ir = inline_module(ir, registry);
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.0
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile(src)
@@ -324,6 +728,120 @@ impl CompileService for InliningCompilerSvc {
 
 impl CompileService for CountingCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner.compile_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.plain_calls.set(self.plain_calls.get() + 1);
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.plain_calls.set(self.plain_calls.get() + 1);
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        match dispatch {
+            tcl_runtime_api::ProcedureDispatch::Optimised => {
+                self.fast_calls.set(self.fast_calls.get() + 1)
+            }
+            tcl_runtime_api::ProcedureDispatch::Plain => {
+                self.plain_calls.set(self.plain_calls.get() + 1)
+            }
+        };
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        match dispatch {
+            tcl_runtime_api::ProcedureDispatch::Optimised => {
+                self.fast_calls.set(self.fast_calls.get() + 1)
+            }
+            tcl_runtime_api::ProcedureDispatch::Plain => {
+                self.plain_calls.set(self.plain_calls.get() + 1)
+            }
+        };
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.fast_calls.set(self.fast_calls.get() + 1);
+        self.inner.compile_script_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        match dispatch {
+            ProcedureDispatch::Optimised => self.fast_calls.set(self.fast_calls.get() + 1),
+            ProcedureDispatch::Plain => self.plain_calls.set(self.plain_calls.get() + 1),
+        }
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.fast_calls.set(self.fast_calls.get() + 1);
@@ -620,7 +1138,8 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
             })
             .expect("the inlined expr has a stale-command replay boundary");
         assert_eq!(
-            expr_boundary.source_command_namespace, namespace,
+            expr_boundary.source_command_namespace.as_segments(),
+            [tcl_core_types::NameBytes::from(namespace)].as_slice(),
             "the replay target must retain the callee's constructed namespace",
         );
     }
@@ -1748,7 +2267,10 @@ fn native_reentry_recompiles_module_in_the_running_namespace() {
             profile,
         )
         .expect("namespaced module compiles");
-    assert_eq!(module.source_namespace, "a");
+    assert_eq!(
+        module.source_namespace,
+        tcl_runtime_api::ByteNamespacePath::from_segments(["a"])
+    );
 
     let (mut vm, _output) = vm();
     vm.register_native_command("host_run", Rc::new(RunCompiledModule(Rc::new(module))));
@@ -3131,7 +3653,13 @@ fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
     let host_error = host_vm
         .define_procedure("host_p", &[], "return HOST")
         .expect_err("host procedure needs the typed capability");
-    assert_eq!(host_error.message, format!("procedure \"host_p\": {CAUSE}"));
+    assert_eq!(
+        host_error
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
+        format!("procedure \"host_p\": {CAUSE}")
+    );
 
     for source in [
         "set body {return PROC}; proc p {} $body",

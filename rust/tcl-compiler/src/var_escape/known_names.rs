@@ -52,111 +52,44 @@ fn insert_nonempty(names: &mut HashSet<String>, name: &str) {
     }
 }
 
-fn visit_catch_or_try(stmt: &Statement, names: &mut HashSet<String>) -> bool {
-    match stmt {
-        Statement::Catch {
-            result_var,
-            options_var,
-            body,
-            ..
-        } => {
-            if let Some(r) = result_var {
-                insert_nonempty(names, r);
-            }
-            if let Some(o) = options_var {
-                insert_nonempty(names, o);
-            }
-            visit(&body.statements, names);
-            true
-        }
-        Statement::Try {
-            body,
-            handlers,
-            finally_body,
-            ..
-        } => {
-            visit(&body.statements, names);
-            for h in handlers {
-                if let Some(v) = &h.var_name {
-                    insert_nonempty(names, v);
-                }
-                if let Some(o) = &h.options_var {
-                    insert_nonempty(names, o);
-                }
-                visit(&h.body.statements, names);
-            }
-            if let Some(f) = finally_body {
-                visit(&f.statements, names);
-            }
-            true
-        }
-        _ => false,
-    }
-}
-
 fn visit_one(stmt: &Statement, names: &mut HashSet<String>) {
-    if visit_catch_or_try(stmt, names) {
-        return;
-    }
     match stmt {
         Statement::AssignConst { name, .. }
         | Statement::AssignValue { name, .. }
         | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. }
-            if !name.is_empty() =>
-        {
-            names.insert(name.clone());
-        }
+        | Statement::Incr { name, .. } => insert_nonempty(names, name),
         Statement::Call { defs, reads, .. } => {
-            for n in defs.iter().chain(reads.iter()) {
-                insert_nonempty(names, n);
+            for name in defs.iter().chain(reads.iter()) {
+                insert_nonempty(names, name);
             }
         }
-        Statement::If {
-            clauses, else_body, ..
+        Statement::Catch {
+            result_var,
+            options_var,
+            ..
         } => {
-            for c in clauses {
-                visit(&c.body.statements, names);
-            }
-            if let Some(b) = else_body {
-                visit(&b.statements, names);
+            for name in result_var.iter().chain(options_var.iter()) {
+                insert_nonempty(names, name);
             }
         }
-        Statement::For {
-            init, next, body, ..
-        } => {
-            visit(&init.statements, names);
-            visit(&next.statements, names);
-            visit(&body.statements, names);
-        }
-        Statement::Foreach {
-            iterators, body, ..
-        } => {
-            for it in iterators {
-                for v in &it.vars {
-                    insert_nonempty(names, v);
+        Statement::Try { handlers, .. } => {
+            for handler in handlers {
+                for name in handler.var_name.iter().chain(handler.options_var.iter()) {
+                    insert_nonempty(names, name);
                 }
             }
-            visit(&body.statements, names);
         }
-        Statement::Switch {
-            arms, default_body, ..
-        } => {
-            for a in arms {
-                if let Some(b) = &a.body {
-                    visit(&b.statements, names);
+        Statement::Foreach { iterators, .. } => {
+            for iterator in iterators {
+                for name in &iterator.vars {
+                    insert_nonempty(names, name);
                 }
             }
-            if let Some(d) = default_body {
-                visit(&d.statements, names);
-            }
-        }
-        Statement::While { body, .. }
-        | Statement::Block { body, .. }
-        | Statement::UpFrame { body, .. } => {
-            visit(&body.statements, names);
         }
         _ => {}
+    }
+    for child in stmt.child_scripts() {
+        visit(&child.statements, names);
     }
 }
 
@@ -166,8 +99,10 @@ mod tests {
     use crate::lowering::lower_to_ir;
     use tcl_registry::CommandRegistry;
 
-    fn reg() -> CommandRegistry {
-        CommandRegistry::build_default()
+    fn reg() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .clone()
     }
 
     fn body_of(src: &str) -> Script {
@@ -193,8 +128,12 @@ mod tests {
 
     #[test]
     fn descends_into_if_body() {
-        let body = body_of("if {1} { set inside_if 1 } else { set inside_else 2 }");
-        let names = collect_known_names(std::iter::empty::<String>(), &body);
+        let module = lower_to_ir(
+            "proc f {condition} {if {$condition} {set inside_if 1} else {set inside_else 2}}",
+            &reg(),
+        );
+        let body = &module.procedures["::f"].body;
+        let names = collect_known_names(std::iter::empty::<String>(), body);
         assert!(names.contains("inside_if"));
         assert!(names.contains("inside_else"));
     }

@@ -75,7 +75,7 @@ fn i32_const_0() -> WasmInstruction {
 }
 
 /// Build the **host stub**: a module that *defines and exports* `memory` plus
-/// the three `tcl_*` functions the emitted module imports, with trivial bodies.
+/// the `tcl_*` functions the emitted module imports, with trivial bodies.
 /// `tcl_obj_new_string` returns a dummy `0` obj handle (the emitted module only
 /// passes it to `tcl_eval_code`, never dereferences it); `tcl_eval_code` returns
 /// `0` (the `ok` completion code, so nothing propagates) and `tcl_expr_bool`
@@ -99,6 +99,12 @@ fn host_stub() -> WasmModule {
     m.import_memory = false; // define + export our own memory (index 0)
     m.memory_pages = 1;
     m.functions = vec![
+        func(
+            "tcl_codegen_host_refusal_pending",
+            Vec::new(),
+            vec![ValType::I32],
+            vec![i32_const_0()],
+        ),
         func(
             "tcl_obj_new_string",
             vec![ValType::I32, ValType::I32],
@@ -223,6 +229,7 @@ fn wasi_recording_host(expr_result: u8, eval_code: u8) -> String {
     (drop (call $fd_write (i32.const 1) (i32.const 0xF000) (i32.const 1) (i32.const 0xF010)))
     (drop (call $fd_write (i32.const 1) (i32.const 0xF018) (i32.const 1) (i32.const 0xF010)))
     i32.const {eval_code})
+  (func (export "tcl_codegen_host_refusal_pending") (result i32) i32.const 0)
   (func (export "tcl_expr_bool") (param i32) (result i32) i32.const {expr_result})
   (data (i32.const 0xF018) "\20\f0\00\00\01\00\00\00\0a"))
 "#

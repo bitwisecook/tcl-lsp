@@ -1,0 +1,48 @@
+{
+  "observation_window": "Direct Tcl_UniCharToUtf(int) calls and actual Tcl_NewUnicodeObj unit-width admission; physical type/resident captured before GetString. No interpreter eval, callbacks, metadata or Unicode host conversion.",
+  "rows": 107,
+  "engines": [
+    {
+      "version": "8.4.20",
+      "rows": 21,
+      "width_refusals": 1,
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "binary_sha256": "3982fdbe7c6a826af65455dc364f6b58c77cc01fd780d2ebada871dbca824b45",
+      "log_sha256": "1fa3427bc0628797ecc1b020c0f4e261279e3814b8cc1ee7819af43d1693cfa2"
+    },
+    {
+      "version": "8.5.19",
+      "rows": 21,
+      "width_refusals": 1,
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "binary_sha256": "4ccf16aeb243bc306a221a6fa958716733e19cbb70ff6838bcdae696f8dd2270",
+      "log_sha256": "1fa3427bc0628797ecc1b020c0f4e261279e3814b8cc1ee7819af43d1693cfa2"
+    },
+    {
+      "version": "8.6.18",
+      "rows": 21,
+      "width_refusals": 1,
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "binary_sha256": "858398b99d4a570dc90a97b6f3e3c31e8c965616aa64350daa9e683d4c0e789e",
+      "log_sha256": "1fa3427bc0628797ecc1b020c0f4e261279e3814b8cc1ee7819af43d1693cfa2"
+    },
+    {
+      "version": "9.0.4",
+      "rows": 22,
+      "width_refusals": 0,
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "binary_sha256": "9e8cb863fc79cdba9427b9b4da1815b3b6761f057733af4db62fd98c5dee6f25",
+      "log_sha256": "262ac9df36c0efdcd34a8680f7b8d5e5543a4e98454d9a8298a06aff88833afe"
+    },
+    {
+      "version": "9.1.0",
+      "rows": 22,
+      "width_refusals": 0,
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "binary_sha256": "e6e40e0095b0fd7cdd9ae5b4c8f1426e34831c3ea2dcf03ec280cae39141ae53",
+      "log_sha256": "262ac9df36c0efdcd34a8680f7b8d5e5543a4e98454d9a8298a06aff88833afe"
+    }
+  ],
+  "source_sha256": "8939e3d7f17ae325b9a68b7a35e3cd8991488e0cd626cefbdbe87930169adcc4",
+  "jim": "No Tcl_UniChar constructor ABI in Jim; deliberately separate protocol, zero Jim comparisons."
+}

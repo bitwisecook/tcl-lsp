@@ -18,7 +18,7 @@
 
 //! The compiler's adapter over the word-parts owner.
 //!
-//! [`WordExpr`] is built here from [`tcl_lexer::word_parts::decompose_spanned`]
+//! [`WordExpr`] is built here from [`tcl_lexer::word_parts::ExecutablePartArena`]
 //! — the one owner of "split a Tcl word into its substitution components" —
 //! rather than from a private walk over lexer fragments. The
 //! segmenter still owns *command* and *word* boundaries: it hands this module
@@ -37,12 +37,16 @@
 //!   `$` is data, where C stops parsing — are the owner's, under the document's
 //!   [`LexerConfig`] so the `${…}` close rule, the array-index source mask and
 //!   the escape grammar follow the emulated release.
-//! - **Spellings stay compatibility spellings.** A `Text` part carries its raw,
+//! - **Spellings retain the actual reference.** A `Text` part carries its raw,
 //!   undecoded source so the backslash rule stays explicit at this boundary; a
-//!   `Variable` part carries the argv spelling the analyser and the WASM tiers
-//!   read (`${name}` for a bare scalar, verbatim for `${…}` and for an element
-//!   whose index substitutes); a `CommandSubstitution` carries `[script]`.
-//! - **Spans keep the lexer's inner-end convention.** A `${name}` or `[script]`
+//!   `Variable` part carries its verbatim source spelling, including its scalar
+//!   or element syntax. Compatibility argv text remains a separate view and
+//!   cannot change the reference associated with a source read receipt. A
+//!   `CommandSubstitution` carries `[script]`.
+//! - **Wrapper spans include their original closing delimiter.** Expansion
+//!   wrappers and templates use the shared token extent owner; empty groups
+//!   already cover their closer and are never widened twice.
+//! - **Component spans keep the lexer's inner-end convention.** A `${name}` or `[script]`
 //!   part's span excludes its closer (an empty `${}` / `[]` covers it), which
 //!   is what `codegen::wasm::leaf_invoke::plan_variable` reads to tell `$a(b)`
 //!   from `${a(b)}`.
@@ -51,7 +55,7 @@
 //!   [`WordOpacity::ParseError`] — the same `missing …` texts the segmenter's
 //!   E200 reports — and every consumer declines it.
 
-use tcl_lexer::word_parts::{SpannedPart, SubstFlags, decompose_spanned, quoted_word_close};
+use tcl_lexer::word_parts::{ExecutablePart, ExecutablePartArena, SubstFlags, quoted_word_close};
 use tcl_lexer::{LexerConfig, SourceMap, Span, Token, TokenType};
 
 use crate::ir::{SourceSite, WordExpr, WordOpacity, WordPart};
@@ -87,21 +91,14 @@ impl WordExpr {
                 reason: WordOpacity::MissingFragments,
             };
         };
-        let word_span = Span::new(first.span.start(), last.span.end());
-        // A dialect substitution the owner does not model must not reach the
-        // literal promotion below: `decompose` reads `$(` as plain text, so a
-        // JimTcl `$(1+2)` would become a `Literal` carrying its own spelling.
-        if fragments
-            .iter()
-            .any(|t| t.kind == tcl_lexer::TokenType::ExprSugar)
-        {
-            let word = Self::Opaque {
-                text: compat_text.to_owned(),
-                source: SourceSite::opaque(word_span),
-                reason: WordOpacity::DialectSubstitution,
-            };
-            return Self::maybe_expand(word, expanded, expansion_span, word_span);
-        }
+        let end = original_run_end(sm.source(), *last, sm.base_offset(), config)
+            .ok()
+            .and_then(|end| u32::try_from(end).ok())
+            .and_then(|end| sm.base_offset().checked_add(end))
+            .unwrap_or(last.span.end());
+        let word_span = Span::new(first.span.start(), end);
+        // Sugar remains an opaque expression component with exact source.
+        // The region builder retains quoted versus bare ownership separately.
         let word = match build(sm, config, fragments) {
             Ok(word) => word,
             Err(message) => Self::Opaque {
@@ -142,6 +139,7 @@ struct Regions {
     /// The document offset the decomposed buffer's first byte sits at, so a
     /// part built from a *local* slice offset carries its document span.
     base: u32,
+    channel: tcl_lexer::SourceChannel,
 }
 
 /// Re-anchor a token's span into the buffer `sm` holds, so
@@ -150,6 +148,32 @@ fn localise(tok: Token, base: u32) -> Token {
     Token {
         span: Span::new(tok.span.start() - base, tok.span.end() - base),
         ..tok
+    }
+}
+
+/// Keep the typed expression component's full written extent in the bare run.
+fn original_run_end(
+    source: &str,
+    last: Token,
+    base: u32,
+    config: LexerConfig,
+) -> Result<usize, &'static str> {
+    let last_local = localise(last, base);
+    if last.kind == TokenType::ExprSugar {
+        Ok(tcl_lexer::word_parts::scan_expression_sugar(
+            source.as_bytes(),
+            last_local.span.start() as usize,
+            config,
+        )?
+        .ok_or("missing original expression substitution")?
+        .1)
+    } else {
+        let span = if last.kind == TokenType::Var {
+            tcl_lexer::word_span_at(source, last_local.span)
+        } else {
+            tcl_lexer::word_span(&SourceMap::new(source), last_local)
+        };
+        Ok(span.end() as usize)
     }
 }
 
@@ -167,8 +191,14 @@ fn build(
     let at = |offset: u32| (offset - base) as usize;
     let first = fragments[0];
     let last = fragments[fragments.len() - 1];
-    let word_span = Span::new(first.span.start(), last.span.end());
+    let end = u32::try_from(original_run_end(source, last, base, config)?)
+        .ok()
+        .and_then(|end| base.checked_add(end))
+        .ok_or("original word extent is out of range")?;
+    let word_span = Span::new(first.span.start(), end);
     let opener_of = |tok: Token| bytes.get(at(tok.span.start())).copied();
+
+    validate_braced_fragments(sm, fragments)?;
 
     if fragments.len() == 1 && first.kind == TokenType::Str && opener_of(first) == Some(b'{') {
         return Ok(WordExpr::BracedLiteral {
@@ -182,6 +212,7 @@ fn build(
         count: 0,
         quoted: false,
         base,
+        channel: sm.channel(),
     };
     // Start of the bare run being accumulated, if one is open.
     let mut run_start: Option<usize> = None;
@@ -220,7 +251,7 @@ fn build(
         i += 1;
     }
     if let Some(start) = run_start {
-        let end = tcl_lexer::word_span_at(source, localise(last, base).span).end() as usize;
+        let end = original_run_end(source, last, base, config)?;
         flush_run(&mut regions, source, config, Some(start), end)?;
     }
 
@@ -240,12 +271,49 @@ fn build(
                 source: source.clone(),
             }
         }
+        [WordPart::Opaque { text, source }] if single_bare => WordExpr::Opaque {
+            text: std::mem::take(text),
+            source: source.clone(),
+            reason: WordOpacity::DialectSubstitution,
+        },
         _ => WordExpr::Template {
             parts: regions.parts,
             source: SourceSite::source(word_span),
         },
     };
     Ok(word)
+}
+
+fn validate_braced_fragments(sm: &SourceMap<'_>, fragments: &[Token]) -> Result<(), &'static str> {
+    let source = sm.source();
+    let base = sm.base_offset();
+    let opener_of = |token: Token| {
+        source
+            .as_bytes()
+            .get((token.span.start() - base) as usize)
+            .copied()
+    };
+    // Recovery segmentation can retain an unterminated Str token without
+    // marking the whole command partial. Its contents are diagnostic source,
+    // never a proved literal value. Validate through the shared delimiter and
+    // brace owners before either literal or compound-word promotion.
+    for token in fragments
+        .iter()
+        .copied()
+        .filter(|token| token.kind == TokenType::Str && opener_of(*token) == Some(b'{'))
+    {
+        let local = localise(token, base);
+        let close = tcl_lexer::word_closer_offset_at(source, local.span)
+            .ok_or(tcl_lexer::word_parts::MISSING_CLOSE_BRACE)?;
+        let written = source
+            .get(local.span.start() as usize..close as usize + 1)
+            .ok_or(tcl_lexer::word_parts::MISSING_CLOSE_BRACE)?;
+        if tcl_syntax::word_rules::whole_braced_word(written).is_none() {
+            return Err(tcl_lexer::word_parts::MISSING_CLOSE_BRACE);
+        }
+    }
+
+    Ok(())
 }
 
 /// Close the bare run `[start, end)`, if one is open, as one decomposed
@@ -271,69 +339,73 @@ fn decompose_region(
     start: usize,
     end: usize,
 ) -> Result<(), &'static str> {
-    let content = source.get(start..end).unwrap_or("");
+    let content = source
+        .get(start..end)
+        .ok_or("component source unavailable")?;
+    let length = u32::try_from(content.len()).map_err(|_| "component extent out of range")?;
+    let image = tcl_lexer::SourceImage::from_bytes(content.as_bytes(), regions.channel);
+    let arena =
+        ExecutablePartArena::decompose(image, Span::new(0, length), SubstFlags::default(), config)
+            .map_err(|_| "component source geometry unavailable")?;
+    if let Some(message) = arena.all_parts().find_map(|part| match part.part {
+        ExecutablePart::ParseError(message) => Some(message),
+        _ => None,
+    }) {
+        return Err(message);
+    }
     regions.count += 1;
-    let base = regions.base;
-    for spanned in decompose_spanned(content.as_bytes(), SubstFlags::default(), config) {
-        regions.parts.push(part_at(source, start, base, &spanned)?);
+    for component in arena.list(arena.root()) {
+        let token_span = arena
+            .source_span(component)
+            .ok_or("component source extent unavailable")?;
+        let offset = regions
+            .base
+            .checked_add(u32::try_from(start).map_err(|_| "component extent out of range")?)
+            .ok_or("component extent out of range")?;
+        let source_span = Span::new(
+            offset
+                .checked_add(token_span.start())
+                .ok_or("component extent out of range")?,
+            offset
+                .checked_add(token_span.end())
+                .ok_or("component extent out of range")?,
+        );
+        let raw = content
+            .get(component.span.as_range())
+            .ok_or("component source spelling unavailable")?;
+        let source = SourceSite::source(source_span);
+        regions.parts.push(match component.part {
+            ExecutablePart::Text(_) => WordPart::Text {
+                text: raw.to_owned(),
+                source,
+            },
+            ExecutablePart::Variable { .. } => WordPart::Variable {
+                spelling: raw.to_owned(),
+                source,
+            },
+            ExecutablePart::Command { .. } => WordPart::CommandSubstitution {
+                spelling: raw.to_owned(),
+                source,
+            },
+            ExecutablePart::Expression { .. } => WordPart::Opaque {
+                text: raw.to_owned(),
+                source,
+            },
+            ExecutablePart::ParseError(message) => return Err(message),
+        });
     }
     Ok(())
 }
 
-/// One owner part, re-anchored at the local offset `start` in `source` and
-/// carried out in the document space `base` anchors.
-fn part_at(
-    source: &str,
-    start: usize,
-    base: u32,
-    spanned: &SpannedPart<'_>,
-) -> Result<WordPart, &'static str> {
-    let (start, end) = (start + spanned.start, start + spanned.end);
-    let raw = source.get(start..end).unwrap_or("");
-    let span = |end: usize| Span::new(offset(start) + base, offset(end) + base);
-    Ok(match &spanned.part {
-        tcl_lexer::WordPart::Text(_) => WordPart::Text {
-            text: raw.to_owned(),
-            source: SourceSite::source(span(end)),
-        },
-        tcl_lexer::WordPart::Variable(_) => {
-            // The lexer's inner-end convention: a `${name}` token stops short
-            // of its closing brace unless the name is empty.
-            let braced = raw.starts_with("${");
-            let inner_end = if braced && raw.len() > 3 {
-                end - 1
-            } else {
-                end
-            };
-            WordPart::Variable {
-                spelling: variable_spelling(raw),
-                source: SourceSite::source(span(inner_end)),
-            }
-        }
-        tcl_lexer::WordPart::Command(_) => {
-            let inner_end = if raw.len() > 2 { end - 1 } else { end };
-            WordPart::CommandSubstitution {
-                spelling: raw.to_owned(),
-                source: SourceSite::source(span(inner_end)),
-            }
-        }
-        tcl_lexer::WordPart::ParseError(message) => return Err(message),
-    })
-}
-
-/// The compatibility argv spelling of the variable reference written as `raw`.
-///
-/// A `${…}` reference and a bare element whose index itself substitutes
-/// (`$arr($i)`) round-trip verbatim — wrapping the latter in braces would turn
-/// the element access into a scalar lookup of a name with parentheses in it.
-/// A bare scalar or literal-index element is normalised to `${name}` so
-/// consumers read one canonical shape; a name containing `}` cannot be
-/// braced unambiguously and stays bare.
-fn variable_spelling(raw: &str) -> String {
+/// Compatibility argv projection only. Original source references and their
+/// read receipts must retain their verbatim spelling instead of this view.
+pub(crate) fn compatibility_variable_spelling(raw: &str) -> String {
     if raw.starts_with("${") {
         return raw.to_owned();
     }
-    let body = &raw[1..];
+    let Some(body) = raw.strip_prefix('$') else {
+        return raw.to_owned();
+    };
     if let Some(open) = body.find('(')
         && body.ends_with(')')
         && body[open..].contains(['$', '['])
@@ -347,6 +419,110 @@ fn variable_spelling(raw: &str) -> String {
     }
 }
 
-fn offset(at: usize) -> u32 {
-    u32::try_from(at).expect("source offsets fit in u32")
+#[cfg(test)]
+mod expression_source_tests {
+    use super::*;
+
+    fn original_word(source: &str) -> WordExpr {
+        let config = LexerConfig::for_dialect("jim");
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let fragments = command.word_fragments[1]
+            .iter()
+            .map(|part| part.token)
+            .collect::<Vec<_>>();
+        WordExpr::from_word(
+            &SourceMap::new(source),
+            config,
+            &fragments,
+            &command.texts[1],
+            false,
+            None,
+        )
+    }
+
+    #[test]
+    fn jim_bare_and_mixed_sugar_keep_the_original_closing_parenthesis() {
+        assert!(
+            matches!(original_word("list $(k)"), WordExpr::Opaque { text, .. } if text == "$(k)")
+        );
+        let WordExpr::Template { parts, .. } = original_word("list pre$(1+(2))") else {
+            panic!("mixed original word must remain a template");
+        };
+        assert!(
+            matches!(&parts[1], WordPart::Opaque { text, source } if text == "$(1+(2))" && source.span == Span::new(8, 15))
+        );
+        assert!(
+            matches!(original_word("list \"$(1+2)\""), WordExpr::Template { parts, .. } if matches!(&parts[..], [WordPart::Opaque { text, .. }] if text == "$(1+2)"))
+        );
+    }
+
+    fn component_or_wrapper_extent(source: &str, word: &WordExpr) -> Span {
+        match word {
+            WordExpr::BracedLiteral { source: site, .. }
+            | WordExpr::CommandSubstitution { source: site, .. } => {
+                tcl_lexer::word_span_at(source, site.span)
+            }
+            _ => word.source().span,
+        }
+    }
+
+    #[test]
+    fn original_word_wrappers_keep_full_delimiters_without_trailing_source() {
+        let config = LexerConfig::default();
+        for (source, expected) in [
+            ("list [change] ; # after", "[change]"),
+            ("list [] ; # after", "[]"),
+            ("list pre[change] ; # after", "pre[change]"),
+            ("list pre[] ; # after", "pre[]"),
+            ("list \"pre[change]\" ; # after", "\"pre[change]\""),
+            ("list \"\" ; # after", "\"\""),
+            ("list {value} ; # after", "{value}"),
+            ("list {} ; # after", "{}"),
+            ("list {value\\}} ; # after", "{value\\}}"),
+            ("lappend x {*}[change] ; # after", "{*}[change]"),
+            ("lappend x {*}[] ; # after", "{*}[]"),
+            ("lappend x {*}\"value\" ; # after", "{*}\"value\""),
+            ("lappend x {*}{value} ; # after", "{*}{value}"),
+            ("lappend x {*}{} ; # after", "{*}{}"),
+        ] {
+            let command =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let words =
+                crate::ir::CommandTokens::from_segmented(&SourceMap::new(source), config, &command);
+            let word = words.word_exprs.last().unwrap();
+            let extent = component_or_wrapper_extent(source, word);
+            assert_eq!(&source[extent.as_range()], expected, "{source}");
+            if let WordExpr::Expand { word, .. } = word {
+                assert_eq!(
+                    &source[component_or_wrapper_extent(source, word).as_range()],
+                    expected.strip_prefix("{*}").unwrap(),
+                    "{source}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn expanded_word_extent_retains_derived_source_coordinates() {
+        let source = "lappend x {*}[change]";
+        let base = 71;
+        let config = LexerConfig::default();
+        let command =
+            crate::segmenter::segment_commands_with_offset_and_config(source, base, config)
+                .remove(0);
+        let words = crate::ir::CommandTokens::from_segmented(
+            &SourceMap::new(source).with_base(base, 0, 0),
+            config,
+            &command,
+        );
+        let word = words.word_exprs.last().unwrap();
+        assert_eq!(word.source().span, Span::new(base + 10, base + 21));
+        assert_eq!(
+            &source[(word.source().span.start() - base) as usize
+                ..(word.source().span.end() - base) as usize],
+            "{*}[change]",
+        );
+    }
 }

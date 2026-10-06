@@ -68,6 +68,7 @@ const FORMS: &[FormSpec] = &[
 /// `--` is handled by the scan, not here: `regexp -- -about $s v` reports no
 /// switches, so `-about` is the pattern and `v` is a match variable — which
 /// is what tclsh does.
+#[cfg(test)]
 fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let i = first_positional_index(REGEXP_OPTIONS, args, 0);
     let pattern = std::iter::once((i, ArgRole::Pattern));
@@ -86,6 +87,34 @@ fn regexp_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
         .collect()
 }
 
+/// Structured native roles use only the actual prefix and cardinality.
+fn regexp_layout_roles(
+    arguments: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = arguments.exact_argv_len()?;
+    if count > usize::from(u8::MAX) + 1 {
+        return None;
+    }
+    let first = options.leading_word_count(arguments)?;
+    let mut roles = Vec::new();
+    let mut push = |index: usize, role| {
+        if index < count {
+            roles.push((u8::try_from(index).ok()?, role));
+        }
+        Some(())
+    };
+    push(first, ArgRole::Pattern)?;
+    let no_outputs = options.prefix_contains(arguments, "-inline")?
+        || options.prefix_contains(arguments, "-about")?;
+    if !no_outputs {
+        for index in first + 2..count {
+            push(index, ArgRole::VarWrite)?;
+        }
+    }
+    Some(roles)
+}
+
 /// A boolean switch (`-flag`) — takes no value, available in all dialects.
 const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
     OptionSpec {
@@ -101,7 +130,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
 
 /// The 11 `regexp` switches — confirmed byte-for-byte stable (same 11
 /// names, same value-taking shape) across the fetched Tcl 8.4, 8.5, 8.6,
-/// 9.0, and 9.1 manpages, so none carries a `surface:` restriction.
+/// 9.0, and 9.1 manpages. Jim 0.84 independently omits `-about`.
 /// `-start` is the only switch that takes a value (an `index`); the rest
 /// are boolean flags.  `--` terminates option parsing.
 ///
@@ -157,10 +186,16 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
-    flag(
-        "-about",
-        "Skip matching and instead return {subexpressionCount propertyList} describing the compiled pattern, for debugging; needs only exp — string may be omitted.",
-    ),
+    OptionSpec {
+        surface: Some(tcl_dialect::surface![SpecSurface::core_in(
+            tcl_dialect::model::Family::Tcl,
+            &[("8.4", None)],
+        )]),
+        ..flag(
+            "-about",
+            "Skip matching and instead return {subexpressionCount propertyList} describing the compiled pattern, for debugging; needs only exp — string may be omitted. Available in C Tcl; Jim 0.84 does not support this switch.",
+        )
+    },
     flag(
         "--",
         "Ends switch parsing; the next word is treated as exp even if it begins with -.",
@@ -184,6 +219,17 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::ConditionalVariableOperands(
+                crate::variable_output::NativeVariableOutputSpec::Regexp,
+            ),
+        ),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Regexp,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
@@ -241,11 +287,31 @@ pub fn spec() -> CommandSpec {
         pattern_type: Some(PatternType::Regex),
         inline_codegen_hook: Some(InlineCodegenHookId::Regexp),
         forms: FORMS,
-        arg_role_resolver: Some(regexp_arg_roles),
+        arg_role_layout_resolver: Some(regexp_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::VarWrite],
         analyser_hook: Some(crate::hooks::AnalyserHookId::RegexPatternCapture),
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Jim's actual switch table omits C Tcl's `-about`, independently of its
+/// inherited Tcl 8.4 vocabulary. The nearest native row prevents that inherited
+/// option from altering role, hazard or output layout selection.
+pub fn jim_spec() -> CommandSpec {
+    static OPTIONS: std::sync::OnceLock<Vec<OptionSpec>> = std::sync::OnceLock::new();
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.options = OPTIONS.get_or_init(|| {
+        REGEXP_OPTIONS
+            .iter()
+            .filter(|option| option.name != "-about")
+            .cloned()
+            .collect()
+    });
+    command
 }
 
 #[cfg(test)]
@@ -316,6 +382,42 @@ mod tests {
             plain.contains(&(2, ArgRole::VarWrite)) && plain.contains(&(3, ArgRole::VarWrite)),
             "every trailing word of a plain call is a match variable: {plain:?}"
         );
+    }
+
+    #[test]
+    fn structured_roles_keep_unknown_subjects_and_names_after_known_options() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (arguments, captures) in [
+            (vec![Literal("(a)"), Dynamic], vec![]),
+            (vec![Literal("(a)"), Dynamic, Dynamic], vec![2]),
+            (vec![Literal("-inline"), Literal("(a)"), Dynamic], vec![]),
+            (
+                vec![Literal("-start"), Dynamic, Literal("(a)"), Dynamic, Dynamic],
+                vec![4],
+            ),
+        ] {
+            let words = crate::InvocationWords::structured(Literal("regexp"), &arguments)
+                .with_dialect(dialect);
+            let resolution = registry.resolve_structured_invocation(words, None);
+            let facts = resolution.resolved().unwrap().facts();
+            assert!(facts.arg_roles_complete);
+            assert_eq!(
+                facts
+                    .arg_roles
+                    .iter()
+                    .filter_map(|(index, role)| (*role == ArgRole::VarWrite).then_some(*index))
+                    .collect::<Vec<_>>(),
+                captures
+            );
+        }
+        let arguments = [Dynamic, Dynamic];
+        let resolution = registry.resolve_structured_invocation(
+            crate::InvocationWords::structured(Literal("regexp"), &arguments).with_dialect(dialect),
+            None,
+        );
+        assert!(!resolution.resolved().unwrap().facts().arg_roles_complete);
     }
 
     /// Membership pin against Tcl 9.0.4 `Tcl_RegexpObjCmd`

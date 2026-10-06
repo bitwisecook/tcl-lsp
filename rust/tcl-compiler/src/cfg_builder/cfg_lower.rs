@@ -45,21 +45,78 @@ struct SwitchEscape<'a> {
 /// Per-word token metadata for the synthetic loop-header call
 /// [`CfgBuilder::lower_foreach`] builds.
 ///
-/// The only fact it carries is each value word's **brace-quoting**: `foreach n
-/// {a $b c} …` iterates the three literal elements `a`, `$b`, `c` and reads
-/// nothing, while `foreach n "a $b c" …` substitutes `$b` (tclsh 8.6.14 — the
-/// braced loop prints `a`, `$b`, `c` with `b` undefined throughout).  Both
-/// lower to the same `list_arg` *text*, so without this the read harvest saw a
-/// substitution in the braced word and draw a false `W210`.
-///
-/// Every span is the whole-command `span`: the iterator carries no per-word
-/// span, and the command span is exactly what the span-less consumers
-/// (`shimmer::use_site`'s `fallback_span`) already used.
+/// The selected input words keep their physical read sites and argument-time
+/// snapshots. Synthetic iteration bindings do not re-resolve a written command
+/// or evaluate its original arguments again.
+fn foreach_binding_statement(statement: &Statement) -> Statement {
+    let Statement::Foreach {
+        span,
+        iterators,
+        is_lmap,
+        is_dict_iteration,
+        is_array_iteration,
+        raw_tokens,
+        ..
+    } = statement
+    else {
+        unreachable!("iteration binding requires Foreach");
+    };
+    // Collect all iteration variable names.  The ``defs``
+    // vector is a flattened concatenation of every iterator
+    // group's vars; ``foreach_groups`` records the size of
+    // each group so the codegen can reconstruct the original
+    // ``var-list`` ↔ ``list-arg`` pairing.
+    let all_vars: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
+    let group_sizes: Vec<usize> = iterators.iter().map(|it| it.vars.len()).collect();
+    let list_args: Vec<String> = iterators.iter().map(|it| it.list_arg.clone()).collect();
+
+    let fe_cmd = match (*is_dict_iteration, *is_lmap) {
+        (true, false) => "dict for",
+        (true, true) => "dict map",
+        (false, true) => "lmap",
+        (false, false) => "foreach",
+    };
+
+    let header_tokens = foreach_header_tokens(
+        fe_cmd,
+        *span,
+        iterators,
+        &list_args,
+        raw_tokens.as_ref(),
+        *is_dict_iteration || *is_array_iteration,
+        if *is_array_iteration {
+            None
+        } else if *is_dict_iteration {
+            Some(tcl_registry::TclType::Dict)
+        } else {
+            Some(tcl_registry::TclType::List)
+        },
+    );
+
+    // Synthetic def node for iteration variables (placed at the header for
+    // the normal shape, or at the top of the body when rotated).
+    Statement::Call {
+        span: *span,
+        command: fe_cmd.into(),
+        canonical_command: None,
+        args: list_args,
+        defs: all_vars,
+        reads: vec![],
+        reads_own_defs: false,
+        safe_on_uninit: false,
+        tokens: Some(header_tokens),
+        foreach_groups: Some(group_sizes),
+    }
+}
+
 fn foreach_header_tokens(
     fe_cmd: &str,
     span: Span,
     iterators: &[crate::ir::ForeachIterator],
     list_args: &[String],
+    original: Option<&crate::ir::CommandTokens>,
+    compound: bool,
+    input_representation: Option<tcl_registry::TclType>,
 ) -> crate::ir::CommandTokens {
     let mut argv_kinds = vec![tcl_lexer::TokenType::Esc];
     argv_kinds.extend(iterators.iter().map(|it| {
@@ -71,14 +128,34 @@ fn foreach_header_tokens(
     }));
     let mut argv_texts = vec![fe_cmd.to_owned()];
     argv_texts.extend(list_args.iter().cloned());
-    crate::ir::CommandTokens::from_lossy_parts(
+    let mut tokens = crate::ir::CommandTokens::from_lossy_parts(
         vec![span; iterators.len() + 1],
         argv_texts,
         argv_kinds,
         vec![true; iterators.len() + 1],
         Vec::new(),
         None,
-    )
+    );
+    if let Some(original) = original {
+        tokens.source_binding.clone_from(&original.source_binding);
+        tokens.nested_bindings.clone_from(&original.nested_bindings);
+        tokens
+            .variable_accesses
+            .clone_from(&original.variable_accesses);
+        if let Some(effective) = crate::registry_invocation::effective_command_words(original) {
+            let (first, stride) = if compound { (3, 1) } else { (2, 2) };
+            for index in 0..iterators.len() {
+                if let Some(word) = effective.words.get(first + index * stride) {
+                    tokens.argv[index + 1] = word.source().span;
+                    tokens.word_exprs[index + 1] = word.clone();
+                }
+            }
+        }
+    }
+    tokens.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(
+        input_representation,
+    ));
+    tokens
 }
 
 /// A foldable always-true literal condition (`1`) for a rotated loop's
@@ -251,13 +328,16 @@ impl CfgBuilder<'_> {
 
             let true_target = self.bid(&then_block);
             let false_target = self.bid(&next_dispatch);
-            self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
-                condition: clause.condition.clone(),
-                true_target,
-                false_target,
-                span: Some(clause.condition_span),
-                condition_base: clause.condition_base,
-            });
+            self.set_terminator(
+                &dispatch,
+                Terminator::Branch {
+                    condition: clause.condition.clone(),
+                    true_target,
+                    false_target,
+                    span: Some(clause.condition_span),
+                    condition_base: clause.condition_base,
+                },
+            );
 
             if let Some(tail) = self.lower_script(&clause.body, &then_block) {
                 self.ensure_goto(&tail, &end_block, Some(clause.body_span));
@@ -289,20 +369,23 @@ impl CfgBuilder<'_> {
     /// [`crate::ir::SyntheticMarker`] on its tokens — `<empty_clause>` is a
     /// legal Tcl command name a script may define and call.
     fn push_empty_clause(&mut self, block: &str, span: Span) {
-        self.block_mut(block).statements.push(Statement::Call {
-            span,
-            command: "<empty_clause>".into(),
-            canonical_command: None,
-            args: vec![],
-            defs: vec![],
-            reads: vec![],
-            reads_own_defs: false,
-            safe_on_uninit: false,
-            tokens: Some(crate::ir::CommandTokens::marker(
-                crate::ir::SyntheticMarker::EmptyClause,
-            )),
-            foreach_groups: None,
-        });
+        self.push_statement(
+            block,
+            Statement::Call {
+                span,
+                command: "<empty_clause>".into(),
+                canonical_command: None,
+                args: vec![],
+                defs: vec![],
+                reads: vec![],
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::EmptyClause,
+                )),
+                foreach_groups: None,
+            },
+        );
     }
 
     pub(super) fn lower_for(&mut self, stmt: &Statement, block_name: &str) -> Option<String> {
@@ -323,12 +406,19 @@ impl CfgBuilder<'_> {
             unreachable!("lower_for called with non-For");
         };
 
+        let condition_owner = self.command_boundary_sites.get(block_name).cloned();
+
         // Placeholder for empty init clause.
         if init.statements.is_empty() {
             self.push_empty_clause(block_name, *init_span);
         }
         let init_tail = self.lower_script(init, block_name)?;
-        self.copy_command_boundary(block_name, &init_tail);
+        // Lowering init can replace the entry block's current command owner.
+        // The synthetic boundary still belongs to the original for command.
+        if let Some(site) = condition_owner.as_ref() {
+            self.command_boundary_sites
+                .insert(init_tail.clone(), site.clone());
+        }
 
         let header = self.new_block("for_header");
         let body_block = self.new_block("for_body");
@@ -336,6 +426,7 @@ impl CfgBuilder<'_> {
         let end_block = self.new_block("for_end");
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
+        self.retain_condition_binding(condition_owner.as_ref(), &header);
 
         // A `for` condition is re-evaluated every iteration exactly as a
         // `while` condition is, and until now contributed neither defs nor
@@ -349,13 +440,16 @@ impl CfgBuilder<'_> {
 
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
-        self.block_mut(&header).terminator = Some(Terminator::Branch {
-            condition: condition.clone(),
-            true_target: body_id,
-            false_target: end_id,
-            span: Some(*condition_span),
-            condition_base: *condition_base,
-        });
+        self.set_terminator(
+            &header,
+            Terminator::Branch {
+                condition: condition.clone(),
+                true_target: body_id,
+                false_target: end_id,
+                span: Some(*condition_span),
+                condition_base: *condition_base,
+            },
+        );
 
         // `break` exits to `end_block`; `continue` runs the step at `step_block`.
         self.loop_stack
@@ -385,20 +479,28 @@ impl CfgBuilder<'_> {
         let step_tail = self.lower_script(next, &step_block);
         if let Some(step_tail) = step_tail {
             if rotate {
-                self.block_mut(&header).terminator = Some(Terminator::Branch {
-                    condition: literal_true_expr(),
-                    true_target: body_id,
-                    false_target: end_id,
-                    span: None,
-                    condition_base: None,
-                });
-                self.block_mut(&step_tail).terminator = Some(Terminator::Branch {
-                    condition: condition.clone(),
-                    true_target: body_id,
-                    false_target: end_id,
-                    span: Some(*condition_span),
-                    condition_base: *condition_base,
-                });
+                self.condition_binding_sites.remove(&header);
+                self.retain_condition_binding(condition_owner.as_ref(), &step_tail);
+                self.set_terminator(
+                    &header,
+                    Terminator::Branch {
+                        condition: literal_true_expr(),
+                        true_target: body_id,
+                        false_target: end_id,
+                        span: None,
+                        condition_base: None,
+                    },
+                );
+                self.set_terminator(
+                    &step_tail,
+                    Terminator::Branch {
+                        condition: condition.clone(),
+                        true_target: body_id,
+                        false_target: end_id,
+                        span: Some(*condition_span),
+                        condition_base: *condition_base,
+                    },
+                );
             } else {
                 self.ensure_goto(&step_tail, &header, Some(*next_span));
             }
@@ -408,6 +510,7 @@ impl CfgBuilder<'_> {
         self.loop_nodes.insert(
             end_block.clone(),
             LoopNode {
+                executed_source: self.current_source.clone(),
                 entry_block,
                 span: *span,
                 for_stmt: stmt.clone(),
@@ -438,6 +541,7 @@ impl CfgBuilder<'_> {
         let end_block = self.new_block("while_end");
 
         self.ensure_goto(block_name, &header, Some(*condition_span));
+        self.copy_condition_binding(block_name, &header);
 
         // A `catch`/`regexp`/`scan` substitution — or a call to a known
         // upvar / global-writing user proc — in the loop condition writes
@@ -452,13 +556,16 @@ impl CfgBuilder<'_> {
         }
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
-        self.block_mut(&header).terminator = Some(Terminator::Branch {
-            condition: condition.clone(),
-            true_target: body_id,
-            false_target: end_id,
-            span: Some(*condition_span),
-            condition_base: *condition_base,
-        });
+        self.set_terminator(
+            &header,
+            Terminator::Branch {
+                condition: condition.clone(),
+                true_target: body_id,
+                false_target: end_id,
+                span: Some(*condition_span),
+                condition_base: *condition_base,
+            },
+        );
 
         // `break` exits to `end_block`; `continue` re-tests at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
@@ -473,61 +580,65 @@ impl CfgBuilder<'_> {
 
     // foreach / lmap
 
+    fn push_iteration_arguments(
+        &mut self,
+        span: Span,
+        raw_tokens: Option<&crate::ir::CommandTokens>,
+        block_name: &str,
+    ) {
+        if self.faithful_exceptions
+            && let Some(original) = raw_tokens
+        {
+            let mut arguments = original.clone();
+            arguments.synthetic = Some(crate::ir::SyntheticMarker::EvaluatedArguments);
+            self.push_statement(
+                block_name,
+                Statement::Call {
+                    span,
+                    command: original.argv_texts.first().cloned().unwrap_or_default(),
+                    canonical_command: None,
+                    args: original.argv_texts.iter().skip(1).cloned().collect(),
+                    defs: Vec::new(),
+                    reads: Vec::new(),
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: Some(arguments),
+                    foreach_groups: None,
+                },
+            );
+        }
+    }
+
     /// Flatten `Statement::Foreach` into a header → body → header loop
     /// with a synthetic variable-definition node at the header.
     pub(super) fn lower_foreach(&mut self, stmt: &Statement, block_name: &str) -> String {
         let Statement::Foreach {
             span,
-            iterators,
             body,
             body_span,
-            is_lmap,
-            is_dict_iteration,
+            raw_tokens,
             ..
         } = stmt
         else {
             unreachable!("lower_foreach called with non-Foreach");
         };
 
+        let command_owner = self.command_boundary_sites.get(block_name).cloned();
+        self.push_iteration_arguments(*span, raw_tokens.as_ref(), block_name);
+
         let header = self.new_block("foreach_header");
         let body_block = self.new_block("foreach_body");
         let end_block = self.new_block("foreach_end");
-        self.copy_command_boundary(block_name, &header);
+        // The iterator condition does not evaluate the original foreach argv.
+        // Its input dependencies belong to the pre-loop argument boundary.
+        // The runtime iterator-entry marker nevertheless replays that command.
+        if let Some(site) = command_owner {
+            self.command_boundary_sites.insert(header.clone(), site);
+        }
 
         self.ensure_goto(block_name, &header, Some(*span));
 
-        // Collect all iteration variable names.  The ``defs``
-        // vector is a flattened concatenation of every iterator
-        // group's vars; ``foreach_groups`` records the size of
-        // each group so the codegen can reconstruct the original
-        // ``var-list`` ↔ ``list-arg`` pairing.
-        let all_vars: Vec<String> = iterators.iter().flat_map(|it| it.vars.clone()).collect();
-        let group_sizes: Vec<usize> = iterators.iter().map(|it| it.vars.len()).collect();
-        let list_args: Vec<String> = iterators.iter().map(|it| it.list_arg.clone()).collect();
-
-        let fe_cmd = match (*is_dict_iteration, *is_lmap) {
-            (true, false) => "dict for",
-            (true, true) => "dict map",
-            (false, true) => "lmap",
-            (false, false) => "foreach",
-        };
-
-        let header_tokens = foreach_header_tokens(fe_cmd, *span, iterators, &list_args);
-
-        // Synthetic def node for iteration variables (placed at the header for
-        // the normal shape, or at the top of the body when rotated).
-        let var_def = Statement::Call {
-            span: *span,
-            command: fe_cmd.into(),
-            canonical_command: None,
-            args: list_args,
-            defs: all_vars,
-            reads: vec![],
-            reads_own_defs: false,
-            safe_on_uninit: false,
-            tokens: Some(header_tokens),
-            foreach_groups: Some(group_sizes),
-        };
+        let var_def = foreach_binding_statement(stmt);
 
         // Analysis builds rotate a provably-non-empty foreach so the
         // 0-iteration skip is a *separate*, statically-true entry-guard edge
@@ -550,16 +661,19 @@ impl CfgBuilder<'_> {
             // runs at least once. A statically-true condition SCCP folds, so the
             // entry→end (zero-iteration) edge is dead. `span = None` keeps the
             // optimiser's constant-branch source rewriter off this synthetic guard.
-            self.block_mut(&header).terminator = Some(Terminator::Branch {
-                condition: literal_true_expr(),
-                true_target: body_id,
-                false_target: end_id,
-                span: None,
-                condition_base: None,
-            });
+            self.set_terminator(
+                &header,
+                Terminator::Branch {
+                    condition: literal_true_expr(),
+                    true_target: body_id,
+                    false_target: end_id,
+                    span: None,
+                    condition_base: None,
+                },
+            );
             // The iteration variables are (re)bound at the top of every body
             // execution, so a post-loop read of a loop variable also resolves.
-            self.block_mut(&body_block).statements.push(var_def);
+            self.push_statement(&body_block, var_def);
             // `continue` re-checks via the latch; `break` exits the loop.
             self.loop_stack
                 .push((end_block.clone(), latch_block.clone()));
@@ -569,7 +683,27 @@ impl CfgBuilder<'_> {
                 self.ensure_goto(&tail, &latch_block, Some(*body_span));
             }
             // Back-edge re-check: another element → body, else → exit.
-            self.block_mut(&latch_block).terminator = Some(Terminator::Branch {
+            self.set_terminator(
+                &latch_block,
+                Terminator::Branch {
+                    condition: ExprNode::Raw {
+                        text: "<foreach_has_next>".into(),
+                    },
+                    true_target: body_id,
+                    false_target: end_id,
+                    span: Some(*span),
+                    condition_base: None,
+                },
+            );
+            return end_block;
+        }
+
+        self.push_statement(&header, var_def);
+
+        // Opaque condition: non-deterministic branch.
+        self.set_terminator(
+            &header,
+            Terminator::Branch {
                 condition: ExprNode::Raw {
                     text: "<foreach_has_next>".into(),
                 },
@@ -577,22 +711,8 @@ impl CfgBuilder<'_> {
                 false_target: end_id,
                 span: Some(*span),
                 condition_base: None,
-            });
-            return end_block;
-        }
-
-        self.block_mut(&header).statements.push(var_def);
-
-        // Opaque condition: non-deterministic branch.
-        self.block_mut(&header).terminator = Some(Terminator::Branch {
-            condition: ExprNode::Raw {
-                text: "<foreach_has_next>".into(),
             },
-            true_target: body_id,
-            false_target: end_id,
-            span: Some(*span),
-            condition_base: None,
-        });
+        );
 
         // `break` exits to `end_block`; `continue` advances at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
@@ -636,7 +756,7 @@ impl CfgBuilder<'_> {
     /// the block subsequent statements continue in.
     fn lower_opaque_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
         use crate::cfg_builder::Completion;
-        self.block_mut(block_name).statements.push(stmt.clone());
+        self.push_statement(block_name, stmt.clone());
         if !self.faithful_exceptions {
             return block_name.to_owned();
         }
@@ -644,13 +764,17 @@ impl CfgBuilder<'_> {
             crate::cfg_builder::flow_facts_stmt_with_classes(stmt, &self.command_classes).1;
         if completion == Completion::ProcExit {
             if self.block_mut(block_name).terminator.is_none() {
-                self.block_mut(block_name).terminator = Some(Terminator::Return {
-                    value: None,
-                    value_word: None,
-                    span: Some(stmt.span()),
-                    expr: None,
-                    braced: false,
-                });
+                self.set_terminator(
+                    block_name,
+                    Terminator::Complete {
+                        // The branch summary proves no normal continuation,
+                        // but may combine return, error and process exit.
+                        // Retain that unresolved code instead of inventing
+                        // a procedure return for the original invocation.
+                        route: tcl_registry::completion_route::InvocationCompletionRoute::Unknown,
+                        span: Some(stmt.span()),
+                    },
+                );
             }
             return block_name.to_owned();
         }
@@ -717,7 +841,7 @@ impl CfgBuilder<'_> {
         }
         if targets.len() == 1 {
             let target = self.bid(&targets[0]);
-            self.block_mut(block_name).terminator = Some(Terminator::Goto { target, span });
+            self.set_terminator(block_name, Terminator::Goto { target, span });
             return;
         }
         let opaque = ExprNode::Raw {
@@ -732,15 +856,57 @@ impl CfgBuilder<'_> {
             };
             let true_id = self.bid(&targets[i]);
             let false_id = self.bid(&false_target);
-            self.block_mut(&current).terminator = Some(Terminator::Branch {
-                condition: opaque.clone(),
-                true_target: true_id,
-                false_target: false_id,
-                span,
-                condition_base: None,
-            });
+            self.set_terminator(
+                &current,
+                Terminator::Branch {
+                    condition: opaque.clone(),
+                    true_target: true_id,
+                    false_target: false_id,
+                    span,
+                    condition_base: None,
+                },
+            );
             current = false_target;
         }
+    }
+
+    fn emit_original_switch_invocation(&mut self, span: tcl_lexer::Span, block_name: &str) -> bool {
+        let original_tokens = (!self.faithful_exceptions && !self.plain_command_dispatch)
+            .then(|| {
+                self.command_binding_sites
+                    .iter()
+                    .rev()
+                    .find(|site| site.span == span)?
+                    .source_tokens
+                    .as_deref()
+                    .filter(|tokens| {
+                        tokens.source_binding.as_ref().is_some_and(|binding| {
+                            binding.original_switch_compilation(tokens).is_some()
+                        })
+                    })
+                    .cloned()
+            })
+            .flatten();
+        if let Some(tokens) = original_tokens {
+            self.push_statement(
+                block_name,
+                Statement::Call {
+                    span,
+                    command: tokens.argv_texts[0].clone(),
+                    canonical_command: None,
+                    args: tokens.argv_texts[1..].to_vec(),
+                    defs: vec![],
+                    reads: vec![],
+                    reads_own_defs: false,
+                    safe_on_uninit: false,
+                    tokens: Some(tokens),
+                    foreach_groups: None,
+                },
+            );
+            return true;
+        }
+
+        false
     }
 
     pub(super) fn lower_switch(&mut self, stmt: &Statement, block_name: &str) -> String {
@@ -758,6 +924,13 @@ impl CfgBuilder<'_> {
         else {
             unreachable!("lower_switch called with non-Switch");
         };
+
+        // Native switch preparation owns body visits, including duplicate
+        // arms which are never compiled. Preserve the exact original command
+        // for executable emission; the analysis CFG retains its branch facts.
+        if self.emit_original_switch_invocation(*span, block_name) {
+            return block_name.to_owned();
+        }
 
         // All unbraced subject and pattern words substitute before `switch`
         // dispatches. Preserve those writes and opaque effects even when the
@@ -838,13 +1011,16 @@ impl CfgBuilder<'_> {
             };
             let true_id = self.bid(&final_targets[i]);
             let false_id = self.bid(&next_dispatch);
-            self.block_mut(&dispatch).terminator = Some(Terminator::Branch {
-                condition: cond,
-                true_target: true_id,
-                false_target: false_id,
-                span: arm.pattern_span.into(),
-                condition_base: None,
-            });
+            self.set_terminator(
+                &dispatch,
+                Terminator::Branch {
+                    condition: cond,
+                    true_target: true_id,
+                    false_target: false_id,
+                    span: arm.pattern_span.into(),
+                    condition_base: None,
+                },
+            );
             dispatch = next_dispatch;
         }
 
@@ -1026,6 +1202,9 @@ impl CfgBuilder<'_> {
             return Some(Code::Return);
         }
         let mutable = self.blocks.get(block)?;
+        if let Some(Terminator::Complete { route, .. }) = &mutable.terminator {
+            return route.immediate_code();
+        }
         let stmt = mutable.statements.last()?;
         let resolve = self.embedded_head_resolver();
         let tcl_registry::registry::ExactInvocationCompletion::Tcl(code) =
@@ -1218,7 +1397,9 @@ impl CfgBuilder<'_> {
                 // result or options variable: a write trace, or an `upvar` to
                 // an array, rejects it before the body runs (found in review).
                 // See `always_exits_process`.
-                Some(crate::cfg::Terminator::Return { .. }) => {
+                Some(
+                    crate::cfg::Terminator::Return { .. } | crate::cfg::Terminator::Complete { .. },
+                ) => {
                     if !intercepted.contains(name.as_str())
                         && !self.caught_by_handler(name, body_block, handlers, handler_blocks)
                         && !((name == body_block || handler_blocks.contains(name))
@@ -1625,7 +1806,7 @@ impl CfgBuilder<'_> {
     /// outer `finally` scan must not route those past the inner handler and
     /// clause. Loop-jump routing leaves them out — a nested `try` has already
     /// sent its own caught jumps into its handler.
-    fn totally_intercepted(
+    pub(super) fn totally_intercepted(
         &self,
         inside: &dyn Fn(crate::cfg::BlockId) -> bool,
         with_handler_catches: bool,
@@ -1722,9 +1903,9 @@ impl CfgBuilder<'_> {
         if var_defs.is_empty() {
             return;
         }
-        self.block_mut(handler_block)
-            .statements
-            .push(Statement::Call {
+        self.push_statement(
+            handler_block,
+            Statement::Call {
                 span,
                 command: "try".into(),
                 canonical_command: None,
@@ -1735,7 +1916,8 @@ impl CfgBuilder<'_> {
                 safe_on_uninit: false,
                 tokens: None,
                 foreach_groups: None,
-            });
+            },
+        );
     }
 
     /// Lower a `finally` clause after the `try`'s end block, returning the
@@ -1769,12 +1951,9 @@ impl CfgBuilder<'_> {
             if falls_through {
                 self.ensure_goto(tail, &after_finally, fin_span);
             } else {
-                self.block_mut(tail).terminator = Some(crate::cfg::Terminator::Return {
-                    value: None,
-                    value_word: None,
+                self.set_terminator(tail, crate::cfg::Terminator::Complete {
+                    route: tcl_registry::completion_route::InvocationCompletionRoute::UnknownAbrupt,
                     span: fin_span,
-                    expr: None,
-                    braced: false,
                 });
                 // The clause resumes unwinding, so an enclosing handler catches
                 // what it raises with the clause's defs live, as for `error`.
@@ -1809,6 +1988,8 @@ impl CfgBuilder<'_> {
             body_span,
             result_var,
             options_var,
+            raw_args,
+            tokens,
             ..
         } = stmt
         else {
@@ -1818,6 +1999,8 @@ impl CfgBuilder<'_> {
         let body_block = self.new_block("catch_body");
         let end_block = self.new_block("catch_end");
         self.copy_command_boundary(block_name, &body_block);
+        self.command_boundary_continuations
+            .insert(body_block.clone(), end_block.clone());
         self.ensure_goto(block_name, &body_block, Some(*span));
 
         // Same throw-block bookkeeping as `lower_try`: install a fresh list
@@ -1827,8 +2010,18 @@ impl CfgBuilder<'_> {
         // keeps a nested `catch`'s throws attributed to its own region.
         let outer_throw_blocks = self.throw_blocks.take();
         self.throw_blocks = Some(Vec::new());
-        let raw_body_tail = self.lower_script(body, &body_block);
-        let body_terminal = self.last_terminal_block.take();
+        let (raw_body_tail, body_terminal) = if self.faithful_exceptions {
+            // The same captured-completion owner handles package lifecycle
+            // phases and catch bodies. Captured return/break/continue must
+            // reach this merge, rather than remain procedure/loop exits.
+            self.lower_region_phase(body, &body_block, Some(&end_block), Some(&end_block));
+            (None, None)
+        } else {
+            (
+                self.lower_script(body, &body_block),
+                self.last_terminal_block.take(),
+            )
+        };
         let body_throw_blocks = self.throw_blocks.take().unwrap_or_default();
         self.throw_blocks = outer_throw_blocks;
 
@@ -1858,7 +2051,11 @@ impl CfgBuilder<'_> {
         // rename, where the truth is `safe` or `risky`. `lower_try` gets
         // this from `ensure_goto(block_name, &handler_block, …)`; a `catch`
         // has no handler block to edge to, so it is recorded here.
-        let mut throw_sources: Vec<String> = vec![block_name.to_owned()];
+        let mut throw_sources: Vec<String> = if self.faithful_exceptions {
+            Vec::new()
+        } else {
+            vec![block_name.to_owned()]
+        };
         for tb in &body_throw_blocks {
             if !throw_sources.contains(tb) {
                 throw_sources.push(tb.clone());
@@ -1888,20 +2085,30 @@ impl CfgBuilder<'_> {
         if let Some(ov) = options_var {
             defs.push(ov.clone());
         }
-        if !defs.is_empty() {
-            self.block_mut(&end_block).statements.push(Statement::Call {
+        let mut output_tokens = tokens.clone().unwrap_or_else(|| {
+            crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::CapturedCatchOutputs)
+        });
+        output_tokens.synthetic = Some(crate::ir::SyntheticMarker::CapturedCatchOutputs);
+        let command = output_tokens
+            .argv_texts
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        self.push_statement(
+            &end_block,
+            Statement::Call {
                 span: *span,
-                command: "catch".into(),
+                command,
                 canonical_command: None,
-                args: vec![],
+                args: raw_args.clone(),
                 defs,
                 reads: vec![],
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(output_tokens),
                 foreach_groups: None,
-            });
-        }
+            },
+        );
 
         end_block
     }

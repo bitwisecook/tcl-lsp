@@ -30,9 +30,9 @@ use tcl_registry::model::ingress::static_context_for;
 /// flow through these passes.
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
     let registry = static_context_for(dialect).commands();
-    let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty())
-        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    let cu = CompilationUnit::build_for_profile(src, registry, false, profile);
+    let d = (!dialect.is_empty()).then_some(profile);
     let mut v: Vec<(String, String)> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics
@@ -72,8 +72,24 @@ proc f {v} {
 fn fp_bnd_01_loop_index_past_append_slot_fires() {
     // TP: j ∈ [4, 8], length 3 -> every iteration out-of-range; W231 fires,
     // and the message names the dynamic index `$j`.
+    let fired = fires_with_msg(FP_BND_01_REPRO, "W231", "$j");
+    if !fired {
+        let registry = static_context_for(D).commands();
+        let profile = registry.profile().unwrap();
+        let unit = CompilationUnit::build_for_profile(FP_BND_01_REPRO, registry, false, profile);
+        crate::interval_bounds::report_interval_operand_gates(
+            &unit.procedures["::f"],
+            crate::interval_bounds::BoundsSemantics {
+                registry,
+                context: Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+                    profile,
+                )),
+                grammar: profile.grammar,
+            },
+        );
+    }
     assert!(
-        fires_with_msg(FP_BND_01_REPRO, "W231", "$j"),
+        fired,
         "FP-BND-01 TP: loop index past append slot must fire W231 naming $j; emitted {:?}",
         diags(FP_BND_01_REPRO, D)
     );

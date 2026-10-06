@@ -187,6 +187,13 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "switch",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Switch,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present, unrestricted, and available in every dialect including
         // iRules: its own `dialects` group explicitly carries the `IRULES`
         // bit (the `ALL_TCL | IRULES` value below), so it intersects the
@@ -215,7 +222,9 @@ pub fn spec() -> CommandSpec {
         // manpages (8.4-9.1) — only the recognised *option* vocabulary
         // that precedes it is version-gated (see the per-option
         // `dialects` below).
-        arity: Arity::stepped(3, Arity::UNLIMITED, 2).with_also_exact(2),
+        arity: Arity::stepped(3, Arity::UNLIMITED, 2)
+            .with_also_exact(2)
+            .with_positionals(),
         arg_role_resolver: Some(switch_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         lowering_hook: Some(crate::hooks::LoweringHookId::Switch),

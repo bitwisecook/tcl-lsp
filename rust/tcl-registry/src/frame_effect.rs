@@ -25,8 +25,9 @@
 //! injection (`tcl_compiler`'s frame-effect summaries, the parameter-trait
 //! inference, the analyser's alias handlers) needs the same three answers:
 //!
-//! 1. **Is there a level word, and where?**  `upvar` decides on argument
-//!    *count parity*; `uplevel` probes the leading word's text.
+//! 1. **Is there a level word, and where?** `upvar` probes its leading word
+//!    before Tcl 8.6 and uses count parity from 8.6 and in current Jim;
+//!    `uplevel` uses its selected leading-word probe.
 //! 2. **What do the remaining arguments do?**  `upvar` takes
 //!    `otherVar myVar` pairs; `uplevel` concatenates a script.
 //! 3. **Which frame does the effect land in?**  The one the level word
@@ -39,7 +40,10 @@
 //!
 //! # C Tcl provenance
 //!
-//! Every rule below is pinned against `tclsh 9.0.4` **and** `tclsh 8.6.14`:
+//! The modern parity example below is pinned against `tclsh 9.0.4` and
+//! `tclsh 8.6.14`. Native Tcl 8.4/8.5 instead consumes a digit/hash-leading
+//! first word as the level; with two arguments that branch errors before
+//! installing a link. Successful-path projection preserves that distinction:
 //!
 //! ```tcl
 //! proc t3 {} { return [catch {set b} e]:$e }   ;# body: upvar 1 b
@@ -66,7 +70,12 @@
 //! For the presence rule's two divergent classes and their transcripts, see
 //! [`FrameLevelWord::LeadingProbe`].
 
-use tcl_dialect::{NumberSyntax, TclVersion};
+mod native_object;
+pub use native_object::{
+    NativeFrameLevelFailure, NativeFrameLevelObject, NativeFrameLevelResolution,
+};
+
+use tcl_dialect::{FrameLevelPresence, NumberSyntax, TclVersion};
 use tcl_syntax::number::ParseFlags;
 
 /// Which stack frame an `upvar` / `uplevel` level word selects.
@@ -84,6 +93,68 @@ pub enum FrameLevel {
     /// The word is present but its value is computed at run time
     /// (`upvar $lvl x y`, `uplevel [expr {$n-1}] $s`).
     Dynamic,
+}
+
+/// Original native level-reference cache, independently of a valid target frame.
+/// C8.5 can retain a signed relative distance even when frame lookup fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeFrameLevelCache {
+    /// C8.5's signed relative distance.
+    Relative(i32),
+    /// An absolute native frame level.
+    Absolute(i32),
+}
+
+/// Actual object conversion order for native frame-level lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeFrameLevelProtocol {
+    version: Option<tcl_dialect::TclVersion>,
+}
+
+impl NativeFrameLevelProtocol {
+    /// C8.6+ probes the original integer cache before generating its string.
+    #[must_use]
+    pub fn probes_integer_first(self) -> bool {
+        self.version
+            .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+    }
+
+    /// Jim obtains the original string before its native long conversion.
+    #[must_use]
+    pub const fn is_jim084(self) -> bool {
+        self.version.is_none()
+    }
+
+    /// Actual C release, independently of authoring or lexical overrides.
+    #[must_use]
+    pub const fn tcl_version(self) -> Option<tcl_dialect::TclVersion> {
+        self.version
+    }
+
+    /// Whether this original level-reference cache belongs to the native recipe.
+    /// Cache validity does not imply the selected call frame exists.
+    #[must_use]
+    pub fn accepts_cache(self, cache: NativeFrameLevelCache) -> bool {
+        match (self.version, cache) {
+            (Some(tcl_dialect::TclVersion::V8_5), NativeFrameLevelCache::Relative(_)) => true,
+            (Some(version), NativeFrameLevelCache::Absolute(level)) => {
+                version >= tcl_dialect::TclVersion::V8_5 && level >= 0
+            }
+            _ => false,
+        }
+    }
+}
+
+impl crate::InvocationDialect {
+    /// Select the actual native frame-object conversion protocol.
+    /// A compatible vendor or logical simulation does not issue native caches.
+    #[must_use]
+    pub fn native_frame_level_protocol(self) -> Option<NativeFrameLevelProtocol> {
+        let getter = self.native_scalar_getter_protocol()?;
+        Some(NativeFrameLevelProtocol {
+            version: getter.tcl_version(),
+        })
+    }
 }
 
 impl FrameLevel {
@@ -173,6 +244,38 @@ impl FrameLevel {
         Self::parse_under(word, numbers)
     }
 
+    /// Parse a selector under explicitly resolved execution policies.
+    #[must_use]
+    pub fn parse_for_dialect(
+        word: &str,
+        dialect: crate::invocation_words::InvocationDialect,
+    ) -> Option<Self> {
+        if word.contains('$') || word.contains('[') {
+            Some(Self::Dynamic)
+        } else {
+            Self::parse_under(word, dialect.numbers)
+        }
+    }
+
+    /// Parse a materialized native level spelling without treating `$` or `[` as
+    /// source substitutions. Non-Unicode input cannot name a numeric frame.
+    /// Embedded raw NUL requires a cache-aware primitive `GetInt` recipe and is
+    /// explicitly unresolved by this byte grammar projection.
+    #[must_use]
+    pub fn parse_native_bytes(
+        word: &[u8],
+        dialect: crate::InvocationDialect,
+    ) -> Option<Option<Self>> {
+        if word.contains(&0) {
+            return None;
+        }
+        Some(
+            core::str::from_utf8(word)
+                .ok()
+                .and_then(|word| Self::parse_under(word, dialect.numbers)),
+        )
+    }
+
     /// [`Self::parse_for`] with the release taken from `registry`'s loaded
     /// dialect profile — the ordinary way a consumer inside the compiler names
     /// the release it is analysing for.
@@ -182,7 +285,15 @@ impl FrameLevel {
     /// got before it had a release to name.
     #[must_use]
     pub fn parse_in(word: &str, registry: &crate::registry::CommandRegistry) -> Option<Self> {
-        Self::parse_for(word, registry.runtime_version())
+        registry.profile().map_or_else(
+            || Self::parse_for(word, registry.runtime_version()),
+            |profile| {
+                Self::parse_for_dialect(
+                    word,
+                    crate::invocation_words::InvocationDialect::of_profile(profile),
+                )
+            },
+        )
     }
 
     /// [`Self::parse_for`] with the numeral grammar already chosen.
@@ -232,27 +343,60 @@ impl FrameLevel {
         if word.starts_with('#') {
             return true;
         }
-        let signed = parse_signed_level_value(
-            word,
-            version.map_or_else(NumberSyntax::default, TclVersion::number_syntax),
-        );
-        let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
         match version {
-            // 9.0 / 9.1: the whole word goes to `Tcl_GetIntFromObj`, sign and
-            // all; a digit-led non-integer (`1.0`) is never a level.
-            Some(TclVersion::V9_0 | TclVersion::V9_1) => signed.is_some(),
-            // 8.4 – 8.6: a leading digit alone commits the word to the level
-            // slot, and a negative integer is dispatched as a command instead.
-            Some(TclVersion::V8_4 | TclVersion::V8_5 | TclVersion::V8_6) => {
-                leading_digit || signed.is_some_and(|v| v >= 0)
-            }
-            // No dialect in hand — intersect both eras: only a word every
-            // release consumes goes in the level slot.  A negative integer is
-            // never digit-led, so the 8.x `leading_digit` disjunct adds
-            // nothing the 9.x integer test does not already cover here.
-            None => signed.is_some_and(|v| v >= 0),
+            Some(version) => word_has_level_presence(
+                word,
+                version.uplevel_level_presence(),
+                version.number_syntax(),
+            ),
+            None => TclVersion::ALL.into_iter().all(|version| {
+                word_has_level_presence(
+                    word,
+                    version.uplevel_level_presence(),
+                    version.number_syntax(),
+                )
+            }),
         }
     }
+}
+
+fn word_has_level_presence(
+    word: &str,
+    presence: FrameLevelPresence,
+    numbers: NumberSyntax,
+) -> bool {
+    if word.starts_with('#') {
+        return true;
+    }
+    let leading_digit = word.as_bytes().first().is_some_and(u8::is_ascii_digit);
+    match presence {
+        FrameLevelPresence::DigitOrHash => leading_digit,
+        FrameLevelPresence::DigitOrNonNegativeInteger => {
+            leading_digit
+                || match parse_integer_word(word, numbers) {
+                    Some(tcl_syntax::number::Number::Int(value)) => {
+                        value >= 0 || i32::try_from(value).is_err()
+                    }
+                    Some(tcl_syntax::number::Number::Big { .. }) => true,
+                    _ => false,
+                }
+        }
+        FrameLevelPresence::IntegerOrHash => matches!(
+            parse_integer_word(word, numbers),
+            Some(tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. })
+        ),
+        FrameLevelPresence::ArgumentParity => false,
+    }
+}
+
+fn parse_integer_word(text: &str, numbers: NumberSyntax) -> Option<tcl_syntax::number::Number> {
+    tcl_syntax::number::parse_whole_with(
+        text,
+        ParseFlags {
+            integer_only: true,
+            ..ParseFlags::for_syntax(numbers)
+        },
+    )
 }
 
 /// The magnitude of a `Tcl_GetInt`-shaped level word, with its sign reported
@@ -310,15 +454,6 @@ fn parse_level_value(text: &str, numbers: NumberSyntax) -> Option<u32> {
     }
 }
 
-/// The same word read as a *signed* integer, for the level-word **presence**
-/// question — 9.0 consumes `-1` as a level (and then rejects it) where 8.6
-/// dispatches it as a command.
-fn parse_signed_level_value(text: &str, numbers: NumberSyntax) -> Option<i64> {
-    let (negative, magnitude) = parse_level_magnitude(text, numbers)?;
-    let value = i64::from(magnitude);
-    Some(if negative { -value } else { value })
-}
-
 /// How a command spells its optional frame-level word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FrameLevelWord {
@@ -344,6 +479,9 @@ pub enum FrameLevelWord {
     /// it drops a real binding for `upvar $lvl a b` (the commonest
     /// by-reference idiom of all) and invents a level for `upvar 1 b`.
     ArityParity,
+    /// Dialect-aware `upvar`: leading-word probe before Tcl 8.6, count parity
+    /// in Tcl 8.6+ and Jim. Unknown dialects require agreement.
+    Upvar,
     /// **Leading-word probe**, `uplevel`'s rule: the first word is the level
     /// when it parses as one, or when it substitutes *and* a further word
     /// follows (`uplevel $lvl {…}`; a lone `uplevel $body` is a body).
@@ -392,6 +530,34 @@ pub enum FrameArgLayout {
     OpaqueCallerVars,
 }
 
+/// A frame invocation's grammar outcome, before executing its bodies or links.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameArgumentResolution {
+    /// The argument layout and selected frame are known independently.
+    Valid {
+        /// Width of the optional leading level word.
+        level_word_len: usize,
+        /// Selected frame; a computed level retains `Dynamic`.
+        level: FrameLevel,
+    },
+    /// The literal invocation cannot satisfy the command grammar.
+    Invalid,
+    /// Expansion, dynamic presence or an unspecified dialect changes the layout.
+    Unknown,
+}
+
+/// Argument layout on a successful command completion, kept separate from
+/// the ordinary pre-dispatch grammar result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FrameSuccessProjection {
+    /// Layout on the normal path. `Invalid` means no normal path exists;
+    /// `Unknown` retains unresolved expansion or distinct successful layouts.
+    pub layout: FrameArgumentResolution,
+    /// Whether an operand can still produce a grammar error before any links
+    /// or script execution. This does not describe later execution errors.
+    pub may_argument_error: bool,
+}
+
 /// How a command crosses stack frames — the registry's answer to "which
 /// argument is the level word, which names a variable in another frame, and
 /// which carries a script that runs there".
@@ -408,6 +574,17 @@ pub struct FrameEffectSpec {
 }
 
 impl FrameEffectSpec {
+    /// The native `upvar` grammar, shared with runtime adapters.
+    pub const UPVAR: Self = Self {
+        level_word: FrameLevelWord::Upvar,
+        layout: FrameArgLayout::AliasPairs,
+    };
+    /// The native `uplevel` grammar, shared with runtime adapters.
+    pub const UPLEVEL: Self = Self {
+        level_word: FrameLevelWord::LeadingProbe,
+        layout: FrameArgLayout::ScriptInSelectedFrame,
+    };
+
     /// Determine the level-word width from a structured argument count when
     /// no source spelling is needed.
     ///
@@ -427,8 +604,207 @@ impl FrameEffectSpec {
                     Some(0)
                 }
             }
-            FrameLevelWord::LeadingProbe => None,
+            FrameLevelWord::LeadingProbe | FrameLevelWord::Upvar => None,
         }
+    }
+
+    /// Resolve complete frame grammar before assigning roles or transitions.
+    #[must_use]
+    pub fn resolve_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> FrameArgumentResolution {
+        let Some(count) = arguments.exact_argv_len() else {
+            return FrameArgumentResolution::Unknown;
+        };
+        if (self.layout == FrameArgLayout::AliasPairs && count < 2)
+            || (self.layout == FrameArgLayout::ScriptInSelectedFrame && count == 0)
+        {
+            return FrameArgumentResolution::Invalid;
+        }
+        let Some(width) = self.level_word_len_for_arguments(arguments) else {
+            return FrameArgumentResolution::Unknown;
+        };
+        let remaining = count.saturating_sub(width);
+        let valid = match self.layout {
+            FrameArgLayout::AliasPairs => remaining >= 2 && remaining % 2 == 0,
+            FrameArgLayout::ScriptInSelectedFrame => remaining >= 1,
+            FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::OpaqueCallerVars => true,
+        };
+        if !valid {
+            return FrameArgumentResolution::Invalid;
+        }
+        let level = if width == 0 {
+            FrameLevel::DEFAULT
+        } else if let Some(word) = arguments.literal_at(0) {
+            let parsed = arguments.dialect().map_or_else(
+                || FrameLevel::parse_across_releases(word),
+                |dialect| FrameLevel::parse_under(word, dialect.numbers),
+            );
+            let Some(level) = parsed else {
+                return FrameArgumentResolution::Invalid;
+            };
+            level
+        } else {
+            FrameLevel::Dynamic
+        };
+        FrameArgumentResolution::Valid {
+            level_word_len: width,
+            level,
+        }
+    }
+
+    /// Project argument layout after a successful native invocation.
+    ///
+    /// For alias pairs, count parity excludes one dynamic presence branch:
+    /// consuming a level from an even argument count, or omitting it from
+    /// an odd count, leaves an invalid pair list. That branch may error, but
+    /// it cannot supply a normal state. This never turns pre-dispatch
+    /// `Unknown` into unconditional validity.
+    #[must_use]
+    pub fn successful_layout(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> FrameSuccessProjection {
+        let ordinary = self.resolve_arguments(arguments);
+        let may_argument_error = match ordinary {
+            FrameArgumentResolution::Valid { level, .. } => level == FrameLevel::Dynamic,
+            FrameArgumentResolution::Invalid | FrameArgumentResolution::Unknown => true,
+        };
+        let fallback = FrameSuccessProjection {
+            layout: ordinary,
+            may_argument_error,
+        };
+        // A single computed script operand can complete normally only when
+        // it is not consumed as the optional selector: a consumed selector
+        // would leave no script. Keep that rejected branch as may-error.
+        if ordinary == FrameArgumentResolution::Unknown
+            && self.layout == FrameArgLayout::ScriptInSelectedFrame
+            && self.level_word == FrameLevelWord::LeadingProbe
+            && arguments.exact_argv_len() == Some(1)
+            && arguments.literal_at(0).is_none()
+            && arguments
+                .dialect()
+                .is_some_and(|dialect| dialect.uplevel_level_presence.is_some())
+        {
+            return FrameSuccessProjection {
+                layout: FrameArgumentResolution::Valid {
+                    level: FrameLevel::DEFAULT,
+                    level_word_len: 0,
+                },
+                may_argument_error: true,
+            };
+        }
+        if ordinary != FrameArgumentResolution::Unknown
+            || self.layout != FrameArgLayout::AliasPairs
+            || self.level_word != FrameLevelWord::Upvar
+        {
+            return fallback;
+        }
+        let Some(count) = arguments.exact_argv_len() else {
+            return fallback;
+        };
+        let Some(dialect) = arguments.dialect() else {
+            return fallback;
+        };
+        if dialect.upvar_level_presence.is_none() || arguments.literal_at(0).is_some() {
+            return fallback;
+        }
+        if count < 2 {
+            return FrameSuccessProjection {
+                layout: FrameArgumentResolution::Invalid,
+                may_argument_error: true,
+            };
+        }
+        let width = usize::from(count % 2 == 1);
+        FrameSuccessProjection {
+            layout: FrameArgumentResolution::Valid {
+                level_word_len: width,
+                level: if width == 0 {
+                    FrameLevel::DEFAULT
+                } else {
+                    FrameLevel::Dynamic
+                },
+            },
+            may_argument_error: true,
+        }
+    }
+
+    /// Resolve level-word width from structured values and dialect policies.
+    /// A dynamic head or expansion abstains when it can change the layout.
+    #[must_use]
+    pub fn level_word_len_for_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<usize> {
+        let count = arguments.exact_argv_len()?;
+        if let Some(width) = self.level_word_len_for_argument_count(count) {
+            return Some(width);
+        }
+        let decide = |presence, numbers| {
+            if presence == FrameLevelPresence::ArgumentParity {
+                return Some(usize::from(count % 2 == 1));
+            }
+            let word = arguments.literal_at(0)?;
+            Some(usize::from(word_has_level_presence(
+                word, presence, numbers,
+            )))
+        };
+        if let Some(dialect) = arguments.dialect() {
+            let presence = match self.level_word {
+                FrameLevelWord::Upvar => dialect.upvar_level_presence?,
+                FrameLevelWord::LeadingProbe => dialect.uplevel_level_presence?,
+                FrameLevelWord::None | FrameLevelWord::ArityParity => {
+                    unreachable!("count-only layout returned above")
+                }
+            };
+            return decide(presence, dialect.numbers);
+        }
+        let mut answers = TclVersion::ALL.into_iter().map(|version| {
+            let presence = if self.level_word == FrameLevelWord::Upvar {
+                version.upvar_level_presence()
+            } else {
+                version.uplevel_level_presence()
+            };
+            decide(presence, version.number_syntax())
+        });
+        let first = answers.next()??;
+        answers.all(|answer| answer == Some(first)).then_some(first)
+    }
+
+    /// Select frame operand width from evaluated argc and only the original
+    /// first operand. Remaining name operands are never decoded for this query.
+    /// An embedded NUL in a value-dependent probe leaves the layout unresolved.
+    #[must_use]
+    pub fn level_word_len_for_native_bytes(
+        self,
+        count: usize,
+        first: Option<&[u8]>,
+        dialect: crate::InvocationDialect,
+    ) -> Option<usize> {
+        if let Some(width) = self.level_word_len_for_argument_count(count) {
+            return Some(width);
+        }
+        let presence = match self.level_word {
+            FrameLevelWord::Upvar => dialect.upvar_level_presence?,
+            FrameLevelWord::LeadingProbe => dialect.uplevel_level_presence?,
+            FrameLevelWord::None | FrameLevelWord::ArityParity => {
+                unreachable!("count-only frame layout")
+            }
+        };
+        if presence == FrameLevelPresence::ArgumentParity {
+            return Some(usize::from(count % 2 == 1));
+        }
+        let first = first?;
+        if first.contains(&0) {
+            return None;
+        }
+        if first.first() == Some(&b'#') {
+            return Some(1);
+        }
+        let selected = core::str::from_utf8(first)
+            .is_ok_and(|word| word_has_level_presence(word, presence, dialect.numbers));
+        Some(usize::from(selected))
     }
 
     /// How many leading words of `args` (the argument list *after* the
@@ -458,6 +834,14 @@ impl FrameEffectSpec {
             FrameLevelWord::None | FrameLevelWord::ArityParity => self
                 .level_word_len_for_argument_count(args.len())
                 .expect("only leading probes need a literal argument"),
+            FrameLevelWord::Upvar => {
+                let arguments = crate::InvocationArguments::literals(args);
+                let contextual = version.map_or(arguments, |version| {
+                    let dialect = crate::invocation_words::InvocationDialect::for_version(version);
+                    arguments.with_dialect(dialect)
+                });
+                self.level_word_len_for_arguments(contextual).unwrap_or(0)
+            }
             FrameLevelWord::LeadingProbe => match args.first() {
                 // A word the release consumes as a level is one, whatever
                 // follows: `uplevel 1 2 3` runs the script `2 3` at level 1
@@ -492,7 +876,7 @@ impl FrameEffectSpec {
         let level = if taken == 0 {
             FrameLevel::DEFAULT
         } else {
-            FrameLevel::parse(args[0]).unwrap_or(FrameLevel::Dynamic)
+            FrameLevel::parse_for(args[0], version).unwrap_or(FrameLevel::Dynamic)
         };
         (level, &args[taken..])
     }
@@ -510,6 +894,40 @@ mod tests {
         level_word: FrameLevelWord::LeadingProbe,
         layout: FrameArgLayout::ScriptInSelectedFrame,
     };
+
+    #[test]
+    fn impossible_frame_arity_is_invalid_before_selector_presence() {
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        for dialect in std::iter::once(None)
+            .chain(
+                TclVersion::ALL
+                    .into_iter()
+                    .map(|version| Some(crate::InvocationDialect::for_version(version))),
+            )
+            .chain(std::iter::once(Some(jim)))
+        {
+            for words in [&[][..], &[crate::InvocationWord::Dynamic][..]] {
+                let mut arguments = crate::InvocationArguments::Structured(words);
+                if let Some(dialect) = dialect {
+                    arguments = arguments.with_dialect(dialect);
+                }
+                assert_eq!(
+                    FrameEffectSpec::UPVAR.resolve_arguments(arguments),
+                    FrameArgumentResolution::Invalid
+                );
+            }
+            let mut empty = crate::InvocationArguments::Literals(&[]);
+            if let Some(dialect) = dialect {
+                empty = empty.with_dialect(dialect);
+            }
+            assert_eq!(
+                FrameEffectSpec::UPLEVEL.resolve_arguments(empty),
+                FrameArgumentResolution::Invalid
+            );
+        }
+    }
 
     /// The level-**value** grammar, pinned against both interpreters.
     ///
@@ -530,6 +948,41 @@ mod tests {
     /// upvar "  1  "-> f8      upvar " #0"  -> bad level " #0"
     /// upvar 0x1 / 0X1 / 0b1 / 0o1 / "0x1 " -> f8
     /// ```
+    #[test]
+    fn computed_single_script_has_only_an_omitted_selector_normal_layout() {
+        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        let mut dialects: Vec<_> = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(InvocationDialect::for_version)
+            .collect();
+        dialects.push(InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        ));
+        for dialect in dialects {
+            let words = [InvocationWord::Dynamic];
+            let arguments = InvocationArguments::structured(&words).with_dialect(dialect);
+            assert_eq!(
+                super::FrameEffectSpec::UPLEVEL.resolve_arguments(arguments),
+                super::FrameArgumentResolution::Unknown
+            );
+            assert_eq!(
+                super::FrameEffectSpec::UPLEVEL.successful_layout(arguments),
+                super::FrameSuccessProjection {
+                    layout: super::FrameArgumentResolution::Valid {
+                        level_word_len: 0,
+                        level: super::FrameLevel::DEFAULT
+                    },
+                    may_argument_error: true,
+                }
+            );
+            assert_eq!(
+                super::FrameEffectSpec::UPLEVEL
+                    .resolve_arguments(InvocationArguments::Literals(&["1"]).with_dialect(dialect)),
+                super::FrameArgumentResolution::Invalid
+            );
+        }
+    }
+
     #[test]
     fn level_value_matrix_matches_c_tcl() {
         use FrameLevel::{Absolute, Dynamic, Relative};
@@ -639,6 +1092,96 @@ mod tests {
     /// `None` would assert "not a level", which is false on at least one
     /// release; answering one release's value would be wrong on the others.
     #[test]
+    fn successful_alias_layout_conditions_dynamic_presence_on_pair_arity() {
+        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        let even = [InvocationWord::Dynamic, InvocationWord::Literal("linked")];
+        let odd = [
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("target"),
+            InvocationWord::Literal("linked"),
+        ];
+        for version in TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            let args = InvocationArguments::Structured(&even).with_dialect(dialect);
+            let projection = FrameEffectSpec::UPVAR.successful_layout(args);
+            assert_eq!(
+                projection.layout,
+                super::FrameArgumentResolution::Valid {
+                    level_word_len: 0,
+                    level: FrameLevel::DEFAULT,
+                },
+                "{version:?}"
+            );
+            assert_eq!(
+                projection.may_argument_error,
+                matches!(version, TclVersion::V8_4 | TclVersion::V8_5)
+            );
+            if matches!(version, TclVersion::V8_4 | TclVersion::V8_5) {
+                assert_eq!(
+                    FrameEffectSpec::UPVAR.resolve_arguments(args),
+                    super::FrameArgumentResolution::Unknown
+                );
+            }
+            let args = InvocationArguments::Structured(&odd).with_dialect(dialect);
+            assert_eq!(
+                FrameEffectSpec::UPVAR.successful_layout(args),
+                super::FrameSuccessProjection {
+                    layout: super::FrameArgumentResolution::Valid {
+                        level_word_len: 1,
+                        level: FrameLevel::Dynamic
+                    },
+                    may_argument_error: true,
+                }
+            );
+            let expanded = [InvocationWord::Expanded, InvocationWord::Literal("linked")];
+            assert_eq!(
+                FrameEffectSpec::UPVAR
+                    .successful_layout(
+                        InvocationArguments::Structured(&expanded).with_dialect(dialect)
+                    )
+                    .layout,
+                super::FrameArgumentResolution::Unknown
+            );
+            assert_eq!(
+                FrameEffectSpec::UPVAR
+                    .successful_layout(
+                        InvocationArguments::Literals(&["1", "target", "linked", "dangling"])
+                            .with_dialect(dialect)
+                    )
+                    .layout,
+                if matches!(version, TclVersion::V8_4 | TclVersion::V8_5) {
+                    super::FrameArgumentResolution::Invalid
+                } else {
+                    super::FrameArgumentResolution::Valid {
+                        level_word_len: 0,
+                        level: FrameLevel::DEFAULT,
+                    }
+                }
+            );
+        }
+        let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert_eq!(
+            FrameEffectSpec::UPVAR
+                .successful_layout(InvocationArguments::Structured(&even).with_dialect(jim)),
+            super::FrameSuccessProjection {
+                layout: super::FrameArgumentResolution::Valid {
+                    level_word_len: 0,
+                    level: FrameLevel::DEFAULT
+                },
+                may_argument_error: false,
+            }
+        );
+        assert_eq!(
+            FrameEffectSpec::UPVAR
+                .successful_layout(InvocationArguments::Structured(&even))
+                .layout,
+            super::FrameArgumentResolution::Unknown
+        );
+    }
+
+    #[test]
     fn no_version_abstains_where_releases_disagree() {
         use FrameLevel::{Dynamic, Relative};
         // Read differently somewhere in 8.4 … 9.0.
@@ -688,53 +1231,101 @@ mod tests {
     /// ```
     #[test]
     fn uplevel_level_word_presence_matrix_matches_c_tcl() {
-        let both = [
-            "1", "0", "2", "007", "#0", "#1", "#-0", "#x", "+1", "+0", "-0", " 1", "1 ", "0x1",
-            "0X1", "0b1", "0o1",
-        ];
-        let nine_only = ["-1", "-2"];
-        let eight_only = ["1.0", "1e0"];
-        // An empty word is deliberately absent: `uplevel {} {oops}` concats
-        // to " oops" whichever way it is read, so C Tcl cannot be asked.
-        let neither = ["x", "foo"];
-        for v in [TclVersion::V9_0, TclVersion::V9_1] {
-            for w in both {
-                assert!(FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
+        for release in TclVersion::ALL {
+            for word in ["1", "0", "#0", "#x", "0x1", "1.0", "1e0"] {
+                let expected = !matches!(release, TclVersion::V9_0 | TclVersion::V9_1)
+                    || !matches!(word, "1.0" | "1e0");
+                assert_eq!(
+                    FrameLevel::word_could_be_level(word, Some(release)),
+                    expected,
+                    "{release:?} {word}"
+                );
             }
-            for w in nine_only {
-                assert!(FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
+            for word in ["+1", "-0", " 1"] {
+                assert_eq!(
+                    FrameLevel::word_could_be_level(word, Some(release)),
+                    !matches!(release, TclVersion::V8_4 | TclVersion::V8_5),
+                    "{release:?} {word}"
+                );
             }
-            for w in eight_only.iter().chain(neither.iter()) {
-                assert!(!FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
-            }
+            assert_eq!(
+                FrameLevel::word_could_be_level("-1", Some(release)),
+                release >= TclVersion::V9_0
+            );
         }
-        for v in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
-            for w in both {
-                assert!(FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
-            }
-            for w in eight_only {
-                assert!(FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
-            }
-            for w in nine_only.iter().chain(neither.iter()) {
-                assert!(!FrameLevel::word_could_be_level(w, Some(v)), "{v:?} {w:?}");
-            }
+        assert!(!FrameLevel::word_could_be_level("+1", None));
+        assert!(!FrameLevel::word_could_be_level("$level", None));
+    }
+
+    #[test]
+    fn structured_upvar_resolution_obeys_legacy_presence_and_modern_parity() {
+        use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+        for release in TclVersion::ALL {
+            let context = InvocationDialect::for_version(release);
+            let numeric_name = InvocationArguments::Literals(&["1", "local"]).with_dialect(context);
+            let modern = release >= TclVersion::V8_6;
+            assert_eq!(
+                matches!(
+                    FrameEffectSpec::UPVAR.resolve_arguments(numeric_name),
+                    super::FrameArgumentResolution::Valid { .. }
+                ),
+                modern
+            );
+            let signed_name = InvocationArguments::Literals(&["+1", "local"]).with_dialect(context);
+            assert!(matches!(
+                FrameEffectSpec::UPVAR.resolve_arguments(signed_name),
+                super::FrameArgumentResolution::Valid {
+                    level_word_len: 0,
+                    ..
+                }
+            ));
+            let dynamic = [
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("source"),
+                InvocationWord::Literal("local"),
+            ];
+            let result = FrameEffectSpec::UPVAR
+                .resolve_arguments(InvocationArguments::Structured(&dynamic).with_dialect(context));
+            assert_eq!(
+                matches!(
+                    result,
+                    super::FrameArgumentResolution::Valid {
+                        level: FrameLevel::Dynamic,
+                        level_word_len: 1
+                    }
+                ),
+                modern
+            );
         }
-        // No dialect in hand — the *intersection*: a word only one release
-        // consumes leaves the script unrunnable on the other, so the level
-        // slot stays empty and the word is treated as script text.
-        for w in both {
-            assert!(FrameLevel::word_could_be_level(w, None), "shared {w:?}");
-        }
-        for w in nine_only
-            .iter()
-            .chain(eight_only.iter())
-            .chain(neither.iter())
-        {
-            assert!(!FrameLevel::word_could_be_level(w, None), "split {w:?}");
-        }
-        // A substituted word's *text* is never the presence answer; its
-        // arity is (see `level_word_len_for_version`).
-        assert!(!FrameLevel::word_could_be_level("$lvl", None));
+        assert_eq!(
+            FrameEffectSpec::UPVAR
+                .resolve_arguments(InvocationArguments::Literals(&["1", "local"])),
+            super::FrameArgumentResolution::Unknown
+        );
+        let jim = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        assert!(matches!(
+            FrameEffectSpec::UPVAR.resolve_arguments(
+                InvocationArguments::Literals(&["1", "local"]).with_profile(Some(&jim))
+            ),
+            super::FrameArgumentResolution::Valid {
+                level_word_len: 0,
+                ..
+            }
+        ));
+        assert!(matches!(
+            FrameEffectSpec::UPLEVEL.resolve_arguments(
+                InvocationArguments::Literals(&["+1", "body"]).with_profile(Some(&jim))
+            ),
+            super::FrameArgumentResolution::Valid {
+                level_word_len: 0,
+                ..
+            }
+        ));
     }
 
     #[test]

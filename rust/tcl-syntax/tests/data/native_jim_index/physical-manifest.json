@@ -1,0 +1,130 @@
+{
+  "command": [
+    "cc",
+    "-I",
+    "/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-command-jim-index-physical/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/2286-command-jim-index-physical/probe"
+  ],
+  "compile_exit": 0,
+  "stderr": "",
+  "sha256": {
+    "/workspace/.proofs/2286-command-jim-index-physical/probe.c": "db349c5609723042f4a1cc4b7580e7b3f0c71bacc95687b7cf1f52113da3b034",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/tmp/2286-oracles/jimtcl/jimautoconf.h": "c72023de18863d3d368bbb135692e92848cc79b5a49ed96cc68cf97b8fd49e89"
+  },
+  "captures": [
+    {
+      "case": 0,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t6\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t36\n",
+      "stderr": ""
+    },
+    {
+      "case": 1,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t-7\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t2d36\n",
+      "stderr": ""
+    },
+    {
+      "case": 2,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t10\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t3130\n",
+      "stderr": ""
+    },
+    {
+      "case": 3,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t2\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t32\n",
+      "stderr": ""
+    },
+    {
+      "case": 4,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\texpression\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e64657820222478223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    },
+    {
+      "case": 5,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\texpression\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e64657820225b736574207820315d223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    },
+    {
+      "case": 6,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\tnone\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e6465782022656e642d312e35223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    },
+    {
+      "case": 7,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\tnone\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e6465782022656e6478223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    },
+    {
+      "case": 8,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\tint\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e646578202232313437343833363438223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    },
+    {
+      "case": 9,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t2147483647\nobject\tindex\t1\t1\nresult_object\tnone\t1\t4\nresult\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 10,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t-2147483647\nobject\tindex\t1\t1\nresult_object\tnone\t1\t4\nresult\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 11,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t-1\nobject\tindex\t1\t1\nresult_object\tnone\t1\t4\nresult\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 12,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t5\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t35\n",
+      "stderr": ""
+    },
+    {
+      "case": 13,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t8\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t38\n",
+      "stderr": ""
+    },
+    {
+      "case": 14,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t2\nobject\tindex\t1\t1\nresult_object\tint\t0\t1\nresult\t32\n",
+      "stderr": ""
+    },
+    {
+      "case": 15,
+      "exit": 0,
+      "stdout": "code\t0\nindex\t-3\nobject\tindex\t1\t1\nresult_object\tnone\t1\t4\nresult\t\n",
+      "stderr": ""
+    },
+    {
+      "case": 16,
+      "exit": 0,
+      "stdout": "code\t1\nindex\t42\nobject\texpression\t1\t1\nresult_object\tnone\t1\t1\nresult\t62616420696e6465782022322a33223a206d75737420626520696e7465787072206f7220656e643f5b2b2d5d696e74657870723f\n",
+      "stderr": ""
+    }
+  ],
+  "binary_sha256": "e2f073602bac209c61bfae625888fa824b981a3f690c732d69c1e2e9045bf539"
+}

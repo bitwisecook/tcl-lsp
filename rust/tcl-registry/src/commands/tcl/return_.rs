@@ -183,19 +183,54 @@ fn return_context_gate(args: &[&str], in_event_body: bool) -> Option<&'static st
     )
 }
 
-const SIDE_EFFECTS: &[SideEffect] = &[
-    SideEffect {
-        target: SideEffectTarget::InterpState,
-        writes: true,
-        ..SideEffect::DEFAULT
-    },
-    SideEffect {
-        target: SideEffectTarget::EventControl,
-        writes: true,
-        surface: Some(SpecSurface::IRULES),
-        ..SideEffect::DEFAULT
-    },
+const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::EventControl,
+    writes: true,
+    surface: Some(SpecSurface::IRULES),
+    ..SideEffect::DEFAULT
+}];
+
+const RETURN_STORAGE: &[crate::world_effect::StaticEffectAccess] = &[
+    crate::world_effect::StaticEffectAccess::new(
+        crate::world_effect::WorldStateDomain::InterpreterResult,
+        crate::world_effect::EffectAccessMode::Write,
+        crate::world_effect::StaticInterpreterScope::Current,
+        crate::world_effect::StaticNamespaceScope::Any,
+        crate::world_effect::StaticSubjectScope::Wildcard,
+    ),
+    crate::world_effect::StaticEffectAccess::new(
+        crate::world_effect::WorldStateDomain::CompletionState,
+        crate::world_effect::EffectAccessMode::Write,
+        crate::world_effect::StaticInterpreterScope::Current,
+        crate::world_effect::StaticNamespaceScope::Any,
+        crate::world_effect::StaticSubjectScope::Wildcard,
+    ),
 ];
+
+fn return_state_effects(
+    arguments: crate::InvocationArguments<'_>,
+) -> crate::world_effect::EffectFootprint {
+    match crate::registry::native_return_state_effect(arguments) {
+        crate::completion_route::ReturnStateEffect::ResultAndCompletion => {
+            crate::world_effect::EffectFootprint::default()
+        }
+        crate::completion_route::ReturnStateEffect::MayMaterialiseError => {
+            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+        }
+    }
+}
+
+const RETURN_WORLD_EFFECTS: crate::WorldEffectDescriptor = crate::WorldEffectDescriptor {
+    static_footprint: crate::world_effect::StaticEffectFootprint {
+        accesses: RETURN_STORAGE,
+        callback: crate::world_effect::CallbackEffect::NONE,
+    },
+    resolver: Some(return_state_effects),
+    dynamic_fallback: crate::world_effect::WorldEffectDynamicFallback::Declared(
+        crate::world_effect::StaticEffectFootprint::EMPTY,
+    ),
+    ..crate::WorldEffectDescriptor::EMPTY
+};
 
 /// Command spec for `return`.
 ///
@@ -211,6 +246,15 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "return",
+        native_result: Some(crate::native_result::NativeResultContract::ReturnResult),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Return,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Return,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask — a pure control-flow
@@ -234,6 +278,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver_roles: &[ArgRole::Result],
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
+        world_effects: Some(RETURN_WORLD_EFFECTS),
         hover: Some(HoverSnippet {
             summary: "Return from the current procedure/script with optional control-code metadata.",
             synopsis: &[

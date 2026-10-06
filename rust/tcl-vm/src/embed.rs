@@ -19,9 +19,8 @@
 //! The embedder surface: what a Rust host needs to run small Tcl bodies at
 //! rate, register commands of its own, and bound what a body may do.
 //!
-//! This module closes gaps `SpecTcl` hook benchmarking found in
-//! the VM's boundary, in the VM rather than shimmed around in the
-//! embedder.
+//! Hosts can register stateful commands, enumerate exact native name bytes,
+//! select a command whitelist and limit script execution.
 //!
 //! - **Call a function without a driver script.** [`Vm::invoke_command`] is
 //!   public, and [`Vm::compile_function`] / [`Vm::invoke_function`] pre-compile
@@ -30,21 +29,72 @@
 //! - **Register a stateful command.** [`Vm::register_native_command`] takes an
 //!   `Rc<dyn NativeCommand>`, so an embedder's command can carry state (the
 //!   emitter verbs of a `SpecTcl` hook family collect what the body emitted).
-//! - **Restrict the command table.** [`Vm::retain_commands`] reduces a fresh VM
-//!   to a closed whitelist, which is how a sandbox is built out of a normal
-//!   interpreter rather than a second one.
+//! - **Restrict the command table.** [`Vm::retain_commands_bytes`] selects
+//!   commands by exact native display bytes. [`Vm::retain_commands`] provides
+//!   a Unicode whitelist and removes names that cannot be represented in it.
 //! - **Bound the work.** [`Vm::set_command_limit`] arms the `commands` limit
 //!   the VM now enforces, and [`Vm::commands_run`] reports the fuel spent.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_runtime_api::{Completion, ScriptCompileTarget};
+use tcl_core_types::NameBytes;
+use tcl_runtime_api::Completion;
 
-use crate::command::{Command, NativeCommand};
+use crate::command::{BuiltinFn, Command, NativeCommand};
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
+
+/// A host compilation boundary preserves native Tcl diagnostics and provider
+/// refusals as separate cases. Host failures cannot become guest completions.
+#[derive(Debug, Clone)]
+pub enum VmCompilationError {
+    /// A native Tcl definition or source-validation diagnostic.
+    Tcl(TclError),
+    /// The execution engine requires an unavailable native provider/capability.
+    Host(tcl_runtime_api::NativeExecutionError),
+}
+
+impl std::fmt::Display for VmCompilationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Tcl(error) => match error.message_unicode() {
+                Ok(message) => formatter.write_str(&message),
+                Err(refusal) if error.is_host() => std::fmt::Display::fmt(&refusal, formatter),
+                Err(_) => write!(
+                    formatter,
+                    "native Tcl error bytes: {:?}",
+                    error.message_bytes()
+                ),
+            },
+            Self::Host(error) => std::fmt::Display::fmt(error, formatter),
+        }
+    }
+}
+
+impl std::error::Error for VmCompilationError {}
+
+/// The host procedure-definition error uses the shared compilation boundary.
+pub type ProcedureDefinitionError = VmCompilationError;
+
+/// A native implementation and grammar explicitly granted by an embedding host.
+/// Command spelling and source namespace never confer this capability.
+#[derive(Clone)]
+pub(crate) struct FrameworkBuiltinCapability {
+    alias: String,
+    implementation: BuiltinFn,
+    profile: &'static tcl_dialect::DialectProfile,
+}
+
+impl NativeCommand for FrameworkBuiltinCapability {
+    fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+        let saved = vm.active_native_profile.replace(self.profile);
+        let result = (self.implementation)(vm, args);
+        vm.active_native_profile = saved;
+        result
+    }
+}
 
 /// A pre-compiled Tcl body, ready to run any number of times.
 ///
@@ -57,7 +107,7 @@ use crate::value::Value;
 /// assumed.
 #[derive(Clone)]
 pub struct FunctionHandle {
-    source: String,
+    source: tcl_lexer::SourceImage,
     state: Rc<RefCell<FunctionHandleState>>,
 }
 
@@ -97,9 +147,37 @@ impl Vm {
     /// defines. Needs an injected
     /// [`CompileService`](tcl_runtime_api::CompileService), like every other
     /// runtime-compilation path.
+    ///
+    /// # Panics
+    /// Panics when the host must provide an unsupported compilation capability.
+    /// Use [`Self::try_compile_function`] to handle that refusal explicitly.
     pub fn compile_function(&mut self, src: &str) -> Result<FunctionHandle, TclError> {
+        match self.try_compile_function(src) {
+            Ok(handle) => Ok(handle),
+            Err(VmCompilationError::Tcl(error)) => Err(error),
+            Err(VmCompilationError::Host(error)) => {
+                panic!("native compiler provider required: {error}")
+            }
+        }
+    }
+
+    /// Compile reusable source with provider refusals outside Tcl diagnostics.
+    ///
+    /// # Errors
+    /// Returns a native source diagnostic or a typed host refusal.
+    pub fn try_compile_function(
+        &mut self,
+        src: &str,
+    ) -> Result<FunctionHandle, VmCompilationError> {
+        self.host_execution_depth += 1;
+        let result = self.compile_function_internal(src);
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
+    fn compile_function_internal(&mut self, src: &str) -> Result<FunctionHandle, TclError> {
         Ok(FunctionHandle {
-            source: src.to_owned(),
+            source: tcl_lexer::SourceImage::document(src),
             state: Rc::new(RefCell::new(FunctionHandleState {
                 unit: self.compile_script_cached(src)?,
                 owner_nonce: self.owner_nonce,
@@ -107,10 +185,35 @@ impl Vm {
         })
     }
 
+    /// Compile an original byte image into a reusable function handle.
+    /// The source channel, native namespace segments and actual compiler entry
+    /// remain part of cache identity. No Unicode source view is required.
+    ///
+    /// # Errors
+    /// Returns guest parse errors or an explicit native compiler/provider refusal.
+    pub fn try_compile_function_bytes(
+        &mut self,
+        source: &tcl_lexer::SourceImage,
+    ) -> Result<FunctionHandle, VmCompilationError> {
+        self.host_execution_depth += 1;
+        let result = self
+            .compile_script_cached_bytes(source)
+            .map(|unit| FunctionHandle {
+                source: source.clone(),
+                state: Rc::new(RefCell::new(FunctionHandleState {
+                    unit,
+                    owner_nonce: self.owner_nonce,
+                })),
+            });
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
     /// Define a Tcl procedure from the host, without going through the `proc`
     /// command.
     ///
-    /// The body compiles once, here, and every later call runs that bytecode.
+    /// The original body is retained here and prepared on activation through
+    /// the same native body owner as a Tcl-defined procedure.
     /// Host-defined rather than `proc`-defined because an embedder building a
     /// sandbox removes `proc` from the command table
     /// ([`Self::retain_commands`]) — the procedure it wants to *call* must not
@@ -119,36 +222,113 @@ impl Vm {
     ///
     /// Proc semantics are what make each invocation independent: its own
     /// locals, and `return` as an ordinary early exit rather than an error.
+    ///
+    /// # Panics
+    /// Panics when the native definition provider refuses the requested capability.
+    /// Use [`Self::try_define_procedure`] to retain the typed host error.
     pub fn define_procedure(
         &mut self,
         name: &str,
         parameters: &[&str],
         body: &str,
     ) -> Result<(), TclError> {
-        let registered = self.qualify_name(name);
-        let namespace = crate::interp::key_holder_and_tail_unrooted(&registered).0;
-        let (parameters, has_args) =
-            crate::command::parse_params(&parameters.join(" ")).map_err(TclError::new)?;
-        let compiled = self
-            .prepare_procedure_body(None, &parameters, &namespace, body)
-            .map_err(|mut error| {
-                error.message = format!("procedure \"{name}\": {}", error.message);
-                error
+        match self.try_define_procedure(name, parameters, body) {
+            Ok(()) => Ok(()),
+            Err(VmCompilationError::Tcl(error)) => Err(error),
+            Err(VmCompilationError::Host(error)) => {
+                panic!("native compiler provider required: {error}")
+            }
+        }
+    }
+
+    /// Define a host procedure while retaining native definition refusal as a
+    /// neutral host error. Body preparation belongs to invocation.
+    ///
+    /// # Errors
+    /// Returns the native definition error or neutral host refusal separately.
+    pub fn try_define_procedure(
+        &mut self,
+        name: &str,
+        parameters: &[&str],
+        body: &str,
+    ) -> Result<(), ProcedureDefinitionError> {
+        self.host_execution_depth += 1;
+        let result = self.define_procedure_internal(name, parameters, body);
+        self.host_execution_depth -= 1;
+        self.finish_host_compilation(result)
+    }
+
+    fn finish_host_compilation<T>(
+        &mut self,
+        result: Result<T, TclError>,
+    ) -> Result<T, VmCompilationError> {
+        if let Some(error) = self.execution_refusal.clone() {
+            if self.activation_depth == 0 && self.host_execution_depth == 0 {
+                self.execution_refusal = None;
+            }
+            return Err(VmCompilationError::Host(error));
+        }
+        result.map_err(VmCompilationError::Tcl)
+    }
+
+    fn define_procedure_internal(
+        &mut self,
+        name: &str,
+        parameters: &[&str],
+        body: &str,
+    ) -> Result<(), TclError> {
+        let namespace = self.current_ns().to_owned();
+        let parameter_grammar = self
+            .native_invocation_dialect()
+            .parameter_grammar()
+            .ok_or_else(|| {
+                self.compile_service_error(
+                    tcl_runtime_api::CompileError::Unsupported(
+                        "native parameter grammar is not selected".into(),
+                    ),
+                    body,
+                    &namespace,
+                    tcl_runtime_api::NativeCompilationAdmissionScope::ProcedureBody,
+                )
             })?;
-        let ns_id = self.definition_namespace_token(&namespace);
+        let parameter_source = parameters.join(" ");
+        let parameter_value = Value::from_native_string_bytes(parameter_source.as_bytes());
+        let (parameters, has_args) =
+            crate::command::parse_params_value(self, &parameter_value, name.as_bytes())
+                .map_err(TclError::from_completion)?;
+        let (registered, slot, ns_id) = self
+            .native_procedure_publication(name.as_bytes())
+            .map_err(|error| {
+                let _ = self.refuse_host_command(error.to_string());
+                TclError::from_execution_failure(
+                    self.execution_refusal
+                        .clone()
+                        .expect("publication refusal retained"),
+                )
+            })?;
         self.define_proc(crate::command::ProcDef {
+            native_resources: std::rc::Rc::default(),
             name: registered,
-            command_ns_id: ns_id,
-            simple_name: String::from_utf8_lossy(tcl_syntax::naming::written_command_tail(
-                name.as_bytes(),
-            ))
-            .into_owned(),
-            namespace,
+            command_ns_id: slot.namespace,
+            simple_name: slot.simple,
+            namespace: self.namespace_path_for_token(ns_id),
             ns_id,
             params: parameters,
+            parameter_grammar,
             has_args,
-            body: compiled,
-            body_src: Value::string(body),
+            native_jim_namespace: None,
+            native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
+                .then_some(parameter_value),
+
+            native_header: tcl_registry::native_procedure::procedure_header_compilation(
+                self.native_invocation_dialect(),
+                Some(&parameter_source),
+                Some(body),
+                Some(false),
+            ),
+            statics: None,
+            body: None,
+            body_src: Value::new_native_string_bytes(body.as_bytes()),
             usage_name: None,
             call_identity: None,
         });
@@ -177,8 +357,32 @@ impl Vm {
     /// The invoke-by-handle path: no compilation, no `FunctionAsm` clone, and
     /// no driver script — the three costs an embedder would otherwise pay
     /// per call.
+    ///
+    /// # Panics
+    /// Panics when refreshing or executing the handle needs a native provider.
+    /// Use [`Self::try_invoke_function`] to preserve the typed host refusal.
     #[must_use]
     pub fn invoke_function(&mut self, handle: &FunctionHandle) -> Completion<Value> {
+        self.try_invoke_function(handle)
+            .expect("function handle requires a genuine native execution provider")
+    }
+
+    /// Refresh and invoke a reusable handle without exposing internal host
+    /// refusal unwinds as guest completions.
+    ///
+    /// # Errors
+    /// Returns the typed compiler or reached-expression provider obligation.
+    pub fn try_invoke_function(
+        &mut self,
+        handle: &FunctionHandle,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        self.host_execution_depth += 1;
+        let result = self.invoke_function_internal(handle);
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(result)
+    }
+
+    fn invoke_function_internal(&mut self, handle: &FunctionHandle) -> Completion<Value> {
         if handle.state.borrow().owner_nonce != self.owner_nonce {
             return crate::interp::err("FunctionHandle belongs to a different Vm");
         }
@@ -190,41 +394,26 @@ impl Vm {
             .unit
             .compiler
             .is_current_service(self.compiler_generation());
-        let epoch_changed = handle.state.borrow().unit.command_epoch != self.trace_deopt_epoch();
-        let namespace = self.current_ns().to_owned();
+        let epoch_changed = handle.state.borrow().unit.native_cache
+            != self.native_cache_stamp_for_source_namespace(&self.source_namespace_path());
+        let namespace = self.source_namespace_path();
         let namespace_changed = handle.state.borrow().unit.source_namespace != namespace;
+        let interpreter_changed =
+            handle.state.borrow().unit.interpreter != self.native_interpreter_identity();
         let bindings_match = self.function_command_bindings_match(&handle.state.borrow().unit.asm);
         if profile_changed
             || compiler_changed
             || epoch_changed
             || namespace_changed
+            || interpreter_changed
             || !bindings_match
         {
-            let current_is_plain = handle.state.borrow().unit.asm.plain_command_dispatch;
-            let plain_target = || ScriptCompileTarget {
-                source: &handle.source,
-                namespace: &namespace,
-            };
-            let asm = match if self.step_trace_active() {
-                self.compile_plain_function_cached(plain_target()).map(Some)
-            } else if profile_changed || compiler_changed || namespace_changed {
-                self.compile_fast_function_for_namespace(&handle.source, &namespace)
-            } else if !current_is_plain && !bindings_match {
-                self.compile_plain_function_cached(plain_target()).map(Some)
-            } else if epoch_changed && current_is_plain {
-                self.compile_fast_function_for_namespace(&handle.source, &namespace)
-            } else {
-                Ok(Some(Rc::clone(&handle.state.borrow().unit.asm)))
-            } {
-                Ok(Some(asm)) => asm,
-                Ok(None) => match self.compile_plain_function_cached(plain_target()) {
-                    Ok(asm) => asm,
-                    Err(error) => return crate::command::completion_from_tcl_error(error),
-                },
-                Err(error) => return crate::command::completion_from_tcl_error(error),
+            let unit = match self.compile_script_cached_bytes(&handle.source) {
+                Ok(unit) => unit,
+                Err(error) => return crate::command::completion_from_tcl_error(self, error),
             };
             *handle.state.borrow_mut() = FunctionHandleState {
-                unit: self.compiled_unit(asm, namespace),
+                unit,
                 owner_nonce: self.owner_nonce,
             };
         }
@@ -240,16 +429,57 @@ impl Vm {
         self.register_written_command(name, Command::Native(command));
     }
 
-    /// Every command name currently registered, sorted.
+    /// Grant a private alias a concrete native host grammar. The original must
+    /// still be a native builtin; a user replacement cannot acquire its identity.
+    /// Child interpreters inherit this explicit host contract, then install their
+    /// own alias token. Deferred bodies retain the user's compilation dialect.
     #[must_use]
-    pub fn command_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self
+    pub fn register_framework_builtin(
+        &mut self,
+        alias: &str,
+        original: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> bool {
+        let Some(Command::Builtin(implementation)) = self.lookup_command(original) else {
+            return false;
+        };
+        let capability = FrameworkBuiltinCapability {
+            alias: alias.to_owned(),
+            implementation,
+            profile,
+        };
+        self.framework_builtins.push(capability.clone());
+        self.install_framework_builtin(capability);
+        true
+    }
+
+    pub(crate) fn install_framework_builtin(&mut self, capability: FrameworkBuiltinCapability) {
+        let alias = capability.alias.clone();
+        self.register_written_command(&alias, Command::Native(Rc::new(capability)));
+    }
+
+    /// Every registered command's exact native display bytes, sorted.
+    #[must_use]
+    pub fn command_names_bytes(&self) -> Vec<NameBytes> {
+        let mut names: Vec<_> = self
             .registered_command_entries()
             .into_iter()
             .map(|(_, display)| display)
             .collect();
         names.sort_unstable();
         names
+    }
+
+    /// Checked Unicode view of every registered command, sorted.
+    ///
+    /// # Errors
+    /// Returns a decoding error if any native name is not valid UTF-8. Use
+    /// [`Self::command_names_bytes`] to enumerate every native name.
+    pub fn command_names(&self) -> Result<Vec<String>, std::str::Utf8Error> {
+        self.command_names_bytes()
+            .into_iter()
+            .map(|name| name.try_utf8().map(str::to_owned))
+            .collect()
     }
 
     /// Delete `name` from the command table, reporting whether it was there.
@@ -260,24 +490,30 @@ impl Vm {
         self.take_command_unchecked(name).is_some()
     }
 
-    /// Reduce the command table to the commands `keep` accepts, returning how
-    /// many were removed.
+    /// Keep exactly the native command displays accepted by `keep`.
     ///
-    /// This is the sandbox constructor: a fresh [`Vm`] with the whole builtin
-    /// surface is narrowed to a closed whitelist, so a body cannot reach a
-    /// command the embedder did not choose — including one the VM gains in a
-    /// later release, which is why a whitelist and not a blacklist.
-    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) -> usize {
+    /// The callback sees complete retained display bytes, never private storage
+    /// keys. All metadata borrows end before `keep` or command deletion callbacks
+    /// run. Returns the number of entries selected for removal.
+    pub fn retain_commands_bytes(&mut self, keep: &dyn Fn(&[u8]) -> bool) -> usize {
         let doomed: Vec<String> = self
             .registered_command_entries()
             .into_iter()
-            .filter_map(|(key, display)| (!keep(&display)).then_some(key))
+            .filter_map(|(key, display)| (!keep(display.as_bytes())).then_some(key))
             .collect();
         let removed = doomed.len();
-        for name in doomed {
-            self.remove_registered_command(&name);
+        for key in doomed {
+            self.remove_registered_command(&key);
         }
         removed
+    }
+
+    /// Keep commands whose exact Unicode display is accepted by `keep`.
+    ///
+    /// Native names that cannot be represented as UTF-8 are removed. Use
+    /// [`Self::retain_commands_bytes`] when the whitelist includes opaque names.
+    pub fn retain_commands(&mut self, keep: &dyn Fn(&str) -> bool) -> usize {
+        self.retain_commands_bytes(&|name| core::str::from_utf8(name).is_ok_and(keep))
     }
 
     /// Arm the `commands` limit: the body may dispatch at most `limit`
@@ -327,5 +563,135 @@ impl Vm {
     /// Zero the command counter — refill the fuel before an invocation.
     pub fn reset_command_count(&mut self) {
         self.reset_command_count_inner();
+    }
+}
+
+#[cfg(test)]
+mod procedure_definition_tests {
+    use super::*;
+
+    #[test]
+    fn embedded_definition_retains_unprepared_source_without_a_compiler() {
+        let mut vm = Vm::new();
+        vm.try_define_procedure("unentered", &["x"], "set value \"")
+            .unwrap();
+        let crate::command::Command::Proc(definition) = vm.lookup_command("unentered").unwrap()
+        else {
+            panic!("retained original procedure")
+        };
+        assert!(definition.body.is_none());
+        assert_eq!(definition.body_src.string_bytes().as_ref(), b"set value \"");
+    }
+
+    fn vm() -> Vm {
+        let mut vm = Vm::new();
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::default(),
+        ));
+        vm
+    }
+
+    #[test]
+    fn embedded_procedure_captures_its_allocated_namespace_before_compilation() {
+        for name in ["root_body", "::spectcl::unit::body"] {
+            let mut vm = vm();
+            vm.try_define_procedure(name, &["words"], "return [llength $words]")
+                .expect("actual definition namespace owns compilation");
+            let result = vm
+                .try_invoke_command(
+                    name,
+                    &[Value::list(vec![Value::string("a"), Value::string("b")])],
+                )
+                .expect("original body executes");
+            assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+            assert_eq!(result.result.string_bytes().as_ref(), b"2");
+            let crate::command::Command::Proc(definition) = vm.lookup_command(name).unwrap() else {
+                panic!("original procedure")
+            };
+            let holder = crate::interp::key_holder_and_tail_unrooted(&vm.qualify_name(name)).0;
+            assert_eq!(
+                vm.namespace_token_for_written(&holder),
+                Some(definition.ns_id)
+            );
+        }
+    }
+
+    #[test]
+    fn embedded_procedure_recreated_namespace_gets_its_current_token() {
+        let mut vm = vm();
+        vm.try_define_procedure("::N::body", &[], "return OLD")
+            .unwrap();
+        let crate::command::Command::Proc(old) = vm.lookup_command("::N::body").unwrap() else {
+            panic!("old procedure")
+        };
+        assert_eq!(
+            vm.try_eval_source("namespace delete ::N").unwrap().code,
+            tcl_runtime_api::Code::Ok
+        );
+        vm.try_define_procedure("::N::body", &[], "return NEW")
+            .unwrap();
+        let crate::command::Command::Proc(new) = vm.lookup_command("::N::body").unwrap() else {
+            panic!("new procedure")
+        };
+        assert_ne!(old.ns_id, new.ns_id);
+        assert_eq!(vm.namespace_token_for_written("N"), Some(new.ns_id));
+        let result = vm.try_invoke_command("::N::body", &[]).unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+        assert_eq!(result.result.string_bytes().as_ref(), b"NEW");
+    }
+
+    #[test]
+    fn folded_eval_uses_final_caller_locals_and_propagates_child_control() {
+        for (body, expected) in [
+            (
+                "eval {set later CHILD}; set later PARENT; return $later",
+                "PARENT",
+            ),
+            (
+                "set count 0; while {1} {incr count; eval {break}; incr count}; return $count",
+                "1",
+            ),
+            ("eval {set literal [list CHILD]}; return $literal", "CHILD"),
+        ] {
+            let mut vm = vm();
+            vm.try_define_procedure("::eval_boundary::p", &[], body)
+                .unwrap();
+            let completion = vm.try_invoke_command("::eval_boundary::p", &[]).unwrap();
+            assert_eq!(completion.code, tcl_runtime_api::Code::Ok, "{body}");
+            assert_eq!(
+                completion.result.string_bytes().as_ref(),
+                expected.as_bytes(),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_embedded_formals_do_not_create_the_definition_namespace() {
+        let mut vm = vm();
+        assert!(
+            vm.try_define_procedure("::invalid_header::body", &["{x y z}"], "return OK")
+                .is_err()
+        );
+        assert!(vm.namespace_token_for_written("invalid_header").is_none());
+        assert!(vm.lookup_command("::invalid_header::body").is_none());
+    }
+
+    #[test]
+    fn guest_proc_keeps_its_missing_namespace_header_failure() {
+        let mut vm = vm();
+        let result = vm
+            .try_invoke_command(
+                "proc",
+                &[
+                    Value::string("::missing_header::body"),
+                    Value::empty(),
+                    Value::string("return OK"),
+                ],
+            )
+            .unwrap();
+        assert_eq!(result.code, tcl_runtime_api::Code::Error);
+        assert!(vm.namespace_token_for_written("missing_header").is_none());
+        assert!(vm.lookup_command("::missing_header::body").is_none());
     }
 }

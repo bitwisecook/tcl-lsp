@@ -48,7 +48,7 @@ use std::borrow::Cow;
 use tcl_dialect::{BraceBackslashNewline, LexerGrammar, ListParse};
 
 /// The word-value rules of one dialect.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct WordValueRules {
     /// Whether a `\<newline>` inside a braced word folds to a space.
     pub brace: BraceBackslashNewline,
@@ -89,7 +89,13 @@ impl Default for WordValueRules {
 /// [`WordValueRules::collapse_braced_word`].
 #[must_use]
 pub fn whole_braced_word(word: &str) -> Option<&str> {
-    let b = word.as_bytes();
+    whole_braced_word_bytes(word.as_bytes()).and_then(|inner| core::str::from_utf8(inner).ok())
+}
+
+/// Content of a balanced whole-word brace group in original byte source.
+/// Delimiters and escapes are inspected without decoding opaque content.
+#[must_use]
+pub fn whole_braced_word_bytes(b: &[u8]) -> Option<&[u8]> {
     let n = b.len();
     if n < 2 || b[0] != b'{' || b[n - 1] != b'}' {
         return None;
@@ -115,11 +121,7 @@ pub fn whole_braced_word(word: &str) -> Option<&str> {
         }
         i += 1;
     }
-    if depth == 0 {
-        Some(&word[1..n - 1])
-    } else {
-        None
-    }
+    if depth == 0 { Some(&b[1..n - 1]) } else { None }
 }
 
 impl WordValueRules {
@@ -333,6 +335,12 @@ mod tests {
             WordValueRules::JIM.split_word_names("a {b").unwrap(),
             vec!["a", "b"]
         );
+    }
+
+    #[test]
+    fn whole_braced_bytes_preserve_opaque_counted_content() {
+        assert_eq!(whole_braced_word_bytes(b"{\xff\0}"), Some(&b"\xff\0"[..]));
+        assert_eq!(whole_braced_word_bytes(b"{\xff}tail"), None);
     }
 
     #[test]

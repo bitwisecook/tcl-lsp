@@ -67,6 +67,28 @@ use tcl_dialect::model::surface_admits;
 /// `(arg_index, role)` pairs.
 pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 
+/// Facts supplied to an argument-role resolver. Cardinality carries no values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArgRoleResolverInput {
+    /// Every operand has its actual frozen literal value.
+    LiteralValues,
+    /// Only the exact evaluated argument count is required.
+    Cardinality,
+    /// Structured operands and their selected available option grammar.
+    StructuredLayout,
+    /// Contradictory authored resolver declarations; no input is admitted.
+    ConflictingResolvers,
+}
+
+/// Role resolver that depends only on exact evaluated argument cardinality.
+pub type ArgRoleCountResolver = fn(argument_count: usize) -> Vec<(u8, ArgRole)>;
+
+/// Role resolver over actual structured operands; unknown values stay unknown.
+pub type ArgRoleLayoutResolver = for<'w, 'r> fn(
+    crate::InvocationArguments<'w>,
+    crate::resolved_invocation::InvocationOptions<'r>,
+) -> Option<Vec<(u8, ArgRole)>>;
+
 /// Resolver for variable-layout [`ArgRole::CommandPrefix`] positions and their
 /// appended arities (`trace add …`, `interp alias`, `selection handle`) where
 /// the prefix index depends on the actual arguments. Returns
@@ -118,6 +140,26 @@ pub enum DefaultFormFirstWord {
 }
 
 impl DefaultFormFirstWord {
+    /// Match the default form under the retained invocation numeric grammar.
+    /// An absent grammar preserves the release-consensus compatibility query.
+    #[must_use]
+    pub fn matches_syntax(self, word: &str, syntax: Option<tcl_dialect::NumberSyntax>) -> bool {
+        let Some(syntax) = syntax else {
+            return self.matches(word);
+        };
+        match self {
+            Self::Integer => matches!(
+                tcl_syntax::number::parse_whole_with(
+                    word,
+                    tcl_syntax::number::ParseFlags {
+                        integer_only: true,
+                        ..tcl_syntax::number::ParseFlags::for_syntax(syntax)
+                    }
+                ),
+                Some(tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. })
+            ),
+        }
+    }
     /// Whether `word` matches this default-form shape.
     ///
     /// [`Self::Integer`] accepts exactly what `Tcl_GetIntFromObj` accepts
@@ -388,6 +430,9 @@ pub struct CaseListSpec {
     pub keyword_patterns: &'static [&'static str],
     /// Whether a keyword pattern is special only in the final clause.
     pub keyword_patterns_require_final: bool,
+    /// Keyword patterns that select a body when ordinary matching selects none.
+    /// Event keywords such as Expect timeout do not imply exhaustive selection.
+    pub exhaustive_keyword_patterns: &'static [&'static str],
     /// Whether unbraced action bodies carry the `switch` substitution warning.
     /// Expect actions deliberately use a different evaluation model, so its
     /// descriptor leaves this off rather than making a consumer name `switch`.
@@ -410,10 +455,10 @@ pub enum CaseForceListShape {
 }
 
 impl CaseForceListShape {
-    fn matches(self, args: &[&str], selector: Option<&str>, index: usize) -> bool {
+    fn matches_values(self, args: &[Option<&str>], selector: Option<&str>, index: usize) -> bool {
         match self {
             Self::FirstArgOnlyRemainder => {
-                index == 0 && args.len() == 2 && selector == args.first().copied()
+                index == 0 && args.len() == 2 && selector == args.first().copied().flatten()
             }
         }
     }
@@ -488,6 +533,7 @@ impl CaseListSpec {
         allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
+        exhaustive_keyword_patterns: &["default"],
         optional_subject_separator: None,
         warn_unbraced_bodies: true,
     };
@@ -525,6 +571,7 @@ impl CaseListSpec {
         // non-final `default` is honoured — unlike `switch`, whose manpage
         // requires it last.
         keyword_patterns_require_final: false,
+        exhaustive_keyword_patterns: &["default"],
         optional_subject_separator: Some("in"),
         warn_unbraced_bodies: true,
     };
@@ -571,6 +618,7 @@ impl CaseListSpec {
         allow_omitted_final_body: true,
         keyword_patterns: &["timeout", "eof", "default", "full_buffer", "null"],
         keyword_patterns_require_final: false,
+        exhaustive_keyword_patterns: &[],
         optional_subject_separator: None,
         warn_unbraced_bodies: false,
     };
@@ -579,10 +627,25 @@ impl CaseListSpec {
     /// layout. The two-argument switch exception, `--`, option values, and
     /// pair arity are all registry-owned here.
     #[must_use]
-    #[allow(clippy::too_many_lines)] // option and outer-shape grammar are one descriptor operation
     pub fn invocation(
         self,
         args: &[&str],
+        options: &[&crate::hover::OptionSpec],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<CaseInvocation> {
+        self.invocation_values(
+            &args.iter().copied().map(Some).collect::<Vec<_>>(),
+            options,
+            dialect,
+        )
+    }
+
+    /// Original operand layout with an unknown subject retained as unknown.
+    /// Options and clauses still use this descriptor's normal grammar.
+    #[allow(clippy::too_many_lines)] // option and outer-shape grammar are one descriptor operation
+    pub(crate) fn invocation_values(
+        self,
+        args: &[Option<&str>],
         options: &[&crate::hover::OptionSpec],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
@@ -604,9 +667,23 @@ impl CaseListSpec {
         // in list form and must bypass the command-option scan.
         let per_clause_flags = self.subject_args == 0 && !self.clause_flags.is_empty();
         let sole_clause_list = per_clause_flags && args.len() == 1;
-        let two_arg_optionless = self.two_arg_optionless_form_is_available(args, dialect);
+        let two_arg_optionless = self.option_scan_reserved_for_arguments(
+            crate::InvocationArguments::structured(
+                &args
+                    .iter()
+                    .map(|word| {
+                        word.map_or(
+                            crate::InvocationWord::Dynamic,
+                            crate::InvocationWord::Literal,
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            ),
+            dialect,
+            2,
+        ) == Some(2);
         if !(sole_clause_list || self.subject_args == 1 && args.len() == 2 && two_arg_optionless) {
-            while let Some(word) = args.get(i).copied() {
+            while let Some(word) = args.get(i).copied().flatten() {
                 if !word.starts_with('-') {
                     break;
                 }
@@ -621,9 +698,9 @@ impl CaseListSpec {
                 // `-brace` is deliberately not a prefix abbreviation.
                 let clause_flag = shape.resolve_flag(word);
                 let force_selector = self.clause_force_inline_flag == Some(word)
-                    || self
-                        .clause_force_list_shape
-                        .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
+                    || self.clause_force_list_shape.is_some_and(|shape| {
+                        shape.matches_values(args, self.clause_force_list_flag, i)
+                    });
                 if self.subject_args == 0
                     && (force_selector
                         || clause_flag.is_some_and(|flag| {
@@ -669,7 +746,19 @@ impl CaseListSpec {
                     nocase = true;
                     i += 1;
                 } else {
-                    let consumed = option.value_word_count(args, i);
+                    let values = args
+                        .iter()
+                        .map(|word| {
+                            word.map_or(
+                                crate::InvocationWord::Dynamic,
+                                crate::InvocationWord::Literal,
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let consumed = option.value_word_count_for_arguments(
+                        crate::InvocationArguments::structured(&values),
+                        i,
+                    )?;
                     if consumed == 0 {
                         if self.special_match_options.contains(&option_name) {
                             if saw_match_mode {
@@ -704,16 +793,18 @@ impl CaseListSpec {
         let force_list = !outer_options_ended
             && self
                 .clause_force_list_shape
-                .is_some_and(|shape| shape.matches(args, self.clause_force_list_flag, i));
+                .is_some_and(|shape| shape.matches_values(args, self.clause_force_list_flag, i));
         let force_inline = !outer_options_ended
             && self
                 .clause_force_inline_flag
-                .is_some_and(|flag| args.get(i).copied() == Some(flag));
+                .is_some_and(|flag| args.get(i).copied().flatten() == Some(flag));
         if force_list {
             i += 1;
         } else if force_inline
             && args
                 .get(i)
+                .copied()
+                .flatten()
                 .and_then(|word| shape.resolve_flag(word))
                 .is_none()
         {
@@ -731,7 +822,7 @@ impl CaseListSpec {
         // this position is a first pattern, not the separator.
         if self
             .optional_subject_separator
-            .is_some_and(|sep| args.get(i).copied() == Some(sep))
+            .is_some_and(|sep| args.get(i).copied().flatten() == Some(sep))
         {
             i += 1;
         }
@@ -740,7 +831,7 @@ impl CaseListSpec {
         }
         let remaining = args.len() - i;
         if force_list {
-            if remaining != 1 || !self.valid_clause_list(args[i]) {
+            if remaining != 1 || !self.valid_clause_list(args[i]?) {
                 return None;
             }
             Some(CaseInvocation {
@@ -758,7 +849,7 @@ impl CaseListSpec {
             // a value-taking `-timeout 5`, so counting raw list elements
             // rejects valid clauses and leaves generic consumers unable to
             // recurse their bodies.
-            if !self.valid_clause_list(args[i]) {
+            if !self.valid_clause_list(args[i]?) {
                 return None;
             }
             Some(CaseInvocation {
@@ -773,7 +864,7 @@ impl CaseListSpec {
             // Expect's flags belong to the following pattern, not to the
             // command as a whole.  Parse them from this descriptor before
             // pairing bodies, including unique flag abbreviations.
-            self.inline_clauses(args, i)?;
+            self.inline_clauses(&args[i..].iter().copied().collect::<Option<Vec<_>>>()?, 0)?;
             Some(CaseInvocation {
                 subject_index,
                 clause_list_index: None,
@@ -784,7 +875,7 @@ impl CaseListSpec {
             })
         } else if remaining >= 2
             && remaining.is_multiple_of(2)
-            && self.fallthrough_body != args.last().copied()
+            && self.fallthrough_body != args.last().copied().flatten()
         {
             Some(CaseInvocation {
                 subject_index,
@@ -843,6 +934,34 @@ impl CaseListSpec {
         }
     }
 
+    /// Retain the native optionless case layout for frozen typed argv.
+    /// A dynamic subject in a release that scans it remains unresolved.
+    #[must_use]
+    pub(crate) fn option_scan_reserved_for_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        dialect: Option<SurfaceQuery<'_>>,
+        default: usize,
+    ) -> Option<usize> {
+        if arguments.exact_argv_len()? != 2 || self.subject_args != 1 {
+            return Some(default);
+        }
+        if arguments
+            .literal_at(0)
+            .is_some_and(|subject| !subject.starts_with('-'))
+        {
+            return Some(default);
+        }
+        let Some(available) = self.two_arg_optionless_surface else {
+            return Some(default);
+        };
+        let query = dialect?;
+        if surface_admits(available, Some(&query)) {
+            return Some(default);
+        }
+        arguments.literal_at(0).map(|_| 0)
+    }
+
     /// Resolve one outer option exactly or by its unique declared prefix.
     ///
     /// The result is an `OptionSpec`, rather than just its spelling, because
@@ -851,21 +970,7 @@ impl CaseListSpec {
     /// `KeywordTable` option semantics without treating two aliases of one
     /// option as two ambiguous candidates.
     fn resolve_option<'a>(options: &'a [&'a OptionSpec], word: &str) -> Option<&'a OptionSpec> {
-        if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
-            return Some(option);
-        }
-        if word.len() < 2 {
-            return None;
-        }
-        let mut matches = options.iter().copied().filter(|option| {
-            (option.name.starts_with(word)
-                || option.aliases.iter().any(|alias| alias.starts_with(word)))
-                && option
-                    .min_abbrev
-                    .is_none_or(|minimum| word.len() >= usize::from(minimum))
-        });
-        let option = matches.next()?;
-        matches.next().is_none().then_some(option)
+        resolve_available_option_prefix_with(options, word, PrefixMatching::Enabled)
     }
 
     fn valid_clause_list(self, text: &str) -> bool {
@@ -1340,6 +1445,13 @@ pub struct CommandSpec {
     /// Dynamic argument role resolver (for variable-layout commands).
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Cardinality-only role resolver, selected before the value resolver.
+    /// Unknown expansion counts retain incomplete roles; no placeholder values
+    /// are supplied to either resolver.
+    pub arg_role_count_resolver: Option<ArgRoleCountResolver>,
+    /// Structured native layout resolver; exclusive with value/count resolvers.
+    pub arg_role_layout_resolver: Option<ArgRoleLayoutResolver>,
+
     /// Roles the dynamic resolver can emit for some invocation.
     ///
     /// Source-aware projections consult this closed capability set when
@@ -1532,6 +1644,9 @@ pub struct CommandSpec {
     /// command's result. `None` is conservative, not an assertion of purity.
     pub result_stability: Option<crate::result_stability::ResultStability>,
 
+    /// Native result dependency; runtime identity and completion remain required.
+    pub native_result: Option<crate::native_result::NativeResultContract>,
+
     /// Which argument index is a variable name assigned by the command.
     /// `None` = command does not assign a variable.
     pub assigns_variable_at: Option<u8>,
@@ -1557,7 +1672,8 @@ pub struct CommandSpec {
     /// verdict family + compatible program types, effect classification).
     /// The BPF-Tcl front-end (`bpf-tcl-ir`) and its capability policy
     /// dispatch on this descriptor, never on the command name — see
-    /// [`crate::bpf_op`].  `None` for every non-BPF command.
+    /// [`crate::bpf_op`]. A shared Tcl spelling may also carry independently
+    /// authored static BPF syntax; this never grants Tcl execution evidence.
     pub bpf_op: Option<&'static crate::bpf_op::BpfOpSpec>,
 
     /// `TclVM` bytecode codegen hook ID — picks the per-command
@@ -1711,6 +1827,10 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
+    /// Fixed positional words before the selected invocation's option run.
+    /// Counted after the command head, or after a selected subcommand word.
+    pub option_prefix_words: usize,
+
     /// Typed relations between this command's options and arguments — the
     /// declarative half of E-R14.  Data for generic invocation validation,
     /// not a command-specific analyser rule, and checked natively with no
@@ -1768,6 +1888,15 @@ pub struct CommandSpec {
     /// data flow (SSA, def-use scans, dead-store detection).  Default
     /// `Plain` keeps existing specs unchanged.
     pub body_kind: BodyKind,
+
+    /// Execution grammar for immediate evaluated script regions.
+    pub body_execution: Option<crate::body_execution::BodyExecutionSpec>,
+    /// Native procedure definition argv and persistent-storage grammar.
+    pub procedure_definition: Option<crate::native_procedure::NativeProcedureDefinitionSpec>,
+    /// Native compiler-hook grammar and body entry, independent of lowering.
+    pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
+    /// Audited successful handler transfer, independent of compiler selection.
+    pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
 
     /// Which interpreter owns the command's evaluated body arguments.
     ///
@@ -2210,26 +2339,85 @@ pub fn resolve_option_prefix_with<'a>(
     word: &str,
     prefix_matching: PrefixMatching,
 ) -> Option<&'a OptionSpec> {
-    if let Some(exact) = options.iter().find(|option| option.matches(word)) {
-        return Some(exact);
+    resolve_option_prefix_in(options.iter(), word, prefix_matching)
+}
+
+/// Resolve an option in an already availability-filtered descriptor table.
+/// Exact names and aliases win before declared minimum unique abbreviations.
+#[must_use]
+pub(crate) fn resolve_available_option_prefix_with<'a>(
+    options: &[&'a OptionSpec],
+    word: &str,
+    prefix_matching: PrefixMatching,
+) -> Option<&'a OptionSpec> {
+    resolve_option_prefix_in(options.iter().copied(), word, prefix_matching)
+}
+
+fn resolve_option_prefix_in<'a>(
+    options: impl Iterator<Item = &'a OptionSpec> + Clone,
+    word: &str,
+    prefix_matching: PrefixMatching,
+) -> Option<&'a OptionSpec> {
+    if let Some(option) = options.clone().find(|option| option.matches(word)) {
+        return Some(option);
     }
     if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
         return None;
     }
-    let mut matched: Option<&OptionSpec> = None;
+    let mut found = None;
     for option in options {
         if std::iter::once(option.name)
             .chain(option.aliases.iter().copied())
-            .any(|spelling| spelling.starts_with(word))
+            .any(|spelling| {
+                spelling.starts_with(word)
+                    && option
+                        .min_abbrev
+                        .is_none_or(|minimum| word.len() >= usize::from(minimum))
+            })
         {
-            match matched {
-                None => matched = Some(option),
+            match found {
+                None => found = Some(option),
                 Some(previous) if std::ptr::eq(previous, option) => {}
                 Some(_) => return None,
             }
         }
     }
-    matched
+    found
+}
+
+/// Prove where a leading option grammar ends in evaluated source words.
+/// Unknown words while option scanning is live leave the boundary unknown;
+/// a known positional prefix or declared terminator permits unknown trailing
+/// values. Expansion never supplies an exact argv boundary.
+#[must_use]
+pub fn leading_option_word_count_for_arguments(
+    options: &[&OptionSpec],
+    args: crate::InvocationArguments<'_>,
+    prefix_matching: PrefixMatching,
+    reserved_trailing_words: usize,
+) -> Option<usize> {
+    let count = args.exact_argv_len()?;
+    if options.is_empty() {
+        return Some(0);
+    }
+    let scan_end = count.saturating_sub(reserved_trailing_words);
+    let mut index = 0;
+    while index < scan_end {
+        let argument = args.get(index)?;
+        if argument.proves_non_option() {
+            return Some(index);
+        }
+        let word = argument.literal()?;
+        if !word.starts_with('-') || word.len() < 2 {
+            return Some(index);
+        }
+        let option = resolve_available_option_prefix_with(options, word, prefix_matching)?;
+        index += 1 + option.value_word_count_for_arguments(args, index)?;
+        if option.name == "--" {
+            return Some(index);
+        }
+    }
+    Some(index)
 }
 
 /// Return the index immediately after a declared leading option prefix.
@@ -2324,6 +2512,22 @@ fn declares_variable_write(
 }
 
 impl CommandSpec {
+    /// Whether argument roles have a declared dynamic input contract.
+    #[must_use]
+    pub const fn has_dynamic_argument_roles(&self) -> bool {
+        self.arg_role_resolver.is_some()
+            || self.arg_role_count_resolver.is_some()
+            || self.arg_role_layout_resolver.is_some()
+    }
+
+    /// Positional constructor prefix before its option table. This describes
+    /// argv layout only; factory effects and returned objects need separate proof.
+    #[must_use]
+    pub fn constructor_prefix_words(&self) -> Option<usize> {
+        self.object_class?;
+        Some(usize::from(self.creates_instance_at?) + 1)
+    }
+
     /// This command's, and each subcommand's, `VarWrite` positions that
     /// declare none of [`VARIABLE_WRITE_CLASSES`], named `name` or
     /// `name sub`. A consumer treats such a target as possibly unset.
@@ -2369,6 +2573,8 @@ impl CommandSpec {
         arity_windows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_role_count_resolver: None,
+        arg_role_layout_resolver: None,
         arg_role_resolver_roles: &[],
         arg_presentation: &[],
         repeated_args: &[],
@@ -2397,6 +2603,7 @@ impl CommandSpec {
         semantic_operation: None,
         completion: None,
         result_stability: None,
+        native_result: None,
         assigns_variable_at: None,
         safe_on_uninit: None,
         const_fold: None,
@@ -2428,6 +2635,7 @@ impl CommandSpec {
         event_handler_priority: None,
         irules_top_level_effect: None,
         options: &[],
+        option_prefix_words: 0,
         option_relations: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
@@ -2435,6 +2643,10 @@ impl CommandSpec {
         arg_values: &[],
         versioned_arg_values: &[],
         body_kind: BodyKind::Plain,
+        body_execution: None,
+        procedure_definition: None,
+        native_compilation: None,
+        successful_handler: None,
         body_interpreter: BodyInterpreter::Current,
         body_arg_implicit_args: 0,
         taint_output_sink: None,
@@ -2520,6 +2732,28 @@ impl CommandSpec {
         } else {
             self.const_fold?(args)
         }
+    }
+
+    /// Fold bytes under actual invocation axes. A native range uses its
+    /// authored result contract and selected serialization; no catalogue
+    /// profile or version-only argument supplies that engine proof.
+    /// Object effects and executable erasure remain independent obligations.
+    #[must_use]
+    pub fn run_const_fold_in(
+        &self,
+        args: &[&str],
+        dialect: crate::InvocationDialect,
+    ) -> Option<String> {
+        if let Some(contract @ crate::native_result::NativeResultContract::ListRange { .. }) =
+            self.native_result
+        {
+            self.const_fold?;
+            let arguments = crate::InvocationArguments::literals(args).with_dialect(dialect);
+            return contract
+                .select(arguments, 0)
+                .constant_range_literal_result(arguments);
+        }
+        self.run_const_fold(args, dialect.tcl_version)
     }
 
     /// Look up a subcommand by exact name.
@@ -3261,6 +3495,13 @@ pub struct SubCommand {
     /// Dynamic argument role resolver.
     pub arg_role_resolver: Option<ArgRoleResolver>,
 
+    /// Cardinality-only role resolver, selected before the value resolver.
+    /// Unknown expansion counts retain incomplete roles; no placeholder values
+    /// are supplied to either resolver.
+    pub arg_role_count_resolver: Option<ArgRoleCountResolver>,
+    /// Structured native layout resolver; exclusive with value/count resolvers.
+    pub arg_role_layout_resolver: Option<ArgRoleLayoutResolver>,
+
     /// Roles the dynamic resolver can emit for some invocation. See the
     /// command-level field of the same name.
     pub arg_role_resolver_roles: &'static [ArgRole],
@@ -3357,6 +3598,10 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
+    /// Fixed positional words before the selected invocation's option run.
+    /// Counted after the command head, or after a selected subcommand word.
+    pub option_prefix_words: usize,
+
     /// Typed relations between this subcommand's options and arguments
     /// (E-R14), checked natively.
     pub option_relations: &'static [OptionRelation],
@@ -3413,6 +3658,9 @@ pub struct SubCommand {
     /// parent command declaration.
     pub result_stability: Option<crate::result_stability::ResultStability>,
 
+    /// Native result dependency; runtime identity and completion remain required.
+    pub native_result: Option<crate::native_result::NativeResultContract>,
+
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
     pub surface: Option<&'static [SpecSurface]>,
 
@@ -3438,6 +3686,13 @@ pub struct SubCommand {
     /// this subcommand.  See [`CommandSpec::body_kind`] for the
     /// semantics; default `Plain`.
     pub body_kind: BodyKind,
+
+    /// Execution grammar for immediate evaluated script regions.
+    pub body_execution: Option<crate::body_execution::BodyExecutionSpec>,
+    /// Native compiler grammar and body entry for this selected subcommand.
+    pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
+    /// Audited successful handler transfer, independent of compiler selection.
+    pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
 
     /// Interpreter realm for this subcommand's evaluated body arguments.
     /// See [`CommandSpec::body_interpreter`].
@@ -3590,6 +3845,9 @@ pub struct SubCommand {
 /// ensemble dispatch abbreviates subcommands.
 #[derive(Debug, Clone, Copy)]
 pub struct SubSubCommand {
+    /// Audited compiler registration of this exact nested worker. Absence is
+    /// unknown and never inherits the outer ensemble's compiler protocol.
+    pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
     /// Canonical operation name (`"class"`, `"superclasses"`, …).
     pub name: &'static str,
     /// One-line description for hover / completion detail.
@@ -3660,6 +3918,7 @@ fn sub_subcommand_supports_dialect(
 impl SubSubCommand {
     /// Default value for all fields — used with `..SubSubCommand::DEFAULT`.
     pub const DEFAULT: Self = Self {
+        native_compilation: None,
         name: "",
         detail: "",
         synopsis: "",
@@ -3688,6 +3947,33 @@ impl SubSubCommand {
 }
 
 impl SubCommand {
+    /// Behavioural traits selected for this member. The dedicated purity and
+    /// scope-alias declarations compose with its explicit trait flags.
+    #[must_use]
+    pub const fn semantic_traits(&self) -> Traits {
+        self.traits
+            .union(if self.pure {
+                Traits::PURE
+            } else {
+                Traits::empty()
+            })
+            .union(if self.creates_scope_alias {
+                Traits::CREATES_SCOPE_ALIAS
+            } else {
+                Traits::empty()
+            })
+    }
+
+    /// Whether argument roles have a declared dynamic input contract.
+    #[must_use]
+    pub const fn has_dynamic_argument_roles(&self) -> bool {
+        self.arg_role_resolver.is_some()
+            || self.arg_role_count_resolver.is_some()
+            || self.arg_role_layout_resolver.is_some()
+    }
+}
+
+impl SubCommand {
     /// Default value for all fields.
     pub const DEFAULT: Self = Self {
         name: "",
@@ -3699,6 +3985,8 @@ impl SubCommand {
         hover: None,
         arg_roles: &[],
         arg_role_resolver: None,
+        arg_role_count_resolver: None,
+        arg_role_layout_resolver: None,
         arg_role_resolver_roles: &[],
         arg_presentation: &[],
         repeated_args: &[],
@@ -3722,6 +4010,7 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
+        option_prefix_words: 0,
         option_relations: &[],
         constraints: None,
         option_placement: OptionPlacement::Leading,
@@ -3733,6 +4022,7 @@ impl SubCommand {
         semantic_operation: None,
         completion: None,
         result_stability: None,
+        native_result: None,
         surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
@@ -3740,6 +4030,9 @@ impl SubCommand {
         creates_scope_alias: false,
         inferred_storage_type: None,
         body_kind: BodyKind::Plain,
+        body_execution: None,
+        native_compilation: None,
+        successful_handler: None,
         body_interpreter: BodyInterpreter::Current,
         byte_array_effect: crate::byte_array_effect::ByteArrayEffect::None,
         closed_value_args: &[],
@@ -3980,6 +4273,50 @@ impl SubCommand {
         } else {
             self.const_fold?(args)
         }
+    }
+
+    /// Selected native constant-result bytes, separate from object effects.
+    /// See [`CommandSpec::run_const_fold_in`] for the actual-policy boundary.
+    #[must_use]
+    pub fn run_const_fold_in(
+        &self,
+        args: &[&str],
+        dialect: crate::InvocationDialect,
+    ) -> Option<String> {
+        if let Some(contract @ crate::native_result::NativeResultContract::ListRange { .. }) =
+            self.native_result
+        {
+            self.const_fold?;
+            let arguments = crate::InvocationArguments::literals(args).with_dialect(dialect);
+            return contract
+                .select(arguments, 0)
+                .constant_range_literal_result(arguments);
+        }
+        self.run_const_fold(args, dialect.tcl_version)
+    }
+
+    /// Compiler descriptor of an exact frozen nested selector. This projection
+    /// supplies no nested operand, result or successful-handler semantics.
+    #[must_use]
+    pub fn nested_native_compilation(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        let crate::InvocationArgument::Word(selector) = arguments.argv_at(0) else {
+            return None;
+        };
+        let selector = selector.literal()?;
+        let query = arguments.dialect()?.authoring_query()?;
+        let compiler = self
+            .sub_subcommands
+            .iter()
+            .find(|worker| {
+                worker.name == selector
+                    && sub_subcommand_supports_dialect(worker, Some(query), self.surface)
+            })?
+            .native_compilation?;
+        compiler.compiler_hook_presence(arguments.dialect()?)?;
+        Some(compiler)
     }
 
     /// Resolve a second-level subcommand word to its [`SubSubCommand`],

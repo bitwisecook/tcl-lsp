@@ -1,0 +1,4 @@
+route=compiled kind=scalar code=0 result=1 MUTATED custom-scalar list
+route=compiled kind=list code=0 result=1 SAFE list list
+route=generic kind=scalar code=0 result=1 MUTATED custom-scalar list
+route=generic kind=list code=0 result=1 SAFE list list

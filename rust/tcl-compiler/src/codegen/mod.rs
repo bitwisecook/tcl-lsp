@@ -38,6 +38,8 @@ pub mod emit;
 pub mod emitter;
 pub mod expressions;
 pub mod helpers;
+mod hook_operands;
+mod native_failure;
 pub mod peephole;
 pub mod statements;
 pub mod structured;
@@ -59,6 +61,68 @@ use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 
 // Emission context.
+
+/// Reentrant emitter scopes may share a range only for the same selection.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct NativeOperationOrigin {
+    start: usize,
+    source: crate::command_binding::CommandAllocationSite,
+    operation: tcl_registry::SemanticOperationId,
+    guard: tcl_runtime_api::CommandBindingGuard,
+    compiler_prerequisite: Option<
+        std::sync::Arc<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>,
+    >,
+    requirements: Vec<tcl_runtime_api::CommandBindingIdentity>,
+}
+
+/// One native namespace identity with an optional checked legacy analysis key.
+/// The key is a projection of these exact segments, never a fallback namespace.
+#[derive(Debug, Clone)]
+struct EmissionNamespace {
+    path: tcl_runtime_api::ByteNamespacePath,
+    key: Option<String>,
+}
+impl EmissionNamespace {
+    fn native(path: tcl_runtime_api::ByteNamespacePath) -> Self {
+        let key = tcl_syntax::naming::checked_namespace_path_utf8(&path)
+            .ok()
+            .and_then(|segments| {
+                let key = if segments.is_empty() {
+                    "::".to_owned()
+                } else {
+                    format!("::{}", segments.join("::"))
+                };
+                (tcl_syntax::naming::key_segments(&key) == segments).then_some(key)
+            });
+        Self { path, key }
+    }
+}
+
+/// Adapt a symbolic compatibility key through its declared component convention.
+/// Native paths never enter this function through display or UTF-8 replacement.
+fn namespace_path_from_constructed_key(key: &str) -> tcl_runtime_api::ByteNamespacePath {
+    tcl_runtime_api::ByteNamespacePath::from_segments(tcl_syntax::naming::key_segments(key))
+}
+
+/// Retained native geometry takes precedence over the presentation key.
+fn namespace_path_for_binding(
+    binding: &tcl_runtime_api::CommandBindingIdentity,
+) -> tcl_runtime_api::ByteNamespacePath {
+    binding.namespace_context.as_ref().map_or_else(
+        || namespace_path_from_constructed_key(&binding.resolution_namespace),
+        |context| context.path().clone(),
+    )
+}
+
+/// Native body loop range. Labels are retained through peephole edits and
+/// resolved only against the final instruction layout.
+#[derive(Debug)]
+struct InlineLoopRegion {
+    start: String,
+    end: String,
+    continue_target: Option<String>,
+    break_target: String,
+}
 
 /// Mutable context for bytecode emission.
 ///
@@ -188,6 +252,9 @@ pub struct CodegenCtx<'r> {
     pub break_target: Option<String>,
     /// Loop continue target label (set by the emitter loop).
     pub continue_target: Option<String>,
+    /// Actual instruction regions emitted inside a source command. Labels
+    /// survive peephole edits and select the same native loop completion door.
+    inline_loop_regions: Vec<InlineLoopRegion>,
     /// Catch nesting depth for `beginCatch4` operand.
     pub catch_depth: u32,
     /// Whether a generic invoke (`invokeStk1`) has been seen.
@@ -222,7 +289,7 @@ pub struct CodegenCtx<'r> {
     /// Rooted constructed namespace in which command heads emitted directly
     /// by codegen resolve. IR-carried bindings retain their own source-site
     /// namespace and are never rewritten to this value.
-    resolution_namespace: String,
+    resolution_namespace: EmissionNamespace,
     /// Whole-module command-mutation summary — which command *names* may stop
     /// denoting their original builtin anywhere in this compilation unit.
     ///
@@ -248,12 +315,45 @@ pub struct CodegenCtx<'r> {
     /// Registry identities assumed by specialised operations emitted into this
     /// function. The bytecode artifact carries these to the runtime.
     pub command_binding_requirements: BTreeSet<tcl_runtime_api::CommandBindingIdentity>,
+    native_compiler_prerequisites:
+        Vec<tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite>,
+    /// Actual runtime policies, independent of the retained authoring profile.
+    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    /// Independently selected source-local compiler, including logical providers.
+    compiled_variable_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
+    borrowed_local_layout: Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
+    required_compiled_local_layout:
+        Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
+    source_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    native_entry: Option<&'r tcl_runtime_api::NativeCompilationEntry>,
+    /// Exact ingress lexical axes for all nested parsing and preparation.
+    ingress_lexer_config: Option<tcl_lexer::LexerConfig>,
+    /// Exact source-owned implicit calls retained by CFG lowering.
+    math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Whole-expression entry proofs from the same exact source inventory.
+    expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+    /// Preparation selected for the expression currently emitted.
+    active_expression_preparation:
+        Option<std::sync::Arc<tcl_registry::runtime_expr_validation::PreparedExpressionWitness>>,
+    /// One-shot source ownership supplied by the CFG statement emitter.
+    pending_math_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    /// Source/base scoped to the expression currently being emitted.
+    math_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    math_expression_base: Option<u32>,
+    /// Actual fixed-function entry consumed by successful constant folding.
+    math_table_prerequisite:
+        Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
+    /// A transformed CFG retained a dependency which this artifact cannot guard.
+    native_dependency_refusal: bool,
+    /// Active C8.4 Catch body compilation checkpoints, independently of
+    /// exception ranges entered by the eventual runtime instructions.
+    native_speculative_compilations: Vec<std::rc::Rc<std::cell::Cell<bool>>>,
     /// Suppress registry codegen hooks as well as lowering hooks.
     pub plain_command_dispatch: bool,
     /// The module's original source text, indexed by `current_span` to recover
     /// each command's surface text for `errorInfo` (`while executing "…"`).
     /// Empty when the caller did not supply it (hand-built test contexts).
-    source: std::rc::Rc<str>,
+    source: tcl_lexer::SourceImage,
     /// The lexer-owned line index for [`Self::source`]. Production module
     /// emission shares one Arc-backed index across every function context.
     line_index: Option<tcl_lexer::LineIndex>,
@@ -262,16 +362,32 @@ pub struct CodegenCtx<'r> {
     /// Both need source ranges for diagnostics, but only a command supplies a
     /// safe whole script for runtime command-table revalidation.
     current_span_is_command: bool,
+    /// Complete original command extent supplied by the byte word owner.
+    /// Its closing delimiters need no legacy representative-span widening.
+    exact_command_source: Option<tcl_lexer::SourceImage>,
     /// Unrooted constructed namespace paired with the current executable
     /// command source site. This follows explicit IR binding sites across
     /// inlining rather than inheriting the surrounding function's namespace.
-    current_command_namespace: String,
+    current_command_namespace: tcl_runtime_api::ByteNamespacePath,
+    current_command_namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
     /// Per-argument "is a braced (`{…}`) word" flags for the command currently
     /// dispatching to a codegen hook (`try_bytecoded`). Set by [`Self::emit_call`]
     /// from the command's tokens and consulted by [`Self::emit_word_arg`] so a
     /// hook collapses a non-braced literal's backslashes exactly like the generic
     /// per-word path. Empty for hand-built test contexts (treated as non-braced).
     cmd_arg_braced: Vec<bool>,
+    /// Inert logical selectors currently scoped to a private backend hook.
+    native_hook_layout: Option<(String, usize)>,
+    /// Original invocation proof scoped to the current emitter entry.
+    invocation_tokens: Option<Box<crate::ir::CommandTokens>>,
+    /// Actual authored carriers for inline script commands, shared by the module.
+    source_proofs: Option<std::sync::Arc<crate::command_binding::BodySourceProofs>>,
+    /// First instruction and exact source/selection premises to its range label.
+    native_operation_origins: HashMap<NativeOperationOrigin, String>,
+    /// Authored body coordinate, available only when the original literal survives.
+    inline_body_source_base: Option<u32>,
+    /// Native bytecode entry supplied by the module driver.
+    native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
 }
 
 impl<'r> CodegenCtx<'r> {
@@ -303,6 +419,13 @@ impl<'r> CodegenCtx<'r> {
     /// pass used so dialect-loaded specs are visible.
     #[must_use]
     pub fn new(is_proc: bool, params: &[&str], registry: &'r CommandRegistry) -> Self {
+        let compiled_variable_protocol = Some(
+            tcl_syntax::naming::NativeCompiledVariableProtocol::authored_tcl(
+                tcl_dialect::TclVersion::V9_0,
+            ),
+        );
+        let mut lvt = LocalVarTable::new(params);
+        lvt.set_native_protocol(compiled_variable_protocol);
         Self {
             numbers: tcl_dialect::NumberSyntax::default(),
             escapes: tcl_dialect::EscapeSyntax::default(),
@@ -311,7 +434,7 @@ impl<'r> CodegenCtx<'r> {
             dialect: None,
             expr_grammar: None,
             literals: LiteralTable::new(),
-            lvt: LocalVarTable::new(params),
+            lvt,
             instructions: Vec::new(),
             label_positions: HashMap::new(),
             label_counter: 0,
@@ -321,6 +444,7 @@ impl<'r> CodegenCtx<'r> {
             start_cmd_end_label: None,
             break_target: None,
             continue_target: None,
+            inline_loop_regions: Vec::new(),
             catch_depth: 0,
             seen_generic_invoke: false,
             used_generic_invoke: false,
@@ -332,16 +456,70 @@ impl<'r> CodegenCtx<'r> {
             current_source_line: 0,
             current_span: None,
             registry,
-            resolution_namespace: "::".to_owned(),
+            resolution_namespace: EmissionNamespace::native(
+                tcl_runtime_api::ByteNamespacePath::root(),
+            ),
             command_bindings: None,
             command_binding_requirements: BTreeSet::new(),
+            native_compiler_prerequisites: Vec::new(),
+            invocation_dialect: None,
+            compiled_variable_protocol,
+            borrowed_local_layout: None,
+            required_compiled_local_layout: None,
+            source_string_protocol: Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V9_0,
+            )),
+            native_entry: None,
+            ingress_lexer_config: None,
+            math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
+            active_expression_preparation: None,
+            pending_math_source: None,
+            math_source: None,
+            math_expression_base: None,
+            math_table_prerequisite: None,
+            native_dependency_refusal: false,
+            native_speculative_compilations: Vec::new(),
             plain_command_dispatch: false,
-            source: "".into(),
+            source: tcl_lexer::SourceImage::default(),
             line_index: None,
             current_span_is_command: false,
-            current_command_namespace: String::new(),
+            exact_command_source: None,
+            current_command_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            current_command_namespace_context: None,
             cmd_arg_braced: Vec::new(),
+            native_hook_layout: None,
+            invocation_tokens: None,
+            source_proofs: None,
+            native_operation_origins: HashMap::new(),
+            inline_body_source_base: None,
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                frame: if is_proc {
+                    tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode
+                } else {
+                    tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode
+                },
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
         }
+    }
+
+    /// Create a function emission context using actual native formal keys.
+    /// This seeds local slots without interpreting or decoding names.
+    #[must_use]
+    pub fn with_native_parameters(
+        is_proc: bool,
+        params: &[tcl_runtime_api::NameBytes],
+        registry: &'r CommandRegistry,
+    ) -> Self {
+        let mut context = Self::new(is_proc, &[], registry);
+        context.lvt = LocalVarTable::from_native_names(params);
+        context
+            .lvt
+            .set_native_protocol(context.compiled_variable_protocol);
+        context
     }
 
     /// Whether a variable named here may be addressed as a *compiled local* of
@@ -355,7 +533,22 @@ impl<'r> CodegenCtx<'r> {
     /// not [`Self::is_proc`].
     #[must_use]
     pub fn compiles_locals(&self) -> bool {
-        self.is_proc && !self.inside_same_frame_eval()
+        self.is_proc
+            && self
+                .compiled_variable_protocol
+                .is_some_and(tcl_syntax::naming::NativeCompiledVariableProtocol::has_indexed_locals)
+            && !self.inside_same_frame_eval()
+    }
+
+    fn source_variable_environment(&self) -> tcl_syntax::naming::NativeCompiledVariableEnvironment {
+        use tcl_syntax::naming::NativeCompiledVariableEnvironment;
+        if self.compiles_locals() {
+            NativeCompiledVariableEnvironment::DeclareProcedure
+        } else if self.borrowed_local_layout.is_some() {
+            NativeCompiledVariableEnvironment::BorrowFrameSlots
+        } else {
+            NativeCompiledVariableEnvironment::None
+        }
     }
 
     /// Whether the statement being emitted lies inside a folded same-frame
@@ -374,7 +567,9 @@ impl<'r> CodegenCtx<'r> {
     /// rather than the default grammar.
     #[must_use]
     pub fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_profile(self.dialect.or_else(|| self.registry.profile()))
+        self.ingress_lexer_config.unwrap_or_else(|| {
+            tcl_lexer::LexerConfig::for_profile(self.dialect.or_else(|| self.registry.profile()))
+        })
     }
 
     /// Whether nested source reparsed by codegen recognises TIP 157 argument
@@ -387,19 +582,27 @@ impl<'r> CodegenCtx<'r> {
 
     /// Set the rooted constructed command-resolution namespace for direct
     /// codegen specialisations in this function.
-    pub(crate) fn set_resolution_namespace(&mut self, namespace: &str) {
-        namespace.clone_into(&mut self.resolution_namespace);
-        Self::unrooted_namespace(namespace).clone_into(&mut self.current_command_namespace);
+    /// Set an exact native namespace without reparsing a written name.
+    pub(crate) fn set_resolution_namespace_path(
+        &mut self,
+        namespace: tcl_runtime_api::ByteNamespacePath,
+    ) {
+        self.resolution_namespace = EmissionNamespace::native(namespace);
+        self.current_command_namespace = self.resolution_namespace.path.clone();
+        self.current_command_namespace_context = self.resolution_namespace_context();
     }
 
-    fn unrooted_namespace(namespace: &str) -> &str {
-        namespace.strip_prefix("::").unwrap_or(namespace)
+    fn resolution_namespace_context(&self) -> Option<tcl_runtime_api::CompiledNamespaceContext> {
+        let context =
+            crate::command_binding::SourceNamespaceKey::from_native_entry(self.native_entry?)
+                .ok()?
+                .to_compiled_context()?;
+        (context.path() == &self.resolution_namespace.path).then_some(context)
     }
 
-    /// Rooted constructed command-resolution namespace for direct codegen
-    /// specialisations in this function.
-    pub(crate) fn resolution_namespace(&self) -> &str {
-        &self.resolution_namespace
+    /// Checked constructed analysis key for this exact native namespace.
+    pub(crate) fn resolution_namespace(&self) -> Option<&str> {
+        self.resolution_namespace.key.as_deref()
     }
 
     /// Construct the complete source-site identity for a direct codegen
@@ -409,27 +612,253 @@ impl<'r> CodegenCtx<'r> {
         name: impl Into<String>,
         identity: impl Into<String>,
     ) -> tcl_runtime_api::CommandBindingIdentity {
-        tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
-            &self.resolution_namespace,
+        let name = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| {
+                crate::registry_invocation::static_command_word(
+                    tokens,
+                    self.escapes,
+                    self.word_rules,
+                )
+            })
+            .unwrap_or_else(|| name.into());
+        let identity = identity.into();
+        let namespace_context = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(crate::registry_invocation::compiled_namespace_context);
+        let namespace = self.resolution_namespace().unwrap_or_else(|| {
+            assert!(
+                namespace_context.is_some(),
+                "native specialisation requires an exact namespace context"
+            );
+            ""
+        });
+        let binding = tcl_runtime_api::CommandBindingIdentity::in_rooted_namespace(
+            namespace,
             name,
-            identity,
+            identity.strip_prefix("::").unwrap_or(&identity),
         )
+        .with_namespace_context(namespace_context);
+        if let Some(tokens) = self.invocation_tokens.as_deref()
+            && tokens
+                .source_binding
+                .as_ref()
+                .and_then(|proof| proof.admitted_inline_invocation())
+                .is_some_and(|proof| {
+                    proof
+                        .target
+                        .command
+                        .strip_prefix("::")
+                        .unwrap_or(&proof.target.command)
+                        == binding
+                            .identity
+                            .strip_prefix("::")
+                            .unwrap_or(&binding.identity)
+                })
+        {
+            return binding.with_guard(crate::registry_invocation::command_binding_guard(tokens));
+        }
+        binding
+    }
+
+    fn refuse_native_dependency(&mut self) {
+        self.native_dependency_refusal = true;
+    }
+
+    /// Scope exact source proof to one emitter call; nested emitters restore it.
+    fn with_invocation_tokens<T>(
+        &mut self,
+        tokens: Option<&crate::ir::CommandTokens>,
+        emit: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let previous =
+            std::mem::replace(&mut self.invocation_tokens, tokens.cloned().map(Box::new));
+        let previous_layout = self.native_hook_layout.take();
+        let operation = if self.plain_command_dispatch {
+            None
+        } else if let Some(tokens) = self
+            .invocation_tokens
+            .as_deref()
+            .filter(|tokens| tokens.synthetic.is_none())
+        {
+            if let Ok(plan) = crate::registry_invocation::native_operation_selection_plan(
+                tokens,
+                self.escapes,
+                self.word_rules,
+            ) {
+                plan
+            } else {
+                self.refuse_native_dependency();
+                None
+            }
+        } else {
+            None
+        };
+        let operation_start = self.instructions.len();
+        if !self.plain_command_dispatch
+            && let Some(tokens) = self.invocation_tokens.as_deref()
+        {
+            let refused = tokens.source_binding.as_ref().is_some_and(|binding| {
+                matches!(
+                    binding.native_compilation_admission_selection(),
+                    tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+                ) && binding.original_named_compiler_admission(tokens).is_none()
+            });
+            // Auxiliary compiler lookups are guard dependencies, not source
+            // commands. Recording one must not switch the enclosing command's
+            // replay namespace to a private implementation's namespace.
+            self.command_binding_requirements
+                .extend(crate::registry_invocation::native_implementation_dependencies(tokens));
+            if refused {
+                self.refuse_native_dependency();
+            }
+        }
+        let result = emit(self);
+        if let Some(operation) = operation {
+            self.retain_native_operation_selection(operation_start, operation);
+        }
+        self.invocation_tokens = previous;
+        self.native_hook_layout = previous_layout;
+        result
+    }
+
+    /// Retain selection at the first operation instruction, before its argv.
+    /// Nested operations can share that instruction but have distinct ranges.
+    fn retain_native_operation_selection(
+        &mut self,
+        start: usize,
+        plan: crate::registry_invocation::NativeOperationSelectionPlan,
+    ) {
+        if start == self.instructions.len() {
+            return;
+        }
+        // The function inventory summarizes every retained operation premise,
+        // including constant-result paths that never call a typed opcode hook.
+        self.command_binding_requirements
+            .extend(plan.requirements.iter().cloned());
+        let end = self.fresh_label("native_operation_end");
+        self.place_label(&end);
+        let previous = self.native_operation_origins.insert(
+            NativeOperationOrigin {
+                start,
+                source: plan.compilation_site,
+                operation: plan.operation,
+                guard: plan.guard,
+                compiler_prerequisite: plan.compiler_prerequisite.clone(),
+                requirements: plan.requirements.clone(),
+            },
+            end.clone(),
+        );
+        let site = tcl_bytecode::NativeOperationSelectionSite {
+            compiler_prerequisite: plan.compiler_prerequisite,
+            requirements: plan.requirements,
+            guard: plan.guard,
+            end,
+            source: tcl_lexer::SourceImage::from_bytes(
+                plan.source.into_bytes(),
+                self.source.channel(),
+            ),
+            span: plan.span,
+            namespace: plan.namespace_context.as_ref().map_or_else(
+                || namespace_path_from_constructed_key(&plan.namespace),
+                |context| context.path().clone(),
+            ),
+            namespace_context: plan.namespace_context,
+        };
+        let first = &mut self.instructions[start];
+        // Reentrant bridges can scope the same invocation twice. Keep the
+        // enclosing range rather than validating its shorter duplicate.
+        if let Some(previous) = previous {
+            first
+                .native_operation_selections
+                .retain(|existing| existing.end != previous);
+        }
+        first.native_operation_selections.insert(0, site);
+        first.no_fold = true;
+    }
+
+    /// Native engine snapshot for a reached hook, independent of its catalogue.
+    fn native_hook_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        if let Some(binding) = self
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+        {
+            return binding.native_compiler_dialect();
+        }
+        self.invocation_dialect.or_else(|| {
+            Some(crate::environment_ingress::authoring_invocation_dialect(
+                self.registry,
+                self.dialect,
+                tcl_lexer::LexerConfig::for_profile(self.dialect),
+            ))
+        })
+    }
+
+    /// Select backend metadata under the actual reached native dialect. A
+    /// permissive or assisting catalogue cannot replace this engine snapshot.
+    fn invocation_surface_query(&self) -> Option<tcl_dialect::model::SurfaceQuery<'static>> {
+        match self.native_hook_dialect() {
+            Some(dialect) => dialect.authoring_query(),
+            None => self.registry.own_surface_query(),
+        }
+    }
+
+    /// A retained uncertain execution cannot acquire a hook from its spelling.
+    fn invocation_specialisation_proved(&self) -> bool {
+        (self.resolution_namespace().is_some()
+            || self
+                .invocation_tokens
+                .as_deref()
+                .and_then(crate::registry_invocation::compiled_namespace_context)
+                .is_some())
+            && self.invocation_tokens.as_deref().is_none_or(|tokens| {
+                tokens.source_binding.as_ref().is_none_or(|binding| {
+                    crate::registry_invocation::proved_native_admitted_inline_operation(tokens)
+                        .is_some()
+                        && binding.native_inline_rejection
+                            == crate::command_binding::NativeInlineRejection::None
+                })
+            })
     }
 
     /// Set the module source text (see [`Self::source`]) so emitted instructions
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
-        self.source = source.into();
+        self.exact_command_source = None;
+        self.source = tcl_lexer::SourceImage::document(source);
         self.line_index = (!source.is_empty()).then(|| tcl_lexer::LineIndex::new(source));
+    }
+
+    /// Retain original native source bytes and channel before emitting spans.
+    pub fn set_source_image(&mut self, source: tcl_lexer::SourceImage) {
+        self.exact_command_source = None;
+        self.line_index =
+            (!source.is_empty()).then(|| tcl_lexer::LineIndex::from_bytes(source.bytes()));
+        self.source = source;
+    }
+
+    /// Borrow the original source image for byte word and nested-body emission.
+    #[must_use]
+    pub fn source_image(&self) -> &tcl_lexer::SourceImage {
+        &self.source
+    }
+
+    /// Check an unchanged Unicode advisory view without substituting a buffer.
+    pub(crate) fn source_unicode(&self) -> Result<&str, std::str::Utf8Error> {
+        self.source.try_text()
     }
 
     /// Install the module source and its already-built line index. The module
     /// emitter uses this path so procedure contexts share both allocations.
     pub(super) fn set_indexed_source(
         &mut self,
-        source: std::rc::Rc<str>,
+        source: tcl_lexer::SourceImage,
         line_index: tcl_lexer::LineIndex,
     ) {
+        self.exact_command_source = None;
         self.line_index = (!source.is_empty()).then_some(line_index);
         self.source = source;
     }
@@ -443,18 +872,21 @@ impl<'r> CodegenCtx<'r> {
     /// command-table revalidation. Keep that invariant behind this method
     /// rather than exposing the two fields independently.
     pub fn set_command_source_span(&mut self, span: impl Into<Option<Span>>) {
+        self.exact_command_source = None;
         self.current_span = span.into();
         self.current_span_is_command = true;
-        self.current_command_namespace =
-            Self::unrooted_namespace(&self.resolution_namespace).to_owned();
+        self.current_command_namespace = self.resolution_namespace.path.clone();
+        self.current_command_namespace_context = self.resolution_namespace_context();
     }
 
     /// Select compiler control which has a useful diagnostic span but is not
     /// itself a replayable Tcl command (for example, a CFG branch condition).
     pub(crate) fn set_control_source_span(&mut self, span: Option<Span>) {
+        self.exact_command_source = None;
         self.current_span = span;
         self.current_span_is_command = false;
-        self.current_command_namespace.clear();
+        self.current_command_namespace = tcl_runtime_api::ByteNamespacePath::root();
+        self.current_command_namespace_context = None;
     }
 
     /// Whether `name` is free of whole-unit mutation, for transforms that have
@@ -473,8 +905,141 @@ impl<'r> CodegenCtx<'r> {
     /// Record one source binding relied on by specialised emission.
     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
         self.command_binding_requirements.insert(binding.clone());
-        self.current_command_namespace
-            .clone_from(&binding.resolution_namespace);
+        self.current_command_namespace = namespace_path_for_binding(binding);
+        self.current_command_namespace_context
+            .clone_from(&binding.namespace_context);
+    }
+
+    /// Unit cache validation can retain only the compiler world present at
+    /// this artifact's original entry. Later child worlds keep their own
+    /// instruction selection and validation boundary.
+    fn retain_entry_named_compiler_prerequisite(
+        &mut self,
+        required: &std::sync::Arc<
+            tcl_runtime_api::native_compilation::NativeEnsembleCompilerPrerequisite,
+        >,
+    ) {
+        let Some(entry) = self.native_entry else {
+            return;
+        };
+        if entry.interpreter != required.interpreter {
+            return;
+        }
+        if required.matches_registration_with(|namespace, word| {
+            entry.lookup_command_bytes(namespace, word.as_bytes()).map(
+                Option::<&tcl_runtime_api::native_compilation::NativeCompilationBinding>::cloned,
+            )
+        }) != Ok(true)
+        {
+            return;
+        }
+        // Cache validity is checked at this same immutable entry; the
+        // instruction retains its independent before-arguments selection.
+        let mut entry_required = required.as_ref().clone();
+        entry_required.guard = tcl_runtime_api::CommandBindingGuard::ChunkEntry;
+        self.retain_native_compilation_dependency(
+            crate::registry_invocation::NativeCompilationDependency::Compiler(
+                tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::from_command_registration(
+                    std::sync::Arc::new(entry_required),
+                ),
+            ),
+        );
+    }
+
+    fn retain_native_compilation_dependency(
+        &mut self,
+        dependency: crate::registry_invocation::NativeCompilationDependency,
+    ) {
+        match dependency {
+            crate::registry_invocation::NativeCompilationDependency::Compiler(required) => {
+                if !self.native_compiler_prerequisites.contains(&required) {
+                    self.native_compiler_prerequisites.push(required);
+                }
+            }
+            crate::registry_invocation::NativeCompilationDependency::Implementation(binding) => {
+                self.command_binding_requirements.insert(binding);
+            }
+        }
+    }
+
+    /// Atomically retain the exact dependencies consumed by successful folds.
+    /// Implicit lookup guards must not overwrite the enclosing replay namespace.
+    pub(crate) fn retain_math_invocations(
+        &mut self,
+        proofs: &[crate::command_binding::SourceMathInvocation],
+    ) -> bool {
+        use crate::math_function_binding::{NativeMathFoldDependency, native_fold_dependency};
+        let Some(dependencies) = proofs
+            .iter()
+            .map(native_fold_dependency)
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        let mut table = self.math_table_prerequisite.as_ref();
+        for dependency in &dependencies {
+            if let NativeMathFoldDependency::Fixed(required) = dependency {
+                if table.is_some_and(|existing| existing != required) {
+                    return false;
+                }
+                table = Some(required);
+            }
+        }
+        for dependency in dependencies {
+            match dependency {
+                NativeMathFoldDependency::Command(binding) => {
+                    self.command_binding_requirements.insert(binding);
+                }
+                NativeMathFoldDependency::Fixed(required) => {
+                    self.math_table_prerequisite = Some(required);
+                }
+            }
+        }
+        true
+    }
+
+    /// Retain actual preparation owners even when no function call was reached.
+    pub(crate) fn retain_expression_preparations(
+        &mut self,
+        proofs: &[crate::command_binding::SourceExpressionPreparation],
+    ) -> bool {
+        if proofs.is_empty() {
+            return true;
+        }
+        let Some(mut context) = self.fold_policy().preparation_context() else {
+            return false;
+        };
+        context.lexer_grammar = self.lexer_config().grammar_over(context.lexer_grammar);
+        let mut table = self.math_table_prerequisite.as_ref();
+        for proof in proofs {
+            if proof.witness.context() != &context
+                || proof.witness.source().as_bytes() != proof.source.text.bytes()
+                || !proof.has_closed_script_compilation()
+            {
+                return false;
+            }
+            if let Some(required) = proof.witness.fixed_functions() {
+                if table.is_some_and(|existing| existing != required) {
+                    return false;
+                }
+                table = Some(required);
+            }
+        }
+        let Some(dependencies) = proofs
+            .iter()
+            .flat_map(crate::command_binding::SourceExpressionPreparation::script_compilation_dependencies)
+            .map(expression_script_dependency)
+            .collect::<Option<Vec<_>>>()
+        else {
+            return false;
+        };
+        if let Some(required) = table {
+            self.math_table_prerequisite = Some(required.clone());
+        }
+        for dependency in dependencies {
+            self.retain_native_compilation_dependency(dependency);
+        }
+        true
     }
 
     /// Resolve a registry-described lowering specialisation for an inline
@@ -497,7 +1062,7 @@ impl<'r> CodegenCtx<'r> {
         }
         let resolved =
             self.registry
-                .resolve_call(command, args, self.registry.own_surface_query())?;
+                .resolve_call(command, args, self.invocation_surface_query())?;
         if resolved.spec.name != command {
             return None;
         }
@@ -524,10 +1089,14 @@ impl<'r> CodegenCtx<'r> {
         self.clear_source_site();
         if let Some(site) = site {
             self.set_command_source_span(site.span);
-            self.current_command_namespace
-                .clone_from(&site.binding.resolution_namespace);
-            if !self.plain_command_dispatch {
-                self.require_command_binding(&site.binding);
+            self.current_command_namespace = namespace_path_for_binding(&site.binding);
+            self.current_command_namespace_context
+                .clone_from(&site.binding.namespace_context);
+            if !self.plain_command_dispatch
+                && let Some(binding) =
+                    crate::registry_invocation::native_site_binding_requirement(site)
+            {
+                self.require_command_binding(binding);
             }
         }
     }
@@ -540,25 +1109,59 @@ impl<'r> CodegenCtx<'r> {
         instruction: usize,
         site: Option<&crate::ir::CommandBindingSite>,
     ) {
-        let (span, text, line) = site.map_or((None, String::new(), 0), |site| {
-            if !self.plain_command_dispatch {
-                self.require_command_binding(&site.binding);
-            }
-            (
-                Some(site.span),
-                self.source_text(site.span),
-                self.source_line(site.span),
-            )
-        });
+        let (span, text, line) =
+            site.map_or((None, tcl_lexer::SourceImage::default(), 0), |site| {
+                if !self.plain_command_dispatch
+                    && let Some(binding) =
+                        crate::registry_invocation::native_site_binding_requirement(site)
+                {
+                    self.require_command_binding(binding);
+                }
+                (
+                    Some(site.span),
+                    self.source_text(site.span),
+                    self.source_line(site.span),
+                )
+            });
         if let Some(instr) = self.instructions.get_mut(instruction) {
             instr.source_span = span;
             instr.source_cmd_text = text;
             instr.source_line = line;
             instr.source_command_namespace = site
-                .map(|site| site.binding.resolution_namespace.clone())
+                .map(|site| namespace_path_for_binding(&site.binding))
                 .unwrap_or_default();
+            instr.source_command_namespace_context =
+                site.and_then(|site| site.binding.namespace_context.clone());
             instr.source_command_boundary = site.is_some().into();
         }
+    }
+
+    /// Scope one inline command's diagnostic and replay source together.
+    /// An absent module coordinate stays absent; its exact command bytes still
+    /// belong to every emitted instruction. Nested commands restore this owner.
+    fn with_inline_command_source<T>(
+        &mut self,
+        span: Option<Span>,
+        text: &str,
+        emit: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        let previous_span = self.current_span;
+        let previous_command = self.current_span_is_command;
+        let previous_exact = self.exact_command_source.take();
+        let previous_namespace = self.current_command_namespace.clone();
+        let previous_namespace_context = self.current_command_namespace_context.clone();
+        self.set_command_source_span(span);
+        self.exact_command_source = Some(tcl_lexer::SourceImage::from_bytes(
+            text.as_bytes(),
+            self.source.channel(),
+        ));
+        let result = emit(self);
+        self.current_span = previous_span;
+        self.current_span_is_command = previous_command;
+        self.exact_command_source = previous_exact;
+        self.current_command_namespace = previous_namespace;
+        self.current_command_namespace_context = previous_namespace_context;
+        result
     }
 
     /// Give every synthetic `START_CMD` just emitted for an inline body command
@@ -566,10 +1169,9 @@ impl<'r> CodegenCtx<'r> {
     /// boundary that was already restamped while those instructions were
     /// produced.
     ///
-    /// The absolute module span stays inherited from the enclosing construct:
-    /// debugger and explorer consumers index the module source with it. Runtime
-    /// replay reads the explicit command text and local continuation carried by
-    /// `START_CMD`, so this helper updates only those replay-owned fields.
+    /// The scoped command source supplies its module span and diagnostic text.
+    /// This helper marks only its own replay points; deeper command owners keep
+    /// their separate boundaries and source coordinates.
     pub(crate) fn restamp_emitted_inline_command_boundaries(
         &mut self,
         start: usize,
@@ -585,7 +1187,8 @@ impl<'r> CodegenCtx<'r> {
                 && instruction.source_cmd_text == enclosing_text
                 && instruction.source_line == enclosing_line
             {
-                text.clone_into(&mut instruction.source_cmd_text);
+                instruction.source_cmd_text =
+                    tcl_lexer::SourceImage::from_bytes(text.as_bytes(), self.source.channel());
                 instruction.source_line = line;
                 // This START_CMD is a nested inline replay point, not the
                 // boundary of the enclosing IR/source command used to locate
@@ -617,7 +1220,8 @@ impl<'r> CodegenCtx<'r> {
             "",
         );
         if let Some(instruction) = self.instructions.get_mut(start) {
-            text.clone_into(&mut instruction.source_cmd_text);
+            instruction.source_cmd_text =
+                tcl_lexer::SourceImage::from_bytes(text.as_bytes(), self.source.channel());
             instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
         }
         self.cmd_index += 1;
@@ -634,35 +1238,43 @@ impl<'r> CodegenCtx<'r> {
     /// quote the *whole* command (`"error "test error""`, eval-2.5), so include a
     /// trailing `"` here — the analogue of `widen_word_end`'s brace/bracket widen,
     /// scoped to error reporting.
-    fn span_text(&self) -> String {
+    fn span_text(&self) -> tcl_lexer::SourceImage {
         match self.current_span {
             Some(sp) => {
                 let (s, mut e) = (sp.start() as usize, sp.end() as usize);
-                if self.source.as_bytes().get(e) == Some(&b'"') {
+                if self.source.bytes().get(e) == Some(&b'"') {
                     e += 1;
                 }
-                self.source.get(s..e).unwrap_or("").to_string()
+                tcl_lexer::SourceImage::from_bytes(
+                    self.source.get(s..e).unwrap_or_default(),
+                    self.source.channel(),
+                )
             }
-            None => String::new(),
+            None => tcl_lexer::SourceImage::default(),
         }
     }
 
     /// The whole Tcl command represented by [`Self::current_span`], or empty
     /// when the span belongs only to compiler-generated control machinery.
-    fn command_span_text(&self) -> String {
+    fn command_span_text(&self) -> tcl_lexer::SourceImage {
         if self.current_span_is_command {
-            self.span_text()
+            self.exact_command_source
+                .clone()
+                .unwrap_or_else(|| self.span_text())
         } else {
-            String::new()
+            tcl_lexer::SourceImage::default()
         }
     }
 
     /// The surface text of an explicit `span` within the module source — for
     /// inline-body error regions, whose enclosing command's span differs from the
     /// per-instruction `current_span`. Empty when no source was supplied.
-    pub(crate) fn source_text(&self, span: Span) -> String {
+    pub(crate) fn source_text(&self, span: Span) -> tcl_lexer::SourceImage {
         let (s, e) = (span.start() as usize, span.end() as usize);
-        self.source.get(s..e).unwrap_or("").to_string()
+        tcl_lexer::SourceImage::from_bytes(
+            self.source.get(s..e).unwrap_or_default(),
+            self.source.channel(),
+        )
     }
 
     /// The 1-based source line of an explicit `span`'s start (its first byte).
@@ -707,6 +1319,9 @@ impl<'r> CodegenCtx<'r> {
             instr
                 .source_command_namespace
                 .clone_from(&self.current_command_namespace);
+            instr
+                .source_command_namespace_context
+                .clone_from(&self.current_command_namespace_context);
         }
         instr.source_command_boundary =
             (op == Op::START_CMD && !instr.source_cmd_text.is_empty()).into();
@@ -726,6 +1341,9 @@ impl<'r> CodegenCtx<'r> {
             instr
                 .source_command_namespace
                 .clone_from(&self.current_command_namespace);
+            instr
+                .source_command_namespace_context
+                .clone_from(&self.current_command_namespace_context);
         }
         instr.source_command_boundary =
             (op == Op::START_CMD && !instr.source_cmd_text.is_empty()).into();
@@ -767,6 +1385,15 @@ impl<'r> CodegenCtx<'r> {
         let labels = self.label_positions.into_iter().collect();
         FunctionAsm {
             name,
+            required_compiled_local_layout: self.required_compiled_local_layout,
+            native_compilation_failure: None,
+            native_math_table_prerequisite: self.math_table_prerequisite,
+            native_compiler_prerequisites: self.native_compiler_prerequisites,
+            native_compilation_preflight: if self.native_dependency_refusal {
+                tcl_runtime_api::NativeCompilationPreflight::ProviderRequired
+            } else {
+                tcl_runtime_api::NativeCompilationPreflight::NotRequired
+            },
             literals: self.literals,
             lvt: self.lvt,
             instructions: self.instructions,
@@ -782,9 +1409,187 @@ impl<'r> CodegenCtx<'r> {
     }
 }
 
+/// The current binding ABI validates registry implementations at chunk entry.
+/// A source procedure or prefixed alias needs its own compiler-header witness.
+fn expression_script_dependency(
+    dependency: &crate::command_binding::SourceNativeCompilationDependency,
+) -> Option<crate::registry_invocation::NativeCompilationDependency> {
+    (dependency.guard == tcl_registry::native_compilation::NativeCompilationGuard::ChunkEntry
+        && (dependency.compiler_prerequisite.is_some()
+            || (dependency.target.registry_backed && dependency.target.prepended.is_empty())))
+    .then(|| crate::registry_invocation::native_compilation_dependency(dependency))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixed_preparation(generation: u64) -> crate::command_binding::SourceExpressionPreparation {
+        use std::sync::Arc;
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeMathFunctionBinding, NativeMathFunctionPrerequisite,
+            NativeMathFunctionTable,
+        };
+        let source = "0 && abs(1)";
+        let origin = Arc::new(crate::command_binding::SourceOriginId::authored(
+            &Arc::from(source),
+        ));
+        let source = Arc::new(
+            crate::command_binding::ExecutedScriptSource::contiguous(
+                Arc::clone(&origin),
+                source,
+                0,
+            )
+            .unwrap(),
+        );
+        let table = NativeMathFunctionPrerequisite {
+            interpreter: NativeInterpreterIdentity {
+                owner: 17,
+                interpreter: 3,
+            },
+            table: NativeMathFunctionTable {
+                closed: true,
+                generation,
+                functions: vec![NativeMathFunctionBinding {
+                    name: "abs".into(),
+                    token: 1,
+                    implementation_generation: 1,
+                    registry_identity: Some("abs".into()),
+                    arity: Some(1),
+                }],
+            },
+        };
+        let profile = tcl_registry::model::ingress::static_context_for("jim")
+            .commands()
+            .profile()
+            .unwrap();
+        let context = tcl_registry::InvocationDialect::of_profile(profile)
+            .expression_parse_context(Some(profile));
+        let tcl_registry::runtime_expr_validation::ExpressionPreparationProof::Prepared(witness) =
+            tcl_registry::runtime_expr_validation::prepare_expression_witness(
+                source.try_text().unwrap(),
+                &context,
+                Some(&table),
+            )
+        else {
+            panic!("actual closed fixed table must prepare expression");
+        };
+        crate::command_binding::SourceExpressionPreparation {
+            namespace_key: crate::command_binding::SourceNamespaceKey::authored("::"),
+            invocation: crate::command_binding::CommandAllocationSite {
+                source: origin,
+                offset: 0,
+            },
+            source,
+            witness: Arc::from(witness),
+            script_compilation: None,
+            executed_expression: None,
+        }
+    }
+
+    #[test]
+    fn preparation_guard_survives_without_reached_math_calls() {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut ctx = CodegenCtx::new(false, &[], registry);
+        ctx.dialect = registry.profile();
+        ctx.numbers = registry.numbers();
+        let proof = fixed_preparation(4);
+        assert!(ctx.retain_expression_preparations(std::slice::from_ref(&proof)));
+        assert_eq!(
+            ctx.math_table_prerequisite.as_ref(),
+            proof.witness.fixed_functions()
+        );
+        assert!(ctx.command_binding_requirements.is_empty());
+        let incompatible = fixed_preparation(5);
+        assert!(!ctx.retain_expression_preparations(&[incompatible]));
+        assert_eq!(
+            ctx.math_table_prerequisite.as_ref(),
+            proof.witness.fixed_functions()
+        );
+    }
+
+    #[test]
+    fn preparation_guard_declines_a_different_native_engine() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let mut ctx = CodegenCtx::new(false, &[], registry);
+        ctx.dialect = registry.profile();
+        ctx.numbers = registry.numbers();
+        assert!(!ctx.retain_expression_preparations(&[fixed_preparation(4)]));
+        assert!(ctx.math_table_prerequisite.is_none());
+        assert!(ctx.command_binding_requirements.is_empty());
+    }
+
+    #[test]
+    fn script_preparation_retains_chunk_entry_guards_atomically() {
+        use crate::command_binding::{ExecutedScriptSource, SourceCommandBindings};
+        use tcl_runtime_api::CommandBindingGuard;
+
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.4").commands();
+        let source = "set x 4; expr {[set x] + 0}";
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            registry,
+            crate::command_binding::SourceAnalysisOptions {
+                invocation_dialect: registry
+                    .profile()
+                    .map(tcl_registry::InvocationDialect::of_profile),
+                native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                    mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+                    frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        );
+        let script = ExecutedScriptSource::contiguous(
+            std::sync::Arc::clone(bindings.source_origin().unwrap()),
+            source,
+            0,
+        )
+        .unwrap();
+        let proofs = bindings.expression_preparations_for_script(&script);
+        assert_eq!(proofs.len(), 1);
+        assert_ne!(proofs[0].witness.compiled_scripts(), []);
+        let mut ctx = CodegenCtx::new(false, &[], registry);
+        ctx.dialect = registry.profile();
+        ctx.numbers = registry.numbers();
+        assert!(ctx.retain_expression_preparations(&proofs));
+        assert!(ctx.command_binding_requirements.iter().any(|binding| {
+            binding.identity == "set" && binding.guard == CommandBindingGuard::ChunkEntry
+        }));
+        let retained = ctx.command_binding_requirements.clone();
+        let mut missing = proofs[0].clone();
+        missing.script_compilation = None;
+        assert!(!ctx.retain_expression_preparations(&[missing]));
+        assert_eq!(ctx.command_binding_requirements, retained);
+    }
+
+    #[test]
+    fn native_source_boundaries_keep_opaque_bytes_and_constructed_namespace() {
+        let registry = CommandRegistry::build_default();
+        let namespace = tcl_runtime_api::ByteNamespacePath::from_segments([
+            b"\xff".as_slice(),
+            b":".as_slice(),
+        ]);
+        let source = tcl_lexer::SourceImage::native(b"set \xfe V".as_slice());
+        let mut context = CodegenCtx::with_native_parameters(
+            true,
+            &[tcl_runtime_api::NameBytes::from(b"\xfe")],
+            &registry,
+        );
+        context.set_source_image(source.clone());
+        context.set_resolution_namespace_path(namespace.clone());
+        assert!(context.resolution_namespace().is_none());
+        assert_eq!(context.lvt.entries()[0].as_bytes(), b"\xfe");
+        context.set_command_source_span(Span::new(0, 7));
+        let index = context.emit(Op::NOP, Vec::new());
+        assert_eq!(context.instructions[index].source_cmd_text, source);
+        assert_eq!(
+            context.instructions[index].source_command_namespace,
+            namespace
+        );
+    }
 
     #[test]
     fn source_lines_are_indexed_at_byte_boundaries() {
@@ -808,13 +1613,16 @@ mod tests {
         let instruction = empty.emit(Op::NOP, Vec::new());
         assert_eq!(empty.instructions[instruction].source_line, 1);
 
-        let source: std::rc::Rc<str> = "shared\nsource".into();
-        let source_clone = std::rc::Rc::clone(&source);
-        let line_index = tcl_lexer::LineIndex::new(&source);
+        let source = tcl_lexer::SourceImage::document("shared\nsource");
+        let source_clone = source.shared_bytes();
+        let line_index = tcl_lexer::LineIndex::from_bytes(source.bytes());
         let line_index_clone = line_index.clone();
         let mut shared = CodegenCtx::new(false, &[], &registry);
         shared.set_indexed_source(source, line_index);
-        assert!(std::rc::Rc::ptr_eq(&shared.source, &source_clone));
+        assert!(std::sync::Arc::ptr_eq(
+            &shared.source.shared_bytes(),
+            &source_clone
+        ));
         assert!(
             shared
                 .line_index

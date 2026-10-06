@@ -1,0 +1,112 @@
+[
+  {
+    "version": "8.4.20",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/8.4.20"
+    ],
+    "source_sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "binary_sha256": "967b5f8fbe53600a82e24d2c4fd619623c036fc9ab26302a011838ba89d33093",
+    "log_sha256": "8afe2e9e967f23f2972f9eb088c67c299245202260304d845a7f28f6d6c1ada9",
+    "exit": 0,
+    "rows": 12
+  },
+  {
+    "version": "8.5.19",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/8.5.19"
+    ],
+    "source_sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+    "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "binary_sha256": "d274a114a3408f5269edc7c8bec88178e403d3aaf72b3aaed69be6a59ae07df4",
+    "log_sha256": "be8bc459681ef04aa6da6b3238eaece719d6a76a296922cd2d6d7bf56d070f3e",
+    "exit": 0,
+    "rows": 12
+  },
+  {
+    "version": "8.6.18",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/8.6.18"
+    ],
+    "source_sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+    "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "binary_sha256": "c70f7d8b7c2ee00ffbac9ff94b511ee0059b4c61464dea406e504f3f3c9f3819",
+    "log_sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "exit": 0,
+    "rows": 12
+  },
+  {
+    "version": "9.0.4",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/9.0.4"
+    ],
+    "source_sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+    "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "binary_sha256": "7e60c7a0dcebc951eba066b617c15515bb7ce21ab4105d402813726c31836628",
+    "log_sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "exit": 0,
+    "rows": 12
+  },
+  {
+    "version": "9.1.0",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/cmdname-actions/9.1.0"
+    ],
+    "source_sha256": "95376e461b9b548cb6ad1fefd0d657028b3700cb08624d814c0def565f998ae4",
+    "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "binary_sha256": "324632a0274597cb9222f35e5c017de25d67c3813a3231784b45f1887ce7add9",
+    "log_sha256": "51e76c6bf1c7983c5eca7d0b23fe86ae1d6cac77bda708a64b2e8a6cce80754f",
+    "exit": 0,
+    "rows": 12
+  }
+]

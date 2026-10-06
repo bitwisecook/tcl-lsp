@@ -38,7 +38,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use tcl_cmd_core::prefix::{self, Resolution};
 use tcl_syntax::list;
 
-use crate::obj::{Obj, ObjRef, TclError, decode_bytes};
+use crate::obj::{Obj, ObjRef, TclError};
 use crate::state::{CmdDeleteProc, InterpState, ObjCmdProc};
 
 /// `TCL_OK`.
@@ -114,18 +114,17 @@ unsafe fn obj<'a>(obj: *mut Obj) -> &'a Obj {
     unsafe { obj.as_ref() }.expect("a NULL Tcl_Obj pointer")
 }
 
-/// Text from a C string, or `""` for NULL — decoded as Tcl's modified UTF-8,
-/// so an interior NUL spelled `C0 80` is a NUL again on the Rust side.
+/// Exact C-string bytes, with the ABI terminator selecting the extent.
+/// Modified NUL and non-Unicode bytes retain their identity.
 ///
 /// # Safety
-///
-/// A non-null `text` must be NUL-terminated.
-unsafe fn c_text<'a>(text: *const c_char) -> std::borrow::Cow<'a, str> {
+/// A non-null pointer must address a terminated live string.
+unsafe fn c_string_bytes<'a>(text: *const c_char) -> &'a [u8] {
     if text.is_null() {
-        return std::borrow::Cow::Borrowed("");
+        return b"";
     }
-    // SAFETY: the caller guarantees a terminated string.
-    std::borrow::Cow::Owned(decode_bytes(unsafe { CStr::from_ptr(text) }.to_bytes()))
+    // SAFETY: the caller guarantees a live terminated string.
+    unsafe { CStr::from_ptr(text) }.to_bytes()
 }
 
 /// Bytes from a C pointer and a `Tcl_Size` length, `-1` meaning
@@ -155,12 +154,16 @@ unsafe fn c_bytes<'a>(bytes: *const c_char, length: isize) -> &'a [u8] {
 unsafe fn report(interp_ptr: *mut InterpState, error: &TclError) -> c_int {
     // SAFETY: as documented on the function.
     if let Some(state) = unsafe { interp(interp_ptr) } {
-        state.set_error(error);
+        if let Some(refusal) = &error.host {
+            state.refuse_host((**refusal).clone());
+        } else {
+            state.set_error(error);
+        }
     }
     TCL_ERROR
 }
 
-/// `Tcl_CreateObjCommand`. Returns the command token (never NULL).
+/// `Tcl_CreateObjCommand`. A missing host publication capability returns NULL.
 ///
 /// # Safety
 ///
@@ -178,9 +181,14 @@ pub unsafe extern "C" fn tcl_create_obj_command(
         // SAFETY: as documented on the function.
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
-        let name = unsafe { c_text(cmd_name) };
-        let entry = state.create_command(&name, proc, client_data, delete_proc);
-        std::rc::Rc::as_ptr(&entry).cast_mut().cast::<c_void>()
+        let name = unsafe { c_string_bytes(cmd_name) };
+        match state.create_command(name, proc, client_data, delete_proc) {
+            Ok(entry) => std::rc::Rc::as_ptr(&entry).cast_mut().cast::<c_void>(),
+            Err(error) => {
+                state.refuse_host(error);
+                std::ptr::null_mut()
+            }
+        }
     })
 }
 
@@ -198,8 +206,15 @@ pub unsafe extern "C" fn tcl_delete_command(
         // SAFETY: as documented on the function.
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
-        let name = unsafe { c_text(cmd_name) };
-        if state.delete_command(&name) { 0 } else { -1 }
+        let name = unsafe { c_string_bytes(cmd_name) };
+        match state.delete_command(name) {
+            Ok(true) => 0,
+            Ok(false) => -1,
+            Err(error) => {
+                state.refuse_host(error);
+                -1
+            }
+        }
     })
 }
 
@@ -398,9 +413,8 @@ pub unsafe extern "C" fn tcl_get_int_from_obj(
 ) -> c_int {
     guarded(TCL_ERROR, || {
         // SAFETY: as documented on the function.
-        let wide = match unsafe { obj(raw) }.get_wide() {
-            Ok(wide) if fits_32(wide) => wide,
-            Ok(_) => return unsafe { report(interp_ptr, &TclError::overflow()) },
+        let wide = match unsafe { obj(raw) }.get_int() {
+            Ok(wide) => wide,
             Err(error) => return unsafe { report(interp_ptr, &error) },
         };
         // SAFETY: the caller guarantees a writable pointer.
@@ -522,7 +536,7 @@ pub unsafe extern "C" fn tcl_get_double_from_obj(
 /// # Safety
 ///
 /// `table` must be such a table.
-unsafe fn read_table(table: *const c_void, offset: isize) -> Vec<String> {
+unsafe fn read_table(table: *const c_void, offset: isize) -> Vec<Vec<u8>> {
     let mut entries = Vec::new();
     let mut cursor = table.cast::<u8>();
     loop {
@@ -533,7 +547,7 @@ unsafe fn read_table(table: *const c_void, offset: isize) -> Vec<String> {
             return entries;
         }
         // SAFETY: as above, each entry is a terminated string.
-        entries.push(unsafe { c_text(entry) }.into_owned());
+        entries.push(unsafe { c_string_bytes(entry) }.to_vec());
         // SAFETY: the table extends by `offset` for each non-NULL entry.
         cursor = unsafe { cursor.offset(offset) };
     }
@@ -541,12 +555,24 @@ unsafe fn read_table(table: *const c_void, offset: isize) -> Vec<String> {
 
 /// The `must be …` enumeration under `TCL_NULL_OK`, which C words with a
 /// plain comma join and a trailing `, or ""`.
-fn null_ok_message(what: &str, key: &str, ambiguous: bool, entries: &[String]) -> String {
-    let kind = if ambiguous { "ambiguous" } else { "bad" };
-    format!(
-        "{kind} {what} \"{key}\": must be {}, or \"\"",
-        entries.join(", ")
-    )
+fn null_ok_message(what: &[u8], key: &[u8], ambiguous: bool, entries: &[Vec<u8>]) -> Vec<u8> {
+    let mut result = if ambiguous {
+        b"ambiguous ".to_vec()
+    } else {
+        b"bad ".to_vec()
+    };
+    result.extend_from_slice(what);
+    result.extend_from_slice(b" \"");
+    result.extend_from_slice(key);
+    result.extend_from_slice(b"\": must be ");
+    for (index, entry) in entries.iter().enumerate() {
+        if index != 0 {
+            result.extend_from_slice(b", ");
+        }
+        result.extend_from_slice(entry);
+    }
+    result.extend_from_slice(b", or \"\"");
+    result
 }
 
 /// Write the resolved index at the width the header encoded into `flags`.
@@ -590,6 +616,9 @@ unsafe fn write_index(index_ptr: *mut c_void, flags: c_int, index: isize) {
 /// `interp` NULL or live; `raw` NULL or live; `table` a NULL-terminated table
 /// with `offset` bytes between entries; `msg` terminated; `index_ptr` NULL or
 /// writable at the width `flags` encodes.
+/// A non-temporary table and its entry strings must remain valid through all
+/// retained and duplicated object caches, beyond command/interpreter retirement.
+/// Cache installation requires an authenticated `load_static` extension scope.
 #[unsafe(export_name = "Tcl_GetIndexFromObjStruct")]
 pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
     interp_ptr: *mut InterpState,
@@ -607,26 +636,44 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
                 report(
                     interp_ptr,
                     &TclError {
-                        message: format!("Invalid struct offset value {offset}."),
+                        message: format!("Invalid struct offset value {offset}.").into_bytes(),
                         code: None,
+                        getter: None,
+                        host: None,
                     },
                 )
             };
         }
+        if !raw.is_null() && flags & TCL_INDEX_TEMP_TABLE == 0 {
+            // SAFETY: a non-null raw object is live by the ABI contract.
+            if let Some(index) =
+                unsafe { obj(raw) }.cached_index(table as usize, offset.unsigned_abs())
+            {
+                if !index_ptr.is_null() {
+                    let Ok(index) = isize::try_from(index) else {
+                        return TCL_ERROR;
+                    };
+                    // SAFETY: output storage has the width documented above.
+                    unsafe { write_index(index_ptr, flags, index) };
+                }
+                return TCL_OK;
+            }
+        }
         // SAFETY: as documented on the function.
         let entries = unsafe { read_table(table, offset) };
         // SAFETY: as above.
-        let what = unsafe { c_text(msg) }.into_owned();
+        let what = unsafe { c_string_bytes(msg) }.to_vec();
         // SAFETY: a non-null `raw` is live.
         let key = if raw.is_null() {
-            String::new()
+            Vec::new()
         } else {
-            unsafe { obj(raw) }.text()
+            // This native option-table API compares the object C-string extent.
+            unsafe { c_string_bytes(obj(raw).c_string().0) }.to_vec()
         };
         let null_ok = flags & TCL_NULL_OK != 0;
         let exact = flags & TCL_EXACT != 0;
 
-        let resolution = prefix::scan(&entries, key.as_bytes(), exact);
+        let resolution = prefix::scan(&entries, &key, exact);
         let resolved: Option<isize> = if key.is_empty() && null_ok {
             Some(-1)
         } else {
@@ -642,13 +689,7 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
             let message = if null_ok {
                 null_ok_message(&what, &key, ambiguous, &entries)
             } else {
-                String::from_utf8_lossy(&prefix::bad_key_message(
-                    &entries,
-                    what.as_bytes(),
-                    key.as_bytes(),
-                    ambiguous,
-                ))
-                .into_owned()
+                prefix::bad_key_message(&entries, &what, &key, ambiguous)
             };
             // SAFETY: as documented on the function.
             return unsafe {
@@ -656,14 +697,45 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
                     interp_ptr,
                     &TclError::with_code(
                         message,
-                        list::join_list(["TCL", "LOOKUP", "INDEX", &what, &key]),
+                        tcl_syntax::list_result::NativeListResultSerialization::Tcl85Plus
+                            .render(&[b"TCL".as_slice(), b"LOOKUP", b"INDEX", &what, &key]),
                     ),
                 )
             };
         };
         if index >= 0 && !raw.is_null() && flags & TCL_INDEX_TEMP_TABLE == 0 {
             // SAFETY: `raw` is live.
-            unsafe { obj(raw) }.set_index_entry(&entries[index.unsigned_abs()]);
+            let extension = unsafe { interp(interp_ptr) }
+                .and_then(crate::state::InterpState::static_extension)
+                .or_else(|| unsafe { obj(raw) }.static_extension());
+            let Some(extension) = extension else {
+                return unsafe {
+                    report(
+                        interp_ptr,
+                        &TclError::host(tcl_engine_api::EngineError::ExecutionRefusal(
+                            "native Index table has no static extension lifetime receipt".into(),
+                        )),
+                    )
+                };
+            };
+            // SAFETY: the persistent table contract is guaranteed by this ABI
+            // caller and the authenticated static extension registration.
+            let table = unsafe {
+                crate::index_table::StaticIndexTable::new(
+                    table,
+                    offset.unsigned_abs(),
+                    entries.len(),
+                    extension,
+                )
+            };
+            let cache = tcl_core_types::NativeIndexCache::new(
+                std::rc::Rc::new(table),
+                offset.unsigned_abs(),
+                index.unsigned_abs(),
+            );
+            if let Err(error) = unsafe { obj(raw) }.set_index_cache(cache) {
+                return unsafe { report(interp_ptr, &TclError::host(error)) };
+            }
         }
         if !index_ptr.is_null() {
             // SAFETY: as documented on the function.
@@ -694,8 +766,10 @@ pub unsafe extern "C" fn tcl_list_obj_append_element(
                 report(
                     interp_ptr,
                     &TclError {
-                        message: "Tcl_ListObjAppendElement called with shared object".to_owned(),
+                        message: b"Tcl_ListObjAppendElement called with shared object".to_vec(),
                         code: None,
+                        getter: None,
+                        host: None,
                     },
                 )
             };
@@ -762,7 +836,7 @@ pub unsafe extern "C" fn tcl_list_obj_length(
 ) -> c_int {
     guarded(TCL_ERROR, || {
         // SAFETY: as documented on the function.
-        match unsafe { obj(list_raw) }.with_list(<[ObjRef]>::len) {
+        match unsafe { obj(list_raw) }.list_len() {
             Ok(length) => {
                 // SAFETY: the caller guarantees a writable pointer.
                 unsafe { length_ptr.write(isize::try_from(length).unwrap_or(isize::MAX)) };
@@ -803,6 +877,22 @@ pub unsafe extern "C" fn tcl_get_obj_result(interp_ptr: *mut InterpState) -> *mu
     })
 }
 
+/// `Tcl_GetReturnOptions`: a fresh zero-reference Dictionary of actual native state.
+///
+/// # Safety
+/// `interp_ptr` must be a live shim interpreter.
+#[unsafe(export_name = "Tcl_GetReturnOptions")]
+pub unsafe extern "C" fn tcl_get_return_options(
+    interp_ptr: *mut InterpState,
+    code: c_int,
+) -> *mut Obj {
+    guarded(std::ptr::null_mut(), || {
+        // SAFETY: the caller guarantees the interpreter lifetime.
+        let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
+        Obj::into_raw(state.return_options(code))
+    })
+}
+
 /// `Tcl_ResetResult`.
 ///
 /// # Safety
@@ -831,7 +921,7 @@ pub unsafe extern "C" fn tclshim_set_result_string(
         // SAFETY: as documented on the function.
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
-        state.set_result_text(&unsafe { c_text(result) });
+        state.set_result_bytes(unsafe { c_string_bytes(result) });
     });
 }
 
@@ -849,7 +939,7 @@ pub unsafe extern "C" fn tclshim_append_result_string(
         // SAFETY: as documented on the function.
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
-        state.append_result(&unsafe { c_text(piece) });
+        state.append_result(unsafe { c_string_bytes(piece) });
     });
 }
 
@@ -877,23 +967,23 @@ pub unsafe extern "C" fn tcl_wrong_num_args(
             // SAFETY: as documented on the function.
             unsafe { std::slice::from_raw_parts(words, word_count.unsigned_abs()) }
         };
-        let mut text = String::from("wrong # args: should be \"");
+        let mut text = b"wrong # args: should be \"".to_vec();
         for (position, &raw) in words.iter().enumerate() {
             // SAFETY: each pointer is a live object.
             let word = unsafe { obj(raw) };
             match word.index_entry() {
-                Some(entry) => text.push_str(&entry),
-                None => text.push_str(&list::list_element(&word.text())),
+                Some(entry) => text.extend_from_slice(&entry),
+                None => list::append_list_element(&mut text, &word.bytes(), false),
             }
             if position + 1 < words.len() || !message.is_null() {
-                text.push(' ');
+                text.push(b' ');
             }
         }
         if !message.is_null() {
             // SAFETY: as documented on the function.
-            text.push_str(&unsafe { c_text(message) });
+            text.extend_from_slice(unsafe { c_string_bytes(message) });
         }
-        text.push('"');
+        text.push(b'"');
         state.set_error(&TclError::with_code(text, "TCL WRONGARGS"));
     });
 }
@@ -929,8 +1019,8 @@ pub unsafe extern "C" fn tcl_pkg_provide_ex(
         // SAFETY: as documented on the function.
         let state = unsafe { interp(interp_ptr) }.expect("a NULL Tcl_Interp pointer");
         // SAFETY: as above.
-        let (name, version) = unsafe { (c_text(name), c_text(version)) };
-        match state.provide(&name, &version) {
+        let (name, version) = unsafe { (c_string_bytes(name), c_string_bytes(version)) };
+        match state.provide(name, version) {
             Ok(()) => TCL_OK,
             Err(error) => {
                 state.set_error(&error);
@@ -952,33 +1042,47 @@ pub unsafe extern "C" fn tcl_num_utf_chars(src: *const c_char, length: isize) ->
     guarded(0, || {
         // SAFETY: as documented on the function.
         let bytes = unsafe { c_bytes(src, length) };
-        let count = bytes.iter().filter(|&&byte| byte & 0xC0 != 0x80).count();
+        let units =
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(tcl_dialect::TclVersion::V9_0);
+        let mut count = 0_usize;
+        let mut offset = 0;
+        while let Some(unit) = units.decode_unit(&bytes[offset..], None) {
+            count += 1;
+            offset += unit.width;
+        }
         isize::try_from(count).unwrap_or(isize::MAX)
     })
 }
 
-/// `Tcl_UtfNcmp`: compare up to `n` characters, the terminator counting as
-/// a character below every other.
+/// `Tcl_UtfNcmp`: compare `n` native UTF units, including raw NUL units.
 ///
 /// # Safety
-///
-/// `s1` and `s2` must be terminated strings.
+/// Both pointers must address at least `n` native UTF units, including the
+/// guarded lookahead read by native decoding. They need not be C strings.
 #[must_use]
 #[unsafe(export_name = "Tcl_UtfNcmp")]
 pub unsafe extern "C" fn tcl_utf_ncmp(s1: *const c_char, s2: *const c_char, n: usize) -> c_int {
     guarded(0, || {
-        // SAFETY: as documented on the function.
-        let (left, right) = unsafe { (c_text(s1), c_text(s2)) };
-        let mut left = left.chars();
-        let mut right = right.chars();
+        let (mut left, mut right) = (s1.cast::<u8>(), s2.cast::<u8>());
+        let units =
+            tcl_syntax::native_tcl_utf::NativeTclUtf::for_version(tcl_dialect::TclVersion::V9_0);
         for _ in 0..n {
-            let (a, b) = (left.next(), right.next());
-            match a.cmp(&b) {
-                std::cmp::Ordering::Less => return -1,
-                std::cmp::Ordering::Greater => return 1,
-                std::cmp::Ordering::Equal if a.is_none() => return 0,
-                std::cmp::Ordering::Equal => {}
+            // SAFETY: the caller supplies n native units. The shared decoder
+            // requests only the lookahead that the actual native reader uses.
+            let a = units
+                .decode_unit_with(|offset| Some(unsafe { *left.add(offset) }), None)
+                .expect("valid native unit memory");
+            let b = units
+                .decode_unit_with(|offset| Some(unsafe { *right.add(offset) }), None)
+                .expect("valid native unit memory");
+            let difference = i64::from(a.value) - i64::from(b.value);
+            if difference != 0 {
+                return c_int::try_from(difference)
+                    .expect("native Unicode unit difference fits C int");
             }
+            // SAFETY: decoded widths consume the caller-provided native units.
+            left = unsafe { left.add(a.width) };
+            right = unsafe { right.add(b.width) };
         }
         0
     })
@@ -1014,8 +1118,7 @@ mod tests {
         assert_eq!(wrap_to_i32(7), 7);
     }
 
-    /// An interior NUL is `C0 80` on the C side and a NUL on ours, in both
-    /// directions, and compares as one character.
+    /// Resident modified-NUL bytes remain exact and compare as one C unit.
     #[test]
     fn modified_utf8_nul_round_trips_through_every_door() {
         let bytes = c"a\xC0\x80b";
@@ -1023,13 +1126,13 @@ mod tests {
         let raw = unsafe { tcl_new_string_obj(bytes.as_ptr(), -1) };
         // SAFETY: `raw` is a live object from the line above.
         let obj = unsafe { ObjRef::adopt(raw) };
-        assert_eq!(obj.get().text(), "a\0b");
+        assert_eq!(obj.get().bytes(), b"a\xC0\x80b");
         let state = InterpState::new();
         // SAFETY: a live state; the literal is terminated.
         unsafe {
             tclshim_set_result_string(std::ptr::from_ref(&state).cast_mut(), bytes.as_ptr());
         }
-        assert_eq!(state.result().get().text(), "a\0b");
+        assert_eq!(state.result().get().bytes(), b"a\xC0\x80b");
         // SAFETY: both literals are terminated.
         unsafe {
             assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80b".as_ptr(), 3), 0);
@@ -1045,6 +1148,20 @@ mod tests {
         assert_eq!(result, TCL_OK);
         // SAFETY: as above.
         let shorter = unsafe { tcl_utf_ncmp(c"ab".as_ptr(), c"abc".as_ptr(), 3) };
-        assert_eq!(shorter, -1);
+        assert_eq!(shorter, -99);
+    }
+    #[test]
+    fn utf_unit_comparison_is_length_delimited_across_raw_nul() {
+        let left = b"a\0b";
+        let right = b"a\0d";
+        // SAFETY: each input contains three native units with no lookahead.
+        unsafe {
+            assert_eq!(
+                tcl_utf_ncmp(left.as_ptr().cast(), right.as_ptr().cast(), 3),
+                -2
+            );
+            assert_eq!(tcl_num_utf_chars(left.as_ptr().cast(), 3), 3);
+            assert_eq!(tcl_num_utf_chars(left.as_ptr().cast(), -1), 1);
+        }
     }
 }

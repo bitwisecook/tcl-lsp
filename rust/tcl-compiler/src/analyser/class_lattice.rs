@@ -399,7 +399,7 @@ impl NsContext {
         let mut imports: Vec<String> = result
             .namespace_imports
             .iter()
-            .map(|imp| import_prefix(&imp.pattern))
+            .filter_map(|imp| imp.source.as_ref().map(|source| source.namespace.clone()))
             .filter(|p| !p.is_empty())
             .collect();
         imports.sort();
@@ -425,15 +425,6 @@ fn collect_namespace_ranges(
     }
     for child in &scope.children {
         collect_namespace_ranges(child, out);
-    }
-}
-
-/// The namespace a `namespace import` pattern draws from: everything before
-/// the final `::` component (`::Ns::*` → `::Ns`, `::Ns::Foo` → `::Ns`).
-fn import_prefix(pattern: &str) -> String {
-    match pattern.rsplit_once("::") {
-        Some((head, _)) if !head.is_empty() => head.to_string(),
-        _ => String::new(),
     }
 }
 
@@ -521,11 +512,12 @@ fn resolve_class_name<S: std::hash::BuildHasher + Clone>(
 fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
     cu: &CompilationUnit,
     index: &HashMap<String, ClassDef, S>,
-    ns: &NsContext,
+    _ns: &NsContext,
     config: tcl_lexer::LexerConfig,
 ) -> HashMap<String, Vec<AssignKind>> {
     use crate::ir::Statement;
     let mut out: HashMap<String, Vec<AssignKind>> = HashMap::new();
+    let registry = cu.ir_module.resolved_registry();
     let units = std::iter::once(&cu.top_level)
         .chain(cu.procedures.values())
         .chain(cu.methods.values());
@@ -533,29 +525,106 @@ fn collect_assign_kinds<S: std::hash::BuildHasher + Clone>(
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 // `oo::objdefine $var …` — per-object mutation of the receiver.
-                if let Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. } = stmt
+                if let Some(invocation) =
+                    crate::registry_invocation::resolved_statement_invocation(registry, None, stmt)
+                    && tcl_syntax::naming::qualify("::", &invocation.facts.canonical_command)
+                        == "::oo::objdefine"
+                    && let Some(recv) = invocation.arguments.first().and_then(Option::as_deref)
+                    && let Some(v) = strip_dollar(recv)
                 {
-                    let canon = stmt.canonical_command_or_source();
-                    if (command == "oo::objdefine" || canon == "::oo::objdefine")
-                        && let Some(recv) = args.first()
-                        && let Some(v) = strip_dollar(recv)
-                    {
-                        out.entry(v).or_default().push(AssignKind::PerObject);
-                    }
+                    out.entry(v).or_default().push(AssignKind::PerObject);
                 }
-                let Statement::AssignValue {
-                    name, value, span, ..
-                } = stmt
-                else {
-                    continue;
+                let assignments = match stmt {
+                    Statement::AssignValue {
+                        name,
+                        value,
+                        tokens,
+                        ..
+                    } => tokens
+                        .as_ref()
+                        .and_then(|tokens| tokens.words().get(2))
+                        .cloned()
+                        .or_else(|| crate::value_shapes::value_word_with_config(value, config))
+                        .map(|value| {
+                            vec![crate::registry_invocation::AdvisoryValueAssignment {
+                                name: name.clone(),
+                                value,
+                            }]
+                        })
+                        .unwrap_or_default(),
+                    _ => stmt
+                        .tokens()
+                        .map(|tokens| {
+                            crate::registry_invocation::advisory_value_assignments(registry, tokens)
+                        })
+                        .unwrap_or_default(),
                 };
-                let kind = classify_rhs(value.trim(), span.start(), index, ns, config);
-                out.entry(name.clone()).or_default().push(kind);
+                for assignment in assignments {
+                    let kind = classify_bound_rhs(
+                        &assignment.value,
+                        stmt.tokens(),
+                        registry,
+                        index,
+                        config,
+                    );
+                    out.entry(assignment.name).or_default().push(kind);
+                }
             }
         }
     }
     out
+}
+
+/// Source lookup determines constructor identity; names from the signature
+/// index alone cannot promote an unknown invocation into a known class.
+fn classify_bound_rhs<S: std::hash::BuildHasher + Clone>(
+    word: &crate::ir::WordExpr,
+    parent: Option<&crate::ir::CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+    index: &HashMap<String, ClassDef, S>,
+    config: tcl_lexer::LexerConfig,
+) -> AssignKind {
+    use crate::ir::{WordExpr, WordPart};
+    if let Some(commands) = crate::value_shapes::command_substitution_tokens(word, parent, config) {
+        if let Some(binding) = commands
+            .last()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            && let Some(target) = binding.proved_target()
+            && target.kind == crate::command_binding::BindingKind::Class
+            && let Some(method) = target.prepended.first().map_or_else(
+                || binding.evaluated_argument_values.first().cloned().flatten(),
+                |word| word.as_registry_word().literal().map(str::to_owned),
+            )
+            && registry.is_possible_class_construction_word(&method)
+        {
+            return AssignKind::Constructor {
+                class: target.command.clone(),
+                in_index: index.contains_key(&target.command),
+            };
+        }
+        if let Some(tokens) = commands.last()
+            && let Some(assistance) =
+                crate::registry_invocation::registry_invocation_assistance(registry, None, tokens)
+            && assistance.candidates.iter().any(|candidate| {
+                candidate
+                    .possible_traits
+                    .contains(tcl_registry::Traits::TCLOO_INTROSPECTION)
+            })
+        {
+            return AssignKind::Introspection;
+        }
+        return AssignKind::Factory;
+    }
+    match word {
+        WordExpr::Variable { .. } => AssignKind::VarCopy,
+        WordExpr::Template { parts, .. }
+            if matches!(parts.as_slice(), [WordPart::Variable { .. }]) =>
+        {
+            AssignKind::VarCopy
+        }
+        WordExpr::Opaque { .. } | WordExpr::Expand { .. } => AssignKind::Factory,
+        _ => AssignKind::Literal,
+    }
 }
 
 /// Bare `$name` → `Some(name)`.
@@ -579,6 +648,7 @@ fn strip_dollar(text: &str) -> Option<String> {
 
 /// Classify a single RHS value string.  `offset` is the source offset of
 /// the assignment, used to resolve a bare class name in its namespace.
+#[cfg(test)]
 fn classify_rhs<S: std::hash::BuildHasher + Clone>(
     value: &str,
     offset: u32,

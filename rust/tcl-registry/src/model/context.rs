@@ -802,7 +802,7 @@ impl ResolvedContext {
     /// [`Self::spec_available`] for a caller that already holds the
     /// authoring query.
     fn spec_available_under(&self, spec: &CommandSpec, query: SurfaceQuery<'_>) -> bool {
-        spec.supports_dialect(Some(query))
+        crate::irules_policy::runtime_surface_admits(spec, query)
             && (self.operator_heads_are_commands()
                 || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && self.required_package_available(spec.required_package)
@@ -817,7 +817,23 @@ impl ResolvedContext {
         registry: &CommandRegistry,
         name: &str,
     ) -> Option<&'static CommandSpec> {
-        let query = self.authoring_query();
+        self.resolve_spec_in_realm(
+            registry,
+            name,
+            tcl_dialect::model::InvocationRealm::RuleLoader,
+        )
+    }
+
+    /// Resolve command availability in an explicitly selected execution phase.
+    /// This never establishes native command/compiler implementation identity.
+    #[must_use]
+    pub fn resolve_spec_in_realm(
+        &self,
+        registry: &CommandRegistry,
+        name: &str,
+        realm: tcl_dialect::model::InvocationRealm,
+    ) -> Option<&'static CommandSpec> {
+        let query = self.authoring_query().with_realm(realm);
         registry.get_for_surface(name, Some(query)).filter(|spec| {
             self.spec_available_under(spec, query) && self.roster_admits(name, spec, &query)
         })
@@ -834,6 +850,17 @@ impl ResolvedContext {
     /// A spec with a row of the document's own family, or a package row, or
     /// no row at all, is not the roster's to filter.
     fn roster_admits(&self, name: &str, spec: &CommandSpec, query: &SurfaceQuery<'_>) -> bool {
+        if query.realm == tcl_dialect::model::InvocationRealm::InterpreterRuntime
+            && query
+                .core
+                .nearest()
+                .is_some_and(|(family, _)| family == Family::F5Irules)
+            && crate::irules_policy::irules_disabled_class(spec.name)
+                == Some(crate::irules_policy::IrulesDisabledClass::CompilerRefused)
+            && spec.owning_package().is_none()
+        {
+            return crate::irules_policy::runtime_surface_admits(spec, *query);
+        }
         let Some(rows) = spec.surface else {
             return true;
         };
@@ -1344,6 +1371,7 @@ impl AuthoringScope {
     #[must_use]
     pub fn query(&self) -> SurfaceQuery<'_> {
         SurfaceQuery {
+            realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             core: CorePoints::from_ordered(
                 self.core
                     .iter()
@@ -2125,6 +2153,7 @@ mod tests {
         assert_eq!(
             ctx.authoring_query(),
             SurfaceQuery {
+                realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: CorePoints::two((Family::Jim, None), (Family::Tcl, Some("8.6"))),
                 packages: &[],
             }
@@ -2493,6 +2522,7 @@ mod tests {
         assert_eq!(
             tk.authoring_query(),
             SurfaceQuery {
+                realm: tcl_dialect::model::InvocationRealm::RuleLoader,
                 core: plain.surface_query().core,
                 packages: &["Tk"],
             }

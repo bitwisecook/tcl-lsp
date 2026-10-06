@@ -151,6 +151,10 @@ pub enum WorldTrack {
     ObjectDispatch,
     /// Safe-interpreter and hidden-command policy of the current interpreter.
     InterpreterPolicy,
+    /// Current interpreter result storage.
+    InterpreterResult,
+    /// Current interpreter completion metadata.
+    CompletionState,
     /// Child-interpreter existence and identity.
     InterpreterTopology,
     /// Tcl variable cells.
@@ -165,7 +169,7 @@ pub enum WorldTrack {
 
 impl WorldTrack {
     /// Every track, in deterministic declaration order.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::CommandBindings,
         Self::NamespaceLookup,
         Self::NamespaceUnknown,
@@ -179,6 +183,8 @@ impl WorldTrack {
         Self::PackageState,
         Self::HostCapabilities,
         Self::ExternalState,
+        Self::InterpreterResult,
+        Self::CompletionState,
     ];
 
     const fn index(self) -> usize {
@@ -196,6 +202,8 @@ impl WorldTrack {
             Self::PackageState => 10,
             Self::HostCapabilities => 11,
             Self::ExternalState => 12,
+            Self::InterpreterResult => 13,
+            Self::CompletionState => 14,
         }
     }
 
@@ -216,6 +224,8 @@ impl WorldTrack {
             Self::PackageState => "package",
             Self::HostCapabilities => "host",
             Self::ExternalState => "external",
+            Self::InterpreterResult => "interpresult",
+            Self::CompletionState => "completion",
         }
     }
 
@@ -232,6 +242,8 @@ impl WorldTrack {
             WorldStateDomain::CommandTraces => Self::CommandTraces,
             WorldStateDomain::OoDispatch => Self::ObjectDispatch,
             WorldStateDomain::InterpreterPolicy => Self::InterpreterPolicy,
+            WorldStateDomain::InterpreterResult => Self::InterpreterResult,
+            WorldStateDomain::CompletionState => Self::CompletionState,
             WorldStateDomain::PackageState => Self::PackageState,
             WorldStateDomain::HostCapabilities => Self::HostCapabilities,
             WorldStateDomain::VariableStore => Self::VariableStore,
@@ -823,6 +835,16 @@ impl WorldContents {
         let Some(reference) = parse_variable_reference(spelling) else {
             return !self.variable_traces.completely_absent();
         };
+        self.resolved_variable_access_may_observe(&reference)
+    }
+
+    /// A native name operand and an alias target are already evaluated names.
+    /// Their literal sigils and element keys are not substitution syntax.
+    fn variable_name_may_observe(&self, name: &str) -> bool {
+        self.resolved_variable_access_may_observe(&literal_variable_reference(name))
+    }
+
+    fn resolved_variable_access_may_observe(&self, reference: &VariableReference<'_>) -> bool {
         if self.aliases.unknown {
             return !self.variable_traces.completely_absent();
         }
@@ -838,12 +860,11 @@ impl WorldContents {
                 .variable_access_may_observe(&base, &reference.element),
             // The target may itself name an array element, in which case
             // both the element's and the whole array's traces apply.
-            Some((_, Some(target))) => match parse_variable_reference(target) {
-                Some(target) => self
-                    .variable_traces
-                    .variable_access_may_observe(target.base, &ElementAccess::Dynamic),
-                None => !self.variable_traces.completely_absent(),
-            },
+            Some((_, Some(target))) => {
+                let target = literal_variable_reference(target);
+                self.variable_traces
+                    .variable_access_may_observe(target.base, &target.element)
+            }
             Some((_, None)) => !self.variable_traces.completely_absent(),
         }
     }
@@ -853,6 +874,19 @@ impl WorldContents {
 struct VariableReference<'a> {
     base: &'a str,
     element: ElementAccess<'a>,
+}
+
+fn literal_variable_reference(name: &str) -> VariableReference<'_> {
+    match tcl_syntax::naming::split_element_ref(name) {
+        Some((base, element)) => VariableReference {
+            base,
+            element: ElementAccess::Known(element),
+        },
+        None => VariableReference {
+            base: name,
+            element: ElementAccess::Scalar,
+        },
+    }
 }
 
 /// Parse a `$name`, `${name}`, or bare-name spelling.
@@ -969,7 +1003,7 @@ fn expr_world_hazard(state: &WorldContents, expr: &tcl_syntax::expr::ExprNode) -
         ExprNode::String { text, .. } => {
             tcl_syntax::expr::quoted_string_body(text).is_some_and(|body| body.contains(['$', '[']))
         }
-        ExprNode::Var { name, .. } => state.variable_access_may_observe(name),
+        ExprNode::Var { text, .. } => state.variable_access_may_observe(text),
         ExprNode::Command { .. } | ExprNode::Call { .. } | ExprNode::Raw { .. } => true,
         ExprNode::Unary { operand, .. } => expr_world_hazard(state, operand),
         ExprNode::Binary { left, right, .. } => {
@@ -1358,7 +1392,13 @@ fn capture_block_sites(
         if let ExecutableInstruction::Invoke(invoke) = instruction
             && let InvocationResolution::Resolved(resolved) = &invoke.resolution
         {
-            let proof = capture_site_proof(&state, resolved, &invoke.original_words);
+            let words = invoke
+                .effective_words
+                .as_ref()
+                .map_or(invoke.original_words.as_slice(), |words| {
+                    words.words.as_slice()
+                });
+            let proof = capture_site_proof(&state, resolved, words);
             analysis
                 .sites
                 .insert((block_id, u32::try_from(index).unwrap_or(u32::MAX)), proof);
@@ -1468,6 +1508,25 @@ fn apply_instruction<'f>(
         ExecutableInstruction::ExecuteOpaqueRegion(_) => {
             if !state.fully_widened() {
                 Arc::make_mut(state).widen_all(site);
+            }
+            None
+        }
+        ExecutableInstruction::CompleteEvaluatedRegion(completed) => {
+            let footprint = completed.region.residual_effects.resolve();
+            let state_site = StateSite::statement(
+                BlockId(u32::try_from(block).unwrap_or(u32::MAX)),
+                u32::try_from(index).unwrap_or(u32::MAX),
+                0,
+            );
+            match project_effect_footprint(&footprint, &state_site, None) {
+                Ok(intents) => {
+                    for intent in intents {
+                        if intent.kind != WorldStateIntentKind::Use {
+                            apply_region_write(Arc::make_mut(state), &intent.location, site);
+                        }
+                    }
+                }
+                Err(_) => Arc::make_mut(state).widen_all(site),
             }
             None
         }
@@ -1597,6 +1656,7 @@ fn transition_confined_to_current_interpreter(transition: &StateTransition) -> b
         StateTransition::VariableCellAlias(_)
         | StateTransition::Namespace(_)
         | StateTransition::Trace(_)
+        | StateTransition::Package(_)
         | StateTransition::ObjectDispatch(_) => true,
     }
 }
@@ -1676,6 +1736,8 @@ fn apply_scoped_region_write(
             state.interpreter_policy_stable = false;
             state.bump(WorldTrack::InterpreterPolicy, site);
         }
+        WorldRegionKind::InterpreterResult => state.bump(WorldTrack::InterpreterResult, site),
+        WorldRegionKind::CompletionState => state.bump(WorldTrack::CompletionState, site),
         WorldRegionKind::InterpreterTopology => {
             state.bump(WorldTrack::InterpreterTopology, site);
         }
@@ -1683,7 +1745,7 @@ fn apply_scoped_region_write(
             // Writing a variable cell fires its write traces, which run
             // arbitrary re-entrant Tcl.
             let hazard = match subject {
-                WorldSubjectScope::Named(name) => state.variable_access_may_observe(name),
+                WorldSubjectScope::Named(name) => state.variable_name_may_observe(name),
                 WorldSubjectScope::Wildcard => !state.variable_traces.completely_absent(),
             };
             if hazard {
@@ -1820,7 +1882,7 @@ fn apply_variable_write(state: &mut Arc<WorldContents>, name: &str, site: TrackV
     let hazard = if dynamic_target {
         !state.variable_traces.completely_absent() || state.aliases.unknown
     } else {
-        state.variable_access_may_observe(name)
+        state.variable_name_may_observe(name)
     };
     if hazard {
         if !state.fully_widened() {
@@ -1852,6 +1914,24 @@ fn apply_transition_fact(
         StateTransition::Trace(transition) => apply_trace_transition(state, transition, site),
         StateTransition::ObjectDispatch(transition) => {
             apply_object_transition(state, transition, site);
+        }
+        StateTransition::Package(transition) => {
+            use tcl_registry::model::binding::PackageTransition;
+            let writes = match transition {
+                PackageTransition::Provide { version, .. } => version.is_some(),
+                PackageTransition::Ifneeded {
+                    script_provided, ..
+                } => *script_provided,
+                PackageTransition::UnknownHandler { handler } => handler.is_some(),
+                PackageTransition::Prefer { mode } => mode.is_some(),
+                PackageTransition::Require { .. }
+                | PackageTransition::Forget { .. }
+                | PackageTransition::SourceLoad { .. }
+                | PackageTransition::DiscoveryDependencyChanged { .. } => true,
+            };
+            if writes {
+                state.bump(WorldTrack::PackageState, site);
+            }
         }
         StateTransition::Widen(widening) => {
             for domain in &widening.domains {
@@ -2190,6 +2270,7 @@ fn apply_domain_widening(
             state.object_dispatch.widen();
             state.bump(WorldTrack::ObjectDispatch, site);
         }
+        StateTransitionDomain::Packages => state.bump(WorldTrack::PackageState, site),
     }
 }
 
@@ -2243,6 +2324,8 @@ mod tests {
             argv: ExecutableArgvId::new(id, completion.index()),
             resolution,
             original_words: words.to_vec(),
+            source_binding: None,
+            effective_words: None,
             node: NodeId::from_path(vec![
                 u32::try_from(completion.index()).expect("completion index fits"),
             ]),
@@ -2817,5 +2900,32 @@ mod tests {
         assert!(ledger.variable_access_may_observe("b", &ElementAccess::Scalar));
         assert!(ledger.variable_access_may_observe("b", &ElementAccess::Known("9")));
         assert!(!ledger.variable_access_may_observe("c", &ElementAccess::Scalar));
+    }
+
+    #[test]
+    fn observer_names_and_alias_targets_keep_literal_sigils_and_keys() {
+        let mut state = WorldContents::entry(DispatchEntryAssumption::PristineRegistryWorld);
+        let key = || TraceKey {
+            operations: vec![TraceOperation::Read],
+            prefix: Some("observe".to_owned()),
+        };
+        state.variable_traces.cell_mut("$b").unwrap().add(key());
+        assert!(state.variable_name_may_observe("$b"));
+        assert!(!state.variable_name_may_observe("b"));
+        assert!(state.variable_access_may_observe("${$b}"));
+        state.aliases.links.push(("view".into(), Some("$b".into())));
+        assert!(state.variable_access_may_observe("$view"));
+
+        state
+            .variable_traces
+            .cell_mut("a($key)")
+            .unwrap()
+            .add(key());
+        state
+            .aliases
+            .links
+            .push(("element".into(), Some("a($key)".into())));
+        assert!(state.variable_access_may_observe("$element"));
+        assert!(!state.variable_name_may_observe("a(other)"));
     }
 }

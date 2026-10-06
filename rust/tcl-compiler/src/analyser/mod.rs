@@ -50,6 +50,7 @@ pub mod diagnostics;
 pub mod dispatch;
 pub mod handlers;
 pub mod indirection;
+mod input;
 pub mod irules_event_checks;
 pub mod item_tree;
 pub mod oo;
@@ -75,6 +76,7 @@ pub use item_tree::{FileDecls, Item, ItemId, ItemKind, ItemSig, ItemTree};
 // not depend on the compiler — the `CompileService` injection keeps the wasm
 // core light) can share it. Re-exported here so callers can reach it as
 // `tcl_compiler::analyser::…`.
+pub use input::ResolvedAnalysisInput;
 pub use scope::{
     VariableAliasLink, command_resolution_namespace_at, implicit_command_namespace_path_at,
     innermost_scope_is_oo_method_frame, innermost_scope_reaches_oo_helpers,

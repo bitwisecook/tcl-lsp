@@ -78,7 +78,7 @@
 //!   then `incr i`, else `…`" and gate the loop body behind a *negated* guard —
 //!   a false [`Condition::Impossible`] for anything declared in it.  The
 //!   load-bearing distinction is not "loops are not modelled" but
-//!   `spec.arg_role_resolver.is_some()`: `if`'s roles are computed from the
+//!   `spec.has_dynamic_argument_roles()`: `if`'s roles are computed from the
 //!   actual clause words by a resolver, while the loops carry fixed
 //!   `arg_roles`.
 //! * conditions that are a constant boolean (`1`, `0`, `true`, `no`, …) or a
@@ -330,7 +330,7 @@ fn walk_script<'t>(
         if spec.traits.contains(Traits::TERMINATES_BLOCK) {
             return None;
         }
-        if spec.traits.contains(Traits::HAS_BOOLEAN_COND) && spec.arg_role_resolver.is_some() {
+        if spec.traits.contains(Traits::HAS_BOOLEAN_COND) && spec.has_dynamic_argument_roles() {
             match walk_if(text, words, head, registry, &reached, depth, visit) {
                 AfterIf::Stops => return None,
                 AfterIf::Continues(after) => {

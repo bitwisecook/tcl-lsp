@@ -1,0 +1,30 @@
+0	0	before-current=none,1,1	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	identity=1	code=0	result=35
+0	1	before-current=none,1,2	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	original-current=int,1,1,4	identity=0	code=0	result=35
+1	0	before-current=int,0,1,4	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	identity=1	code=0	result=35
+1	1	before-current=int,0,2,4	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	original-current=int,0,1,4	identity=0	code=0	result=35
+2	0	before-current=int,0,1,4	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	identity=1	code=0	result=35
+2	1	before-current=int,0,2,4	before-amount=int,0,1,1	after-current=int,0,2,5	after-amount=int,0,1,1	original-current=int,0,1,4	identity=0	code=0	result=35
+3	0	before-current=double,0,1	before-amount=int,0,1,1	after-current=double,1,1	after-amount=int,0,2,1	identity=1	code=1	result=657870656374656420696e74656765722062757420676f742022342e3022
+3	1	before-current=double,0,2	before-amount=int,0,1,1	after-current=double,1,2	after-amount=int,0,2,1	original-current=double,1,2	identity=1	code=1	result=657870656374656420696e74656765722062757420676f742022342e3022
+4	0	before-current=none,1,1	before-amount=int,0,1,1	after-current=none,1,1	after-amount=int,0,2,1	identity=1	code=1	result=657870656374656420696e74656765722062757420676f742022312e3522
+4	1	before-current=none,1,2	before-amount=int,0,1,1	after-current=none,1,2	after-amount=int,0,2,1	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722062757420676f742022312e3522
+5	0	before-current=int,0,1,9223372036854775807	before-amount=int,0,1,1	after-current=int,0,2,-9223372036854775808	after-amount=int,0,1,1	identity=1	code=0	result=2d39323233333732303336383534373735383038
+5	1	before-current=int,0,2,9223372036854775807	before-amount=int,0,1,1	after-current=int,0,2,-9223372036854775808	after-amount=int,0,1,1	original-current=int,0,1,9223372036854775807	identity=0	code=0	result=2d39323233333732303336383534373735383038
+6	0	before-current=none,1,1	before-amount=double,0,1	after-current=none,1,1	after-amount=expression,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f742022312e3022
+6	1	before-current=none,1,2	before-amount=double,0,1	after-current=none,1,2	after-amount=expression,1,2	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f742022312e3022
+7	0	before-current=none,1,1	before-amount=double,0,1	after-current=none,1,1	after-amount=expression,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f742022312e3522
+7	1	before-current=none,1,2	before-amount=double,0,1	after-current=none,1,2	after-amount=expression,1,2	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f742022312e3522
+8	0	before-current=none,1,1	before-amount=none,1,1	after-current=int,0,2,7	after-amount=expression,1,1	identity=1	code=0	result=37
+8	1	before-current=none,1,2	before-amount=none,1,1	after-current=int,0,2,7	after-amount=expression,1,1	original-current=int,1,1,4	identity=0	code=0	result=37
+9	0	before-current=none,1,1	before-amount=none,1,1	after-current=none,1,1	after-amount=expression,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+9	1	before-current=none,1,2	before-amount=none,1,1	after-current=none,1,2	after-amount=expression,1,2	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+10	0	before-current=none,1,1	before-amount=none,1,1	after-current=none,1,1	after-amount=expression,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+10	1	before-current=none,1,2	before-amount=none,1,1	after-current=none,1,2	after-amount=expression,1,2	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+11	0	before-current=missing,0,0	before-amount=none,1,1	after-current=missing,0,0	after-amount=expression,1,2	identity=0	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+11	1	before-current=missing,0,0	before-amount=none,1,1	after-current=missing,0,0	after-amount=expression,1,2	original-current=missing,0,0	identity=0	code=1	result=657870656374656420696e74656765722065787072657373696f6e2062757420676f74202242414422
+12	0	before-current=missing,0,0	before-amount=int,0,1,1	after-current=int,0,2,1	after-amount=int,0,1,1	identity=0	code=0	result=31
+12	1	before-current=missing,0,0	before-amount=int,0,1,1	after-current=int,0,2,1	after-amount=int,0,1,1	original-current=missing,0,0	identity=0	code=0	result=31
+13	0	before-current=none,1,1	before-amount=none,1,1	after-current=int,0,2,5	after-amount=int,1,1,1	identity=1	code=0	result=35
+13	1	before-current=none,1,2	before-amount=none,1,1	after-current=int,0,2,5	after-amount=int,1,1,1	original-current=int,1,1,4	identity=0	code=0	result=35
+14	0	before-current=none,1,1	before-amount=int,0,1,1	after-current=none,1,1	after-amount=int,0,2,1	identity=1	code=1	result=657870656374656420696e74656765722062757420676f74202242414422
+14	1	before-current=none,1,2	before-amount=int,0,1,1	after-current=none,1,2	after-amount=int,0,2,1	original-current=none,1,2	identity=1	code=1	result=657870656374656420696e74656765722062757420676f74202242414422

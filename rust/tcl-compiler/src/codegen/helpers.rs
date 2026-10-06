@@ -148,38 +148,39 @@ pub fn tcl_list_element(s: &str) -> String {
 pub enum SubstPart {
     /// Literal text.
     Lit(String),
+    /// Exact decoded literal bytes without a Unicode projection.
+    ByteLit(Vec<u8>),
     /// Variable reference (`$varname`).
     Var(String),
+    /// An element selected by a braced variable name; the key is final data.
+    LiteralElement {
+        /// Decoded array or dictionary name.
+        base: String,
+        /// Finished element key, never substitution source.
+        key: String,
+    },
     /// Command substitution (`[cmd ...]`).
     Cmd(String),
+    /// Jim's original parenthesized expression, evaluated without command lookup.
+    Expression(String),
 }
 
-/// If `bytes[i]` opens an array index (`(`), advance past the matching `)` —
-/// honouring nested `[...]` command substitutions inside the index — and return
-/// the new position. Otherwise return `i` unchanged.
-fn consume_array_index(bytes: &[u8], mut i: usize) -> usize {
-    let n = bytes.len();
-    if i >= n || bytes[i] != b'(' {
-        return i;
+impl SubstPart {
+    /// Decode an authored text fragment using the actual native byte policy.
+    #[must_use]
+    pub fn decoded_literal(source: &str, escapes: EscapeSyntax) -> Self {
+        let bytes = tcl_lexer::backslash_subst_bytes_in(source.as_bytes(), escapes);
+        std::str::from_utf8(&bytes).map_or_else(
+            |_| Self::ByteLit(bytes.to_vec()),
+            |text| Self::Lit(text.to_owned()),
+        )
     }
-    let mut depth: u32 = 0;
-    i += 1;
-    while i < n {
-        match bytes[i] {
-            b'[' => depth += 1,
-            b']' if depth > 0 => depth -= 1,
-            b')' if depth == 0 => return i + 1,
-            _ => {}
-        }
-        i += 1;
-    }
-    i
 }
 
 /// Flush the raw literal run `template[lit_start..end]` (if non-empty) as a
-/// [`SubstPart::Lit`], decoding it through the shared full backslash decoder
-/// [`tcl_lexer::backslash_subst_in`] — the same decoder `expressions.rs`'s
-/// no-substitution literal branch uses. That decoder is UTF-8-aware and
+/// [`SubstPart::Lit`] or [`SubstPart::ByteLit`], decoding it through the shared
+/// [`tcl_lexer::backslash_subst_bytes_in`] decoder that `expressions.rs`'s
+/// no-substitution literal branch uses. It preserves native bytes and
 /// handles every escape form (`\xNN`, `\uNNNN`, `\UNNNNNNNN`, octal `\NNN`,
 /// line continuation) under the release being compiled for, unlike the
 /// seven-letter-escape hand-roll this replaced.
@@ -191,8 +192,9 @@ fn flush_subst_lit(
     escapes: EscapeSyntax,
 ) {
     if lit_start < end {
-        parts.push(SubstPart::Lit(
-            tcl_lexer::backslash_subst_in(&template[lit_start..end], escapes).into_owned(),
+        parts.push(SubstPart::decoded_literal(
+            &template[lit_start..end],
+            escapes,
         ));
     }
 }
@@ -207,73 +209,39 @@ enum DollarScan {
     Unterminated,
 }
 
-/// Read the `$` at `at`, following `Tcl_ParseVarName`
-/// (tmp/tcl9.0.4/generic/tclParse.c:1367-1381 documents the three forms).
-///
-/// Form 1 is `${name}`, closed by the target release's rule; an unterminated
-/// one is C's `TCL_PARSE_MISSING_VAR_BRACE` ("missing close-brace for variable
-/// name", `tclParse.c:1414`), reported here as [`DollarScan::Unterminated`].
-///
-/// Form 2 is a bare name of letters/digits/underscores and `::` runs,
-/// optionally followed by an array index — including the **empty** name of
-/// `$(idx)`, which C admits explicitly ("Support for empty array names here",
-/// `tclParse.c:1449-1453`), so `$(k)` reads element `k` of the array whose
-/// name is the empty string.
-///
-/// Form 3 is everything else: a `$` before any other byte, or at the end of the
-/// string, is **not** a reference — `tclParse.c:1454` and `:1360` both jump to
-/// `justADollarSign` (`:1502`), which rewrites the token as the literal text
-/// `$` and returns `TCL_OK`. Parsing *continues*; the `$` is data.
-fn scan_dollar(
-    template: &str,
-    bytes: &[u8],
-    n: usize,
-    at: usize,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> DollarScan {
-    let i = at + 1;
-    if i >= n {
-        return DollarScan::Literal; // trailing `$` (`tclParse.c:1360`)
-    }
-    if bytes[i] == b'{' {
-        // Braced variable: ${name}, closed by the target release's
-        // `Tcl_ParseVarName` rule. A plain `find('}')` would apply the 8.x
-        // first-close rule at every release, disagreeing with
-        // `values::parse_simple_var_ref`'s 9.x nesting rule on the very same
-        // encoding.
-        return match tcl_lexer::braced_var_name_end(bytes, i + 1, braced_var) {
-            tcl_lexer::BracedVarEnd::Closed(end) => {
-                DollarScan::Subst(SubstPart::Var(template[i + 1..end].to_owned()), end + 1)
-            }
-            tcl_lexer::BracedVarEnd::Unterminated => DollarScan::Unterminated,
-        };
-    }
-    // Bare variable: $varname, optionally with an array index `$arr(index)`
-    // whose index may itself contain substitutions. A `:` is a name character
-    // only as part of a `::` namespace separator: a lone colon ends the name,
-    // so `$action:` is `$action` then a literal `:`, not a variable `action:`.
-    // Once a `::` starts, the whole colon run is consumed (`$a:::b` names
-    // `a:::b`).
-    let start = i;
-    let mut end = i;
-    while end < n {
-        if bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' {
-            end += 1;
-        } else if bytes[end] == b':' && end + 1 < n && bytes[end + 1] == b':' {
-            while end < n && bytes[end] == b':' {
-                end += 1;
-            }
-        } else {
-            break;
+/// Project one original reference through the shared native variable scanner.
+fn scan_dollar(template: &str, at: usize, config: tcl_lexer::LexerConfig) -> DollarScan {
+    match tcl_lexer::word_parts::scan_expression_sugar(template.as_bytes(), at, config) {
+        Ok(Some((expression, next))) => {
+            return std::str::from_utf8(expression)
+                .map_or(DollarScan::Unterminated, |expression| {
+                    DollarScan::Subst(SubstPart::Expression(expression.to_owned()), next)
+                });
         }
+        Err(_) => return DollarScan::Unterminated,
+        Ok(None) => {}
     }
-    // An empty name is still a reference when an array index follows (`$(k)`);
-    // otherwise this is form 3 and the `$` is literal.
-    if end == start && bytes.get(end) != Some(&b'(') {
-        return DollarScan::Literal;
+    if config.var_syntax.has_expr_sugar() && template.as_bytes().get(at + 1) == Some(&b'[') {
+        return DollarScan::Unterminated;
     }
-    let end = consume_array_index(bytes, end);
-    DollarScan::Subst(SubstPart::Var(template[start..end].to_owned()), end)
+    let reference = match tcl_lexer::word_parts::scan_var_ref(template.as_bytes(), at, config) {
+        Ok(Some(reference)) => reference,
+        Ok(None) => return DollarScan::Literal,
+        Err(_) => return DollarScan::Unterminated,
+    };
+    let part = if reference.index.is_some() {
+        SubstPart::Var(template[at + 1..reference.next].to_owned())
+    } else {
+        let name = std::str::from_utf8(reference.name).expect("reference slices UTF-8 source");
+        tcl_syntax::naming::split_element_ref(name).map_or_else(
+            || SubstPart::Var(name.to_owned()),
+            |(base, key)| SubstPart::LiteralElement {
+                base: base.to_owned(),
+                key: key.to_owned(),
+            },
+        )
+    };
+    DollarScan::Subst(part, reference.next)
 }
 
 /// Parse a substitution template into parts.
@@ -289,21 +257,16 @@ fn scan_dollar(
 /// the trigger check runs, so an escaped `\$`/`\[` decodes to a literal `$`/`[`
 /// and never starts a substitution.
 ///
-/// `escapes` is the target release's backslash grammar — the skip width and the
-/// decoded value must come from the same release, so both take it.
-///
-/// `braced_var` is the same release's `${…}` close rule, resolved through the
-/// shared owner [`tcl_lexer::braced_var_name_end`]. It is a second grammar
-/// fact about the same target and travels beside `escapes` for the same
-/// reason: hard-coding the 8.x first-`}` rule here while
-/// `values::parse_simple_var_ref` hard-codes the 9.x nesting rule leaves the
-/// compiled-word path wrong in both directions at once.
+/// Pass the actual ingress configuration. Variable boundaries, high bytes,
+/// index nesting and braced close rules come from `scan_var_ref`; decoded
+/// literal runs use that same configuration's escape grammar. A braced
+/// element retains a literal key instead of being reinterpreted as source.
 #[must_use]
 pub fn parse_subst_template(
     template: &str,
-    escapes: EscapeSyntax,
-    braced_var: tcl_dialect::BracedVarStyle,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<Vec<SubstPart>> {
+    let escapes = config.escapes;
     let bytes = template.as_bytes();
     let n = bytes.len();
     let mut parts = Vec::new();
@@ -321,23 +284,14 @@ pub fn parse_subst_template(
         if ch == b'[' {
             // Command substitution
             flush_subst_lit(&mut parts, template, lit_start, i, escapes);
-            let mut depth: u32 = 0;
             let start = i;
-            while i < n {
-                if bytes[i] == b'[' {
-                    depth += 1;
-                } else if bytes[i] == b']' {
-                    depth -= 1;
-                    if depth == 0 {
-                        i += 1;
-                        break;
-                    }
-                }
-                i += 1;
-            }
-            if depth != 0 {
-                return None;
-            }
+            i = tcl_lexer::word_parts::command_subst_close(
+                bytes,
+                i,
+                tcl_lexer::word_parts::SubstFlags::default(),
+                config,
+            )
+            .ok()?;
             parts.push(SubstPart::Cmd(template[start..i].to_owned()));
             lit_start = i;
             continue;
@@ -350,7 +304,7 @@ pub fn parse_subst_template(
             // word that mixes a literal `$` with a real substitution
             // un-decomposed — `[list $={y}$x]` would push its argument raw and
             // never substitute the `$x` (both oracles: `{$={y}X}`).
-            match scan_dollar(template, bytes, n, i, braced_var) {
+            match scan_dollar(template, i, config) {
                 DollarScan::Subst(part, next) => {
                     flush_subst_lit(&mut parts, template, lit_start, i, escapes);
                     parts.push(part);
@@ -721,7 +675,8 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
                 // more hex digits, `\U`, three-digit octal at or above `\40`)
                 // fold to different values per release, and this fold
                 // is one the optimiser shows in the editor.
-                parts.push(tcl_lexer::backslash_subst_in(buf, escapes).into_owned());
+                let bytes = tcl_lexer::backslash_subst_bytes_in(buf.as_bytes(), escapes);
+                parts.push(std::str::from_utf8(&bytes).ok()?.to_owned());
             }
             b'{' => {
                 // Braced string — always literal.
@@ -770,7 +725,8 @@ fn parse_format_parts(inner: &str, escapes: EscapeSyntax) -> Option<Vec<String>>
                 if has_unescaped_subst(word) {
                     return None;
                 }
-                parts.push(tcl_lexer::backslash_subst_in(word, escapes).into_owned());
+                let bytes = tcl_lexer::backslash_subst_bytes_in(word.as_bytes(), escapes);
+                parts.push(std::str::from_utf8(&bytes).ok()?.to_owned());
             }
         }
     }
@@ -785,11 +741,7 @@ mod tests {
     /// [`parse_subst_template`] under the release-blind Tcl 9.0 grammar — what
     /// these tests assert unless they name a release.
     fn template(text: &str) -> Option<Vec<SubstPart>> {
-        parse_subst_template(
-            text,
-            EscapeSyntax::default(),
-            tcl_dialect::BracedVarStyle::default(),
-        )
+        parse_subst_template(text, tcl_lexer::LexerConfig::default())
     }
 
     #[test]
@@ -799,8 +751,10 @@ mod tests {
         // skip width used to find the next `$`/`[` trigger matches.
         let lit = |text: &str, escapes| match parse_subst_template(
             text,
-            escapes,
-            tcl_dialect::BracedVarStyle::default(),
+            tcl_lexer::LexerConfig {
+                escapes,
+                ..tcl_lexer::LexerConfig::default()
+            },
         )
         .expect("template parses")
         .as_slice()
@@ -815,6 +769,49 @@ mod tests {
         assert_eq!(lit(r"\U0001F600", EscapeSyntax::Tcl90), "\u{1F600}");
         assert_eq!(lit(r"\400", EscapeSyntax::Tcl84), "\0");
         assert_eq!(lit(r"\400", EscapeSyntax::Tcl90), " 0");
+    }
+
+    #[test]
+    fn jim_literal_fragments_keep_raw_escape_bytes() {
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").analyser_profile();
+        let parts = parse_subst_template(
+            r"\xff$x",
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+        )
+        .unwrap();
+        assert_eq!(
+            parts,
+            vec![SubstPart::ByteLit(vec![0xff]), SubstPart::Var("x".into())]
+        );
+    }
+
+    #[test]
+    fn substitution_operands_preserve_braced_element_keys_and_actual_grammar() {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.1", "jim"] {
+            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            assert_eq!(
+                parse_subst_template("${arr($i)}", config),
+                Some(vec![SubstPart::LiteralElement {
+                    base: "arr".into(),
+                    key: "$i".into()
+                }])
+            );
+            assert_eq!(
+                parse_subst_template("$arr($i)", config),
+                Some(vec![SubstPart::Var("arr($i)".into())])
+            );
+        }
+        assert_eq!(
+            parse_subst_template("$a(k(x))", tcl_lexer::LexerConfig::for_dialect("tcl8.6")),
+            Some(vec![
+                SubstPart::Var("a(k(x)".into()),
+                SubstPart::Lit(")".into())
+            ])
+        );
+        assert_eq!(
+            parse_subst_template("$a(k(x))", tcl_lexer::LexerConfig::for_dialect("jim")),
+            Some(vec![SubstPart::Var("a(k(x))".into())])
+        );
     }
 
     // split_list_simple.
@@ -847,8 +844,8 @@ mod tests {
 
     #[test]
     fn split_list_simple_empty() {
-        assert!(split_list_simple("").is_empty());
-        assert!(split_list_simple("   ").is_empty());
+        assert_eq!(split_list_simple(""), [] as [std::string::String; 0]);
+        assert_eq!(split_list_simple("   "), [] as [std::string::String; 0]);
     }
 
     #[test]

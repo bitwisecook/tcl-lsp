@@ -221,6 +221,11 @@ pub enum ReturnElements {
 /// element-class harvesting to every element shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum VarElementsEffect {
+    /// Write array entries from an even key/value Tcl-list operand.
+    SetsArrayElementsFromList {
+        /// Operand index after the selected subcommand prefix.
+        values_at: u8,
+    },
     /// `lappend var ?value …?` — appends each value word (from `values_from`
     /// onward) as one new element of the variable's list.
     AppendsListElements {

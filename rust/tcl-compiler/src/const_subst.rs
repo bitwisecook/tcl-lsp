@@ -32,9 +32,8 @@
 //! variable" and "which commands still have their original semantics":
 //!
 //! * the **optimiser propagation pass** (`optimiser/propagation.rs`, the
-//!   O129 rewrite) — constants from the projected SCCP lattice, trust from
-//!   the whole-module [`crate::command_binding::ModuleCommandMutations`]
-//!   scan;
+//!   O129 rewrite) — original retained execution targets and effective argv
+//!   through [`ConstSubstCtx::fold_retained_call`];
 //! * **SCCP lattice evaluation itself** (`crate::sccp`) —
 //!   constants resolved per SSA use version, so a folded value re-enters the
 //!   lattice and multi-statement chains
@@ -73,6 +72,9 @@ pub struct ConstSubstCtx<'a> {
     /// Rooted constructed namespace in which every command head in the
     /// substitution resolves.
     pub resolution_namespace: &'a str,
+    /// Exact original lookup context for executable fold dependencies.
+    /// Source-only assistance supplies `None` and grants no native identity.
+    pub namespace_context: Option<tcl_runtime_api::CompiledNamespaceContext>,
     /// Resolved Tcl release forwarded to versioned folds
     /// (`const_fold_versioned`); `None` when the consumer has no release fact.
     pub version: Option<TclVersion>,
@@ -115,6 +117,165 @@ pub struct ResolvedConstSubst {
 }
 
 impl ConstSubstCtx<'_> {
+    /// Fold one original substitution using its retained execution identity and
+    /// effective argv. Every nested result comes from the same complete source
+    /// inventory; textual command trust is not used by this entry point.
+    pub(crate) fn fold_retained_call(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+    ) -> Option<String> {
+        self.fold_retained_at_depth(call, calls, 0)
+    }
+
+    fn fold_retained_at_depth(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+        depth: u32,
+    ) -> Option<String> {
+        if depth > MAX_CONST_SUBST_DEPTH {
+            return None;
+        }
+        let tokens = call.tokens.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
+        binding
+            .proved_execution_target()
+            .filter(|target| target.registry_backed)?;
+        let invocation =
+            crate::registry_invocation::resolved_handler_invocation(self.registry, None, tokens)?;
+        let dialect = invocation.dialect?;
+        if invocation.facts.effects.requires_world_barrier() {
+            return None;
+        }
+        if invocation.facts.operation
+            == tcl_registry::SemanticOperationId::StructuredLowering(
+                tcl_registry::hooks::LoweringHookId::Expr,
+            )
+        {
+            return None;
+        }
+        let args = self.retained_arguments_at_depth(call, calls, depth)?;
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        let spec = self.registry.get_for_surface(
+            &invocation.facts.canonical_command,
+            Some(dialect.authoring_query()?),
+        )?;
+        if let Some(class) = self.defining_class
+            && let Some(value) = oo_context_fact_fold(spec, &args, class)
+        {
+            return Some(value);
+        }
+        let arguments = arg_refs.get(invocation.facts.argument_offset..)?;
+        if spec.subcommands.is_empty() {
+            spec.run_const_fold_in(arguments, dialect)
+        } else {
+            spec.subcommand(invocation.facts.subcommand.canonical_name()?)?
+                .run_const_fold_in(arguments, dialect)
+        }
+    }
+
+    /// Original argument values whose evaluation has independently closed
+    /// effects. Known child contents do not erase its actual invocation.
+    pub(crate) fn retained_arguments(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+    ) -> Option<Vec<String>> {
+        self.retained_arguments_at_depth(call, calls, 0)
+    }
+
+    fn retained_arguments_at_depth(
+        &self,
+        call: &crate::word_subst::LiftedCall,
+        calls: &[crate::word_subst::LiftedCall],
+        depth: u32,
+    ) -> Option<Vec<String>> {
+        let tokens = call.tokens.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
+        let target = binding.proved_execution_target().or_else(|| {
+            binding
+                .scoped_procedure_evaluation(tokens)
+                .map(|receipt| receipt.target)
+        })?;
+        let dialect = binding.variable_context.invocation_dialect?;
+        let effective = crate::registry_invocation::effective_words_for_target(tokens, target)?;
+        effective
+            .words
+            .iter()
+            .skip(1)
+            .enumerate()
+            .map(|(index, word)| {
+                if matches!(
+                    effective.origins.get(index + 1),
+                    Some(crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_))
+                ) && !binding.object_callback_effects_closed()
+                {
+                    return None;
+                }
+                let value = || {
+                    if let Some(crate::registry_invocation::InvocationWordOrigin::Written(
+                        written,
+                    )) = effective.origins.get(index + 1)
+                        && let Some(value) = written
+                            .checked_sub(1)
+                            .and_then(|argument| binding.evaluated_written_argument_value(argument))
+                        {
+                            return Some(value.to_owned());
+                        }
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        dialect.lexer_grammar.escapes,
+                        dialect.word_values,
+                    )
+                    .literal_bytes()
+                    .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                    .map(str::to_owned)
+                };
+                match word {
+                    crate::ir::WordExpr::Literal { .. }
+                    | crate::ir::WordExpr::BracedLiteral { .. } => value(),
+                    crate::ir::WordExpr::Template { parts, .. }
+                        if parts
+                            .iter()
+                            .all(|part| matches!(part, crate::ir::WordPart::Text { .. })) =>
+                    {
+                        value()
+                    }
+                    crate::ir::WordExpr::Variable { spelling, source } => {
+                        let access = tokens.variable_access_at(source, spelling)?;
+                        if access.context_alternatives().is_empty()
+                            || access.context_residual()
+                                != crate::command_binding::SourceVariableReadResidual::Closed
+                            || !access.context_alternatives().iter().all(|context| {
+                                let place = access.place_in_context(context, self.registry);
+                                context.read_produces_value(&place, self.registry)
+                                    && context.contents_native_string_access_closed_at(
+                                        &place,
+                                        self.registry,
+                                    )
+                            })
+                        {
+                            return None;
+                        }
+                        value()
+                    }
+                    crate::ir::WordExpr::CommandSubstitution { source, .. } => {
+                        let mut selected = calls
+                            .iter()
+                            .filter(|child| child.span.start() == source.span.start());
+                        let child = selected.next()?;
+                        if selected.next().is_some() {
+                            return None;
+                        }
+                        self.fold_retained_at_depth(child, calls, depth + 1)
+                    }
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
     /// Fold the command-substitution interior `inner` (text between `[` and
     /// `]`) to its constant result, or `None` to abstain. The result is the
     /// **raw** value (no re-quoting) — callers that splice it into a word
@@ -129,22 +290,42 @@ impl ConstSubstCtx<'_> {
     /// analysis-only consumers can continue using [`Self::fold_cmd_subst`].
     #[must_use]
     pub fn fold_cmd_subst_resolved(&self, inner: &str) -> Option<ResolvedConstSubst> {
-        self.fold_at_depth(inner, 0)
+        self.fold_at_depth(inner, 0, None)
     }
 
-    fn fold_at_depth(&self, inner: &str, depth: u32) -> Option<ResolvedConstSubst> {
+    /// Fold under the actual retained invocation axes, independently of the
+    /// catalogue profile. This does not prove that the reached command is stock;
+    /// the caller's binding trust contract remains required.
+    #[must_use]
+    pub fn fold_cmd_subst_in(
+        &self,
+        inner: &str,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Option<String> {
+        self.fold_at_depth(inner, 0, Some(dialect))
+            .map(|fold| fold.value)
+    }
+
+    fn fold_at_depth(
+        &self,
+        inner: &str,
+        depth: u32,
+        dialect: Option<tcl_registry::InvocationDialect>,
+    ) -> Option<ResolvedConstSubst> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
-        let (words, mut command_bindings) = self.literal_words_at_depth(inner, depth)?;
+        let (words, mut command_bindings) = self.literal_words_at_depth(inner, depth, dialect)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
             return None;
         }
         let arg_refs: Vec<&str> = rest.iter().map(String::as_str).collect();
-        let resolved =
-            self.registry
-                .resolve_call(head, &arg_refs, self.registry.own_surface_query())?;
+        let query = match dialect {
+            Some(dialect) => Some(dialect.authoring_query()?),
+            None => self.registry.own_surface_query(),
+        };
+        let resolved = self.registry.resolve_call(head, &arg_refs, query)?;
         let spec = resolved.spec;
         // A keyword whose value the enclosing `TclOO` method frame fixes
         // (`[self class]`) answers from the frame rather than from its
@@ -154,32 +335,42 @@ impl ConstSubstCtx<'_> {
         if let Some(class) = self.defining_class
             && let Some(folded) = oo_context_fact_fold(spec, rest, class)
         {
-            command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
-                self.resolution_namespace,
-                head,
-                spec.name,
-            ));
+            command_bindings.push(
+                CommandBindingIdentity::in_rooted_namespace(
+                    self.resolution_namespace,
+                    head,
+                    spec.name,
+                )
+                .with_namespace_context(self.namespace_context.clone()),
+            );
             return Some(ResolvedConstSubst {
                 value: folded,
                 command_bindings,
                 return_type: spec.return_type_for_call(&arg_refs),
             });
         }
+        let version = dialect.map_or(self.version, |dialect| dialect.tcl_version);
         let folded = if spec.subcommands.is_empty() {
-            spec.run_const_fold(&arg_refs, self.version)?
+            match dialect {
+                Some(dialect) => spec.run_const_fold_in(&arg_refs, dialect),
+                None => spec.run_const_fold(&arg_refs, version),
+            }?
         } else {
             // Subcommand-dispatched builtin (`string`, `namespace`, …): the
             // fold lives on the matching subcommand and sees the args after
             // it.
             let (_, sub_rest) = rest.split_first()?;
             let arg_refs: Vec<&str> = sub_rest.iter().map(String::as_str).collect();
-            resolved.sub?.run_const_fold(&arg_refs, self.version)?
+            let subcommand = resolved.sub?;
+            match dialect {
+                Some(dialect) => subcommand.run_const_fold_in(&arg_refs, dialect),
+                None => subcommand.run_const_fold(&arg_refs, version),
+            }?
         };
-        command_bindings.push(CommandBindingIdentity::in_rooted_namespace(
-            self.resolution_namespace,
-            head,
-            spec.name,
-        ));
+        command_bindings.push(
+            CommandBindingIdentity::in_rooted_namespace(self.resolution_namespace, head, spec.name)
+                .with_namespace_context(self.namespace_context.clone()),
+        );
         Some(ResolvedConstSubst {
             value: folded,
             command_bindings,
@@ -200,7 +391,7 @@ impl ConstSubstCtx<'_> {
     /// A nested sub that doesn't fold to a constant bails the whole fold.
     #[must_use]
     pub fn literal_words(&self, inner: &str) -> Option<Vec<String>> {
-        self.literal_words_at_depth(inner, 0)
+        self.literal_words_at_depth(inner, 0, None)
             .map(|(words, _)| words)
     }
 
@@ -208,12 +399,16 @@ impl ConstSubstCtx<'_> {
         &self,
         inner: &str,
         depth: u32,
+        dialect: Option<tcl_registry::InvocationDialect>,
     ) -> Option<(Vec<String>, Vec<CommandBindingIdentity>)> {
         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
         // Re-split the substitution under the selected registry profile, so
         // release and dialect word grammar cannot drift from command lookup.
-        let config = LexerConfig::for_profile(self.registry.profile());
+        let config = dialect.map_or_else(
+            || LexerConfig::for_profile(self.registry.profile()),
+            |dialect| LexerConfig::from_grammar(dialect.lexer_grammar),
+        );
         if !crate::segmenter::has_exactly_one_command_with_config(inner, config) {
             return None;
         }
@@ -232,7 +427,9 @@ impl ConstSubstCtx<'_> {
                         return None; // multi-token word — not a clean literal
                     }
                     let text = sm.token_text(*tok);
-                    words.push(tcl_lexer::backslash_subst_in(text, config.escapes).into_owned());
+                    let bytes =
+                        tcl_lexer::backslash_subst_bytes_in(text.as_bytes(), config.escapes);
+                    words.push(std::str::from_utf8(&bytes).ok()?.to_owned());
                     prev_is_sep = false;
                 }
                 TokenType::Str => {
@@ -282,7 +479,7 @@ impl ConstSubstCtx<'_> {
                     // *interior* (`list a b c`, not `[list a b c]`), so
                     // fold it directly.
                     let nested = sm.token_text(*tok);
-                    let folded = self.fold_at_depth(nested, depth + 1)?;
+                    let folded = self.fold_at_depth(nested, depth + 1, dialect)?;
                     words.push(folded.value);
                     command_bindings.extend(folded.command_bindings);
                     prev_is_sep = false;
@@ -389,11 +586,48 @@ mod tests {
         ConstSubstCtx {
             registry,
             resolution_namespace: "::",
+            namespace_context: None,
             version: None,
             defining_class: None,
             trusts,
             lookup_var: lookup,
         }
+    }
+
+    #[test]
+    fn range_folding_retains_the_actual_native_result_bytes() {
+        let trust = |_: &str| true;
+        let lookup = |_: &str| None;
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let supplied = tcl_registry::model::ingress::static_context_for(profile);
+            let registry = supplied.commands();
+            let dialect = tcl_registry::InvocationDialect::of_profile(registry.profile().unwrap());
+            let fold = ctx(registry, &trust, &lookup);
+            assert_eq!(
+                fold.fold_cmd_subst_in("lrange {x #value end} 1 1", dialect)
+                    .as_deref(),
+                Some(if profile == "tcl8.4" {
+                    "#value"
+                } else {
+                    "{#value}"
+                }),
+                "{profile}"
+            );
+            assert_eq!(
+                fold.fold_cmd_subst_in("lrange {x a b} 8 end", dialect)
+                    .as_deref(),
+                Some("")
+            );
+            assert!(
+                fold.fold_cmd_subst_in("lrange {x a b} nope end", dialect)
+                    .is_none()
+            );
+        }
+        assert!(
+            ctx(registry(), &trust, &lookup)
+                .fold_cmd_subst("lrange {x #value end} 1 1")
+                .is_none()
+        );
     }
 
     #[test]
@@ -406,6 +640,34 @@ mod tests {
             Some("::tc"),
         );
         assert_eq!(c.fold_cmd_subst("string length abc").as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn actual_native_axes_select_the_fold_independently_of_catalogue_order() {
+        let catalogue = CommandRegistry::build_default();
+        let trust = |_: &str| true;
+        let lookup = |_: &str| None;
+        let fold = ctx(&catalogue, &trust, &lookup);
+        let tcl = tcl_registry::InvocationDialect::for_version(TclVersion::V9_0);
+        let jim = tcl_registry::InvocationDialect::of_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        assert_eq!(
+            fold.fold_cmd_subst_in("concat a b c", tcl).as_deref(),
+            Some("a b c")
+        );
+        assert!(fold.fold_cmd_subst_in("concat a b c", jim).is_none());
+        let reject = |_: &str| false;
+        assert!(
+            ctx(&catalogue, &reject, &lookup)
+                .fold_cmd_subst_in("concat a b c", tcl)
+                .is_none()
+        );
+        let mut unknown = tcl;
+        unknown.native_family = None;
+        unknown.core_point = None;
+        unknown.tcl_version = None;
+        assert!(fold.fold_cmd_subst_in("concat a b c", unknown).is_none());
     }
 
     #[test]

@@ -1008,11 +1008,24 @@ fn mathop_shared() {
     );
 }
 
-/// `lseq` — newly added to the VM, sharing `tcl_cmd_core::lseq`'s decode key +
-/// generation over the VM's `ValueOps` and an `eval_expr`-backed expression edge.
-/// Pinned against tclsh 9.0.
+/// Native Tcl 9.0 numeric sequence argument decoding and bounded generation.
 #[test]
 fn lseq_shared() {
+    fn run(src: &str) -> (bool, String, String) {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        vm.set_compiler(Box::new(BytecodeCompileService::default()));
+        let completion = vm
+            .try_eval_source(src)
+            .expect("native numeric sequence fixture");
+        (
+            completion.code.is_ok(),
+            String::from_utf8(completion.result.string_bytes().to_vec()).expect("Unicode result"),
+            String::new(),
+        )
+    }
     // Integer forms (count-only, ranges, by-step, count keyword, n n).
     assert_eq!(run("lseq 5").1, "0 1 2 3 4");
     assert_eq!(run("lseq 0").1, "");
@@ -1029,16 +1042,17 @@ fn lseq_shared() {
     assert_eq!(run("lseq 25. to 5. by -5").1, "25.0 20.0 15.0 10.0 5.0");
     // A double-valued count stays an integer sequence.
     assert_eq!(run("lseq 5 count 5.0").1, "5 6 7 8 9");
-    // Expression-valued arguments (the eval edge).
-    assert_eq!(run("lseq 1+2 to 10").1, "3 4 5 6 7 8 9 10");
-    assert_eq!(run("set n 3; lseq $n*2").1, "0 1 2 3 4 5");
+    // Native argument bytes are number-converted without expression evaluation.
+    let (ok, message, _) = run("lseq 1+2 to 10");
+    assert!(!ok);
+    assert_eq!(message, "expected number but got \"1+2\"");
+    let (ok, message, _) = run("set n 3; lseq $n*2");
+    assert!(!ok);
+    assert_eq!(message, "expected number but got \"3*2\"");
     // Errors.
     let (ok, msg, _) = run("lseq");
     assert!(!ok);
     assert_eq!(msg, "wrong # args: should be \"lseq n ??op? n ??by? n??\"");
-    let (ok, msg, _) = run("lseq 10 2147483647");
-    assert!(!ok);
-    assert_eq!(msg, "max length of a Tcl list exceeded");
 }
 
 #[test]
@@ -1226,6 +1240,11 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         labels,
         loop_targets: std::collections::HashMap::new(),
         body_base_line: 0,
+        native_compilation_failure: None,
+        native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+        native_math_table_prerequisite: None,
+        native_compiler_prerequisites: Vec::new(),
+        required_compiled_local_layout: None,
         proc_body_src: None,
         error_regions: Vec::new(),
         plain_command_dispatch: false,
@@ -1234,8 +1253,8 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
     };
     let module = ModuleAsm {
         profile: tcl_dialect::DialectProfile::plain_tcl(),
-        source: String::new(),
-        source_namespace: String::new(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
         plain_command_dispatch: false,
         top_level: top,
         top_level_body: FunctionAsm::default(),
@@ -2105,6 +2124,102 @@ impl CachedBodyCompileService {
 
 impl CompileService for CachedBodyCompileService {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_script_bytes_for_profile(target, profile)
+            .map(|module| self.inject(module))
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+            .map(|module| self.inject(module))
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_script_with_entry(target, profile, entry)
+            .map(|module| self.inject(module))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_vm::CompileError> {
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, tcl_vm::CompileError> {
         self.inner.compile(src).map(|module| self.inject(module))

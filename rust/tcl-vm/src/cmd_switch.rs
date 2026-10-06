@@ -28,27 +28,36 @@
 //! `JUMP_TABLE` opcode, so this runtime form
 //! is invoked for `-glob`/`-regexp`/`-integer`/`-nocase`/dynamic cases.
 
+mod native_jim;
+
 use tcl_cmd_core::switch::{self as core_switch, Selection};
 use tcl_runtime_api::Completion;
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cmd_regexp::CrateEngine;
 use crate::command::settle_control_options;
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("switch", cmd_switch);
+    vm.register_stock_builtin("switch", cmd_switch);
 }
 
-const USAGE_LIST: &str = "switch ?-option ...? string {?pattern body ...? ?default body?}";
-
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_jim_switch_protocol()
+    {
+        return native_jim::invoke(vm, args, protocol);
+    }
     // Options + the `string` index are shared (the VM's argv is name-stripped).
-    let version = vm.runtime_version();
+    let version = vm
+        .actual_native_invocation_dialect()
+        .tcl_version
+        .unwrap_or_else(|| vm.runtime_version());
     let opts = match core_switch::parse_options(vm, args, version) {
         Ok(o) => o,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     let value = args[opts.value_index].clone();
     let rest = &args[opts.value_index + 1..];
@@ -57,15 +66,24 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let pairs: Vec<(Value, Value)> = if rest.len() == 1 {
         let items = match rest[0].as_list() {
             Ok(i) => i,
-            Err(e) => return err(e.message),
+            Err(e) => return crate::command::completion_from_tcl_error(vm, e),
         };
         if items.is_empty() {
-            return err(format!("wrong # args: should be \"{USAGE_LIST}\""));
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                format!(
+                    "wrong # args: should be \"{}\"",
+                    core_switch::usage(version, true)
+                ),
+            );
         }
         if !items.len().is_multiple_of(2) {
             // The "misplaced comment" heuristic: a pattern beginning with `#`.
             let hint = items.iter().step_by(2).any(|p| p.to_str().starts_with('#'));
-            return err(core_switch::extra_pattern_error(hint).into_message());
+            return crate::command::completion_from_cmd_error(
+                vm,
+                core_switch::extra_pattern_error(hint),
+            );
         }
         items
             .as_chunks::<2>()
@@ -75,7 +93,10 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .collect()
     } else {
         if !rest.len().is_multiple_of(2) {
-            return err(core_switch::extra_pattern_error(false).into_message());
+            return crate::command::completion_from_cmd_error(
+                vm,
+                core_switch::extra_pattern_error(false),
+            );
         }
         rest.as_chunks::<2>()
             .0
@@ -85,38 +106,68 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
 
     // A trailing `-` fall-through body has nothing to fall through to.
-    if let Some((pat, body)) = pairs.last()
-        && &*body.to_str() == "-"
-    {
-        return err(core_switch::no_body_error(&pat.to_str()).into_message());
+    if let Some((pat, body)) = pairs.last() {
+        match core_switch::body_is_fallthrough(vm, body) {
+            Ok(true) => {
+                let bytes = match tcl_syntax::value::ValueOps::native_string_bytes(vm, pat) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(vm, error.into());
+                    }
+                };
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    core_switch::no_body_error(&bytes),
+                );
+            }
+            Ok(false) => {}
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        }
     }
 
     let patterns: Vec<Value> = pairs.iter().map(|(p, _)| p.clone()).collect();
-    let sel = match core_switch::select::<Vm, CrateEngine, Value>(
-        vm, &opts, &value, &patterns, version,
+    let sel = match core_switch::select_original_with_jim::<Vm, CrateEngine, Value, Completion<Value>>(
+        vm,
+        &opts,
+        &value,
+        &patterns,
+        version,
+        crate::cmd_regexp::invoke_jim_regexp,
     ) {
         Ok(s) => s,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Command(error)) => {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Callback(completion)) => {
+            return completion;
+        }
     };
     let Selection::Matched { index, writes } = sel else {
         return settle_control_options(ok(Value::empty()), ControlOptionPolicy::FRESH_FORWARDED);
     };
     // TIP #75 `-matchvar`/`-indexvar` writes happen before the body runs.
     for (name, val) in writes {
-        if let Err(e) = vm.set_var(&name.to_str(), val) {
+        if let Err(e) = vm.store_original_named_variable(&name, val) {
             return e;
         }
     }
     // Resolve a `-` fall-through to the next real body (the trailing-`-` check
     // above guarantees one exists).
     let mut b = index;
-    while &*pairs[b].1.to_str() == "-" {
-        b += 1;
+    loop {
+        match core_switch::body_is_fallthrough(vm, &pairs[b].1) {
+            Ok(true) => b += 1,
+            Ok(false) => break,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        }
     }
-    let body = pairs[b].1.to_str().to_string();
-    let completion = match vm.eval_source(&body) {
+    let completion = match vm.eval_original_script_value(
+        &pairs[b].1,
+        tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+        None,
+    ) {
         Ok(c) => c,
-        Err(e) => err(e.message),
+        Err(e) => crate::command::completion_from_tcl_error(vm, e),
     };
     settle_control_options(completion, ControlOptionPolicy::FRESH_FORWARDED)
 }

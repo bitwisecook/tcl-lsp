@@ -1,0 +1,38 @@
+8.4.20	initial-options	absent-field
+8.4.20	initial-stack	absent-field
+8.5.19	initial-options	absent
+8.5.19	options-before	dict	1	none	1
+8.5.19	options-saved	2	1
+8.5.19	options-mutated	1	1	1
+8.5.19	options-restored	1	1	1
+8.5.19	initial-stack	absent-field
+8.6.18	initial-options	absent
+8.6.18	options-before	dict	1	none	1
+8.6.18	options-saved	2	1
+8.6.18	options-mutated	1	1	1
+8.6.18	options-restored	1	1	1
+8.6.18	initial-stack	none	1
+8.6.18	stack-before	list	1	2	none	1
+8.6.18	stack-saved	2	1
+8.6.18	stack-mutated	1	1	1
+8.6.18	stack-restored	1	1	1
+9.0.4	initial-options	absent
+9.0.4	options-before	dict	1	none	1
+9.0.4	options-saved	2	1
+9.0.4	options-mutated	1	1	1
+9.0.4	options-restored	1	1	1
+9.0.4	initial-stack	none	1
+9.0.4	stack-before	list	1	2	none	1
+9.0.4	stack-saved	2	1
+9.0.4	stack-mutated	1	1	1
+9.0.4	stack-restored	1	1	1
+9.1.0	initial-options	absent
+9.1.0	options-before	dict	1	none	1
+9.1.0	options-saved	2	1
+9.1.0	options-mutated	1	1	1
+9.1.0	options-restored	1	1	1
+9.1.0	initial-stack	none	1
+9.1.0	stack-before	list	1	2	none	1
+9.1.0	stack-saved	2	1
+9.1.0	stack-mutated	1	1	1
+9.1.0	stack-restored	1	1	1

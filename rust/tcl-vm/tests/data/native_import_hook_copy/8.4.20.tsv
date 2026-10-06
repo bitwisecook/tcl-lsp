@@ -1,0 +1,6 @@
+event	code	compiler	source_hook	old_hook	fresh_hook	old_same	fresh_same
+import_absent	0	0	0	0	-1	1	-1
+rename_old	0	0	0	0	-1	1	-1
+hide_old	0	0	0	-1	-1	-1	-1
+expose_old	0	0	0	0	-1	1	-1
+delete_source	0	0	-1	-1	-1	-1	-1

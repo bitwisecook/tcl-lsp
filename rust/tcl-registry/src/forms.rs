@@ -132,6 +132,11 @@ pub struct CommandForm {
     /// descriptors. `None` keeps the inherited semantic operation.
     pub semantic_operation: Option<SemanticOperationId>,
 
+    /// Normal-handler equivalence specific to this selected argv form.
+    /// This refines mixed getter/mutator commands without granting native
+    /// compiler entry or transferring the getter contract to other forms.
+    pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+
     /// Completion semantics specific to this form.
     ///
     /// When present, this takes precedence over a resolved subcommand's and
@@ -142,6 +147,27 @@ pub struct CommandForm {
     /// Result-dependency refinement for this concrete invocation shape.
     /// `None` inherits the resolved subcommand or command declaration.
     pub result_stability: Option<ResultStability>,
+
+    /// Native result dependency, inheriting the parent when omitted.
+    pub native_result: Option<crate::native_result::NativeResultContract>,
+
+    /// Successful result representation override. `None` inherits; `Some(None)`
+    /// withdraws the parent's guarantee for a form returning an existing value.
+    pub return_type: Option<Option<crate::TclType>>,
+
+    /// Operand representation hints for this form. An empty selected slice
+    /// suppresses conversion hints inherited from a mutating parent.
+    pub arg_types: Option<&'static [(u8, crate::hooks::ArgTypeHint)]>,
+
+    /// Byte-array conversion override, including an explicit inert effect.
+    pub byte_array_effect: Option<crate::ByteArrayEffect>,
+
+    /// Container element-write override. `Some(None)` removes a parent write.
+    pub var_elements_effect: Option<Option<crate::VarElementsEffect>>,
+
+    /// Undefined-variable admission override. `Some(None)` withdraws the
+    /// parent's auto-creation promise for a read-only form.
+    pub safe_on_uninit: Option<Option<&'static [SpecSurface]>>,
 
     /// Tcl value-representation effect specific to this form. `None` inherits
     /// the subcommand or command declaration.
@@ -211,8 +237,15 @@ impl CommandForm {
         option_relations: &[],
         surface: None,
         semantic_operation: None,
+        successful_handler: None,
         completion: None,
         result_stability: None,
+        native_result: None,
+        return_type: None,
+        arg_types: None,
+        byte_array_effect: None,
+        var_elements_effect: None,
+        safe_on_uninit: None,
         representation_effect: None,
         traits: None,
         mutator: None,

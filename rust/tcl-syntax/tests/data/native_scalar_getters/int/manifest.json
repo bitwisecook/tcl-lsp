@@ -1,0 +1,655 @@
+{
+  "source_sha256": "07998ce7fd101f2b8faad99ae82dc664518c07917a1791e8c3fb57e49c167bcb",
+  "engines": [
+    {
+      "version": "8.4.20",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/8.4.20"
+      ],
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "rows": [
+        {
+          "case": 0,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f7420223122",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 1,
+          "code": 0,
+          "value": -2147483648,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 2,
+          "code": 0,
+          "value": -1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 3,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e7465676572",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 4,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 5,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e7465676572",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 6,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 7,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 8,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202230382220286c6f6f6b73206c696b6520696e76616c6964206f6374616c206e756d62657229",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 9,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 10,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202262616422",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 11,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 12,
+          "code": 0,
+          "value": 1,
+          "cache": "wideInt",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 13,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f7420226e616e22",
+          "error_code": "53454544454420434f4445"
+        }
+      ]
+    },
+    {
+      "version": "8.5.19",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/8.5.19"
+      ],
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "rows": [
+        {
+          "case": 0,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 1,
+          "code": 0,
+          "value": -2147483648,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 2,
+          "code": 0,
+          "value": -1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 3,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e7465676572",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e74656765727d"
+        },
+        {
+          "case": 4,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 5,
+          "code": 1,
+          "value": 777,
+          "cache": "bignum",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e7465676572",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74206173206e6f6e2d6c6f6e6720696e74656765727d"
+        },
+        {
+          "case": 6,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 7,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 8,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022303822",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 9,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 10,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202262616422",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 11,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 12,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 13,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "53454544454420434f4445"
+        }
+      ]
+    },
+    {
+      "version": "8.6.18",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/8.6.18"
+      ],
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "rows": [
+        {
+          "case": 0,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 1,
+          "code": 0,
+          "value": -2147483648,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 2,
+          "code": 0,
+          "value": -1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 3,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 4,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 5,
+          "code": 1,
+          "value": 777,
+          "cache": "bignum",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 6,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 7,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 8,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022303822",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 9,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 10,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202262616422",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 11,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 12,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 13,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        }
+      ]
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/9.0.4"
+      ],
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "rows": [
+        {
+          "case": 0,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 1,
+          "code": 0,
+          "value": -2147483648,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 2,
+          "code": 0,
+          "value": -1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 3,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 4,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 5,
+          "code": 1,
+          "value": 777,
+          "cache": "bignum",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 6,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 7,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 8,
+          "code": 0,
+          "value": 8,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 9,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 10,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202262616422",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 11,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 12,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 13,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "54434c2056414c554520494e5445474552"
+        }
+      ]
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-packages-dialects/int-getter/9.1.0"
+      ],
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "rows": [
+        {
+          "case": 0,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 1,
+          "code": 0,
+          "value": -2147483648,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 2,
+          "code": 0,
+          "value": -1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 3,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 4,
+          "code": 1,
+          "value": 777,
+          "cache": "int",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 5,
+          "code": 1,
+          "value": 777,
+          "cache": "bignum",
+          "message": "696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e74",
+          "error_code": "415249544820494f564552464c4f57207b696e74656765722076616c756520746f6f206c6172676520746f20726570726573656e747d"
+        },
+        {
+          "case": 6,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 7,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 8,
+          "code": 0,
+          "value": 8,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 9,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 10,
+          "code": 1,
+          "value": 777,
+          "cache": "string",
+          "message": "657870656374656420696e74656765722062757420676f74202262616422",
+          "error_code": "54434c2056414c5545204e554d424552"
+        },
+        {
+          "case": 11,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f742022312e3022",
+          "error_code": "54434c2056414c554520494e5445474552"
+        },
+        {
+          "case": 12,
+          "code": 0,
+          "value": 1,
+          "cache": "int",
+          "message": "",
+          "error_code": "53454544454420434f4445"
+        },
+        {
+          "case": 13,
+          "code": 1,
+          "value": 777,
+          "cache": "double",
+          "message": "657870656374656420696e74656765722062757420676f7420224e614e22",
+          "error_code": "54434c2056414c554520494e5445474552"
+        }
+      ]
+    }
+  ]
+}

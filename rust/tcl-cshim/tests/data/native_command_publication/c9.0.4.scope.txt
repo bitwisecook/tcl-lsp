@@ -1,0 +1,10 @@
+current=::a:
+unqualified-full=::p
+qualified-full=::a:::q::p
+qualified-local-token=1
+local-simple status=0 result=GLOBAL
+local-qualified status=0 result=QUALIFIED
+publication status=0 result=
+global-simple status=0 result=GLOBAL
+global-a-q status=1 result=invalid command name "::a::q::p"
+global-a-colon-q status=1 result=invalid command name "::a:::q::p"

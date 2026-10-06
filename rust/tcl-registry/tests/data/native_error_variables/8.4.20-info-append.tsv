@@ -1,0 +1,3 @@
+empty-append	privateinfo=null	privatecode=null	info_same=0	code_same=1	info_refs=3	code_refs=-1	global0=bytearray	global0_same=1	global1=string	global1_same=0
+nonempty-append	privateinfo=null	privatecode=null	info_same=0	code_same=1	info_refs=2	code_refs=-1	global0=string	global0_same=0	global1=string	global1_same=0
+append-reset	privateinfo=null	privatecode=null	info_same=0	code_same=1	info_refs=1	code_refs=-1	global0=string	global0_same=0	global1=string	global1_same=0

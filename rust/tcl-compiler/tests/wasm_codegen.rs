@@ -1069,6 +1069,227 @@ fn compile_native(source: &str) -> WasmModule {
     .into_module()
 }
 
+/// A deterministic host records an effect before refusing a variable read.
+/// Its completion out slots remain untouched, matching the refusal ABI.
+fn native_refusal_host(module: &WasmModule, refuse: bool) -> String {
+    use std::fmt::Write as _;
+    let mut host = String::from(
+        "(module (memory (export \"memory\") 32) \
+         (table (export \"__indirect_function_table\") 0 funcref) \
+         (global $pending (mut i32) (i32.const 0)) \
+         (global $writes (mut i32) (i32.const 0)) \
+         (global $frees (mut i32) (i32.const 0)) \
+         (func (export \"writes\") (result i32) global.get $writes) \
+         (func (export \"frees\") (result i32) global.get $frees)",
+    );
+    let types = module.type_section();
+    let mut exports = std::collections::BTreeMap::new();
+    for import in &module.imports {
+        let (parameters, results) = &types[import.type_idx];
+        if let Some(previous) = exports.insert(&import.name, (parameters, results)) {
+            assert_eq!(previous, (parameters, results), "shared host ABI signature");
+            continue;
+        }
+        write!(&mut host, " (func (export {:?})", import.name).unwrap();
+        for parameter in parameters {
+            write!(&mut host, " (param {})", parameter.wat_name()).unwrap();
+        }
+        for result in results {
+            write!(&mut host, " (result {})", result.wat_name()).unwrap();
+        }
+        if import.name == CodegenAbiImportId::VarSet.descriptor().name {
+            host.push_str(" (global.set $writes (i32.add (global.get $writes) (i32.const 1)))");
+        } else if import.name == CodegenAbiImportId::VarGet.descriptor().name && refuse {
+            host.push_str(" (global.set $pending (i32.const 1))");
+        } else if import.name == CodegenAbiImportId::CallFrameFree.descriptor().name {
+            host.push_str(" (global.set $frees (i32.add (global.get $frees) (i32.const 1)))");
+        }
+        if import.name == CodegenAbiImportId::HostRefusalPending.descriptor().name {
+            host.push_str(" global.get $pending");
+        } else if import.name == CodegenAbiImportId::CallFrameAlloc.descriptor().name {
+            host.push_str(" i32.const 8192");
+        } else if import.name == CodegenAbiImportId::ObjectRetain.descriptor().name {
+            host.push_str(" local.get 0");
+        } else if import.name == CodegenAbiImportId::NewOwnedString.descriptor().name
+            || (import.name == CodegenAbiImportId::VarGet.descriptor().name && !refuse)
+        {
+            // A normal read returns an owned object. Null is the guest
+            // missing-variable protocol and would stop before later stores.
+            host.push_str(" i32.const 4096");
+        } else {
+            for result in results {
+                write!(&mut host, " {}.const 0", result.wat_name()).unwrap();
+            }
+        }
+        host.push(')');
+    }
+    host.push(')');
+    host
+}
+
+fn native_refusal_bootstrap() -> &'static str {
+    "(module (import \"tcl\" \"memory\" (memory 32)) \
+     (import \"tcl\" \"writes\" (func $writes (result i32))) \
+     (import \"tcl\" \"frees\" (func $frees (result i32))) \
+     (import \"user\" \"::p\" (func $p (param i32 i32 i32) (result i32))) \
+     (func (export \"probe\") (result i32 i32 i32 i32 i32 i32) \
+     (i32.store (i32.const 256) (i32.const 77)) \
+     (i32.store (i32.const 260) (i32.const 78)) \
+     (i32.store (i32.const 264) (i32.const 79)) \
+     (call $p (i32.const 0) (i32.const 0) (i32.const 256)) \
+     (call $writes) (call $frees) \
+     (i32.load (i32.const 256)) (i32.load (i32.const 260)) \
+     (i32.load (i32.const 264))))"
+}
+
+fn compile_native_refusal_proc(source: &str) -> WasmModule {
+    let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
+        native_entry: Some(std::sync::Arc::new(capture_native_refusal_entry(profile))),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+            mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            catch_depth: Some(0),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let unit = CompilationUnit::build_with_source_entry(
+        source,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &entry,
+    );
+    let output = compile_wasm_unit(
+        &unit,
+        &registry,
+        WasmCompileOptions::runtime_linked().native_tier(),
+    );
+    assert!(
+        output
+            .module
+            .functions
+            .iter()
+            .any(|function| { function.name == "::p" && function.kind == "native-proc" }),
+        "native refusal fixture must execute the native proc: {:?}",
+        output.native
+    );
+    output.into_module()
+}
+
+fn capture_native_refusal_entry(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> tcl_runtime_api::NativeCompilationEntry {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    struct Capture(Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>);
+    impl tcl_runtime_api::CompileService for Capture {
+        type Module = tcl_bytecode::ModuleAsm;
+        fn compile_script_bytes_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            _: &'static tcl_dialect::DialectProfile,
+            _: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            Ok(tcl_runtime_api::ScriptCommandPlan::complete(source.len()))
+        }
+
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "capture only".into(),
+            ))
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            _: tcl_runtime_api::ScriptCompileTarget<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            *self.0.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+    }
+    let captured = Rc::new(RefCell::new(None));
+    let mut vm = tcl_vm::Vm::default();
+    vm.set_dialect_profile(profile);
+    vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
+    assert!(vm.try_eval_source("set probe 1").is_err());
+    captured
+        .borrow_mut()
+        .take()
+        .expect("actual interpreter entry")
+}
+
+#[test]
+fn native_host_refusal_preserves_out_parameter_and_effect_order() {
+    let mut module =
+        compile_native_refusal_proc("proc p {} {set before 1; set v $missing; set after 2}\np\n");
+    for refuse in [false, true] {
+        let stem = std::env::temp_dir().join(format!(
+            "tcl-native-refusal-{}-{refuse}",
+            std::process::id()
+        ));
+        let host = stem.with_extension("host.wat");
+        let user = stem.with_extension("user.wasm");
+        let boot = stem.with_extension("boot.wat");
+        std::fs::write(&host, native_refusal_host(&module, refuse)).unwrap();
+        std::fs::write(&user, module.to_bytes()).unwrap();
+        std::fs::write(&boot, native_refusal_bootstrap()).unwrap();
+        let output = std::process::Command::new("wasmtime")
+            .args(["run", "-C", "cache=n", "--invoke", "probe", "--preload"])
+            .arg(format!("tcl={}", host.display()))
+            .arg("--preload")
+            .arg(format!("user={}", user.display()))
+            .arg(&boot)
+            .output()
+            .expect("Wasmtime is required to prove generated refusal unwinding");
+        for path in [&host, &user, &boot] {
+            std::fs::remove_file(path).unwrap();
+        }
+        assert!(
+            output.status.success(),
+            "refuse={refuse}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let observed: Vec<i32> = String::from_utf8(output.stdout)
+            .unwrap()
+            .split_whitespace()
+            .map(|value| value.parse().unwrap())
+            .collect();
+        assert_eq!(
+            observed.len(),
+            6,
+            "native status/effects/completion: {observed:?}"
+        );
+        assert_eq!(observed[0], if refuse { 2 } else { 0 }, "{observed:?}");
+        assert_eq!(observed[1], if refuse { 1 } else { 3 }, "{observed:?}");
+        assert_eq!(observed[2], 1, "transient frame cleanup: {observed:?}");
+        if refuse {
+            assert_eq!(&observed[3..], &[77, 78, 79], "completion untouched");
+        } else {
+            assert_ne!(observed[3], 77, "ordinary completion written");
+        }
+    }
+}
+
 /// Every `call` target in `function`, decoded from its LEB128 operand.
 fn call_targets(function: &tcl_compiler::codegen::wasm::WasmFunction) -> Vec<u64> {
     function
@@ -1196,6 +1417,238 @@ fn a_module_that_binds_nothing_keeps_its_old_shape() {
     assert!(module.globals.is_empty());
     assert!(module.elem_declared.is_empty());
     assert!(!module.to_wat().contains("table.grow"));
+}
+
+fn backend_refusal_host(module: &WasmModule, refuse_at: i32) -> String {
+    use std::fmt::Write as _;
+    let mut host = String::from(
+        "(module (memory (export \"memory\") 32) \
+         (global $pending (mut i32) (i32.const 0)) \
+         (global $calls (mut i32) (i32.const 0)) \
+         (global $frees (mut i32) (i32.const 0)) \
+         (global $adoptions (mut i32) (i32.const 0)) \
+         (global $releases (mut i32) (i32.const 0)) \
+         (func (export \"calls\") (result i32) global.get $calls) \
+         (func (export \"frees\") (result i32) global.get $frees) \
+         (func (export \"adoptions\") (result i32) global.get $adoptions) \
+         (func (export \"releases\") (result i32) global.get $releases)",
+    );
+    let types = module.type_section();
+    let mut exports = std::collections::BTreeMap::new();
+    for import in &module.imports {
+        let (parameters, results) = &types[import.type_idx];
+        if let Some(previous) = exports.insert(&import.name, (parameters, results)) {
+            assert_eq!(previous, (parameters, results));
+            continue;
+        }
+        write!(&mut host, " (func (export {:?})", import.name).unwrap();
+        for parameter in parameters {
+            write!(&mut host, " (param {})", parameter.wat_name()).unwrap();
+        }
+        for result in results {
+            write!(&mut host, " (result {})", result.wat_name()).unwrap();
+        }
+        if import.name == CodegenAbiImportId::InvokeArgv.descriptor().name
+            || import.name == "tcl_eval_code"
+        {
+            write!(
+                &mut host,
+                " (global.set $calls (i32.add (global.get $calls) (i32.const 1))) \
+                 (if (i32.eq (global.get $calls) (i32.const {refuse_at})) \
+                   (then (global.set $pending (i32.const 1))))"
+            )
+            .unwrap();
+            if import.name == CodegenAbiImportId::InvokeArgv.descriptor().name {
+                host.push_str(
+                    " (if (i32.eqz (global.get $pending)) (then \
+                       (i32.store (local.get 2) (i32.const 0)) \
+                       (i32.store offset=4 (local.get 2) (i32.const 4096)) \
+                       (i32.store offset=8 (local.get 2) (i32.const 4097))))",
+                );
+            }
+        } else if import.name == CodegenAbiImportId::ObjectRelease.descriptor().name {
+            host.push_str(" (if (local.get 0) (then (global.set $releases (i32.add (global.get $releases) (i32.const 1)))))");
+        } else if import.name == CodegenAbiImportId::CallFrameFree.descriptor().name {
+            host.push_str(" (global.set $frees (i32.add (global.get $frees) (i32.const 1)))");
+        } else if import.name == CodegenAbiImportId::CompletionRelease.descriptor().name {
+            host.push_str(
+                " (global.set $adoptions (i32.add (global.get $adoptions) (i32.const 1)))",
+            );
+        }
+        if import.name == CodegenAbiImportId::HostRefusalPending.descriptor().name {
+            host.push_str(" global.get $pending");
+        } else {
+            let constant = if import.name == CodegenAbiImportId::CallFrameAlloc.descriptor().name {
+                8192
+            } else if import.name == CodegenAbiImportId::ObjectRetain.descriptor().name {
+                host.push_str(" local.get 0");
+                host.push(')');
+                continue;
+            } else if [
+                CodegenAbiImportId::NewOwnedString,
+                CodegenAbiImportId::ObjectNewString,
+                CodegenAbiImportId::ValueNewString,
+            ]
+            .iter()
+            .any(|id| import.name == id.descriptor().name)
+            {
+                4096
+            } else {
+                0
+            };
+            for result in results {
+                let value = if import.name == CodegenAbiImportId::InvokeArgv.descriptor().name
+                    || import.name == "tcl_eval_code"
+                {
+                    0
+                } else {
+                    constant
+                };
+                write!(&mut host, " {}.const {value}", result.wat_name()).unwrap();
+            }
+        }
+        host.push(')');
+    }
+    host.push(')');
+    host
+}
+
+fn run_backend_refusal_case(
+    module: &mut WasmModule,
+    host: &str,
+    body: &str,
+    label: &str,
+) -> Vec<i32> {
+    let stem = std::env::temp_dir().join(format!(
+        "tcl-backend-refusal-{}-{label}",
+        std::process::id()
+    ));
+    let host_path = stem.with_extension("host.wat");
+    let user_path = stem.with_extension("user.wasm");
+    let boot_path = stem.with_extension("boot.wat");
+    std::fs::write(&host_path, host).unwrap();
+    std::fs::write(&user_path, module.to_bytes()).unwrap();
+    std::fs::write(&boot_path, body).unwrap();
+    let output = std::process::Command::new("wasmtime")
+        .args(["run", "-C", "cache=n", "--invoke", "_start", "--preload"])
+        .arg(format!("tcl={}", host_path.display()))
+        .arg("--preload")
+        .arg(format!("user={}", user_path.display()))
+        .arg(&boot_path)
+        .output()
+        .expect("Wasmtime is required for refusal ownership checks");
+    for path in [&host_path, &user_path, &boot_path] {
+        std::fs::remove_file(path).unwrap();
+    }
+    assert!(
+        output.status.success(),
+        "{label}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout)
+        .unwrap()
+        .split_whitespace()
+        .map(|value| value.parse().unwrap())
+        .collect()
+}
+
+#[test]
+fn general_host_refusal_releases_the_current_frame_and_stops_before_later_effects() {
+    let mut module = compile_wasm_analysed("puts before\nputs during\nputs after\n");
+    assert!(
+        module
+            .functions
+            .iter()
+            .any(|function| function.name == "::top" && function.results.is_empty())
+    );
+    for refuse in [false, true] {
+        let calls = if refuse { 2 } else { 3 };
+        // General lowering moves each completion handle directly into a cleanup
+        // slot; it releases owned objects, rather than the completion wrapper.
+        let releases = if refuse { 6 } else { 12 };
+        let pending = i32::from(refuse);
+        let body = String::from(
+            "(module (import \"user\" \"::top\" (func $top)) \
+             (import \"tcl\" \"calls\" (func $calls (result i32))) \
+             (import \"tcl\" \"frees\" (func $frees (result i32))) \
+             (import \"tcl\" \"adoptions\" (func $adoptions (result i32))) \
+             (import \"tcl\" \"releases\" (func $releases (result i32))) \
+             (import \"tcl\" \"tcl_codegen_host_refusal_pending\" (func $pending (result i32))) \
+             (func (export \"_start\") (result i32 i32 i32 i32 i32) call $top \
+               call $calls call $frees call $adoptions call $pending call $releases))",
+        );
+        let host = backend_refusal_host(&module, if refuse { 2 } else { -1 });
+        let observed =
+            run_backend_refusal_case(&mut module, &host, &body, &format!("general-{refuse}"));
+        assert_eq!(
+            observed,
+            [calls, calls, 0, pending, releases],
+            "refuse={refuse}: {observed:?}"
+        );
+    }
+}
+
+fn compile_semantic_refusal_invocation() -> WasmModule {
+    let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+    let registry = CommandRegistry::build_default().project_for_profile(profile);
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
+        native_entry: Some(std::sync::Arc::new(capture_native_refusal_entry(profile))),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+            mode: tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            catch_depth: Some(0),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let unit = CompilationUnit::build_with_source_entry(
+        "error boom\n",
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: &registry,
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        &entry,
+    );
+    compile_wasm_unit(&unit, &registry, WasmCompileOptions::runtime_linked()).into_module()
+}
+
+#[test]
+fn semantic_host_refusal_does_not_adopt_completion_output() {
+    let mut module = compile_semantic_refusal_invocation();
+    let function = module
+        .functions
+        .iter()
+        .find(|function| function.kind == "semantic-generic-invoke")
+        .expect("the actual entry must select the semantic argv mode");
+    let name = function.name.clone();
+    for refuse in [false, true] {
+        let adoptions = i32::from(!refuse);
+        let result = if refuse { 0 } else { 4096 };
+        let options = if refuse { 0 } else { 4097 };
+        let pending = i32::from(refuse);
+        let body = format!(
+            "(module (import \"user\" {name:?} (func $invoke (result i32 i32 i32))) \
+             (import \"tcl\" \"calls\" (func $calls (result i32))) \
+             (import \"tcl\" \"frees\" (func $frees (result i32))) \
+             (import \"tcl\" \"adoptions\" (func $adoptions (result i32))) \
+             (import \"tcl\" \"tcl_codegen_host_refusal_pending\" (func $pending (result i32))) \
+             (func (export \"_start\") (local $code i32) (local $result i32) (local $options i32) \
+               call $invoke local.set $options local.set $result local.set $code \
+               (if (i32.ne (call $calls) (i32.const 1)) (then unreachable)) \
+               (if (i32.ne (call $frees) (i32.const 1)) (then unreachable)) \
+               (if (i32.ne (call $adoptions) (i32.const {adoptions})) (then unreachable)) \
+               (if (i32.ne (call $pending) (i32.const {pending})) (then unreachable)) \
+               (if (i32.ne (local.get $result) (i32.const {result})) (then unreachable)) \
+               (if (i32.ne (local.get $options) (i32.const {options})) (then unreachable))))"
+        );
+        let host = backend_refusal_host(&module, if refuse { 1 } else { -1 });
+        run_backend_refusal_case(&mut module, &host, &body, &format!("semantic-{refuse}"));
+    }
 }
 
 /// Two definitions of one name: only the statement whose body became this

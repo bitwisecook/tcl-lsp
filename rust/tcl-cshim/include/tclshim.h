@@ -160,6 +160,7 @@ EXTERN int Tcl_ListObjLength(Tcl_Interp *interp, Tcl_Obj *listPtr,
 EXTERN void Tcl_SetObjResult(Tcl_Interp *interp, Tcl_Obj *resultObjPtr);
 EXTERN Tcl_Obj *Tcl_GetObjResult(Tcl_Interp *interp);
 EXTERN void Tcl_ResetResult(Tcl_Interp *interp);
+EXTERN Tcl_Obj *Tcl_GetReturnOptions(Tcl_Interp *interp, int code);
 EXTERN void Tcl_WrongNumArgs(Tcl_Interp *interp, TclShim_Size objc,
 	Tcl_Obj *const objv[], const char *message);
 EXTERN void Tcl_SetObjErrorCode(Tcl_Interp *interp, Tcl_Obj *errorObjPtr);

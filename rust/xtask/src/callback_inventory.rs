@@ -156,7 +156,7 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
         let mut names: Vec<_> = registry.command_names().collect();
         names.sort_unstable();
         for name in names {
-            let Some(spec) = registry.get(name) else {
+            let Some(spec) = registry.get_for_surface(name, Some(profile.surface_query())) else {
                 continue;
             };
             collect_spec(&mut rows, profile.name, name, spec)?;
@@ -191,7 +191,7 @@ fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()
         let mut names: Vec<_> = registry.command_names().collect();
         names.sort_unstable();
         for name in names {
-            let Some(spec) = registry.get(name) else {
+            let Some(spec) = registry.get_for_surface(name, Some(profile.surface_query())) else {
                 continue;
             };
             collect_spec(rows, profile.name, name, spec)?;
@@ -200,17 +200,20 @@ fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()
     Ok(())
 }
 
-/// A family's own compiled-in commands sit over a store no profile above
-/// reads: they are reached only through that family's environment, so the
-/// per-profile pass would leave a callback declared there — Jim's `loop` body —
-/// invisible rather than classified.
-///
-/// Only the commands the family adds are walked, under its own name: the
-/// inherited Tcl surface is projected under the profiles that own it.
+/// Jim's environment is resolved through the inherited-surface ingress rather
+/// than the catalogue profiles above. Read its complete selected store: this
+/// includes both its own commands and native variants of inherited commands,
+/// such as `catch`'s completion-switch-dependent body position.
 fn collect_core_surface_commands(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()> {
     tcl_spectcl::core_surfaces::ensure();
-    for spec in tcl_spectcl::core_surfaces::builtin_commands() {
-        collect_spec(rows, "jim", spec.name, spec)?;
+    let profile = crate::environment::profile_for_dialect("jim");
+    let registry = crate::environment::store_for_profile(profile);
+    let mut names: Vec<_> = registry.command_names().collect();
+    names.sort_unstable();
+    for name in names {
+        if let Some(spec) = registry.get_for_surface(name, Some(profile.surface_query())) {
+            collect_spec(rows, "jim", name, spec)?;
+        }
     }
     Ok(())
 }
@@ -253,7 +256,7 @@ fn collect_spec(
         dialect,
         owner,
         "command",
-        spec.arg_role_resolver.is_some(),
+        spec.has_dynamic_argument_roles(),
         spec.command_prefix_resolver.is_some(),
         spec.script_timing_resolver.is_some(),
         &format_lifecycle(spec.lifecycle),
@@ -326,7 +329,7 @@ fn collect_spec(
             dialect,
             &sub_owner,
             "subcommand",
-            sub.arg_role_resolver.is_some(),
+            sub.has_dynamic_argument_roles(),
             sub.command_prefix_resolver.is_some(),
             sub.script_timing_resolver.is_some(),
             &combined_lifecycle(spec.lifecycle, sub.lifecycle),

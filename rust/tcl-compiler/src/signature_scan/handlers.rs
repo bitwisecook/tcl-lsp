@@ -34,9 +34,9 @@ use tcl_lexer::{Token, TokenType};
 use super::ctx::{FactoryCandidate, ProcBodyInfo, ScanCtx};
 use super::params::parse_param_list;
 use super::types::{
-    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureNamespaceForget,
-    SignatureNamespaceImport, SignaturePackageRequire, SignatureProc, SignatureRename,
-    SignatureScanResult, SignatureSource,
+    SignatureAutoPathEntry, SignatureClass, SignatureCommandAlias, SignatureCommandAliasTarget,
+    SignatureNamespaceForget, SignatureNamespaceImport, SignatureNamespaceImportSource,
+    SignaturePackageRequire, SignatureProc, SignatureScanResult, SignatureSource,
 };
 
 /// Fully qualify `name` within `ns_prefix` following Tcl scoping.
@@ -46,8 +46,7 @@ use super::types::{
 /// `proc ::foo::bar` declared inside `namespace eval baz` still
 /// indexes as `::foo::bar`.
 ///
-/// `ns_prefix` is expected to be the call-site namespace **without**
-/// a leading `::` (the walker carries it that way by convention).
+/// The walker retains the call-site namespace as a rooted constructed key.
 pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
     crate::naming::qualify(ns_prefix, name)
 }
@@ -125,10 +124,11 @@ pub(super) fn emit_class(
     result: &mut SignatureScanResult,
 ) {
     let qualified = qualify(ns_prefix, raw_name);
-    let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+    let simple = crate::naming::key_tail(&qualified).to_owned();
     result.classes.insert(
         qualified.clone(),
         SignatureClass {
+            source_name: None,
             name: simple,
             qualified_name: qualified,
             name_range: name_tok.span,
@@ -177,9 +177,21 @@ pub(super) fn handle_proc(
     if texts.len() <= name_at.max(params_at).max(body_at) {
         return;
     }
+    if !super::params::param_word_is_literal(
+        argv[name_at].kind,
+        single_token_word.get(name_at).copied().unwrap_or(false),
+    ) {
+        return;
+    }
     let raw_name = &texts[name_at];
-    let qualified = qualify(ns_prefix, raw_name);
-    let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+    let Some(scope) = ctx.current_namespace(ns_prefix) else {
+        return;
+    };
+    let Some((qualified, simple, body_scope, source_name)) =
+        ctx.procedure_name_in_context(&scope, raw_name)
+    else {
+        return;
+    };
     let name_range = argv[name_at].span;
     let body_range = argv[body_at].span;
     let params_computed = !super::params::param_word_is_literal(
@@ -192,20 +204,18 @@ pub(super) fn handle_proc(
         parse_param_list(&texts[params_at], ctx.rules)
     };
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
-    ctx.result.procs.insert(
-        qualified.clone(),
-        SignatureProc {
-            name: simple,
-            qualified_name: qualified.clone(),
-            params,
-            params_computed,
-            name_range,
-            body_range,
-        },
-    );
-    let body_ns = match qualified.rsplit_once("::") {
-        Some((parent, _)) => parent.trim_start_matches(':').to_string(),
-        None => String::new(),
+    ctx.record_proc(SignatureProc {
+        name: simple,
+        qualified_name: qualified.clone(),
+        source_name: source_name.clone(),
+        body_namespace: body_scope.clone(),
+        params,
+        params_computed,
+        name_range,
+        body_range,
+    });
+    let Some(body_ns) = body_scope.display() else {
+        return;
     };
     let body_text = texts[body_at].clone();
     ctx.proc_bodies.push(ProcBodyInfo {
@@ -213,12 +223,19 @@ pub(super) fn handle_proc(
         params: param_names,
         body_text: body_text.clone(),
         ns_prefix: body_ns.clone(),
+        namespace_scope: Some(body_scope.clone()),
+        source_name,
     });
     // Walk the proc body for factory-wrapper candidate calls.
     // Only braced bodies can be statically scanned; substituted
     // bodies (`$body`, `[gen_body]`) cannot be re-segmented.
     if argv[body_at].kind == TokenType::Str {
-        super::walker::scan_factory_candidates(&body_text, argv[body_at], &body_ns, ctx);
+        super::walker::scan_factory_candidates_in_context(
+            &body_text,
+            argv[body_at],
+            &body_scope,
+            ctx,
+        );
     }
 }
 
@@ -243,8 +260,14 @@ pub(super) fn handle_opt_proc(
         return;
     }
     let raw_name = &texts[1];
-    let qualified = qualify(ns_prefix, raw_name);
-    let simple = qualified.rsplit("::").next().unwrap_or("").to_string();
+    let Some(scope) = ctx.current_namespace(ns_prefix) else {
+        return;
+    };
+    let Some((qualified, simple, body_scope, source_name)) =
+        ctx.procedure_name_in_context(&scope, raw_name)
+    else {
+        return;
+    };
     let name_range = argv[1].span;
     let body_range = argv[3].span;
     let params = vec![super::types::ParamDef {
@@ -253,22 +276,20 @@ pub(super) fn handle_opt_proc(
         default_value: None,
     }];
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
-    ctx.result.procs.insert(
-        qualified.clone(),
-        SignatureProc {
-            name: simple,
-            qualified_name: qualified.clone(),
-            params,
-            // The `opt` runtime always installs a plain literal `args`
-            // catch-all, so the recorded formals are known, not computed.
-            params_computed: false,
-            name_range,
-            body_range,
-        },
-    );
-    let body_ns = match qualified.rsplit_once("::") {
-        Some((parent, _)) => parent.trim_start_matches(':').to_string(),
-        None => String::new(),
+    ctx.record_proc(SignatureProc {
+        name: simple,
+        qualified_name: qualified.clone(),
+        source_name: source_name.clone(),
+        body_namespace: body_scope.clone(),
+        params,
+        // The `opt` runtime always installs a plain literal `args`
+        // catch-all, so the recorded formals are known, not computed.
+        params_computed: false,
+        name_range,
+        body_range,
+    });
+    let Some(body_ns) = body_scope.display() else {
+        return;
     };
     let body_text = texts[3].clone();
     ctx.proc_bodies.push(ProcBodyInfo {
@@ -276,9 +297,11 @@ pub(super) fn handle_opt_proc(
         params: param_names,
         body_text: body_text.clone(),
         ns_prefix: body_ns.clone(),
+        namespace_scope: Some(body_scope.clone()),
+        source_name,
     });
     if argv[3].kind == TokenType::Str {
-        super::walker::scan_factory_candidates(&body_text, argv[3], &body_ns, ctx);
+        super::walker::scan_factory_candidates_in_context(&body_text, argv[3], &body_scope, ctx);
     }
 }
 
@@ -295,25 +318,23 @@ pub(super) fn handle_namespace_eval(
     known_commands: &std::collections::HashSet<&str>,
     ctx: &mut ScanCtx,
 ) {
-    if texts.len() < 4 {
+    if texts.len() < 4 || !matches!(argv[2].kind, TokenType::Str | TokenType::Esc) {
         return;
     }
     let raw_ns = &texts[2];
-    let inner_prefix = if let Some(rest) = raw_ns.strip_prefix("::") {
-        rest.trim_start_matches(':').to_string()
-    } else if !ns_prefix.is_empty() {
-        format!("{ns_prefix}::{raw_ns}")
-    } else {
-        raw_ns.clone()
+    let Some(scope) = ctx.namespace_context(ns_prefix, raw_ns) else {
+        return;
     };
-    super::walker::maybe_recurse_body(
-        &texts[3],
-        argv[3],
-        &inner_prefix,
-        conditional,
-        known_commands,
-        ctx,
-    );
+    if argv[3].kind == TokenType::Str {
+        super::walker::scan_in_context(
+            &texts[3],
+            Some(argv[3]),
+            &scope,
+            conditional,
+            known_commands,
+            ctx,
+        );
+    }
 }
 
 /// Handler for `namespace forget ?PATTERN…?` — the removal half of the
@@ -331,11 +352,7 @@ pub(super) fn handle_namespace_forget(
     sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
-    let forgetting_ns = if ns_prefix.is_empty() {
-        "::".to_string()
-    } else {
-        format!("::{ns_prefix}")
-    };
+    let forgetting_ns = crate::naming::qualify_namespace(ns_prefix, "");
     let mut i = 2 + leading_flag_words(sub_spec, &texts[2..]);
     while i < texts.len() && i < argv.len() {
         let raw = &texts[i];
@@ -383,11 +400,7 @@ pub(super) fn handle_namespace_import(
     sub_spec: Option<&tcl_registry::SubCommand>,
     result: &mut SignatureScanResult,
 ) {
-    let importing_ns = if ns_prefix.is_empty() {
-        "::".to_string()
-    } else {
-        format!("::{ns_prefix}")
-    };
+    let importing_ns = crate::naming::qualify_namespace(ns_prefix, "");
     // Which leading words are options, and how many are consumed, is registry
     // data, not a `-force` string match. That the
     // option word *was* consumed is exactly "`-force` was given", since
@@ -412,6 +425,7 @@ pub(super) fn handle_namespace_import(
         result.namespace_imports.push(SignatureNamespaceImport {
             ns: importing_ns.clone(),
             pattern,
+            source: SignatureNamespaceImportSource::from_written(&importing_ns, pattern_raw),
             range: argv[i].span,
             conjectured: false,
             forced,
@@ -462,34 +476,43 @@ pub(super) fn handle_package_require(
 
 /// Handler for `source ?-encoding ENC? PATH`.
 ///
-/// Consumes options using the resolved command's registry option grammar;
-/// the remaining word is recorded as the path. The
+/// Uses the shared native file layout, retaining the selected dialect.
+/// An unprofiled scan records only unanimous path candidates; neither form
+/// establishes that the file is available or entered. The
 /// `is_literal` flag is set when the segmenter-reconstructed word
 /// contains no `$` or `[` substitution markers.
 pub(super) fn handle_source(
     texts: &[String],
     argv: &[Token],
     ns_prefix: &str,
-    spec: &tcl_registry::CommandSpec,
+    dialect: Option<tcl_registry::InvocationDialect>,
     result: &mut SignatureScanResult,
 ) {
-    let idx = 1 + leading_option_words(spec.options, &texts[1..]);
-    if idx >= texts.len() {
+    let arguments = texts[1..]
+        .iter()
+        .map(|word| {
+            if word.contains('$') || word.contains('[') {
+                tcl_registry::InvocationWord::Dynamic
+            } else {
+                tcl_registry::InvocationWord::Literal(word)
+            }
+        })
+        .collect::<Vec<_>>();
+    let arguments = tcl_registry::InvocationArguments::structured(&arguments);
+    let arguments = dialect.map_or(arguments, |dialect| arguments.with_dialect(dialect));
+    let tcl_registry::source_file::SourceFileSelection::Selected(operands) =
+        tcl_registry::source_file::path_candidate(arguments)
+    else {
         return;
-    }
+    };
+    let idx = operands.path_at + 1;
     let raw = texts[idx].clone();
     let is_literal = !raw.contains('$') && !raw.contains('[');
     result.source_targets.push(SignatureSource {
         raw_path: raw,
         range: argv[idx].span,
         is_literal,
-        // The scan's `ns_prefix` is unrooted (`""` = global); the recorded
-        // site namespace is the constructed rooted key (M9).
-        site_namespace: if ns_prefix.is_empty() {
-            "::".to_owned()
-        } else {
-            format!("::{ns_prefix}")
-        },
+        site_namespace: crate::naming::qualify_namespace(ns_prefix, ""),
     });
 }
 
@@ -502,7 +525,11 @@ pub(super) fn handle_source(
 /// resolved the subcommand through the registry's ensemble rule — which, matching
 /// tclsh, rejects `interp al` / `interp alia` as ambiguous with
 /// `aliases`, so in practice only the full spelling dispatches here.
-pub(super) fn handle_interp_alias(texts: &[String], result: &mut SignatureScanResult) {
+pub(super) fn handle_interp_alias(
+    texts: &[String],
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    result: &mut SignatureScanResult,
+) {
     if texts.len() < 6 {
         return;
     }
@@ -512,12 +539,20 @@ pub(super) fn handle_interp_alias(texts: &[String], result: &mut SignatureScanRe
     let alias_name = texts[3].clone();
     let target = texts[5].clone();
     let extras: Vec<String> = texts.iter().skip(6).cloned().collect();
-    let qualified = qualify("", &alias_name);
+    let Some(qualified) = super::ctx::authored_publication_key(
+        "::",
+        &alias_name,
+        policy,
+        tcl_syntax::naming::NativeNamePurpose::AliasPublication,
+    ) else {
+        return;
+    };
     result.command_aliases.insert(
         qualified.clone(),
         SignatureCommandAlias {
+            source_name: None,
             qualified_name: qualified,
-            target,
+            target: SignatureCommandAliasTarget::WrittenGlobal(target),
             extras,
         },
     );
@@ -530,7 +565,13 @@ pub(super) fn handle_interp_alias(texts: &[String], result: &mut SignatureScanRe
 /// aliasName), so it is qualified against `ns_prefix`. `rename OLD {}`
 /// deletes `OLD` rather than introducing a new name, so an empty `NEW`
 /// is skipped.
-pub(super) fn handle_rename(texts: &[String], ns_prefix: &str, result: &mut SignatureScanResult) {
+#[cfg(test)]
+pub(super) fn handle_rename(
+    texts: &[String],
+    ns_prefix: &str,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    result: &mut SignatureScanResult,
+) {
     if texts.len() < 3 {
         return;
     }
@@ -539,10 +580,18 @@ pub(super) fn handle_rename(texts: &[String], ns_prefix: &str, result: &mut Sign
     if new_name.is_empty() {
         return;
     }
-    let qualified = qualify(ns_prefix, new_name);
+    let Some(qualified) = super::ctx::authored_publication_key(
+        ns_prefix,
+        new_name,
+        policy,
+        tcl_syntax::naming::NativeNamePurpose::RenameDestination,
+    ) else {
+        return;
+    };
     result.renames.insert(
         qualified.clone(),
-        SignatureRename {
+        super::types::SignatureRename {
+            source_name: None,
             qualified_name: qualified,
             target: old_name,
         },
@@ -623,6 +672,7 @@ pub(super) fn maybe_record_factory_candidate(
         name_tok: argv[1],
         body_tok,
         ns_prefix: ns_prefix.to_string(),
+        namespace_scope: ctx.current_namespace(ns_prefix),
     });
 }
 
@@ -661,16 +711,14 @@ pub(super) fn maybe_handle_import_wrapper(
     } else {
         format!("::{source_ns_raw}")
     };
-    let alias_ns = if alias.starts_with("::") {
-        alias.clone()
-    } else if !ns_prefix.is_empty() {
-        format!("::{ns_prefix}::{alias}")
-    } else {
-        format!("::{alias}")
-    };
+    let alias_ns = qualify(ns_prefix, alias);
     result.namespace_imports.push(SignatureNamespaceImport {
         ns: alias_ns,
         pattern: format!("{source_ns}::*"),
+        source: Some(SignatureNamespaceImportSource {
+            namespace: crate::naming::qualify_namespace(ns_prefix, source_ns_raw),
+            tail_pattern: "*".to_owned(),
+        }),
         range: argv[0].span,
         conjectured: true,
         // The wrapper body is not read, so `-force` is unknown; `false` is
@@ -812,7 +860,7 @@ mod tests {
         let argv = vec![token(0, 4), token(5, 9), token(10, 12), token(13, 23)];
         let mut ctx = ScanCtx::default();
         handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
-        assert!(ctx.candidates.is_empty());
+        assert_eq!(ctx.candidates.len(), 0);
     }
 
     #[test]
@@ -882,7 +930,7 @@ mod tests {
         assert_eq!(ctx.proc_bodies.len(), 1);
         assert_eq!(ctx.proc_bodies[0].qname, "::foo");
         assert_eq!(ctx.proc_bodies[0].body_text, "set x 1");
-        assert_eq!(ctx.proc_bodies[0].ns_prefix, "");
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "::");
     }
 
     #[test]
@@ -892,7 +940,7 @@ mod tests {
         handle_proc(&texts, &argv, &[true; 4], "ns::deep", &mut ctx);
         let proc = ctx.result.procs.get("::ns::deep::bar").expect("inserted");
         assert_eq!(proc.name, "bar");
-        assert_eq!(ctx.proc_bodies[0].ns_prefix, "ns::deep");
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "::ns::deep");
     }
 
     #[test]
@@ -903,8 +951,7 @@ mod tests {
         let proc = ctx.result.procs.get("::top::baz").expect("inserted");
         assert_eq!(proc.name, "baz");
         assert_eq!(proc.qualified_name, "::top::baz");
-        // body_ns drops the leading colon and trailing simple name.
-        assert_eq!(ctx.proc_bodies[0].ns_prefix, "top");
+        assert_eq!(ctx.proc_bodies[0].ns_prefix, "::top");
     }
 
     #[test]
@@ -913,8 +960,8 @@ mod tests {
         let argv = vec![token(0, 4), token(5, 9)];
         let mut ctx = ScanCtx::default();
         handle_proc(&texts, &argv, &[true; 4], "", &mut ctx);
-        assert!(ctx.result.procs.is_empty());
-        assert!(ctx.proc_bodies.is_empty());
+        assert_eq!(ctx.result.procs.len(), 0);
+        assert_eq!(ctx.proc_bodies.len(), 0);
     }
 
     #[test]
@@ -1052,7 +1099,10 @@ mod tests {
             Some(subcommand_spec("namespace", "forget")),
             &mut result,
         );
-        assert!(result.namespace_forgets.is_empty());
+        assert_eq!(
+            result.namespace_forgets,
+            [] as [crate::signature_scan::types::SignatureNamespaceForget; 0]
+        );
     }
 
     #[test]
@@ -1081,7 +1131,10 @@ mod tests {
         let argv = vec![token(0, 9), token(10, 16), token(17, 25)];
         let mut result = SignatureScanResult::default();
         handle_namespace_import(&texts, &argv, "", None, &mut result);
-        assert!(result.namespace_imports.is_empty());
+        assert_eq!(
+            result.namespace_imports,
+            [] as [crate::signature_scan::types::SignatureNamespaceImport; 0]
+        );
     }
 
     #[test]
@@ -1141,7 +1194,7 @@ mod tests {
         let texts = vec!["source".to_string(), "/abs/path.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 20)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
+        handle_source(&texts, &argv, "", None, &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");
@@ -1154,7 +1207,7 @@ mod tests {
         let texts = vec!["source".to_string(), "${dir}/x.tcl".to_string()];
         let argv = vec![token(0, 6), token(7, 19)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
+        handle_source(&texts, &argv, "", None, &mut result);
         assert_eq!(result.source_targets.len(), 1);
         assert!(!result.source_targets[0].is_literal);
     }
@@ -1169,12 +1222,36 @@ mod tests {
         ];
         let argv = vec![token(0, 6), token(7, 16), token(17, 22), token(23, 36)];
         let mut result = SignatureScanResult::default();
-        handle_source(&texts, &argv, "", command_spec("source"), &mut result);
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let dialect = Some(tcl_registry::InvocationDialect::of_profile(profile));
+        handle_source(&texts, &argv, "", dialect, &mut result);
         assert_eq!(result.source_targets.len(), 1);
         let st = &result.source_targets[0];
         assert_eq!(st.raw_path, "/abs/path.tcl");
         assert!(st.is_literal);
         assert_eq!(st.range, Span::new(23, 36));
+    }
+
+    #[test]
+    fn source_encoding_candidates_do_not_borrow_a_foreign_file_grammar() {
+        let texts = ["source", "-encoding", "utf-8", "x.tcl"].map(str::to_owned);
+        let argv = [token(0, 6), token(7, 16), token(17, 22), token(23, 28)];
+        for environment in ["tcl8.4", "jim"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(environment).unit_profile();
+            let mut result = SignatureScanResult::default();
+            handle_source(
+                &texts,
+                &argv,
+                "",
+                Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                &mut result,
+            );
+            assert!(result.source_targets.is_empty(), "{environment}");
+        }
+        let mut unprofiled = SignatureScanResult::default();
+        handle_source(&texts, &argv, "", None, &mut unprofiled);
+        assert!(unprofiled.source_targets.is_empty());
     }
 
     #[test]
@@ -1223,7 +1300,7 @@ mod tests {
             "hello".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp_alias(&texts, &mut result);
+        handle_interp_alias(&texts, None, &mut result);
         assert_eq!(result.command_aliases.len(), 1);
         let alias = result.command_aliases.get("::myalias").expect("inserted");
         assert_eq!(alias.target, "puts");
@@ -1241,8 +1318,8 @@ mod tests {
             "puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_interp_alias(&texts, &mut result);
-        assert!(result.command_aliases.is_empty());
+        handle_interp_alias(&texts, None, &mut result);
+        assert_eq!(result.command_aliases.len(), 0);
     }
 
     #[test]
@@ -1253,7 +1330,7 @@ mod tests {
             "my_puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_rename(&texts, "", &mut result);
+        handle_rename(&texts, "", None, &mut result);
         assert_eq!(result.renames.len(), 1);
         let rename = result.renames.get("::my_puts").expect("inserted");
         assert_eq!(rename.target, "puts");
@@ -1268,7 +1345,7 @@ mod tests {
             "loud_puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_rename(&texts, "myns", &mut result);
+        handle_rename(&texts, "myns", None, &mut result);
         assert!(result.renames.contains_key("::myns::loud_puts"));
     }
 
@@ -1280,7 +1357,7 @@ mod tests {
             "::top_puts".to_string(),
         ];
         let mut result = SignatureScanResult::default();
-        handle_rename(&texts, "myns", &mut result);
+        handle_rename(&texts, "myns", None, &mut result);
         assert!(result.renames.contains_key("::top_puts"));
     }
 
@@ -1288,16 +1365,16 @@ mod tests {
     fn handle_rename_to_empty_string_deletes_and_is_skipped() {
         let texts = vec!["rename".to_string(), "puts".to_string(), String::new()];
         let mut result = SignatureScanResult::default();
-        handle_rename(&texts, "", &mut result);
-        assert!(result.renames.is_empty());
+        handle_rename(&texts, "", None, &mut result);
+        assert_eq!(result.renames.len(), 0);
     }
 
     #[test]
     fn handle_rename_too_few_args_is_a_no_op() {
         let texts = vec!["rename".to_string(), "puts".to_string()];
         let mut result = SignatureScanResult::default();
-        handle_rename(&texts, "", &mut result);
-        assert!(result.renames.is_empty());
+        handle_rename(&texts, "", None, &mut result);
+        assert_eq!(result.renames.len(), 0);
     }
 
     #[test]
@@ -1429,7 +1506,10 @@ mod tests {
         let argv = vec![token(0, 11), token(12, 14), token(15, 20)];
         let mut result = SignatureScanResult::default();
         maybe_handle_import_wrapper("foo::import", &texts, &argv, "", &mut result);
-        assert!(result.namespace_imports.is_empty());
+        assert_eq!(
+            result.namespace_imports,
+            [] as [crate::signature_scan::types::SignatureNamespaceImport; 0]
+        );
     }
 
     #[test]
@@ -1438,7 +1518,10 @@ mod tests {
         let argv = vec![token(0, 11), token(12, 18)];
         let mut result = SignatureScanResult::default();
         maybe_handle_import_wrapper("foo::import", &texts, &argv, "", &mut result);
-        assert!(result.namespace_imports.is_empty());
+        assert_eq!(
+            result.namespace_imports,
+            [] as [crate::signature_scan::types::SignatureNamespaceImport; 0]
+        );
     }
 
     #[test]
@@ -1467,7 +1550,7 @@ mod tests {
         let mut ctx = ScanCtx::default();
         ctx.skip_heads.insert("proc".to_string());
         maybe_record_factory_candidate("proc", &texts, &argv, "", &mut ctx);
-        assert!(ctx.candidates.is_empty());
+        assert_eq!(ctx.candidates.len(), 0);
     }
 
     #[test]
@@ -1481,7 +1564,7 @@ mod tests {
         let argv = vec![token(0, 4), token(5, 12), token(13, 17), str_token(18, 24)];
         let mut ctx = ScanCtx::default();
         maybe_record_factory_candidate("DEFC", &texts, &argv, "", &mut ctx);
-        assert!(ctx.candidates.is_empty());
+        assert_eq!(ctx.candidates.len(), 0);
     }
 
     #[test]
@@ -1496,6 +1579,6 @@ mod tests {
         let argv = vec![token(0, 4), token(5, 8), token(9, 13), token(14, 20)];
         let mut ctx = ScanCtx::default();
         maybe_record_factory_candidate("DEFC", &texts, &argv, "", &mut ctx);
-        assert!(ctx.candidates.is_empty());
+        assert_eq!(ctx.candidates.len(), 0);
     }
 }

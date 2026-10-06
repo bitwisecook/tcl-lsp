@@ -132,6 +132,7 @@ pub const RESERVED_DATA_BASE: i64 = WASM32_CODEGEN_DATA_START;
 /// Indices of the `"tcl"` host imports the emitted module calls.
 #[derive(Clone, Copy)]
 struct Imports {
+    host_refusal_pending: u32,
     /// `(ptr, len) -> obj` — box a data-section string as a `TclObj`.
     obj_new_string: u32,
     /// `(script_obj) -> i32` — evaluate a leaf command and return its **completion
@@ -149,6 +150,7 @@ struct Imports {
 /// module emitter.
 #[derive(Clone, Copy)]
 struct SemanticImports {
+    host_refusal_pending: u32,
     frame_alloc: u32,
     frame_free: u32,
     string_owned: u32,
@@ -175,6 +177,7 @@ struct GuardedIntrinsicImports {
 /// unchanged when native proof selection is disabled.
 #[derive(Clone, Copy)]
 struct NativeI64AddImports {
+    host_refusal_pending: u32,
     value_new_wide_int: u32,
     puts: u32,
 }
@@ -282,6 +285,7 @@ struct WasmEmitter {
     data_offset: i64,
     /// Number of currently open control frames (`block`/`loop`/`if`).
     ctrl_depth: u32,
+    invocation_abort: Option<u32>,
     /// Stack of open loops; the last is the innermost (the `break`/`continue`
     /// target, since Tcl has no labelled break).
     loops: Vec<LoopFrame>,
@@ -305,6 +309,7 @@ impl WasmEmitter {
             data: Vec::new(),
             data_offset,
             ctrl_depth: 0,
+            invocation_abort: None,
             loops: Vec::new(),
             code_local: 0,
             frame_local: 1,
@@ -325,6 +330,7 @@ impl WasmEmitter {
             data: Vec::new(),
             data_offset,
             ctrl_depth: 0,
+            invocation_abort: None,
             loops: Vec::new(),
             code_local: 0,
             // Same local layout as `for_semantic_invoke`: slot 0 holds the
@@ -366,16 +372,20 @@ impl WasmEmitter {
         }
     }
 
-    /// Intern `text` into the data section, returning its `(offset, len)`.
-    fn intern(&mut self, text: &str) -> (i64, i64) {
+    /// Intern the complete original bytes, including NUL and opaque byte units.
+    fn intern_bytes(&mut self, bytes: &[u8]) -> (i64, i64) {
         let offset = self.data_offset;
-        let len = i64::try_from(text.len()).unwrap_or(i64::MAX);
+        let len = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
         self.data.push(WasmData {
             offset,
-            data: text.as_bytes().to_vec(),
+            data: bytes.to_vec(),
         });
         self.data_offset += len;
         (offset, len)
+    }
+
+    fn intern(&mut self, text: &str) -> (i64, i64) {
+        self.intern_bytes(text.as_bytes())
     }
 
     fn push(&mut self, op: WasmOp) {
@@ -396,11 +406,71 @@ impl WasmEmitter {
         ));
     }
 
-    fn call(&mut self, func_idx: u32) {
+    fn raw_call(&mut self, func_idx: u32) {
         self.body.push(WasmInstruction::with_operands(
             WasmOp::Call,
             leb128_unsigned(u64::from(func_idx)),
         ));
+    }
+
+    fn call(&mut self, func_idx: u32) {
+        self.raw_call(func_idx);
+        let EmitterImports::General(imports) = self.imports else {
+            return;
+        };
+        if !general_import_id(imports, func_idx)
+            .is_none_or(CodegenAbiImportId::requires_host_refusal_check)
+        {
+            return;
+        }
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        if let Some(abort) = self.invocation_abort {
+            self.br(abort);
+        } else {
+            self.emit_general_refusal_return(imports);
+        }
+        self.close_frame();
+    }
+
+    fn emit_general_refusal_return(&mut self, imports: Imports) {
+        if self.mode != FunctionMode::Top
+            && let Some(aot) = imports.aot
+        {
+            self.raw_call(aot.frame_pop);
+        }
+        if self.mode == FunctionMode::DirectProc {
+            self.push_i32(0);
+        }
+        self.push(WasmOp::Return);
+    }
+
+    fn emit_semantic_refusal_check(&mut self, argc: usize, guarded: bool) {
+        let imports = self.semantic_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        if guarded {
+            self.local_get(GUARDED_TOKEN_LOCAL);
+            self.raw_call(self.guarded_intrinsic_imports().guard_release);
+        }
+        for index in 0..argc {
+            let local = if guarded {
+                semantic_word_local(index)
+            } else {
+                u64::try_from(5 + index).expect("word local fits u64")
+            };
+            self.local_get(local);
+            self.raw_call(imports.object_release);
+        }
+        self.local_get(SEMANTIC_FRAME_LOCAL);
+        self.raw_call(imports.frame_free);
+        self.push(WasmOp::Drop);
+        // These are transport placeholders; the retained refusal governs the result.
+        for _ in 0..3 {
+            self.push_i32(0);
+        }
+        self.push(WasmOp::Return);
+        self.close_frame();
     }
 
     /// Open a structured frame (`block`/`loop`/`if`, void type), returning its
@@ -441,12 +511,16 @@ impl WasmEmitter {
         ));
     }
 
-    /// Box `text` as a `TclObj`, leaving its i32 pointer on the stack.
-    fn box_text(&mut self, text: &str) {
-        let (offset, len) = self.intern(text);
+    /// Box original bytes as a Tcl object without a text projection.
+    fn box_bytes(&mut self, bytes: &[u8]) {
+        let (offset, len) = self.intern_bytes(bytes);
         self.push_i32(offset);
         self.push_i32(len);
         self.call(self.general_imports().obj_new_string);
+    }
+
+    fn box_text(&mut self, text: &str) {
+        self.box_bytes(text.as_bytes());
     }
 
     fn push_text_pair(&mut self, text: &str) {
@@ -687,7 +761,9 @@ impl WasmEmitter {
         self.local_set(self.code_local);
 
         let abort = self.open_frame(WasmOp::Block);
+        self.invocation_abort = Some(abort);
         self.emit_invoke_node(&plan.root, &plan, argv, abort, true);
+        self.invocation_abort = None;
         self.close_frame();
 
         for slot in 0..plan.object_slots {
@@ -699,6 +775,11 @@ impl WasmEmitter {
         self.call(argv.frame_free);
         self.push(WasmOp::Drop);
 
+        let imports = self.general_imports();
+        self.raw_call(imports.host_refusal_pending);
+        self.open_frame(WasmOp::If);
+        self.emit_general_refusal_return(imports);
+        self.close_frame();
         self.dispatch_stashed_code();
         true
     }
@@ -905,6 +986,7 @@ impl WasmEmitter {
         self.local_tee(COMPLETION_LOCAL);
         self.call(imports.invoke_argv);
         self.push(WasmOp::Drop);
+        self.emit_semantic_refusal_check(plan.argv_literals.len(), false);
 
         self.local_get(COMPLETION_LOCAL);
         self.load_i32(i64::from(WASM32_COMPLETION_CODE_OFFSET));
@@ -1018,6 +1100,7 @@ impl WasmEmitter {
         self.push_i32(i64::from(guard.domains().bits()));
         self.call(imports.guard_prepare);
         self.local_set(GUARDED_TOKEN_LOCAL);
+        self.emit_semantic_refusal_check(argc, true);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.push(WasmOp::I64Eqz);
         self.open_frame(WasmOp::If);
@@ -1038,10 +1121,13 @@ impl WasmEmitter {
         self.local_get(SEMANTIC_FRAME_LOCAL);
         self.push_i32(i64::try_from(argc).expect("validated argc"));
         self.call(imports.guard_check);
+        self.emit_semantic_refusal_check(argc, true);
         self.push(WasmOp::I32Eqz);
         self.open_frame(WasmOp::If);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
         self.push(WasmOp::Else);
         self.push_i32(i64::from(intrinsic));
@@ -1050,14 +1136,19 @@ impl WasmEmitter {
         self.local_get(SEMANTIC_COMPLETION_LOCAL);
         self.call(imports.invoke_intrinsic_argv);
         self.local_set(GUARDED_STATUS_LOCAL);
+        self.emit_semantic_refusal_check(argc, true);
         self.local_get(GUARDED_STATUS_LOCAL);
         self.push(WasmOp::I32Eqz);
         self.open_frame(WasmOp::If);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.push(WasmOp::Else);
         self.local_get(GUARDED_TOKEN_LOCAL);
         self.call(imports.guard_release);
+        self.push_i64(0);
+        self.local_set(GUARDED_TOKEN_LOCAL);
         self.emit_generic_argv_invoke(argc, SEMANTIC_FRAME_LOCAL, SEMANTIC_COMPLETION_LOCAL);
         self.close_frame();
         self.close_frame();
@@ -1130,6 +1221,7 @@ impl WasmEmitter {
         self.local_get(completion_local);
         self.call(self.semantic_imports().invoke_argv);
         self.push(WasmOp::Drop);
+        self.emit_semantic_refusal_check(argc, true);
     }
 
     /// Honour the completion code a leaf command's [`tcl_eval_code`] left on the
@@ -1240,15 +1332,19 @@ impl WasmEmitter {
 }
 
 impl Emit for WasmEmitter {
+    fn refuse_native_compilation_admission(&mut self) {
+        self.push(WasmOp::Unreachable);
+    }
+
     fn emit_typed_statement(&mut self, statement: &Statement, _source: &str) -> bool {
         self.attempt(|emitter| emitter.try_emit_typed_statement(statement))
     }
 
-    fn emit_command(&mut self, source_text: &str) {
+    fn emit_command_image(&mut self, source: &tcl_lexer::SourceImage) {
         // code = tcl_eval_code(box(text)); then honour an abrupt completion code
         // (error/return unwinds, break/continue re-enters the loop) instead of
         // swallowing it — the top-level result stays the interp's own result.
-        self.box_text(source_text);
+        self.box_bytes(source.bytes());
         self.call(self.general_imports().eval_code);
         self.emit_completion_dispatch();
     }
@@ -1344,15 +1440,28 @@ fn span_command_key(span: Span, command: &str) -> (u32, u32, String) {
     (span.start(), span.end(), command.to_string())
 }
 
-fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {
+fn direct_expr_supported(
+    expr: &ExprNode,
+    params: &HashSet<&str>,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     match expr {
-        ExprNode::Var { name, .. } => params.contains(name.as_str()),
+        ExprNode::Var { text, name, .. } => {
+            matches!(
+                crate::native_lowering::cells::variable_reference_place(text, config),
+                Ok(crate::native_lowering::cells::CellPlace::Named { name: actual })
+                    if actual == *name && params.contains(actual.as_str())
+            )
+        }
         ExprNode::Literal { .. } => true,
         ExprNode::Binary {
             op: BinOp::Add,
             left,
             right,
-        } => direct_expr_supported(left, params) && direct_expr_supported(right, params),
+        } => {
+            direct_expr_supported(left, params, config)
+                && direct_expr_supported(right, params, config)
+        }
         _ => false,
     }
 }
@@ -1364,7 +1473,8 @@ fn direct_proc_eligible(
     registry: &CommandRegistry,
     mutations: &ModuleCommandMutations,
 ) -> bool {
-    if proc.namespace_scoped
+    if crate::native_compilation_admission::script_requires_admission(&proc.body)
+        || proc.namespace_scoped
         || proc
             .qualified_name
             .strip_prefix("::")
@@ -1406,7 +1516,7 @@ fn direct_proc_eligible(
         return false;
     };
     let params: HashSet<&str> = proc.params.iter().map(String::as_str).collect();
-    direct_expr_supported(expr, &params)
+    direct_expr_supported(expr, &params, module.native_lexer_config())
 }
 
 fn function_facts(
@@ -1479,13 +1589,11 @@ fn function_facts(
             else {
                 continue;
             };
-            let bare = statement
-                .canonical_command_or_source()
-                .strip_prefix("::")
-                .unwrap_or_else(|| statement.canonical_command_or_source());
-            if bindings.is_original_builtin_at(block, stmt_idx, command)
-                && mutations.trusts(bare)
-                && let Some(tokens) = tokens
+            if let Some(tokens) = tokens
+                && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
+                    resolve_command_tokens(registry, unit.semantic_facts.context(), tokens)
+                && bindings.is_original_builtin_at(block, stmt_idx, command)
+                && mutations.trusts(invocation.canonical_command.trim_start_matches("::"))
             {
                 record_operation(
                     &mut facts,
@@ -1639,6 +1747,21 @@ fn record_operation(
     else {
         return;
     };
+    // Compatibility codegen retains written argv. Registry positional hooks
+    // require the argument correspondence proved by the shared projection.
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
+        return;
+    };
+    if effective.words.len() != tokens.words().len()
+        || effective.origins.iter().any(|origin| {
+            matches!(
+                origin,
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+            )
+        })
+    {
+        return;
+    }
     facts
         .operations
         .insert(span_key(span), invocation.operation);
@@ -1703,8 +1826,45 @@ fn add_codegen_import(module: &mut WasmModule, import: CodegenAbiImportId) -> u3
         .expect("WASM import index fits u32")
 }
 
+fn general_import_id(imports: Imports, index: u32) -> Option<CodegenAbiImportId> {
+    let mut entries = vec![
+        (
+            imports.host_refusal_pending,
+            CodegenAbiImportId::HostRefusalPending,
+        ),
+        (imports.obj_new_string, CodegenAbiImportId::ObjectNewString),
+        (imports.eval_code, CodegenAbiImportId::EvalCode),
+        (imports.expr_bool, CodegenAbiImportId::ExprBool),
+    ];
+    if let Some(aot) = imports.aot {
+        entries.push((aot.value_new_string, CodegenAbiImportId::ValueNewString));
+        entries.push((aot.frame_push, CodegenAbiImportId::FramePush));
+        entries.push((aot.frame_pop, CodegenAbiImportId::FramePop));
+        entries.push((aot.local_bind, CodegenAbiImportId::LocalBind));
+        entries.push((aot.local_set, CodegenAbiImportId::LocalSet));
+        entries.push((aot.local_get, CodegenAbiImportId::LocalGet));
+        entries.push((aot.var_set, CodegenAbiImportId::VarSet));
+        entries.push((aot.var_get, CodegenAbiImportId::VarGet));
+        entries.push((aot.expr_add, CodegenAbiImportId::ExprAdd));
+        entries.push((aot.puts, CodegenAbiImportId::Puts));
+        entries.push((aot.proc_register, CodegenAbiImportId::ProcRegister));
+        entries.push((aot.argv.frame_alloc, CodegenAbiImportId::CallFrameAlloc));
+        entries.push((aot.argv.frame_free, CodegenAbiImportId::CallFrameFree));
+        entries.push((aot.argv.string_owned, CodegenAbiImportId::NewOwnedString));
+        entries.push((aot.argv.invoke_argv, CodegenAbiImportId::InvokeArgv));
+        entries.push((aot.argv.object_release, CodegenAbiImportId::ObjectRelease));
+        entries.push((aot.argv.var_get, CodegenAbiImportId::VarGet));
+        entries.push((aot.argv.var_get_element, CodegenAbiImportId::VarGetElement));
+        entries.push((aot.argv.word_concat, CodegenAbiImportId::WordConcat));
+    }
+    entries
+        .into_iter()
+        .find_map(|(candidate, id)| (candidate == index).then_some(id))
+}
+
 fn add_semantic_imports(wasm: &mut WasmModule) -> SemanticImports {
     SemanticImports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         frame_alloc: add_codegen_import(wasm, CodegenAbiImportId::CallFrameAlloc),
         frame_free: add_codegen_import(wasm, CodegenAbiImportId::CallFrameFree),
         string_owned: add_codegen_import(wasm, CodegenAbiImportId::NewOwnedString),
@@ -1727,6 +1887,7 @@ fn add_guarded_intrinsic_imports(wasm: &mut WasmModule) -> GuardedIntrinsicImpor
 
 fn add_native_i64_add_imports(wasm: &mut WasmModule) -> NativeI64AddImports {
     NativeI64AddImports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         value_new_wide_int: add_codegen_import(wasm, CodegenAbiImportId::ValueNewWideInt),
         puts: add_codegen_import(wasm, CodegenAbiImportId::Puts),
     }
@@ -1734,6 +1895,7 @@ fn add_native_i64_add_imports(wasm: &mut WasmModule) -> NativeI64AddImports {
 
 fn add_general_imports(wasm: &mut WasmModule, analysis: bool) -> Imports {
     let mut imports = Imports {
+        host_refusal_pending: add_codegen_import(wasm, CodegenAbiImportId::HostRefusalPending),
         obj_new_string: add_codegen_import(wasm, CodegenAbiImportId::ObjectNewString),
         eval_code: add_codegen_import(wasm, CodegenAbiImportId::EvalCode),
         expr_bool: add_codegen_import(wasm, CodegenAbiImportId::ExprBool),
@@ -1797,7 +1959,10 @@ fn procedure_plan<'a>(
     let mut procs: Vec<&Procedure> = module
         .procedures
         .values()
-        .filter(|p| !p.namespace_scoped)
+        .filter(|p| {
+            !p.namespace_scoped
+                && !crate::native_compilation_admission::script_requires_admission(&p.body)
+        })
         .collect();
     procs.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
     let indices = procs
@@ -1843,6 +2008,9 @@ fn procedure_plan<'a>(
 /// Selected input mode for the single module emitter.
 #[derive(Clone, Copy)]
 pub(super) enum WasmEmissionMode<'a> {
+    /// The genuine host must compile one entire original script at entry.
+    /// `None` explicitly refuses admission instead of evaluating empty text.
+    RuntimeChunk(Option<&'a crate::command_binding::ExecutedScriptSource>),
     /// Common proofs selected sealed-program native i64 addition with one
     /// registry-proved boxed output boundary.
     NativeI64Add(&'a WasmNativeI64AddSelection),
@@ -1872,6 +2040,20 @@ pub(super) fn emit_wasm(
     options: WasmCompileOptions,
     mode: WasmEmissionMode<'_>,
 ) -> (WasmModule, NativeTierReport) {
+    use crate::native_compilation_admission::{
+        NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    let mode = match script_admission_plan(
+        &unit.ir_module.top_level,
+        NativeCompilationAdmissionScope::Script,
+    ) {
+        NativeCompilationAdmissionPlan::HostScript(source) => {
+            WasmEmissionMode::RuntimeChunk(Some(source))
+        }
+        NativeCompilationAdmissionPlan::RefuseMissingSource => WasmEmissionMode::RuntimeChunk(None),
+        NativeCompilationAdmissionPlan::NoRetainedObligation => mode,
+        NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
+    };
     let analysis = (matches!(mode, WasmEmissionMode::General)
         && options.analysis_specialisations())
     .then_some((unit, registry));
@@ -1881,7 +2063,7 @@ pub(super) fn emit_wasm(
             registry,
             config: options.semantic_optimisations(),
         });
-    codegen(
+    let (module, mut report) = codegen(
         &unit.ir_module,
         &unit.source,
         options.data_base,
@@ -1890,7 +2072,9 @@ pub(super) fn emit_wasm(
         analysis,
         native,
         mode,
-    )
+    );
+    report.enabled = options.native_tier_enabled();
+    (module, report)
 }
 
 /// The native tier's inputs, present only when the pipeline selected it.
@@ -2030,6 +2214,63 @@ fn table_install(
     ops
 }
 
+/// Host admission executes the whole source before any compiled effects,
+/// exports or procedure-table installation can bypass its compiler entry.
+fn codegen_runtime_chunk(
+    chunk: Option<&crate::command_binding::ExecutedScriptSource>,
+    data_base: i64,
+    standalone: bool,
+    init: bool,
+) -> (WasmModule, NativeTierReport) {
+    let mut wasm = WasmModule::new();
+    let imports = add_general_imports(&mut wasm, false);
+    let bootstrap = standalone.then(|| {
+        let create = add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeCreateInterp);
+        let set_current =
+            add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeSetCurrentInterp);
+        let library =
+            init.then(|| add_codegen_import(&mut wasm, CodegenAbiImportId::RuntimeInitLibrary));
+        (create, set_current, library)
+    });
+    let top_index = u32::try_from(wasm.imports.len()).expect("import count fits u32");
+    let mut emitter = WasmEmitter {
+        imports: EmitterImports::General(imports),
+        body: Vec::new(),
+        data: Vec::new(),
+        data_offset: data_base,
+        ctrl_depth: 0,
+        invocation_abort: None,
+        loops: Vec::new(),
+        code_local: 0,
+        frame_local: 1,
+        mode: FunctionMode::Top,
+        local_slots: HashMap::new(),
+        proc_indices: HashMap::new(),
+        procedure_arity: HashMap::new(),
+        direct_procs: HashSet::new(),
+        procedures_by_span: HashMap::new(),
+        facts: FunctionFacts::default(),
+    };
+    if let Some(chunk) = chunk {
+        emitter.emit_command_image(&chunk.text);
+    } else {
+        emitter.refuse_native_compilation_admission();
+    }
+    wasm.functions
+        .push(emitter.finish_function("::top", "host-compilation-entry", None));
+    wasm.data_segments = emitter.data;
+    if let Some((create, set_current, library)) = bootstrap {
+        wasm.functions
+            .push(start_function(create, set_current, library, top_index));
+    }
+    let mut report = NativeTierReport::default();
+    report.functions.insert(
+        "::top".to_owned(),
+        FunctionReport::declined(FunctionDecline::NativeCompilationAdmissionRequired),
+    );
+    (wasm, report)
+}
+
 /// Shared implementation for hosted, linked, and standalone packaging.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn codegen(
@@ -2042,6 +2283,9 @@ fn codegen(
     native: Option<NativeTier<'_>>,
     mode: WasmEmissionMode<'_>,
 ) -> (WasmModule, NativeTierReport) {
+    if let WasmEmissionMode::RuntimeChunk(chunk) = mode {
+        return codegen_runtime_chunk(chunk, data_base, standalone, init);
+    }
     let mut wasm = WasmModule::new();
     let mut report = NativeTierReport {
         enabled: native.is_some(),
@@ -2092,6 +2336,7 @@ fn codegen(
         data: Vec::new(),
         data_offset: data_base,
         ctrl_depth: 0,
+        invocation_abort: None,
         loops: Vec::new(),
         code_local: 0,
         frame_local: 1,
@@ -2324,7 +2569,7 @@ fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMo
             wasm.memory_pages = required_pages(data_base, &emitter.data);
             wasm.data_segments = emitter.data;
         }
-        WasmEmissionMode::General => return false,
+        WasmEmissionMode::General | WasmEmissionMode::RuntimeChunk(_) => return false,
     }
     true
 }
@@ -2352,6 +2597,13 @@ fn emit_native_i64_add(wasm: &mut WasmModule, data_base: i64, plan: &WasmNativeI
             // Match structured lowering: a non-OK `puts` completion stops
             // the top-level script instead of being silently discarded.
             WasmInstruction::with_operands(WasmOp::LocalSet, leb128_unsigned(0)),
+            WasmInstruction::with_operands(
+                WasmOp::Call,
+                leb128_unsigned(u64::from(imports.host_refusal_pending)),
+            ),
+            WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
+            WasmInstruction::new(WasmOp::Return),
+            WasmInstruction::new(WasmOp::End),
             WasmInstruction::with_operands(WasmOp::LocalGet, leb128_unsigned(0)),
             WasmInstruction::with_operands(WasmOp::If, vec![BLOCK_VOID]),
             WasmInstruction::new(WasmOp::Return),
@@ -2495,6 +2747,19 @@ mod tests {
     /// `StructuredLowering(Proc)` operation is recorded to gate. That is a
     /// coincidence of two independent proofs, not a design — the point of the
     /// guard is that it already holds when procedure bodies become proven.
+    #[test]
+    fn host_script_admission_boxes_the_complete_original_byte_image() {
+        use crate::command_binding::{ExecutedScriptSource, SourceOriginId};
+        use std::sync::Arc;
+        let original = tcl_lexer::SourceImage::native(b"set raw \xff\0tail".as_slice());
+        let origin = Arc::new(SourceOriginId::authored_image(original.clone()));
+        let chunk = ExecutedScriptSource::contiguous_image(origin, original.clone(), 0).unwrap();
+        let (module, _) = codegen_runtime_chunk(Some(&chunk), 64, false, false);
+        assert_eq!(module.data_segments.len(), 1);
+        assert_eq!(module.data_segments[0].offset, 64);
+        assert_eq!(module.data_segments[0].data, original.bytes());
+    }
+
     #[test]
     fn a_substituted_definition_body_is_left_to_the_runtimes_own_proc() {
         let registry = CommandRegistry::build_default();

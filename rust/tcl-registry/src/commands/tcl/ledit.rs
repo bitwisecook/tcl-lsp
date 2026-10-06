@@ -44,6 +44,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ledit",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V9_1,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `ledit` reads the list variable's current value, replaces a
         // range, and writes the result back — a read-before-write of
         // `listVar`, like `lappend`/`append`/`incr` and unlike `lset`'s

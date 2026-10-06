@@ -102,7 +102,7 @@ pub enum OptionValue<V> {
 }
 
 /// Live metadata for an error completion.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorOptions<V> {
     /// The resolved Tcl error-code list. Every error supplies one.
     pub error_code: Option<V>,
@@ -114,6 +114,18 @@ pub struct ErrorOptions<V> {
     pub error_line: Option<i64>,
     /// The prior completion superseded by a `try` handler or `finally` error.
     pub during: Option<V>,
+}
+
+impl<V> Default for ErrorOptions<V> {
+    fn default() -> Self {
+        Self {
+            error_code: None,
+            error_info: None,
+            error_stack: None,
+            error_line: None,
+            during: None,
+        }
+    }
 }
 
 /// One carried return-option pair.
@@ -142,6 +154,22 @@ pub fn retained_array_read_options<V>(
     options
 }
 
+/// Preserve only native error metadata left by a reached read on a successful
+/// update. Completion code and level belong to the resulting update.
+pub fn retained_failed_read_options<V>(
+    options: impl IntoIterator<Item = CarriedOption<V>>,
+) -> Vec<CarriedOption<V>> {
+    options
+        .into_iter()
+        .filter(|(key, _)| {
+            matches!(
+                key.as_slice(),
+                b"-errorcode" | b"-errorinfo" | b"-errorline" | b"-errorstack"
+            )
+        })
+        .collect()
+}
+
 /// Plan the complete return-options dictionary for one completion.
 ///
 /// Carried options are retained, including custom keys and explicit error
@@ -158,6 +186,32 @@ pub fn plan<V: Clone>(
     carried: &[CarriedOption<V>],
     error: Option<&ErrorOptions<V>>,
 ) -> Vec<(Vec<u8>, OptionValue<V>)> {
+    plan_with_origin(
+        version,
+        code,
+        level,
+        tcl_core_types::CompletionOptionOrigin::NativeReturnOptions,
+        carried,
+        error,
+    )
+}
+
+/// Plan options from actual dictionary provenance and live private metadata.
+/// Primitive error transport does not create pre-existing native dictionary keys.
+#[must_use]
+pub fn plan_with_origin<V: Clone>(
+    version: TclVersion,
+    code: Code,
+    level: i64,
+    origin: tcl_core_types::CompletionOptionOrigin,
+    transported: &[CarriedOption<V>],
+    error: Option<&ErrorOptions<V>>,
+) -> Vec<(Vec<u8>, OptionValue<V>)> {
+    let carried = match origin {
+        tcl_core_types::CompletionOptionOrigin::NativeReturnOptions
+        | tcl_core_types::CompletionOptionOrigin::MergedReturnOptions { .. } => transported,
+        tcl_core_types::CompletionOptionOrigin::ErrorMetadata => &[],
+    };
     let mut rows: Vec<(Vec<u8>, OptionValue<V>)> = carried
         .iter()
         .filter(|(key, _)| key.as_slice() != b"-code" && key.as_slice() != b"-level")
@@ -207,6 +261,50 @@ mod tests {
 
     fn keys<'a>(rows: &'a [(Vec<u8>, OptionValue<&'a str>)]) -> Vec<&'a [u8]> {
         rows.iter().map(|(key, _)| key.as_slice()).collect()
+    }
+
+    #[test]
+    fn primitive_metadata_does_not_install_return_dictionary_order() {
+        let transported = [(b"-errorcode".to_vec(), "PRIVATE")];
+        let error = ErrorOptions {
+            error_code: Some("PRIVATE"),
+            error_stack: Some("INNER body CALL p"),
+            ..ErrorOptions::default()
+        };
+        let private = plan_with_origin(
+            TclVersion::V8_6,
+            Code::Error,
+            0,
+            tcl_core_types::CompletionOptionOrigin::ErrorMetadata,
+            &transported,
+            Some(&error),
+        );
+        assert_eq!(
+            keys(&private),
+            [
+                b"-code".as_slice(),
+                b"-level",
+                b"-errorstack",
+                b"-errorcode"
+            ]
+        );
+        let explicit = plan_with_origin(
+            TclVersion::V8_6,
+            Code::Error,
+            0,
+            tcl_core_types::CompletionOptionOrigin::NativeReturnOptions,
+            &transported,
+            Some(&error),
+        );
+        assert_eq!(
+            keys(&explicit),
+            [
+                b"-errorcode".as_slice(),
+                b"-code",
+                b"-level",
+                b"-errorstack"
+            ]
+        );
     }
 
     #[test]

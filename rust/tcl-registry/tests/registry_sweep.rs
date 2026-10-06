@@ -2180,7 +2180,7 @@ fn callback_and_variable_option_metadata_is_well_formed() {
                 spec.name,
                 spec.arg_roles,
                 spec.callback_taint_inputs,
-                spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
+                spec.has_dynamic_argument_roles() || spec.command_prefix_resolver.is_some(),
                 spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
             );
             for sub in spec.subcommands.iter().chain(
@@ -2194,7 +2194,7 @@ fn callback_and_variable_option_metadata_is_well_formed() {
                     &path,
                     sub.arg_roles,
                     sub.callback_taint_inputs,
-                    sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
+                    sub.has_dynamic_argument_roles() || sub.command_prefix_resolver.is_some(),
                     sub.script_timing_resolver.is_some()
                         || sub.traits.contains(Traits::DEFERS_BODY),
                 );

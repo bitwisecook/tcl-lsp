@@ -33,7 +33,75 @@
 //! [`SessionPlan::into_bootstrap`] is the exact script the live driver runs to
 //! stand a session up.
 
+pub use tcl_registry::f5::RuleIdentity;
+
 use crate::topology::{Topology, TopologyError};
+
+/// Source with optional explicitly supplied logical rule ownership.
+#[derive(Debug, Clone)]
+pub struct RuleSource {
+    /// Configuration/session identity; `None` preserves the unnamed API.
+    pub identity: Option<RuleIdentity>,
+    /// Literal iRule source.
+    pub source: String,
+    /// Whether event handlers are attached to the simulated virtual server.
+    pub register_events: bool,
+}
+
+impl RuleSource {
+    /// Existing source-only convenience input, without invented identity.
+    #[must_use]
+    pub fn unnamed(source: impl Into<String>) -> Self {
+        Self {
+            identity: None,
+            source: source.into(),
+            register_events: true,
+        }
+    }
+
+    /// An explicitly named rule attached to the simulated virtual server.
+    #[must_use]
+    pub fn named(identity: RuleIdentity, source: impl Into<String>) -> Self {
+        Self {
+            identity: Some(identity),
+            source: source.into(),
+            register_events: true,
+        }
+    }
+
+    /// A named procedure library whose events are not attached.
+    #[must_use]
+    pub fn library(identity: RuleIdentity, source: impl Into<String>) -> Self {
+        Self {
+            identity: Some(identity),
+            source: source.into(),
+            register_events: false,
+        }
+    }
+
+    /// Render the framework load command with the shared literal list encoder.
+    #[must_use]
+    pub fn load_command(&self) -> String {
+        use tcl_syntax::list::list_element;
+        self.identity.as_ref().map_or_else(
+            || {
+                if self.register_events {
+                    format!("::orch::load_irule {}", list_element(&self.source))
+                } else {
+                    format!("::orch::load_rule {{}} {} 0", list_element(&self.source))
+                }
+            },
+            |identity| {
+                format!(
+                    "::orch::load_rule {} {} {}",
+                    list_element(identity.as_path()),
+                    list_element(&self.source),
+                    u8::from(self.register_events)
+                )
+            },
+        )
+    }
+}
 
 /// The transport / L7 profiles a session is configured with (the orchestrator
 /// `-profiles` list).
@@ -55,6 +123,7 @@ impl Profiles {
 pub struct SessionPlan {
     profiles: Profiles,
     setup: String,
+    rules: Vec<RuleSource>,
 }
 
 impl SessionPlan {
@@ -65,7 +134,15 @@ impl SessionPlan {
         Self {
             profiles,
             setup: setup.into(),
+            rules: Vec::new(),
         }
+    }
+
+    /// Attach explicitly named or unnamed source inputs to the bootstrap.
+    #[must_use]
+    pub fn with_rules(mut self, rules: Vec<RuleSource>) -> Self {
+        self.rules = rules;
+        self
     }
 
     /// Build a plan for `vs_name` in `topology`, deriving the orchestrator setup
@@ -97,6 +174,9 @@ impl SessionPlan {
             );
         }
         s.push_str(&self.setup);
+        for rule in &self.rules {
+            let _ = writeln!(s, "\n{}", rule.load_command());
+        }
         s
     }
 }
@@ -104,6 +184,31 @@ impl SessionPlan {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn named_source_bootstrap_preserves_literal_identity_and_library_attachment() {
+        let library = RuleSource::library(
+            RuleIdentity::new("/Other/library").unwrap(),
+            "proc helper {} {return ok}",
+        );
+        let named = RuleSource::named(
+            RuleIdentity::new("/Common/rule").unwrap(),
+            "when HTTP_REQUEST {call /Other/library::helper}",
+        );
+        let bootstrap = SessionPlan::new(Profiles::default(), "")
+            .with_rules(vec![library, named])
+            .into_bootstrap("/tmp/framework");
+        assert!(
+            bootstrap.contains("::orch::load_rule /Other/library {proc helper {} {return ok}} 0")
+        );
+        assert!(bootstrap.contains(
+            "::orch::load_rule /Common/rule {when HTTP_REQUEST {call /Other/library::helper}} 1"
+        ));
+        assert_eq!(
+            RuleSource::unnamed("when HTTP_REQUEST {pool a}").identity,
+            None
+        );
+    }
 
     #[test]
     fn bootstrap_assembles_orchestrator_script() {

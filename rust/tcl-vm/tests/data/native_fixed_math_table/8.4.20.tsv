@@ -1,0 +1,4 @@
+abs 4 pow 8.0 randRange 1
+arity 1 0 {too many arguments for math function}
+missing 1 0 {unknown math function "missing_function"}
+commandShadow 4

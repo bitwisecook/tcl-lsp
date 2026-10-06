@@ -168,6 +168,24 @@ fn orphaned_keyword_parent(cmd_name: &str) -> Option<&'static str> {
     }
 }
 
+fn body_argument_indices(
+    view: &crate::registry_invocation::InvocationBodyAssistance,
+) -> Vec<usize> {
+    view.possible_roles
+        .iter()
+        .filter_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
+        .collect()
+}
+
+fn is_dynamic_eval_body(view: &crate::registry_invocation::InvocationBodyAssistance) -> bool {
+    view.definite_traits
+        .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
+        && view.definite_invocation.as_ref().is_some_and(|invocation| {
+            tcl_registry::irules_policy::irules_disabled_class(&invocation.facts.canonical_command)
+                .is_none()
+        })
+}
+
 impl Analyser {
     /// Re-segment a body script and dispatch each command at
     /// `scope_path`.
@@ -398,6 +416,27 @@ impl Analyser {
             return false;
         }
         self.presubstituted_args = true;
+        let evaluated = self
+            .head_identities
+            .executed_script_for_word(body_tok.span)
+            .and_then(|source| {
+                let commands = crate::segmenter::segment_commands_image_with_offset_and_config(
+                    &source.text,
+                    source.base(),
+                    self.lexer_config(),
+                )?;
+                let [command] = commands.as_slice() else {
+                    return None;
+                };
+                let proof = self
+                    .head_identities
+                    .source_bindings()
+                    .invocation_at_origin(&source.origin, command.argv.first()?.span.start());
+                proof
+                    .invocation_realm()
+                    .map(|_| (cmd.argv[0].span.start(), proof))
+            });
+        let previous = std::mem::replace(&mut self.evaluated_body_invocation, evaluated);
         self.process_command(
             &cmd.texts,
             &cmd.argv,
@@ -405,6 +444,7 @@ impl Analyser {
             &[],
             scope_path,
         );
+        self.evaluated_body_invocation = previous;
         self.record_arg_var_reads(&cmd, scope_path);
         self.body_depth -= 1;
         true
@@ -799,21 +839,9 @@ impl Analyser {
         if self.safe_interp_visibility_gate(cmd_name, arg_tokens_in[0]) {
             return;
         }
-        let args = if argv_texts.len() > 1 {
-            &argv_texts[1..]
-        } else {
-            &[]
-        };
-        let arg_tokens = if arg_tokens_in.len() > 1 {
-            &arg_tokens_in[1..]
-        } else {
-            &[]
-        };
-        let arg_single = if single_token_word.len() > 1 {
-            &single_token_word[1..]
-        } else {
-            &[]
-        };
+        let args = &argv_texts[1..];
+        let arg_tokens = &arg_tokens_in[1..];
+        let arg_single = single_token_word.get(1..).unwrap_or_default();
         // Bracket-substitution indirection invisible to the
         // gate above — see `check_indirect_hiding`'s doc.
         if self.check_indirect_hiding(argv_texts, arg_tokens_in, arg_expand_in, scope_path) {
@@ -862,6 +890,10 @@ impl Analyser {
             // is a *reference*, never a rename target: overwriting the span
             // would splice the new name over the substitution itself.
             let folded = matches!(head, std::borrow::Cow::Owned(_));
+            let computed = folded
+                || !single_token_word.first().copied().unwrap_or(false)
+                || !matches!(cmd_tok.kind, TokenType::Esc | TokenType::Str)
+                || arg_expand_in.first().copied().unwrap_or(false);
             // A folded head's *written* name (`${ns}::setdef`) is not the
             // `{ns}::{name}` shape `finalise_invocation_resolutions` recovers
             // the calling namespace from, so that pass cannot rebuild this
@@ -881,19 +913,15 @@ impl Analyser {
             let folded_candidates = self.folded_head_candidates(&head, folded, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
-                    name: cmd_name.to_string(),
-                    range: cmd_tok.span,
                     resolved_qualified_name: Some(resolved.clone()),
-                    resolved_user_definition: false,
                     resolution_candidates: folded_candidates,
-                    argc: arg_count,
-                    callback_arity: None,
-                    callback_baked_args: 0,
-                    indirect: folded,
-                    rename_safe: true,
-                    existence_probe: false,
-                    is_mathfunc_call: false,
-                    ensemble_dispatch: None,
+                    indirect: computed,
+                    rename_safe: !computed,
+                    ..crate::signature_scan::types::SignatureCommandInvocation::written(
+                        cmd_name.to_owned(),
+                        cmd_tok.span,
+                        arg_count,
+                    )
                 },
             );
             // `<ensemble> <subcommand> …` — record an additional, existence
@@ -935,7 +963,12 @@ impl Analyser {
             // data — as command invocations too, so the named command is
             // reached by find-references / go-to-definition / rename without
             // any arity check (it is introspected, not called).
-            self.record_command_name_invocations(cmd_name, args, arg_tokens, scope_path);
+            self.record_command_name_invocations(
+                args,
+                arg_tokens,
+                scope_path,
+                cmd_tok.span.start(),
+            );
 
             // The occurrence tables the registry's *argument roles* produce —
             // namespace names and computed variable names.
@@ -1003,38 +1036,103 @@ impl Analyser {
         self.dispatch_command_handlers(cmd_name, args, arg_tokens, arg_single, cmd_tok, scope_path);
     }
 
+    /// Reconstruct original lexical words once, then attach the retained
+    /// lookup receipt. Consumers must not recover roles from final imports
+    /// or a display head when this actual source site has no applicable shape.
+    fn retained_invocation_tokens(
+        &self,
+        invocation_offset: u32,
+        argument_tokens: &[Token],
+    ) -> Option<crate::ir::CommandTokens> {
+        let source_map = self.cached_source_map();
+        let end = tcl_lexer::word_span(&source_map, *argument_tokens.last()?).end();
+        let text = self.source.get(invocation_offset as usize..end as usize)?;
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            invocation_offset,
+            self.lexer_config(),
+        )
+        .into_iter()
+        .next()?;
+        let mut tokens =
+            crate::ir::CommandTokens::from_segmented(&source_map, self.lexer_config(), &segmented);
+        self.head_identities
+            .source_bindings()
+            .stamp_original_tokens(&mut tokens);
+        Some(tokens)
+    }
+
+    fn retained_argument_role_assistance(
+        &self,
+        invocation_offset: u32,
+        argument_tokens: &[Token],
+    ) -> Vec<(usize, ArgRole)> {
+        let Some(registry) = self.registry.as_deref() else {
+            return Vec::new();
+        };
+        let Some(tokens) = self.retained_invocation_tokens(invocation_offset, argument_tokens)
+        else {
+            return Vec::new();
+        };
+        crate::registry_invocation::invocation_argument_role_assistance(
+            registry,
+            tcl_registry::model::semantic::SemanticContext::for_profile(self.profile),
+            &self.command_surface(registry),
+            &tokens,
+        )
+    }
+
+    fn retained_argument_role_consensus(
+        &self,
+        invocation_offset: u32,
+        argument_tokens: &[Token],
+    ) -> Vec<(usize, ArgRole)> {
+        let Some(registry) = self.registry.as_deref() else {
+            return Vec::new();
+        };
+        let Some(tokens) = self.retained_invocation_tokens(invocation_offset, argument_tokens)
+        else {
+            return Vec::new();
+        };
+        crate::registry_invocation::invocation_argument_role_consensus(
+            registry,
+            tcl_registry::model::semantic::SemanticContext::for_profile(self.profile),
+            &tokens,
+        )
+    }
+
     /// Run E006 for the argument shapes the active command spec identifies as
     /// formal lists and static-variable lists. This is deliberately a
     /// registry-only query, including resolver-defined roles and nested lambda
     /// literals.
     fn emit_formal_parameter_list_diagnostics(
         &mut self,
-        cmd_name: &str,
+        invocation_offset: u32,
         args: &[String],
         arg_tokens: &[Token],
     ) {
-        let Some(registry) = self.registry.clone() else {
-            return;
+        let roles = self.retained_argument_role_consensus(invocation_offset, arg_tokens);
+        let indices = |wanted| {
+            roles
+                .iter()
+                .filter_map(|(index, role)| (*role == wanted).then_some(*index))
+                .collect::<Vec<_>>()
         };
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let parameter_indices =
-            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::ParamList);
+        let parameter_indices = indices(ArgRole::ParamList);
         super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
             self,
             args,
             arg_tokens,
             &parameter_indices,
         );
-        let static_indices =
-            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::StaticVarList);
+        let static_indices = indices(ArgRole::StaticVarList);
         super::diagnostics::emit_invalid_static_variable_list_diagnostics(
             self,
             args,
             arg_tokens,
             &static_indices,
         );
-        let lambda_indices =
-            registry.arg_indices_for_role(cmd_name, &arg_refs, ArgRole::LambdaLiteral);
+        let lambda_indices = indices(ArgRole::LambdaLiteral);
         super::diagnostics::emit_invalid_lambda_parameter_list_diagnostics(
             self,
             args,
@@ -1071,10 +1169,13 @@ impl Analyser {
         let resolved = self.resolve_command_qualified_name(target_name, scope_path);
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
+                lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
                 name: target_name.clone(),
                 range: target_tok.span,
                 resolved_qualified_name: Some(resolved),
                 resolved_user_definition: false,
+                resolved_definition: None,
+                resolved_command_reference: None,
                 resolution_candidates: Vec::new(),
                 // iRules `call PROC ...` indirection — arity not
                 // cross-file-checked here; skip conservatively.
@@ -1117,7 +1218,7 @@ impl Analyser {
         // `try`) and the generic `ArgRole::Body` recursion (`if`, `while`)
         // alike. Bracketing the whole dispatch is what makes nested bodies
         // inherit the gate.
-        let gated = self.irules_debug_gate_opens(cmd_name, args);
+        let gated = self.irules_debug_gate_opens(cmd_name, args, arg_tokens, cmd_tok);
         if gated {
             self.irules_debug_gate_depth += 1;
         }
@@ -1181,7 +1282,14 @@ impl Analyser {
         // For `when EVENT { body }` the iRules dialect spec
         // marks arg 1 as BODY; set `current_event` for the body
         // walk so race-detection diagnostics see the event name.
-        self.dispatch_body_arguments(&descriptor_name, args, arg_tokens, arg_single, scope_path);
+        self.dispatch_body_arguments(
+            cmd_name,
+            args,
+            arg_tokens,
+            arg_single,
+            cmd_tok.span.start(),
+            scope_path,
+        );
     }
 
     /// Resolve the [`AnalyserHookId`] for a command head through the shared
@@ -1452,7 +1560,7 @@ impl Analyser {
                 false
             }
             Hook::RegexPatternCapture => {
-                self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path);
+                self.handle_regex_pattern_capture(cmd_name, args, arg_tokens, scope_path, cmd_tok);
                 false
             }
             // ``load`` unconditionally flips ``has_dynamic_providers``:
@@ -1572,6 +1680,7 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
+        cmd_tok: Token,
     ) {
         self.emit_w101_eval_string_concat(cmd_name, args, arg_tokens, arg_single);
         self.emit_w102_subst_injection(cmd_name, args, arg_tokens);
@@ -1580,7 +1689,7 @@ impl Analyser {
         self.emit_w309_eval_subst_double_decode(cmd_name, args, arg_tokens);
         self.emit_w301_uplevel_injection(cmd_name, args, arg_tokens, arg_single);
         self.emit_w312_interp_eval_injection(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w303_redos(cmd_name, args, arg_tokens);
+        self.emit_w303_redos(cmd_name, args, arg_tokens, cmd_tok);
     }
 
     /// Registry-owned literal/value diagnostics. Kept as one dispatch-site
@@ -1684,7 +1793,7 @@ impl Analyser {
             scope_path,
             presubstituted_args,
         } = *site;
-        self.emit_formal_parameter_list_diagnostics(cmd_name, args, arg_tokens);
+        self.emit_formal_parameter_list_diagnostics(cmd_tok.span.start(), args, arg_tokens);
         // W302 dispatches off the registry's own `AnalyserHookId::Catch`
         // stamp rather than the literal head text, so any spelling the
         // registry resolves to that spec is covered without the analyser
@@ -1730,8 +1839,8 @@ impl Analyser {
         {
             self.emit_w142_context_gate(gate, args, cmd_tok);
         }
-        self.emit_injection_diagnostics(cmd_name, args, arg_tokens, arg_single);
-        self.emit_w306_literal_expected(cmd_name, args, arg_tokens);
+        self.emit_injection_diagnostics(cmd_name, args, arg_tokens, arg_single, cmd_tok);
+        self.emit_w306_literal_expected(cmd_name, args, arg_tokens, cmd_tok);
         // W310 runs for every command (it scans args for credential
         // option flags), so it takes no cmd_name guard.
         self.emit_w310_hardcoded_credentials(cmd_name, args, arg_tokens);
@@ -2029,10 +2138,9 @@ impl Analyser {
         // expression (the registry's `EXPR_CONCATENATES_ARGS` trait — `expr`).
         // Resolved before the emitters below so the registry borrow ends
         // ahead of the `&mut self` calls.
-        let concatenates_args = registry.get(cmd_name).is_some_and(|s| {
-            s.traits
-                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-        });
+        let concatenates_args = registry
+            .invocation_traits(cmd_name, &arg_strs, Some(self.profile.surface_query()))
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS);
 
         // W100: unbraced expression argument. Runs for every
         // EXPR-role form, including the `expr 1 + 2` multi-word case
@@ -2105,56 +2213,37 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         arg_single: &[bool],
+        invocation_offset: u32,
         scope_path: &[usize],
     ) {
-        // Current namespace for the imported-command fallback below: the
-        // *command-resolution* namespace, since that is the one whose imports
-        // an unqualified call actually consults — the lexical walk skips proc
-        // scopes and so missed a qualified-name proc's own namespace.
-        // Computed only when imports were recorded.
-        let cur_ns = if self.result.namespace_imports.is_empty() {
-            String::new()
-        } else {
-            self.command_resolution_namespace(scope_path)
-        };
-        // Cloned `Arc` (not `as_deref`) so the §4c dynamic-eval widening —
-        // a `&mut self` call below — can run while the registry is in hand.
         let Some(registry) = self.registry.clone() else {
             return;
         };
-        let registry = &*registry;
-        let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Body-role resolution stays dialect-scoped *deliberately*: a command
-        // that owns a body only in another dialect (e.g. the iRules-only
-        // `when`) is, under a plain-tcl dialect, an unknown user command whose
-        // braced `{...}` is an ordinary string argument — not a script. So we
-        // do NOT recurse into it (and do not fire W123/W002 on its contents).
-        // Analyse iRules under the f5-irules dialect, where `when` is a real
-        // body-owning command.
-        // Asked of the document's surface, not the bare catalogue: a
-        // `# tcl-lsp: stub db_eval {sql script:body}` states the same fact a
-        // spec's `arg_roles` row does, so its script word is walked like one.
-        let mut body_indices = self.command_surface(registry).arg_indices_for_role(
-            cmd_name,
-            &body_args,
-            tcl_registry::arg_role::ArgRole::Body,
+        let Some(tokens) = self.retained_invocation_tokens(invocation_offset, arg_tokens) else {
+            return;
+        };
+        let view = crate::registry_invocation::invocation_body_assistance(
+            &registry,
+            tcl_registry::model::semantic::SemanticContext::for_profile(self.profile),
+            &self.command_surface(&registry),
+            &tokens,
         );
-        // The registry command name that actually owns the body role — usually
-        // `cmd_name`, but the qualified target when an import fallback resolved
-        // it.  Used to read the scoped-body environment from the same spec.
-        let mut body_cmd_owned: Option<String> = None;
-        if body_indices.is_empty()
-            && let Some((idxs, candidate)) =
-                self.imported_body_indices(cmd_name, &body_args, &cur_ns)
-        {
-            body_indices = idxs;
-            body_cmd_owned = Some(candidate);
-        }
+        let logical = crate::registry_invocation::logical_structured_invocation(
+            &registry,
+            &tokens,
+            Some(self.head_identities.source_bindings_ref()),
+        );
+        let logical_traits = logical.as_ref().map_or(
+            view.definite_traits,
+            super::super::registry_invocation::LogicalStructuredInvocation::traits,
+        );
+        let body_indices = body_argument_indices(&view);
         if body_indices.is_empty() {
             return;
         }
+        let dynamic_eval = is_dynamic_eval_body(&view);
         self.widen_irules_dynamic_eval_bindings(
-            cmd_name,
+            dynamic_eval,
             args,
             arg_tokens,
             &body_indices,
@@ -2168,44 +2257,37 @@ impl Analyser {
         // plus a lost write to `l2` that then draws a false W210.
         if body_indices.first().is_some_and(|&first| {
             first + 1 < args.len()
-                && registry.get(cmd_name).is_some_and(|s| {
-                    s.traits
-                        .contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
-                })
+                && logical_traits.contains(tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS)
         }) {
-            let first = body_indices[0];
             self.dispatch_concatenated_script(
-                cmd_name, args, arg_tokens, arg_single, first, scope_path,
+                cmd_name,
+                args,
+                arg_tokens,
+                arg_single,
+                body_indices[0],
+                scope_path,
             );
             return;
         }
-        // Scoped command environment for this command's body args, if any — the
-        // curated command set a `report::defstyle` style script (etc.) exposes.
-        // Both the environment pointer and the sibling-definition name index are
-        // `Copy`, so extracting them here ends the `registry` borrow before the
-        // `&mut self` body recursion below.
-        let body_cmd: &str = body_cmd_owned.as_deref().unwrap_or(cmd_name);
-        let body_scope =
-            self.record_scoped_sibling_definition(registry, body_cmd, &body_args, args);
-        // The event handler carries `IS_EVENT_HANDLER` — `when` today, but
-        // a dialect that adds another gets the same treatment without an edit
-        // here; its synopsis (`when EVENT { body }`) puts the event name in
-        // the first argument. `conditional_depth` rises for a command whose
-        // bodies are branch-selected (`BRANCH_SELECTED_BODY` — `if` / `try`),
-        // which is what makes a `package require` inside one conditional.
-        let spec_traits = registry.invocation_traits(
-            body_cmd,
-            &body_args,
-            Some(self.analysis_context().context().authoring_query()),
+        let logical_roles = logical
+            .as_ref()
+            .map(super::super::registry_invocation::LogicalStructuredInvocation::written_roles);
+        let logical_scope = logical.as_ref().and_then(|selected| {
+            selected.body_scope(
+                &registry,
+                tcl_registry::model::semantic::SemanticContext::for_profile(self.profile),
+            )
+        });
+        let body_scope = self.record_scoped_sibling_definition(
+            logical_scope.or(view.definite_scope),
+            logical_roles.as_deref().unwrap_or(&view.definite_roles),
+            args,
         );
-        // iRules event handlers are a file-level declaration surface.  A
-        // handler-shaped command reached while already walking any body is
-        // invalid (IRULE5006) and must not manufacture or replace event
-        // context.  In particular, a nested handler inside an event retains
-        // the outer event's context, while one inside a proc retains `None`.
-        let (valid_irules_event, entered_event, prev_event) =
-            self.enter_registry_event_context(cmd_name, spec_traits, args, arg_tokens, arg_single);
-        let is_conditional = spec_traits.contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
+        let (_, entered_event, prev_event) =
+            self.enter_body_event_context(cmd_name, &view, args, arg_tokens, arg_single);
+        let is_conditional = view
+            .possible_traits
+            .contains(tcl_registry::Traits::BRANCH_SELECTED_BODY);
         if is_conditional {
             self.conditional_depth += 1;
         }
@@ -2215,11 +2297,13 @@ impl Analyser {
         // or many, so anything inside it is not straight-line. `namespace
         // eval` / `eval` / `uplevel` bodies carry no such trait and stay
         // straight-line, which is correct — they always run.
-        let is_control_flow = spec_traits.contains(tcl_registry::Traits::CONTROL_FLOW);
+        let is_control_flow = view
+            .possible_traits
+            .contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control_flow {
             self.control_flow_body_depth += 1;
         }
-        for idx in body_indices.into_iter().filter(|_| valid_irules_event) {
+        for idx in body_indices {
             if let (Some(body_text), Some(body_tok)) = (args.get(idx), arg_tokens.get(idx).copied())
             {
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
@@ -2244,30 +2328,56 @@ impl Analyser {
         }
     }
 
-    /// The scoped command environment `body_cmd`'s spec declares for its
-    /// body arguments, if any — plus the sibling-definition recording that
-    /// rides it: a definer that makes its own instances callable inside
-    /// sibling bodies (a later `report::defstyle` may invoke an earlier
-    /// style by name) records the defined name so the W123 pass treats it
-    /// as known there. Extracted from [`Self::dispatch_body_arguments`]
-    /// verbatim.
+    fn enter_body_event_context(
+        &mut self,
+        cmd_name: &str,
+        view: &crate::registry_invocation::InvocationBodyAssistance,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> (bool, bool, Option<String>) {
+        let spec_traits = view.definite_traits;
+        // iRules event handlers are a file-level declaration surface.  A
+        // handler-shaped command reached while already walking any body is
+        // invalid (IRULE5006) and must not manufacture or replace event
+        // context.  In particular, a nested handler inside an event retains
+        // the outer event's context, while one inside a proc retains `None`.
+        let direct_event_layout = view.definite_invocation.as_ref().filter(|invocation| {
+            invocation.arguments.len() == args.len()
+                && (0..args.len())
+                    .all(|index| invocation.effective.written_argument(index) == Some(index))
+        });
+        self.enter_registry_event_context(
+            direct_event_layout.map_or(cmd_name, |invocation| {
+                invocation.facts.canonical_command.as_str()
+            }),
+            if direct_event_layout.is_some() {
+                spec_traits
+            } else {
+                tcl_registry::Traits::empty()
+            },
+            args,
+            arg_tokens,
+            arg_single,
+        )
+    }
+
+    /// Scoped definitions belong to a selected logical body contract and an
+    /// original written name operand. The scoped analysis inventory grants no
+    /// actual command-table publication, entered activation or outward write.
     fn record_scoped_sibling_definition(
         &mut self,
-        registry: &tcl_registry::CommandRegistry,
-        body_cmd: &str,
-        body_args: &[&str],
+        body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv>,
+        roles: &[(usize, ArgRole)],
         args: &[String],
     ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
-        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
-            registry.get(body_cmd).and_then(|s| s.body_scope);
-        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
-            registry
-                .arg_indices_for_role(body_cmd, body_args, tcl_registry::arg_role::ArgRole::Name)
-                .first()
-                .copied()
-        } else {
-            None
-        };
+        let sibling_name_idx = body_scope
+            .filter(|env| env.include_sibling_definitions)
+            .and_then(|_| {
+                roles
+                    .iter()
+                    .find_map(|&(index, role)| (role == ArgRole::Name).then_some(index))
+            });
         if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
             && let Some(name) = args.get(ni)
             && !name.is_empty()
@@ -2309,7 +2419,7 @@ impl Analyser {
     /// never loads.
     fn widen_irules_dynamic_eval_bindings(
         &mut self,
-        cmd_name: &str,
+        dynamic_eval: bool,
         args: &[String],
         arg_tokens: &[Token],
         body_indices: &[usize],
@@ -2318,13 +2428,6 @@ impl Analyser {
         if self.result.has_dynamic_providers || !self.profile.is_irules() {
             return;
         }
-        let dynamic_eval = self.registry.as_deref().is_some_and(|registry| {
-            registry.get(cmd_name).is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
-            })
-        }) && tcl_registry::irules_policy::irules_disabled_class(cmd_name)
-            .is_none();
         if !dynamic_eval {
             return;
         }
@@ -2429,51 +2532,6 @@ impl Analyser {
                 Some(tcl_registry::events::IrulesTopLevelDeclaration::Event { body_index, .. })
                     if arg_tokens.get(body_index).is_some_and(|token| token.kind == TokenType::Str)
             )
-    }
-
-    /// Body-role indices for an *imported* command called by its unqualified
-    /// name, plus the qualified registry name that owns them.
-    ///
-    /// `namespace import ::tcltest::*` followed by `test name desc { body }`
-    /// calls the registry's `tcltest::test`, whose body roles only resolve
-    /// under the qualified name. Re-queries through each recorded import so
-    /// the body walk reaches inside the imported command's body.
-    ///
-    /// Conservative on both axes: the caller only asks when the bare name owns
-    /// no body itself, and an import is only in effect where it was made — in
-    /// its own namespace, or, for an import at global scope, everywhere via
-    /// Tcl's unqualified-name fallback to `::`. An import inside
-    /// `namespace eval ns { … }` must not resolve a bare call made in a
-    /// sibling or parent namespace.
-    fn imported_body_indices(
-        &self,
-        cmd_name: &str,
-        body_args: &[&str],
-        cur_ns: &str,
-    ) -> Option<(Vec<usize>, String)> {
-        let registry = self.registry.as_deref()?;
-        if cmd_name.contains("::") {
-            return None;
-        }
-        for imp in &self.result.namespace_imports {
-            if imp.ns != cur_ns && imp.ns != "::" {
-                continue;
-            }
-            let Some(candidate) =
-                tcl_cmd_core::namespace::imported_command_candidate(&imp.pattern, cmd_name)
-            else {
-                continue;
-            };
-            let idxs = registry.arg_indices_for_role(
-                &candidate,
-                body_args,
-                tcl_registry::arg_role::ArgRole::Body,
-            );
-            if !idxs.is_empty() {
-                return Some((idxs, candidate));
-            }
-        }
-        None
     }
 
     /// Analyse the script a [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`]
@@ -2735,10 +2793,13 @@ impl Analyser {
             let resolved = self.resolve_command_qualified_name(&inv.head, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
+                    lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
                     name: inv.head,
                     range: inv.span,
                     resolved_qualified_name: Some(resolved),
                     resolved_user_definition: false,
+                    resolved_definition: None,
+                    resolved_command_reference: None,
                     resolution_candidates: Vec::new(),
                     // The legacy direct-call arity path always skips a
                     // callback head (`None`); the callback-arity check reads
@@ -2773,7 +2834,14 @@ impl Analyser {
         resolved: String,
         argc: Option<usize>,
     ) {
-        self.push_command_reference_with_policy(written, span, resolved, argc, false);
+        self.push_command_reference_with_policy(
+            written,
+            span,
+            resolved,
+            argc,
+            false,
+            crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
+        );
     }
 
     /// [`Self::push_command_reference`] with an explicit existence policy:
@@ -2786,13 +2854,17 @@ impl Analyser {
         resolved: String,
         argc: Option<usize>,
         existence_probe: bool,
+        lookup: crate::signature_scan::types::SignatureCommandLookup,
     ) {
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
+                lookup,
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(resolved),
                 resolved_user_definition: false,
+                resolved_definition: None,
+                resolved_command_reference: None,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -2828,10 +2900,13 @@ impl Analyser {
     ) {
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
+                lookup: crate::signature_scan::types::SignatureCommandLookup::DeferredReference,
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(entry.target.clone()),
                 resolved_user_definition: false,
+                resolved_definition: None,
+                resolved_command_reference: None,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -2861,10 +2936,13 @@ impl Analyser {
     ) {
         self.result.command_invocations.push(
             crate::signature_scan::types::SignatureCommandInvocation {
+                lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
                 name: written,
                 range: span,
                 resolved_qualified_name: Some(resolved),
                 resolved_user_definition: false,
+                resolved_definition: None,
+                resolved_command_reference: None,
                 resolution_candidates: Vec::new(),
                 argc,
                 callback_arity: None,
@@ -2885,15 +2963,13 @@ impl Analyser {
     /// A dynamic word (`info body $p`) names no static command and is skipped.
     fn record_command_name_invocations(
         &mut self,
-        cmd_name: &str,
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        invocation_offset: u32,
     ) {
-        let Some(registry) = self.registry.clone() else {
-            return;
-        };
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let roles = self.retained_argument_role_assistance(invocation_offset, arg_tokens);
+        let definite = self.retained_argument_role_consensus(invocation_offset, arg_tokens);
         // Required-existence references and probe references share the
         // recording; only the existence policy carried on the record
         // differs (a probe never feeds W123).
@@ -2901,7 +2977,10 @@ impl Analyser {
             (tcl_registry::arg_role::ArgRole::CommandName, false),
             (tcl_registry::arg_role::ArgRole::CommandNameProbe, true),
         ] {
-            for idx in registry.arg_indices_for_role(cmd_name, &arg_strs, role) {
+            for idx in roles
+                .iter()
+                .filter_map(|(index, candidate)| (*candidate == role).then_some(*index))
+            {
                 let (Some(name), Some(tok)) = (args.get(idx), arg_tokens.get(idx)) else {
                     continue;
                 };
@@ -2914,13 +2993,27 @@ impl Analyser {
                     continue;
                 }
                 let resolved = self.resolve_command_qualified_name(name, scope_path);
+                let unanimous = definite.contains(&(idx, role));
+                let lookup = if unanimous {
+                    crate::signature_scan::types::SignatureCommandLookup::ConsumedName {
+                        invocation_offset,
+                    }
+                } else {
+                    crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                        invocation_offset,
+                    }
+                };
                 self.push_command_reference_with_policy(
                     name.clone(),
                     tok.span,
                     resolved,
                     None,
                     probe,
+                    lookup,
                 );
+                if !unanimous && let Some(reference) = self.result.command_invocations.last_mut() {
+                    reference.rename_safe = false;
+                }
             }
         }
     }
@@ -3911,10 +4004,13 @@ impl Analyser {
             }
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
+                    lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
                     name,
                     range,
                     resolved_qualified_name: Some(resolved),
                     resolved_user_definition: false,
+                    resolved_definition: None,
+                    resolved_command_reference: None,
                     resolution_candidates: Vec::new(),
                     argc,
                     callback_arity,
@@ -3963,10 +4059,13 @@ impl Analyser {
             let resolved = self.resolve_command_qualified_name(&name, scope_path);
             self.result.command_invocations.push(
                 crate::signature_scan::types::SignatureCommandInvocation {
+                    lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
                     name,
                     range: tcl_lexer::Span::new(abs_start, abs_end),
                     resolved_qualified_name: Some(resolved),
                     resolved_user_definition: false,
+                    resolved_definition: None,
+                    resolved_command_reference: None,
                     resolution_candidates: Vec::new(),
                     // Nested `[cmd ...]` head, no recorded argument list — arity skip.
                     argc: None,
@@ -4099,9 +4198,30 @@ impl Analyser {
                     self.cached_line_index_source_len,
                 );
                 let cmd_text = sm.token_text(cmd_tok).to_string();
+                let base = cmd_tok.span.start() + u32::from(cmd_tok.content_offset);
+                let position = sm.position_at(base);
+                let config = self.lexer_config();
+                let map = tcl_lexer::SourceMap::new(&cmd_text).with_base(
+                    base,
+                    position.line,
+                    position.character.get(),
+                );
+                let bindings = self.head_identities.source_bindings();
+                let commands = crate::segmenter::segment_commands_with_offset_and_config(
+                    &cmd_text, base, config,
+                )
+                .iter()
+                .map(|command| {
+                    let mut tokens =
+                        crate::ir::CommandTokens::from_segmented(&map, config, command);
+                    bindings.stamp_original_tokens(&mut tokens);
+                    tokens
+                })
+                .collect();
                 let method_name = args.first().cloned();
                 self.cmd_command_sites.push(super::state::CmdCommandSite {
                     cmd_text,
+                    commands,
                     method_name,
                     method_span,
                     cmd_span: tcl_lexer::word_span(&sm, cmd_tok),
@@ -5878,8 +5998,9 @@ mod tests {
         // must not resurface as some other spurious entry.
         let mut a = super::super::state::Analyser::new();
         let res = a.analyse("interp create -safe\n", "tcl9.0");
-        assert!(
-            res.created_instance_commands.is_empty(),
+        assert_eq!(
+            res.created_instance_commands.len(),
+            0,
             "created_instance_commands: {:?}",
             res.created_instance_commands
         );
@@ -5964,14 +6085,14 @@ mod tests {
     fn scan_nested_command_heads_no_match_for_pure_var_head() {
         // [$cmd args] — head is a variable substitution, not a name
         let out = scan_nested_command_heads("[$cmd args]");
-        assert!(out.is_empty());
+        assert_eq!(out, [] as [(std::string::String, u32); 0]);
     }
 
     #[test]
     fn scan_nested_command_heads_no_match_for_unclosed() {
         // Unclosed [ — returns nothing (recovery is segmenter's job)
         let out = scan_nested_command_heads("[lindex $x 0");
-        assert!(out.is_empty());
+        assert_eq!(out, [] as [(std::string::String, u32); 0]);
     }
 
     #[test]
@@ -6115,8 +6236,8 @@ mod tests {
         );
         // No handler matched; no procs, vars, classes, or aliases
         // recorded.
-        assert!(a.result.all_procs.is_empty());
-        assert!(a.result.global_scope.variables.is_empty());
+        assert_eq!(a.result.all_procs.len(), 0);
+        assert_eq!(a.result.global_scope.variables.len(), 0);
     }
 
     #[test]

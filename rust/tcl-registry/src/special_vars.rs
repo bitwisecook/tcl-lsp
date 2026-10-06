@@ -54,6 +54,99 @@ use crate::taint::TaintColour;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
+/// Native interpreter storage written while presenting an error completion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeErrorStorageVariable {
+    /// Structured native error classification.
+    ErrorCode,
+    /// Native error context and stack presentation.
+    ErrorInfo,
+}
+
+impl NativeErrorStorageVariable {
+    /// Global lookup spelling used by the native interpreter, including aliases.
+    #[must_use]
+    pub const fn global_name(self) -> &'static str {
+        match self {
+            Self::ErrorCode => "::errorCode",
+            Self::ErrorInfo => "::errorInfo",
+        }
+    }
+}
+
+/// C Tcl error presentation can write both global cells, independently of the
+/// physical frame where an invocation or compilation failure occurred.
+/// Unmeasured engines retain an unresolved storage footprint.
+#[must_use]
+pub fn native_error_storage(
+    dialect: crate::InvocationDialect,
+) -> Option<&'static [NativeErrorStorageVariable]> {
+    (dialect.family() == Some(tcl_dialect::model::Family::Tcl)).then_some(&[
+        NativeErrorStorageVariable::ErrorCode,
+        NativeErrorStorageVariable::ErrorInfo,
+    ])
+}
+
+/// Audited C hidden error-variable callbacks installed by interpreter creation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeErrorVariableProtocol;
+
+/// Action of the hidden read callback, after user callbacks have run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeErrorVariableRead {
+    /// Preserve the current public cell and private state.
+    Preserve,
+    /// Store the same retained private object in the public cell.
+    CopyPrivate,
+    /// Define an empty public value without creating a private object.
+    DefineEmpty,
+}
+
+impl NativeErrorVariableProtocol {
+    /// Read callbacks are gated by `ERR_LEGACY_COPY`, independently of contents.
+    #[must_use]
+    pub const fn read(
+        self,
+        legacy_copy: bool,
+        private: bool,
+        defined: bool,
+    ) -> NativeErrorVariableRead {
+        if !legacy_copy {
+            NativeErrorVariableRead::Preserve
+        } else if private {
+            NativeErrorVariableRead::CopyPrivate
+        } else if !defined {
+            NativeErrorVariableRead::DefineEmpty
+        } else {
+            NativeErrorVariableRead::Preserve
+        }
+    }
+
+    /// `Tcl_ResetResult` publishes code before info, then releases private owners.
+    #[must_use]
+    pub const fn reset_order(self) -> &'static [NativeErrorStorageVariable] {
+        &[
+            NativeErrorStorageVariable::ErrorCode,
+            NativeErrorStorageVariable::ErrorInfo,
+        ]
+    }
+}
+
+impl crate::InvocationDialect {
+    /// Actual C8.5+ callbacks; C8.4, Jim and authored vendor simulations abstain.
+    #[must_use]
+    pub fn native_error_variable_protocol(self) -> Option<NativeErrorVariableProtocol> {
+        match self.native_name_protocol()? {
+            tcl_syntax::naming::NativeNameProtocol::C(version)
+                if version >= tcl_dialect::TclVersion::V8_5 =>
+            {
+                Some(NativeErrorVariableProtocol)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// The value shape a special variable holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpecialVarKind {
@@ -130,6 +223,31 @@ pub struct SpecialVarKey {
     pub summary: &'static str,
 }
 
+/// Native callbacks attached to the actual interpreter-provided storage cell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SpecialVariableHook {
+    /// Thread-shared floating string precision; reads canonicalise the raw slot.
+    DoublePrecision,
+}
+
+impl SpecialVariableHook {
+    /// Native global name selected independently of catalogue availability.
+    #[must_use]
+    pub fn name_in(self, dialect: crate::InvocationDialect) -> Option<&'static str> {
+        match self {
+            Self::DoublePrecision => dialect.double_string_policy()?.precision_variable(),
+        }
+    }
+
+    /// A raw stored value alone cannot prove the next observed read result.
+    #[must_use]
+    pub const fn changes_read_value(self) -> bool {
+        match self {
+            Self::DoublePrecision => true,
+        }
+    }
+}
+
 /// Metadata for one interpreter-provided special variable.
 #[derive(Debug, Clone, Copy)]
 pub struct SpecialVarSpec {
@@ -164,6 +282,8 @@ pub struct SpecialVarSpec {
     /// [`Self::lazily_readable`].  It documents why W210 can treat only the
     /// initial global version as defined.
     pub startup_binding: StartupBinding,
+    /// Native observer independent of script-level trace registrations.
+    pub runtime_hook: Option<SpecialVariableHook>,
     /// Known array keys (empty for scalars, namespaces, and open-keyed
     /// arrays). Each key is itself dialect-gated.
     pub keys: &'static [SpecialVarKey],
@@ -433,6 +553,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -449,6 +570,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -465,6 +587,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -482,6 +605,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -499,6 +623,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -515,6 +640,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -531,6 +657,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -547,6 +674,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -564,6 +692,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -585,6 +714,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::TCL84,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -601,6 +731,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::TCL84,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -618,6 +749,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL_AND_IRULES,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
         keys: &[],
         externally_read: false,
         cmp_unsafe: true,
@@ -634,6 +766,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL_AND_IRULES,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
         keys: &[],
         externally_read: false,
         cmp_unsafe: true,
@@ -650,6 +783,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -670,6 +804,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::TCL84,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -687,6 +822,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -703,6 +839,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL_AND_IRULES,
         lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
         keys: TCL_PLATFORM_KEYS,
         externally_read: false,
         cmp_unsafe: true,
@@ -720,6 +857,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: SpecSurface::TCL8X,
         startup_binding: StartupBinding::ReadTrace,
+        runtime_hook: Some(SpecialVariableHook::DoublePrecision),
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -736,6 +874,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::AppInit,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -752,6 +891,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: SpecSurface::ALL_TCL,
         lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -768,6 +908,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -784,6 +925,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -800,6 +942,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -816,6 +959,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -832,6 +976,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -848,6 +993,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -865,6 +1011,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         initially_bound: &[],
         lazily_readable: &[],
         startup_binding: StartupBinding::None,
+        runtime_hook: None,
         keys: &[],
         externally_read: true,
         cmp_unsafe: false,
@@ -892,6 +1039,35 @@ mod tests {
         tcl_dialect::DialectProfile::find(dialect)
             .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
             .surface_query()
+    }
+
+    #[test]
+    fn native_precision_hook_is_selected_by_engine_policy() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let expected = match version {
+                tcl_dialect::TclVersion::V8_4
+                | tcl_dialect::TclVersion::V8_5
+                | tcl_dialect::TclVersion::V8_6 => Some("::tcl_precision"),
+                tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1 => None,
+            };
+            assert_eq!(
+                SpecialVariableHook::DoublePrecision.name_in(dialect),
+                expected
+            );
+        }
+        let jim = crate::model::ingress::resolve_environment("jim").analyser_profile();
+        assert_eq!(
+            SpecialVariableHook::DoublePrecision.name_in(crate::InvocationDialect::of_profile(jim)),
+            None
+        );
+        assert!(SpecialVariableHook::DoublePrecision.changes_read_value());
+        assert_eq!(
+            special_var("tcl_precision").unwrap().runtime_hook,
+            Some(SpecialVariableHook::DoublePrecision)
+        );
     }
 
     #[test]
@@ -1167,5 +1343,343 @@ mod tests {
         let spec = special_var("tcl_platform").unwrap();
         let keys_84: Vec<_> = spec.keys_in(Some(d("tcl8.4"))).map(|k| k.key).collect();
         assert!(!keys_84.contains(&"pointerSize"));
+    }
+}
+
+/// The native entry point that produces a root-variable inventory.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeBootstrapPurpose {
+    /// Core constructor, before any script library or application arguments.
+    CreateInterpreter,
+    /// `Tcl_Main` argument publication, before its application initializer.
+    MainArguments,
+}
+
+/// An operation-owned root variable; enumeration order is allocation order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeBootstrapVariable {
+    /// Undefined native error context trace cell.
+    ErrorInfo,
+    /// Undefined native error classification trace cell.
+    ErrorCode,
+    /// Process environment array.
+    Environment,
+    /// Native platform description array.
+    Platform,
+    /// Actual release patch level.
+    PatchLevel,
+    /// Actual release major/minor version.
+    Version,
+    /// Undefined precision read/write trace cell.
+    Precision,
+    /// C8.4 platform-provided default library path.
+    DefaultLibrary,
+    /// Build-provided package search path.
+    PackagePath,
+    /// Jim constructor's build-provided library search path.
+    AutoPath,
+    /// Application interactivity flag.
+    Interactive,
+    /// Application executable spelling.
+    Argv0,
+    /// Application argument count.
+    Argc,
+    /// Application original argument list.
+    Argv,
+}
+
+impl NativeBootstrapVariable {
+    /// Original global tail owned by this native producer.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::ErrorInfo => "errorInfo",
+            Self::ErrorCode => "errorCode",
+            Self::Environment => "env",
+            Self::Platform => "tcl_platform",
+            Self::PatchLevel => "tcl_patchLevel",
+            Self::Version => "tcl_version",
+            Self::Precision => "tcl_precision",
+            Self::DefaultLibrary => "tclDefaultLibrary",
+            Self::PackagePath => "tcl_pkgPath",
+            Self::AutoPath => "auto_path",
+            Self::Interactive => "tcl_interactive",
+            Self::Argv0 => "argv0",
+            Self::Argc => "argc",
+            Self::Argv => "argv",
+        }
+    }
+    /// A constructor allocation with no defined guest value.
+    #[must_use]
+    pub const fn is_undefined(self) -> bool {
+        matches!(self, Self::ErrorInfo | Self::ErrorCode | Self::Precision)
+    }
+}
+
+/// Independently supplied host/build bytes, never inferred from a Tcl release.
+#[derive(Clone, Debug, Default)]
+pub struct NativeBootstrapInputs {
+    /// Counted native list spelling of the build's package or Jim library path.
+    pub package_path: Vec<u8>,
+    /// Actual C8.4 platform initializer's default library, when that producer exists.
+    pub default_library: Option<Vec<u8>>,
+}
+
+/// Actual audited constructor family; this grants no library initialization.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeBootstrapProtocol {
+    names: tcl_syntax::naming::NativeNameProtocol,
+}
+
+impl NativeBootstrapProtocol {
+    /// The authenticated name/storage recipe of the producing engine.
+    #[must_use]
+    pub const fn names(self) -> tcl_syntax::naming::NativeNameProtocol {
+        self.names
+    }
+
+    /// Whether the core constructor registers the native binary command.
+    /// Jim's binary command is a distribution script over an optional pack
+    /// extension, outside `Jim_RegisterCoreCommands`.
+    #[must_use]
+    pub const fn registers_core_binary(self) -> bool {
+        matches!(self.names, tcl_syntax::naming::NativeNameProtocol::C(_))
+    }
+
+    /// Whether the native core registers its structured `try` handler.
+    #[must_use]
+    pub const fn registers_core_try(self) -> bool {
+        match self.names {
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => true,
+            tcl_syntax::naming::NativeNameProtocol::C(version) => {
+                matches!(
+                    version,
+                    tcl_dialect::TclVersion::V8_6
+                        | tcl_dialect::TclVersion::V9_0
+                        | tcl_dialect::TclVersion::V9_1
+                )
+            }
+        }
+    }
+
+    /// Whether the native core registers `throw`; Jim has no core worker.
+    #[must_use]
+    pub const fn registers_core_throw(self) -> bool {
+        matches!(
+            self.names,
+            tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V8_6
+                    | tcl_dialect::TclVersion::V9_0
+                    | tcl_dialect::TclVersion::V9_1
+            )
+        )
+    }
+
+    /// Whether the native core constructor itself initializes `TclOO`.
+    /// Jim and C84/C85 require a separately loaded implementation; compatible
+    /// source syntax or the host's analytical command set supplies no authority.
+    #[must_use]
+    pub const fn initializes_tcl_oo(self) -> bool {
+        matches!(
+            self.names,
+            tcl_syntax::naming::NativeNameProtocol::C(
+                tcl_dialect::TclVersion::V8_6
+                    | tcl_dialect::TclVersion::V9_0
+                    | tcl_dialect::TclVersion::V9_1
+            )
+        )
+    }
+
+    /// Ordered native root allocations. `default_library` is a separately
+    /// supplied platform producer fact, not a release-based platform guess.
+    #[must_use]
+    pub fn allocations(
+        self,
+        purpose: NativeBootstrapPurpose,
+        default_library: bool,
+    ) -> Option<Vec<NativeBootstrapVariable>> {
+        use NativeBootstrapVariable as V;
+        use tcl_syntax::naming::NativeNameProtocol as N;
+        if purpose == NativeBootstrapPurpose::MainArguments {
+            return match self.names {
+                N::C(_) => Some(vec![V::Argv0, V::Argc, V::Argv, V::Interactive]),
+                N::Jim084 => None,
+            };
+        }
+        match self.names {
+            N::Jim084 => Some(vec![V::AutoPath, V::Interactive, V::Platform]),
+            N::C(version) => {
+                let mut rows = Vec::new();
+                if version >= tcl_dialect::TclVersion::V8_5 {
+                    rows.extend([V::ErrorInfo, V::ErrorCode]);
+                }
+                rows.extend([V::Environment, V::Platform, V::PatchLevel, V::Version]);
+                if version < tcl_dialect::TclVersion::V9_0 {
+                    rows.push(V::Precision);
+                }
+                if version == tcl_dialect::TclVersion::V8_4 && default_library {
+                    rows.push(V::DefaultLibrary);
+                }
+                rows.push(V::PackagePath);
+                Some(rows)
+            }
+        }
+    }
+}
+
+impl crate::InvocationDialect {
+    /// Actual native constructor policy; vendor compatibility and authored
+    /// simulations cannot issue a physical root birth inventory.
+    #[must_use]
+    pub fn native_bootstrap_protocol(self) -> Option<NativeBootstrapProtocol> {
+        Some(NativeBootstrapProtocol {
+            names: self.native_name_protocol()?,
+        })
+    }
+}
+
+#[cfg(test)]
+mod native_bootstrap_tests {
+    use super::*;
+
+    #[test]
+    fn constructor_root_order_and_undefined_cells_match_native_capture() {
+        let fixture = include_str!("../tests/data/native_bootstrap/core-roots.tsv");
+        for (profile_name, version) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.5", "8.5"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("tcl9.1", "9.1"),
+            ("jim", "jim"),
+        ] {
+            let profile = crate::model::resolve_environment(profile_name).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let protocol = dialect.native_bootstrap_protocol().unwrap();
+            let abi = tcl_core_types::NativeHashAbi {
+                plain_char: tcl_core_types::NativeHashBytePromotion::Signed,
+                unsigned_int: tcl_core_types::NativeHashWordWidth::Bits32,
+                size_t: tcl_core_types::NativeHashWordWidth::Bits64,
+                jim_seed: Some(0),
+            };
+            let hash = dialect.native_variable_table_protocol(abi).unwrap();
+            let mut ledger = tcl_core_types::NativeEntryLedger::default();
+            ledger.select_recipe(Some(hash.recipe()));
+            let variables = protocol
+                .allocations(NativeBootstrapPurpose::CreateInterpreter, true)
+                .unwrap();
+            for variable in &variables {
+                ledger.insert(variable.name().as_bytes());
+            }
+            let expected: Vec<_> = fixture
+                .lines()
+                .filter_map(|line| {
+                    let fields: Vec<_> = line.split('\t').collect();
+                    (fields[0] == version).then_some((fields[1], fields[2] == "1"))
+                })
+                .collect();
+            assert!(!expected.is_empty());
+            let actual: Vec<_> = ledger
+                .keys()
+                .unwrap()
+                .into_iter()
+                .map(|key| {
+                    let variable = variables
+                        .iter()
+                        .find(|variable| variable.name().as_bytes() == key)
+                        .unwrap();
+                    (variable.name(), !variable.is_undefined())
+                })
+                .collect();
+            assert_eq!(actual, expected, "{profile_name}");
+        }
+    }
+
+    #[test]
+    fn application_arguments_and_unknown_engines_have_separate_authority() {
+        let c = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0)
+            .native_bootstrap_protocol()
+            .unwrap();
+        let names: Vec<_> = c
+            .allocations(NativeBootstrapPurpose::MainArguments, false)
+            .unwrap()
+            .into_iter()
+            .map(NativeBootstrapVariable::name)
+            .collect();
+        assert_eq!(names, ["argv0", "argc", "argv", "tcl_interactive"]);
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::resolve_environment("jim").unit_profile(),
+        )
+        .native_bootstrap_protocol()
+        .unwrap();
+        assert!(
+            jim.allocations(NativeBootstrapPurpose::MainArguments, false)
+                .is_none()
+        );
+        assert!(
+            crate::InvocationDialect::of_profile(
+                tcl_dialect::DialectProfile::find("f5-irules").unwrap()
+            )
+            .native_bootstrap_protocol()
+            .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod native_error_variable_tests {
+    use super::*;
+
+    #[test]
+    fn hidden_error_read_policy_matches_five_original_c_releases() {
+        let fixture = include_str!("../tests/data/native_error_variables/observations.tsv");
+        assert_eq!(fixture.lines().count(), 50);
+        for (name, version) in [
+            ("tcl8.4", "8.4.20"),
+            ("tcl8.5", "8.5.19"),
+            ("tcl8.6", "8.6.18"),
+            ("tcl9.0", "9.0.4"),
+            ("tcl9.1", "9.1.0"),
+        ] {
+            let profile = crate::model::resolve_environment(name).unit_profile();
+            let protocol =
+                crate::InvocationDialect::of_profile(profile).native_error_variable_protocol();
+            assert_eq!(protocol.is_some(), name != "tcl8.4");
+            let rows: Vec<_> = fixture
+                .lines()
+                .filter(|line| line.starts_with(version))
+                .collect();
+            assert_eq!(rows.len(), 10);
+            if let Some(protocol) = protocol {
+                assert!(rows[3].contains("errorInfo_same=1"));
+                assert!(rows[4].contains("errorInfo_present=1\terrorInfo_defined=0"));
+                assert!(rows[7].contains("errorCode_present=1\terrorCode_defined=0"));
+                assert!(rows[8].contains("errorCode_value=\"\""));
+                assert_eq!(
+                    protocol.read(false, true, true),
+                    NativeErrorVariableRead::Preserve
+                );
+                assert_eq!(
+                    protocol.read(true, true, true),
+                    NativeErrorVariableRead::CopyPrivate
+                );
+                assert_eq!(
+                    protocol.read(true, false, false),
+                    NativeErrorVariableRead::DefineEmpty
+                );
+                assert_eq!(
+                    protocol.read(true, false, true),
+                    NativeErrorVariableRead::Preserve
+                );
+            }
+        }
+        for name in ["jim", "f5-irules"] {
+            let profile = crate::model::resolve_environment(name).unit_profile();
+            assert!(
+                crate::InvocationDialect::of_profile(profile)
+                    .native_error_variable_protocol()
+                    .is_none()
+            );
+        }
     }
 }

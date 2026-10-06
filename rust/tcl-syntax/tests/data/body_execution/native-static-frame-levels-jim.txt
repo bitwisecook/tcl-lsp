@@ -1,0 +1,3 @@
+retired-read 1 {can't read "x": no such variable}
+unrelated-frame {0 OTHER}
+later-write-read MODIFIED 1 {can't read "x": no such variable}

@@ -1,0 +1,12 @@
+factory=incr input=9 entry=direct prep=0 before=int code=0 after=int result=3.0
+factory=incr input=9 entry=procedure prep=0 before=int code=0 after=int result=3.0
+factory=incr input=2147483649 entry=direct prep=0 before=int code=0 after=int result=46340.95002263117
+factory=incr input=2147483649 entry=procedure prep=0 before=int code=0 after=int result=46340.95002263117
+factory=incr input=9223372036854775807 entry=direct prep=0 before=int code=0 after=int result=3037000499.97605
+factory=incr input=9223372036854775807 entry=procedure prep=0 before=int code=0 after=int result=3037000499.97605
+factory=hostWide input=9 entry=direct prep=0 before=int code=0 after=int result=3.0
+factory=hostWide input=9 entry=procedure prep=0 before=int code=0 after=int result=3.0
+factory=hostWide input=2147483649 entry=direct prep=0 before=int code=0 after=int result=46340.95002263117
+factory=hostWide input=2147483649 entry=procedure prep=0 before=int code=0 after=int result=46340.95002263117
+factory=hostWide input=9223372036854775807 entry=direct prep=0 before=int code=0 after=int result=3037000499.97605
+factory=hostWide input=9223372036854775807 entry=procedure prep=0 before=int code=0 after=int result=3037000499.97605

@@ -45,6 +45,16 @@ use crate::{NumberSyntax, TclVersion, is_expr_word_operator};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExprNumberLexeme {
     end: usize,
+    jim_kind: Option<JimExpressionNumberKind>,
+}
+
+/// The selected Jim numeric token constructor, independent of object getters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JimExpressionNumberKind {
+    /// The original scanner selected the native integer constructor.
+    Integer,
+    /// The original scanner selected the native double constructor.
+    Double,
 }
 
 /// The complete, decoded payload of a `NaN(...)` spelling.
@@ -76,6 +86,13 @@ impl NanPayloadLexeme {
 }
 
 impl ExprNumberLexeme {
+    /// Jim token kind selected while scanning the original numeral.
+    /// Other grammars cannot issue this constructor receipt.
+    #[must_use]
+    pub const fn jim_kind(self) -> Option<JimExpressionNumberKind> {
+        self.jim_kind
+    }
+
     /// The exclusive end offset of this lexeme in its source byte slice.
     #[must_use]
     pub const fn end(self) -> usize {
@@ -115,7 +132,153 @@ pub fn scan_expr_number(
     } else {
         scan_special_float(source, start, expr_grammar_base, true, true)?
     };
-    Some(ExprNumberLexeme { end })
+    let jim_kind = matches!(numbers, NumberSyntax::Jim | NumberSyntax::Jim080)
+        .then(|| jim_number_kind(source, start, end, numbers));
+    Some(ExprNumberLexeme { end, jim_kind })
+}
+
+/// Scan an original Jim numeric token using its native integer-first frontier.
+/// The native scanner can stop before a following bareword or invalid radix
+/// suffix. The returned constructor kind belongs to this exact token extent.
+/// This is distinct from C-style whole-candidate numeric/bareword joining.
+#[must_use]
+pub fn scan_jim_expression_number(
+    source: &[u8],
+    start: usize,
+    numbers: NumberSyntax,
+) -> Option<ExprNumberLexeme> {
+    if !matches!(numbers, NumberSyntax::Jim | NumberSyntax::Jim080) {
+        return None;
+    }
+    let first = *source.get(start)?;
+    if !first.is_ascii_digit() && first != b'.' {
+        let end = jim_irrational_end(source, start)?;
+        return Some(ExprNumberLexeme {
+            end,
+            jim_kind: Some(JimExpressionNumberKind::Double),
+        });
+    }
+    let integer_end = if first == b'0' {
+        scan_explicit_radix_number(source, start, numbers)
+            .unwrap_or_else(|| decimal_integer_end(source, start))
+    } else {
+        decimal_integer_end(source, start)
+    };
+    let double = integer_end == start
+        || source
+            .get(integer_end)
+            .is_some_and(|byte| matches!(byte, b'e' | b'E' | b'N' | b'n' | b'I' | b'i' | b'.'));
+    if double
+        && let Some(end) = jim_double_end(source, start)
+        && end > integer_end
+    {
+        return Some(ExprNumberLexeme {
+            end,
+            jim_kind: Some(JimExpressionNumberKind::Double),
+        });
+    }
+    (integer_end != start).then_some(ExprNumberLexeme {
+        end: integer_end,
+        jim_kind: Some(JimExpressionNumberKind::Integer),
+    })
+}
+
+fn decimal_integer_end(source: &[u8], start: usize) -> usize {
+    let mut end = start;
+    while source.get(end).is_some_and(u8::is_ascii_digit) {
+        end += 1;
+    }
+    end
+}
+
+fn jim_double_end(source: &[u8], start: usize) -> Option<usize> {
+    if source
+        .get(start..start + 2)
+        .is_some_and(|bytes| matches!(bytes, b"0x" | b"0X"))
+    {
+        let mut end = start + 2;
+        let mut digits = 0_usize;
+        while source.get(end).is_some_and(u8::is_ascii_hexdigit) {
+            end += 1;
+            digits += 1;
+        }
+        if source.get(end) == Some(&b'.') {
+            end += 1;
+            while source.get(end).is_some_and(u8::is_ascii_hexdigit) {
+                end += 1;
+                digits += 1;
+            }
+        }
+        if digits != 0 {
+            return Some(float_exponent_end(source, end, b'p', b'P'));
+        }
+    }
+    let end = scan_tcl84_decimal(source, start);
+    source
+        .get(start..end)
+        .filter(|bytes| bytes.iter().any(u8::is_ascii_digit))
+        .map(|_| end)
+}
+
+fn float_exponent_end(source: &[u8], at: usize, lower: u8, upper: u8) -> usize {
+    if !source
+        .get(at)
+        .is_some_and(|&byte| byte == lower || byte == upper)
+    {
+        return at;
+    }
+    let mut end = at + 1;
+    if source
+        .get(end)
+        .is_some_and(|byte| matches!(byte, b'+' | b'-'))
+    {
+        end += 1;
+    }
+    let digits = end;
+    end = decimal_integer_end(source, end);
+    if end == digits { at } else { end }
+}
+
+fn jim_irrational_end(source: &[u8], start: usize) -> Option<usize> {
+    const SPELLINGS: [&[u8]; 6] = [b"Inf", b"inf", b"INF", b"NaN", b"nan", b"NAN"];
+    SPELLINGS.into_iter().find_map(|spelling| {
+        source
+            .get(start..start + spelling.len())
+            .is_some_and(|bytes| bytes == spelling)
+            .then_some(start + spelling.len())
+    })
+}
+
+fn jim_number_kind(
+    source: &[u8],
+    start: usize,
+    end: usize,
+    numbers: NumberSyntax,
+) -> JimExpressionNumberKind {
+    let integer_end = if source.get(start) == Some(&b'0')
+        && source
+            .get(start + 1)
+            .and_then(|byte| numbers.explicit_radix(*byte))
+            .is_some()
+    {
+        scan_explicit_radix_number(source, start, numbers).unwrap_or(start)
+    } else {
+        let mut cursor = start;
+        while source.get(cursor).is_some_and(u8::is_ascii_digit) {
+            cursor += 1;
+        }
+        cursor
+    };
+    if integer_end < end
+        && (integer_end == start
+            || source
+                .get(integer_end)
+                .is_some_and(|byte| matches!(byte, b'e' | b'E' | b'N' | b'n' | b'I' | b'i' | b'.')))
+    {
+        JimExpressionNumberKind::Double
+    } else {
+        JimExpressionNumberKind::Integer
+    }
 }
 
 /// Parse C Tcl's `NaN(hexdigits)` payload beginning at its opening `(`.
@@ -378,7 +541,7 @@ fn scan_tcl84_decimal(source: &[u8], start: usize) -> usize {
     let needs_double = source
         .get(end)
         .is_some_and(|byte| matches!(byte, b'.' | b'e' | b'E'))
-        || (source.get(start) == Some(&b'.') && end > start);
+        || source.get(start) == Some(&b'.');
     if !needs_double {
         return end;
     }
@@ -432,13 +595,7 @@ fn scan_jim_special_float(
     start: usize,
     expr_grammar_base: Option<TclVersion>,
 ) -> Option<usize> {
-    const SPELLINGS: [&[u8]; 6] = [b"Inf", b"inf", b"INF", b"NaN", b"nan", b"NAN"];
-    let end = SPELLINGS.into_iter().find_map(|spelling| {
-        source
-            .get(start..start + spelling.len())
-            .is_some_and(|window| window == spelling)
-            .then_some(start + spelling.len())
-    })?;
+    let end = jim_irrational_end(source, start)?;
     if source
         .get(end)
         .is_some_and(|byte| is_expr_bareword_byte(*byte))
@@ -754,5 +911,84 @@ mod tests {
         );
         assert_eq!(scan_nan_payload(b"NaN(  )", 3), None);
         assert_eq!(scan_nan_payload(b"NaN(123456789abcde)", 3), None);
+    }
+}
+
+#[cfg(test)]
+mod jim_constructor_tests {
+    use super::*;
+
+    #[test]
+    fn native_jim_frontiers_preserve_integer_first_tokens() {
+        use JimExpressionNumberKind::{Double, Integer};
+        for (source, end, kind) in [
+            ("0x", 1, Integer),
+            ("0xg", 1, Integer),
+            ("0b2", 1, Integer),
+            ("0o8", 1, Integer),
+            ("0d", 1, Integer),
+            ("12x", 2, Integer),
+            ("1_", 1, Integer),
+            ("1eq2", 1, Integer),
+            ("09e", 2, Integer),
+            ("1e+", 1, Integer),
+            ("0x1p4", 3, Integer),
+            ("0x1.8p1", 7, Double),
+            ("0x1.", 4, Double),
+            ("0x.p4", 1, Integer),
+            ("0xFE", 4, Integer),
+            ("0o755", 5, Integer),
+            ("0d755", 5, Integer),
+            ("0755", 4, Integer),
+            ("1e0", 3, Double),
+            (".5", 2, Double),
+            ("NaNfoo", 3, Double),
+            ("Infinity", 3, Double),
+            ("Inf", 3, Double),
+        ] {
+            let original = format!("!{source}\0suffix");
+            let token =
+                scan_jim_expression_number(original.as_bytes(), 1, NumberSyntax::Jim080).unwrap();
+            assert_eq!(
+                (token.end(), token.jim_kind()),
+                (1 + end, Some(kind)),
+                "{source}"
+            );
+        }
+        assert_eq!(
+            scan_jim_expression_number(b".", 0, NumberSyntax::Jim080),
+            None
+        );
+        assert_eq!(
+            scan_jim_expression_number(b"0x1.8p1", 0, NumberSyntax::Tcl90),
+            None
+        );
+    }
+
+    #[test]
+    fn original_numeric_tokens_select_integer_and_double_constructors() {
+        use JimExpressionNumberKind::{Double, Integer};
+        for (source, expected) in [
+            (b"0755".as_slice(), Integer),
+            (b"0xFE", Integer),
+            (b"0b101", Integer),
+            (b"0o755", Integer),
+            (b"0d755", Integer),
+            (b"1e0", Double),
+            (b".5", Double),
+            (b"1.", Double),
+            (b"NaN", Double),
+            (b"Inf", Double),
+        ] {
+            let token = scan_expr_number(source, 0, NumberSyntax::Jim, None).unwrap();
+            assert_eq!(token.end(), source.len());
+            assert_eq!(token.jim_kind(), Some(expected), "{source:?}");
+            assert_eq!(
+                scan_expr_number(source, 0, NumberSyntax::Tcl90, None)
+                    .unwrap()
+                    .jim_kind(),
+                None
+            );
+        }
     }
 }

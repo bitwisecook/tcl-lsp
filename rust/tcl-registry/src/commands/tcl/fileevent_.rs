@@ -19,21 +19,27 @@
 //! `fileevent` — execute a script when a channel becomes readable or writable.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Command spec for `fileevent`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileevent",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
-target: SideEffectTarget::FileIo,
-writes: true,
-..SideEffect::DEFAULT
-}],
+            target: SideEffectTarget::FileIo,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }],
         hover: Some(HoverSnippet::brief(
             "Execute a script when a channel becomes readable or writable.",
             &[

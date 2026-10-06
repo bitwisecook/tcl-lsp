@@ -10,7 +10,7 @@ Three documents cover this surface, and they do not overlap:
 | Document | Answers |
 |---|---|
 | [contracts/command-resolution.md](../contracts/command-resolution.md) | *The rule.* The candidate order, its single Rust home, every consumer, and the conformance gates that stop them drifting. |
-| [name-resolution-c-conformance.md](name-resolution-c-conformance.md) | *The ground truth.* The algorithm as extracted from C Tcl, and what changed 8.4 → 9.1, pinned to source permalinks. |
+| [name-resolution-c-conformance.md](name-resolution-c-conformance.md) | *The ground truth.* The C Tcl algorithm and version-specific rules for 8.4–9.1, pinned to source permalinks. |
 | **This document** | *The model.* What we build on top of the rule: written-name parsing, the link graph, workspace and library tiers, value provenance, TclOO dispatch, interpreter domains, and every place we deliberately abstain. |
 
 The governing bias throughout: **a confident wrong answer is strictly worse
@@ -32,15 +32,12 @@ Resolution splits into two halves, and both are centralised:
   `resolve_class_target_at`, which layer decl-cover then the namespace-aware
   `resolve_called_proc` over `tcl_syntax::naming`.
 
-Selection was historically re-implemented per provider as a namespace-blind
-`all_procs.iter().find(|p| p.name == word)` scan over a `HashMap` — which
-picks an arbitrary same-named symbol, non-deterministically across server
-restarts. That class of bug is *silent corruption*: renaming from a call
-site rewrote a different namespace's proc and left the clicked one intact.
 Every provider — rename, references, call hierarchy, linked editing,
 document highlight, go-to-implementation, signature help, inlay hints,
 hover, type hierarchy, type definition, workspace symbols, minify, and the
-MCP docstring tool — now routes through the shared resolvers.
+MCP docstring tool — routes through the shared resolvers. A namespace-blind
+name scan cannot select a definition: same-named symbols in different
+namespaces need the retained call-site namespace and declaration scope.
 
 Two rules keep it that way:
 
@@ -51,7 +48,7 @@ Two rules keep it that way:
    `.name ==` compare in the lexical window of an `all_procs` / `all_classes`
    mention outside `tcl_syntax::naming` and the sanctioned `definition.rs`
    helpers. Reviewed exceptions carry a `// drift-ok: <reason>` comment.
-   The convention alone had already failed once; the gate is what enforces it.
+   The gate enforces this shared-owner rule across consumers.
 
 A class name **is** a command name, so class selection uses the same
 candidate order rather than a bespoke walk.
@@ -106,7 +103,7 @@ runtime resolve written names at ingress, retain the structured slot through
 rename/import/trace/deletion, and render an FQN only at Tcl-facing boundaries.
 
 Static analyser and LSP compatibility keys are **rooted** flat strings derived
-from an authoritative `StaticCommandSlot`; VM legacy indexes that cannot yet
+from an authoritative `StaticCommandSlot`; VM indexes that cannot
 store the slot use private injective storage keys selected by their
 `CommandSlot`. Two rules govern construction and rendering:
 
@@ -123,8 +120,7 @@ store the slot use private injective storage keys selected by their
    inverse helpers such as `naming::key_tail`, `key_holder_and_tail`, and
    `key_segments` apply only where the input is known source spelling or an
    injective compatibility encoding. An `rsplit("::")`, a colon trim, or a
-   re-`normalise` of a display is how `proc :` used to collapse into the `{}`
-   name. Display FQNs are output-only and are never parsed back into semantic
+   re-`normalise` of a display can collapse `proc :` into the `{}` name. Display FQNs are output-only and are never parsed back into semantic
    identity.
 
 ### The 9.0 `namespace code` intrep round-trip
@@ -236,7 +232,7 @@ cover it, and all three abstain by construction.
 
 **Constant `$cmd` dispatch — flow-sensitive provenance.** A `$cmd` head is
 recorded as a pending `ConstDispatchSite` (variable, head span, resolution
-namespace, head-expansion flag) and settled in the CFG/SSA phase against the
+namespace, head-expansion flag) and resolved by CFG/SSA analysis against the
 compiler's value model — never a lexical last-write-wins constant map, whose
 view collapses `if` / loop joins into the lexically last assignment.
 `value_provenance::const_contributors` answers, for a variable use at a

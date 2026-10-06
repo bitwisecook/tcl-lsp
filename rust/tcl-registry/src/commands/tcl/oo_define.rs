@@ -55,6 +55,7 @@ const OO_DEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const OO_DEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(oo_define_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -436,6 +437,7 @@ pub(crate) fn collect_property_body_roles(args: &[&str], start: usize) -> Vec<(u
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::define",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION

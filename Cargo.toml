@@ -52,6 +52,7 @@ members = [
     "rust/tcl-platform",
     "rust/tcl-userdirs",
     "rust/tcl-host-native",
+    "rust/tcl-host-c-abi",
     "rust/tcl-cmd-core",
     "rust/tcl-bytecode",
     "rust/tcl-runtime-api",

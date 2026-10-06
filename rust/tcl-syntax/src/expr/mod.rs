@@ -26,18 +26,21 @@
 pub mod ast;
 pub mod errors;
 pub mod eval;
+pub mod jim_function_tree;
 pub mod mathfunc;
+pub mod native_objects;
 pub mod operators;
 pub mod parser;
 pub mod rand;
 pub mod substitution;
 pub mod syntax_error;
+pub mod wide;
 
 pub use ast::{
-    BinOp, ExprNode, ExprOffset, UnaryOp, fixed_string_body, fixed_string_operand,
-    quoted_string_body,
+    BinOp, ExprNode, ExprOffset, ExprText, NativeExprNode, UnaryOp, fixed_string_body,
+    fixed_string_operand, quoted_string_body,
 };
-pub use eval::{ExprOps, NumericCompare, eval};
+pub use eval::{ExprEvalRequest, ExprEvalState, ExprEvalStep, ExprOps, NumericCompare, eval};
 pub use mathfunc::MathFuncSpec;
 pub use operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorShape, OperatorSpec};
 pub use parser::parse_expr;

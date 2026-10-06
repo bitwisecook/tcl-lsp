@@ -67,6 +67,10 @@ pub enum WorldStateDomain {
     OoDispatch,
     /// Interpreter visibility, safety, hidden-command, and limit policy.
     InterpreterPolicy,
+    /// The invocation result object, independently of command/variable policy.
+    InterpreterResult,
+    /// Pending return options and control completion, settled by frame boundaries.
+    CompletionState,
     /// Loaded packages and package-name/version resolution state.
     PackageState,
     /// Host services and capabilities exposed to an interpreter.
@@ -929,6 +933,32 @@ pub struct WorldEffectDescriptor {
     pub dynamic_fallback: WorldEffectDynamicFallback,
 }
 
+const CELL_READ_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::Read,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_WRITE_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::Write,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_UPDATE_ACCESSES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::ReadWrite,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Current,
+    StaticSubjectScope::Wildcard,
+)];
+const CELL_CALLBACK: CallbackEffect = CallbackEffect {
+    kinds: CallbackKinds::TRACE,
+    reentrancy: Reentrancy::CurrentInterpreter,
+};
+
 impl WorldEffectDescriptor {
     /// An explicitly effect-free, closed-world descriptor with no resolver.
     ///
@@ -940,6 +970,32 @@ impl WorldEffectDescriptor {
         static_footprint: StaticEffectFootprint::EMPTY,
         resolver: None,
         dynamic_fallback: WorldEffectDynamicFallback::ConservativeUnknownInvocation,
+    };
+
+    /// A variable primitive whose only re-entry is an applicable variable trace.
+    /// Argument roles select its cells; the shared place owner selects observers.
+    pub const VARIABLE_READ: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_READ_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
+    };
+    /// A variable store with an applicable write observer.
+    pub const VARIABLE_WRITE: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_WRITE_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
+    };
+    /// An in-place cell update with applicable read and write observers.
+    pub const VARIABLE_READ_MODIFY_WRITE: Self = Self {
+        static_footprint: StaticEffectFootprint {
+            accesses: CELL_UPDATE_ACCESSES,
+            callback: CELL_CALLBACK,
+        },
+        ..Self::EMPTY
     };
 
     /// Resolve the descriptor for one structured post-command argument view.

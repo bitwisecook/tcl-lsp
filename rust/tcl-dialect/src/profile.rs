@@ -169,7 +169,7 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
 /// One filename extension a dialect owns, with its human-facing name —
 /// the catalogue analogue of a `SpecTcl` pack's
 /// `file_extension upf -name {Unified Power Format}` row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DialectFileExtension {
     /// Lower-case extension without the leading dot (`"xdc"`).
     pub extension: &'static str,
@@ -189,8 +189,11 @@ pub struct DialectFileExtension {
 /// `runtime_base` / the vendor surface drive the rest); the derivation rules
 /// (§7.1) are enforced by this module's invariant tests so the hand-laid
 /// values can never drift from the model.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DialectProfile {
+    /// Explicit execution release and build retained by a projected environment.
+    /// Catalogue profiles can express an unpinned family without inventing a point.
+    pub core_point: Option<crate::model::DialectPoint>,
     /// The canonical dialect name (`"tcl8.6"`, `"f5-irules"`, …). Stable:
     /// this is the string that round-trips through configuration
     /// (`tclLsp.selectDialect`, `folderDialects`), the registry-dump JSON
@@ -364,6 +367,74 @@ pub struct DialectProfile {
     pub help_terms: &'static [&'static str],
 }
 
+/// A value identity for every profile axis, including the execution point,
+/// build, numeric and lexer policies, availability, and library pins.
+///
+/// Use this for caches receiving an already selected profile. A display name
+/// or a Tcl version cannot distinguish projected engines or policy overrides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DialectProfileKey {
+    core_point: Option<crate::model::DialectPoint>,
+    name: &'static str,
+    aliases: &'static [&'static str],
+    display_name: &'static str,
+    short_name: &'static str,
+    editor_language_id: Option<&'static str>,
+    filenames: &'static [&'static str],
+    file_extensions: &'static [DialectFileExtension],
+    vendor_surface: Option<SpecProvider>,
+    surface_packages: &'static [&'static str],
+    base_layers: &'static [SurfaceLayer],
+    grammar_union: &'static [SpecProvider],
+    version_ceiling: Option<TclVersion>,
+    signature_base: Option<TclVersion>,
+    runtime_base: Option<TclVersion>,
+    leading_zero_is_octal: Ternary,
+    expr_grammar_base: Option<TclVersion>,
+    grammar: LexerGrammar,
+    operators_as_commands: bool,
+    tcloo: bool,
+    has_fixed_ensembles: bool,
+    vm_runtime_version: TclVersion,
+    libraries: &'static [LibraryPin],
+    help_terms: &'static [&'static str],
+}
+
+impl DialectProfileKey {
+    /// Recover this exact frozen snapshot without interpreting its name.
+    /// Useful when a persisted incremental key must restore execution policy.
+    #[must_use]
+    pub fn profile(&self) -> &'static DialectProfile {
+        DialectProfile {
+            core_point: self.core_point,
+            name: self.name,
+            aliases: self.aliases,
+            display_name: self.display_name,
+            short_name: self.short_name,
+            editor_language_id: self.editor_language_id,
+            filenames: self.filenames,
+            file_extensions: self.file_extensions,
+            vendor_surface: self.vendor_surface,
+            surface_packages: self.surface_packages,
+            base_layers: self.base_layers,
+            grammar_union: self.grammar_union,
+            version_ceiling: self.version_ceiling,
+            signature_base: self.signature_base,
+            runtime_base: self.runtime_base,
+            leading_zero_is_octal: self.leading_zero_is_octal,
+            expr_grammar_base: self.expr_grammar_base,
+            grammar: self.grammar,
+            operators_as_commands: self.operators_as_commands,
+            tcloo: self.tcloo,
+            has_fixed_ensembles: self.has_fixed_ensembles,
+            vm_runtime_version: self.vm_runtime_version,
+            libraries: self.libraries,
+            help_terms: self.help_terms,
+        }
+        .intern()
+    }
+}
+
 /// Profile equality **is** pointer identity, as the type's contract states:
 /// every profile a consumer holds came from the interned catalogue (or the
 /// [`DialectProfile::plain_tcl`] sink), so two handles name the same dialect
@@ -388,6 +459,7 @@ static CATALOG: [DialectProfile; 19] = [
     // and a precise point: 9.0 core plus the bpf surface resolve, while
     // 8.x-only relics (removed at the 9.0 boundary) are correctly unknown.
     DialectProfile {
+        core_point: None,
         name: "bpf",
         aliases: &[],
         display_name: "BPF",
@@ -416,6 +488,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["bpf", "ebpf"],
     },
     DialectProfile {
+        core_point: None,
         name: "cadence-eda-tcl",
         aliases: &["genus", "innovus"],
         display_name: "Cadence Genus / Innovus / Xcelium",
@@ -489,6 +562,7 @@ static CATALOG: [DialectProfile; 19] = [
     // which a plain string-keyed lexer table would miss (falling through
     // to the modern-9.x default).
     DialectProfile {
+        core_point: None,
         name: "expect",
         aliases: &[],
         display_name: "Expect",
@@ -536,6 +610,7 @@ static CATALOG: [DialectProfile; 19] = [
     // library — BIG-IP config documents route to the tcl-bigip validator,
     // never the Tcl analyser, so this is not a Tcl-availability surface.
     DialectProfile {
+        core_point: None,
         name: "f5-bigip",
         aliases: &[],
         display_name: "F5 BIG-IP",
@@ -587,6 +662,7 @@ static CATALOG: [DialectProfile; 19] = [
     // (working `exec`, large `package names`, 32-bit `tcl_platform`) are
     // non-grammatical and live on the environment, not here.
     DialectProfile {
+        core_point: None,
         name: "f5-iapps",
         aliases: &[],
         display_name: "F5 iApps",
@@ -641,6 +717,7 @@ static CATALOG: [DialectProfile; 19] = [
     // runtime base are both 8.4 (D3) and math operators are not command
     // heads.
     DialectProfile {
+        core_point: None,
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],
         display_name: "F5 iRules",
@@ -694,6 +771,7 @@ static CATALOG: [DialectProfile; 19] = [
     // `tcl_platform`, no `tcl_patchLevel`, `info vartype`) live on the
     // environment, not here.
     DialectProfile {
+        core_point: None,
         name: "f5-tmsh",
         aliases: &[],
         display_name: "F5 tmsh Scripts",
@@ -729,6 +807,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["tmsh", "f5", "big-ip", "bigip"],
     },
     DialectProfile {
+        core_point: None,
         name: "intel-quartus-eda-tcl",
         aliases: &["quartus"],
         display_name: "Intel Quartus Prime",
@@ -813,6 +892,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["quartus", "intel", "altera", "fpga", "quartus_sh"],
     },
     DialectProfile {
+        core_point: None,
         name: "mentor-eda-tcl",
         aliases: &["questa", "modelsim"],
         display_name: "Siemens Questa / ModelSim",
@@ -870,6 +950,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
     },
     DialectProfile {
+        core_point: None,
         name: "microchip-libero-eda-tcl",
         aliases: &["libero"],
         display_name: "Microchip Libero SoC",
@@ -931,6 +1012,7 @@ static CATALOG: [DialectProfile; 19] = [
     // (`speclib` / `command` / `option` / `arg` / …) are a command surface
     // that must exist inside a pack and nowhere else.
     DialectProfile {
+        core_point: None,
         name: "spectcl",
         aliases: &["tcl-spec", "tclspec"],
         display_name: "SpecTcl",
@@ -970,6 +1052,7 @@ static CATALOG: [DialectProfile; 19] = [
     // `endpoint` / `policy` / …) that must exist inside a `.sslictcl`
     // document and nowhere else.
     DialectProfile {
+        core_point: None,
         name: "sslictcl",
         aliases: &["sslic-tcl", "tls-sslictcl"],
         display_name: "SslicTcl",
@@ -1006,6 +1089,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["sslictcl", "tls", "certificate", "endpoint"],
     },
     DialectProfile {
+        core_point: None,
         name: "synopsys-eda-tcl",
         aliases: &["dc_shell", "primetime"],
         display_name: "Synopsys DC / PrimeTime / ICC2 / Formality",
@@ -1083,6 +1167,7 @@ static CATALOG: [DialectProfile; 19] = [
         ],
     },
     DialectProfile {
+        core_point: None,
         name: "tcl8.4",
         aliases: &[],
         display_name: "Tcl 8.4",
@@ -1115,6 +1200,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["tcl", "tk"],
     },
     DialectProfile {
+        core_point: None,
         name: "tcl8.5",
         aliases: &[],
         display_name: "Tcl 8.5",
@@ -1143,6 +1229,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["tcl", "tk"],
     },
     DialectProfile {
+        core_point: None,
         name: "tcl8.6",
         aliases: &[],
         display_name: "Tcl 8.6",
@@ -1171,6 +1258,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["tcl", "tk"],
     },
     DialectProfile {
+        core_point: None,
         name: "tcl9.0",
         aliases: &[],
         display_name: "Tcl 9.0",
@@ -1201,6 +1289,7 @@ static CATALOG: [DialectProfile; 19] = [
     // The 9.0-and-later windows already give 9.1 its 9.0 inheritance, so
     // naming the exact release here keeps per-version gating precise.
     DialectProfile {
+        core_point: None,
         name: "tcl9.1",
         aliases: &[],
         display_name: "Tcl 9.1",
@@ -1229,6 +1318,7 @@ static CATALOG: [DialectProfile; 19] = [
         help_terms: &["tcl", "tk"],
     },
     DialectProfile {
+        core_point: None,
         name: "xilinx-eda-tcl",
         aliases: &["vivado"],
         display_name: "Xilinx Vivado",
@@ -1279,6 +1369,7 @@ static CATALOG: [DialectProfile; 19] = [
 /// (design doc §8): full `ALL_TCL` availability, nothing disabled, no pack,
 /// inert octal policy, no expr-grammar opinion, modern lexing grammar.
 static PLAIN_TCL: DialectProfile = DialectProfile {
+    core_point: None,
     name: "tcl",
     aliases: &[],
     display_name: "Tcl",
@@ -1332,6 +1423,7 @@ const fn core_provider(family: Family) -> &'static [SpecProvider] {
 /// This is deliberately not part of [`DialectProfile::all`] or
 /// [`DialectProfile::find`].
 static TK_PROFILE: DialectProfile = DialectProfile {
+    core_point: None,
     name: "tk",
     aliases: &[],
     display_name: "Tk",
@@ -1358,6 +1450,96 @@ static TK_PROFILE: DialectProfile = DialectProfile {
 };
 
 impl DialectProfile {
+    /// Freeze every axis used by a profile consumer into a cache key.
+    ///
+    /// ```
+    /// use tcl_dialect::DialectProfile;
+    /// assert_ne!(DialectProfile::find("tcl8.4").unwrap().cache_key(),
+    ///            DialectProfile::find("tcl9.1").unwrap().cache_key());
+    /// ```
+    #[must_use]
+    pub fn cache_key(&self) -> DialectProfileKey {
+        // Exhaustive destructuring makes a new profile axis require a deliberate
+        // cache identity update; it cannot silently bypass this shared owner.
+        let Self {
+            core_point,
+            name,
+            aliases,
+            display_name,
+            short_name,
+            editor_language_id,
+            filenames,
+            file_extensions,
+            vendor_surface,
+            surface_packages,
+            base_layers,
+            grammar_union,
+            version_ceiling,
+            signature_base,
+            runtime_base,
+            leading_zero_is_octal,
+            expr_grammar_base,
+            grammar,
+            operators_as_commands,
+            tcloo,
+            has_fixed_ensembles,
+            vm_runtime_version,
+            libraries,
+            help_terms,
+        } = self;
+        DialectProfileKey {
+            core_point: *core_point,
+            name,
+            aliases,
+            display_name,
+            short_name,
+            editor_language_id: *editor_language_id,
+            filenames,
+            file_extensions,
+            vendor_surface: *vendor_surface,
+            surface_packages,
+            base_layers,
+            grammar_union,
+            version_ceiling: *version_ceiling,
+            signature_base: *signature_base,
+            runtime_base: *runtime_base,
+            leading_zero_is_octal: *leading_zero_is_octal,
+            expr_grammar_base: *expr_grammar_base,
+            grammar: *grammar,
+            operators_as_commands: *operators_as_commands,
+            tcloo: *tcloo,
+            has_fixed_ensembles: *has_fixed_ensembles,
+            vm_runtime_version: *vm_runtime_version,
+            libraries,
+            help_terms,
+        }
+    }
+
+    /// Intern an exact profile snapshot for APIs that retain a static handle.
+    /// Catalogue handles keep their existing pointer identity. Projected
+    /// snapshots share an allocation only when every profile axis agrees.
+    #[must_use]
+    pub fn intern(&self) -> &'static Self {
+        static PROFILES: std::sync::OnceLock<
+            std::sync::Mutex<std::collections::HashMap<DialectProfileKey, &'static DialectProfile>>,
+        > = std::sync::OnceLock::new();
+        let key = self.cache_key();
+        if let Some(profile) = Self::all()
+            .iter()
+            .chain([Self::plain_tcl(), Self::tk()])
+            .find(|profile| profile.cache_key() == key)
+        {
+            return profile;
+        }
+        let mut profiles = PROFILES
+            .get_or_init(Default::default)
+            .lock()
+            .expect("profile snapshot mutex");
+        profiles
+            .entry(key)
+            .or_insert_with(|| Box::leak(Box::new(self.clone())))
+    }
+
     /// A profile **projected from a resolved point** — the interop handed to
     /// consumers that still carry `&'static DialectProfile` for an
     /// environment the catalogue has no row for.
@@ -1386,6 +1568,7 @@ impl DialectProfile {
     ) -> Self {
         let tcl_version = tcl_version_of(point.release());
         Self {
+            core_point: Some(point),
             name,
             aliases,
             display_name,
@@ -1460,10 +1643,28 @@ impl DialectProfile {
     /// line) asks about its whole ladder: there is no release to name.
     #[must_use]
     pub fn surface_query(&self) -> SurfaceQuery<'static> {
+        if let Some(point) = self.core_point {
+            let family = point.family();
+            let core = family.ancestry().map_or_else(
+                || CorePoints::one(family, Some(point.release().as_str())),
+                |ancestry| {
+                    CorePoints::two(
+                        (family, Some(point.release().as_str())),
+                        (ancestry.parent, Some(ancestry.anchor)),
+                    )
+                },
+            );
+            return SurfaceQuery {
+                realm: crate::model::InvocationRealm::RuleLoader,
+                core,
+                packages: &[],
+            };
+        }
         if let Some(SpecProvider::Core(family)) = self.vendor_surface {
             return SurfaceQuery::any_release(family);
         }
         SurfaceQuery {
+            realm: crate::model::InvocationRealm::RuleLoader,
             core: match self.signature_base {
                 Some(version) => CorePoints::one(Family::Tcl, Some(version.version_string())),
                 // No pinned release, but still a Tcl surface: the permissive
@@ -1493,6 +1694,188 @@ impl DialectProfile {
         self.runtime_base
     }
 
+    /// Variable namespace/activation lookup semantics of the execution engine.
+    #[must_use]
+    pub fn variable_lookup_policy(&self) -> Option<crate::VariableLookupPolicy> {
+        if self.runtime_version().is_some() {
+            Some(crate::VariableLookupPolicy::Tcl)
+        } else if self
+            .grammar_union
+            .contains(&SpecProvider::Core(Family::Jim))
+        {
+            Some(crate::VariableLookupPolicy::Jim)
+        } else {
+            None
+        }
+    }
+
+    /// Native root-variable storage, independent of name and alias selection.
+    ///
+    /// ```
+    /// use tcl_dialect::{DialectProfile, VariableContainerModel};
+    /// let profile = DialectProfile::find("tcl8.6").unwrap();
+    /// assert_eq!(profile.variable_container_model(), Some(VariableContainerModel::DistinctArray));
+    /// ```
+    #[must_use]
+    pub fn variable_container_model(&self) -> Option<crate::VariableContainerModel> {
+        self.variable_lookup_policy().map(|policy| match policy {
+            crate::VariableLookupPolicy::Tcl => crate::VariableContainerModel::DistinctArray,
+            crate::VariableLookupPolicy::Jim => crate::VariableContainerModel::DictionaryValue,
+        })
+    }
+
+    /// Variable alias identity, separate from qualified-name lookup grammar.
+    ///
+    /// ```
+    /// use tcl_dialect::{DialectProfile, VariableLinkBinding};
+    /// let profile = DialectProfile::find("tcl8.6").unwrap();
+    /// assert_eq!(profile.variable_link_binding(), Some(VariableLinkBinding::StableCell));
+    /// ```
+    #[must_use]
+    pub fn variable_link_binding(&self) -> Option<crate::VariableLinkBinding> {
+        self.variable_lookup_policy().map(|policy| match policy {
+            crate::VariableLookupPolicy::Tcl => crate::VariableLinkBinding::StableCell,
+            crate::VariableLookupPolicy::Jim => crate::VariableLinkBinding::SelectedFrameName,
+        })
+    }
+
+    /// Native lazy double-string policy, independently of source numeral grammar.
+    #[must_use]
+    pub fn double_string_policy(&self) -> Option<crate::DoubleStringPolicy> {
+        self.runtime_version()
+            .map(crate::DoubleStringPolicy::for_tcl_version)
+            .or_else(|| {
+                self.core_point
+                    .filter(|point| point.release() == crate::model::Release::JIM_0_84)
+                    .map(|_| crate::DoubleStringPolicy::JimTwelve)
+            })
+    }
+
+    /// Native procedure/apply formal parameter and activation grammar.
+    #[must_use]
+    pub fn parameter_grammar(&self) -> Option<crate::ParameterGrammar> {
+        self.variable_lookup_policy().map(|policy| match policy {
+            crate::VariableLookupPolicy::Tcl => crate::ParameterGrammar::Tcl,
+            crate::VariableLookupPolicy::Jim => crate::ParameterGrammar::Jim,
+        })
+    }
+
+    /// Package discovery protocol, separate from C Tcl release grammar.
+    #[must_use]
+    pub fn package_protocol(&self) -> Option<crate::PackageProtocol> {
+        self.variable_lookup_policy().map(|policy| match policy {
+            crate::VariableLookupPolicy::Tcl => crate::PackageProtocol::Tcl,
+            crate::VariableLookupPolicy::Jim => crate::PackageProtocol::Jim,
+        })
+    }
+
+    /// Native concat representation protocol proved for this engine.
+    #[must_use]
+    pub fn concat_policy(&self) -> Option<crate::ConcatPolicy> {
+        if let Some(version) = self.runtime_version() {
+            Some(crate::ConcatPolicy::Tcl(version))
+        } else {
+            self.core_point
+                .is_some_and(|point| point.release() == crate::model::Release::JIM_0_84)
+                .then_some(crate::ConcatPolicy::JimRepresentationSensitive)
+        }
+    }
+
+    /// Complete container index policy proved for this native release.
+    #[must_use]
+    pub fn index_syntax(&self) -> Option<crate::IndexSyntax> {
+        self.runtime_version()
+            .map(crate::IndexSyntax::for_version)
+            .or_else(|| {
+                self.core_point
+                    .is_some_and(|point| point.release() == crate::model::Release::JIM_0_84)
+                    .then_some(crate::IndexSyntax {
+                        numbers: self.grammar.numbers,
+                        grammar: crate::IndexGrammar::Jim,
+                        width: crate::IndexIntegerWidth::Jim32,
+                        end_abbreviations: false,
+                    })
+            })
+    }
+
+    /// List replacement bounds proved for this runtime release.
+    #[must_use]
+    pub fn list_set_bounds(&self) -> Option<crate::ListSetBounds> {
+        self.runtime_version()
+            .map(TclVersion::list_set_bounds)
+            .or_else(|| {
+                self.core_point
+                    .is_some_and(|point| point.release() == crate::model::Release::JIM_0_84)
+                    .then_some(crate::ListSetBounds::ExistingElement)
+            })
+    }
+
+    /// Exit-status conversion, independently of numeral spelling grammar.
+    #[must_use]
+    pub fn process_exit_conversion(&self) -> Option<crate::ProcessExitConversion> {
+        if let Some(version) = self.runtime_version() {
+            Some(if version < TclVersion::V9_0 {
+                crate::ProcessExitConversion::Narrow32
+            } else {
+                crate::ProcessExitConversion::WholeInteger
+            })
+        } else if self.variable_lookup_policy() == Some(crate::VariableLookupPolicy::Jim) {
+            Some(crate::ProcessExitConversion::SaturatingWide)
+        } else {
+            None
+        }
+    }
+
+    /// Interpreter factory and handle protocol of this execution engine.
+    #[must_use]
+    pub fn interpreter_protocol(&self) -> Option<crate::InterpreterProtocol> {
+        self.variable_lookup_policy().map(|policy| match policy {
+            crate::VariableLookupPolicy::Tcl => crate::InterpreterProtocol::Tcl,
+            crate::VariableLookupPolicy::Jim => crate::InterpreterProtocol::JimHandles,
+        })
+    }
+
+    /// How namespace imports bind their source commands.
+    #[must_use]
+    pub fn namespace_import_binding(&self) -> Option<crate::NamespaceImportBinding> {
+        if self.runtime_version().is_some() {
+            Some(crate::NamespaceImportBinding::CommandToken)
+        } else if self
+            .grammar_union
+            .contains(&SpecProvider::Core(Family::Jim))
+        {
+            Some(crate::NamespaceImportBinding::SourceName)
+        } else {
+            None
+        }
+    }
+
+    /// The `upvar` optional-level grammar, independently of numeral syntax.
+    /// Jim uses count parity; an environment without a runtime abstains.
+    #[must_use]
+    pub fn upvar_level_presence(&self) -> Option<crate::FrameLevelPresence> {
+        self.runtime_version()
+            .map(TclVersion::upvar_level_presence)
+            .or_else(|| {
+                self.grammar_union
+                    .contains(&SpecProvider::Core(Family::Jim))
+                    .then_some(crate::FrameLevelPresence::ArgumentParity)
+            })
+    }
+
+    /// The `uplevel` optional-level grammar, independently of numeral syntax.
+    /// Jim's digit/`#` probe does not accept signed or padded integers.
+    #[must_use]
+    pub fn uplevel_level_presence(&self) -> Option<crate::FrameLevelPresence> {
+        self.runtime_version()
+            .map(TclVersion::uplevel_level_presence)
+            .or_else(|| {
+                self.grammar_union
+                    .contains(&SpecProvider::Core(Family::Jim))
+                    .then_some(crate::FrameLevelPresence::DigitOrHash)
+            })
+    }
+
     /// The string/character model of the release this profile runs.
     ///
     /// Collapses a three-step composition — profile → `runtime_base` →
@@ -1518,6 +1901,12 @@ impl DialectProfile {
             Some(SpecProvider::Core(Family::F5Irules) | SpecProvider::Package("tmsh" | "iapps"))
         ) {
             return Some(StringCharacterModel::Utf16CodeUnits);
+        }
+        if self
+            .core_point
+            .is_some_and(|point| point.release() == crate::model::Release::JIM_0_84)
+        {
+            return Some(StringCharacterModel::Jim084Utf8);
         }
         self.runtime_version()
             .map(TclVersion::string_character_model)
@@ -1799,7 +2188,7 @@ mod tests {
             }
             // The permissive fallback pins nothing.
             if p.is_fallback() {
-                assert!(p.libraries.is_empty());
+                assert_eq!(p.libraries, []);
             }
         }
     }
@@ -1946,6 +2335,7 @@ mod tests {
         assert_eq!(
             DialectProfile::tk().surface_query(),
             SurfaceQuery {
+                realm: crate::model::InvocationRealm::RuleLoader,
                 core: DialectProfile::plain_tcl().surface_query().core,
                 packages: &["Tk"],
             }
@@ -2107,6 +2497,7 @@ mod tests {
                 .expect("catalogue profile")
                 .surface_query(),
             SurfaceQuery {
+                realm: crate::model::InvocationRealm::RuleLoader,
                 core: CorePoints::NONE,
                 packages: &["bigip"],
             }
@@ -2628,5 +3019,51 @@ mod tests {
                 .character_model(),
             Some(StringCharacterModel::BmpCharsElseUtf8Bytes),
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_identity_tests {
+    use super::*;
+    use crate::model::{BuildProfileId, DialectPoint, Release};
+
+    #[test]
+    fn snapshot_keys_distinguish_release_build_and_policies_under_one_name() {
+        let profile = DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_80),
+        );
+        let mut changed = profile.clone();
+        changed.core_point = Some(DialectPoint::canonical(Release::JIM_0_84));
+        assert_ne!(profile.cache_key(), changed.cache_key());
+        changed = profile.clone();
+        changed.core_point = Some(DialectPoint::new(
+            Release::JIM_0_80,
+            BuildProfileId::Unknown,
+        ));
+        assert_ne!(profile.cache_key(), changed.cache_key());
+        changed = profile.clone();
+        changed.grammar.numbers = crate::NumberSyntax::Tcl90;
+        assert_ne!(profile.cache_key(), changed.cache_key());
+        changed = profile.clone();
+        changed.leading_zero_is_octal = Ternary::Yes;
+        assert_ne!(profile.cache_key(), changed.cache_key());
+        changed = profile.clone();
+        changed.surface_packages = &["Example"];
+        assert_ne!(profile.cache_key(), changed.cache_key());
+        assert!(std::ptr::eq(profile.intern(), profile.clone().intern()));
+        assert!(!std::ptr::eq(profile.intern(), changed.intern()));
+    }
+
+    #[test]
+    fn canonical_snapshots_keep_catalogue_handle_identity() {
+        for profile in DialectProfile::all()
+            .iter()
+            .chain([DialectProfile::plain_tcl(), DialectProfile::tk()])
+        {
+            assert!(std::ptr::eq(profile, profile.clone().intern()));
+        }
     }
 }

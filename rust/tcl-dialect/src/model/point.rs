@@ -75,6 +75,19 @@ impl DialectPoint {
         Self::new(release, BuildProfileId::Canonical)
     }
 
+    /// The canonical C Tcl execution point owned by a typed interpreter release.
+    /// This does not project a vendor's compatible Tcl base onto the C ladder.
+    #[must_use]
+    pub const fn for_tcl_version(version: TclVersion) -> Self {
+        Self::canonical(match version {
+            TclVersion::V8_4 => Release::TCL_8_4,
+            TclVersion::V8_5 => Release::TCL_8_5,
+            TclVersion::V8_6 => Release::TCL_8_6,
+            TclVersion::V9_0 => Release::TCL_9_0,
+            TclVersion::V9_1 => Release::TCL_9_1,
+        })
+    }
+
     /// The family this point sits on.
     #[must_use]
     pub const fn family(self) -> Family {

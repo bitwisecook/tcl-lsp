@@ -56,6 +56,11 @@ impl MixedRegionPlan {
             .validate()
             .map_err(MixedPlanBuildError::InvalidExecutableIr)?;
 
+        // Decline atomically: replaying the full invocation after its expanded
+        // phases would execute substitutions and scripts twice.
+        if has_evaluated_region(function) {
+            return Err(MixedPlanBuildError::UnsupportedEvaluatedRegion);
+        }
         let mut regions = BTreeMap::new();
         for instruction in function
             .blocks
@@ -89,6 +94,9 @@ impl MixedRegionPlan {
                         kind: region.kind,
                     }),
                 ),
+                ExecutableInstruction::CompleteEvaluatedRegion(_) => {
+                    return Err(MixedPlanBuildError::UnsupportedEvaluatedRegion);
+                }
                 ExecutableInstruction::EvaluateWord { .. }
                 | ExecutableInstruction::ExpandWord { .. }
                 | ExecutableInstruction::BuildArgv { .. }
@@ -157,6 +165,9 @@ impl MixedRegionPlan {
             let ExecutableInstruction::Invoke(invoke) = instruction else {
                 continue;
             };
+            if !invoke.registry_specialisation_arguments_exact() {
+                continue;
+            }
             let Some(RegionPlan::Invocation(region)) = refined.regions.get_mut(&invoke.node) else {
                 continue;
             };
@@ -189,6 +200,9 @@ impl MixedRegionPlan {
             });
         }
 
+        if has_evaluated_region(function) {
+            return Err(MixedPlanValidationError::UnsupportedEvaluatedRegion);
+        }
         let mut expected = BTreeMap::new();
         for instruction in function
             .blocks
@@ -200,6 +214,9 @@ impl MixedRegionPlan {
                 ExecutableInstruction::ExecuteLowered(operation) => &operation.node,
                 ExecutableInstruction::ExecuteOpaqueRegion(region) => &region.node,
                 ExecutableInstruction::CompleteStructuredRegion(region) => &region.node,
+                ExecutableInstruction::CompleteEvaluatedRegion(_) => {
+                    return Err(MixedPlanValidationError::UnsupportedEvaluatedRegion);
+                }
                 ExecutableInstruction::EvaluateWord { .. }
                 | ExecutableInstruction::ExpandWord { .. }
                 | ExecutableInstruction::BuildArgv { .. }
@@ -1007,9 +1024,25 @@ fn completion_mismatch(
     }
 }
 
+fn has_evaluated_region(function: &ExecutableFunction) -> bool {
+    function.blocks.iter().any(|block| {
+        matches!(
+            block.terminator,
+            Some(crate::executable_ir::ExecutableTerminator::RegionChoice { .. })
+        ) || block.instructions.iter().any(|instruction| {
+            matches!(
+                instruction,
+                ExecutableInstruction::CompleteEvaluatedRegion(_)
+            )
+        })
+    })
+}
+
 /// Failure while constructing a mixed plan from executable IR.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MixedPlanBuildError {
+    /// Evaluated wrappers require a residual-wrapper execution contract.
+    UnsupportedEvaluatedRegion,
     /// The source executable IR failed its own validation.
     InvalidExecutableIr(ExecutableIrValidationError),
     /// Two executable regions claimed the same function-local semantic node.
@@ -1023,6 +1056,7 @@ impl MixedPlanBuildError {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            Self::UnsupportedEvaluatedRegion => "unsupported-evaluated-region",
             Self::InvalidExecutableIr(_) => "invalid-executable-ir",
             Self::DuplicateRegionNode(_) => "duplicate-region-node",
             Self::InvalidPlan(_) => "invalid-mixed-plan",
@@ -1033,6 +1067,8 @@ impl MixedPlanBuildError {
 /// A malformed or stale mixed-region plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MixedPlanValidationError {
+    /// The plan cannot represent evaluated-wrapper residual execution.
+    UnsupportedEvaluatedRegion,
     /// The source executable IR failed its own validation.
     InvalidExecutableIr(ExecutableIrValidationError),
     /// The plan and source function have different identities.
@@ -1158,6 +1194,23 @@ mod tests {
             &module.top_level,
         )
         .expect("fixture must fit executable IR")
+    }
+
+    #[test]
+    fn evaluated_wrapper_declines_whole_mixed_plan_before_phase_selection() {
+        let function = crate::execution_region::evaluated_region_test_fixture();
+        assert_eq!(
+            MixedRegionPlan::build(&function),
+            Err(MixedPlanBuildError::UnsupportedEvaluatedRegion)
+        );
+        let empty = MixedRegionPlan {
+            function: function.id,
+            regions: BTreeMap::new(),
+        };
+        assert_eq!(
+            empty.validate_against(&function),
+            Err(MixedPlanValidationError::UnsupportedEvaluatedRegion)
+        );
     }
 
     #[test]

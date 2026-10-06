@@ -582,8 +582,14 @@ mod tests {
 
     #[test]
     fn empty_input_yields_no_params() {
-        assert!(parse_param_list("", WordValueRules::TCL).is_empty());
-        assert!(parse_param_list("   \t\n  ", WordValueRules::TCL).is_empty());
+        assert_eq!(
+            parse_param_list("", WordValueRules::TCL),
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
+        assert_eq!(
+            parse_param_list("   \t\n  ", WordValueRules::TCL),
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
     }
 
     #[test]
@@ -622,7 +628,7 @@ mod tests {
             vec![Span::new(1, 2), Span::new(4, 5), Span::new(9, 10)]
         );
         // Empty list.
-        assert!(param_name_spans("{}", 0).is_empty());
+        assert_eq!(param_name_spans("{}", 0), [] as [tcl_lexer::Span; 0]);
         // Unbraced single word.
         assert_eq!(param_name_spans("args", 5), vec![Span::new(5, 9)]);
     }
@@ -979,7 +985,7 @@ mod tests {
         let params_tok = nth_word_token(source, 2);
         assert_eq!(&source[params_tok.span.as_range()], "{}");
         let spans = param_name_spans_for_token(source, params_tok);
-        assert!(spans.is_empty());
+        assert_eq!(spans, [] as [tcl_lexer::Span; 0]);
     }
 
     #[test]
@@ -1011,6 +1017,9 @@ mod tests {
             content_offset: 1,
             in_quote: false,
         };
-        assert!(param_name_spans_for_token("short", bogus).is_empty());
+        assert_eq!(
+            param_name_spans_for_token("short", bogus),
+            [] as [tcl_lexer::Span; 0]
+        );
     }
 }

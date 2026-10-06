@@ -20,6 +20,23 @@ panicking on a promoted value.
 
 ## The tower
 
+Select the tower with `InvocationDialect::arithmetic()` before evaluating or
+folding an expression. The arbitrary-precision tower described below applies
+to C Tcl 8.5 and later. C Tcl 8.4 and current Jim use fixed-width wide integers;
+overflow wraps instead of promoting. They differ in large shift-count handling
+and literal overflow conversion. `tcl_syntax::expr::wide` owns those rules,
+independently of `NumberSyntax`, and `number_tower` owns arbitrary precision.
+Use `FoldPolicy::with_invocation_dialect` to retain the actual snapshot rather
+than deriving arithmetic from an unrelated command catalogue.
+
+The native arithmetic conformance suite compares 20 boundary expressions
+against all five C releases and the pinned current Jim, 120 observations.
+It requires every successful fold to match the independent interpreter and
+accounts explicitly for native errors. Undefined native inputs, such as the
+signed-minimum remainder by minus one that traps in Tcl 8.4 and Jim, do not
+authorize a folded value. An unchanged selected string also differs from a
+numeric literal: Jim returns `001` for `expr {"001"}` and `1` for `expr {001}`.
+
 ```
 immediate small int   →   wide (i64)   →   bignum (arbitrary precision)   →   double (f64)
         ▲ same logical integer, widened only as needed ▲                    (a distinct type)

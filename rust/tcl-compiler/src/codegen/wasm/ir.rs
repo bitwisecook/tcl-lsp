@@ -1375,8 +1375,8 @@ mod tests {
         // it keep loading against a runtime with no exported table.
         let mut plain = sample_module();
         assert!(!plain.import_table);
-        assert!(plain.globals.is_empty());
-        assert!(plain.elem_declared.is_empty());
+        assert_eq!(plain.globals.len(), 0);
+        assert_eq!(plain.elem_declared, [] as [u32; 0]);
         let bytes = plain.to_bytes();
         let mut seen = Vec::new();
         let mut i = 8;

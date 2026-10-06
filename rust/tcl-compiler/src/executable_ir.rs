@@ -38,7 +38,7 @@ use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode, WordExpr};
 pub use crate::registry_invocation::{
     OwnedInvocationResolutionUnresolved, RegistryInvocationResolution as InvocationResolution,
 };
-use crate::registry_invocation::{RegistryInvocationDecline, resolve_word_exprs};
+use crate::registry_invocation::{RegistryInvocationDecline, resolve_command_tokens};
 
 /// Identity of one independently executable function body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -206,10 +206,46 @@ pub struct GenericInvoke {
     pub resolution: InvocationResolution,
     /// Original source words, including the command head and `{*}` markers.
     pub original_words: Vec<WordExpr>,
+    /// Point-specific dispatch proof after original argument substitution.
+    /// Explicit unknown/absence is never replaced by written-head metadata.
+    pub source_binding: Option<crate::command_binding::SourceInvocationBinding>,
+    /// Post-binding words and origins for semantic argument-role projection.
+    /// These are facts, not a second argv evaluation sequence.
+    pub effective_words: Option<crate::registry_invocation::EffectiveCommandWords>,
     /// Stable source-semantic node that originated this command.
     pub node: NodeId,
     /// Full command source site and provenance.
     pub source: SourceSite,
+}
+
+impl GenericInvoke {
+    /// Whether registry argument positions map exactly to runtime written argv.
+    /// This is an argument-correspondence condition, not a dispatch proof.
+    /// A backend can specialise an alias prefix only after explicitly composing
+    /// that prefix into its executable argv; ordinary runtime dispatch remains
+    /// valid with the original argv regardless of this answer.
+    #[must_use]
+    pub fn registry_specialisation_arguments_exact(&self) -> bool {
+        if self.source_binding.as_ref().is_some_and(|binding| {
+            binding
+                .proved_execution_target()
+                .is_none_or(|target| !target.registry_backed || !target.prepended.is_empty())
+        }) {
+            return false;
+        }
+        self.effective_words.as_ref().is_none_or(|words| {
+            words.words.len() == self.original_words.len()
+                && words.origins.len() == words.words.len()
+                && words
+                    .origins
+                    .iter()
+                    .enumerate()
+                    .skip(1)
+                    .all(|(index, origin)| {
+                        *origin == crate::registry_invocation::InvocationWordOrigin::Written(index)
+                    })
+        })
+    }
 }
 
 /// A source statement whose registry-selected structural lowering has already
@@ -534,6 +570,21 @@ impl LoweredFootprint {
     }
 }
 
+/// Residual wrapper completion after its semantic script phases have executed.
+///
+/// `invocation` retains evaluated argv and original dispatch for a backend that
+/// declines the entire region. It must never invoke that wrapper after running
+/// the expanded phases: that would execute the scripts twice.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvaluatedRegionCompletion {
+    /// Original invocation and wrapper-owned effects/completion contract.
+    pub invocation: GenericInvoke,
+    /// Proved shared phase/completion plan.
+    pub region: crate::execution_region::EvaluatedBodyRegion,
+    /// First phase block; targets must decline before entering this block.
+    pub entry: ExecutableBlockId,
+}
+
 /// One operation in an executable semantic block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutableInstruction {
@@ -688,6 +739,8 @@ pub enum ExecutableInstruction {
     /// Produce the completion of a structured control region whose interior is
     /// now executable edges.
     CompleteStructuredRegion(StructuredRegion),
+    /// Complete a proved evaluated-body wrapper without invoking its scripts again.
+    CompleteEvaluatedRegion(EvaluatedRegionCompletion),
 }
 
 /// One branch of a completion-code dispatch.
@@ -712,6 +765,14 @@ pub enum ExecutableTerminator {
         then_target: ExecutableBlockId,
         /// Target when the condition is false.
         else_target: ExecutableBlockId,
+    },
+    /// External wrapper state selects whether its script phases run.
+    /// Both normal alternatives remain possible until that state is resolved.
+    RegionChoice {
+        /// Entry of the script phases.
+        enter: ExecutableBlockId,
+        /// Continuation when the wrapper omits all phases.
+        skip: ExecutableBlockId,
     },
     /// Dispatch the complete Tcl completion triple by its code.
     CompletionSwitch {
@@ -754,6 +815,9 @@ impl ExecutableBlock {
 /// One executable semantic function.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExecutableFunction {
+    /// Native compilation boundary shared with the source and CFG artifacts.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     /// Function identity that owns every block and value ID in this function.
     pub id: ExecutableFunctionId,
     /// First block to execute.
@@ -770,7 +834,12 @@ impl ExecutableFunction {
         entry: ExecutableBlockId,
         blocks: Vec<ExecutableBlock>,
     ) -> Self {
-        Self { id, entry, blocks }
+        Self {
+            id,
+            entry,
+            blocks,
+            native_compilation_admission: None,
+        }
     }
 
     /// Validate the bounded executable-IR invariants.
@@ -1088,6 +1157,11 @@ fn collect_instruction_definition(
         | ExecutableInstruction::WriteCompletionCell { completion, .. } => {
             insert_completion_definition(&mut definitions.completions, *completion, position)
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => insert_completion_definition(
+            &mut definitions.completions,
+            region.invocation.completion,
+            position,
+        ),
         ExecutableInstruction::CompleteStructuredRegion(region) => {
             validate_structured_region(region)?;
             insert_completion_definition(&mut definitions.completions, region.completion, position)
@@ -1237,6 +1311,14 @@ fn validate_instruction_uses(
         ExecutableInstruction::Invoke(invoke) => {
             validate_invoke_use(function, invoke, position, values, argvs, dominance)
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => validate_invoke_use(
+            function,
+            &region.invocation,
+            position,
+            values,
+            argvs,
+            dominance,
+        ),
     }
 }
 
@@ -1673,6 +1755,7 @@ fn dominator_tree_intervals(
 fn terminator_successors(terminator: &ExecutableTerminator) -> Vec<ExecutableBlockId> {
     match terminator {
         ExecutableTerminator::Goto(target) => vec![*target],
+        ExecutableTerminator::RegionChoice { enter, skip } => vec![*enter, *skip],
         ExecutableTerminator::Branch {
             then_target,
             else_target,
@@ -1777,6 +1860,13 @@ fn validate_instruction_owners(
             require_completion_owner(*completion, function)?;
             require_completion_owner(*payload_of, function)?;
         }
+        ExecutableInstruction::CompleteEvaluatedRegion(region) => {
+            require_completion_owner(region.invocation.completion, function)?;
+            require_argv_owner(region.invocation.argv, function)?;
+            if region.entry.function() != function {
+                return Err(ExecutableIrValidationError::ForeignBlockId(region.entry));
+            }
+        }
         ExecutableInstruction::CompleteStructuredRegion(region) => {
             require_completion_owner(region.completion, function)?;
         }
@@ -1795,6 +1885,10 @@ fn validate_terminator(
 ) -> Result<(), ExecutableIrValidationError> {
     match terminator {
         ExecutableTerminator::Goto(target) => require_target(*target, function.id, blocks),
+        ExecutableTerminator::RegionChoice { enter, skip } => {
+            require_target(*enter, function.id, blocks)?;
+            require_target(*skip, function.id, blocks)
+        }
         ExecutableTerminator::Branch {
             condition,
             then_target,
@@ -1838,6 +1932,10 @@ fn validate_terminator_targets(
 ) -> Result<(), ExecutableIrValidationError> {
     match terminator {
         ExecutableTerminator::Goto(target) => require_target(*target, function, blocks),
+        ExecutableTerminator::RegionChoice { enter, skip } => {
+            require_target(*enter, function, blocks)?;
+            require_target(*skip, function, blocks)
+        }
         ExecutableTerminator::Branch {
             then_target,
             else_target,
@@ -2168,7 +2266,9 @@ pub fn build_linear_executable_ir(
             completion: None, ..
         } => return Err(SourceCompatibilityDecline::EmptyScript),
     }
-    let executable = ExecutableFunction::new(function, entry, builder.blocks);
+    let mut executable = ExecutableFunction::new(function, entry, builder.blocks);
+    executable.native_compilation_admission =
+        crate::native_compilation_admission::retained_script_admission(script);
     debug_assert!(
         executable.validate().is_ok(),
         "compatibility builder emitted invalid executable IR: {:?}",
@@ -2250,6 +2350,30 @@ enum ScriptTail {
     },
     /// The script was the function body and its tail returned.
     Returns,
+}
+
+struct RegionEmissionSite<'a> {
+    context: Option<SemanticContext>,
+    statement: &'a Statement,
+    node: &'a NodeId,
+    control: ControlContext,
+    tail: bool,
+}
+
+fn statement_evaluated_region(
+    statement: &Statement,
+) -> Option<&crate::execution_region::EvaluatedBodyRegion> {
+    match statement {
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
+        }
+        | Statement::Barrier {
+            tokens: Some(tokens),
+            ..
+        } => tokens.evaluated_body(),
+        _ => None,
+    }
 }
 
 struct FunctionBuilder {
@@ -2424,6 +2548,20 @@ impl FunctionBuilder {
         tail: bool,
     ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
+        if let Some(region) = statement_evaluated_region(statement) {
+            return self.emit_evaluated_region(
+                registry,
+                &RegionEmissionSite {
+                    context,
+                    statement,
+                    node,
+                    control,
+                    tail,
+                },
+                block,
+                region,
+            );
+        }
         if let Some(descriptor) = lowered_operation_descriptor(statement) {
             let completion = self.allocator.completion();
             self.push(
@@ -2482,7 +2620,8 @@ impl FunctionBuilder {
             source_call.command,
             source_call.args,
         )?;
-        let resolution = resolve_invocation_facts(registry, context, &words, statement_index)?;
+        let resolution =
+            resolve_invocation_facts(registry, context, source_call.tokens, statement_index)?;
         let mut stages = Vec::new();
         let entries = plan_argv_entries(&words, node, &mut self.allocator, &mut stages);
         let argv = self.allocator.argv();
@@ -2496,6 +2635,10 @@ impl FunctionBuilder {
             completion: self.allocator.completion(),
             resolution,
             original_words: words,
+            source_binding: source_call.tokens.source_binding.clone().map(Box::new),
+            effective_words: crate::registry_invocation::effective_command_words(
+                source_call.tokens,
+            ),
             node: node.clone(),
             source,
         });
@@ -2660,6 +2803,145 @@ impl FunctionBuilder {
             ),
             _ => unreachable!("structured_region_projection selected a non-structured statement"),
         }
+    }
+
+    fn emit_evaluated_region(
+        &mut self,
+        registry: &CommandRegistry,
+        site: &RegionEmissionSite<'_>,
+        block: ExecutableBlockId,
+        region: &crate::execution_region::EvaluatedBodyRegion,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
+        use crate::execution_region::RegionSelection;
+        let statement_index = site.node.path().last().copied().unwrap_or(0) as usize;
+        if region.scope.is_some() || region.possible_bodies.is_some() {
+            return Err(SourceCompatibilityDecline::UnsupportedStatement {
+                statement_index,
+                kind: "dictionary scope effect projection",
+            });
+        }
+        let call = source_call(site.statement, statement_index)?;
+        let words = exact_words(call.tokens, statement_index, call.command, call.args)?;
+        let resolution =
+            resolve_invocation_facts(registry, site.context, call.tokens, statement_index)?;
+        let mut stages = Vec::new();
+        let entries = plan_argv_entries(&words, site.node, &mut self.allocator, &mut stages);
+        let argv = self.allocator.argv();
+        stages.push(Stage::BuildArgv {
+            argv,
+            completion: self.allocator.completion(),
+            entries,
+        });
+        let mut current = block;
+        for stage in stages {
+            let completion = stage.completion();
+            for instruction in stage.into_instructions() {
+                self.push(current, instruction);
+            }
+            current = self.dispatch(current, completion, site.control);
+        }
+        let phase_entries: Vec<ExecutableBlockId> =
+            region.phases.iter().map(|_| self.new_block()).collect();
+        let join = self.new_block();
+        match region.selection {
+            RegionSelection::Always => {
+                self.terminate(current, ExecutableTerminator::Goto(phase_entries[0]));
+            }
+            RegionSelection::Never => self.terminate(current, ExecutableTerminator::Goto(join)),
+            RegionSelection::MaySkip => self.terminate(
+                current,
+                ExecutableTerminator::RegionChoice {
+                    enter: phase_entries[0],
+                    skip: join,
+                },
+            ),
+        }
+        self.emit_evaluated_phases(registry, site, region, &phase_entries, join)?;
+        let completion = self.allocator.completion();
+        self.push(
+            join,
+            ExecutableInstruction::CompleteEvaluatedRegion(EvaluatedRegionCompletion {
+                invocation: GenericInvoke {
+                    completion,
+                    argv,
+                    resolution,
+                    original_words: words,
+                    source_binding: call.tokens.source_binding.clone(),
+                    effective_words: crate::registry_invocation::effective_command_words(
+                        call.tokens,
+                    ),
+                    node: site.node.clone(),
+                    source: region.source.clone(),
+                },
+                region: region.clone(),
+                entry: phase_entries[0],
+            }),
+        );
+        if region.repetition == crate::execution_region::RegionRepetition::MayRepeat
+            && region.selection != RegionSelection::Never
+        {
+            let next = self.dispatch(join, completion, site.control);
+            let done = self.new_block();
+            self.terminate(
+                next,
+                ExecutableTerminator::RegionChoice {
+                    enter: phase_entries[0],
+                    skip: done,
+                },
+            );
+            Ok(self.finish(done, completion, site.control, site.tail))
+        } else {
+            Ok(self.finish(join, completion, site.control, site.tail))
+        }
+    }
+
+    fn emit_evaluated_phases(
+        &mut self,
+        registry: &CommandRegistry,
+        site: &RegionEmissionSite<'_>,
+        region: &crate::execution_region::EvaluatedBodyRegion,
+        phase_entries: &[ExecutableBlockId],
+        join: ExecutableBlockId,
+    ) -> Result<(), SourceCompatibilityDecline> {
+        use crate::execution_region::RegionTarget;
+        for (index, phase) in region.phases.iter().enumerate() {
+            let target = |route| match route {
+                RegionTarget::Phase(next) => Some(phase_entries[next]),
+                RegionTarget::Exit => Some(join),
+                RegionTarget::Propagate => None,
+            };
+            let handler = target(phase.abrupt).map(|_| self.new_block());
+            let phase_control = handler.map_or(site.control, ControlContext::caught_body);
+            let path = child_path(
+                site.node,
+                u32::try_from(index).expect("phase count fits source node") + 1,
+            );
+            let flow = self.emit_nested(
+                registry,
+                site.context,
+                &phase.script,
+                &path,
+                phase_entries[index],
+                phase_control,
+            )?;
+            self.terminate(
+                flow,
+                ExecutableTerminator::Goto(target(phase.normal).unwrap_or(join)),
+            );
+            if let (Some(handler), Some(destination)) = (handler, target(phase.abrupt)) {
+                let caught = self.allocator.completion();
+                self.push(
+                    handler,
+                    ExecutableInstruction::JoinCompletion {
+                        completion: caught,
+                        node: site.node.clone(),
+                        source: region.source.clone(),
+                    },
+                );
+                self.terminate(handler, ExecutableTerminator::Goto(destination));
+            }
+        }
+        Ok(())
     }
 
     /// Produce the region's completion where its interior edges join, then
@@ -3325,6 +3607,7 @@ fn lowered_operation_descriptor(statement: &Statement) -> Option<LoweringHookId>
         Statement::Return { .. } => Some(LoweringHookId::Return),
         Statement::Call { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. }
         | Statement::If { .. }
@@ -3387,7 +3670,8 @@ fn opaque_region_descriptor(statement: &Statement) -> Option<OpaqueRegionDescrip
         | Statement::ExprEval { .. }
         | Statement::Call { .. }
         | Statement::Return { .. }
-        | Statement::Barrier { .. } => None,
+        | Statement::Barrier { .. }
+        | Statement::NativeCall { .. } => None,
     }
 }
 
@@ -3437,6 +3721,7 @@ fn structured_region_projection(
         | Statement::Call { .. }
         | Statement::Return { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. } => None,
     }
@@ -3580,6 +3865,7 @@ fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
         }
         Statement::Call { .. }
         | Statement::Barrier { .. }
+        | Statement::NativeCall { .. }
         | Statement::Block { .. }
         | Statement::UpFrame { .. }
         | Statement::If { .. }
@@ -3752,7 +4038,7 @@ fn source_call(
             args,
             tokens,
         }),
-        Statement::Call { .. } | Statement::Barrier { .. } => {
+        Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
             Err(SourceCompatibilityDecline::MissingCommandTokens { statement_index })
         }
         other => Err(SourceCompatibilityDecline::UnsupportedStatement {
@@ -3788,10 +4074,10 @@ fn exact_words(
 fn resolve_invocation_facts(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
-    words: &[WordExpr],
+    tokens: &crate::ir::CommandTokens,
     statement_index: usize,
 ) -> Result<InvocationResolution, SourceCompatibilityDecline> {
-    match resolve_word_exprs(registry, context, words) {
+    match resolve_command_tokens(registry, context, tokens) {
         Ok(resolution) => Ok(resolution),
         Err(RegistryInvocationDecline::MissingCommandHead) => {
             Err(SourceCompatibilityDecline::MissingCommandHead { statement_index })
@@ -3812,6 +4098,7 @@ fn statement_kind_name(statement: &Statement) -> &'static str {
         Statement::Call { .. } => "Call",
         Statement::Return { .. } => "Return",
         Statement::Barrier { .. } => "Barrier",
+        Statement::NativeCall { .. } => "NativeCall",
         Statement::Block { .. } => "Block",
         Statement::UpFrame { .. } => "UpFrame",
         Statement::If { .. } => "If",
@@ -3894,6 +4181,8 @@ enum Stage {
         completion: CompletionId,
         resolution: InvocationResolution,
         original_words: Vec<WordExpr>,
+        source_binding: Option<Box<crate::command_binding::SourceInvocationBinding>>,
+        effective_words: Option<crate::registry_invocation::EffectiveCommandWords>,
         node: NodeId,
         source: SourceSite,
     },
@@ -3987,6 +4276,8 @@ impl Stage {
                 completion,
                 resolution,
                 original_words,
+                source_binding,
+                effective_words,
                 node,
                 source,
             } => vec![ExecutableInstruction::Invoke(GenericInvoke {
@@ -3994,6 +4285,8 @@ impl Stage {
                 argv,
                 resolution,
                 original_words,
+                source_binding: source_binding.map(|binding| *binding),
+                effective_words,
                 node,
                 source,
             })],
@@ -4040,6 +4333,10 @@ mod tests {
             all_tokens: Vec::new(),
             expand_word: None,
             synthetic: None,
+            evaluated_body: None,
+            source_binding: None,
+            nested_bindings: Vec::new(),
+            variable_accesses: Vec::new(),
         }
     }
 
@@ -4074,6 +4371,85 @@ mod tests {
                 _ => None,
             })
             .expect("generic invocation")
+    }
+
+    #[test]
+    fn explicit_unknown_dispatch_keeps_runtime_words_without_builtin_facts() {
+        let registry = CommandRegistry::build_default();
+        let mut statement = call(vec![literal("set", 0), literal("x", 4), literal("1", 6)]);
+        let Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } = &mut statement
+        else {
+            unreachable!();
+        };
+        tokens.source_binding = Some(crate::command_binding::SourceInvocationBinding::unknown());
+        let function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            ExecutableFunctionId::new(399),
+            &Script::from_statements(vec![statement]),
+        )
+        .expect("unknown dispatch remains executable");
+        function.validate().expect("valid runtime invocation");
+        let invocation = find_invoke(&function);
+        assert!(matches!(
+            invocation.resolution,
+            InvocationResolution::Unresolved(_)
+        ));
+        assert!(invocation.effective_words.is_none());
+        assert_eq!(invocation.original_words[0].legacy_text(), "set");
+        assert!(!invocation.registry_specialisation_arguments_exact());
+    }
+
+    #[test]
+    fn alias_prefix_facts_do_not_rewrite_runtime_argument_evaluation() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(
+            "interp alias {} prefixed {} list inserted\nprefixed $value",
+            &registry,
+        );
+        let statement = module
+            .top_level
+            .statements
+            .last()
+            .expect("alias invocation")
+            .clone();
+        let function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            ExecutableFunctionId::new(400),
+            &Script::from_statements(vec![statement]),
+        )
+        .expect("resolved alias remains executable");
+        function.validate().expect("valid runtime invocation");
+        let invocation = find_invoke(&function);
+        assert!(matches!(
+            invocation.resolution,
+            InvocationResolution::Resolved(_)
+        ));
+        assert_eq!(invocation.original_words.len(), 2);
+        assert_eq!(invocation.original_words[0].legacy_text(), "prefixed");
+        let effective = invocation
+            .effective_words
+            .as_ref()
+            .expect("proved alias arguments");
+        assert_eq!(effective.words[0].legacy_text(), "::list");
+        assert_eq!(effective.words[1].legacy_text(), "inserted");
+        assert_eq!(effective.words.len(), 3);
+        assert!(!invocation.registry_specialisation_arguments_exact());
+        assert_eq!(
+            instructions(&function)
+                .iter()
+                .filter(|instruction| matches!(
+                    instruction,
+                    ExecutableInstruction::EvaluateWord { .. }
+                ))
+                .count(),
+            2,
+            "only written words are evaluated"
+        );
     }
 
     fn build(source: &str, id: usize) -> ExecutableFunction {
@@ -4474,7 +4850,10 @@ mod tests {
                 element: false
             }]
         );
-        assert!(operation.footprint.reads.is_empty());
+        assert_eq!(
+            operation.footprint.reads,
+            [] as [crate::executable_ir::CellReference; 0]
+        );
         assert!(operation.footprint.is_bounded());
         assert_eq!(operation.footprint.completion, vec![CompletionCode::Ok]);
     }
@@ -4522,7 +4901,10 @@ mod tests {
         assert_eq!(operation.footprint.writes, operation.footprint.reads);
         assert!(operation.footprint.is_bounded());
 
-        let unbounded = build("set total [expr {[step] + 1}]", 214);
+        let unbounded = build(
+            "proc step {} {return 2}; set total [expr {[step] + 1}]",
+            214,
+        );
         let operation = instructions(&unbounded)
             .into_iter()
             .find_map(|instruction| match instruction {
@@ -4565,7 +4947,7 @@ mod tests {
     #[test]
     fn a_structured_region_still_isolates_the_statements_around_it() {
         let function = build(
-            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            "set total 0\nforeach item {1 2} {incr total}\nreturn $total",
             216,
         );
         let descriptors: Vec<_> = instructions(&function)
@@ -4579,6 +4961,33 @@ mod tests {
         assert!(descriptors.contains(&LoweringHookId::Set));
         assert!(descriptors.contains(&LoweringHookId::Foreach));
         assert!(descriptors.contains(&LoweringHookId::Return));
+    }
+
+    #[test]
+    fn unknown_foreach_conversion_preserves_generic_later_dispatch() {
+        let function = build(
+            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            217,
+        );
+        assert!(instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::CompleteStructuredRegion(StructuredRegion {
+                descriptor: LoweringHookId::Foreach,
+                ..
+            })
+        )));
+        assert!(instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::Invoke(invoke)
+                if invoke.original_words.first().is_some_and(|word| word.legacy_text() == "return")
+        )));
+        assert!(!instructions(&function).iter().any(|instruction| matches!(
+            instruction,
+            ExecutableInstruction::ExecuteLowered(LoweredOperation {
+                descriptor: LoweringHookId::Return,
+                ..
+            })
+        )));
     }
 
     #[test]
@@ -4672,7 +5081,10 @@ mod tests {
 
         assert_eq!(facts.canonical_command, "incr");
         assert_ne!(facts.operation, SemanticOperationId::Invoke);
-        assert_eq!(facts.completion, CompletionDescriptor::CONSERVATIVE);
+        assert_eq!(
+            facts.completion,
+            CompletionDescriptor::exact(&[CompletionCode::Ok, CompletionCode::Error])
+        );
         assert!(facts.effects.requires_world_barrier());
         assert_eq!(facts.return_type, Some(TclType::Int));
         assert_eq!(facts.arg_roles, vec![(0, ArgRole::VarWrite)]);
@@ -4794,10 +5206,10 @@ mod tests {
     }
 
     #[test]
-    fn corpus_accumulator_keeps_facts_around_foreach_region() {
+    fn corpus_counter_keeps_facts_around_closed_foreach_region() {
         let registry = CommandRegistry::build_default();
         let module = crate::lowering::lower_to_ir(
-            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            "set total 0\nforeach item {1 2} {incr total}\nreturn $total",
             &registry,
         );
         let function = build_linear_executable_ir(
@@ -5005,6 +5417,8 @@ mod tests {
                 },
             ),
             original_words: vec![literal("fixture", 0)],
+            source_binding: None,
+            effective_words: None,
             node: NodeId::from_path(vec![0]),
             source: site.clone(),
         };

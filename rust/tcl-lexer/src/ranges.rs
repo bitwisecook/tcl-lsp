@@ -53,9 +53,8 @@
 
 use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 
-use crate::source_map::SourceMap;
-use crate::substitution::backslash_escape_end;
-use crate::tokens::{ByteCol, SourcePosition, Token};
+use crate::source_map::{SourceMap, token_bytes_in};
+use crate::tokens::{ByteCol, SourcePosition, Token, TokenType};
 
 /// The closing delimiter for an opening `"` / `{` / `[`, or `None`.
 const fn closer_for(opener: u8) -> Option<u8> {
@@ -95,6 +94,35 @@ pub struct ArrayIndexScan {
     pub end: ArrayIndexEnd,
     /// The first raw source byte rejected by the release grammar, if any.
     pub invalid: Option<usize>,
+}
+
+/// Jim's parenthesis-body boundary, starting just after its opening `(`.
+/// Escapes hide one byte and plain parentheses nest. The returned offset is
+/// on the matched `)`, or at the recovered end when the body is unterminated.
+/// This is shared by expression sugar and dictionary-index source readers.
+pub(crate) fn jim_parenthesis_body_end(source: &[u8], start: usize) -> usize {
+    let mut at = start;
+    let mut depth = 1_u32;
+    let mut last_close = None;
+    while let Some(&byte) = source.get(at) {
+        match byte {
+            b'\\' if at + 1 < source.len() => {
+                at += 2;
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => {
+                last_close = Some(at);
+                depth -= 1;
+                if depth == 0 {
+                    return at;
+                }
+            }
+            _ => {}
+        }
+        at += 1;
+    }
+    last_close.map_or(at, |close| close + 1)
 }
 
 /// Scan the `$name(index)` beginning at `open_parenthesis`.
@@ -342,18 +370,26 @@ fn closer_position(end: SourcePosition, last_inner: Option<u8>) -> SourcePositio
 /// matching closer).  *tok* and *sm* must share a coordinate frame.
 #[must_use]
 pub fn word_closer_offset(sm: &SourceMap<'_>, tok: Token) -> Option<u32> {
-    let bytes = sm.source().as_bytes();
+    token_closer_offset(sm.source_bytes(), tok)
+}
+
+fn token_closer_offset(source: &[u8], tok: Token) -> Option<u32> {
+    let bytes = source;
     let start = tok.span.start();
     let opener = *bytes.get(start as usize)?;
-    let closer = closer_for(opener)?;
+    let closer = if tok.kind == TokenType::ExprSugar {
+        b')'
+    } else {
+        closer_for(opener)?
+    };
     // `end.offset` is `tok.end.offset` (inclusive end): the
     // last inner byte for a non-empty word, or the closer itself for an
     // empty `{}` / `[]` / `""`.
-    let (_first, end) = sm.range_positions(tok.span);
-    let closer_off = if sm.token_text(tok).is_empty() {
-        end.offset
+    let end = tok.span.end().saturating_sub(1).max(start);
+    let closer_off = if token_bytes_in(source, tok).is_empty() {
+        end
     } else {
-        end.offset + 1
+        end + 1
     };
     if bytes.get(closer_off as usize) == Some(&closer) {
         Some(closer_off)
@@ -460,6 +496,14 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
     crate::Span::new(tok.span.start(), word_append_offset(sm, tok))
 }
 
+/// Retain the selected token kind when widening an original component.
+/// Token-free spans cannot distinguish Jim expression sugar from a literal
+/// Tcl `$(` word.
+pub(crate) fn token_word_span(source: impl AsRef<[u8]>, tok: Token) -> crate::Span {
+    let end = token_closer_offset(source.as_ref(), tok).map_or(tok.span.end(), |at| at + 1);
+    crate::Span::new(tok.span.start(), end)
+}
+
 /// Byte offset of the closing `}` / `]` / `"` of the word whose **lexer
 /// span** is *span*, or `None`.
 ///
@@ -491,8 +535,8 @@ pub fn word_span(sm: &SourceMap<'_>, tok: Token) -> crate::Span {
 /// open with a delimiter, or when the word is unterminated (the computed
 /// position is not the matching closer).
 #[must_use]
-pub fn word_closer_offset_at(source: &str, span: crate::Span) -> Option<u32> {
-    let bytes = source.as_bytes();
+pub fn word_closer_offset_at(source: impl AsRef<[u8]>, span: crate::Span) -> Option<u32> {
+    let bytes = source.as_ref();
     let (start, end) = (span.start() as usize, span.end() as usize);
     if start >= end || end > bytes.len() {
         return None;
@@ -529,7 +573,7 @@ pub fn word_closer_offset_at(source: &str, span: crate::Span) -> Option<u32> {
 /// assert_eq!(word_span_at("{}", Span::new(0, 2)), Span::new(0, 2));
 /// ```
 #[must_use]
-pub fn word_span_at(source: &str, span: crate::Span) -> crate::Span {
+pub fn word_span_at(source: impl AsRef<[u8]>, span: crate::Span) -> crate::Span {
     match word_closer_offset_at(source, span) {
         Some(closer) => crate::Span::new(span.start(), closer.saturating_add(1)),
         None => span,
@@ -557,7 +601,7 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
         // Empty `{}` / `[]` / `""`: the inclusive end already is the closer.
         return end;
     }
-    let last_inner = sm.source().as_bytes().get(end.offset as usize).copied();
+    let last_inner = sm.source_bytes().get(end.offset as usize).copied();
     closer_position(end, last_inner)
 }
 
@@ -575,7 +619,7 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// The scan follows the same rules the lexer's own quoted-word and
 /// command-substitution parsers use:
 ///
-/// * a `\`-escape is skipped as one unit via [`backslash_escape_end`], so
+/// * a `\`-escape is skipped as one unit via [`crate::backslash_escape_end`], so
 ///   `\"` is content and `\[` opens nothing.  The release-blind (Tcl 9.0) form
 ///   is deliberate: the escape grammar is release-variant in *width*, but every
 ///   form's payload is hex or octal digits, none of which is a delimiter, so no
@@ -601,8 +645,8 @@ pub fn word_end_position(sm: &SourceMap<'_>, tok: Token) -> SourcePosition {
 /// assert_eq!(close_quote_offset(r#""abc"#, 0), None);
 /// ```
 #[must_use]
-pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
-    let bytes = source.as_bytes();
+pub fn close_quote_offset(source: impl AsRef<[u8]>, open_quote: usize) -> Option<usize> {
+    let bytes = source.as_ref();
     if bytes.get(open_quote) != Some(&b'"') {
         return None;
     }
@@ -610,8 +654,14 @@ pub fn close_quote_offset(source: &str, open_quote: usize) -> Option<usize> {
     while pos < bytes.len() {
         match bytes[pos] {
             b'"' => return Some(pos),
-            b'\\' => pos = backslash_escape_end(source, pos),
-            b'[' => pos = command_substitution_end(source, pos)?,
+            b'\\' => {
+                pos = crate::substitution::backslash_escape_end_bytes_in(
+                    bytes,
+                    pos,
+                    tcl_dialect::EscapeSyntax::default(),
+                );
+            }
+            b'[' => pos = command_substitution_end_bytes(bytes, pos)?,
             _ => pos += 1,
         }
     }
@@ -728,6 +778,40 @@ pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) 
 mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
+
+    #[test]
+    fn jim_expression_component_extent_retains_its_actual_closer() {
+        use tcl_dialect::model::{Family, Release, grammar};
+        let config = crate::LexerConfig::from_grammar(grammar(Family::Jim, Release::JIM_0_84));
+        for (source, content) in [
+            ("$(k)", "k"),
+            ("$()", ""),
+            ("$(($a+1)*2)", "($a+1)*2"),
+            (r"$(a\)b)", r"a\)b"),
+            ("prefix$(k)", "k"),
+        ] {
+            let map = SourceMap::new(source);
+            let token = Lexer::with_config(source, config)
+                .tokenise_all()
+                .unwrap()
+                .into_iter()
+                .find(|token| token.kind == TokenType::ExprSugar)
+                .unwrap();
+            assert_eq!(map.token_text(token), content, "{source}");
+            assert_eq!(word_span(&map, token).end() as usize, source.len());
+            assert_eq!(token_word_span(source, token), word_span(&map, token));
+        }
+        let source = "$(k";
+        let map = SourceMap::new(source);
+        let token = Lexer::with_config(source, config)
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::ExprSugar)
+            .unwrap();
+        assert_eq!(word_closer_offset(&map, token), None);
+        assert_eq!(word_span(&map, token), token.span);
+    }
 
     #[test]
     fn array_index_source_mask_follows_the_release() {

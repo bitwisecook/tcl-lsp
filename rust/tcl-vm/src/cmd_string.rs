@@ -26,52 +26,72 @@ use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("append", cmd_append);
-    // The compiler lowers `string <sub>` to a direct `::tcl::string::<sub>`
-    // invocation (the ensemble-rewrite path); register those as forwarders onto
-    // the `string` dispatcher. `BuiltinFn` is a plain `fn`, so each closure must
-    // be non-capturing (a literal subcommand name).
-    vm.register("::tcl::string::cat", |vm, a| string_op(vm, "cat", a));
-    vm.register("::tcl::string::compare", |vm, a| {
-        string_op(vm, "compare", a)
-    });
-    vm.register("::tcl::string::equal", |vm, a| string_op(vm, "equal", a));
-    vm.register("::tcl::string::first", |vm, a| string_op(vm, "first", a));
-    vm.register("::tcl::string::index", |vm, a| string_op(vm, "index", a));
-    vm.register("::tcl::string::insert", |vm, a| string_op(vm, "insert", a));
-    vm.register("::tcl::string::is", |vm, a| string_op(vm, "is", a));
-    vm.register("::tcl::string::last", |vm, a| string_op(vm, "last", a));
-    vm.register("::tcl::string::length", |vm, a| string_op(vm, "length", a));
-    vm.register("::tcl::string::map", |vm, a| string_op(vm, "map", a));
-    vm.register("::tcl::string::match", |vm, a| string_op(vm, "match", a));
-    vm.register("::tcl::string::range", |vm, a| string_op(vm, "range", a));
-    vm.register("::tcl::string::repeat", |vm, a| string_op(vm, "repeat", a));
-    vm.register("::tcl::string::replace", |vm, a| {
-        string_op(vm, "replace", a)
-    });
-    vm.register("::tcl::string::reverse", |vm, a| {
-        string_op(vm, "reverse", a)
-    });
-    vm.register("::tcl::string::tolower", |vm, a| {
-        string_op(vm, "tolower", a)
-    });
-    vm.register("::tcl::string::totitle", |vm, a| {
-        string_op(vm, "totitle", a)
-    });
-    vm.register("::tcl::string::toupper", |vm, a| {
-        string_op(vm, "toupper", a)
-    });
-    vm.register("::tcl::string::trim", |vm, a| string_op(vm, "trim", a));
-    vm.register("::tcl::string::trimleft", |vm, a| {
-        string_op(vm, "trimleft", a)
-    });
-    vm.register("::tcl::string::trimright", |vm, a| {
-        string_op(vm, "trimright", a)
-    });
-    let registry = crate::environment::universal_store();
-    let spec = registry.get("string").expect("core string spec");
-    vm.register_spec_builtin(spec, cmd_string);
+    vm.register_stock_builtin("append", cmd_append);
+    register_string(vm);
 }
+
+fn register_string(vm: &mut Vm) {
+    let Some(namespace) = vm
+        .native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
+    else {
+        vm.register_stock_builtin("string", cmd_string);
+        return;
+    };
+    let subs = crate::environment::release_subcommands(
+        vm.actual_native_execution_profile().name,
+        "string",
+        STRING_SUBS,
+    );
+    vm.register_stock_namespace_ensemble("string", namespace, STRING_MEMBERS, subs);
+}
+
+/// Repinning retains user replacements and selects the actual private surface.
+pub(crate) fn refresh_profile(vm: &mut Vm) {
+    if vm.stock_native_identity("string").as_deref() != Some("string") {
+        return;
+    }
+    for &(member, _) in STRING_MEMBERS {
+        let target = format!("::tcl::string::{member}");
+        if vm.stock_native_identity(&target).as_deref() == target.strip_prefix("::") {
+            vm.remove_registered_command(target.trim_start_matches("::"));
+        }
+    }
+    register_string(vm);
+    if vm
+        .native_invocation_dialect()
+        .ensemble_implementation_namespace(tcl_registry::EnsembleImplementationFamily::String)
+        .is_none()
+    {
+        vm.retire_unused_stock_ensemble_namespace("string");
+    }
+}
+
+const STRING_MEMBERS: &[(&str, crate::command::BuiltinFn)] = &[
+    ("cat", |vm, args| string_op(vm, "cat", args)),
+    ("compare", |vm, args| string_op(vm, "compare", args)),
+    ("equal", |vm, args| string_op(vm, "equal", args)),
+    ("first", |vm, args| string_op(vm, "first", args)),
+    ("index", |vm, args| string_op(vm, "index", args)),
+    ("insert", |vm, args| string_op(vm, "insert", args)),
+    ("is", |vm, args| string_op(vm, "is", args)),
+    ("last", |vm, args| string_op(vm, "last", args)),
+    ("length", |vm, args| string_op(vm, "length", args)),
+    ("map", |vm, args| string_op(vm, "map", args)),
+    ("match", |vm, args| string_op(vm, "match", args)),
+    ("range", |vm, args| string_op(vm, "range", args)),
+    ("repeat", |vm, args| string_op(vm, "repeat", args)),
+    ("replace", |vm, args| string_op(vm, "replace", args)),
+    ("reverse", |vm, args| string_op(vm, "reverse", args)),
+    ("tolower", |vm, args| string_op(vm, "tolower", args)),
+    ("totitle", |vm, args| string_op(vm, "totitle", args)),
+    ("toupper", |vm, args| string_op(vm, "toupper", args)),
+    ("trim", |vm, args| string_op(vm, "trim", args)),
+    ("trimleft", |vm, args| string_op(vm, "trimleft", args)),
+    ("trimright", |vm, args| string_op(vm, "trimright", args)),
+    ("wordend", |vm, args| string_op(vm, "wordend", args)),
+    ("wordstart", |vm, args| string_op(vm, "wordstart", args)),
+];
 
 /// Dispatch a `::tcl::string::<sub>` forwarder by prepending the subcommand and
 /// running the normal `string` handler.
@@ -135,7 +155,7 @@ fn resolve_string_sub<'a>(subs: &[&'a str], input: &str) -> Result<&'a str, Stri
 
 fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err_wrong_args("string subcommand ?arg ...?");
+        return err_wrong_args(vm, "string subcommand ?arg ...?");
     };
     // `insert` arrives in Tcl 9 and `bytelength` leaves with it, so the table
     // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
@@ -159,11 +179,7 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if canon == "repeat"
         && let [s, count] = rest
     {
-        let n = count.as_int().unwrap_or(0).max(0);
-        let wanted = (s.to_str().len() as u64).saturating_mul(u64::try_from(n).unwrap_or(0));
-        if let Some(refusal) = vm.charge_allocation(wanted) {
-            return refusal;
-        }
+        return string_repeat(vm, s, count);
     }
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
     // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
@@ -171,24 +187,24 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => crate::command::completion_from_cmd_error(e),
+            Err(e) => crate::command::completion_from_cmd_error(vm, e),
         };
     }
     match canon {
-        "match" => string_match(rest),
-        "first" => string_first(rest),
-        "last" => string_last(rest),
-        "tolower" => case_convert(rest, "tolower"),
-        "toupper" => case_convert(rest, "toupper"),
-        "totitle" => case_convert(rest, "totitle"),
-        "trim" => trim_str(rest, "trim", true, true),
-        "trimleft" => trim_str(rest, "trimleft", true, false),
-        "trimright" => trim_str(rest, "trimright", false, true),
+        "match" => string_match(vm, rest),
+        "first" => string_first(vm, rest),
+        "last" => string_last(vm, rest),
+        "tolower" => case_convert(vm, rest, "tolower"),
+        "toupper" => case_convert(vm, rest, "toupper"),
+        "totitle" => case_convert(vm, rest, "totitle"),
+        "trim" => trim_str(vm, rest, "trim", true, true),
+        "trimleft" => trim_str(vm, rest, "trimleft", true, false),
+        "trimright" => trim_str(vm, rest, "trimright", false, true),
         "map" => match rest {
-            [pairs, s] => string_map(pairs, &s.to_str(), false),
-            [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(pairs, &s.to_str(), true),
+            [pairs, s] => string_map(vm, pairs, &s.to_str(), false),
+            [opt, pairs, s] if is_nocase(&opt.to_str()) => string_map(vm, pairs, &s.to_str(), true),
             [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
-            _ => err_wrong_args("string map ?-nocase? charMap string"),
+            _ => err_wrong_args(vm, "string map ?-nocase? charMap string"),
         },
         "cat" => ok(Value::string(
             rest.iter()
@@ -196,10 +212,29 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .collect::<String>(),
         )),
         "is" => crate::cmd_string_is::string_is(vm, rest),
-        "replace" => string_replace(rest),
-        "insert" => string_insert(rest),
+        "replace" => string_replace(vm, rest),
+        "insert" => string_insert(vm, rest),
         // Resolved to a valid-but-unimplemented subcommand.
         other => err(format!("string {other} is not yet implemented in this VM")),
+    }
+}
+
+/// Normalize once before charging the actual byte allocation. In particular,
+/// Jim's expression count cannot bypass the budget with an integer parse miss.
+fn string_repeat(vm: &mut Vm, s: &Value, count: &Value) -> Completion<Value> {
+    let n = match tcl_cmd_core::string::prepare_repeat_count(vm, count) {
+        Ok(n) => n,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+    };
+    let wanted = u64::try_from(s.string_bytes().len())
+        .unwrap_or(u64::MAX)
+        .saturating_mul(u64::try_from(n.max(0)).unwrap_or(u64::MAX));
+    if let Some(refusal) = vm.charge_allocation(wanted) {
+        return refusal;
+    }
+    match tcl_cmd_core::string::repeat_with_count(vm, s, n) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
 }
 
@@ -207,19 +242,19 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// (inclusive), optionally inserting newstring.
 /// (tclCmdMZ.c): an empty/inverted range leaves the string unchanged, but an
 /// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
-fn string_replace(rest: &[Value]) -> Completion<Value> {
+fn string_replace(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     if rest.len() < 3 || rest.len() > 4 {
-        return err_wrong_args("string replace string first last ?string?");
+        return err_wrong_args(vm, "string replace string first last ?string?");
     }
     let (s, first, last) = (&rest[0], &rest[1], &rest[2]);
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
     let end = isize::try_from(len).unwrap_or(isize::MAX) - 1;
-    let Some(first) = resolve_index(&first.to_str(), len) else {
-        return bad_index(&first.to_str());
+    let Some(first) = resolve_index(vm, &first.to_str(), len) else {
+        return bad_index(vm, &first.to_str());
     };
-    let Some(last) = resolve_index(&last.to_str(), len) else {
-        return bad_index(&last.to_str());
+    let Some(last) = resolve_index(vm, &last.to_str(), len) else {
+        return bad_index(vm, &last.to_str());
     };
     if last < 0 || first > end || last < first {
         return ok(Value::string(s.to_str().to_string()));
@@ -239,13 +274,15 @@ fn string_replace(rest: &[Value]) -> Completion<Value> {
 /// `string insert string index insertString` — insert before char `index`.
 /// Unlike most string ops, `end` denotes the position *after* the last
 /// character (so `end` appends).
-fn string_insert(rest: &[Value]) -> Completion<Value> {
+fn string_insert(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [s, idx, ins] = rest else {
-        return err_wrong_args("string insert string index insertString");
+        return err_wrong_args(vm, "string insert string index insertString");
     };
     let chars: Vec<char> = s.to_str().chars().collect();
     let len = chars.len();
-    let at = resolve_index(&idx.to_str(), len + 1).unwrap_or(0);
+    let Some(at) = resolve_index(vm, &idx.to_str(), len + 1) else {
+        return bad_index(vm, &idx.to_str());
+    };
     let at = if at < 0 {
         0
     } else {
@@ -263,7 +300,7 @@ fn is_nocase(opt: &str) -> bool {
 }
 
 /// `string match ?-nocase? pattern string`.
-fn string_match(rest: &[Value]) -> Completion<Value> {
+fn string_match(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     match rest {
         [pat, s] => ok(Value::bool(string_case_match(
             &pat.to_str(),
@@ -276,19 +313,19 @@ fn string_match(rest: &[Value]) -> Completion<Value> {
             true,
         ))),
         [opt, _, _] => err(format!("bad option \"{}\": must be -nocase", opt.to_str())),
-        _ => err_wrong_args("string match ?-nocase? pattern string"),
+        _ => err_wrong_args(vm, "string match ?-nocase? pattern string"),
     }
 }
 
 /// `string toupper|tolower|totitle string ?first? ?last?` — convert the
 /// characters in `[first, last]` (default the whole string).
-fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
+fn case_convert(vm: &mut Vm, rest: &[Value], op: &str) -> Completion<Value> {
     let (s, first_spec, last_spec) = match rest {
         [s] => (s, None, None),
         [s, f] => (s, Some(f), None),
         [s, f, l] => (s, Some(f), Some(l)),
         _ => {
-            return err_wrong_args(&format!("string {op} string ?first? ?last?"));
+            return err_wrong_args(vm, &format!("string {op} string ?first? ?last?"));
         }
     };
     let chars: Vec<char> = s.to_str().chars().collect();
@@ -298,15 +335,15 @@ fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
     }
     let first = match first_spec {
         None => 0,
-        Some(f) => match resolve_index(&f.to_str(), len) {
+        Some(f) => match resolve_index(vm, &f.to_str(), len) {
             Some(i) => i.max(0),
-            None => return bad_index(&f.to_str()),
+            None => return bad_index(vm, &f.to_str()),
         },
     };
     let last = match last_spec {
-        Some(l) => match resolve_index(&l.to_str(), len) {
+        Some(l) => match resolve_index(vm, &l.to_str(), len) {
             Some(i) => i,
-            None => return bad_index(&l.to_str()),
+            None => return bad_index(vm, &l.to_str()),
         },
         // With only a `first` index, just that one character is converted; with
         // no indices at all, the whole string.
@@ -336,29 +373,27 @@ fn case_convert(rest: &[Value], op: &str) -> Completion<Value> {
     ok(Value::string(out))
 }
 
-fn bad_index(spec: &str) -> Completion<Value> {
-    err(format!(
-        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-    ))
+fn bad_index(vm: &Vm, spec: &str) -> Completion<Value> {
+    crate::command::bad_index(vm, spec)
 }
 
 /// `string first needle haystack ?startIndex?` — first occurrence at or after
 /// `startIndex` (character index, or -1).
-fn string_first(rest: &[Value]) -> Completion<Value> {
+fn string_first(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (needle, hay, start_spec) = match rest {
         [n, h] => (n, h, None),
         [n, h, s] => (n, h, Some(s)),
         _ => {
-            return err_wrong_args("string first needleString haystackString ?startIndex?");
+            return err_wrong_args(vm, "string first needleString haystackString ?startIndex?");
         }
     };
     let hay: Vec<char> = hay.to_str().chars().collect();
     let needle: Vec<char> = needle.to_str().chars().collect();
     let start = match start_spec {
         None => 0,
-        Some(s) => match resolve_index(&s.to_str(), hay.len()) {
+        Some(s) => match resolve_index(vm, &s.to_str(), hay.len()) {
             Some(i) => usize::try_from(i).unwrap_or(0),
-            None => return bad_index(&s.to_str()),
+            None => return bad_index(vm, &s.to_str()),
         },
     };
     if needle.is_empty() {
@@ -378,12 +413,12 @@ fn string_first(rest: &[Value]) -> Completion<Value> {
 
 /// `string last needle haystack ?lastIndex?` — last occurrence starting at or
 /// before `lastIndex` (character index, or -1).
-fn string_last(rest: &[Value]) -> Completion<Value> {
+fn string_last(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (needle, hay, last_spec) = match rest {
         [n, h] => (n, h, None),
         [n, h, s] => (n, h, Some(s)),
         _ => {
-            return err_wrong_args("string last needleString haystackString ?lastIndex?");
+            return err_wrong_args(vm, "string last needleString haystackString ?lastIndex?");
         }
     };
     let hay: Vec<char> = hay.to_str().chars().collect();
@@ -392,9 +427,9 @@ fn string_last(rest: &[Value]) -> Completion<Value> {
     // end at or before it.
     let last: isize = match last_spec {
         None => isize::try_from(hay.len()).unwrap_or(isize::MAX) - 1,
-        Some(s) => match resolve_index(&s.to_str(), hay.len()) {
+        Some(s) => match resolve_index(vm, &s.to_str(), hay.len()) {
             Some(i) => i,
-            None => return bad_index(&s.to_str()),
+            None => return bad_index(vm, &s.to_str()),
         },
     };
     if needle.is_empty() || last < 0 {
@@ -425,12 +460,12 @@ const DEFAULT_TRIM_SET: &[char] = &[
     '\u{202f}', '\u{205f}', '\u{2060}', '\u{3000}', '\u{feff}',
 ];
 
-fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Value> {
+fn trim_str(vm: &mut Vm, rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Value> {
     let (s, chars) = match rest {
         [s] => (s.to_str(), None),
         [s, c] => (s.to_str(), Some(c.to_str())),
         _ => {
-            return err_wrong_args(&format!("string {op} string ?chars?"));
+            return err_wrong_args(vm, &format!("string {op} string ?chars?"));
         }
     };
     let custom: Option<Vec<char>> = chars.as_deref().map(|c| c.chars().collect());
@@ -447,10 +482,10 @@ fn trim_str(rest: &[Value], op: &str, left: bool, right: bool) -> Completion<Val
     ok(Value::string(trimmed))
 }
 
-fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
+fn string_map(vm: &mut Vm, pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
     let items = match pairs.as_list() {
         Ok(i) => i,
-        Err(e) => return err(e.message),
+        Err(e) => return crate::command::completion_from_tcl_error(vm, e),
     };
     if items.len() % 2 != 0 {
         return err("char map list unbalanced");
@@ -502,35 +537,56 @@ pub(crate) fn map_apply(map: &[(String, String)], s: &str, nocase: bool) -> Stri
 
 fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((name, vals)) = args.split_first() else {
-        return err_wrong_args("append varName ?value ...?");
+        return err_wrong_args(vm, "append varName ?value ...?");
     };
-    let n = name.to_str();
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(name) => name,
+        Err(error) => {
+            return vm.refuse_host_command(format!("native append name is unavailable: {error:?}"));
+        }
+    };
     if vals.is_empty() {
-        // `append x` with no values is a read: it fires the read trace, whose
-        // error aborts the command exactly as for `set x`, and returns the
-        // current value, erroring if the variable is unset (matching tclsh;
-        // creating an empty variable here instead would be wrong). `var_get` parses
-        // `a(k)`.
-        return match vm.read_var_traced(&n) {
-            Err(c) => c,
-            Ok(Some(v)) => ok(v),
-            Ok(None) => err(format!("can't read \"{n}\": no such variable")),
+        return match vm.read_variable_result_bytes(&name, None) {
+            Ok(value) => ok(value),
+            Err(completion) => completion,
         };
     }
-    // The byte-exact concatenation is shared with the WASM runtime via
-    // `tcl_cmd_core::var::append_bytes`; the single store fires the write trace
-    // once. The VM's value model never grows in place, so the core rebuilds.
-    let cur = vm.var_get(&n);
-    let result = tcl_cmd_core::var::append_bytes(vm, cur, vals);
-    match vm.store_var_result(&n, result) {
+    match vm.append_captured_bytes(&name, None, vals) {
         Ok(stored) => ok(stored),
-        Err(e) => e,
+        Err(completion) => completion,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{STRING_SUBS, is_nocase};
+
+    #[test]
+    fn jim_repeat_charges_the_normalized_expression_count_and_exact_bytes() {
+        use crate::{interp::Vm, value::Value};
+        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(profile);
+        vm.set_value_size_limit_value(Some(2));
+        let source = Value::from_string_bytes([0xff].as_slice());
+        let allowed = super::string_repeat(&mut vm, &source, &Value::string("1+1"));
+        assert!(allowed.code.is_ok());
+        assert_eq!(allowed.result.string_bytes().as_ref(), &[0xff, 0xff]);
+
+        let refused = super::string_repeat(&mut vm, &source, &Value::string("1+2"));
+        assert_eq!(refused.code, tcl_runtime_api::Code::Error);
+        assert_eq!(
+            refused.result.to_str().as_ref(),
+            "value size limit exceeded"
+        );
+
+        let invalid = super::string_repeat(&mut vm, &source, &Value::string("bogus"));
+        assert_eq!(invalid.code, tcl_runtime_api::Code::Error);
+        assert_ne!(
+            invalid.result.to_str().as_ref(),
+            "value size limit exceeded"
+        );
+    }
 
     /// The unit tests below exercise the resolver over the engine's full
     /// (Tcl 9) table; the release filter that narrows it per pin is covered

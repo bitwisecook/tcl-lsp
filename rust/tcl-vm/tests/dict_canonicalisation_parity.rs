@@ -107,7 +107,12 @@ fn owner_pairs(dict: &str) -> Vec<(String, String)> {
         .expect("every corpus row is an even-length list");
     pairs
         .into_iter()
-        .map(|(k, v)| (vm.as_str(&k).to_string(), vm.as_str(&v).to_string()))
+        .map(|(k, v)| {
+            (
+                vm.try_as_str(&k).expect("Unicode corpus key").to_string(),
+                vm.try_as_str(&v).expect("Unicode corpus value").to_string(),
+            )
+        })
         .collect()
 }
 

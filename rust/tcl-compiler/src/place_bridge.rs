@@ -23,26 +23,22 @@
 //! read-before-set) can switch from name-string equality to the sound
 //! [`overlap`] relation — without re-stamping every
 //! construction site in lowering.  The per-function [`ResolveContext`] is built
-//! once by scanning the CFG for `global` / `variable` / `upvar` / `trace`
-//! declarations (reusing the [`crate::var_scoping`] grammar).
-//!
-//! No consumer is wired yet.
+//! at each CFG site from registry transitions. Consumers share the same
+//! point-specific binding and lifetime state rather than rescanning declarations.
 
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
-use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::structural_body_indices;
 use crate::var_refs::{
-    command_subst_texts_with_config, scan_var_ref_forms_with_config, vars_in_expr,
+    command_subst_texts_with_config, scan_var_ref_forms_braced_with_config, vars_in_expr,
 };
-use crate::var_resolve::{ResolveContext, resolve_place};
-use crate::var_scoping::{
-    global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
-};
+use crate::var_resolve::ResolveContext;
+#[cfg(test)]
+use crate::var_resolve::resolve_place;
 
 /// True when `name`'s `VarRead`-role argument names the *whole* array,
 /// not a scalar (so a write to any element is observed) — the registry's
@@ -54,140 +50,24 @@ fn is_whole_array_command(registry: &CommandRegistry, name: &str) -> bool {
         .is_some_and(|s| s.traits.contains(Traits::WHOLE_ARRAY_ARG))
 }
 
-/// Scan *cfg* for the in-scope variable declarations and build the
-/// [`ResolveContext`] used to resolve places within the function.
-///
-/// `fn_qname` is the function's fully-qualified name (`::ns::p`); the resolve
-/// namespace is its parent (`::ns`), so a `variable v` resolves to `::ns::v`.
+pub use crate::variable_bindings::{
+    PointResolveContexts, build_point_resolve_contexts, build_point_resolve_contexts_with_entry,
+};
+
+/// Conservative whole-function exposure projection for compatibility readers.
+/// Precise accesses use `build_point_resolve_contexts` at their own CFG site.
 #[must_use]
 pub fn build_resolve_context(cfg: &Function, fn_qname: &str) -> ResolveContext {
-    let parent = fn_qname.rsplit_once("::").map_or("", |(head, _)| head);
-    let namespace = if parent.is_empty() {
-        "::".to_owned()
-    } else {
-        parent.to_owned()
-    };
-
-    let mut ctx = ResolveContext {
-        namespace: namespace.clone(),
-        ..ResolveContext::default()
-    };
-
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            let (command, canonical, args) = match stmt {
-                Statement::Call {
-                    command,
-                    canonical_command,
-                    args,
-                    ..
-                }
-                | Statement::Barrier {
-                    command,
-                    canonical_command,
-                    args,
-                    ..
-                } => (command.as_str(), canonical_command.as_deref(), args),
-                _ => continue,
-            };
-            // Match against the canonical (`::`-qualified) command name.
-            let canon = canonical.map_or_else(|| normalise_qualified_name(command), str::to_owned);
-            match canon.as_str() {
-                "::global" => {
-                    for i in global_declaration_indices(args) {
-                        if let Some(a) = args.get(i) {
-                            ctx.globals.insert(normalise_var_name(a).to_owned());
-                        }
-                    }
-                }
-                "::variable" => {
-                    for i in variable_declaration_indices(args) {
-                        if let Some(a) = args.get(i) {
-                            ctx.ns_vars.insert(normalise_var_name(a).to_owned());
-                        }
-                    }
-                }
-                "::trace" => {
-                    if let Some(t) = trace_target(args) {
-                        ctx.traced.insert(normalise_var_name(t).to_owned());
-                    }
-                }
-                _ => {}
-            }
-            // `upvar` / `namespace upvar` — recognised structurally by the
-            // shared grammar (the IR command for `namespace upvar` is
-            // `namespace`), so gate on the surface command, not the canonical.
-            collect_upvar_aliases(command, args, &mut ctx.upvar_aliases, &namespace);
+    let registry = CommandRegistry::build_default();
+    let points = build_point_resolve_contexts(cfg, fn_qname, &registry);
+    let mut result = ResolveContext::for_function(fn_qname);
+    for (&id, block) in &cfg.blocks {
+        result.join(points.before_terminator(id));
+        for index in 0..block.statements.len() {
+            result.join(points.before_statement(id, index));
         }
     }
-
-    ctx
-}
-
-fn qualify_namespace(ns_arg: &str, current: &str) -> String {
-    if ns_arg.starts_with("::") {
-        return ns_arg.to_owned();
-    }
-    if current.is_empty() || current == "::" {
-        format!("::{ns_arg}")
-    } else {
-        format!("{current}::{ns_arg}")
-    }
-}
-
-fn collect_upvar_aliases(
-    command: &str,
-    args: &[String],
-    out: &mut std::collections::HashMap<String, String>,
-    namespace: &str,
-) {
-    // Tolerate a fully-qualified head (`::upvar`, `::namespace upvar`): the
-    // shared `upvar_local_declaration_indices` grammar matches the bare forms,
-    // so a `::`-qualified call would otherwise leave `upvar_aliases` incomplete.
-    let command = command.strip_prefix("::").unwrap_or(command);
-    // The namespace argument of a `namespace upvar` form (None for plain upvar).
-    let ns_arg: Option<&str> =
-        if command == "namespace" && args.first().map(String::as_str) == Some("upvar") {
-            args.get(1).map(String::as_str)
-        } else if command == "namespace upvar" {
-            args.first().map(String::as_str)
-        } else {
-            None
-        };
-
-    for local_i in upvar_local_declaration_indices(command, args) {
-        let Some(alias_raw) = args.get(local_i) else {
-            continue;
-        };
-        let alias = normalise_var_name(alias_raw).to_owned();
-        if alias.is_empty() {
-            continue;
-        }
-        let target_arg = local_i
-            .checked_sub(1)
-            .and_then(|j| args.get(j))
-            .map_or("", String::as_str);
-        // A target with any embedded substitution names a runtime-computed
-        // caller var, so it is unresolvable: record it as dynamic ("").
-        let dynamic = target_arg.is_empty() || target_arg.contains('$') || target_arg.contains('[');
-        let target = if dynamic {
-            String::new()
-        } else if let Some(ns) = ns_arg {
-            if ns.is_empty() || ns.contains('$') || ns.contains('[') {
-                String::new()
-            } else {
-                let ns_fq = qualify_namespace(ns, namespace);
-                format!(
-                    "{}::{}",
-                    ns_fq.trim_end_matches(':'),
-                    target_arg.trim_start_matches(':')
-                )
-            }
-        } else {
-            target_arg.to_owned()
-        };
-        out.insert(alias, target);
-    }
+    result
 }
 
 /// True when arg `arg_index` of a command is a **braced literal** word
@@ -201,36 +81,372 @@ fn is_braced_literal(tokens: Option<&CommandTokens>, arg_index: usize) -> bool {
     tokens.is_some_and(|t| t.arg_is_braced_literal(arg_index))
 }
 
-fn trace_target(args: &[String]) -> Option<&str> {
-    if args.len() >= 3 && args[0] == "add" && args[1] == "variable" {
-        return Some(&args[2]);
+/// Bound contents stores and destructions, including unset and namespace deletion.
+/// This projection is separate from SSA value definitions: deletion supplies no value.
+#[must_use]
+pub fn statement_mutation_places(
+    statement: &Statement,
+    context: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    if statement.has_opaque_native_accesses() {
+        return vec![place::unknown_top()];
     }
-    if args.len() >= 2 && args[0] == "variable" {
-        return Some(&args[1]);
+    if let Some(effects) =
+        crate::dictionary_bindings::scope_marker_effects(statement, context, registry)
+    {
+        return effects
+            .writes
+            .into_iter()
+            .chain(effects.destructions)
+            .chain(effects.clobbers)
+            .collect();
     }
-    None
+    let Some(tokens) = statement.tokens() else {
+        return def_places(statement, context, registry);
+    };
+    if tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments) {
+        return Vec::new();
+    }
+    if matches!(
+        tokens.synthetic,
+        Some(crate::ir::SyntheticMarker::IterationBindings(_))
+    ) {
+        return def_places(statement, context, registry);
+    }
+    let semantic_context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
+        .map_or_else(
+            || vec![place::unknown_top()],
+            |invocation| invocation.mutation_places(context, registry),
+        )
 }
 
-/// The places *stmt* writes (element-granular).
+/// Bound stores and destructions at their authored operand-selection phase.
+/// Body output operands may select a different binding on normal continuation.
+#[must_use]
+pub fn statement_mutation_places_with_continuation(
+    statement: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    if let Some(effects) =
+        crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
+    {
+        return effects
+            .writes
+            .into_iter()
+            .chain(effects.destructions)
+            .chain(effects.clobbers)
+            .collect();
+    }
+    let context = match variable_operand_binding_phase(statement, registry) {
+        tcl_registry::native_compilation::VariableOperandBindingPhase::AfterArguments => before,
+        tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation => after,
+        tcl_registry::native_compilation::VariableOperandBindingPhase::BodyProtocol => {
+            return vec![place::unknown_top()];
+        }
+    };
+    statement_mutation_places(statement, context, registry)
+}
+
+/// Physical destruction targets on a successful handler continuation.
+/// Destruction supplies no contents value; unknown targets remain may clobbers.
+#[must_use]
+pub fn statement_destruction_places_with_continuation(
+    statement: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    if let Some(effects) =
+        crate::dictionary_bindings::scope_marker_effects(statement, before, registry)
+    {
+        return effects.destructions;
+    }
+    let mut targets =
+        crate::variable_bindings::namespace_destruction_places(statement, before, registry);
+    let Some(tokens) = statement.tokens() else {
+        return targets;
+    };
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    if crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+        .is_some_and(|invocation| {
+            invocation
+                .variable_traits()
+                .contains(Traits::DESTROYS_VARIABLE)
+        })
+    {
+        targets.extend(statement_mutation_places_with_continuation(
+            statement, before, after, registry,
+        ));
+    }
+    targets
+}
+
+fn variable_operand_binding_phase(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> tcl_registry::native_compilation::VariableOperandBindingPhase {
+    use tcl_registry::native_compilation::VariableOperandBindingPhase;
+    let Some(tokens) = statement.tokens() else {
+        return VariableOperandBindingPhase::AfterArguments;
+    };
+    let semantic_context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    crate::registry_invocation::normal_transfer_invocation(registry, semantic_context, tokens)
+        .map_or(VariableOperandBindingPhase::AfterArguments, |invocation| {
+            invocation.variable_binding_phase()
+        })
+}
+
+/// SSA contents transitions caused by destruction, separate from value stores.
+/// The boolean marks original declaration advice: it can kill a diagnostic
+/// version on that conditional interpretation, but establishes no Must effect.
+#[must_use]
+pub(crate) fn ssa_destruction_keys(
+    statement: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<(crate::var_resolve::VariableCellKey, bool)> {
+    let actual: Vec<_> =
+        statement_destruction_places_with_continuation(statement, before, after, registry)
+            .iter()
+            .filter_map(crate::var_resolve::canonical_binding_value_key)
+            .map(|key| (key, false))
+            .collect();
+    if !actual.is_empty() || statement.has_opaque_native_accesses() {
+        return actual;
+    }
+    let Some(tokens) = statement.tokens() else {
+        return actual;
+    };
+    let Some(advice) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.declaration_operand_layout_advice(tokens))
+    else {
+        return actual;
+    };
+    let original = ResolveContext::default().in_frame(advice.frame());
+    if !advice.closed_lookup()
+        || original.frame_kind != before.frame_kind
+        || original.namespace != before.namespace
+        || original.namespace_identity != before.namespace_identity
+        || !(original.global_frame() && before.global_frame()
+            || original.activation.is_some() && original.activation == before.activation)
+    {
+        return actual;
+    }
+    crate::registry_invocation::declaration_invocation_flow(registry, tokens, &advice)
+        .into_iter()
+        .flat_map(|flow| flow.removes)
+        .filter_map(|name| {
+            crate::var_resolve::canonical_literal_variable_key(&name, before, registry)
+        })
+        .map(|key| (key, true))
+        .collect()
+}
+
+/// The places *stmt* defines a value in (element-granular).
 #[must_use]
 pub fn def_places(
     stmt: &Statement,
     ctx: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    if stmt.has_opaque_native_accesses() {
+        return Vec::new();
+    }
+    if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, ctx, registry) {
+        return effects.writes;
+    }
+    if stmt.tokens().is_some_and(|tokens| {
+        tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+    }) {
+        return Vec::new();
+    }
     match stmt {
-        Statement::AssignConst { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::Incr { name, .. } => {
-            vec![resolve_place(name, ctx, false, registry)]
+        Statement::AssignConst {
+            name, name_braced, ..
         }
-        Statement::Call { defs, .. } => defs
-            .iter()
-            .map(|d| resolve_place(d, ctx, false, registry))
-            .collect(),
+        | Statement::AssignValue {
+            name, name_braced, ..
+        }
+        | Statement::AssignExpr {
+            name, name_braced, ..
+        }
+        | Statement::Incr {
+            name, name_braced, ..
+        } => {
+            vec![crate::var_resolve::resolve_target_access(
+                name,
+                *name_braced,
+                ctx,
+                registry,
+                tcl_registry::TraceOperation::Write,
+            )]
+        }
+        Statement::Call {
+            defs,
+            tokens: Some(tokens),
+            ..
+        } if matches!(
+            tokens.synthetic,
+            Some(crate::ir::SyntheticMarker::IterationBindings(_))
+        ) =>
+        {
+            defs.iter()
+                .map(|name| {
+                    crate::var_resolve::resolve_literal_access(
+                        name,
+                        ctx,
+                        false,
+                        registry,
+                        tcl_registry::TraceOperation::Write,
+                    )
+                })
+                .collect()
+        }
+        Statement::Call { .. } => invocation_def_places(stmt, ctx, registry),
         _ => Vec::new(),
     }
+}
+
+fn invocation_def_places(
+    stmt: &Statement,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(invocation) = stmt.tokens().and_then(|tokens| {
+        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+    }) else {
+        return vec![place::unknown_top()];
+    };
+    invocation.definition_places(ctx, registry)
+}
+
+pub(crate) fn resolved_invocation_def_places_with_output_order(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+    output_order: Option<&[usize]>,
+) -> Vec<Place> {
+    resolved_invocation_variable_definitions(invocation, ctx, registry, output_order)
+        .into_iter()
+        .map(|(_, place)| place)
+        .collect()
+}
+
+pub(crate) fn resolved_invocation_variable_definitions(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+    output_order: Option<&[usize]>,
+) -> Vec<(usize, Place)> {
+    let facts = invocation.facts.as_ref();
+    if facts.traits.contains(Traits::DESTROYS_VARIABLE) {
+        return Vec::new();
+    }
+
+    let words: Vec<_> = (0..invocation.arguments.len())
+        .map(|index| invocation.argument_word(index))
+        .collect();
+    let arguments: Vec<_> = words
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    let arguments = tcl_registry::InvocationArguments::structured(&arguments);
+    let uncertain = crate::variable_bindings::uncertain_variable_output_addresses(
+        facts,
+        arguments,
+        ctx,
+        registry,
+        output_order,
+    );
+    facts
+        .arg_roles
+        .iter()
+        .filter_map(|&(index, role)| {
+            let index = facts.argument_offset + usize::from(index);
+            if role != ArgRole::VarWrite
+                || !crate::variable_bindings::contents_write_operand(
+                    facts,
+                    arguments.literal_at(index),
+                )
+            {
+                return None;
+            }
+            Some((
+                index,
+                if uncertain.contains(&index) {
+                    crate::var_resolve::project_access(
+                        place::unknown_top(),
+                        ctx,
+                        tcl_registry::TraceOperation::Write,
+                    )
+                } else {
+                    crate::variable_bindings::variable_output_operand_access(
+                        facts, arguments, index, ctx, registry,
+                    )
+                },
+            ))
+        })
+        .collect()
+}
+
+/// Resolve definitions at their authored variable operand-selection phase.
+/// A literal write can also re-establish a root lifetime lost at an incoming join.
+#[must_use]
+pub fn def_places_with_continuation(
+    stmt: &Statement,
+    before: &ResolveContext,
+    after: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, before, registry)
+    {
+        return effects.writes;
+    }
+    if variable_operand_binding_phase(stmt, registry)
+        == tcl_registry::native_compilation::VariableOperandBindingPhase::NormalContinuation
+    {
+        return def_places(stmt, after, registry);
+    }
+    let after_places = def_places(stmt, after, registry);
+    def_places(stmt, before, registry)
+        .into_iter()
+        .map(|place| {
+            if place
+                .cell
+                .as_ref()
+                .is_some_and(|cell| cell.generation == crate::place::CellGeneration::Unknown)
+                && let Some(continued) = after_places.iter().find(|continued| {
+                    continued.ns == place.ns
+                        && continued.name == place.name
+                        && continued.index == place.index
+                        && continued
+                            .cell
+                            .as_ref()
+                            .zip(place.cell.as_ref())
+                            .is_some_and(|(left, right)| left.owner == right.owner)
+                })
+            {
+                return continued.clone();
+            }
+            place
+        })
+        .collect()
 }
 
 /// Resolve the reads of every command in `script_text` — VAR_READ-role name
@@ -259,7 +475,13 @@ fn command_reads(
         for i in registry.arg_indices_for_role(name, &arg_strs, ArgRole::VarRead) {
             if let Some(a) = args.get(i) {
                 if !a.starts_with('$') && !a.starts_with('[') {
-                    out.push(resolve_place(a, ctx, whole, registry));
+                    out.push(crate::var_resolve::resolve_access(
+                        a,
+                        ctx,
+                        whole,
+                        registry,
+                        tcl_registry::TraceOperation::Read,
+                    ));
                 } else {
                     // Dynamic VAR_READ name (`array get $arr_name`): the read
                     // target is computed → UNKNOWN (overlaps everything) so a
@@ -283,15 +505,119 @@ fn word_reads(text: &str, ctx: &ResolveContext, out: &mut Vec<Place>, registry: 
     }
     // The registry carries the environment's profile, so the `$`/`[…]`
     // boundaries this word is read at are the document's own.
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let config = ctx.invocation_dialect.map_or_else(
+        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    );
     if text.contains('$') {
-        for r in scan_var_ref_forms_with_config(text, config) {
-            out.push(resolve_place(&r, ctx, false, registry));
+        for (reference, braced) in scan_var_ref_forms_braced_with_config(text, config) {
+            let access = if braced {
+                crate::var_resolve::resolve_literal_access(
+                    &reference,
+                    ctx,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            } else {
+                crate::var_resolve::resolve_access(
+                    &reference,
+                    ctx,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                )
+            };
+            out.push(access);
         }
     }
     for inner in command_subst_texts_with_config(text, config) {
         command_reads(&inner, ctx, out, registry);
     }
+}
+
+fn invocation_reads(
+    stmt: &Statement,
+    ctx: &ResolveContext,
+    registry: &CommandRegistry,
+    out: &mut Vec<Place>,
+) {
+    let (Statement::Call {
+        command,
+        args,
+        tokens,
+        ..
+    }
+    | Statement::Barrier {
+        command,
+        args,
+        tokens,
+        ..
+    }) = stmt
+    else {
+        return;
+    };
+    if tokens
+        .as_ref()
+        .is_some_and(|tokens| !tokens.evaluates_words())
+    {
+        return;
+    }
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let invocation =
+        crate::registry_invocation::resolved_statement_invocation(registry, context, stmt);
+    let facts = invocation
+        .as_ref()
+        .map(|invocation| invocation.facts.as_ref());
+    let effective = invocation.as_ref().map(|invocation| &invocation.effective);
+    let arguments_only = tokens.as_ref().is_some_and(|tokens| {
+        tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+    });
+    let mut evaluated = std::collections::HashSet::new();
+    if !arguments_only && let (Some(facts), Some(effective)) = (facts, effective) {
+        let whole = facts.traits.contains(Traits::WHOLE_ARRAY_ARG);
+        for &(index, role) in &facts.arg_roles {
+            let index = facts.argument_offset + usize::from(index);
+            match role {
+                ArgRole::VarRead => {
+                    let value = invocation
+                        .as_ref()
+                        .and_then(|invocation| invocation.argument_literal(index));
+                    out.push(value.as_deref().map_or_else(place::unknown_top, |name| {
+                        crate::var_resolve::resolve_literal_access(
+                            name,
+                            ctx,
+                            whole,
+                            registry,
+                            tcl_registry::TraceOperation::Read,
+                        )
+                    }));
+                }
+                ArgRole::Body | ArgRole::Expr => {
+                    if let Some(written) = effective.written_argument(index) {
+                        evaluated.insert(written);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let lookup = facts.map_or(command.as_str(), |facts| facts.canonical_command.as_str());
+    let structural = structural_body_indices(lookup, args, tokens.as_ref(), registry);
+    let expanded = tokens
+        .as_ref()
+        .is_some_and(|tokens| tokens.evaluated_body().is_some());
+    for (index, argument) in args.iter().enumerate() {
+        if structural.contains(&index) {
+            continue;
+        }
+        if !is_braced_literal(tokens.as_ref(), index) || (evaluated.contains(&index) && !expanded) {
+            word_reads(argument, ctx, out, registry);
+        }
+    }
+    word_reads(command, ctx, out, registry);
 }
 
 /// The places *stmt* reads (sound over-approximation).
@@ -306,6 +632,12 @@ pub fn read_places(
     ctx: &ResolveContext,
     registry: &CommandRegistry,
 ) -> Vec<Place> {
+    if stmt.has_opaque_native_accesses() {
+        return vec![place::unknown_top()];
+    }
+    if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, ctx, registry) {
+        return effects.reads;
+    }
     let mut out: Vec<Place> = Vec::new();
     let grammar = registry
         .profile()
@@ -313,16 +645,33 @@ pub fn read_places(
 
     match stmt {
         Statement::AssignValue { value, .. } => word_reads(value, ctx, &mut out, registry),
-        Statement::Incr { name, amount, .. } => {
+        Statement::Incr {
+            name,
+            name_braced,
+            amount,
+            ..
+        } => {
             // `incr x` reads its own target; the amount may read more.
-            out.push(resolve_place(name, ctx, false, registry));
+            out.push(crate::var_resolve::resolve_target_access(
+                name,
+                *name_braced,
+                ctx,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            ));
             if let Some(a) = amount {
                 word_reads(a, ctx, &mut out, registry);
             }
         }
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             for nm in vars_in_expr(expr, grammar) {
-                out.push(resolve_place(&nm, ctx, false, registry));
+                out.push(crate::var_resolve::resolve_access(
+                    &nm,
+                    ctx,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                ));
             }
             for cmd_text in expr.command_texts() {
                 word_reads(&cmd_text, ctx, &mut out, registry);
@@ -334,66 +683,18 @@ pub fn read_places(
             }
             if let Some(e) = expr {
                 for nm in vars_in_expr(e, grammar) {
-                    out.push(resolve_place(&nm, ctx, false, registry));
+                    out.push(crate::var_resolve::resolve_access(
+                        &nm,
+                        ctx,
+                        false,
+                        registry,
+                        tcl_registry::TraceOperation::Read,
+                    ));
                 }
             }
         }
-        Statement::Call {
-            command,
-            canonical_command,
-            args,
-            tokens,
-            ..
-        }
-        | Statement::Barrier {
-            command,
-            canonical_command,
-            args,
-            tokens,
-            ..
-        } => {
-            let whole = canonical_command
-                .as_deref()
-                .is_some_and(|c| is_whole_array_command(registry, c));
-            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            let read_idx: std::collections::HashSet<usize> = registry
-                .arg_indices_for_role(command, &arg_strs, ArgRole::VarRead)
-                .into_iter()
-                .collect();
-            // A structural body (proc/method/test/snit) runs in its own scope
-            // and is analysed separately — its reads must not leak into this
-            // scope.
-            let lookup = canonical_command.as_deref().unwrap_or(command);
-            let structural = structural_body_indices(lookup, args, tokens.as_ref(), registry);
-            // Body-role args (incl. non-structural ones like an iRules
-            // `clientside {…}` script) DO run, so their `$`-refs are real reads
-            // and must still be scanned even when braced.
-            let body_idx: std::collections::HashSet<usize> = registry
-                .arg_indices_for_role(command, &arg_strs, ArgRole::Body)
-                .into_iter()
-                .collect();
-            for (i, arg) in args.iter().enumerate() {
-                if structural.contains(&i) {
-                    continue;
-                }
-                if read_idx.contains(&i) && !arg.starts_with('$') && !arg.starts_with('[') {
-                    // A name-valued read arg (`info exists x`, `array get a`).
-                    out.push(resolve_place(arg, ctx, whole, registry));
-                } else {
-                    if read_idx.contains(&i) {
-                        // Dynamic VAR_READ name (`array get $arr_name`) → UNKNOWN.
-                        out.push(place::unknown_top());
-                    }
-                    // A braced literal *data* word performs no substitution, so
-                    // its de-braced IR text is not a read site (`puts {$a(k)}`
-                    // must not look like a read of `a(k)`, or a real dead store
-                    // to `a(k)` would be wrongly suppressed).
-                    if body_idx.contains(&i) || !is_braced_literal(tokens.as_ref(), i) {
-                        word_reads(arg, ctx, &mut out, registry);
-                    }
-                }
-            }
-            word_reads(command, ctx, &mut out, registry);
+        Statement::Call { .. } | Statement::Barrier { .. } => {
+            invocation_reads(stmt, ctx, registry, &mut out);
         }
         Statement::Block { body, .. } => {
             // A `Block` body (inlined passthrough / `eval {…}` brace-literal)
@@ -422,6 +723,188 @@ pub fn read_places(
     out
 }
 
+/// Read dependencies from the actual substitution contexts retained at a CFG point.
+/// Named-variable roles use the invocation continuation after argument evaluation.
+/// Compatibility scanners apply only when no source projection exists.
+#[must_use]
+pub fn read_places_at(
+    stmt: &Statement,
+    block: crate::cfg::BlockId,
+    index: usize,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let context = points.before_statement(block, index);
+    if stmt.has_opaque_native_accesses() {
+        return vec![place::unknown_top()];
+    }
+    if let Some(effects) = crate::dictionary_bindings::scope_marker_effects(stmt, context, registry)
+    {
+        return effects.reads;
+    }
+    let Some(tokens) = points.source_tokens_at(block, index) else {
+        return read_places(stmt, context, registry);
+    };
+    source_read_places(
+        tokens,
+        points.source_reads_at(block, index),
+        context,
+        registry,
+    )
+}
+
+/// Exact lexical read dependencies before a represented terminator.
+#[must_use]
+pub fn terminator_read_places_at(
+    term: &Terminator,
+    block: crate::cfg::BlockId,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let context = points.before_terminator(block);
+    let Some(tokens) = points.source_tokens_at(block, usize::MAX) else {
+        return terminator_read_places(term, context, registry);
+    };
+    source_read_places(
+        tokens,
+        points.source_reads_at(block, usize::MAX),
+        context,
+        registry,
+    )
+}
+
+fn source_read_places(
+    tokens: &CommandTokens,
+    accesses: &[crate::command_binding::SourceVariableAccess],
+    context: &ResolveContext,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let mut out: Vec<_> = accesses
+        .iter()
+        .map(|access| access.place_in_context(&access.variable_context, registry))
+        .collect();
+    out.extend(invocation_execution_read_places(tokens, registry));
+    named_invocation_reads(tokens, context, registry, &mut out);
+    let grammar = context.invocation_dialect.map_or_else(
+        || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    );
+    for nested in crate::word_subst::lifted_calls(Some(tokens), grammar) {
+        if let Some(tokens) = nested.tokens {
+            out.extend(invocation_execution_read_places(&tokens, registry));
+            named_invocation_reads(&tokens, context, registry, &mut out);
+        }
+    }
+    out
+}
+
+/// Physical May reads performed after this invocation's argv evaluation.
+/// Missing source inventory and unenumerated execution preserve an unknown read;
+/// synthetic phase boundaries never execute the original invocation again.
+#[must_use]
+pub fn invocation_execution_read_places(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    invocation_execution_read_contexts(tokens, registry)
+        .into_iter()
+        .map(|(place, _)| place)
+        .collect()
+}
+
+/// May reads performed by reached argument-substitution invocations.
+/// These depend on retained nested dispatch proofs, independently of editable
+/// lexical substitution references and the outer invocation's own execution.
+#[must_use]
+pub fn invocation_argument_execution_read_places(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> Vec<Place> {
+    let grammar = invocation_read_grammar(tokens, registry);
+    crate::word_subst::lifted_calls(Some(tokens), grammar)
+        .into_iter()
+        .filter_map(|call| call.tokens)
+        .flat_map(|nested| invocation_execution_read_places(&nested, registry))
+        .collect()
+}
+
+pub(crate) fn invocation_read_grammar(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+) -> tcl_lexer::LexerConfig {
+    tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.variable_context.invocation_dialect)
+        .map_or_else(
+            || tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            |dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+}
+
+/// Execution dependencies paired with the physical world selected at each read.
+/// These are May dependencies and never editable argv substitution references.
+#[must_use]
+pub fn invocation_execution_read_contexts<'a>(
+    tokens: &'a CommandTokens,
+    registry: &CommandRegistry,
+) -> Vec<(Place, &'a ResolveContext)> {
+    if tokens.synthetic.is_some() {
+        return Vec::new();
+    }
+    let Some(binding) = &tokens.source_binding else {
+        return Vec::new();
+    };
+    let Some(reads) = &binding.invocation_variable_reads else {
+        return vec![(place::unknown_top(), binding.variable_context.as_ref())];
+    };
+    let mut result: Vec<_> = reads
+        .substitutions
+        .iter()
+        .map(|access| {
+            (
+                access.place_in_context(&access.variable_context, registry),
+                access.variable_context.as_ref(),
+            )
+        })
+        .chain(
+            reads
+                .native_reads
+                .iter()
+                .map(|access| (access.place.clone(), access.variable_context.as_ref())),
+        )
+        .collect();
+    if reads.residual == crate::command_binding::SourceVariableReadResidual::Unknown {
+        result.push((place::unknown_top(), binding.variable_context.as_ref()));
+    }
+    result
+}
+
+fn named_invocation_reads(
+    tokens: &CommandTokens,
+    fallback: &ResolveContext,
+    registry: &CommandRegistry,
+    out: &mut Vec<Place>,
+) {
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let Some(invocation) =
+        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+    else {
+        return;
+    };
+    let selected = tokens
+        .source_binding
+        .as_ref()
+        .map_or(fallback, |binding| binding.variable_context.as_ref());
+    for place in invocation.read_places(selected, registry) {
+        if !out.contains(&place) {
+            out.push(place);
+        }
+    }
+}
+
 /// The places a block *terminator* reads — an `if` / `while` / `for` branch
 /// condition or a `return` value/expr.  Covers the direct `$`-refs plus any
 /// variables hidden in a command substitution within the condition.
@@ -438,7 +921,13 @@ pub fn terminator_read_places(
     match term {
         Terminator::Branch { condition, .. } => {
             for nm in vars_in_expr(condition, grammar) {
-                out.push(resolve_place(&nm, ctx, false, registry));
+                out.push(crate::var_resolve::resolve_access(
+                    &nm,
+                    ctx,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                ));
             }
             for cmd_text in condition.command_texts() {
                 word_reads(&cmd_text, ctx, &mut out, registry);
@@ -457,7 +946,13 @@ pub fn terminator_read_places(
                 }
                 if let Some(e) = expr {
                     for nm in vars_in_expr(e, grammar) {
-                        out.push(resolve_place(&nm, ctx, false, registry));
+                        out.push(crate::var_resolve::resolve_access(
+                            &nm,
+                            ctx,
+                            false,
+                            registry,
+                            tcl_registry::TraceOperation::Read,
+                        ));
                     }
                     for cmd_text in e.command_texts() {
                         word_reads(&cmd_text, ctx, &mut out, registry);
@@ -465,7 +960,7 @@ pub fn terminator_read_places(
                 }
             }
         }
-        Terminator::Goto { .. } => {}
+        Terminator::Goto { .. } | Terminator::Complete { .. } => {}
     }
     out
 }
@@ -476,7 +971,7 @@ pub fn terminator_read_places(
 /// conservative behaviour.
 fn same_literal_element(a: &Place, b: &Place) -> bool {
     use crate::place::IndexKind;
-    if a.kind != b.kind || a.ns != b.ns || a.name != b.name {
+    if a.kind != b.kind || a.ns != b.ns || a.name != b.name || a.cell != b.cell {
         return false;
     }
     match a.kind {
@@ -488,7 +983,8 @@ fn same_literal_element(a: &Place, b: &Place) -> bool {
                     && ai.value == bi.value
         ),
         PlaceKind::DictPath => {
-            !a.keys.is_empty()
+            a.index == b.index
+                && !a.keys.is_empty()
                 && a.keys.len() == b.keys.len()
                 && a.keys.iter().zip(&b.keys).all(|(ai, bi)| {
                     ai.kind == IndexKind::Literal
@@ -510,7 +1006,8 @@ fn must_alias_killed_in_block(
     block: &crate::cfg::Block,
     def_idx: usize,
     def_place: &Place,
-    ctx: &ResolveContext,
+    block_id: crate::cfg::BlockId,
+    points: &PointResolveContexts,
     registry: &CommandRegistry,
 ) -> bool {
     use crate::place::IndexKind;
@@ -528,9 +1025,10 @@ fn must_alias_killed_in_block(
     if !def_is_literal {
         return false;
     }
-    for stmt in block.statements.iter().skip(def_idx + 1) {
+    for (index, stmt) in block.statements.iter().enumerate().skip(def_idx + 1) {
+        let ctx = points.before_statement(block_id, index);
         // An intervening read of the same element cancels the kill.
-        if read_places(stmt, ctx, registry)
+        if read_places_at(stmt, block_id, index, points, registry)
             .iter()
             .any(|rp| same_literal_element(rp, def_place))
         {
@@ -569,6 +1067,17 @@ pub fn element_writes_observed_by_reads(
     fn_qname: &str,
     registry: &CommandRegistry,
 ) -> std::collections::HashSet<(String, i32)> {
+    let points = build_point_resolve_contexts(cfg, fn_qname, registry);
+    element_writes_observed_with_contexts(cfg, &points, registry)
+}
+
+/// Project element observations from the same proved bindings used by scalar and cell SSA.
+#[must_use]
+pub fn element_writes_observed_with_contexts(
+    cfg: &Function,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> std::collections::HashSet<(String, i32)> {
     use std::collections::HashSet;
 
     let is_array_assign = |stmt: &Statement| -> bool {
@@ -596,19 +1105,26 @@ pub fn element_writes_observed_by_reads(
         return out;
     }
 
-    let ctx = build_resolve_context(cfg, fn_qname);
     // All read places in the function, collected once.
     let mut reads: Vec<Place> = Vec::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            reads.extend(read_places(stmt, &ctx, registry));
+    for (&id, block) in &cfg.blocks {
+        for (index, stmt) in block.statements.iter().enumerate() {
+            reads.extend(read_places(
+                stmt,
+                points.before_statement(id, index),
+                registry,
+            ));
         }
         if let Some(term) = &block.terminator {
-            reads.extend(terminator_read_places(term, &ctx, registry));
+            reads.extend(terminator_read_places(
+                term,
+                points.before_terminator(id),
+                registry,
+            ));
         }
     }
 
-    for block in cfg.blocks.values() {
+    for (&id, block) in &cfg.blocks {
         for (idx, stmt) in block.statements.iter().enumerate() {
             if !is_array_assign(stmt) {
                 continue;
@@ -618,17 +1134,104 @@ pub fn element_writes_observed_by_reads(
             // must-alias kill (a later write to the exact same literal key with
             // no intervening read of it) makes this store dead regardless of any
             // later-version read.
-            let suppress = def_places(stmt, &ctx, registry).iter().any(|d| {
-                matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
-                    && reads.iter().any(|r| overlap(d, r))
-                    && !must_alias_killed_in_block(block, idx, d, &ctx, registry)
-            });
+            let suppress = def_places(stmt, points.before_statement(id, idx), registry)
+                .iter()
+                .any(|d| {
+                    matches!(d.kind, PlaceKind::ArrayElem | PlaceKind::DictPath)
+                        && reads.iter().any(|r| overlap(d, r))
+                        && !must_alias_killed_in_block(block, idx, d, id, points, registry)
+                });
             if suppress && let Ok(i) = i32::try_from(idx) {
                 out.insert((block.name.clone(), i));
             }
         }
     }
     out
+}
+
+/// Whether a reachable later access may consume a bound store before its
+/// contents are replaced. Read addresses and observer effects come from the
+/// point owner; a must replacement ends exposure on that normal path.
+#[must_use]
+pub fn write_observed_by_unknown_access(
+    cfg: &Function,
+    block: crate::cfg::BlockId,
+    statement_index: usize,
+    written: &Place,
+    points: &PointResolveContexts,
+    registry: &CommandRegistry,
+) -> bool {
+    let mut pending = vec![(block, statement_index.saturating_add(1))];
+    let mut visited = std::collections::HashSet::new();
+    'paths: while let Some((block, start)) = pending.pop() {
+        if !visited.insert((block, start)) {
+            continue;
+        }
+        let Some(contents) = cfg.blocks.get(&block) else {
+            continue;
+        };
+        for (index, statement) in contents.statements.iter().enumerate().skip(start) {
+            if read_places_at(statement, block, index, points, registry)
+                .iter()
+                .any(|read| overlap(read, written))
+            {
+                return true;
+            }
+            if points.after_statement(block, index).dynamic_bindings
+                && crate::memory_ssa::is_clobber(
+                    statement,
+                    registry,
+                    registry
+                        .profile()
+                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                )
+            {
+                return true;
+            }
+            if def_places_with_continuation(
+                statement,
+                points.before_statement(block, index),
+                points.after_statement(block, index),
+                registry,
+            )
+            .iter()
+            .any(|replacement| must_replace_contents(replacement, written))
+            {
+                pending.extend(
+                    cfg.exception_edges
+                        .iter()
+                        .filter_map(|&(from, to)| (from == block).then_some((to, 0))),
+                );
+                continue 'paths;
+            }
+        }
+        if contents.terminator.as_ref().is_some_and(|terminator| {
+            terminator_read_places_at(terminator, block, points, registry)
+                .iter()
+                .any(|read| overlap(read, written))
+        }) {
+            return true;
+        }
+        pending.extend(
+            cfg.block_successors(block)
+                .into_iter()
+                .map(|successor| (successor, 0)),
+        );
+    }
+    false
+}
+
+fn must_replace_contents(replacement: &Place, original: &Place) -> bool {
+    !replacement.dynamic
+        && !replacement.observed
+        && replacement.kind == original.kind
+        && matches!(replacement.kind, PlaceKind::Scalar | PlaceKind::ArrayElem)
+        && replacement.cell.as_ref().is_some_and(|cell| {
+            cell.generation != crate::place::CellGeneration::Unknown
+                && original.cell.as_ref() == Some(cell)
+        })
+        && crate::var_resolve::canonical_binding_value_key(replacement)
+            == crate::var_resolve::canonical_binding_value_key(original)
 }
 
 #[cfg(test)]
@@ -641,19 +1244,128 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    #[test]
+    fn replacement_ends_store_exposure_before_later_opaque_reads() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc f {} {set x OLD; set x NEW; unknown_reader}";
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let function = cu.function("::f").unwrap();
+        let points = function.ssa.point_contexts.as_ref().unwrap();
+        let stores: Vec<_> = function
+            .cfg
+            .blocks
+            .iter()
+            .flat_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(index, statement)| {
+                        def_places(statement, points.before_statement(block, index), registry)
+                            .iter()
+                            .any(|place| place.name == "x")
+                            .then_some((block, index, statement))
+                    })
+            })
+            .collect();
+        assert_eq!(stores.len(), 2);
+        for (ordinal, &(block, index, statement)) in stores.iter().enumerate() {
+            let written = def_places(statement, points.before_statement(block, index), registry);
+            assert_eq!(written.len(), 1);
+            assert_eq!(
+                write_observed_by_unknown_access(
+                    &function.cfg,
+                    block,
+                    index,
+                    &written[0],
+                    points,
+                    registry,
+                ),
+                ordinal == 1,
+                "store {ordinal}"
+            );
+        }
+    }
+
+    fn normal_call(source: &str, registry: &CommandRegistry) -> Statement {
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let segment = segment_commands_with_offset_and_config(source, 0, config)
+            .pop()
+            .unwrap();
+        let tokens =
+            CommandTokens::from_segmented(&tcl_lexer::SourceMap::new(source), config, &segment);
+        Statement::Call {
+            span: segment.span,
+            command: segment.name().to_owned(),
+            canonical_command: None,
+            args: segment.args().to_vec(),
+            defs: vec!["result".to_owned()],
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(tokens),
+            foreach_groups: None,
+        }
+    }
+
+    #[test]
+    fn body_output_selects_its_retargeted_normal_binding() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let mut before = ResolveContext::for_function("::p");
+        before.invocation_dialect = registry
+            .profile()
+            .map(tcl_registry::InvocationDialect::of_profile);
+        let mut after = before.clone();
+        after.known_namespaces.insert("::static".to_owned());
+        after.define_literal("::static::captured", "BOOM", registry);
+        let target = crate::var_resolve::resolve_literal_access(
+            "::static::captured",
+            &after,
+            false,
+            registry,
+            tcl_registry::TraceOperation::Write,
+        );
+        after
+            .alias_bindings
+            .insert("result".to_owned(), target.clone());
+        let catch = normal_call("catch {error BOOM} result", registry);
+        assert_eq!(
+            def_places_with_continuation(&catch, &before, &after, registry),
+            vec![target.clone()]
+        );
+        assert!(
+            statement_mutation_places_with_continuation(&catch, &before, &after, registry)
+                .contains(&target)
+        );
+        let set = normal_call("set result VALUE", registry);
+        let defs = def_places_with_continuation(&set, &before, &after, registry);
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].ns, LOCAL_NS);
+        assert_eq!(defs[0].name, "result");
+        assert_ne!(defs[0].cell, target.cell);
+    }
+
     /// Collect every def-place and read-place across a proc's CFG.
     fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
         let r = registry();
         let cu = CompilationUnit::build_for(src, &r, false);
         let fu = cu.function(qname).expect("proc not found");
-        let ctx = build_resolve_context(&fu.cfg, &fu.name);
+        let points = build_point_resolve_contexts(&fu.cfg, &fu.name, &r);
         let mut defs = Vec::new();
         let mut reads = Vec::new();
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                defs.extend(def_places(stmt, &ctx, &r));
-                reads.extend(read_places(stmt, &ctx, &r));
+        for (&id, block) in &fu.cfg.blocks {
+            for (index, stmt) in block.statements.iter().enumerate() {
+                let ctx = points.before_statement(id, index);
+                defs.extend(def_places(stmt, ctx, &r));
+                reads.extend(read_places(stmt, ctx, &r));
             }
+        }
+        for place in defs.iter_mut().chain(&mut reads) {
+            place.cell = None;
         }
         (defs, reads)
     }
@@ -708,16 +1420,13 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let ctx = build_resolve_context(&fu.cfg, &fu.name);
-        assert!(ctx.globals.contains("g"), "globals={:?}", ctx.globals);
-        assert!(ctx.ns_vars.contains("v"), "ns_vars={:?}", ctx.ns_vars);
-        assert!(
-            ctx.upvar_aliases.contains_key("y"),
-            "upvar_aliases={:?}",
-            ctx.upvar_aliases
-        );
+        let points = build_point_resolve_contexts(&fu.cfg, &fu.name, &r);
+        let ctx = points.before_terminator(fu.cfg.entry);
+        assert!(ctx.alias_bindings.contains_key("g"));
+        assert!(ctx.alias_bindings.contains_key("v"));
+        assert!(ctx.alias_bindings.contains_key("y"));
         // `y` resolves to an upvar alias, not a plain local scalar.
-        let p = resolve_place("y", &ctx, false, &r);
+        let p = resolve_place("y", ctx, false, &r);
         assert_eq!(p.kind, PlaceKind::UpvarAlias);
     }
 
@@ -729,14 +1438,11 @@ mod tests {
         let r = registry();
         let cu = CompilationUnit::build_for("proc f {} { ::upvar 1 caller y; set x 1 }", &r, false);
         let fu = cu.function("::f").unwrap();
-        let ctx = build_resolve_context(&fu.cfg, &fu.name);
-        assert!(
-            ctx.upvar_aliases.contains_key("y"),
-            "::upvar alias should be registered; upvar_aliases={:?}",
-            ctx.upvar_aliases
-        );
+        let points = build_point_resolve_contexts(&fu.cfg, &fu.name, &r);
+        let ctx = points.before_terminator(fu.cfg.entry);
+        assert!(ctx.alias_bindings.contains_key("y"));
         assert_eq!(
-            resolve_place("y", &ctx, false, &r).kind,
+            resolve_place("y", ctx, false, &r).kind,
             PlaceKind::UpvarAlias
         );
     }

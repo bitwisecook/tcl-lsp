@@ -42,6 +42,10 @@
 
 #![deny(missing_docs)]
 
+mod expression_arguments;
+pub use expression_arguments::ExpressionArguments;
+
+mod arithmetic;
 pub mod build_info;
 mod expr_number;
 mod grammar;
@@ -50,10 +54,13 @@ pub mod model;
 mod profile;
 mod version;
 
+pub use arithmetic::NativeArithmetic;
+mod double_string;
+pub use double_string::{DoubleFormat, DoubleStringPolicy};
 pub use expr_number::{
-    ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
+    ExprNumberLexeme, JimExpressionNumberKind, NanPayloadLexeme, expr_binary_word_operator_at,
     expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,
-    scan_expr_number, scan_nan_payload,
+    scan_expr_number, scan_jim_expression_number, scan_nan_payload,
 };
 pub use grammar::{
     ArrayIndexSyntax, BraceBackslashNewline, BraceLineContinuation, BracedVarStyle,
@@ -62,14 +69,22 @@ pub use grammar::{
     is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-pub use profile::{DialectFileExtension, DialectProfile};
+pub use profile::{DialectFileExtension, DialectProfile, DialectProfileKey};
 pub use version::{
-    ByteStringEncoding, CorePackage, PackagePrefer, RequirementValidationError,
-    StringCharacterModel, TclVersion, Ternary, compare_versions, compare_versions_for,
-    exact_requirement, select_package_version, select_package_version_exact_for,
-    select_package_version_for, validate_requirement, validate_requirement_for, validate_version,
-    validate_version_for, version_in_any_window, version_is_stable, version_is_stable_for,
-    version_matches_exact_for, version_satisfies, version_satisfies_for,
+    ByteStringEncoding, ConcatPolicy, CorePackage, DirectPackageFile, DirectPackageFileBytes,
+    DirectPackageFileKind, FrameLevelPresence, IndexGrammar, IndexIntegerWidth, IndexSyntax,
+    InterpreterProtocol, ListSetBounds, NamespaceImportBinding, NativeProcedureHeaderCompilation,
+    PackagePrefer, PackageProtocol, ParameterGrammar, ProcessExitConversion, RegexStartGrammar,
+    RequirementBytesValidationError, RequirementValidationError, StringCharacterModel, TclVersion,
+    Ternary, VariableContainerModel, VariableLinkBinding, VariableLookupPolicy, compare_versions,
+    compare_versions_bytes_for, compare_versions_for, exact_requirement, select_package_version,
+    select_package_version_bytes_for, select_package_version_exact_bytes_for,
+    select_package_version_exact_for, select_package_version_for, validate_requirement,
+    validate_requirement_bytes_for, validate_requirement_for, validate_version,
+    validate_version_bytes_for, validate_version_for, version_in_any_window, version_is_stable,
+    version_is_stable_bytes_for, version_is_stable_for, version_matches_exact_bytes_for,
+    version_matches_exact_for, version_satisfies, version_satisfies_bytes_for,
+    version_satisfies_for,
 };
 
 /// Crate version string.

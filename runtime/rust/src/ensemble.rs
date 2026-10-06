@@ -32,6 +32,9 @@
 
 use crate::namespace::NsId;
 
+mod native_objects;
+pub(crate) use native_objects::{retire_configuration, NativeEnsembleObjects, NativeEnsembleRoot};
+
 /// Stable command-token state shared by direct and in-flight ensemble
 /// invocations. The lifecycle implementation is owned by `tcl-cmd-core` so
 /// the native VM and this runtime apply the same Tcl rules.
@@ -44,6 +47,8 @@ pub type EnsembleMap = Vec<(Vec<u8>, Vec<Vec<u8>>)>;
 /// [`Command::Ensemble`](crate::interp::Command)).
 #[derive(Clone, Debug)]
 pub struct EnsembleConfig {
+    /// Actual configured object roles and lazily built native prefix table.
+    pub(crate) originals: NativeEnsembleObjects,
     /// The namespace subcommands dispatch into (default targets are
     /// `<ns>::<sub>`); the ns `namespace ensemble create` ran in.
     pub ns: NsId,
@@ -64,6 +69,18 @@ pub struct EnsembleConfig {
     /// Empty for none.
     pub unknown: Vec<Vec<u8>>,
 }
+
+impl PartialEq for EnsembleConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.ns == other.ns
+            && self.map == other.map
+            && self.subcommands == other.subcommands
+            && self.prefixes == other.prefixes
+            && self.parameters == other.parameters
+            && self.unknown == other.unknown
+    }
+}
+impl Eq for EnsembleConfig {}
 
 // Subcommand resolution and the `must be …` enumeration are the shared
 // `tcl_cmd_core::ensemble` owner's (`resolve_subcommand` /

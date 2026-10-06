@@ -113,6 +113,95 @@ fn proc_generator() {
 }
 
 #[test]
+fn native_control_conditions_and_expression_requests_suspend() {
+    // C Tcl 8.6.18, 9.0.4 and 9.1.0 agree. Dynamic heads force generic
+    // command dispatch; expressions never call a potentially shadowed expr.
+    let cases = [
+        (
+            r#"proc g {} {set w while; set i 0; $w {[yield condition]} {yield body; incr i}; return $i}; list [coroutine c g] [c 1] [c] [c 0]"#,
+            "condition body condition 1",
+        ),
+        (
+            r#"proc h {} {set f for; $f {set i 0} {[yield test]} {incr i} {yield $i}; return $i}; list [coroutine c h] [c 1] [c] [c 0]"#,
+            "test 0 test 1",
+        ),
+        (
+            r#"proc k {} {set f if; $f {[yield first]} {return yes} elseif {[yield second]} {return later} else {return no}}; list [coroutine c k] [c 0] [c 1]"#,
+            "first second later",
+        ),
+        (
+            r#"proc tcl::mathfunc::pause {x} {yield math; return $x}; proc e {} {set exprcmd expr; $exprcmd {pause(6) + [yield command]}}; list [coroutine c e] [c] [c 4]"#,
+            "math command 10",
+        ),
+        (
+            r#"proc q {} {set exprcmd expr; $exprcmd {"prefix[yield string]" eq {prefixDONE}}}; list [coroutine c q] [c DONE]"#,
+            "string 1",
+        ),
+    ];
+    for (script, expected) in cases {
+        assert_eq!(result(script), expected, "{script}");
+    }
+}
+
+#[test]
+fn expression_array_indices_and_nested_subst_suspend_without_replaying() {
+    // C Tcl 8.6.18, 9.0.4 and 9.1.0: index scripts suspend; a braced
+    // variable name keeps its index text literal; abrupt codes propagate.
+    for (script, expected) in [
+        (
+            r#"set ::a(k) VALUE; proc g {} {set e expr; $e {$::a([yield INDEX]) eq "VALUE"}}; list [coroutine c g] [c k]"#,
+            "INDEX 1",
+        ),
+        (
+            r#"set ::outer(v) YES; set ::inner(k) v; proc h {} {set e expr; $e {$::outer($::inner([yield NESTED])) eq "YES"}}; list [coroutine c h] [c k]"#,
+            "NESTED 1",
+        ),
+        (
+            r#"set {::a([yield])} BRACED; proc q {} {set e expr; $e {${::a([yield])} eq "BRACED"}}; coroutine c q"#,
+            "1",
+        ),
+        (
+            r#"set ::a(k) VALUE; proc r {} {set s subst; $s {$::a([yield SUBST])}}; list [coroutine c r] [c k]"#,
+            "SUBST VALUE",
+        ),
+        (
+            r#"proc bad {} {return -code break}; set e expr; list [catch {$e {$::a([bad])}} msg] $msg"#,
+            "3 {}",
+        ),
+        (
+            r#"proc bad {} {return -code break}; set e expr; list [catch {$e {"before[bad]after"}} msg] $msg"#,
+            "3 {}",
+        ),
+    ] {
+        assert_eq!(result(script), expected, "{script}");
+    }
+}
+
+#[test]
+fn native_control_bodies_suspend_on_the_interpreter_stack() {
+    // Measured with C Tcl 8.6.18, 9.0.4 and 9.1.0. Dynamic heads exercise
+    // native dispatch rather than the compiler's literal control opcodes.
+    assert_eq!(
+        result(
+            "proc g {} {set w while; set i 0; $w {$i < 3} {yield $i; incr i}; return $i}; list [coroutine c g] [c] [c] [c]"
+        ),
+        "0 1 2 3"
+    );
+    assert_eq!(
+        result(
+            "proc h {} {set f for; $f {set i [yield start]} {$i < 2} {yield next; incr i} {yield body-$i}; return $i}; list [coroutine c h] [c 0] [c] [c] [c] [c]"
+        ),
+        "start body-0 next body-1 next 2"
+    );
+    assert_eq!(
+        result(
+            "proc k {} {set f if; $f 1 {yield body; return finish} elseif {[error should-skip]} {error bad}; error after}; list [coroutine c k] [c]"
+        ),
+        "body finish"
+    );
+}
+
+#[test]
 fn yield_in_while_loop_with_state() {
     // tclsh 9.0.4: a stateful generator over an inline `while` loop. `coroutine`
     // consumes the first yield (5), so the three resumes give 6, 7, 8.

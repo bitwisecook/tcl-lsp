@@ -1,0 +1,4 @@
+route=compiled hook=update code=0 result=4 UPDATED CHANGED
+route=compiled hook=free code=0 result=4 FREED CHANGED
+route=generic hook=update code=0 result=4 UPDATED CHANGED
+route=generic hook=free code=0 result=4 FREED CHANGED

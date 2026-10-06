@@ -20,7 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use crate::state_transition::local_alias_name;
+use crate::state_transition::{VariableAliasNamePurpose, local_alias_name};
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
@@ -37,6 +37,7 @@ const GLOBAL_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCo
 
 const GLOBAL_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(global_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -55,9 +56,18 @@ fn global_state_transitions(arguments: InvocationArguments<'_>) -> StateTransiti
         let Some(variable) = TransitionSubject::from_argument(arguments, argument_index) else {
             continue;
         };
+        let Some(local) = local_alias_name(
+            &variable,
+            argument_index,
+            VariableAliasNamePurpose::Global,
+            arguments.dialect(),
+        ) else {
+            continue;
+        };
         transitions.push(StateTransition::VariableCellAlias(
             VariableCellAliasTransition {
-                local: local_alias_name(&variable),
+                destination: crate::state_transition::VariableAliasDestination::ProcedureLocal,
+                local,
                 target: VariableAliasTarget::Global { variable },
                 writes_value: false,
             },
@@ -109,6 +119,17 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarW
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
+        native_result: Some(crate::native_result::NativeResultContract::EmptyString),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::GlobalBindings,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

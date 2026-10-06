@@ -576,7 +576,17 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "format",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::FRAMELESS_RUNTIME

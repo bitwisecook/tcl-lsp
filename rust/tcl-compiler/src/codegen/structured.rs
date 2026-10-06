@@ -80,6 +80,21 @@ pub fn walk<E: Emit>(emit: &mut E, script: &Script, source: &str) {
 /// realised structurally only when inside one (`> 0`). `depth` is this script's
 /// total structural nesting level — see [`MAX_STRUCTURED_DEPTH`].
 fn walk_script<E: Emit>(emit: &mut E, script: &Script, source: &str, loop_depth: u32, depth: u32) {
+    use crate::native_compilation_admission::{
+        NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    match script_admission_plan(script, NativeCompilationAdmissionScope::Script) {
+        NativeCompilationAdmissionPlan::HostScript(chunk) => {
+            emit.emit_command_image(&chunk.text);
+            return;
+        }
+        NativeCompilationAdmissionPlan::RefuseMissingSource => {
+            emit.refuse_native_compilation_admission();
+            return;
+        }
+        NativeCompilationAdmissionPlan::NoRetainedObligation => {}
+        NativeCompilationAdmissionPlan::HostProcedure(_) => unreachable!("selected script scope"),
+    }
     for stmt in &script.statements {
         if walk_stmt(emit, stmt, source, loop_depth, depth) == Flow::Diverged {
             break;
@@ -488,8 +503,15 @@ mod tests {
     struct Recorder(Vec<String>);
 
     impl Emit for Recorder {
-        fn emit_command(&mut self, t: &str) {
-            self.0.push(format!("cmd({t})"));
+        fn refuse_native_compilation_admission(&mut self) {
+            self.0.push("native-admission-refused".to_owned());
+        }
+
+        fn emit_command_image(&mut self, source: &tcl_lexer::SourceImage) {
+            match source.try_text() {
+                Ok(text) => self.0.push(format!("cmd({text})")),
+                Err(_) => self.0.push(format!("command-bytes({:?})", source.bytes())),
+            }
         }
         fn begin_if(&mut self, c: &str) {
             self.0.push(format!("if({c})"));

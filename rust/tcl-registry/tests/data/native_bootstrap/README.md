@@ -1,0 +1,5 @@
+# Native core root inventory
+
+`core-roots.tsv` records physical root cells immediately after the actual native constructor, before script queries. The probe reads native header-defined variable tables and resident representations without reading error globals or running traces. Undefined cells remain included. Rows retain native bucket order; that order alone is not evidence of allocation chronology. The selected allocation recipe also follows each pinned constructor and namespace trace-registration source.
+
+The capture manifest retains exact six source/header/library and observation hashes. C constructor, Tcl_Init, explicit main argument publication, and actual CLI observations have distinct producer purposes. Jim bare constructor, core-command registration, static extension initialization, and actual jimsh startup are separate. This fixture covers core root allocation and definition status, not complete native command/module registration or platform-member values. Adapter host/build bytes are supplied separately. The fourth TSV column is C native Array storage; Jim uses Dictionary scalar storage instead.

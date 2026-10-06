@@ -22,30 +22,6 @@ use tcl_dialect::model::SpecSurface;
 
 const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
 
-/// Dynamic arg-role resolver for the canvas `bind` subcommand.
-///
-/// `pathName bind tagOrId ?sequence? ?command?` — like the top-level
-/// `bind` command, only the full three-argument form binds a script,
-/// supplied as the trailing (third) argument.  It is a deferred
-/// event-handler body run later from the Tk event loop, so `body_kind`
-/// is `Structural`.  Args here are those *after* the `bind` subcommand
-/// word: `tagOrId`(0) `sequence`(1) `command`(2).
-fn canvas_bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() == 3 {
-        vec![(2, ArgRole::Body)]
-    } else {
-        Vec::new()
-    }
-}
-
-fn canvas_bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
-    if args.len() == 3 {
-        vec![(2, ScriptTiming::Deferred)]
-    } else {
-        Vec::new()
-    }
-}
-
 /// The command's subcommands.
 const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
     name: "item",
@@ -57,7 +33,9 @@ const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
     ..SubCommandForm::DEFAULT
 }];
 
-static SUBCOMMANDS: [SubCommand; 30] = [
+static SUBCOMMANDS: [SubCommand; 32] = [
+    super::common::CLASSIC_WIDGET_CGET,
+    super::common::CLASSIC_WIDGET_CONFIGURE,
     SubCommand {
         name: "addtag",
         arity: Arity::at_least(2),
@@ -78,9 +56,9 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         arity: Arity::new(1, 3),
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
-        arg_role_resolver: Some(canvas_bind_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::Body],
-        script_timing_resolver: Some(canvas_bind_script_timing),
+        // Optional index 2 is present only in the full binding form.
+        // Structured role selection filters absent argv positions centrally.
+        arg_roles: &[(2, ArgRole::Body)],
         callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,
         traits: Traits::DEFERS_BODY,

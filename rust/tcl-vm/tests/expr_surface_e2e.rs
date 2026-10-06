@@ -64,8 +64,15 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
             .eval_expr("o")
             .expect_err("the shared on/off prefix remains ambiguous");
         assert_eq!(
-            ambiguous.error_code.as_deref(),
-            Some("TCL PARSE EXPR BAREWORD"),
+            ambiguous
+                .guest_completion()
+                .expect("original guest error")
+                .code,
+            tcl_vm::Code::Error,
+        );
+        assert_eq!(
+            ambiguous.error_code_bytes().as_deref(),
+            Some(b"TCL PARSE EXPR BAREWORD".as_slice()),
             "{version:?}"
         );
     }
@@ -81,11 +88,21 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         .eval_expr("{a} lt {b}")
         .expect_err("Tcl 8.6 rejects the 9.0-only operator");
     assert_eq!(
-        operator.error_code.as_deref(),
-        Some("TCL PARSE EXPR BAREWORD")
+        operator
+            .guest_completion()
+            .expect("original guest error")
+            .code,
+        tcl_vm::Code::Error,
     );
     assert_eq!(
-        operator.message,
+        operator.error_code_bytes().as_deref(),
+        Some(b"TCL PARSE EXPR BAREWORD".as_slice())
+    );
+    assert_eq!(
+        operator
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
     );
 
@@ -95,11 +112,21 @@ fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
         .eval_expr("isfinite(1.0)")
         .expect_err("Tcl 8.6 has no built-in isfinite");
     assert_eq!(
-        function.error_code.as_deref(),
-        Some("TCL LOOKUP COMMAND tcl::mathfunc::isfinite")
+        function
+            .guest_completion()
+            .expect("original guest error")
+            .code,
+        tcl_vm::Code::Error,
     );
     assert_eq!(
-        function.message,
+        function.error_code_bytes().as_deref(),
+        Some(b"TCL LOOKUP COMMAND tcl::mathfunc::isfinite".as_slice())
+    );
+    assert_eq!(
+        function
+            .message_unicode()
+            .expect("Unicode fixture error")
+            .as_ref(),
         "invalid command name \"tcl::mathfunc::isfinite\""
     );
 

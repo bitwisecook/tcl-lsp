@@ -70,7 +70,7 @@ pub fn install(interp: &mut Interp) {
 
 /// Set the result to a list built from element objects (each retained).
 fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
-    interp.set_result(list::new_list_obj(elems));
+    interp.set_result(interp.new_list_object(elems));
 }
 
 /// Resolve a Tcl list index spec against a container of `len` elements via the
@@ -79,9 +79,9 @@ fn set_list(interp: &mut Interp, elems: &[*mut TclObj]) {
 /// `end-0x1` resolves the way real Tcl's `Tcl_GetIntForIndex` does instead of
 /// being rejected by a decimal-only reader. Returns a
 /// (possibly out-of-range) signed index; callers clamp/range-check.
-pub(crate) fn index_spec(spec: &[u8], len: usize) -> Option<isize> {
+pub(crate) fn index_spec(interp: &mut Interp, spec: &[u8], len: usize) -> Option<isize> {
     let s = core::str::from_utf8(spec).ok()?;
-    let v = tcl_cmd_core::index::resolve_opt(s, len)?;
+    let v = tcl_cmd_core::index::resolve_for_ops(interp, s, len).ok()?;
     isize::try_from(v).ok()
 }
 
@@ -110,7 +110,16 @@ fn llength(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
 fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"lindex list ?index ...?");
+        return interp.wrong_args(
+            interp
+                .native_invocation_dialect()
+                .list_index_usage()
+                .unwrap_or("lindex list ?index ...?")
+                .as_bytes(),
+        );
+    }
+    if crate::native_arithseries::is_series(argv[1]) {
+        return crate::native_arithseries::lindex_command(interp, argv);
     }
     let r = list_core::lindex(interp, &argv[1], &argv[2..]);
     adapt(interp, r)
@@ -128,25 +137,33 @@ pub(crate) fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // named `a(k)` — split the array ref like `set`/`incr` do.
     let (base, elem) = crate::frame::split_array_ref(&name);
 
-    // `lappend x` with no values is a read: validate the current value as a list
-    // (erroring on a malformed one, like tclsh) and return it *unchanged* — no
-    // store, no trace, no re-rendering. An unset variable is created as an empty
-    // list.
+    // With no values the native read retains existing bytes. The selected
+    // container protocol decides whether malformed list bytes are rejected;
+    // an unset variable is created as an empty list.
     if values.is_empty() {
+        let Some(validate) = tcl_registry::native_compilation::NativeAppendKind::List
+            .validates_empty_result(interp.native_invocation_dialect())
+        else {
+            return interp.error(b"native list append policy is not selected");
+        };
         // `lappend` fires a read trace on the variable it reads (restored in Tcl
         // 8.4 after 8.0 dropped it), but swallows a trace error, unlike `append`
         // (append-7.2/7.3/7.4, bug 3057639).
         let cur = interp.lappend_read(&base, elem.as_deref());
         return match cur {
+            Some(o) if !validate => {
+                interp.set_result(o);
+                Code::Ok
+            }
             Some(o) => match list::list_elements(o) {
                 Ok(_) => {
                     interp.set_result(o);
                     Code::Ok
                 }
-                Err(e) => bad_list(interp, e),
+                Err(e) => interp.report_cmd_error(e.into()),
             },
             None => {
-                let empty = list::new_list_obj(&[]); // rc 0
+                let empty = interp.new_list_object(&[]); // rc 0
                 match interp.store_var_result(&base, elem.as_deref(), empty) {
                     Ok(()) => Code::Ok,
                     Err(e) => crate::builtins::var_error(interp, &name, e),
@@ -206,9 +223,8 @@ fn lreverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `concat ?arg ...?` — trim each arg of surrounding whitespace, drop empties,
 /// join with single spaces (Tcl's string-level concat).
 fn concat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let v = list_core::concat(interp, &argv[1..]);
-    interp.set_result(v);
-    Code::Ok
+    let value = list_core::concat_selected(interp, &argv[1..]);
+    adapt(interp, value)
 }
 
 /// `join list ?joinString?` — element string reps joined by `joinString`
@@ -237,9 +253,8 @@ fn split(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     } else {
         None
     };
-    let v = list_core::split(interp, &argv[1], chars);
-    interp.set_result(v);
-    Code::Ok
+    let result = list_core::split(interp, &argv[1], chars);
+    adapt(interp, result)
 }
 
 /// `lassign list ?varName ...?` — assign successive elements to the vars
@@ -250,7 +265,7 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(e) => e,
-        Err(e) => return bad_list(interp, e),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
     let vars = &argv[2..];
     for (i, &var) in vars.iter().enumerate() {
@@ -287,10 +302,6 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 // error helpers
-
-fn bad_list(interp: &mut Interp, e: crate::parse::ListError) -> Code {
-    interp.error_with_code(e.message(), e.error_code())
-}
 
 // lrepeat / linsert / lreplace / lsearch / lsort
 
@@ -362,13 +373,16 @@ fn lset_descend(
     };
     let elems = match list::list_elements(list_obj) {
         Ok(v) => v,
-        Err(e) => return Err(bad_list(interp, e)),
+        Err(e) => return Err(interp.report_cmd_error(e.into())),
     };
     let len = elems.len();
-    let Some(idx) = index_spec(spec, len) else {
+    let Some(idx) = index_spec(interp, spec, len) else {
         return Err(bad_index(interp, spec));
     };
-    if idx < 0 || idx as usize > len {
+    let Some(bounds) = interp.native_invocation_dialect().list_set_bounds() else {
+        return Err(interp.set_error(b"list replacement bounds are unavailable for this dialect"));
+    };
+    if !bounds.accepts(idx as i64, len) {
         return Err(lset_out_of_range(interp, spec));
     }
     let idx = idx as usize;
@@ -376,7 +390,7 @@ fn lset_descend(
     // Descend into the existing element, or a fresh empty list when appending a
     // new (possibly nested) slot.
     let child = if appending {
-        list::new_list_obj(&[])
+        interp.new_list_object(&[])
     } else {
         elems[idx]
     };
@@ -397,7 +411,7 @@ fn lset_descend(
     } else {
         out[idx] = new_child;
     }
-    let result = list::new_list_obj(&out);
+    let result = interp.new_list_object(&out);
     if appending {
         drop_fresh(child);
     }
@@ -473,13 +487,13 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let elems = match list::list_elements(listobj) {
         Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
     let len = elems.len();
-    let Some(first) = index_spec(&obj_bytes(argv[2]), len) else {
+    let Some(first) = index_spec(interp, &obj_bytes(argv[2]), len) else {
         return bad_index(interp, &obj_bytes(argv[2]));
     };
-    let Some(last) = index_spec(&obj_bytes(argv[3]), len) else {
+    let Some(last) = index_spec(interp, &obj_bytes(argv[3]), len) else {
         return bad_index(interp, &obj_bytes(argv[3]));
     };
     let lo = first.max(0).min(len as isize) as usize;
@@ -493,7 +507,7 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Build the new list first (retains every element), *then* store it: the
     // store releases the old value, but the elements survive because the new
     // list now holds its own refs. `new_list_obj` is rc 0; `var_set*` retains it.
-    let newlist = list::new_list_obj(&out);
+    let newlist = interp.new_list_object(&out);
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),
         None => interp.var_set(&base, newlist),
@@ -528,14 +542,14 @@ fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let elems = match list::list_elements(listobj) {
         Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
     let len = elems.len();
     let (idx, spec_desc): (isize, Vec<u8>) = if argv.len() == 2 {
         (len as isize - 1, b"end".to_vec())
     } else if argv.len() == 3 {
         let spec = obj_bytes(argv[2]);
-        match index_spec(&spec, len) {
+        match index_spec(interp, &spec, len) {
             Some(i) => (i, spec),
             None => return bad_index(interp, &spec),
         }
@@ -556,9 +570,9 @@ fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .enumerate()
         .filter_map(|(i, e)| (i != idx).then_some(*e))
         .collect();
-    let newlist = list::new_list_obj(&out); // retains survivors
-                                            // Retain `removed` (via the result) *before* the store releases the old
-                                            // list, so it survives to be returned.
+    let newlist = interp.new_list_object(&out); // retains survivors
+                                                // Retain `removed` (via the result) *before* the store releases the old
+                                                // list, so it survives to be returned.
     interp.set_result(removed);
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),
@@ -583,13 +597,13 @@ fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let elems = match list::list_elements(argv[1]) {
         Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
     let len = elems.len();
     let mut remove = vec![false; len];
     for &iv in &argv[2..] {
         let spec = obj_bytes(iv);
-        match index_spec(&spec, len) {
+        match index_spec(interp, &spec, len) {
             Some(i) if i >= 0 && (i as usize) < len => remove[i as usize] = true,
             Some(_) => {} // out of range — ignored, as C's lremove does
             None => return bad_index(interp, &spec),
@@ -610,20 +624,174 @@ fn lremove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// core (`lsearch` never writes a variable); this adapter only maps the result
 /// onto `set_result` and the error onto `set_error`/`error_with_code`.
 fn lsearch(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_regex_protocol()
+        .is_some()
+    {
+        use tcl_cmd_core::native_jim_lsearch::JimLsearchError;
+        return match tcl_cmd_core::native_jim_lsearch::lsearch(
+            interp,
+            &argv[1..],
+            crate::cmd_regex::invoke_jim_match_command,
+        ) {
+            Ok(value) => {
+                interp.set_result(value);
+                Code::Ok
+            }
+            Err(JimLsearchError::Command(error)) => interp.report_cmd_error(error),
+            Err(JimLsearchError::Callback(_)) | Err(JimLsearchError::NegativeMatch) => Code::Error,
+            Err(JimLsearchError::Usage) => interp.wrong_args(b"lsearch ?options? list pattern"),
+        };
+    }
     let version = interp.runtime_version();
-    match tcl_cmd_core::lsearch::lsearch::<Interp, crate::cmd_regex::AreEngine>(
+    use tcl_cmd_core::regex::OriginalRegexConsumerError;
+    match tcl_cmd_core::lsearch::lsearch_original_with_jim::<
+        Interp,
+        crate::cmd_regex::AreEngine,
+        Code,
+    >(
         interp,
         &argv[1..],
         version,
+        crate::cmd_regex::invoke_jim_regexp,
     ) {
-        Ok(v) => {
-            interp.set_result(v);
+        Ok(value) => {
+            interp.set_result(value);
             Code::Ok
         }
-        Err(e) => match e.code {
-            Some(code) => interp.error_with_code(&e.message, code),
-            None => interp.set_error(&e.message),
+        Err(OriginalRegexConsumerError::Callback(code)) => code,
+        Err(OriginalRegexConsumerError::Command(error))
+            if error.native_access_refusal.is_some() =>
+        {
+            interp.refuse_native_access(error.native_access_refusal.unwrap())
+        }
+        Err(OriginalRegexConsumerError::Command(error)) if error.command_error.is_some() => {
+            interp.report_cmd_error(error.command_error.unwrap())
+        }
+        Err(OriginalRegexConsumerError::Command(error)) => match error.code {
+            Some(code) => interp.error_with_code(&error.message, code),
+            None => interp.set_error(&error.message),
         },
+    }
+}
+
+impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Interp {
+    type Hold = obj::Owned;
+    type Accumulator = obj::Owned;
+    fn jim_search_bytes(
+        &mut self,
+        value: &*mut TclObj,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_syntax::value::ValueError> {
+        crate::native_source::bind_context(*value, &self.native_jim_object_context()?)?;
+        crate::dict::native_object_bytes(
+            *value,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+        .map(std::rc::Rc::from)
+    }
+    fn jim_search_character_count(
+        &mut self,
+        value: &*mut TclObj,
+    ) -> Result<usize, tcl_syntax::value::ValueError> {
+        obj::native_character_count(
+            *value,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString,
+        )
+    }
+    fn jim_search_option(
+        &mut self,
+        original: &*mut TclObj,
+    ) -> Result<usize, tcl_cmd_core::CmdError> {
+        let table = tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+            &tcl_cmd_core::native_jim_lsearch::OPTIONS,
+        );
+        match self.native_jim_enum_from_original(
+            *original,
+            &table,
+            tcl_registry::native_jim_enum::NativeJimEnumFlags::options(true),
+            None,
+        )? {
+            Ok(index) => Ok(index),
+            Err(message) => Err(
+                tcl_cmd_core::CmdError::new_bytes(message.unwrap_or_default())
+                    .with_native_string_result(
+                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                    ),
+            ),
+        }
+    }
+    fn jim_search_hold(
+        &mut self,
+        value: &*mut TclObj,
+    ) -> Result<obj::Owned, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(*value)?;
+        Ok(obj::Owned::retain(*value))
+    }
+    fn jim_search_borrow(&self, value: &*mut TclObj) -> *mut TclObj {
+        *value
+    }
+    fn jim_search_elements(
+        &mut self,
+        value: &*mut TclObj,
+    ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+        <Self as tcl_syntax::value::ValueOps>::list_elements(self, value)
+    }
+    fn jim_search_current_elements(
+        &self,
+        value: &*mut TclObj,
+    ) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(*value)?;
+        if crate::list::native_list_backing(*value).is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim lsearch callback changed selected List primary",
+            ));
+        }
+        crate::list::list_elements_native_checked(
+            *value,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+    }
+    fn jim_search_regexp_command(&mut self) -> *mut TclObj {
+        obj::new_string_bytes(b"regexp")
+    }
+    fn jim_search_group(&mut self, values: Vec<*mut TclObj>) -> *mut TclObj {
+        self.new_list_object(&values)
+    }
+    fn jim_search_begin(&mut self) -> obj::Owned {
+        obj::Owned::fresh(self.new_list_object(&[]))
+    }
+    fn jim_search_append(
+        &mut self,
+        list: &mut obj::Owned,
+        values: &[*mut TclObj],
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        crate::list::append_prepared_native_elements(
+            list.as_ptr(),
+            values,
+            tcl_syntax::native_string::NativeStringProtocol::Jim084,
+        )
+    }
+    fn jim_search_finish(
+        &mut self,
+        result: obj::Owned,
+    ) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        self.set_result(result.as_ptr());
+        Ok(self.get_obj_result())
+    }
+    fn jim_search_publish(
+        &mut self,
+        value: &*mut TclObj,
+    ) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        obj::check_native_liveness(*value)?;
+        self.set_result(*value);
+        Ok(self.get_obj_result())
+    }
+    fn jim_search_current_result(&self) -> Result<*mut TclObj, tcl_syntax::value::ValueError> {
+        let value = self.get_obj_result();
+        obj::check_native_liveness(value)?;
+        Ok(value)
     }
 }
 
@@ -647,13 +815,21 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
         Ok(Lsort::Command(job)) => job,
-        Err(e) => return interp.set_error(&e.message),
+        Err(e) => {
+            if let Some(error) = e.native_access_refusal {
+                return interp.refuse_native_access(error);
+            }
+            if let Some(error) = e.command_error {
+                return interp.report_cmd_error(error);
+            }
+            return interp.set_error(&e.message);
+        }
     };
     // `-command`: pre-split the comparison prefix into words, run the reentrant
     // merge sort over the user comparator (which evaluates Tcl), then build.
     let words = match list::list_elements(job.cmd_prefix) {
         Ok(v) => v.iter().map(|&w| obj_bytes(w)).collect::<Vec<_>>(),
-        Err(e) => return bad_list(interp, e),
+        Err(e) => return interp.report_cmd_error(e.into()),
     };
     let mut job = job;
     if let Err(c) = sort_command(&mut job, |a, b| lsort_cmd_compare(interp, &words, *a, *b)) {
@@ -701,10 +877,11 @@ fn lsort_cmd_compare(
 }
 
 fn bad_index(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    interp.set_error(&m)
+    let Some(syntax) = interp.native_invocation_dialect().index_syntax() else {
+        return interp.set_error(b"container index dialect is not selected");
+    };
+    let error = tcl_cmd_core::index::bad_index_in(spec, syntax);
+    interp.report_cmd_error(error)
 }
 
 /// Free a freshly created (`rc 0`) object not stored anywhere.
@@ -721,15 +898,12 @@ mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
 
-    fn run(src: &[u8]) -> (Code, Vec<u8>) {
-        // Returns (code, result-bytes). Leak-checked across the interp lifetime.
+    fn leak_free<R>(body: impl FnOnce(&mut Interp) -> R) -> R {
         counters::reset();
-        let (code, bytes);
-        {
+        let result = {
             let mut i = Interp::new();
-            code = i.eval_str(src);
-            bytes = i.result_bytes();
-        }
+            body(&mut i)
+        };
         assert_eq!(
             counters::finalize(),
             0,
@@ -738,7 +912,11 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
-        (code, bytes)
+        result
+    }
+
+    fn run(src: &[u8]) -> (Code, Vec<u8>) {
+        leak_free(|interp| (interp.eval_str(src), interp.result_bytes()))
     }
 
     fn ok(src: &[u8]) -> Vec<u8> {
@@ -888,6 +1066,129 @@ mod tests {
             String::from_utf8_lossy(&b)
         );
         b
+    }
+
+    #[test]
+    fn native_index_grammar_matches_real_c_and_jim_observations() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                let old = dialect == "tcl8.4";
+                let c8 = matches!(dialect, "tcl8.4" | "tcl8.5" | "tcl8.6");
+                let jim = dialect == "jim";
+                for (index, answer) in [
+                    ("e", c8.then_some("C")),
+                    ("en", c8.then_some("C")),
+                    ("end", Some("C")),
+                    ("1+1", (!old).then_some("C")),
+                    ("1-1", (!old).then_some("A")),
+                    ("end+1", (!old).then_some("")),
+                    ("end- 1", (old || jim).then_some("B")),
+                    (" end-1 ", None),
+                    ("2*1", jim.then_some("C")),
+                    ("(1+1)", jim.then_some("C")),
+                    ("$n", None),
+                    ("[set n]", None),
+                    ("abs(-1)", jim.then_some("B")),
+                    ("bool(1)", None),
+                    ("true", None),
+                    ("1.0", None),
+                    ("1 +1", jim.then_some("C")),
+                    ("1+ 1", jim.then_some("C")),
+                    ("-4294967295", Some(if c8 { "B" } else { "" })),
+                    ("2147483648", (!jim).then_some("")),
+                ] {
+                    let source = format!("set n 1; string index ABC {{{index}}}");
+                    let code = interp.eval_str(source.as_bytes());
+                    assert_eq!(
+                        code,
+                        if answer.is_some() {
+                            Code::Ok
+                        } else {
+                            Code::Error
+                        },
+                        "{dialect}: {index}: {:?}",
+                        interp.result_bytes()
+                    );
+                    if let Some(answer) = answer {
+                        assert_eq!(
+                            interp.result_bytes(),
+                            answer.as_bytes(),
+                            "{dialect}: {index}"
+                        );
+                    }
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn native_concat_preserves_selected_engine_and_object_representation() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                assert_eq!(interp.eval_str(b"concat word {}"), Code::Ok);
+                assert_eq!(
+                    interp.result_bytes(),
+                    if dialect == "jim" {
+                        b"word ".as_slice()
+                    } else {
+                        b"word".as_slice()
+                    }
+                );
+                assert_eq!(
+                    interp.eval_str(b"set first {A  B}; set second C; concat $first $second"),
+                    Code::Ok
+                );
+                assert_eq!(interp.result_bytes(), b"A  B C");
+                assert_eq!(
+                    interp.eval_str(b"llength $first; llength $second; concat $first $second"),
+                    Code::Ok
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    if dialect == "jim" {
+                        b"A B C".as_slice()
+                    } else {
+                        b"A  B C".as_slice()
+                    }
+                );
+            });
+        }
+    }
+
+    #[test]
+    fn lset_bounds_follow_real_c_releases_and_current_jim() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                for (index, expected) in [
+                    ("0", b"0 {X B}".as_slice()),
+                    ("1", b"0 {A X}".as_slice()),
+                    (
+                        "2",
+                        if matches!(dialect, "tcl8.4" | "tcl8.5" | "jim") {
+                            b"1 {A B}".as_slice()
+                        } else {
+                            b"0 {A B X}".as_slice()
+                        },
+                    ),
+                    ("3", b"1 {A B}".as_slice()),
+                    ("-1", b"1 {A B}".as_slice()),
+                ] {
+                    let source =
+                        format!("set data {{A B}}; list [catch {{lset data {index} X}}] $data");
+                    assert_eq!(interp.eval_str(source.as_bytes()), Code::Ok);
+                    assert_eq!(interp.result_bytes(), expected, "{dialect}, {index}");
+                }
+            });
+        }
     }
 
     #[test]
@@ -1203,6 +1504,29 @@ mod tests {
         );
     }
 
+    #[test]
+    fn empty_append_native_contracts_preserve_bytes_and_selected_validation() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            leak_free(|interp| {
+                interp.set_dialect_profile(
+                    tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+                );
+                for (source, expected) in [
+                    (b"list [catch {append fresh}] [info exists fresh]".as_slice(), b"1 0".as_slice()),
+                    (b"lappend created; list [info exists created] [set created]", b"1 {}"),
+                    (b"set spaced {a  b}; lappend spaced", b"a  b"),
+                    (
+                        br#"set malformed "\{"; list [catch {lappend malformed}] [string equal $malformed "\{"]"#,
+                        if dialect == "jim" { b"0 1" } else { b"1 1" },
+                    ),
+                ] {
+                    assert_eq!(interp.eval_str(source), Code::Ok, "{dialect}: {source:?}");
+                    assert_eq!(interp.result_bytes(), expected, "{dialect}: {source:?}");
+                }
+            });
+        }
+    }
+
     /// A write trace that mutates or unsets the variable during `lappend`
     /// (append-7.x): the result is the variable's *post-trace* value (empty when
     /// unset, the trace's new value otherwise), matching C — and the fresh list
@@ -1275,5 +1599,159 @@ mod tests {
         let (c, b) = run(b"llength");
         assert_eq!(c, Code::Error);
         assert!(b.starts_with(b"wrong # args"));
+    }
+}
+
+#[cfg(test)]
+mod native_jim_lsearch_controls {
+    use super::*;
+    thread_local! { static CALLBACKS: std::cell::RefCell<Vec<Vec<(String, usize)>>> = const { std::cell::RefCell::new(Vec::new()) }; }
+    fn kind(value: *mut TclObj) -> String {
+        let descriptor = obj::obj_type_ptr(value);
+        if descriptor.is_null() {
+            "none".to_owned()
+        } else {
+            // SAFETY: the observed live original owns this static type descriptor.
+            unsafe { std::ffi::CStr::from_ptr((*descriptor).name) }
+                .to_str()
+                .unwrap()
+                .to_owned()
+        }
+    }
+    fn twice(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+        CALLBACKS.with(|callbacks| {
+            callbacks.borrow_mut().push(
+                argv.iter()
+                    .map(|&value| {
+                        // SAFETY: actual ObjVector retains every original during this callback.
+                        (
+                            kind(value),
+                            usize::try_from(unsafe { (*value).ref_count }).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+        });
+        interp.set_result(obj::new_wide_int_obj(2));
+        Code::Ok
+    }
+    fn returns(interp: &mut Interp, _: &[*mut TclObj]) -> Code {
+        interp.set_result(obj::new_string_bytes(b"ORIGINAL_RETURN"));
+        Code::Return
+    }
+    #[test]
+    fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
+        let rows =
+            include_str!("../../../rust/tcl-cmd-core/tests/data/native_jim_lsearch/rows.txt");
+        let hex = |text: &str| {
+            text.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut count = 0;
+        for record in rows.split("case\t").skip(1) {
+            let lines: Vec<_> = record.lines().collect();
+            let case: usize = lines[0].parse().unwrap();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("jim"),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            interp.register_builtin(b"two", twice);
+            interp.register_builtin(b"returns", returns);
+            if case == 8 {
+                interp.register_builtin(b"regexp", twice);
+            }
+            CALLBACKS.with(|callbacks| callbacks.borrow_mut().clear());
+            let originals: Vec<_> = lines[1]
+                .split('\t')
+                .skip(1)
+                .map(|word| obj::Owned::fresh(obj::new_string_bytes(&hex(word))))
+                .collect();
+            let head = obj::Owned::fresh(obj::new_string_bytes(b"lsearch"));
+            let argv: Vec<_> = std::iter::once(head.as_ptr())
+                .chain(originals.iter().map(obj::Owned::as_ptr))
+                .collect();
+            let code = interp.eval_original_object_vector(&argv);
+            let expected_code: i32 = lines
+                .iter()
+                .find_map(|line| line.strip_prefix("code\t"))
+                .unwrap()
+                .parse()
+                .unwrap();
+            assert_eq!(code.as_int(), i64::from(expected_code), "case {case}");
+            let value = interp.get_obj_result();
+            let expected: Vec<_> = lines
+                .iter()
+                .find_map(|line| line.strip_prefix("result\t"))
+                .unwrap()
+                .split('\t')
+                .collect();
+            assert_eq!(kind(value), expected[0], "case {case}");
+            assert_eq!(
+                obj::has_string_rep(value),
+                expected[1] == "1",
+                "case {case}"
+            );
+            // SAFETY: the actual interpreter result owns the observed live header.
+            assert_eq!(
+                unsafe { (*value).ref_count },
+                expected[2].parse::<isize>().unwrap(),
+                "case {case} original result refs"
+            );
+            for line in lines
+                .iter()
+                .filter_map(|line| line.strip_prefix("argument\t"))
+            {
+                let fields: Vec<_> = line.split('\t').collect();
+                let value = originals[fields[0].parse::<usize>().unwrap() - 1].as_ptr();
+                assert_eq!(kind(value), fields[1], "case {case} argument {}", fields[0]);
+                assert_eq!(
+                    obj::has_string_rep(value),
+                    fields[2] == "1",
+                    "case {case} argument {}",
+                    fields[0]
+                );
+                // SAFETY: the external original owner remains live throughout capture.
+                assert_eq!(
+                    unsafe { (*value).ref_count },
+                    fields[3].parse::<isize>().unwrap(),
+                    "case {case} argument {}",
+                    fields[0]
+                );
+            }
+            let native_callbacks: Vec<_> = lines
+                .iter()
+                .filter_map(|line| line.strip_prefix("callback\t"))
+                .map(|line| {
+                    line.split('\t')
+                        .skip(1)
+                        .map(|field| {
+                            let (kind, refs) = field.split_once(':').unwrap();
+                            (kind.to_owned(), refs.parse::<usize>().unwrap())
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            CALLBACKS.with(|callbacks| {
+                assert_eq!(
+                    *callbacks.borrow(),
+                    native_callbacks,
+                    "case {case} original callback argv"
+                )
+            });
+            let expected_bytes = hex(lines
+                .iter()
+                .find_map(|line| line.strip_prefix("bytes\t"))
+                .unwrap());
+            assert_eq!(interp.result_bytes(), expected_bytes, "case {case}");
+            count += 1;
+        }
+        assert_eq!(count, 24);
     }
 }

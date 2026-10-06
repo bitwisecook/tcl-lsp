@@ -18,7 +18,20 @@
 
 //! `tcltest::customMatch` command.
 use crate::prelude::*;
+use crate::world_effect::{
+    CallbackEffect, EffectAccessMode, StaticEffectAccess, StaticEffectFootprint,
+    StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope, WorldEffectDescriptor,
+    WorldStateDomain,
+};
 use tcl_dialect::model::SpecSurface;
+
+const MATCHER_WRITES: &[StaticEffectAccess] = &[StaticEffectAccess::new(
+    WorldStateDomain::VariableStore,
+    EffectAccessMode::Write,
+    StaticInterpreterScope::Current,
+    StaticNamespaceScope::Named("::tcltest"),
+    StaticSubjectScope::Named("CustomMatch"),
+)];
 
 fn custom_match_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     (args.len() >= 2)
@@ -45,6 +58,13 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Name)],
         command_prefixes: &[(1, AppendedArity::Exactly(2))],
         script_timing_resolver: Some(custom_match_script_timing),
+        world_effects: Some(WorldEffectDescriptor {
+            static_footprint: StaticEffectFootprint {
+                accesses: MATCHER_WRITES,
+                callback: CallbackEffect::NONE,
+            },
+            ..WorldEffectDescriptor::EMPTY
+        }),
         // `customMatch MODE command` always defines a new match mode; the
         // backing command (arg 1) is shown as the outline detail.
         defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Matcher).with_detail(1)),

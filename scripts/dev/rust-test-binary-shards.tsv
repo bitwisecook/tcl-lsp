@@ -93,6 +93,7 @@
 2	tcl-vm::expanded_invoke_e2e	test	tcl-vm	expanded_invoke_e2e
 2	tcl-vm::expr_surface_e2e	test	tcl-vm	expr_surface_e2e
 2	tcl-vm::namespace_colon_runs_e2e	test	tcl-vm	namespace_colon_runs_e2e
+2	tcl-vm::native_compilation_conformance	test	tcl-vm	native_compilation_conformance
 2	tcl-vm::numeric_tower_e2e	test	tcl-vm	numeric_tower_e2e
 2	tcl-vm::opcode_dispatch_coverage	test	tcl-vm	opcode_dispatch_coverage
 2	tcl-vm::regexp_e2e	test	tcl-vm	regexp_e2e
@@ -118,6 +119,7 @@
 3	tcl-compiler::fp_depth	test	tcl-compiler	fp_depth
 3	tcl-compiler::inlining	test	tcl-compiler	inlining
 3	tcl-compiler::inlining_interproc_residual	test	tcl-compiler	inlining_interproc_residual
+3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
 3	tcl-compiler::optimiser	test	tcl-compiler	optimiser
 3	tcl-compiler::optimiser_codegen_residual	test	tcl-compiler	optimiser_codegen_residual
 3	tcl-compiler::optimiser_depth	test	tcl-compiler	optimiser_depth
@@ -161,7 +163,9 @@
 3	tcl-spectcl::workspace_packs	test	tcl-spectcl	workspace_packs
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax
+3	tcl-syntax::body_execution_conformance	test	tcl-syntax	body_execution_conformance
 3	tcl-test-support	lib	tcl-test-support	tcl_test_support
+3	tcl-test-support::variable_containers_conformance	test	tcl-test-support	variable_containers_conformance
 3	tcl-vm::cmd_control_e2e	test	tcl-vm	cmd_control_e2e
 3	tcl-vm::cmd_math_expr_e2e	test	tcl-vm	cmd_math_expr_e2e
 3	tcl-vm::cmd_oo_e2e	test	tcl-vm	cmd_oo_e2e
@@ -203,6 +207,7 @@
 4	tcl-compiler::fix_safety	test	tcl-compiler	fix_safety
 4	tcl-compiler::mro_lattice_adversarial	test	tcl-compiler	mro_lattice_adversarial
 4	tcl-compiler::per_item_corpus	test	tcl-compiler	per_item_corpus
+4	tcl-compiler::resolution_rewrite_oracles	test	tcl-compiler	resolution_rewrite_oracles
 4	tcl-compiler::slot_allocation	test	tcl-compiler	slot_allocation
 4	tcl-compiler::span_char_boundaries	test	tcl-compiler	span_char_boundaries
 4	tcl-compiler::taint_depth	test	tcl-compiler	taint_depth
@@ -253,6 +258,7 @@
 4	tcl-sslictcl::bin/sslictcl-data	bin	tcl-sslictcl	sslictcl-data
 4	tcl-sslictcl::registry_pack_drift	test	tcl-sslictcl	registry_pack_drift
 4	tcl-syntax::command_resolution_conformance	test	tcl-syntax	command_resolution_conformance
+4	tcl-syntax::execution_resolution_conformance	test	tcl-syntax	execution_resolution_conformance
 4	tcl-syntax::expr_parser	test	tcl-syntax	expr_parser
 4	tcl-syntax::expr_parser_depth	test	tcl-syntax	expr_parser_depth
 4	tcl-syntax::namespace_op_conformance	test	tcl-syntax	namespace_op_conformance
@@ -263,6 +269,7 @@
 4	tcl-vm::cross_version_vars_e2e	test	tcl-vm	cross_version_vars_e2e
 4	tcl-vm::language_e2e	test	tcl-vm	language_e2e
 4	tcl-vm::regexp_cmd_corpus	test	tcl-vm	regexp_cmd_corpus
+4	tcl-vm::selected_frame_coroutines	test	tcl-vm	selected_frame_coroutines
 4	tcl-vm::tcltest_load	test	tcl-vm	tcltest_load
 4	xtask::bin/xtask	bin	xtask	xtask
 5	bigip-report-gen-rust::architecture	test	bigip-report-gen-rust	architecture
@@ -345,3 +352,4 @@
 5	tcl-vm::opcode_catch_parity	test	tcl-vm	opcode_catch_parity
 5	tcl-vm::safe_interp_e2e	test	tcl-vm	safe_interp_e2e
 5	tcl-vm::step_trace_inline_e2e	test	tcl-vm	step_trace_inline_e2e
+5	tcl-vm::variable_container_models	test	tcl-vm	variable_container_models

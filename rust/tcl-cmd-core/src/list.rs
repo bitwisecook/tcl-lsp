@@ -26,6 +26,9 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
+#[path = "list/native_concat.rs"]
+mod native_concat;
+
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -49,18 +52,25 @@ pub fn llength<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, C
 /// `lindex list ?index ...?` — descend through each index; an out-of-range index
 /// yields the empty string, a malformed index spec errors.
 ///
-/// A lone index argument is itself split into an index *path*
+/// C Tcl splits a lone index argument into an index *path*
 /// (`lindex {{a b} c} {0 1}` → `b`); multiple arguments are each a single index.
+/// Jim instead treats that operand as one safe-expression index.
 /// Mirrors `Tcl_LindexObjCmd` (`TclLindexList`/`TclLindexFlat`).
 pub fn lindex<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     idxs: &[O::Value],
 ) -> Result<O::Value, CmdError> {
+    if ops
+        .index_syntax()
+        .is_some_and(|syntax| !syntax.lindex_argument_is_path())
+    {
+        return lindex_flat(ops, value, idxs);
+    }
     let [only] = idxs else {
         return lindex_flat(ops, value, idxs);
     };
-    let s = ops.as_str(only);
+    let s = ops.try_as_str(only)?;
     // A single index argument is an index *list* (`lindex $l {0 1}`). When it
     // is not a well-formed list (`lindex $l \{`), C falls back to treating it
     // as one index spec — which then fails as `bad index "{"`, not as a list
@@ -86,7 +96,11 @@ pub fn lindex_flat<O: ValueOps>(
     value: &O::Value,
     idxs: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let specs: Vec<String> = idxs.iter().map(|i| ops.as_str(i).to_string()).collect();
+    let specs: Vec<_> = idxs
+        .iter()
+        .map(|i| ops.try_as_str(i))
+        .collect::<Result<_, _>>()?;
+    let specs: Vec<String> = specs.iter().map(ToString::to_string).collect();
     lindex_specs(ops, value, &specs)
 }
 
@@ -101,7 +115,7 @@ fn lindex_specs<O: ValueOps>(
     let mut cur = value.clone();
     for (k, spec) in specs.iter().enumerate() {
         let elems = ops.list_elements(&cur)?;
-        let i = index::resolve(spec, elems.len())?;
+        let i = index::resolve_for_ops(ops, spec, elems.len())?;
         if let Some(i) = usize::try_from(i).ok().filter(|&i| i < elems.len()) {
             cur = elems[i].clone();
         } else {
@@ -110,7 +124,7 @@ fn lindex_specs<O: ValueOps>(
             // so `lindex {} end foo` reports `bad index "foo"` (lindex-17.0).
             // The format check is length-independent.
             for rest in &specs[k + 1..] {
-                index::resolve(rest, 0)?;
+                index::resolve_for_ops(ops, rest, 0)?;
             }
             return Ok(ops.empty());
         }
@@ -127,8 +141,8 @@ pub fn lrange<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let elems = ops.list_elements(value)?;
     let len = elems.len();
-    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
-    let hi = index::resolve(&ops.as_str(last), len)?;
+    let lo = index::resolve_value(ops, first, len)?.max(0);
+    let hi = index::resolve_value(ops, last, len)?;
     let Ok(lo) = usize::try_from(lo) else {
         return Ok(ops.new_list(Vec::new()));
     };
@@ -184,7 +198,7 @@ pub fn linsert<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let mut elems = ops.list_elements(value)?;
     let len = elems.len();
-    let at = index::resolve(&ops.as_str(index), len + 1)?;
+    let at = index::resolve_value(ops, index, len + 1)?;
     let at = usize::try_from(at.max(0)).unwrap_or(0).min(len);
     for (k, e) in elements.iter().enumerate() {
         elems.insert(at + k, e.clone());
@@ -207,9 +221,9 @@ pub fn lreplace<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let mut elems = ops.list_elements(value)?;
     let len = elems.len();
-    let lo = index::resolve(&ops.as_str(first), len)?.max(0);
+    let lo = index::resolve_value(ops, first, len)?.max(0);
     let lo = usize::try_from(lo).unwrap_or(0).min(len);
-    let hi = index::resolve(&ops.as_str(last), len)?;
+    let hi = index::resolve_value(ops, last, len)?;
     // Exclusive end of the removed range; `last < first` removes nothing.
     let end = if hi < 0 {
         lo
@@ -229,15 +243,18 @@ const TCL_WS: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}'];
 /// `concat ?arg ...?` — trim each argument and join with single spaces, dropping
 /// the args that are empty after trimming.
 pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
-    let mut parts: Vec<String> = Vec::new();
-    for v in args {
-        let s = ops.as_str(v);
-        let t = trim_concat_element(&s);
-        if !t.is_empty() {
-            parts.push(t.to_string());
-        }
-    }
-    ops.new_string(parts.join(" "))
+    let values: Vec<_> = args.iter().map(|value| ops.as_bytes(value)).collect();
+    ops.new_bytes(&tcl_syntax::list::concat_bytes(
+        values.iter().map(AsRef::as_ref),
+    ))
+}
+
+/// Concatenate with the selected engine's representation protocol.
+///
+/// # Errors
+/// An unknown concat policy or an invalid advertised list representation.
+pub fn concat_selected<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdError> {
+    native_concat::concatenate(ops, args)
 }
 
 /// Trim leading/trailing whitespace from one `concat` element, matching C's
@@ -249,25 +266,7 @@ pub fn concat<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
 /// the left trim is plain. Shared with the VM's inline `concatStk` opcode.
 #[must_use]
 pub fn trim_concat_element(s: &str) -> &str {
-    let bytes = s.as_bytes();
-    let is_ws = |b: u8| TCL_WS.contains(&(b as char));
-    let mut start = 0;
-    while start < bytes.len() && is_ws(bytes[start]) {
-        start += 1;
-    }
-    let mut end = bytes.len();
-    while end > start && is_ws(bytes[end - 1]) {
-        let backslashes = bytes[start..end - 1]
-            .iter()
-            .rev()
-            .take_while(|&&b| b == b'\\')
-            .count();
-        if backslashes % 2 == 1 {
-            break; // escaped whitespace: part of the element.
-        }
-        end -= 1;
-    }
-    &s[start..end]
+    tcl_syntax::list::trim_concat_element(s)
 }
 
 /// `join list ?joinString?` (default separator a single space).
@@ -276,20 +275,27 @@ pub fn join<O: ValueOps>(
     value: &O::Value,
     sep: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    let sep = sep.map_or_else(|| " ".to_string(), |s| ops.as_str(s).to_string());
+    let sep = sep.map_or_else(|| std::rc::Rc::<[u8]>::from(&b" "[..]), |s| ops.as_bytes(s));
     let elems = ops.list_elements(value)?;
-    let mut parts: Vec<String> = Vec::with_capacity(elems.len());
-    for e in &elems {
-        parts.push(ops.as_str(e).to_string());
+    let mut output = Vec::new();
+    for (position, element) in elems.iter().enumerate() {
+        if position > 0 {
+            output.extend_from_slice(&sep);
+        }
+        output.extend_from_slice(&ops.as_bytes(element));
     }
-    Ok(ops.new_string(parts.join(&sep)))
+    Ok(ops.new_bytes(&output))
 }
 
 /// `split string ?splitChars?` — split into a list. The default split set is
 /// whitespace; an empty split set splits into individual characters.
-pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value>) -> O::Value {
-    let string = ops.as_str(value).to_string();
-    let set = chars.map(|c| ops.as_str(c).to_string());
+pub fn split<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    chars: Option<&O::Value>,
+) -> Result<O::Value, CmdError> {
+    let string = ops.try_as_str(value)?.to_string();
+    let set = chars.map(|c| ops.try_as_str(c)).transpose()?;
     let pieces: Vec<String> = if string.is_empty() {
         // `split ""` is the empty list (not a single empty element).
         Vec::new()
@@ -307,5 +313,5 @@ pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value
     for p in pieces {
         values.push(ops.new_string(p));
     }
-    ops.new_list(values)
+    Ok(ops.new_list(values))
 }

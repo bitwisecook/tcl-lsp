@@ -376,6 +376,9 @@ declare_traits! {
     /// for targets an `arg_role_resolver` places rather than a repeated
     /// layout.
     ///
+    /// The no-value `lappend var` form also writes only when the variable is
+    /// undefined after read observers; an existing value is read without a store.
+    ///
     /// `string is class -failindex var` is one too: it writes `var` only when
     /// the class test fails.
     ///
@@ -395,7 +398,9 @@ declare_traits! {
     /// completes). `file tempfile nameVar`, `info default … varname` (`""`
     /// without a default), `zlib gunzip -headerVar`, and Tcl 9's `const` and
     /// `encoding convertto|convertfrom -failindex` (`-1` on success) write
-    /// theirs too. Measured identical on tclsh 8.4.20 (which has no `lassign`
+    /// theirs too. The no-value append forms refine this parent classification:
+    /// append only reads, and lappend stores only to initialise a missing value.
+    /// Measured identical on tclsh 8.4.20 (which has no `lassign`
     /// or `dict`), 8.5.19, 8.6.18, 9.0.4 and 9.1b0.
     ///
     /// Only scalar writers: `array set` creates an array, which a scalar read

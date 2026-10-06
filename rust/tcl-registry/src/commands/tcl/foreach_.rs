@@ -32,10 +32,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Dynamic arg role resolver: last argument is always the body.
-fn foreach_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 3 {
-        u8::try_from(args.len() - 1)
+/// Exact cardinality places the final body without reading iterator values.
+fn foreach_count_arg_roles(count: usize) -> Vec<(u8, ArgRole)> {
+    if count >= 3 {
+        u8::try_from(count - 1)
             .map(|last| vec![(last, ArgRole::Body)])
             .unwrap_or_default()
     } else {
@@ -56,6 +56,14 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Foreach,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Foreach,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -69,7 +77,10 @@ pub fn spec() -> CommandSpec {
         // tclsh 8.6.14: `foreach a $l1 b $l2 body extra` (6 args) fails
         // "wrong # args").
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
-        arg_role_resolver: Some(foreach_arg_roles),
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryListPairs {
+            variables_from: 0,
+        }),
+        arg_role_count_resolver: Some(foreach_count_arg_roles),
         arg_role_resolver_roles: &[ArgRole::Body],
         repeated_args: REPEATED,
         // Index 0 here is a fixed key, not a real source-position argument

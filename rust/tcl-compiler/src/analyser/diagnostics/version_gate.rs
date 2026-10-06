@@ -1825,8 +1825,9 @@ mod tests {
         // Tk is hosted (not ambient) on `tcl8.6`, so with no require and no
         // pack there is no floor at all and the 8.7 option is not gated.
         let src = "entry .e -placeholder hi\n";
-        assert!(
-            version_diags_for(src, "tcl8.6", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl8.6", None).len(),
+            0,
             "baseline: no floor, no gate"
         );
 
@@ -1870,8 +1871,9 @@ mod tests {
             .filter(|d| d.code.as_str() == "W120")
             .map(|d| d.message.clone())
             .collect();
-        assert!(
-            w120.is_empty(),
+        assert_eq!(
+            w120.len(),
+            0,
             "a pack declaring Tk ambient means there is nothing to require: {w120:?}"
         );
     }
@@ -1883,26 +1885,28 @@ mod tests {
         // The pack claims 8.7; the profile pin claims 8.6. The higher claim
         // holds, so the 8.7-introduced option is no longer gated.
         let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0002, &[("Tk", "8.7")]);
-        assert!(
+        assert_eq!(
             gate_messages(
                 &mut analyser,
                 "package require Tk\nentry .e -placeholder hi\n",
                 "tcl8.6"
             )
-            .is_empty(),
+            .len(),
+            0,
             "the pack's 8.7 outranks the profile's 8.6"
         );
 
         // The require claims 8.7; the pack claims only 8.6. Same outcome from
         // the other direction.
         let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0003, &[("Tk", "8.6")]);
-        assert!(
+        assert_eq!(
             gate_messages(
                 &mut analyser,
                 "package require Tk 8.7\nentry .e -placeholder hi\n",
                 "tcl8.6"
             )
-            .is_empty(),
+            .len(),
+            0,
             "the require's 8.7 outranks the pack's 8.6"
         );
     }
@@ -2128,8 +2132,9 @@ mod tests {
         // Below the window: the fallback's zero minimum stands, so a bare
         // call is a defined default and not an error.
         let mut low = analyser_with_versioned_ensemble(0x1642_0003);
-        assert!(
-            e001(&mut low, "package require Probe 1.0\nprobe::ens\n").is_empty(),
+        assert_eq!(
+            e001(&mut low, "package require Probe 1.0\nprobe::ens\n").len(),
+            0,
             "below 3.0 a bare call is legal"
         );
 
@@ -2143,8 +2148,9 @@ mod tests {
 
         // ...and naming the subcommand is fine at that floor.
         let mut named = analyser_with_versioned_ensemble(0x1642_0005);
-        assert!(
-            e001(&mut named, "package require Probe 3.0\nprobe::ens go\n").is_empty(),
+        assert_eq!(
+            e001(&mut named, "package require Probe 3.0\nprobe::ens go\n").len(),
+            0,
             "a named subcommand satisfies the requirement"
         );
     }
@@ -2166,15 +2172,17 @@ mod tests {
         // Floor 3.0 selects the two-argument window, so two words are right
         // and one is too few even though the plain `arity` is exactly 1.
         let mut a = analyser_with_windows(0x1627_1001, None);
-        assert!(
-            arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b\n").len(),
+            0,
             "two arguments fit the 3.0 window"
         );
 
         // Floor 5.0 selects the three-argument window.
         let mut a = analyser_with_windows(0x1627_1002, None);
-        assert!(
-            arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b c\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b c\n").len(),
+            0,
             "three arguments fit the 5.0 window"
         );
     }
@@ -2227,8 +2235,9 @@ mod tests {
     #[test]
     fn no_resolvable_floor_falls_back_to_the_plain_arity() {
         let mut a = analyser_with_windows(0x1627_1006, None);
-        assert!(
-            arity_diags(&mut a, "probe::grew a\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "probe::grew a\n").len(),
+            0,
             "the plain arity is exactly 1"
         );
 
@@ -2247,8 +2256,9 @@ mod tests {
     #[test]
     fn a_pack_ambient_floor_selects_the_window() {
         let mut a = analyser_with_windows(0x1627_1008, Some("5.0"));
-        assert!(
-            arity_diags(&mut a, "probe::grew a b c\n").is_empty(),
+        assert_eq!(
+            arity_diags(&mut a, "probe::grew a b c\n").len(),
+            0,
             "the ambient 5.0 selects the three-argument window"
         );
 
@@ -2273,14 +2283,18 @@ mod tests {
             "TracksBase floor names the runtime as the guarantor: {diags:?}"
         );
         // TN: Tk 9.0 (tracking the tcl9.0 base) carries the 8.7 additions.
-        assert!(
-            version_diags_for(src, "tcl9.0", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl9.0", None).len(),
+            0,
             "Tk 9.0 meets an 8.7 introduction"
         );
         // An explicit require can only RAISE the pin floor, never lower it:
         // requiring 8.7 on the 8.6 base is satisfied at 8.7.
         let raised = "package require Tk 8.7\nentry .e -placeholder hi\n";
-        assert!(version_diags_for(raised, "tcl8.6", None).is_empty());
+        assert_eq!(
+            version_diags_for(raised, "tcl8.6", None),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2289,8 +2303,9 @@ mod tests {
         // datum); the iRules profile keys its surface on BigipVersion.
         let src = "when HTTP_REQUEST {\n  HTTP2::header :path\n}\n";
         // TN at the D5 oldest-supported default (16.1.0 meets 16.1.0)…
-        assert!(
-            version_diags_for(src, "f5-irules", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "f5-irules", None).len(),
+            0,
             "the default floor admits the 16.1.0 surface"
         );
         // …TP pinned below the introduction…
@@ -2302,8 +2317,9 @@ mod tests {
             "a 15.1.0 pin exposes the 16.1.0 introduction: {below:?}"
         );
         // …TN pinned above.
-        assert!(
-            version_diags_for(src, "f5-irules", Some("17.1.0")).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "f5-irules", Some("17.1.0")).len(),
+            0,
             "a 17.1.0 pin satisfies a 16.1.0 introduction"
         );
     }
@@ -2321,8 +2337,9 @@ mod tests {
                     && message.contains("requires f5-irules-cmds 21.1.0")),
                 "21.0 must reject the 21.1 subcommand: {below:?}"
             );
-            assert!(
-                version_diags_for(source, "f5-irules", Some("21.1.0")).is_empty(),
+            assert_eq!(
+                version_diags_for(source, "f5-irules", Some("21.1.0")).len(),
+                0,
                 "21.1 must admit {source:?}"
             );
         }
@@ -2339,8 +2356,9 @@ mod tests {
                     && message.contains("requires f5-irules-cmds 21.1.0")),
                 "21.0 must reject persist {operation} mcp: {below:?}"
             );
-            assert!(
-                version_diags_for(&source, "f5-irules", Some("21.1.0")).is_empty(),
+            assert_eq!(
+                version_diags_for(&source, "f5-irules", Some("21.1.0")).len(),
+                0,
                 "21.1 must admit persist {operation} mcp"
             );
         }
@@ -2368,7 +2386,10 @@ mod tests {
         assert!(msg.contains("'q'"), "{msg}");
         assert!(msg.contains("8.5"), "{msg}");
         // Clean once the floor is met.
-        assert!(dsl_diags("binary format q 1.0\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("binary format q 1.0\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     /// The argument-DSL gates run against the command a head *is*, not the
@@ -2399,8 +2420,9 @@ mod tests {
             // As does a name the document renamed the built-in away from.
             ("rename format origfmt\nformat %b 5\n", "W138"),
         ] {
-            assert!(
-                dsl_diags(src, "tcl8.4").is_empty(),
+            assert_eq!(
+                dsl_diags(src, "tcl8.4").len(),
+                0,
                 "{code} must not gate a head the document rebound: {src}"
             );
         }
@@ -2438,14 +2460,23 @@ mod tests {
         }
         // TN: 8.6+ runtimes.
         for d in ["tcl8.6", "tcl9.0", "expect", "bpf", "synopsys-eda-tcl"] {
-            assert!(dsl_diags(src, d).is_empty(), "{d}: %b is real on 8.6+");
+            assert_eq!(dsl_diags(src, d).len(), 0, "{d}: %b is real on 8.6+");
         }
         // FP-guard: `%%b` is a literal percent + `b`, not the conversion;
         // a dynamic format string abstains.
-        assert!(dsl_diags("format %%b 5\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("format $fmt 5\n", "tcl8.4").is_empty());
+        assert_eq!(
+            dsl_diags("format %%b 5\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("format $fmt 5\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // The permissive fallback abstains entirely (§8).
-        assert!(dsl_diags(src, "tcl").is_empty());
+        assert_eq!(
+            dsl_diags(src, "tcl"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2458,9 +2489,12 @@ mod tests {
             diags.iter().any(|(c, m)| c == "W138" && m.contains("%llu")),
             "tcl8.6: %llu needs 9.0, got {diags:?}"
         );
-        assert!(dsl_diags(src, "tcl9.0").is_empty(), "9.0 renders %llu");
+        assert_eq!(dsl_diags(src, "tcl9.0").len(), 0, "9.0 renders %llu");
         // Plain %lld is fine everywhere the ladder models.
-        assert!(dsl_diags("format %lld 5\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("format %lld 5\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2471,7 +2505,10 @@ mod tests {
             diags.iter().any(|(c, m)| c == "W138" && m.contains("%b")),
             "tcl8.5: scan %b needs 8.6, got {diags:?}"
         );
-        assert!(dsl_diags(src, "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags(src, "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2489,7 +2526,7 @@ mod tests {
             );
         }
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
-            assert!(dsl_diags(src, d).is_empty(), "{d}: dict class is real");
+            assert_eq!(dsl_diags(src, d).len(), 0, "{d}: dict class is real");
         }
         // entier is 8.6+; wideinteger is 8.5+.
         assert!(
@@ -2498,19 +2535,34 @@ mod tests {
                 .any(|(c, _)| c == "W137"),
             "entier needs 8.6"
         );
-        assert!(dsl_diags("string is entier 5\n", "tcl8.6").is_empty());
+        assert_eq!(
+            dsl_diags("string is entier 5\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         assert!(
             dsl_diags("string is wideinteger 5\n", "tcl8.4")
                 .iter()
                 .any(|(c, _)| c == "W137"),
             "wideinteger needs 8.5"
         );
-        assert!(dsl_diags("string is wideinteger 5\n", "tcl8.5").is_empty());
+        assert_eq!(
+            dsl_diags("string is wideinteger 5\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         // FP-guards: an always-available class, a dynamic class, and the
         // unique-prefix abbreviation of an ungated class stay silent.
-        assert!(dsl_diags("string is alpha abc\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("string is $cls abc\n", "tcl8.4").is_empty());
-        assert!(dsl_diags("string is xd abc\n", "tcl8.4").is_empty());
+        assert_eq!(
+            dsl_diags("string is alpha abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("string is $cls abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            dsl_diags("string is xd abc\n", "tcl8.4"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2518,8 +2570,9 @@ mod tests {
         // §6.1: `package require Tcl 9.0` raises the effective version
         // above the ambient tcl8.6 dialect — the file validates as 9.0.
         let src = "package require Tcl 9.0\nformat %llu 5\nstring is dict {a 1}\n";
-        assert!(
-            dsl_diags(src, "tcl8.6").is_empty(),
+        assert_eq!(
+            dsl_diags(src, "tcl8.6").len(),
+            0,
             "a 9.0 core floor admits 9.0 DSL features"
         );
     }
@@ -2539,8 +2592,9 @@ mod tests {
             );
         }
         for d in ["tcl8.5", "tcl8.6"] {
-            assert!(
-                dsl_diags(src, d).is_empty(),
+            assert_eq!(
+                dsl_diags(src, d).len(),
+                0,
                 "{d}: binary u modifier is real on 8.5+"
             );
         }
@@ -2561,10 +2615,7 @@ mod tests {
                 .filter(|d| d.code.as_str() == "W135")
                 .map(|d| d.message.clone())
                 .collect();
-            assert!(
-                w135.is_empty(),
-                "pin {pin:?}: baseline is met, got {w135:?}"
-            );
+            assert_eq!(w135.len(), 0, "pin {pin:?}: baseline is met, got {w135:?}");
         }
         // …TP below the baseline: the whole modelled surface is declared
         // 15.0+, so a 14.x target flags it.
@@ -2644,8 +2695,9 @@ mod tests {
             .map(|d| d.code.as_str())
             .filter(|c| matches!(*c, "W120" | "W123" | "W002"))
             .collect();
-        assert!(
-            noisy.is_empty(),
+        assert_eq!(
+            noisy.len(),
+            0,
             "ambient vendor surface must not draw require/unknown codes: {noisy:?}"
         );
     }
@@ -2666,8 +2718,9 @@ mod tests {
         // shipped version floors it instead (§7.1 — see
         // `tracksbase_tk_pin_floors_an_unversioned_require`).
         let src = "package require Tk\nentry .e -placeholder hi\n";
-        assert!(
-            version_diags_for(src, "tcl", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl", None).len(),
+            0,
             "{:?}",
             version_diags_for(src, "tcl", None)
         );
@@ -2702,8 +2755,9 @@ mod tests {
         // On a tcl8.6 host the same source is FINE: `package require Tk
         // 8.4` states a minimum, it does not downgrade the shipped Tk 8.6 —
         // the old require-only floor drew a false positive here.
-        assert!(
-            version_diags_for(src, "tcl8.6", None).is_empty(),
+        assert_eq!(
+            version_diags_for(src, "tcl8.6", None).len(),
+            0,
             "the shipped Tk 8.6 satisfies an 8.5 introduction"
         );
     }
@@ -2754,15 +2808,22 @@ mod tests {
             );
         }
         for dialect in ["tcl8.6", "tcl9.0"] {
-            assert!(
-                lifecycle_diags(src, dialect).is_empty(),
+            assert_eq!(
+                lifecycle_diags(src, dialect).len(),
+                0,
                 "{dialect}: half-close is real from 8.6"
             );
         }
         // FP-guards: the plain one-argument form has no direction word at
         // all, and a dynamic direction is not a literal value.
-        assert!(lifecycle_diags("close $s\n", "tcl8.5").is_empty());
-        assert!(lifecycle_diags("close $s $dir\n", "tcl8.5").is_empty());
+        assert_eq!(
+            lifecycle_diags("close $s\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
+        assert_eq!(
+            lifecycle_diags("close $s $dir\n", "tcl8.5"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2780,14 +2841,18 @@ mod tests {
                     .any(|(code, message)| code == "W135" && message.contains("requires Tcl 9.0")),
                 "8.6 must reject {src:?}: {diags:?}"
             );
-            assert!(
-                lifecycle_diags(src, "tcl9.0").is_empty(),
+            assert_eq!(
+                lifecycle_diags(src, "tcl9.0").len(),
+                0,
                 "9.0 must admit {src:?}"
             );
         }
         // The 8.6 operations of the same ensembles stay silent, and a unique
         // prefix of a gated operation is gated exactly as the full word is.
-        assert!(lifecycle_diags("info object class $o\n", "tcl8.6").is_empty());
+        assert_eq!(
+            lifecycle_diags("info object class $o\n", "tcl8.6"),
+            [] as [(std::string::String, std::string::String); 0]
+        );
         assert!(
             lifecycle_diags("info class definitionn $c\n", "tcl8.6")
                 .iter()
@@ -2809,8 +2874,9 @@ mod tests {
         );
         // On 9.0 the form is gone from the profile entirely — that is W002's
         // word, and the version gate must not flag it a second time.
-        assert!(
-            lifecycle_diags(src, "tcl9.0").is_empty(),
+        assert_eq!(
+            lifecycle_diags(src, "tcl9.0").len(),
+            0,
             "a dialect-absent subcommand stays W002's alone"
         );
     }
@@ -2945,7 +3011,7 @@ mod tests {
             // The relationship does not exist in Fauxpkg 1.x, so enforcing it
             // would report a rule that release has not got.
             let src = "package require Fauxpkg 1.0\nfauxgated -alpha -beta\n";
-            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+            assert_eq!(conflicts(src).len(), 0, "{:?}", conflicts(src));
         }
 
         #[test]
@@ -3033,7 +3099,7 @@ mod tests {
             let src = "package require Fauxpkg 2.0\n\
                        proc fauxgated args {}\n\
                        fauxgated -alpha -beta\n";
-            assert!(conflicts(src).is_empty(), "{:?}", conflicts(src));
+            assert_eq!(conflicts(src).len(), 0, "{:?}", conflicts(src));
         }
 
         #[test]
@@ -3042,7 +3108,7 @@ mod tests {
             // follow the call: buffering is what makes this work.
             let below = "proc use {} { fauxgated -alpha -beta }\n\
                          package require Fauxpkg 1.0\n";
-            assert!(conflicts(below).is_empty(), "{:?}", conflicts(below));
+            assert_eq!(conflicts(below).len(), 0, "{:?}", conflicts(below));
             let met = "proc use {} { fauxgated -alpha -beta }\n\
                        package require Fauxpkg 2.0\n";
             assert_eq!(conflicts(met).len(), 1, "{:?}", conflicts(met));

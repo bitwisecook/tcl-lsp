@@ -1,0 +1,10 @@
+formal21 0 42
+formal22 0 44
+fixed_with_rest 0 10
+original_octal 0 10
+unrelated_rename 0 42
+known_double 0 2.0
+invalid_number 1 {cannot use non-numeric string "not_a_number" as left operand of "*"}
+division_error 1 {divide by zero}
+double_default 0 21.0
+double_precision_one 0 21.0

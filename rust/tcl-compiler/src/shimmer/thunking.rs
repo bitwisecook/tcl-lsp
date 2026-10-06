@@ -49,8 +49,6 @@ use crate::sccp::cfg_order;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 use crate::types::{TypeKind, TypeLattice, TypeShape};
 
-use crate::codegen::values::split_array_ref;
-
 use super::graph::{build_successors, loop_body_blocks};
 use super::span::{def_range_map, phi_span};
 use super::{ThunkingWarning, type_name};
@@ -202,44 +200,21 @@ pub(super) fn per_loop_body_types(
     out
 }
 
-/// The *base* symbols of every array-element write (`arr(key)`) in the
-/// function — `arr`, not the per-element symbols.
+/// Synthetic array-root refreshes supplied by the SSA producer.
 ///
-/// A literal-key element interns as its own symbol (`arr(k)`), but every
-/// element write also refreshes the array base as a synthetic may-def
-/// ([`crate::ssa::SsaStatement::may_defs`]), so the base's version chain
-/// mixes elements that are independent runtime slots and never shimmer
-/// against each other. Two elements individually holding
-/// stable-but-different types look on the base exactly like a genuine
-/// same-slot oscillation. Excluding the base keeps a thunk report to
-/// per-element evidence; the array reference is recognised with
-/// [`crate::codegen::values::split_array_ref`], the same helper codegen
-/// uses, rather than re-deriving the `(...)` pattern here.
-///
-/// `pub(super)` so the sibling use-site (S100/S101) and phi-merge (S101)
-/// passes share the *same* exclusion: the conflated base reaches all three,
-/// so any one of them could otherwise turn two stable-but-different elements
-/// into a spurious shimmer (FP-SH-13).
-pub(super) fn array_element_symbols(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
-    let mut out = HashSet::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            let raw = match stmt {
-                Statement::AssignConst { name, .. }
-                | Statement::AssignExpr { name, .. }
-                | Statement::AssignValue { name, .. }
-                | Statement::Incr { name, .. } => name.as_str(),
-                _ => continue,
-            };
-            let Some((base, _key)) = split_array_ref(raw) else {
-                continue;
-            };
-            if let Some(sym) = ssa.var_symbol(base) {
-                out.insert(sym);
-            }
-        }
-    }
-    out
+/// Distinct-array element stores refresh an aggregate root as a may-definition;
+/// those joins mix independent element values and cannot prove oscillation of
+/// one stored value. The shared owner records their physical root relationship.
+/// Dictionary-value roots remain ordinary values and are not excluded.
+pub(super) fn array_element_symbols(_cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<Symbol> {
+    ssa.cell_keys()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, _)| {
+            let symbol = Symbol(u32::try_from(index).ok()?);
+            ssa.is_array_root_refresh_symbol(symbol).then_some(symbol)
+        })
+        .collect()
 }
 
 /// True when some statement inside `loop_block_set` both reads and writes a
@@ -379,6 +354,7 @@ fn loop_header_names(
 
 /// Shared, read-only context for [`classify_thunking_phi`].
 struct ThunkCtx<'a> {
+    registry: &'a tcl_registry::CommandRegistry,
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     types: &'a HashMap<ValueKey, TypeLattice>,
@@ -386,10 +362,6 @@ struct ThunkCtx<'a> {
     loop_blocks: &'a HashSet<String>,
     def_map: &'a HashMap<ValueKey, Span>,
     destructure: &'a HashSet<String>,
-    /// Symbols proven to be an array base ([`array_element_symbols`]) —
-    /// excluded from S102 entirely, since their conflated version chain
-    /// mixes independent elements under one phi.
-    array_syms: &'a HashSet<Symbol>,
     /// Names declared as scope aliases in this function (`global` /
     /// `variable` / `upvar` / `namespace upvar`) — the intra-iteration
     /// path abstains on them (alias-unsoundness, FP-SH-02/15).
@@ -405,11 +377,12 @@ struct ThunkCtx<'a> {
 /// span on an in-loop statement.
 fn classify_thunking_phi(
     ctx: &ThunkCtx<'_>,
+    source: crate::ssa::SsaSourceView<'_>,
     phi: &Phi,
     this_loop: &HashSet<String>,
     per_loop: &HashMap<Symbol, HashSet<TclType>>,
 ) -> Option<ThunkingWarning> {
-    if ctx.array_syms.contains(&phi.name) {
+    if ctx.ssa.is_array_root_refresh_version(phi.name, phi.version) {
         return None;
     }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
@@ -420,7 +393,7 @@ fn classify_thunking_phi(
         // entry type by the join, leaving the header `Known` — yet every
         // pass still pays both conversions (`lappend acc …; set acc
         // "$acc,"`).  Catch that shape from the body evidence instead.
-        return classify_intra_iteration_thunk(ctx, phi, this_loop, per_loop);
+        return classify_intra_iteration_thunk(ctx, source, phi, this_loop, per_loop);
     }
     // The canonical extremes of the union name the oscillation pair; a 3+
     // member union still reports its outermost pair here — the S102 message
@@ -550,6 +523,7 @@ fn classify_thunking_phi(
 /// alias-unsoundness rationale as the FP-SH-02/15 guards.
 fn classify_intra_iteration_thunk(
     ctx: &ThunkCtx<'_>,
+    source: crate::ssa::SsaSourceView<'_>,
     phi: &Phi,
     this_loop: &HashSet<String>,
     per_loop: &HashMap<Symbol, HashSet<TclType>>,
@@ -558,7 +532,8 @@ fn classify_intra_iteration_thunk(
     if body_types.len() < 2 {
         return None;
     }
-    if ctx.scope_aliases.contains(ctx.ssa.var_name(phi.name)) {
+    if source.externally_mutable_by(phi.name, ctx.scope_aliases, false, ctx.registry) != Some(false)
+    {
         return None;
     }
     if !loop_self_referential(ctx.ssa, this_loop, phi.name) {
@@ -627,7 +602,6 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     let preds = build_predecessors(&succs);
     let empty_by_name = empty_value_versions(ssa);
     let destructure = destructure_foreach_blocks(cfg);
-    let array_syms = array_element_symbols(cfg, ssa);
     // Alias-shaped names: explicit `global`/`variable`/`upvar` declarations
     // in this body, plus the caller-supplied implicit set (a method's
     // class-declared instance variables, which never appear as statements
@@ -638,6 +612,7 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
     }
 
     let ctx = ThunkCtx {
+        registry,
         cfg,
         ssa,
         types,
@@ -645,7 +620,6 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
         loop_blocks: &loop_blocks,
         def_map: &def_map,
         destructure: &destructure,
-        array_syms: &array_syms,
         scope_aliases: &scope_aliases,
     };
 
@@ -674,7 +648,12 @@ pub(crate) fn find_thunking_warnings<S: std::hash::BuildHasher>(
         );
 
         for phi in &ssa_block.phis {
-            if let Some(warning) = classify_thunking_phi(&ctx, phi, &this_loop, &per_loop) {
+            let source = if ssa_block.statements.is_empty() {
+                crate::ssa::SsaSourceView::at_terminator(ssa, block_id)
+            } else {
+                crate::ssa::SsaSourceView::at_statement(ssa, block_id, 0)
+            };
+            if let Some(warning) = classify_thunking_phi(&ctx, source, phi, &this_loop, &per_loop) {
                 out.push(warning);
             }
         }
@@ -710,7 +689,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "unexpected thunking warnings: {w:?}");
+        assert_eq!(w.len(), 0, "unexpected thunking warnings: {w:?}");
     }
 
     /// Sibling (non-nested) loops that each set the same var to a different
@@ -732,7 +711,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "sibling loops must not thunk: {w:?}");
+        assert_eq!(w.len(), 0, "sibling loops must not thunk: {w:?}");
     }
 
     /// The empty-accumulator promotion (`set r {}; foreach … {lappend r …}`)
@@ -753,7 +732,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "accumulator promotion must not thunk: {w:?}");
+        assert_eq!(w.len(), 0, "accumulator promotion must not thunk: {w:?}");
     }
 
     /// TP: intra-iteration oscillation — the body converts list→string
@@ -801,10 +780,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(
-            w.is_empty(),
-            "fresh-per-pass variable must not thunk: {w:?}"
-        );
+        assert_eq!(w.len(), 0, "fresh-per-pass variable must not thunk: {w:?}");
     }
 
     /// TN: a self-referential accumulator held at ONE intrep throughout
@@ -825,7 +801,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "uniform self-reference must not thunk: {w:?}");
+        assert_eq!(w.len(), 0, "uniform self-reference must not thunk: {w:?}");
     }
 
     /// Empty source: no thunking warnings and no panic.
@@ -841,7 +817,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty());
+        assert_eq!(w, [] as [crate::shimmer::ThunkingWarning; 0]);
     }
 
     /// A while loop with no variables — no thunking.
@@ -857,7 +833,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "unexpected thunking: {w:?}");
+        assert_eq!(w.len(), 0, "unexpected thunking: {w:?}");
     }
 
     /// A loop body that produces ≥2 distinct intrep types in one iteration
@@ -972,8 +948,9 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(
-            w.is_empty(),
+        assert_eq!(
+            w.len(),
+            0,
             "non-self-referential branchy reset must not thunk: {w:?}"
         );
     }
@@ -1001,8 +978,9 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(
-            w.is_empty(),
+        assert_eq!(
+            w.len(),
+            0,
             "independent array elements must not merge into an S102 report: {w:?}"
         );
         // The SAME element oscillating int ↔ string every iteration is a
@@ -1052,7 +1030,7 @@ mod tests {
             &registry(),
             None::<&HashSet<String>>,
         );
-        assert!(w.is_empty(), "traced variable must not thunk: {w:?}");
+        assert_eq!(w.len(), 0, "traced variable must not thunk: {w:?}");
     }
 
     /// A self-referential loop whose body-exit is `SHIMMERED(Numeric, String)`

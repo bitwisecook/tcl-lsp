@@ -1,0 +1,2 @@
+package ifneeded parent 1 {source /workspace/.proofs/2286-packages-dialects/package-native-completion/leaf.tcl; source -nopkg /workspace/.proofs/2286-packages-dialects/package-native-completion/skip.tcl; package require child; source /workspace/.proofs/2286-packages-dialects/package-native-completion/leaf.tcl; package provide parent 1}
+package ifneeded child 1 {source /workspace/.proofs/2286-packages-dialects/package-native-completion/nested.tcl}

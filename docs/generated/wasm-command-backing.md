@@ -6,17 +6,17 @@
 
 Source of truth: `tcl-registry` core command specs (`required_package == None`),
 restricted to those available at Tcl 9.0 or later. Backing: a literal `register_builtin`
-handler or registry-derived `register_spec_builtin` handler in `runtime/rust/`,
+handler, registry-derived `register_spec_builtin`, or actual public `register_stock_ensemble` allocation in `runtime/rust/`,
 a native registration outside those scans (TclOO metaclass, per-object `my`),
 or an explicit *not required* classification.
 
 | status | count |
 | --- | --- |
-| handler | 105 |
+| handler | 127 |
 | handler (native) | 177 |
 | stdlib | 11 |
 | not-required | 54 |
-| known-gap | 44 |
+| known-gap | 22 |
 | **UNCLASSIFIED** | 0 |
 | **total** | 391 |
 
@@ -31,28 +31,28 @@ or an explicit *not required* classification.
 | `+` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `-` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `/` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
-| `::tcl::dict::append` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::create` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::exists` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::filter` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::for` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::get` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::getdef` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::getwithdefault` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::incr` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::info` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::keys` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::lappend` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::map` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::merge` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::remove` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::replace` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::set` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::size` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::unset` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::update` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::values` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
-| `::tcl::dict::with` | known-gap | standalone `::tcl::dict::*` ensemble-implementation spelling (issue #923 idx 105): runtime/rust backs only the `dict` ensemble head, not the qualified name — a direct call is `invalid command name` |
+| `::tcl::dict::append` | handler |  |
+| `::tcl::dict::create` | handler |  |
+| `::tcl::dict::exists` | handler |  |
+| `::tcl::dict::filter` | handler |  |
+| `::tcl::dict::for` | handler |  |
+| `::tcl::dict::get` | handler |  |
+| `::tcl::dict::getdef` | handler |  |
+| `::tcl::dict::getwithdefault` | handler |  |
+| `::tcl::dict::incr` | handler |  |
+| `::tcl::dict::info` | handler |  |
+| `::tcl::dict::keys` | handler |  |
+| `::tcl::dict::lappend` | handler |  |
+| `::tcl::dict::map` | handler |  |
+| `::tcl::dict::merge` | handler |  |
+| `::tcl::dict::remove` | handler |  |
+| `::tcl::dict::replace` | handler |  |
+| `::tcl::dict::set` | handler |  |
+| `::tcl::dict::size` | handler |  |
+| `::tcl::dict::unset` | handler |  |
+| `::tcl::dict::update` | handler |  |
+| `::tcl::dict::values` | handler |  |
+| `::tcl::dict::with` | handler |  |
 | `::tcl::mathfunc::abs` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::acos` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |
 | `::tcl::mathfunc::acosh` | handler (native) | `::tcl::mathfunc::*` command, registered by cmd_mathfunc.rs::install()'s dynamic-name loop (register_builtin(&full, …) — not a literal the scan can see) |

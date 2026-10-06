@@ -26,17 +26,20 @@
 //!    body contains a `proc $a $b $c` shape using the wrapper's own
 //!    parameters ([`is_factory_body`]);
 //! 2. for each candidate, looks up the factory it binds to using
-//!    Tcl's command-resolution path ([`lookup_factory`]);
+//!    the original authored slot and retained caller scope;
 //! 3. emits a synthetic [`SignatureProc`] under the factory's home
 //!    namespace, idempotently skipping any qualified name already
 //!    present in [`super::ctx::ScanCtx::result`]`.procs`.
 //!
 //! [`SignatureProc`]: super::types::SignatureProc
 
-use std::collections::{HashMap, HashSet};
+#[cfg(test)]
+use std::collections::HashMap;
+use std::collections::HashSet;
 
-use super::ctx::{FactoryCandidate, ScanCtx};
-use super::handlers::qualify;
+#[cfg(test)]
+use super::ctx::FactoryCandidate;
+use super::ctx::ScanCtx;
 use super::types::SignatureProc;
 use crate::segmenter::segment_commands_with_offset_and_config;
 
@@ -82,32 +85,22 @@ pub(super) fn is_factory_body(
 /// Resolve `cand.head` to a factory's qualified name (the **key**
 /// in `factories`), following Tcl's command-resolution order.
 ///
-/// Absolute heads (those
-/// starting with `::`) match verbatim. Relative heads try the
+/// Absolute written heads use the selected naming recipe. Relative heads try the
 /// call-site qualified name first, then the global namespace —
 /// they never fall through to "any factory with this bare name",
 /// which would bind calls in one namespace to a wrapper in an
 /// unrelated one (Tcl itself refuses to cross those boundaries).
 #[must_use]
+#[cfg(test)]
 pub(super) fn lookup_factory<'a>(
     cand: &FactoryCandidate,
     factories: &'a HashMap<String, String>,
+    ctx: &ScanCtx<'_>,
 ) -> Option<&'a str> {
-    let head = &cand.head;
-    if head.starts_with("::") {
-        return factories
-            .get_key_value(head.as_str())
-            .map(|(k, _)| k.as_str());
-    }
-    let qualified = qualify(&cand.ns_prefix, head);
-    if let Some((k, _)) = factories.get_key_value(qualified.as_str()) {
-        return Some(k.as_str());
-    }
-    let global_q = format!("::{head}");
-    if global_q != qualified {
-        return factories
-            .get_key_value(global_q.as_str())
-            .map(|(k, _)| k.as_str());
+    for key in ctx.command_keys(&cand.ns_prefix, &cand.head) {
+        if let Some((key, _)) = factories.get_key_value(&key) {
+            return Some(key.as_str());
+        }
     }
     None
 }
@@ -117,7 +110,7 @@ pub(super) fn lookup_factory<'a>(
 ///
 /// Builds a factory map from
 /// `ctx.proc_bodies` filtered through [`is_factory_body`]; for
-/// each candidate calls [`lookup_factory`], computes the emitted
+/// each candidate selects the retained source slot, computes the emitted
 /// qualified name (honouring an explicit `::` prefix on the
 /// candidate name), and idempotently inserts a synthetic
 /// [`SignatureProc`] with empty params (the wrapper-to-factory
@@ -127,50 +120,66 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
     if ctx.candidates.is_empty() || ctx.proc_bodies.is_empty() {
         return;
     }
-    let mut factories: HashMap<String, String> = HashMap::new();
-    for info in &ctx.proc_bodies {
-        if !is_factory_body(&info.body_text, &info.params, ctx.config) {
-            continue;
-        }
-        factories.insert(info.qname.clone(), info.ns_prefix.clone());
-    }
-    if factories.is_empty() {
-        return;
-    }
-    // Snapshot candidates so we can mutate ctx.result.procs while
-    // iterating. Candidates is a small Vec; cloning is cheap.
+    let factories = ctx
+        .proc_bodies
+        .iter()
+        .filter(|info| is_factory_body(&info.body_text, &info.params, ctx.config))
+        .cloned()
+        .collect::<Vec<_>>();
     let candidates = ctx.candidates.clone();
     for cand in &candidates {
-        let Some(factory_qname) = lookup_factory(cand, &factories) else {
+        let Some(scope) = cand
+            .namespace_scope
+            .clone()
+            .or_else(|| ctx.current_namespace(&cand.ns_prefix))
+        else {
             continue;
         };
-        let factory_ns = &factories[factory_qname];
-        let emitted_q = if cand.name.starts_with("::") {
-            cand.name.clone()
-        } else if !factory_ns.is_empty() {
-            format!("::{factory_ns}::{}", cand.name)
-        } else {
-            format!("::{}", cand.name)
+        let root = super::scope::SignatureNamespaceScope::root(ctx.name_policy());
+        let factory = [&scope, &root].into_iter().find_map(|lookup| {
+            factories.iter().find(|info| match &info.source_name {
+                Some(name) => name.matches_written(lookup, &cand.head),
+                None => lookup.display().is_some_and(|namespace| {
+                    crate::naming::qualify(&namespace, &cand.head) == info.qname
+                }),
+            })
+        });
+        let Some(factory) = factory else {
+            continue;
         };
-        let simple = emitted_q.rsplit("::").next().unwrap_or("").to_string();
-        if ctx.result.procs.contains_key(&emitted_q) {
+        let Some(factory_scope) = factory
+            .namespace_scope
+            .clone()
+            .or_else(|| ctx.current_namespace(&factory.ns_prefix))
+        else {
+            continue;
+        };
+        let Some((emitted_q, simple, body_namespace, source_name)) =
+            ctx.procedure_name_in_context(&factory_scope, &cand.name)
+        else {
+            continue;
+        };
+        if ctx
+            .result
+            .procs
+            .get(&emitted_q)
+            .is_some_and(|existing| existing.source_name == source_name)
+            || ctx.result.procedure_declarations.iter().any(|existing| {
+                existing.qualified_name == emitted_q && existing.source_name == source_name
+            })
+        {
             continue;
         }
-        ctx.result.procs.insert(
-            emitted_q.clone(),
-            SignatureProc {
-                name: simple,
-                qualified_name: emitted_q,
-                // A factory-emitted proc's formals come from the factory's own
-                // run-time arguments, so they are *unknown*, not *none* — an
-                // arity consumer must abstain rather than demand zero
-                // arguments.
-                params: Vec::new(),
-                params_computed: true,
-                name_range: cand.name_tok.span,
-                body_range: cand.body_tok.span,
-            },
-        );
+        ctx.record_proc(SignatureProc {
+            name: simple,
+            qualified_name: emitted_q,
+            source_name,
+            body_namespace,
+            params: Vec::new(),
+            params_computed: true,
+            name_range: cand.name_tok.span,
+            body_range: cand.body_tok.span,
+        });
     }
 }
 
@@ -243,6 +252,7 @@ mod tests {
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
+            namespace_scope: None,
             ns_prefix: ns.to_string(),
         }
     }
@@ -258,7 +268,10 @@ mod tests {
     fn lookup_absolute_head_matches_verbatim() {
         let f = factories(&[("::foo::DEFC", "foo")]);
         let c = cand("::foo::DEFC", "anywhere");
-        assert_eq!(lookup_factory(&c, &f), Some("::foo::DEFC"));
+        assert_eq!(
+            lookup_factory(&c, &f, &ScanCtx::default()),
+            Some("::foo::DEFC")
+        );
     }
 
     #[test]
@@ -267,14 +280,17 @@ mod tests {
         // `ns` should resolve to the call-site one.
         let f = factories(&[("::ns::DEFC", "ns_home"), ("::DEFC", "global_home")]);
         let c = cand("DEFC", "ns");
-        assert_eq!(lookup_factory(&c, &f), Some("::ns::DEFC"));
+        assert_eq!(
+            lookup_factory(&c, &f, &ScanCtx::default()),
+            Some("::ns::DEFC")
+        );
     }
 
     #[test]
     fn lookup_global_fallback_when_call_ns_misses() {
         let f = factories(&[("::DEFC", "global_home")]);
         let c = cand("DEFC", "ns");
-        assert_eq!(lookup_factory(&c, &f), Some("::DEFC"));
+        assert_eq!(lookup_factory(&c, &f, &ScanCtx::default()), Some("::DEFC"));
     }
 
     #[test]
@@ -283,7 +299,7 @@ mod tests {
         // bare `DEFC` call from namespace `ns`.
         let f = factories(&[("::other::DEFC", "other_home")]);
         let c = cand("DEFC", "ns");
-        assert!(lookup_factory(&c, &f).is_none());
+        assert!(lookup_factory(&c, &f, &ScanCtx::default()).is_none());
     }
 
     use super::super::ctx::ProcBodyInfo;
@@ -291,8 +307,10 @@ mod tests {
     fn proc_body(qname: &str, ns: &str, body: &str) -> ProcBodyInfo {
         ProcBodyInfo {
             qname: qname.to_string(),
+            source_name: None,
             params: vec!["name".to_string(), "args".to_string(), "body".to_string()],
             body_text: body.to_string(),
+            namespace_scope: None,
             ns_prefix: ns.to_string(),
         }
     }
@@ -310,12 +328,16 @@ mod tests {
             name: "Foo".to_string(),
             name_tok: Token::with_content_offset(TokenType::Esc, Span::new(10, 13), 0),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(20, 30), 1),
+            namespace_scope: None,
             ns_prefix: "tcllib".to_string(),
         });
         resolve_factory_defs(&mut ctx);
         let proc = ctx.result.procs.get("::tcllib::Foo").expect("emitted");
         assert_eq!(proc.name, "Foo");
-        assert!(proc.params.is_empty());
+        assert_eq!(
+            proc.params,
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
         assert_eq!(proc.name_range, Span::new(10, 13));
         assert_eq!(proc.body_range, Span::new(20, 30));
     }
@@ -331,10 +353,11 @@ mod tests {
             name: "X".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 0)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(0, 0), 1),
+            namespace_scope: None,
             ns_prefix: "ns".to_string(),
         });
         resolve_factory_defs(&mut ctx);
-        assert!(ctx.result.procs.is_empty());
+        assert_eq!(ctx.result.procs.len(), 0);
     }
 
     #[test]
@@ -348,6 +371,10 @@ mod tests {
             "::Foo".to_string(),
             SignatureProc {
                 name: "Foo".to_string(),
+                source_name: None,
+                body_namespace: super::super::scope::SignatureNamespaceScope::Symbolic(
+                    "::".to_owned(),
+                ),
                 qualified_name: "::Foo".to_string(),
                 params: vec![super::super::types::ParamDef {
                     name: "real".to_string(),
@@ -364,6 +391,7 @@ mod tests {
             name: "Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 3)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(10, 20), 1),
+            namespace_scope: None,
             ns_prefix: String::new(),
         });
         resolve_factory_defs(&mut ctx);
@@ -386,6 +414,7 @@ mod tests {
             name: "::Top::Foo".to_string(),
             name_tok: Token::new(TokenType::Esc, Span::new(0, 10)),
             body_tok: Token::with_content_offset(TokenType::Str, Span::new(11, 20), 1),
+            namespace_scope: None,
             ns_prefix: "tcllib".to_string(),
         });
         resolve_factory_defs(&mut ctx);

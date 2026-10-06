@@ -27,7 +27,9 @@
 //! and UTF-16 counted, matching the LSP wire convention.
 
 use serde_json::{Map, Value, json};
-use tcl_compiler::analyser::{Analyser, AnalysisResult, ProcDef, Scope, ScopeKind, VarDef};
+use tcl_compiler::analyser::{
+    Analyser, AnalysisResult, ProcDef, ResolvedAnalysisInput, Scope, ScopeKind, VarDef,
+};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::dataflow_graph::{FunctionInputs, extract_dataflow_graph};
 use tcl_compiler::ir::Module as IrModule;
@@ -60,21 +62,18 @@ fn pos_value(line_index: &LineIndex, source: &str, offset: u32) -> Value {
 
 // symbol graph
 
-/// Call sites of a proc, deduplicated by span.
-fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
-    let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    for inv in &analysis.command_invocations {
-        let matches = match &inv.resolved_qualified_name {
-            Some(resolved) => resolved == qualified_name,
-            None => inv.name == name || inv.name == qualified_name || inv.name == no_prefix,
-        };
-        if matches && seen.insert((inv.range.start(), inv.range.end())) {
-            out.push(inv.range);
-        }
-    }
-    out
+/// References use the same called-slot identity as rename and code lenses.
+fn find_proc_reference_sites(proc: &ProcDef, analysis: &AnalysisResult, source: &str) -> Vec<Span> {
+    let mut sites = crate::references::proc_reference_spans(
+        analysis,
+        crate::definition::CallResolution::document_only(),
+        &proc.qualified_name,
+        proc,
+        source,
+    );
+    sites.sort_unstable_by_key(|span| (span.start(), span.end()));
+    sites.dedup();
+    sites
 }
 
 /// Serialise one scope (global / namespace) to the wire dict.
@@ -99,14 +98,7 @@ fn scope_to_value(
     let proc_values: Vec<Value> = procs
         .iter()
         .map(|proc| {
-            let ref_count = analysis
-                .command_invocations
-                .iter()
-                .filter(|inv| {
-                    inv.resolved_qualified_name.as_deref() == Some(proc.qualified_name.as_str())
-                        || inv.name == proc.name
-                })
-                .count();
+            let ref_count = find_proc_reference_sites(proc, analysis, source).len();
             json!({
                 "name": proc.name,
                 "qualified_name": proc.qualified_name,
@@ -244,7 +236,15 @@ fn count_namespaces(scope: &Scope, depth: u32) -> usize {
 /// references, proc call-site index, package requirements, and a summary.
 #[must_use]
 pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Value {
-    let result = Analyser::new().analyse(source, dialect.name);
+    let context = tcl_registry::model::ingress::context_for_profile(dialect);
+    let result = Analyser::new()
+        .with_resolved_input(ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            context,
+            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+        ))
+        .analyse(source, dialect.name);
     let line_index = LineIndex::new(source);
 
     let scopes = vec![scope_to_value(
@@ -255,12 +255,12 @@ pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile)
         0,
     )];
 
-    // proc_references: every proc's deduped call sites, source-ordered keys.
+    // Every proc's deduplicated references, in declaration order.
     let mut all_procs: Vec<&ProcDef> = result.all_procs.values().collect();
     all_procs.sort_by_key(|p| p.name_span.start());
     let mut proc_references = serde_json::Map::new();
     for proc in all_procs {
-        let sites = find_proc_call_sites(&proc.name, &proc.qualified_name, &result);
+        let sites = find_proc_reference_sites(proc, &result, source);
         if !sites.is_empty() {
             let positions: Vec<Value> = sites
                 .iter()
@@ -327,25 +327,12 @@ fn effect_region_str(er: EffectRegion) -> String {
         .join("|")
 }
 
-/// 0-based start/end line pair for a proc's definition span.
-fn proc_line_span(ir_module: &IrModule, qname: &str, line_index: &LineIndex) -> Option<(u32, u32)> {
-    ir_module.procedures.get(qname).map(|p| {
-        (
-            line0(line_index, p.span.start()),
-            line0(line_index, p.span.end()),
-        )
-    })
-}
-
 /// Whether a span lies wholly within some proc's definition.
-fn is_inside_proc(range: Span, ir_module: &IrModule, line_index: &LineIndex) -> bool {
-    let start = line0(line_index, range.start());
-    let end = line0(line_index, range.end());
-    ir_module.procedures.values().any(|p| {
-        let ps = line0(line_index, p.span.start());
-        let pe = line0(line_index, p.span.end());
-        start >= ps && end <= pe
-    })
+fn is_inside_proc(range: Span, ir_module: &IrModule) -> bool {
+    ir_module
+        .procedures
+        .values()
+        .any(|proc| range.start() >= proc.span.start() && range.end() <= proc.span.end())
 }
 
 /// Call-site positions of `callee_qname` within `containing_proc`'s body.
@@ -357,61 +344,37 @@ fn find_call_sites_in_scope(
     line_index: &LineIndex,
     source: &str,
 ) -> Vec<Value> {
-    let Some((proc_start, proc_end)) = proc_line_span(ir_module, containing_proc, line_index)
-    else {
+    let Some(caller) = ir_module.procedures.get(containing_proc) else {
         return Vec::new();
     };
-    let short = callee_qname.trim_start_matches(':');
-    let mut callee_forms: std::collections::HashSet<&str> =
-        [callee_qname, short].into_iter().collect();
-    if let Some(stripped) = callee_qname.strip_prefix("::") {
-        callee_forms.insert(stripped);
-    }
-
+    let Some(callee) = analysis.all_procs.get(callee_qname) else {
+        return Vec::new();
+    };
     let mut sites = Vec::new();
     for inv in &analysis.command_invocations {
-        if line0(line_index, inv.range.start()) < proc_start {
+        if inv.range.start() < caller.span.start() || inv.range.end() > caller.span.end() {
             continue;
         }
-        if line0(line_index, inv.range.end()) > proc_end {
+        if !crate::references::invocation_calls_proc(analysis, inv, callee_qname, callee, source) {
             continue;
-        }
-        match &inv.resolved_qualified_name {
-            Some(resolved) => {
-                if resolved != callee_qname {
-                    continue;
-                }
-            }
-            None => {
-                if !callee_forms.contains(inv.name.as_str()) {
-                    continue;
-                }
-            }
         }
         sites.push(pos_value(line_index, source, inv.range.start()));
     }
     sites
 }
 
-/// Resolve a top-level invocation to a known proc qname. Proc names are
-/// iterated in sorted order
-/// for a deterministic pick on the (rare) ambiguous short-name fallback.
+/// Resolve a top-level call through the same retained target as call hierarchy.
 fn resolve_invocation_target(
+    analysis: &AnalysisResult,
     inv: &tcl_compiler::signature_scan::types::SignatureCommandInvocation,
     proc_names_sorted: &[String],
+    source: &str,
 ) -> Option<String> {
-    if let Some(resolved) = &inv.resolved_qualified_name
-        && proc_names_sorted.iter().any(|n| n == resolved)
-    {
-        return Some(resolved.clone());
-    }
-    for qname in proc_names_sorted {
-        let short = qname.strip_prefix("::").unwrap_or(qname);
-        if inv.name == *qname || inv.name == short || inv.name == qname.trim_start_matches(':') {
-            return Some(qname.clone());
-        }
-    }
-    None
+    proc_names_sorted.iter().find_map(|qname| {
+        let proc = analysis.all_procs.get(qname)?;
+        crate::references::invocation_calls_proc(analysis, inv, qname, proc, source)
+            .then(|| qname.clone())
+    })
 }
 
 /// The `nodes` list — one entry per proc (sorted by qname), carrying
@@ -489,7 +452,15 @@ pub fn call_graph(
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let analysis = Analyser::new().analyse(source, dialect.name);
+    let context = tcl_registry::model::ingress::context_for_profile(dialect);
+    let analysis = Analyser::new()
+        .with_resolved_input(ResolvedAnalysisInput::new(
+            dialect,
+            dialect,
+            std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry())),
+            ir_module.lexer_config,
+        ))
+        .analyse(source, dialect.name);
     let line_index = LineIndex::new(source);
 
     // Proc qnames in sorted order (iterates the summary dict, which is
@@ -526,10 +497,10 @@ pub fn call_graph(
     // Top-level calls (outside any proc body), in first-seen order.
     let mut top_level: Map<String, Value> = Map::new();
     for inv in &analysis.command_invocations {
-        if is_inside_proc(inv.range, ir_module, &line_index) {
+        if is_inside_proc(inv.range, ir_module) {
             continue;
         }
-        if let Some(target) = resolve_invocation_target(inv, &proc_names) {
+        if let Some(target) = resolve_invocation_target(&analysis, inv, &proc_names, source) {
             let pos = pos_value(&line_index, source, inv.range.start());
             top_level
                 .entry(target)
@@ -560,7 +531,7 @@ pub fn call_graph(
     let any_top_level_inv = analysis
         .command_invocations
         .iter()
-        .any(|inv| !is_inside_proc(inv.range, ir_module, &line_index));
+        .any(|inv| inv.lookup.is_execution_site() && !is_inside_proc(inv.range, ir_module));
     if has_top_level_calls || any_top_level_inv {
         roots.insert(0, TOP_LEVEL.to_owned());
     }
@@ -908,6 +879,7 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
         .map(|n| {
             json!({
                 "name": n.name,
+                "cell": n.cell,
                 "version": n.version,
                 "block": n.block,
                 "defKind": n.def_kind,
@@ -925,11 +897,13 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
         .map(|e| {
             json!({
                 "fromName": e.from_name,
+                "fromCell": e.from_cell,
                 "fromVersion": e.from_version,
                 "toBlock": e.to_block,
                 "toStatementIndex": e.to_statement_index,
                 "edgeKind": e.edge_kind.as_str(),
                 "toName": e.to_name,
+                "toCell": e.to_cell,
                 "toVersion": e.to_version,
             })
         })
@@ -1100,6 +1074,64 @@ pub fn memory_alias_graph(
 mod tests {
     use super::*;
     use std::fmt::Write as _;
+
+    #[test]
+    fn graph_calls_keep_consumed_names_as_references() {
+        let source = "proc target {} {return ok}; proc caller {} {info body target; target}; info body target; target";
+        let profile = crate::profile_for_dialect("tcl9.0");
+        let registry = crate::registry_for_dialect("tcl9.0");
+        let calls = call_graph(source, registry, profile);
+        let edges = calls["edges"].as_array().unwrap();
+        let incoming: Vec<_> = edges
+            .iter()
+            .filter(|edge| edge["callee"] == "::target")
+            .collect();
+        assert_eq!(incoming.len(), 2, "{calls}");
+        for caller in ["::caller", TOP_LEVEL] {
+            let edge = incoming
+                .iter()
+                .find(|edge| edge["caller"] == caller)
+                .unwrap();
+            assert_eq!(edge["call_sites"].as_array().unwrap().len(), 1, "{calls}");
+        }
+        let symbols = symbol_graph(source, profile);
+        assert_eq!(
+            symbols["proc_references"]["::target"]
+                .as_array()
+                .unwrap()
+                .len(),
+            4,
+            "{symbols}"
+        );
+    }
+
+    #[test]
+    fn graph_calls_use_terminal_alias_identity_without_borrowing_a_displaced_proc() {
+        let source = "proc target {} {return ok}\nproc alias {} {return displaced}\ninterp alias {} alias {} target\nalias\n";
+        let profile = crate::profile_for_dialect("tcl9.0");
+        let registry = crate::registry_for_dialect("tcl9.0");
+        let calls = call_graph(source, registry, profile);
+        let edges = calls["edges"].as_array().unwrap();
+        assert!(
+            edges.iter().any(|edge| {
+                edge["caller"] == TOP_LEVEL
+                    && edge["callee"] == "::target"
+                    && edge["call_sites"]
+                        .as_array()
+                        .is_some_and(|sites| sites.len() == 1)
+            }),
+            "{calls}"
+        );
+        assert!(
+            edges.iter().all(|edge| edge["callee"] != "::alias"),
+            "{calls}"
+        );
+        let symbols = symbol_graph(source, profile);
+        assert!(
+            symbols["proc_references"].get("::alias").is_none(),
+            "{symbols}"
+        );
+    }
 
     /// `scope_to_value`, `count_variables`, and `count_namespaces` recurse
     /// once per nested namespace scope, capped by

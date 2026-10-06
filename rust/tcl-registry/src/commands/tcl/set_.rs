@@ -41,6 +41,7 @@
 // version of this same fact, and the hover snippet below for the
 // developer-facing wording.
 
+use crate::forms::CommandForm;
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
@@ -70,16 +71,48 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-/// Dynamic arg role resolver: getter (1 arg) vs setter (2 args).
-fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    if args.len() >= 2 {
-        vec![(0, ArgRole::VarWrite)]
-    } else if args.len() == 1 {
-        vec![(0, ArgRole::VarRead)]
-    } else {
-        Vec::new()
-    }
-}
+const READ_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    reads: true,
+    ..SideEffect::DEFAULT
+}];
+const WRITE_EFFECTS: &[SideEffect] = &[SideEffect {
+    target: SideEffectTarget::Variable,
+    writes: true,
+    ..SideEffect::DEFAULT
+}];
+const COMMAND_FORMS: &[CommandForm] = &[
+    CommandForm {
+        name: "read",
+        native_result: Some(crate::native_result::NativeResultContract::VariableValue {
+            variable_at: 0,
+            phase: crate::native_result::VariableResultPhase::AfterRead,
+        }),
+        arity: Arity::exact(1),
+        arg_roles: &[(0, ArgRole::VarRead)],
+        side_effects: Some(READ_EFFECTS),
+        world_effects: Some(crate::WorldEffectDescriptor {
+            composition: crate::world_effect::WorldEffectComposition::Replace,
+            ..crate::WorldEffectDescriptor::VARIABLE_READ
+        }),
+        ..CommandForm::DEFAULT
+    },
+    CommandForm {
+        name: "write",
+        native_result: Some(crate::native_result::NativeResultContract::VariableValue {
+            variable_at: 0,
+            phase: crate::native_result::VariableResultPhase::AfterWrite,
+        }),
+        arity: Arity::exact(2),
+        arg_roles: &[(0, ArgRole::VarWrite)],
+        side_effects: Some(WRITE_EFFECTS),
+        world_effects: Some(crate::WorldEffectDescriptor {
+            composition: crate::world_effect::WorldEffectComposition::Replace,
+            ..crate::WorldEffectDescriptor::VARIABLE_WRITE
+        }),
+        ..CommandForm::DEFAULT
+    },
+];
 
 /// Command spec for `set`.
 ///
@@ -90,6 +123,17 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::VariableLoadStore,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Set,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         // A core variable primitive with no filesystem/process/network access,
         // present unmodified in every dialect that hosts a real Tcl core
         // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — its
@@ -106,8 +150,12 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::FIRST_ARG_VARNAME,
         arity: Arity::new(1, 2),
-        arg_role_resolver: Some(set_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::VarWrite, ArgRole::VarRead],
+        // Unknown expansion cardinality can reach either native form. Both
+        // address the same first argv value; selecting a form replaces this
+        // May union with its exact read or write role.
+        arg_roles: &[(0, ArgRole::VarRead), (0, ArgRole::VarWrite)],
+        command_forms: COMMAND_FORMS,
+        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
         assigns_variable_at: Some(0),
         // `set NAME [TYPE inst …]` — when the value word is a construction,
         // `NAME` ends up holding an object handle.  Registry data so the
@@ -130,5 +178,81 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Set),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::world_effect::{CallbackKinds, EffectAccessMode, WorldStateDomain};
+
+    #[test]
+    fn selected_set_forms_replace_the_broad_effect_union_and_preserve_trace_callbacks() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let dialect = crate::InvocationDialect::of_profile(
+                crate::model::ingress::resolve_environment(environment).unit_profile(),
+            );
+            for (arguments, mode) in [
+                (&["x"][..], EffectAccessMode::Read),
+                (&["x", "7"][..], EffectAccessMode::Write),
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::literals("set", arguments).with_dialect(dialect),
+                    dialect.authoring_query(),
+                );
+                let facts = resolution.resolved().unwrap().facts();
+                let accesses: Vec<_> = facts
+                    .effects
+                    .accesses()
+                    .iter()
+                    .filter(|access| access.domain == WorldStateDomain::VariableStore)
+                    .map(|access| access.mode)
+                    .collect();
+                assert_eq!(accesses, vec![mode], "{environment}/{arguments:?}");
+                assert!(
+                    facts
+                        .effects
+                        .callback()
+                        .kinds
+                        .contains(CallbackKinds::TRACE)
+                );
+                assert!(!facts.effects.callback().kinds.is_unknown());
+            }
+            let arguments = [crate::InvocationWord::Expanded];
+            let resolution = registry.resolve_structured_invocation(
+                crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("set"),
+                    &arguments,
+                )
+                .with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = resolution.resolved().unwrap().facts();
+            assert!(
+                facts
+                    .effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::VariableStore
+                        && access.mode == EffectAccessMode::ReadWrite)
+            );
+        }
+    }
+
+    #[test]
+    fn native_set_read_and_write_observers_match_the_selected_forms() {
+        for table in [
+            include_str!("../../../tests/data/native_set_effect_forms/8.4.20.tsv"),
+            include_str!("../../../tests/data/native_set_effect_forms/8.5.19.tsv"),
+            include_str!("../../../tests/data/native_set_effect_forms/8.6.18.tsv"),
+            include_str!("../../../tests/data/native_set_effect_forms/9.0.4.tsv"),
+            include_str!("../../../tests/data/native_set_effect_forms/9.1.0.tsv"),
+        ] {
+            assert_eq!(table, "write 7 0 1\nread 7 1 1\nupdate 8 2 2\n");
+        }
+        assert!(
+            include_str!("../../../tests/data/native_set_effect_forms/jim.tsv")
+                .starts_with("unsupported 1")
+        );
     }
 }

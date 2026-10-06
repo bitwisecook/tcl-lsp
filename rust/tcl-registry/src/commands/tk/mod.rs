@@ -216,6 +216,30 @@ mod tests {
 
     use super::tk_command_specs;
 
+    /// Explicit Tk metadata provision; no actual widget or source handler is installed.
+    fn instance_metadata_registry() -> crate::CommandRegistry {
+        let profile = crate::model::ingress::resolve_environment("tcl9.1").unit_profile();
+        let mut registry = crate::CommandRegistry::build_default().project_for_profile(profile);
+        registry.insert_ambient_package("Tk", "9.1");
+        registry
+    }
+
+    #[test]
+    fn instance_effect_metadata_requires_the_actual_tk_provision() {
+        let profile = crate::model::ingress::resolve_environment("tcl9.1").unit_profile();
+        let missing = crate::CommandRegistry::build_default().project_for_profile(profile);
+        assert!(
+            missing
+                .resolve_instance_invocation("entry", ".w", &["get"], None)
+                .is_none()
+        );
+        assert!(
+            instance_metadata_registry()
+                .resolve_instance_invocation("entry", ".w", &["get"], None)
+                .is_some()
+        );
+    }
+
     fn assert_complete_prose(owner: &str, prose: &str) {
         let prose = prose.trim();
         assert!(!prose.is_empty(), "{owner} has empty documentation");
@@ -770,9 +794,9 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn zero_argument_treeview_and_notebook_queries_are_sources_only_in_query_form() {
-        use crate::{CommandRegistry, Traits};
+        use crate::Traits;
 
-        let registry = CommandRegistry::build_default();
+        let registry = instance_metadata_registry();
         let cases = [
             (
                 "ttk::combobox",
@@ -881,9 +905,9 @@ mod tests {
 
     #[test]
     fn instance_method_forms_resolve_query_and_mutation_effects_exactly() {
-        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
+        use crate::{Traits, prelude::SideEffectTarget};
 
-        let registry = CommandRegistry::build_default();
+        let registry = instance_metadata_registry();
         let cases: &[(&str, &[&str], &[&str])] = &[
             (
                 "button",
@@ -975,9 +999,7 @@ mod tests {
 
     #[test]
     fn literal_operation_forms_cover_tk_nested_method_tables() {
-        use crate::CommandRegistry;
-
-        let registry = CommandRegistry::build_default();
+        let registry = instance_metadata_registry();
         let cases: &[(&str, &[&str], &[&str])] = &[
             ("entry", &["selection", "present"], &["selection", "clear"]),
             (
@@ -1071,9 +1093,9 @@ mod tests {
 
     #[test]
     fn literal_operation_selection_abstains_for_dynamic_unknown_and_ambiguous_words() {
-        use crate::{CommandRegistry, InvocationWord, InvocationWords};
+        use crate::{InvocationWord, InvocationWords};
 
-        let registry = CommandRegistry::build_default();
+        let registry = instance_metadata_registry();
         let dynamic = [
             InvocationWord::Literal("selection"),
             InvocationWord::Dynamic,
@@ -1117,10 +1139,10 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn classic_widget_instance_apis_model_configuration_and_callbacks() {
-        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
+        use crate::{Traits, prelude::SideEffectTarget};
 
         let specs = tk_command_specs();
-        let registry = CommandRegistry::build_default();
+        let registry = instance_metadata_registry();
         for command in [
             "button",
             "entry",
@@ -1470,14 +1492,13 @@ mod tests {
 
     #[test]
     fn tk_event_binding_bodies_are_explicitly_deferred() {
-        use crate::ScriptTiming;
+        use crate::{ArgRole, ScriptTiming, Traits};
 
         let specs = tk_command_specs();
         let bind = specs.iter().find(|spec| spec.name == "bind").unwrap();
-        assert_eq!(
-            bind.script_timing_resolver.unwrap()(&[".entry", "<Key>", "puts %A"]),
-            vec![(2, ScriptTiming::Deferred)]
-        );
+        assert_eq!(bind.arg_roles, &[(2, ArgRole::Body)]);
+        assert!(bind.traits.contains(Traits::DEFERS_BODY));
+        assert!(bind.script_timing_resolver.is_none());
 
         for (widget, method, args, expected_index) in [
             ("canvas", "bind", &["item", "<Key>", "puts %A"][..], 2),
@@ -1495,11 +1516,16 @@ mod tests {
                 .unwrap()
                 .resolve_subcommand(method)
                 .unwrap();
-            assert_eq!(
-                method.script_timing_resolver.unwrap()(args),
-                vec![(expected_index, ScriptTiming::Deferred)],
-                "{widget} {method:?}"
-            );
+            if let Some(resolve) = method.script_timing_resolver {
+                assert_eq!(
+                    resolve(args),
+                    vec![(expected_index, ScriptTiming::Deferred)],
+                    "{widget} {method:?}"
+                );
+            } else {
+                assert_eq!(method.arg_roles, &[(expected_index, ArgRole::Body)]);
+                assert!(method.traits.contains(Traits::DEFERS_BODY));
+            }
             assert!(
                 method
                     .callback_taint_inputs

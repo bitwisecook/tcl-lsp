@@ -16,29 +16,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lseq` (Tcl 8.7/9.0) — arithmetic-sequence list generator.
-//!
-//! ```text
-//! lseq start ?(..|to)? end ??by? step?
-//! lseq start count count ??by? step?
-//! lseq count ?by step?
-//! ```
-//!
-//! A thin adapter over [`tcl_cmd_core::lseq`] — the shared core runs the
-//! argument-decode key (`..`/`to`/`count`/`by`), the int-vs-double selection,
-//! and the precision-matched generation; this adapter supplies the two
-//! per-runtime edges: the **expression-valued-argument** evaluation (through the
-//! interp's `expr`) and the element construction over the bignum runtime's
-//! `ValueOps`. The whole module is gated on `have_tommath` like `if`/`while`/`for`
-//! because the expr edge needs the numeric tower.
-//!
-//! Semantics match tclsh 9.0.
-//!
+//! Native numeric sequence arguments and list result construction.
 #![cfg(have_tommath)]
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
-use tcl_cmd_core::lseq::{self, LseqError, Num};
+use tcl_cmd_core::lseq::{self, LseqError};
 
 /// Register `lseq`.
 pub fn install(interp: &mut Interp) {
@@ -46,38 +29,92 @@ pub fn install(interp: &mut Interp) {
 }
 
 fn lseq(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    // Slice off the command name and snapshot each argument's bytes (the obj's
-    // string rep is copied out, so the borrows below don't alias the interp).
-    let args: Vec<Vec<u8>> = argv[1..].iter().map(|&a| obj_bytes(a)).collect();
-    let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
-
-    // Decode first (the eval callback borrows the interp), then generate (the
-    // interp is borrowed as the value-ops) — two separate calls, no conflict.
-    let plan = match lseq::decode(&refs, |src| eval_num(interp, src)) {
-        Ok(p) => p,
-        Err(LseqError::Message(m)) => return interp.set_error(&m),
-        // The expr edge already set the interp's error; just propagate the code.
-        Err(LseqError::Eval(c)) => return c,
+    let actual = interp.eval_frame_dialect();
+    let native = actual.native_string_protocol().filter(|protocol| {
+        protocol
+            .tcl_version()
+            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+    });
+    let decoded = if let Some(protocol) = native {
+        lseq::decode_original(argv.len() - 1, |index, numeric_allowed| {
+            let argument = argv[index + 1];
+            let number = if numeric_allowed {
+                match crate::typed_value::native_number_probe(
+                    argument,
+                    actual,
+                    tcl_syntax::scalar_getter::NativeNumberGetterKind::Number,
+                ) {
+                    Ok(Ok(number)) => Some(number),
+                    Ok(Err(_)) => None,
+                    Err(error) => return Err(LseqError::Command(error.into())),
+                }
+            } else {
+                None
+            };
+            // Cached Int arguments keep their absent resident string. Double
+            // precision and keyword/diagnostic stages request original bytes.
+            let bytes = if number.is_some() && !obj::has_string_rep(argument) {
+                Vec::new()
+            } else {
+                crate::dict::native_object_bytes(argument, protocol)
+                    .map_err(|error| LseqError::Command(error.into()))?
+            };
+            let parsed = number
+                .as_ref()
+                .and_then(|number| lseq::number_argument(number, &bytes));
+            let bytes = if parsed.is_none() {
+                let end = bytes
+                    .iter()
+                    .position(|&byte| byte == 0)
+                    .unwrap_or(bytes.len());
+                bytes[..end].to_vec()
+            } else {
+                bytes
+            };
+            Ok((parsed, bytes))
+        })
+    } else {
+        let args = argv[1..]
+            .iter()
+            .map(|&argument| obj_bytes(argument))
+            .collect::<Vec<_>>();
+        let refs = args.iter().map(Vec::as_slice).collect::<Vec<_>>();
+        lseq::decode(&refs)
     };
+    let mut plan = match decoded {
+        Ok(plan) => plan,
+        Err(LseqError::WrongArguments) => {
+            return interp.wrong_args_for_invocation(argv, b"n ??op? n ??by? n??");
+        }
+        Err(LseqError::Command(error)) => return interp.report_cmd_error(error),
+    };
+    if let Some(protocol) = native {
+        if let Err(error) = plan.prepare_double_precision(|index| {
+            crate::dict::native_object_bytes(argv[index + 1], protocol).map_err(Into::into)
+        }) {
+            return interp.report_cmd_error(error);
+        }
+        let series = match lseq::prepare_series(&plan) {
+            Ok(series) => series,
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        let value = match series {
+            Some(series) => match crate::native_arithseries::new_series(series, protocol) {
+                Ok(value) => value,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            },
+            None => crate::obj::new_obj(),
+        };
+        interp.set_result(value);
+        return Code::Ok;
+    }
     match lseq::generate(interp, &plan) {
-        Ok(v) => {
-            interp.set_result(v);
+        Ok(value) => {
+            interp.set_result(value);
             Code::Ok
         }
-        Err(m) => interp.set_error(m),
+        Err(error) => interp.report_cmd_error(error),
     }
-}
-
-/// Evaluate `src` as an expression and classify its result as a number — the
-/// `lseq` expression-valued-argument edge. `Ok(None)` = evaluated but not a
-/// number (the core maps that to a syntax error); `Err(Code)` = the evaluation
-/// itself failed (the interp's error is already set).
-fn eval_num(interp: &mut Interp, src: &[u8]) -> Result<Option<Num>, Code> {
-    let result = crate::builtins::eval_expr_obj(interp, src)?;
-    let text = obj_bytes(result);
-    // SAFETY: `result` is the owned (+1) expr result; we are done with it.
-    unsafe { obj::decr_ref_count(result) };
-    Ok(lseq::as_number(&text))
 }
 
 #[cfg(test)]
@@ -127,7 +164,7 @@ mod tests {
         assert_eq!(ok(b"lseq 10 .. 1"), b"10 9 8 7 6 5 4 3 2 1");
         assert_eq!(ok(b"lseq 1 to 10 by 2"), b"1 3 5 7 9");
         assert_eq!(ok(b"lseq 1 to 10 by -2"), b""); // wrong-sign step → empty
-        assert_eq!(ok(b"lseq 1 to 5 by 0"), b""); // zero step → empty
+        assert_eq!(ok(b"lseq 1 to 5 by 0"), b"1"); // omitted count defaults to one
         assert_eq!(ok(b"lseq 5 count 5"), b"5 6 7 8 9");
         assert_eq!(ok(b"lseq 5 count 5 by -2"), b"5 3 1 -1 -3");
         assert_eq!(ok(b"lseq 3 by 2"), b"0 2 4");
@@ -149,9 +186,15 @@ mod tests {
     }
 
     #[test]
-    fn lseq_expression_args() {
-        assert_eq!(ok(b"lseq 1+2 to 10"), b"3 4 5 6 7 8 9 10");
-        assert_eq!(ok(b"set n 3; lseq $n*2"), b"0 1 2 3 4 5");
+    fn lseq_numeric_arguments_do_not_evaluate_expressions() {
+        assert_eq!(err(b"lseq 1+2 to 10"), b"expected number but got \"1+2\"");
+        assert_eq!(
+            ok(b"set changed BEFORE; catch {lseq {[set changed 3]}}; set changed"),
+            b"BEFORE"
+        );
+        assert_eq!(ok(b"lseq 1 t 3"), b"1 2 3");
+        assert_eq!(ok(b"lseq 1 c 3 by 0"), b"1 1 1");
+        assert_eq!(ok(b"lseq 1.5 to 3 by 0"), b"1.5");
     }
 
     #[test]
@@ -164,10 +207,37 @@ mod tests {
             err(b"lseq 12 to 24 by 2 count"),
             b"wrong # args: should be \"lseq n ??op? n ??by? n??\""
         );
-        // Huge series are capped rather than OOM-aborting.
-        assert_eq!(
-            err(b"lseq 10 2147483647"),
-            b"max length of a Tcl list exceeded"
-        );
+    }
+
+    #[test]
+    fn lseq_materialization_refusal_bypasses_guest_capture_and_finally() {
+        use tcl_syntax::raw_string::{NativeMaterializationLimitError, NativeValueAccessRefusal};
+        for script in [
+            b"set prior BEFORE; catch {join [lseq 100000001]} captured options; set after YES"
+                .as_slice(),
+            b"set prior BEFORE; try {join [lseq 100000001]} finally {set final YES}; set after YES",
+        ] {
+            counters::reset();
+            {
+                let mut interp = Interp::new();
+                interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+                assert_eq!(interp.eval_str(script), Code::Error);
+                assert_eq!(
+                    interp.native_access_refusal(),
+                    Some(NativeValueAccessRefusal::Materialization(
+                        NativeMaterializationLimitError::new(100_000_001, 100_000_000)
+                    ))
+                );
+                assert_eq!(
+                    crate::interp::obj_bytes(interp.var_get(b"prior").unwrap()),
+                    b"BEFORE"
+                );
+                for name in [b"captured".as_slice(), b"options", b"final", b"after"] {
+                    assert!(!interp.var_exists(name));
+                }
+            }
+            assert_eq!(counters::finalize(), 0, "leak");
+            assert_eq!(counters::double_free_count(), 0);
+        }
     }
 }

@@ -1,0 +1,114 @@
+[
+  {
+    "version": "8.5.19",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-command-regexp-glob/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-regexp-glob/8.5.19-probe"
+    ],
+    "source_sha256": "12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879",
+    "headers": {
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa"
+    },
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "build_exit": 0,
+    "build_stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclUnixPort.h:142,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-command-regexp-glob/probe.c:1:\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.5.19/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+    "binary_sha256": "8fce5d637533517944149880f3a6db15e7337793ad71ebd91cd26e5cc49cf15c",
+    "exit": 0,
+    "stdout": "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "version": "8.6.18",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-command-regexp-glob/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-regexp-glob/8.6.18-probe"
+    ],
+    "source_sha256": "12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879",
+    "headers": {
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e"
+    },
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "build_exit": 0,
+    "build_stderr": "In file included from /workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclUnixPort.h:161,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclPort.h:23,\n                 from /workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h:36,\n                 from /workspace/.proofs/2286-command-regexp-glob/probe.c:1:\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:35:25: warning: conflicting types for built-in function \u2018execl\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   35 | extern int              execl(const char *path, ...);\n      |                         ^~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:36:25: warning: conflicting types for built-in function \u2018execle\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   36 | extern int              execle(const char *path, ...);\n      |                         ^~~~~~\n/workspace/tcl-lsp/tmp/tcl8.6.18/unix/../compat/unistd.h:37:25: warning: conflicting types for built-in function \u2018execlp\u2019; expected \u2018int(const char *, const char *, ...)\u2019 [-Wbuiltin-declaration-mismatch]\n   37 | extern int              execlp(const char *file, ...);\n      |                         ^~~~~~\n",
+    "binary_sha256": "9e397a137587a4dbfda5d803c5077f7b709ef4218996ccafe56f632f67a2d1d7",
+    "exit": 0,
+    "stdout": "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.0.4",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-command-regexp-glob/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-regexp-glob/9.0.4-probe"
+    ],
+    "source_sha256": "12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879",
+    "headers": {
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclInt.h": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053"
+    },
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "build_exit": 0,
+    "build_stderr": "",
+    "binary_sha256": "adfad5badfb0d97e896003476009b819ce776bb1214f98f88d4107c6cddbd298",
+    "exit": 0,
+    "stdout": "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n",
+    "stderr": ""
+  },
+  {
+    "version": "9.1.0",
+    "command": [
+      "cc",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-command-regexp-glob/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-regexp-glob/9.1.0-probe"
+    ],
+    "source_sha256": "12f235e3a3e124f12fd567e6daaa3c58b5b05a304a5c8622cc1405288fa5c879",
+    "headers": {
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc"
+    },
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "build_exit": 0,
+    "build_stderr": "",
+    "binary_sha256": "bf7eecafa1a871669181c6d4bf587dde3cc2687f27829851a23dfedcb4be000b",
+    "exit": 0,
+    "stdout": "0\t0\t2a\n1\t0\t2a666f6f2a\n2\t0\t666f6f\n3\t0\t2a\n4\t0\t2a3f2a\n5\t1\t\n6\t0\t2a5c5c2a\n7\t0\t2a0a2a\n8\t0\t2a5c2a2a\n9\t0\t2a785c3f2a\n10\t1\t\n11\t1\t\n12\t1\t\n13\t1\t\n",
+    "stderr": ""
+  }
+]

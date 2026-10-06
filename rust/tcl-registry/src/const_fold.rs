@@ -161,19 +161,89 @@ pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
 /// difference in the numeral grammar — `lindex $l 010` is index 8 up to 8.6 and
 /// 10 from 9.0. These folds are registered as plain
 /// [`ConstFoldFn`](crate::hooks::ConstFoldFn)s, which carry no release, so this
-/// resolves under **every** grammar and folds only when they agree.
+/// resolves under **every** C release grammar and the Jim grammar, and folds
+/// only when they agree.
 ///
 /// Declining is free: an unfolded `lindex` is evaluated at run time by an
 /// interpreter that does know its release. Folding under one release's grammar
 /// would instead bake a wrong constant into a program built for another — the
 /// one outcome a const-folder must never produce. (When these folds migrate to
 /// [`VersionedConstFoldFn`](crate::hooks::VersionedConstFoldFn), the release can
-/// be named and `index::resolve_opt_with` used directly.)
+/// be named and `index::resolve_opt_in` used directly.)
 pub(crate) fn parse_index(s: &str, length: usize) -> Option<i64> {
-    tcl_syntax::number::NumberSyntax::unanimous(|numbers| {
-        tcl_cmd_core::index::resolve_opt_with(s, length, numbers)
+    parse_index_consensus(s, length, |index| index)
+}
+
+/// A proved container selection, distinct from unproved native parsing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NativeIndexSelection<T> {
+    /// Every selected native policy chooses this element or clamped range.
+    Selected(T),
+    /// Every selected native policy produces an empty container selection.
+    Empty,
+}
+
+impl<T> NativeIndexSelection<T> {
+    fn from_selection(selection: Option<T>) -> Self {
+        selection.map_or(Self::Empty, Self::Selected)
+    }
+}
+
+/// Selected element under every portable native index policy. Absence of the
+/// proof means parsing or native outcome agreement remains unproved.
+pub(crate) fn parse_element_index(s: &str, length: usize) -> Option<NativeIndexSelection<usize>> {
+    parse_index_consensus(s, length, |index| {
+        NativeIndexSelection::from_selection(
+            usize::try_from(index).ok().filter(|&index| index < length),
+        )
     })
-    .flatten()
+}
+
+/// Clamped range selected unanimously by the native index policies.
+/// Compare the container outcome rather than the engines' raw index encodings.
+pub(crate) fn parse_range(
+    first: &str,
+    last: &str,
+    length: usize,
+) -> Option<NativeIndexSelection<(usize, usize)>> {
+    index_result_consensus(|syntax| {
+        let first = tcl_cmd_core::index::resolve_opt_in(first, length, syntax)?;
+        let last = tcl_cmd_core::index::resolve_opt_in(last, length, syntax)?;
+        Some(NativeIndexSelection::from_selection(clamp_range(
+            first, last, length,
+        )))
+    })
+}
+
+/// Compare the result needed by a container operation. Native encodings may
+/// differ while every engine selects the same element or out-of-range result.
+fn parse_index_consensus<T: PartialEq>(
+    s: &str,
+    length: usize,
+    project: impl Fn(i64) -> T,
+) -> Option<T> {
+    index_result_consensus(|syntax| {
+        tcl_cmd_core::index::resolve_opt_in(s, length, syntax).map(&project)
+    })
+}
+
+fn index_result_consensus<T: PartialEq>(
+    evaluate: impl Fn(tcl_dialect::IndexSyntax) -> Option<T>,
+) -> Option<T> {
+    let mut answers = tcl_dialect::TclVersion::ALL
+        .iter()
+        .map(|&version| evaluate(tcl_dialect::IndexSyntax::for_version(version)));
+    let first = answers.next()?;
+    if !answers.all(|answer| answer == first) {
+        return None;
+    }
+    let jim = tcl_dialect::IndexSyntax {
+        numbers: tcl_dialect::NumberSyntax::Jim080,
+        grammar: tcl_dialect::IndexGrammar::Jim,
+        width: tcl_dialect::IndexIntegerWidth::Jim32,
+        end_abbreviations: false,
+    };
+    (evaluate(jim) == first).then_some(first).flatten()
 }
 
 /// Resolve `(first, last)` parsed indices into a clamped `[lo, hi]`
@@ -192,22 +262,9 @@ pub(crate) fn clamp_range(first: i64, last: i64, len: usize) -> Option<(usize, u
 
 // list commands
 
-/// `concat ?arg ...?` — trim each arg and space-join the non-empty ones
-/// (a flatten, not a re-quote) for the backslash-free subset. Tcl exposes
-/// some backslashes during concat's list-normalisation step (`b\ ` keeps
-/// its trailing space), so any backslash-bearing argument is declined
-/// rather than folded approximately.
-pub(crate) fn fold_concat(args: &[&str]) -> Option<String> {
-    if args.iter().any(|arg| arg.contains('\\')) {
-        return None;
-    }
-    Some(
-        args.iter()
-            .map(|a| a.trim())
-            .filter(|a| !a.is_empty())
-            .collect::<Vec<_>>()
-            .join(" "),
-    )
+/// `concat ?arg ...?` — materialise the shared native concatenation grammar.
+pub(crate) fn fold_concat(args: &[&str]) -> String {
+    tcl_syntax::list::concat_values(args.iter().copied())
 }
 
 /// `list ?arg ...?` — build a proper Tcl list (each arg re-quoted).
@@ -319,10 +376,10 @@ pub(crate) fn fold_lindex(args: &[&str]) -> Option<String> {
     let mut current = (*list).to_owned();
     for idx_str in indices {
         let elems = split_list(&current)?;
-        let idx = parse_index(idx_str, elems.len())?;
-        match usize::try_from(idx) {
-            Ok(i) if i < elems.len() => current.clone_from(&elems[i]),
-            _ => return Some(String::new()), // out of range → ""
+        let selected = parse_element_index(idx_str, elems.len())?;
+        match selected {
+            NativeIndexSelection::Selected(i) => current.clone_from(&elems[i]),
+            NativeIndexSelection::Empty => return Some(String::new()), // out of range → ""
         }
     }
     Some(current)
@@ -330,16 +387,29 @@ pub(crate) fn fold_lindex(args: &[&str]) -> Option<String> {
 
 /// `lrange list first last` — returns the sublist (re-quoted).
 pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
-    let [l, first_s, last_s] = args else {
-        return None;
+    let contract = crate::native_result::NativeResultContract::ListRange {
+        list_at: 0,
+        first_at: 1,
+        last_at: 2,
     };
-    let elems = split_list(l)?;
-    let first = parse_index(first_s, elems.len())?;
-    let last = parse_index(last_s, elems.len())?;
-    match clamp_range(first, last, elems.len()) {
-        Some((lo, hi)) => Some(list_join(&elems[lo..=hi])),
-        None => Some(String::new()),
+    let dialects = tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .map(crate::InvocationDialect::for_version)
+        .chain([crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )]);
+    let mut result = None;
+    for dialect in dialects {
+        let arguments = crate::InvocationArguments::literals(args).with_dialect(dialect);
+        let value = contract
+            .select(arguments, 0)
+            .constant_range_literal_result(arguments)?;
+        if result.as_ref().is_some_and(|previous| previous != &value) {
+            return None;
+        }
+        result = Some(value);
     }
+    result
 }
 
 // dict commands
@@ -534,9 +604,13 @@ mod tests {
                 .as_str(),
             )
         }
-        fn as_str(&mut self, v: &Self::Value) -> std::rc::Rc<str> {
-            v.clone()
+        fn as_bytes(&mut self, v: &Self::Value) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
         }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
+        }
+
         fn as_int(&mut self, v: &Self::Value) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse::<i64>()
                 .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.to_string()))
@@ -662,9 +736,11 @@ mod tests {
         assert_eq!(fold_list(&["#", "a"]).as_deref(), Some("{#} a"));
         assert_eq!(fold_lreverse(&["# a"]).as_deref(), Some("a #"));
         assert_eq!(fold_lrepeat(&["2", "#"]).as_deref(), Some("{#} #"));
-        assert_eq!(fold_lrange(&["x # y", "1", "2"]).as_deref(), Some("{#} y"));
+        // A version-neutral fold cannot choose between native C84's bare
+        // leading hash and the protected C85+/Jim list-object bytes.
+        assert_eq!(fold_lrange(&["x # y", "1", "2"]), None);
         assert_eq!(fold_split(&["a-#", "-"]).as_deref(), Some("a #"));
-        assert_eq!(fold_concat(&["a", "#"]).as_deref(), Some("a #"));
+        assert_eq!(fold_concat(&["a", "#"]), "a #");
         assert_eq!(fold_dict_keys(&["a 1 # 2"]).as_deref(), Some("a #"));
         assert_eq!(fold_dict_values(&["a # b 1"]).as_deref(), Some("{#} 1"));
         assert_eq!(
@@ -675,9 +751,9 @@ mod tests {
 
     #[test]
     fn list_folds_match_tcl() {
-        assert_eq!(fold_concat(&["a", " b ", "c"]).as_deref(), Some("a b c"));
-        assert_eq!(fold_concat(&["{a b}", "c"]).as_deref(), Some("{a b} c"));
-        assert_eq!(fold_concat(&["a", "b\\ "]), None);
+        assert_eq!(fold_concat(&["a", " b ", "c"]), "a b c");
+        assert_eq!(fold_concat(&["{a b}", "c"]), "{a b} c");
+        assert_eq!(fold_concat(&["a", "b\\ "]), "a b\\ ");
         assert_eq!(fold_list(&["a", "b c"]).as_deref(), Some("a {b c}"));
         assert_eq!(fold_llength(&["a b c"]).as_deref(), Some("3"));
         assert_eq!(fold_llength(&["{a b} c"]).as_deref(), Some("2"));
@@ -706,18 +782,70 @@ mod tests {
     }
 
     #[test]
+    fn range_folding_uses_actual_native_serialization_and_portable_agreement() {
+        let args = ["x #value end", "1", "1"];
+        assert_eq!(fold_lrange(&args), None);
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let supplied = crate::model::ingress::static_context_for(profile);
+            let registry = supplied.commands();
+            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            let resolved = registry
+                .resolve_call("lrange", &args, dialect.authoring_query())
+                .unwrap();
+            assert_eq!(
+                resolved.spec.run_const_fold(&args, dialect.tcl_version),
+                None
+            );
+            assert_eq!(
+                resolved.spec.run_const_fold_in(&args, dialect).as_deref(),
+                Some(if profile == "tcl8.4" {
+                    "#value"
+                } else {
+                    "{#value}"
+                }),
+                "{profile}"
+            );
+        }
+        assert_eq!(fold_lrange(&["x a b", "1", "2"]).as_deref(), Some("a b"));
+        assert_eq!(fold_lrange(&["x a b", "9", "end"]).as_deref(), Some(""));
+        assert_eq!(fold_lrange(&["x a b", "invalid", "end"]), None);
+    }
+
+    #[test]
     fn index_folds_match_tclsh_oracle() {
-        // The optimiser folds the arithmetic and radix index forms through
-        // `parse_index`'s shared runtime grammar. Expected
-        // results captured from real tclsh over `{a b c d e}` (end = 4).
-        assert_eq!(fold_lindex(&["a b c d e", "1+1"]).as_deref(), Some("c"));
-        assert_eq!(fold_lindex(&["a b c d e", "3-1"]).as_deref(), Some("c"));
+        // The unversioned callback preserves only the native grammar
+        // intersection. C8.4 rejects these arithmetic forms, so it must decline
+        // even though a selected modern grammar can resolve both to index 2.
+        assert_eq!(fold_lindex(&["a b c d e", "1+1"]), None);
+        assert_eq!(fold_lindex(&["a b c d e", "3-1"]), None);
+        let selected = tcl_dialect::IndexSyntax::for_version(tcl_dialect::TclVersion::V8_6);
+        for index in ["1+1", "3-1"] {
+            assert_eq!(
+                tcl_cmd_core::index::resolve_opt_in(index, 5, selected),
+                Some(2)
+            );
+        }
         assert_eq!(fold_lindex(&["a b c d e", "0x2"]).as_deref(), Some("c"));
         assert_eq!(fold_lindex(&["a b c d e", "end-1"]).as_deref(), Some("d"));
-        // `end--1` = end + 1 → out of range → empty.
+        // C end+1 and Jim's encoded positive-end sentinel both return empty.
+        // Raw index equality remains unknown; container result equality holds.
+        assert_eq!(parse_index("end--1", 5), None);
         assert_eq!(fold_lindex(&["a b c d e", "end--1"]).as_deref(), Some(""));
         assert_eq!(
-            fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(),
+            fold_lrange(&["a b c d e", "0", "end--1"]).as_deref(),
+            Some("a b c d e")
+        );
+        assert_eq!(
+            fold_lrange(&["a b c d e", "end--1", "end"]).as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            fold_lrange(&["a b c d e", "2", "end--1"]).as_deref(),
+            Some("c d e")
+        );
+        assert_eq!(fold_lrange(&["a b c d e", "1+1", "end"]), None);
+        assert_eq!(
+            fold_lrange(&["a b c d e", "2", "end"]).as_deref(),
             Some("c d e")
         );
         // Still declines genuinely bad specs.
@@ -780,8 +908,8 @@ mod tests {
         assert_eq!(parse_index("nope", 12), None);
     }
 
-    /// The user-visible consequence: `lindex` folds a unanimous index and leaves
-    /// a release-dependent one for the interpreter, which does know its release.
+    /// Fold only unanimous container outcomes, including clamped ranges whose
+    /// raw native indices differ. A genuinely differing result still declines.
     #[test]
     fn lindex_folds_only_unanimous_indices() {
         assert_eq!(
@@ -790,6 +918,10 @@ mod tests {
         );
         assert_eq!(fold_lindex(&["a b c d e f g h i j k l", "010"]), None);
         assert_eq!(fold_lrange(&["a b c d", "1", "2"]).as_deref(), Some("b c"));
-        assert_eq!(fold_lrange(&["a b c d", "1", "010"]), None);
+        assert_eq!(
+            fold_lrange(&["a b c d", "1", "010"]).as_deref(),
+            Some("b c d")
+        );
+        assert_eq!(fold_lrange(&["a b c d e f g h i j k l", "1", "010"]), None);
     }
 }

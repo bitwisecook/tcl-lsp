@@ -88,14 +88,10 @@
 //!
 //! # Methods reached by `my` dispatch
 //!
-//! A callee reached through `my <method>` is a method the *call* never
-//! names — but the **method-resolution order** does, mixins included.
-//! [`bindings_from_self_dispatch`] therefore resolves the callee through
-//! [`crate::oo_dispatch::method_dispatch_provider`] — the single walk
-//! hover, go-to-definition, and find-references share — and reads
-//! its frame effects from the resolved body.  The corpus shape is
-//! `SpiceGenTcl`'s `Utility::NameProcess`, mixed into a class
-//! and invoked as `my NameProcess …`.
+//! Self-dispatch navigation uses the shared source owner's retained receiver,
+//! dispatcher and original method allocation. The original body supplies the
+//! symbolic caller-name template. An advisory class name or guessed method
+//! resolution order cannot provide a call/frame receipt.
 //!
 //! # What it deliberately does not answer
 //!
@@ -137,7 +133,8 @@ pub(crate) fn substituted_var_read_at(
     (!inert).then_some(name)
 }
 
-/// One call site in the current frame that creates a caller-frame variable.
+/// One selected call in the current scope that instantiates a callee's
+/// symbolic caller-name template. This grants no completed runtime store.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CallerFrameBinding {
     /// Qualified name of the callee whose `upvar` creates the variable.
@@ -155,10 +152,10 @@ pub(crate) struct CallerFrameBinding {
     pub arg_span: Span,
     /// Span of the call's command-head word.
     pub call_span: Span,
-    /// True when the callee only *reads* through the alias
+    /// True when the callee template only *reads* through the alias
     /// ([`ProcArgTrait::VarRead`] without
     /// [`ProcArgTrait::VarWrite`]) — the site references the variable but
-    /// does not create it.
+    /// has no write-through usage. A write template proves no successful store.
     pub read_only: bool,
 }
 
@@ -215,21 +212,6 @@ fn enclosing_frame_region(
         end -= 1;
     }
     (start, end)
-}
-
-/// Whether a call-site word is a plain variable *name* — the only shape whose
-/// caller-frame target is knowable.
-///
-/// A substituted (`$x`) or computed (`[pick]`) word names a variable this
-/// analysis cannot identify, and an empty one names none; both abstain rather
-/// than guess, the same direction the frame-effect summary takes for its own
-/// unresolvable targets.
-fn is_plain_var_name(word: &str) -> bool {
-    !word.is_empty()
-        && !word.contains(['$', '[', '{', '"', ' '])
-        && word
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == ':')
 }
 
 /// Whether any procedure in the document takes a parameter whose value names
@@ -294,12 +276,8 @@ pub(crate) fn caller_frame_bindings(
         dialect,
         resolution,
         identities,
-        namespace: crate::definition::namespace_context_at(
-            &analysis.global_scope,
-            cursor_off,
-            &analysis.namespace_overrides,
-        ),
         name,
+        read_offset: cursor_off,
     };
     collect_bindings_in_region(&ctx, start, end, 0, &mut out);
     out.sort_by_key(|b| b.arg_span.start());
@@ -312,16 +290,15 @@ struct BindingScan<'a> {
     analysis: &'a AnalysisResult,
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
-    /// The whole-program context every [`crate::definition::resolve_called_proc`]
-    /// in this scan is answered in — the builtin gate and, when the host has a
-    /// workspace index, the export oracle.
+    /// Registry supplied by the navigation caller. Procedure identity comes
+    /// from the source owner's exact call/allocation/frame receipt.
     resolution: crate::definition::CallResolution<'a>,
     /// The document's proven command-identity facts, built once per scan and
     /// handed to every trait scan below so a rebound head resolves here the
     /// same way it does everywhere else.
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
-    namespace: String,
     name: &'a str,
+    read_offset: u32,
 }
 
 /// Collect the binding call sites in one script region, then recurse into
@@ -384,18 +361,25 @@ fn bindings_from_call(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
     out: &mut Vec<CallerFrameBinding>,
 ) {
-    let (Some(head), Some(head_text)) = (cmd.argv.first(), cmd.texts.first()) else {
+    let (Some(head), Some(registry)) = (cmd.argv.first(), ctx.resolution.registry) else {
         return;
     };
-    let Some(proc_def) = crate::definition::resolve_called_proc(
-        ctx.analysis,
-        ctx.source,
-        &ctx.namespace,
-        head_text,
-        head.span.start(),
-        ctx.resolution,
-    ) else {
-        bindings_from_self_dispatch(ctx, cmd, out);
+    let tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::new(ctx.source),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+        cmd,
+    );
+    let Some(template) =
+        ctx.identities
+            .caller_frame_invocation_template_at(&tokens, ctx.read_offset, registry)
+    else {
+        return;
+    };
+    let Some(definition) = template.procedure_definition() else {
+        bindings_from_self_dispatch(ctx, cmd, &template, out);
+        return;
+    };
+    let Some(proc_def) = ctx.analysis.proc_for_definition(definition, ctx.source) else {
         return;
     };
     if proc_def.caller_frame_params.is_empty() && proc_def.caller_frame_literals.is_empty() {
@@ -417,10 +401,13 @@ fn bindings_from_call(
         });
     }
     for (i, param) in proc_def.params.iter().enumerate() {
-        let (Some(arg_tok), Some(arg_text)) = (cmd.argv.get(i + 1), cmd.texts.get(i + 1)) else {
-            break;
+        let Some((argument, value)) = template.literal_parameter_argument(i) else {
+            continue;
         };
-        if arg_text != ctx.name || !is_plain_var_name(arg_text) {
+        let Some(arg_tok) = cmd.argv.get(argument + 1) else {
+            continue;
+        };
+        if value != ctx.name {
             continue;
         }
         // The trait alone is not enough. `VarWrite` / `VarRead` say the
@@ -470,70 +457,41 @@ fn bindings_from_call(
 /// Widget new {-base 1}      → name=::oo::Obj24 …
 /// ```
 ///
-/// The callee is a method the call never names statically, so the
-/// method-resolution-order walk supplies it: it resolves `my m`
-/// through mixins and superclasses, and
-/// [`crate::oo_dispatch::method_dispatch_provider`] is the *one* walk hover,
-/// go-to-definition, and find-references already share — so keying the
-/// frame-effect question on it cannot disagree with the answer those three
-/// give for the very same cursor.
-///
-/// The frame facts themselves are recomputed from the resolved method's
-/// body text through the same `param_traits` scans the analyser runs for a
-/// `proc` — a pure function of `(body, params, registry, dialect config)`
-/// — rather than cached on every `MethodDef`: this runs only on a
-/// navigation query that already failed the ordinary scope-chain lookup,
-/// for the `my`-headed calls of one frame.
-///
-/// `next` is deliberately excluded: it dispatches to whatever follows *this*
-/// implementation in the MRO, which the call site does not name, so it keeps
-/// the abstaining answer.
+/// The invocation template retains the selected method declaration and its
+/// original source. Trait scans use that source and the retained identities;
+/// argument projection comes from the same caller-frame template.
 fn bindings_from_self_dispatch(
     ctx: &BindingScan<'_>,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    template: &tcl_compiler::command_binding::SourceCallerFrameInvocationTemplate,
     out: &mut Vec<CallerFrameBinding>,
 ) {
     use tcl_compiler::analyser::param_traits::{
         TraitScanEnv, caller_frame_literal_targets, caller_frame_upvar_params, infer_param_traits,
     };
 
-    let (Some(head), Some(head_text)) = (cmd.argv.first(), cmd.texts.first()) else {
+    let Some(head) = cmd.argv.first() else {
         return;
     };
-    if !crate::definition::is_self_dispatch_keyword(head_text) {
-        return;
-    }
-    let (Some(registry), Some(method)) = (
-        ctx.resolution.registry,
-        cmd.texts.get(1).filter(|w| is_plain_var_name(w)),
-    ) else {
+    let (Some(registry), Some(entry)) = (ctx.resolution.registry, template.method()) else {
         return;
     };
-    let Some(class_q) = crate::definition::enclosing_class_at(ctx.analysis, head.span.start())
-    else {
+    let Some(class) = entry.declaring_class() else {
         return;
     };
-    let Some((provider_q, md)) = crate::oo_dispatch::method_dispatch_provider(
-        ctx.analysis,
-        class_q,
-        method,
-        false,
-        crate::definition::MethodBucket::Instance,
-    ) else {
-        return;
-    };
-    let Some(body) = method_body_text(ctx.source, md.body_span) else {
+    let script = entry.body();
+    // Trait scans require checked text; the environment keeps the original
+    // source image and channel as the execution proof.
+    let Ok(body) = script.text.try_text() else {
         return;
     };
     let env = TraitScanEnv {
-        // A method body reached through workspace navigation carries no
-        // document declarations: the `# tcl-lsp: stub` blocks belong to the
-        // file that wrote them, and this scan is over another file's body.
         surface: tcl_registry::model::DocumentCommandSurface::new(registry, None),
         config: tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
         identities: ctx.identities,
+        executed_source: Some(script),
     };
-    let callee = format!("{provider_q}::{method}");
+    let callee = format!("{}::{}", class.command, entry.name());
     if let Some(written) = caller_frame_literal_targets(body, env).get(ctx.name) {
         out.push(CallerFrameBinding {
             callee: callee.clone(),
@@ -543,7 +501,11 @@ fn bindings_from_self_dispatch(
             read_only: !written,
         });
     }
-    let param_names: Vec<&str> = md.params.iter().map(|p| p.name.as_str()).collect();
+    let param_names: Vec<&str> = entry
+        .formals()
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
     if param_names.is_empty() {
         return;
     }
@@ -555,10 +517,13 @@ fn bindings_from_self_dispatch(
     for (i, param) in param_names.iter().enumerate() {
         // `my <method> <arg>…` — the actual arguments start one word later
         // than a plain call's, because the method name is itself a word.
-        let (Some(arg_tok), Some(arg_text)) = (cmd.argv.get(i + 2), cmd.texts.get(i + 2)) else {
-            break;
+        let Some((argument, value)) = template.literal_parameter_argument(i) else {
+            continue;
         };
-        if arg_text != ctx.name || !is_plain_var_name(arg_text) {
+        let Some(arg_tok) = cmd.argv.get(argument + 1) else {
+            continue;
+        };
+        if value != ctx.name {
             continue;
         }
         // Same two-fact rule as the plain-proc path: the trait says the
@@ -583,18 +548,6 @@ fn bindings_from_self_dispatch(
             read_only: !writes,
         });
     }
-}
-
-/// A method body's *script* text, with the brace delimiters its recorded
-/// span may still carry stripped — the same correction
-/// [`enclosing_frame_region`] applies, and for the same reason: left in,
-/// every scan below reads the whole body as one braced word and finds no
-/// commands in it at all.
-fn method_body_text(source: &str, body_span: Span) -> Option<&str> {
-    let body = source.get(body_span.start() as usize..body_span.end() as usize)?;
-    let body = body.strip_prefix('{').unwrap_or(body);
-    let body = body.strip_suffix('}').unwrap_or(body);
-    (!body.trim().is_empty()).then_some(body)
 }
 
 /// Every span in the enclosing frame that refers to the caller-frame variable
@@ -810,6 +763,72 @@ oo::class create chart {
             "dataset",
             "the binding span must cover the call-site word"
         );
+    }
+
+    #[test]
+    fn conditional_caller_template_maps_original_arguments_after_alias_prefixes() {
+        let source = "proc setter {ignored target} {upvar 1 $target value; set value SET}\n\
+                      interp alias {} writer {} setter prefix\n\
+                      proc caller {} {writer dataset; puts $dataset}\n";
+        let analysis = analyse(source);
+        let read = offset_of(source, "$dataset") + 1;
+        let bindings = caller_frame_bindings(
+            &analysis,
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            crate::definition::CallResolution::document_only().with_registry(reg()),
+            read,
+            "dataset",
+        );
+        assert_eq!(bindings.len(), 1, "{bindings:?}");
+        assert_eq!(bindings[0].param.as_deref(), Some("target"));
+        assert_eq!(&source[bindings[0].arg_span.as_range()], "dataset");
+        assert!(!bindings[0].read_only);
+    }
+
+    #[test]
+    fn caller_templates_decode_original_literal_arguments() {
+        for word in ["{data set}", "\"data set\"", r"data\ set"] {
+            let source = format!(
+                "proc setter {{target}} {{upvar 1 $target value; set value SET}}\nproc caller {{}} {{setter {word}; puts ${{data set}}}}\n"
+            );
+            let analysis = analyse(&source);
+            let bindings = caller_frame_bindings(
+                &analysis,
+                &source,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                crate::definition::CallResolution::document_only().with_registry(reg()),
+                offset_of(&source, "${data set}") + 2,
+                "data set",
+            );
+            assert_eq!(bindings.len(), 1, "{word}: {bindings:?}");
+            assert_eq!(bindings[0].param.as_deref(), Some("target"));
+        }
+    }
+
+    #[test]
+    fn caller_templates_do_not_borrow_final_or_unrelated_namespace_definitions() {
+        for source in [
+            "namespace eval foreign {proc setter {target} {upvar 1 $target value; set value SET}}\n\
+             proc caller {} {setter dataset; puts $dataset}\n",
+            "proc setter {target} {upvar 1 $target value; set value SET}\n\
+             rename setter saved; proc setter args {return ordinary}\n\
+             proc caller {} {setter dataset; puts $dataset}\n",
+        ] {
+            let analysis = analyse(source);
+            assert!(
+                caller_frame_bindings(
+                    &analysis,
+                    source,
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                    crate::definition::CallResolution::document_only().with_registry(reg()),
+                    offset_of(source, "$dataset") + 1,
+                    "dataset",
+                )
+                .is_empty(),
+                "{source}"
+            );
+        }
     }
 
     /// TN — a call whose callee does *not* alias the argument binds nothing,

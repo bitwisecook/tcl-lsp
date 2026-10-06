@@ -1,0 +1,235 @@
+{
+  "source": "/workspace/.proofs/2286-search-callback-mutation/probe.c",
+  "source_sha256": "41380709c2c816c59340764d135c25e075d9694b2a6f71c3d87d11648ed7ee6e",
+  "rows": [
+    {
+      "version": "8.5.19",
+      "action": "replace",
+      "follow": "catch",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.5.19",
+        "replace",
+        "catch"
+      ],
+      "binary_sha256": "cf49777443ba857f767d41c70cd8f627c68287e801353c332404f1cb4c28acf5",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.5.19",
+      "action": "add",
+      "follow": "catch",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.5.19",
+        "add",
+        "catch"
+      ],
+      "binary_sha256": "cf49777443ba857f767d41c70cd8f627c68287e801353c332404f1cb4c28acf5",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df"
+    },
+    {
+      "version": "8.6.18",
+      "action": "replace",
+      "follow": "catch",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.6.18",
+        "replace",
+        "catch"
+      ],
+      "binary_sha256": "27c124ed492250ac9aa5ce59d454ce784114b503582d6fd6b3eed8305dd3b0c7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "replace",
+      "follow": "try",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.6.18",
+        "replace",
+        "try"
+      ],
+      "binary_sha256": "27c124ed492250ac9aa5ce59d454ce784114b503582d6fd6b3eed8305dd3b0c7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "add",
+      "follow": "catch",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.6.18",
+        "add",
+        "catch"
+      ],
+      "binary_sha256": "27c124ed492250ac9aa5ce59d454ce784114b503582d6fd6b3eed8305dd3b0c7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "8.6.18",
+      "action": "add",
+      "follow": "try",
+      "exit": -6,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/8.6.18",
+        "add",
+        "try"
+      ],
+      "binary_sha256": "27c124ed492250ac9aa5ce59d454ce784114b503582d6fd6b3eed8305dd3b0c7",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+    },
+    {
+      "version": "9.0.4",
+      "action": "replace",
+      "follow": "catch",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.0.4",
+        "replace",
+        "catch"
+      ],
+      "binary_sha256": "9a4f6a1b7cba78836d514f0681054e516be0ec614f5d7817372744ea287f770c",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "replace",
+      "follow": "try",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.0.4",
+        "replace",
+        "try"
+      ],
+      "binary_sha256": "9a4f6a1b7cba78836d514f0681054e516be0ec614f5d7817372744ea287f770c",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "add",
+      "follow": "catch",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.0.4",
+        "add",
+        "catch"
+      ],
+      "binary_sha256": "9a4f6a1b7cba78836d514f0681054e516be0ec614f5d7817372744ea287f770c",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.0.4",
+      "action": "add",
+      "follow": "try",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.0.4",
+        "add",
+        "try"
+      ],
+      "binary_sha256": "9a4f6a1b7cba78836d514f0681054e516be0ec614f5d7817372744ea287f770c",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04"
+    },
+    {
+      "version": "9.1.0",
+      "action": "replace",
+      "follow": "catch",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.1.0",
+        "replace",
+        "catch"
+      ],
+      "binary_sha256": "79097bc101571e4048d6ea51abafa963088d69b0075a73c6ce2a28b7161a74b8",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "replace",
+      "follow": "try",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t1\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.1.0",
+        "replace",
+        "try"
+      ],
+      "binary_sha256": "79097bc101571e4048d6ea51abafa963088d69b0075a73c6ce2a28b7161a74b8",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "add",
+      "follow": "catch",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.1.0",
+        "add",
+        "catch"
+      ],
+      "binary_sha256": "79097bc101571e4048d6ea51abafa963088d69b0075a73c6ce2a28b7161a74b8",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    },
+    {
+      "version": "9.1.0",
+      "action": "add",
+      "follow": "try",
+      "exit": -4,
+      "stdout": "before\t1\t2\t2\t1\nafter\t1\t2\t2\n",
+      "stderr": "concurrent dictionary modification and search\n",
+      "command": [
+        "/workspace/.proofs/2286-search-callback-mutation/9.1.0",
+        "add",
+        "try"
+      ],
+      "binary_sha256": "79097bc101571e4048d6ea51abafa963088d69b0075a73c6ce2a28b7161a74b8",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33"
+    }
+  ],
+  "completed_native_processes": 14,
+  "clean_close_processes": 0,
+  "native_abort_processes": 14,
+  "rust_comparisons": 0,
+  "observation": "Original same backing mutation followed by actual registered callback search advancement within catch/try; native process abort is outside guest handlers. Refcounts before observers; no successful comparison claim."
+}

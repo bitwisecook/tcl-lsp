@@ -1,0 +1,6 @@
+event	code	compiler	info_hook
+initial	0	20	1
+prefix_false	0	23	1
+same_prefix	0	26	1
+bad_option	1	26	1
+prefix_true	0	29	1

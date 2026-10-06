@@ -91,6 +91,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "FunctionUnit::semantic_value_projection",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "FunctionUnit::types",
         view: Some("types"),
         exclusion: None,
@@ -215,6 +220,7 @@ durable_inventory!(
     ssa,
     def_use,
     sccp,
+    semantic_value_projection,
     types,
     return_type,
     taints,

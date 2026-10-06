@@ -461,6 +461,7 @@ fn owner_matches_oracle_over_tcllib() {
 #[test]
 fn parse_errors_carry_c_tcls_message() {
     let cases = [
+        ("puts {broken", "missing close-brace"),
         ("puts x[b", "missing close-bracket"),
         ("puts $arr(", "missing )"),
         ("puts ${abc", "missing close-brace for variable name"),

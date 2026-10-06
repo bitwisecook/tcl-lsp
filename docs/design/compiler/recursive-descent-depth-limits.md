@@ -7,8 +7,8 @@ per source-nesting level. Native call-stack depth therefore scales with how
 deeply the input nests, and — unlike a Tcl-level `proc`-call stack, bounded by
 `interp recursionlimit` as a catchable error — a native stack overflow is an
 uncatchable process abort (`SIGABRT`). For any consumer that analyses
-untrusted, generated, or minified Tcl that is a denial of service (issue
-#996). This doc records the model every walker follows, the shared mechanism,
+untrusted, generated, or minified Tcl that is a denial of service. This document
+records the model every walker follows, the shared mechanism,
 and the inventory of guarded walkers.
 
 ## Two distinct problems
@@ -67,8 +67,8 @@ Two call-site shapes cover every walker:
    the counter in RAII: `enter()` checks and increments, and its `Drop`
    decrements again on every exit path (`?`, early `return`, panic unwind).
    When the call chain runs back out through the engine before re-entering
-   (`tcl-vm`'s `Vm::control_fallback_depth` / `oo_dispatch_depth`), the
-   borrow cannot span the gap, so those two use a manual `enter_*`/`exit_*`
+   (`tcl-vm`'s `oo_dispatch_depth`), the
+   borrow cannot span the gap, so it uses a manual `enter_*`/`exit_*`
    pair with the same `LIMIT.exceeded(counter + 1)` check and
    `counter.saturating_sub(1)` on the way out. That is the one sanctioned
    exception.
@@ -84,8 +84,8 @@ Searching the workspace for `RecursionLimit` finds every guarded walker.
    `bigip-report-gen` run their dispatch on a dedicated 64 MiB thread; the
    debugger's `VmBackend::record` (behind both `launch` paths) does the same.
    64 MiB is deliberately generous — the measured need is a few MiB even in a
-   debug build — so it also covers future frame growth and several guarded
-   walkers on one call stack.
+   debug build — and leaves stack margin for several guarded walkers on one
+   call stack.
 
 2. **A conservative, small cap for anything reachable from a WASM host**
    (`tcl_runtime`, `tcl_lsp_core`'s formatter and minifier, `tcl_irules`'s
@@ -116,7 +116,7 @@ Searching the workspace for `RecursionLimit` finds every guarded walker.
    ordinary characters.
 
 5. **A cap over a source-nesting walk is arithmetic against a stack budget,
-   not a convention number** (issue #1654). `tcl_compiler::depth_guard`
+   not a convention number**. `tcl_compiler::depth_guard`
    states the three inputs — `MIN_SOURCE_WALK_STACK` (2 MiB, the platform
    default thread), `SOURCE_WALK_STACK_RESERVE` (a quarter of it, for
    everything on the stack that is not the descent), and
@@ -197,8 +197,8 @@ defence in depth against a scope tree built some other way.
 
 | Walker | Cap | Notes |
 |---|---|---|
-| `cmd_control::eval_body` (runtime control-flow fallback, reached through a computed command name) | `CONTROL_FALLBACK_DEPTH_LIMIT` = 24 | **conservative cap** (WASM host: `tcl-vm-wasm`); ordinary proc-to-proc calls are trampolined and never touch the native stack. Deliberately *not* a cap on `Vm::eval_source` — see [Rules](#rules) |
-| `cmd_oo::run_step` (TclOO dispatch — `$obj method` / `my method` / `next` / `nextto`) | `OO_DISPATCH_DEPTH_LIMIT` = 20 | method dispatch bypasses the proc-call trampoline, so every nested method call is a native `run_activation` call; guarded at `run_step`, which `my` and `next`/`nextto` reach directly. A deliberate compatibility gap against tclsh (a recursive method errors at depth 20, not 1000); the architectural fix is routing method dispatch through the trampoline |
+| native `if`/`while`/`for`, `expr`, expression substitutions and nested array-index substitutions | none — explicit activation continuations | Generic control dispatch shares the interpreter trampoline. The shared syntax expression state owns evaluation order and retained values; script, math-function and index requests suspend on actual VM frames. Genuine host callbacks, including variable traces, retain their native re-entry boundary. |
+| `cmd_oo::run_step` (TclOO dispatch — `$obj method` / `my method` / `next` / `nextto`) | `OO_DISPATCH_DEPTH_LIMIT` = 20 | method dispatch bypasses the proc-call trampoline, so every nested method call is a native `run_activation` call; guarded at `run_step`, which `my` and `next`/`nextto` reach directly. A deliberate compatibility gap against tclsh (a recursive method errors at depth 20, not 1000) |
 | `value::Value::to_str` (nested list/dict stringification) | `MAX_LIST_TO_STR_DEPTH` = 256 | reachable via a plain loop, no `{*}` needed |
 | `cmd_dict::set_path`/`unset_path`, `cmd_list::lpop_remove`, `exec::lset_descend` | none — iterative | explicit work-stack, mirroring `get_path` |
 
@@ -218,17 +218,14 @@ problem, not stack depth) and `Value`/`TclObj` drop recursion.
 
 ## Testing
 
-Every guarded walker has at least one regression test proving deep or
-adversarial input survives (well past the crash floor or the cap) and one
-proving moderate-depth input is unaffected, under one doc-comment convention:
+Guarded-walker tests check deep or adversarial input beyond the cap and
+moderate input within it. A test comment identifies the nesting unit, the
+budget and the expected fallback:
 
 ```rust
-/// Regression coverage for issue #996: `<function>` recurses once per
-/// <nesting unit>, with no depth cap before this fix. Empirically,
-/// unguarded input overflowed the native stack (SIGABRT) around depth
-/// <D> on a 2 MiB thread (`cargo test`'s per-test default). <N> is
-/// comfortably past both that crash range and `MAX_X_DEPTH` (<cap>); the
-/// assertion is that <call> returns at all, not what it returns.
+/// This walker descends once per <nesting unit>. Input at depth <N>
+/// exceeds MAX_X_DEPTH (<cap>); the test checks <fallback behavior>.
+/// A moderate-depth control checks <normal behavior> within the budget.
 ```
 
 A test whose *fixture* would itself overflow the harness's ~2 MiB thread

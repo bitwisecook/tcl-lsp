@@ -36,6 +36,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expr",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::ExpressionArguments,
+        ),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Expression,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Expr,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -47,6 +57,11 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         arg_roles: &[(0, ArgRole::Expr)],
         return_type: Some(TclType::Numeric),
+        representation_effect: Some(
+            crate::representation::RepresentationEffect::CoerceExpressionValues {
+                arguments_from: 0,
+            },
+        ),
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -70,4 +85,20 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Current Jim consumes one retained expression source object.
+pub fn jim_spec() -> CommandSpec {
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.arity = Arity::exact(1);
+    command.traits.remove(Traits::EXPR_CONCATENATES_ARGS);
+    command.forms = &[FormSpec {
+        synopsis: "expr expression",
+        ..FormSpec::DEFAULT
+    }];
+    command
 }

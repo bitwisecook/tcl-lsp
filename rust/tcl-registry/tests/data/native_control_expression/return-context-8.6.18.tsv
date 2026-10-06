@@ -1,0 +1,22 @@
+OPCODES	125	98
+CASE	0	0	1	none,1,4,424f4459
+L	0	0	none,1,4,424f4459
+L	0	1	dict,0,3
+CTX	0	0	-1	0	instname,0,1
+CTX	0	1	0	1	none,1,4,424f4459
+CTX	0	2	1	0	dict,0,3
+INST	0	98	72657475726e496d6d
+CASE	1	0	1	none,1,4,424f4459
+L	1	0	none,1,4,424f4459
+L	1	1	dict,0,3
+CTX	1	0	-1	0	instname,0,1
+CTX	1	1	0	1	none,1,4,424f4459
+CTX	1	2	1	0	dict,0,3
+INST	1	98	72657475726e496d6d
+CASE	2	0	1	none,1,4,424f4459
+L	2	0	none,1,4,424f4459
+L	2	1	dict,1,4,
+CTX	2	0	-1	0	instname,0,1
+CTX	2	1	0	1	none,1,4,424f4459
+CTX	2	2	1	0	dict,1,4,
+INST	2	98	72657475726e496d6d

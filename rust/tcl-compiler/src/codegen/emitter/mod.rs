@@ -55,6 +55,11 @@ use super::{CodegenCtx, FunctionAsm, ModuleAsm};
 /// `registry` is consulted for codegen-hook resolution; pass the
 /// same instance the lowering pass used so dialect-loaded specs
 /// are visible.
+///
+/// # Panics
+/// Rejects analysis-only completion summaries. Supply a CFG built through
+/// [`crate::cfg_builder::build_cfg_codegen_with_registry_and_config`], which
+/// retains runtime invocation continuations.
 #[must_use]
 pub fn codegen_function(
     cfg: &CfgFunction,
@@ -69,6 +74,9 @@ pub fn codegen_function(
 ///
 /// Used by `codegen_module` to interleave proc definitions at their
 /// source positions within the top-level script.
+///
+/// # Panics
+/// Rejects an analysis CFG containing completion summaries, before emission.
 #[must_use]
 pub fn codegen_function_with_procs(
     cfg: &CfgFunction,
@@ -81,15 +89,20 @@ pub fn codegen_function_with_procs(
     generate::generate(&mut ctx, cfg, proc_defs)
 }
 
-/// The per-module facts every function emission shares: the registry, the
-/// module source (for `errorInfo` surface text) and the release being compiled
-/// for (its dialect name, and the numeral and backslash-escape grammars that
-/// name resolves to). Bundled rather than threaded as parallel parameters —
-/// the argument list is already at `clippy::too_many_arguments`'s ceiling, and
-/// these always travel together.
+/// Emission uses the same body inventory selected before source analysis.
+pub use tcl_runtime_api::SourceCompilationScope as ModuleEmissionScope;
+
+#[derive(Clone, Copy)]
+struct ModuleTarget<'a> {
+    parameters: &'a [tcl_runtime_api::NameBytes],
+    is_procedure: bool,
+    scope: ModuleEmissionScope,
+}
+
+/// Registry, original source and grammar shared by one module's functions.
 struct ModuleEmit<'a> {
     registry: &'a CommandRegistry,
-    source: std::rc::Rc<str>,
+    source: tcl_lexer::SourceImage,
     line_index: tcl_lexer::LineIndex,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     numbers: tcl_dialect::NumberSyntax,
@@ -97,11 +110,19 @@ struct ModuleEmit<'a> {
     braced_var: tcl_dialect::BracedVarStyle,
     word_rules: tcl_syntax::word_rules::WordValueRules,
     expr_grammar: Option<tcl_dialect::LexerGrammar>,
+    lexer_config: tcl_lexer::LexerConfig,
+    invocation_dialect: Option<tcl_registry::InvocationDialect>,
+    compiled_variable_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
+    compiled_local_layout: Option<tcl_runtime_api::native_compilation::NativeCompiledLocalLayout>,
+    source_string_protocol: Option<tcl_syntax::native_string::NativeStringProtocol>,
+    native_entry: Option<&'a tcl_runtime_api::NativeCompilationEntry>,
     /// The unit's command-binding summary — see
     /// [`CodegenCtx::command_bindings`](crate::codegen::CodegenCtx::command_bindings).
     /// Scanned once per module, not once per function.
     command_bindings: &'a crate::command_binding::ModuleCommandMutations,
     plain_command_dispatch: bool,
+    native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
+    source_proofs: std::sync::Arc<crate::command_binding::BodySourceProofs>,
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -111,27 +132,56 @@ struct ModuleEmit<'a> {
 #[must_use]
 fn codegen_function_src(
     cfg: &CfgFunction,
-    params: &[&str],
+    params: &[tcl_runtime_api::NameBytes],
     is_proc: bool,
     proc_defs: &[IrProcedure],
     module: &ModuleEmit<'_>,
     base_line: u32,
-    resolution_namespace: &str,
+    resolution_namespace: &tcl_runtime_api::ByteNamespacePath,
 ) -> FunctionAsm {
-    let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
-    ctx.set_resolution_namespace(resolution_namespace);
+    let mut ctx = CodegenCtx::with_native_parameters(is_proc, params, module.registry);
+    ctx.set_resolution_namespace_path(resolution_namespace.clone());
     ctx.numbers = module.numbers;
     ctx.escapes = module.escapes;
     ctx.braced_var = module.braced_var;
     ctx.word_rules = module.word_rules;
     ctx.expr_grammar = module.expr_grammar;
     ctx.dialect = module.dialect;
+    ctx.ingress_lexer_config = Some(module.lexer_config);
+    ctx.invocation_dialect = module.invocation_dialect;
+    ctx.compiled_variable_protocol = module.compiled_variable_protocol;
+    ctx.source_string_protocol = module.source_string_protocol;
+    ctx.native_entry = module.native_entry;
+    if !is_proc
+        && module.compiled_variable_protocol.is_some_and(|protocol| {
+            protocol.supports_environment(
+                tcl_syntax::naming::NativeCompiledVariableEnvironment::BorrowFrameSlots,
+            )
+        })
+        && let Some(layout) = module.compiled_local_layout.as_ref()
+    {
+        ctx.lvt = tcl_bytecode::LocalVarTable::from_native_slot_names(&layout.names);
+        ctx.borrowed_local_layout = Some(layout.clone());
+    }
+    ctx.lvt
+        .set_native_protocol(module.compiled_variable_protocol);
     ctx.command_bindings = Some(module.command_bindings);
     ctx.plain_command_dispatch = module.plain_command_dispatch;
-    ctx.set_indexed_source(
-        std::rc::Rc::clone(&module.source),
-        module.line_index.clone(),
-    );
+    ctx.source_proofs = Some(std::sync::Arc::clone(&module.source_proofs));
+    ctx.native_compilation = tcl_registry::native_compilation::NativeCompilationContext {
+        mode: if is_proc {
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject
+        } else {
+            module.native_compilation.mode
+        },
+        frame: if is_proc {
+            tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode
+        } else {
+            module.native_compilation.frame
+        },
+        ..module.native_compilation
+    };
+    ctx.set_indexed_source(module.source.clone(), module.line_index.clone());
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
     asm
@@ -183,11 +233,33 @@ pub fn codegen_module_with_command_mutations(
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
 ) -> ModuleAsm {
+    codegen_module_with_emission_scope(
+        cfg_module,
+        ir_module,
+        registry,
+        command_mutations,
+        ModuleEmissionScope::WholeModule,
+    )
+}
+
+/// Emit a script artifact with an explicit source-body ownership policy.
+/// Runtime targets use `EnteredSource`; no nested body is compiled or imported.
+#[must_use]
+pub fn codegen_module_with_emission_scope(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+    scope: ModuleEmissionScope,
+) -> ModuleAsm {
     codegen_module_with_top_context(
         cfg_module,
         ir_module,
-        &[],
-        false,
+        ModuleTarget {
+            parameters: &[],
+            is_procedure: false,
+            scope,
+        },
         registry,
         command_mutations,
     )
@@ -223,11 +295,58 @@ pub fn codegen_procedure_module_with_command_mutations(
     registry: &CommandRegistry,
     command_mutations: &crate::command_binding::ModuleCommandMutations,
 ) -> ModuleAsm {
-    codegen_module_with_top_context(
+    let parameters: Vec<_> = params
+        .iter()
+        .map(|name| tcl_runtime_api::NameBytes::from(*name))
+        .collect();
+    codegen_procedure_module_with_native_parameters_and_command_mutations(
+        cfg_module,
+        ir_module,
+        &parameters,
+        registry,
+        command_mutations,
+    )
+}
+
+/// Generate a procedure module using the actual bound native formal keys.
+/// Every key enters the same LVT owner before instruction emission.
+#[must_use]
+pub fn codegen_procedure_module_with_native_parameters_and_command_mutations(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    params: &[tcl_runtime_api::NameBytes],
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+) -> ModuleAsm {
+    codegen_procedure_module_with_emission_scope(
         cfg_module,
         ir_module,
         params,
-        true,
+        registry,
+        command_mutations,
+        ModuleEmissionScope::WholeModule,
+    )
+}
+
+/// Emit the actual bound procedure body with an explicit source-body policy.
+/// `EnteredSource` leaves nested procedure definitions to runtime activation.
+#[must_use]
+pub fn codegen_procedure_module_with_emission_scope(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    params: &[tcl_runtime_api::NameBytes],
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+    scope: ModuleEmissionScope,
+) -> ModuleAsm {
+    codegen_module_with_top_context(
+        cfg_module,
+        ir_module,
+        ModuleTarget {
+            parameters: params,
+            is_procedure: true,
+            scope,
+        },
         registry,
         command_mutations,
     )
@@ -254,8 +373,13 @@ fn codegen_procedures(
         {
             continue;
         }
-        let params: Vec<&str> = ir_proc
-            .map(|p| p.params.iter().map(String::as_str).collect())
+        let params: Vec<tcl_runtime_api::NameBytes> = ir_proc
+            .map(|p| {
+                p.params
+                    .iter()
+                    .map(tcl_runtime_api::NameBytes::from)
+                    .collect()
+            })
             .unwrap_or_default();
         // The proc's definition line drives proc-relative `errorInfo` lines.
         let base_line = ir_proc.map_or(0, |p| {
@@ -265,7 +389,21 @@ fn codegen_procedures(
                 .line
                 .saturating_add(1)
         });
-        let (procedure_namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+        let namespace_context =
+            ir_proc.and_then(|procedure| procedure.body.namespace_context.as_deref());
+        let procedure_namespace = namespace_context
+            .and_then(crate::command_binding::SourceNamespaceKey::exact_native_path)
+            .cloned()
+            .unwrap_or_else(|| {
+                let authored = namespace_context.and_then(|context| match context {
+                    crate::command_binding::SourceNamespaceKey::Authored(namespace) => {
+                        Some(namespace.as_str())
+                    }
+                    _ => None,
+                });
+                let legacy = || tcl_syntax::naming::key_holder_and_tail(qname).0;
+                super::namespace_path_from_constructed_key(authored.unwrap_or_else(legacy))
+            });
         let mut asm = codegen_function_src(
             cfg_func,
             &params,
@@ -273,7 +411,7 @@ fn codegen_procedures(
             &[],
             module,
             base_line,
-            procedure_namespace,
+            &procedure_namespace,
         );
         // The body word this assembly was compiled from, so a runtime consumer
         // keyed by name can tell it apart from another `proc` of the same name
@@ -294,6 +432,8 @@ fn codegen_procedures(
                 qname.clone(),
                 tcl_bytecode::ProcedureProvenance {
                     name: proc.qualified_name.clone(),
+                    namespace_context: namespace_context
+                        .and_then(crate::command_binding::SourceNamespaceKey::to_compiled_context),
                     parameters: proc.params_raw.clone(),
                     body: body.clone(),
                 },
@@ -305,51 +445,114 @@ fn codegen_procedures(
         provenance,
     }
 }
-
-fn codegen_module_with_top_context(
-    cfg_module: &CfgModule,
+fn module_source_proofs(
     ir_module: &IrModule,
-    top_params: &[&str],
-    top_is_proc: bool,
-    registry: &CommandRegistry,
-    command_mutations: &crate::command_binding::ModuleCommandMutations,
-) -> ModuleAsm {
+    scope: ModuleEmissionScope,
+) -> crate::command_binding::BodySourceProofs {
+    let mut proofs = crate::command_binding::BodySourceProofs::from_body(&ir_module.top_level);
+    if scope == ModuleEmissionScope::WholeModule {
+        for procedure in ir_module.procedures.values() {
+            proofs.tokens.extend(
+                crate::command_binding::BodySourceProofs::from_body(&procedure.body).tokens,
+            );
+        }
+    }
+    proofs
+}
+
+fn module_emission_context<'a>(
+    ir_module: &'a IrModule,
+    scope: ModuleEmissionScope,
+    registry: &'a CommandRegistry,
+    command_mutations: &'a crate::command_binding::ModuleCommandMutations,
+) -> ModuleEmit<'a> {
     let src = &ir_module.source;
-    let source: std::rc::Rc<str> = src.as_str().into();
-    let line_index = tcl_lexer::LineIndex::new(&source);
+    let source = src.clone();
+    let line_index = tcl_lexer::LineIndex::from_bytes(source.bytes());
     // The compile's target release: a named dialect's own numeric grammar, else
     // the permissive 9.x default.
-    let dialect = ir_module.dialect.as_deref();
     // One grammar, resolved once from the name, and every axis read off it
     // — so the numerals codegen emits and the numerals it re-parses `expr`
     // bodies under are the same value by construction.
-    let grammar = tcl_dialect::grammar_of_dialect_name(dialect);
+    let profile = ir_module.resolved_profile();
+    let base_grammar = ir_module.source_entry.invocation_dialect.map_or_else(
+        || {
+            profile.map_or_else(
+                || tcl_dialect::grammar_of_dialect_name(None),
+                |profile| profile.grammar,
+            )
+        },
+        |native| native.lexer_grammar,
+    );
+    let grammar = ir_module.native_lexer_config().grammar_over(base_grammar);
     let numbers = grammar.numbers;
     let escapes = grammar.escapes;
     let braced_var = grammar.braced_var;
     let word_rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
-    let expr_grammar = dialect.map(|_| grammar);
-    let module = ModuleEmit {
+    let expr_grammar = Some(grammar);
+    let source_proofs = module_source_proofs(ir_module, scope);
+    ModuleEmit {
         registry,
         source,
         line_index,
-        dialect: emit_profile(dialect),
+        dialect: profile,
         numbers,
         escapes,
         braced_var,
         word_rules,
         expr_grammar,
+        lexer_config: ir_module.native_lexer_config(),
+        invocation_dialect: ir_module.source_entry.invocation_dialect,
+        compiled_variable_protocol: ir_module
+            .source_entry
+            .options()
+            .compiled_variable_protocol(),
+        compiled_local_layout: ir_module
+            .source_entry
+            .native_entry
+            .as_ref()
+            .and_then(|entry| entry.compiled_local_layout.clone()),
+        source_string_protocol: match ir_module.source_entry.native_entry.as_ref() {
+            Some(entry) => entry.source_string_protocol,
+            None => ir_module
+                .source_entry
+                .invocation_dialect
+                .and_then(tcl_registry::InvocationDialect::native_source_string_protocol),
+        },
+        native_entry: ir_module.source_entry.native_entry.as_deref(),
         command_bindings: command_mutations,
         plain_command_dispatch: ir_module.plain_command_dispatch,
-    };
+        native_compilation: ir_module.source_entry.native_compilation,
+        source_proofs: std::sync::Arc::new(source_proofs),
+    }
+}
+
+fn codegen_module_with_top_context(
+    cfg_module: &CfgModule,
+    ir_module: &IrModule,
+    target: ModuleTarget<'_>,
+    registry: &CommandRegistry,
+    command_mutations: &crate::command_binding::ModuleCommandMutations,
+) -> ModuleAsm {
+    let module = module_emission_context(ir_module, target.scope, registry, command_mutations);
+    let profile = module.dialect;
+    let namespace = ir_module
+        .top_level_namespace_context
+        .as_ref()
+        .and_then(crate::command_binding::SourceNamespaceKey::exact_native_path)
+        .cloned()
+        .or_else(|| ir_module.native_namespace.clone())
+        .unwrap_or_else(|| {
+            super::namespace_path_from_constructed_key(&ir_module.top_level_namespace)
+        });
     let top = codegen_function_src(
         &cfg_module.top_level,
-        top_params,
-        top_is_proc,
+        target.parameters,
+        target.is_procedure,
         &[],
         &module,
         0,
-        &ir_module.top_level_namespace,
+        &namespace,
     );
     // The same top level as a *procedure body*. A body compiled at run time
     // (`proc` on a cache miss, an `apply` lambda, a method) reaches the
@@ -357,31 +560,33 @@ fn codegen_module_with_top_context(
     // lose every `is_proc` specialisation its AOT-compiled twin gets — see
     // [`ModuleAsm::top_level_body`]. A procedure-target compile already has
     // that shape, including its seeded parameter slots.
-    let top_body = if top_is_proc {
+    let top_body = if target.is_procedure {
         top.clone()
     } else {
         codegen_function_src(
             &cfg_module.top_level,
-            top_params,
+            target.parameters,
             true,
             &[],
             &module,
             0,
-            &ir_module.top_level_namespace,
+            &namespace,
         )
     };
-    let procedures = codegen_procedures(cfg_module, ir_module, &module);
+    let procedures = match target.scope {
+        ModuleEmissionScope::WholeModule => codegen_procedures(cfg_module, ir_module, &module),
+        ModuleEmissionScope::EnteredSource => EmittedProcedures {
+            functions: HashMap::new(),
+            provenance: HashMap::new(),
+        },
+    };
     ModuleAsm {
-        profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-        source: src.clone(),
+        profile: profile.unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+        source: module.source.clone(),
         // Lowering owns the rooted constructed form; the runtime ABI uses the
         // corresponding unrooted constructed key. Remove exactly the root
         // marker rather than reparsing a key whose first segment may be `:`.
-        source_namespace: ir_module
-            .top_level_namespace
-            .strip_prefix("::")
-            .unwrap_or(&ir_module.top_level_namespace)
-            .to_owned(),
+        source_namespace: namespace,
         plain_command_dispatch: ir_module.plain_command_dispatch,
         top_level: top,
         top_level_body: top_body,
@@ -427,6 +632,73 @@ mod tests {
         }
     }
 
+    #[test]
+    fn procedure_emission_keeps_body_geometry_separate_from_its_display_name() {
+        use crate::command_binding::{
+            AllocationIncarnation, CommandAllocationSite, SourceNamespaceKey, SourceOriginId,
+        };
+        use crate::ir::{Script, Statement};
+        use std::sync::Arc;
+        use tcl_core_types::ByteNamespacePath;
+
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut paths = Vec::new();
+        for path in [
+            ByteNamespacePath::from_segments(["a:", "b"]),
+            ByteNamespacePath::from_segments(["a", ":b"]),
+        ] {
+            // A geometry-only artifact transport control supplies no native
+            // token, original dispatch or compiler-admission receipt.
+            let source = "proc p {} {return}";
+            let mut ir = crate::lowering::lower_to_ir(source, &registry);
+            let mut procedure = ir.procedures.remove("::p").unwrap();
+            procedure.qualified_name = "::a:::b::p".to_owned();
+            procedure.body = Script::new();
+            procedure.body.namespace_context = Some(Box::new(SourceNamespaceKey::Allocated {
+                site: CommandAllocationSite {
+                    source: Arc::new(SourceOriginId::authored(&Arc::from(source))),
+                    offset: 0,
+                },
+                incarnation: AllocationIncarnation::First,
+                path: path.clone(),
+            }));
+            procedure.body.statements.push(Statement::Return {
+                span: tcl_lexer::Span::new(11, 17),
+                tokens: None,
+                value: None,
+                value_word: None,
+                expr: None,
+                expr_base: None,
+                command_binding: None,
+                braced: true,
+            });
+            ir.procedures
+                .insert(procedure.qualified_name.clone(), procedure);
+            let cfg = crate::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
+            let module = super::codegen_module(&cfg, &ir, &registry);
+            let context = module.procedure_provenance["::a:::b::p"]
+                .namespace_context
+                .as_ref()
+                .unwrap();
+            assert_eq!(context.path(), &path);
+            assert!(matches!(
+                context,
+                tcl_runtime_api::CompiledNamespaceContext::ConstructedPath(_)
+            ));
+            let instructions = &module.procedures["::a:::b::p"].instructions;
+            let source_instructions: Vec<_> = instructions
+                .iter()
+                .filter(|instruction| !instruction.source_cmd_text.is_empty())
+                .collect();
+            assert!(!source_instructions.is_empty());
+            assert!(source_instructions.iter().all(|instruction| {
+                instruction.source_cmd_text.bytes() == b"return"
+                    && instruction.source_command_namespace == path
+            }));
+            paths.push(context.path().clone());
+        }
+        assert_ne!(paths[0], paths[1]);
+    }
     /// A name `find` rejects still picks the compile's *target* numeral
     /// grammar, not the ambient one — and the target is the name's **own**
     /// point, not a permissive fallback.

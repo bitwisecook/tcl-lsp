@@ -1,0 +1,6 @@
+0 {}
+0 {}
+0 5
+1 {can't read "x": no such variable}
+0 {}
+procedure 0 7

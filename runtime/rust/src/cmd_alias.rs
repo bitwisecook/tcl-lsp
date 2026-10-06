@@ -35,7 +35,6 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::interp::{drop_fresh, obj_bytes, Code, CommandVisibilityOp, Interp};
-use crate::list;
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
 
@@ -56,8 +55,24 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"rename oldName newName");
     }
-    let old = obj_bytes(argv[1]);
-    let new = obj_bytes(argv[2]);
+    let (old, new) = match interp.original_rename_operands(argv[1], argv[2]) {
+        Ok(operands) => operands,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if let Some(recipe) = interp
+        .native_invocation_dialect()
+        .native_jim_local_protocol()
+    {
+        let previous = {
+            let namespaces = interp.namespaces();
+            namespaces
+                .resolve_generation(interp.current_ns(), &old)
+                .is_some_and(|token| namespaces.jim_has_previous(token))
+        };
+        if !recipe.accepts_rename(previous, new.is_empty()) {
+            return interp.error(&recipe.local_rename_error(&old));
+        }
+    }
     match interp.rename_command(&old, &new) {
         RenameOutcome::Renamed | RenameOutcome::Deleted => {
             interp.set_result_bytes(b"");
@@ -78,9 +93,10 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", &old]);
             interp.error_with_code(&m, &code)
         }
-        // C names the refused alias by the simple command name it would have
-        // been bound under (`Tcl_GetCommandName`), not by the written path.
-        RenameOutcome::AliasLoop => alias_loop_error(interp, &simple_tail(&new)),
+        RenameOutcome::AliasLoop => match interp.original_rename_alias_loop_name(&old, &new) {
+            Ok(reported) => alias_loop_error(interp, &reported),
+            Err(error) => interp.report_cmd_error(error.into()),
+        },
         RenameOutcome::TargetExists => {
             let mut m = b"can't rename to \"".to_vec();
             m.extend_from_slice(&new);
@@ -88,18 +104,6 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
         }
     }
-}
-
-/// The simple (unqualified) tail of a written command name — `::a::b` → `b`,
-/// and the empty-string `{}` command for a name ending in a separator run,
-/// matching where the command table binds it.
-fn simple_tail(name: &[u8]) -> Vec<u8> {
-    if tcl_syntax::naming::ends_with_separator(name) {
-        return Vec::new();
-    }
-    tcl_syntax::naming::qualifier_segments(name)
-        .last()
-        .map_or_else(Vec::new, |tail| (*tail).to_vec())
 }
 
 /// C's `TclPreventAliasLoop` refusal (`tclInterp.c`), shared by the `interp
@@ -113,58 +117,9 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
 
 // interp
 
-/// `interp`'s subcommand words, in C table order (`options[]`, `tclInterp.c`).
-/// C resolves them with `Tcl_GetIndexFromObj(…, "option", 0)`, so `cr`
-/// abbreviates `create` and the empty word — a prefix of every entry — is
-/// `ambiguous option ""`.
-///
-/// The table names only the subcommands this runtime dispatches: `cancel`,
-/// `share`, and `transfer` need infrastructure it has none
-/// of. `slaves` is 8.x's deprecated spelling of `children`: it still resolves
-/// (as it does in C, whose `options[]` keeps it) but
-/// [`interp_option_choices`] drops it from the 9.0 enumeration, exactly as C
-/// reports its misses against `optionsNoSlaves[]`.
-const INTERP_OPTIONS: &[&[u8]] = &[
-    b"alias",
-    b"aliases",
-    b"bgerror",
-    b"children",
-    b"create",
-    b"debug",
-    b"delete",
-    b"eval",
-    b"exists",
-    b"expose",
-    b"hide",
-    b"hidden",
-    b"issafe",
-    b"invokehidden",
-    b"limit",
-    b"marktrusted",
-    b"recursionlimit",
-    b"slaves",
-    b"target",
-];
-
-/// The `interp` subcommands the miss message enumerates for the emulated
-/// release: 9.0 retired `slaves` from the advertised list while still
-/// dispatching it.
-fn interp_option_choices(interp: &Interp) -> Vec<&'static [u8]> {
-    if interp.runtime_version() >= tcl_dialect::TclVersion::V9_0 {
-        INTERP_OPTIONS
-            .iter()
-            .copied()
-            .filter(|name| *name != b"slaves")
-            .collect()
-    } else {
-        INTERP_OPTIONS.to_vec()
-    }
-}
-
-/// Resolve an `interp`-family subcommand word through the shared owner:
-/// `dispatch` is the table the word may resolve against, `advertised` the
-/// (possibly shorter) table the miss message enumerates — C splits the two the
-/// same way for `slaves`.
+/// Resolve the selected Jim child-handle buffer query. Actual C root and child
+/// command operands use `native_interpreter_option_from_original`, whose
+/// retained native declarations and C9 second lookup also update the original.
 pub(crate) fn resolve_interp_option(
     dispatch: &'static [&'static [u8]],
     advertised: &[&'static [u8]],
@@ -192,13 +147,25 @@ pub(crate) fn resolve_interp_option(
 /// cheap; the bad-option list below advertises only what actually dispatches
 /// here, rather than tclsh's full list.
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if interp
+        .native_invocation_dialect()
+        .native_jim_lookup_protocol()
+        .is_some()
+    {
+        return if argv.len() == 1 {
+            let handle = interp.create_jim_child();
+            interp.set_result_bytes(&handle);
+            Code::Ok
+        } else {
+            interp.wrong_args(b"interp")
+        };
+    }
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
     }
-    let choices = interp_option_choices(interp);
-    let sub = match resolve_interp_option(INTERP_OPTIONS, &choices, &obj_bytes(argv[1])) {
-        Ok(name) => name,
-        Err(m) => return interp.set_error(&m),
+    let sub = match interp.native_interpreter_option_from_original(argv[1], false) {
+        Ok(name) => name.as_bytes(),
+        Err(error) => return interp.report_cmd_error(error),
     };
     match sub {
         b"alias" => interp_alias(interp, argv),
@@ -221,7 +188,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .with_child_path(&path, |c| c.child_names())
                 .unwrap_or_default();
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
-            interp.set_result(list::new_list_obj(&elems));
+            interp.set_result(interp.new_list_object(&elems));
             for e in elems {
                 drop_fresh(e);
             }
@@ -261,7 +228,7 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .with_child_path(&path, |c| c.hidden_names())
                 .unwrap_or_default();
             let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
-            interp.set_result(list::new_list_obj(&elems));
+            interp.set_result(interp.new_list_object(&elems));
             for e in elems {
                 drop_fresh(e);
             }
@@ -298,14 +265,10 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
         }
         b"target" => interp_target(interp, argv),
-        // Unreachable: every name in `INTERP_OPTIONS` has an arm above.
-        other => {
-            let mut m = b"bad option \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(b"\": must be ");
-            m.extend_from_slice(&tcl_cmd_core::prefix::choice_list_bytes(&choices));
-            interp.set_error(&m)
-        }
+        _ => interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("native interpreter worker")
+                .into(),
+        ),
     }
 }
 
@@ -329,7 +292,7 @@ fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .iter()
                 .map(|n| obj::new_string_bytes(n))
                 .collect();
-            interp.set_result(list::new_list_obj(&elems));
+            interp.set_result(interp.new_list_object(&elems));
             for e in elems {
                 drop_fresh(e);
             }
@@ -375,7 +338,12 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i < argv.len() {
         let a = obj_bytes(argv[i]);
         if !last && a.first() == Some(&b'-') {
-            match CREATE_OPTIONS.index_of(&a) {
+            match interp.native_static_option_index(
+                argv[i],
+                CREATE_OPTIONS.names(),
+                false,
+                "option",
+            ) {
                 Ok(0) => {
                     safe = true;
                     i += 1;
@@ -386,7 +354,7 @@ fn interp_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     last = true;
                 }
                 Err(m) => {
-                    return interp.set_error(&m);
+                    return interp.report_cmd_error(m);
                 }
             }
         }
@@ -456,7 +424,7 @@ fn interp_path(obj: *mut TclObj) -> Vec<Vec<u8>> {
 /// resolve, rendering the path as a Tcl list.
 fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
     let elems: Vec<*mut TclObj> = path.iter().map(|n| obj::new_string_bytes(n)).collect();
-    let joined = crate::list::new_list_obj(&elems);
+    let joined = interp.new_list_object(&elems);
     let rendered = obj_bytes(joined);
     for e in elems {
         drop_fresh(e);
@@ -476,22 +444,27 @@ fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"interp limit path limitType ?-option value ...?");
     }
     let path = interp_path(argv[2]);
-    let ltype = obj_bytes(argv[3]);
     // Validate the limit type before the current-interp guard so a bad type is
     // reported ahead of the inaccessibility error (interp-35.3 vs .23).
-    if let Err(m) = crate::interp::LIMIT_TYPES.index_of(&ltype) {
-        return interp.set_error(&m);
+    if let Err(m) = interp.native_static_option_index(
+        argv[3],
+        crate::interp::LIMIT_TYPES.names(),
+        false,
+        "limit type",
+    ) {
+        return interp.report_cmd_error(m);
     }
     if path.is_empty() {
         return interp.set_error(b"limits on current interpreter inaccessible");
     }
+    let ltype = obj_bytes(argv[3]);
     let opts: Vec<*mut TclObj> = argv[4..].to_vec();
     match interp.with_child_path(&path, |c| c.limit_apply(&ltype, &opts)) {
         Some(Ok(o)) => {
             interp.set_result(o);
             Code::Ok
         }
-        Some(Err(m)) => interp.set_error(&m),
+        Some(Err(error)) => interp.report_cmd_error(error),
         None => not_found_path(interp, &path),
     }
 }
@@ -531,7 +504,7 @@ fn interp_debug(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp.set_result(o);
             Code::Ok
         }
-        Some(Err(m)) => interp.set_error(&m),
+        Some(Err(error)) => interp.report_cmd_error(error),
         None => not_found_path(interp, &path),
     }
 }
@@ -671,7 +644,7 @@ pub(crate) fn invokehidden_in(
         if opt.first() != Some(&b'-') {
             break;
         }
-        match HIDDEN_OPTIONS.index_of(&opt) {
+        match interp.native_static_option_index(words[i], HIDDEN_OPTIONS.names(), false, "option") {
             Ok(0) => {
                 ns_name = Some(b"::".to_vec());
                 i += 1;
@@ -690,7 +663,7 @@ pub(crate) fn invokehidden_in(
                 i += 1;
                 break;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
     }
     if i >= words.len() {
@@ -869,7 +842,7 @@ fn interp_aliases(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .unwrap_or_default()
     };
     let elems: Vec<*mut TclObj> = names.iter().map(|n| obj::new_string_bytes(n)).collect();
-    interp.set_result(list::new_list_obj(&elems));
+    interp.set_result(interp.new_list_object(&elems));
     for e in elems {
         drop_fresh(e);
     }
@@ -889,7 +862,7 @@ fn set_alias_list(interp: &mut Interp, target: &[u8], prefix: &[Vec<u8>]) {
     for p in prefix {
         elems.push(obj::new_string_bytes(p));
     }
-    interp.set_result(list::new_list_obj(&elems));
+    interp.set_result(interp.new_list_object(&elems));
     for e in elems {
         drop_fresh(e);
     }
@@ -933,6 +906,34 @@ mod tests {
     ///   kid x           -> bad option "x": must be alias, aliases, bgerror,
     ///                      debug, eval, expose, hide, hidden, issafe,
     ///                      invokehidden, limit, marktrusted, or recursionlimit
+    #[test]
+    fn jim_interpreter_handle_factory_alias_frame_and_deletion() {
+        let mut i = Interp::new();
+        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        i.set_dialect_profile(profile);
+        assert_eq!(i.eval_str(br#"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe"#), Code::Ok, "{:?}", i.result_bytes());
+        assert_eq!(i.result_bytes(), b"LOCAL ::N");
+    }
+
+    #[test]
+    fn jim_interpreter_handle_isolation() {
+        let mut i = Interp::new();
+        let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        i.set_dialect_profile(profile);
+        assert_eq!(i.eval_str(br#"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result"#), Code::Ok, "{:?}", i.result_bytes());
+        assert_eq!(i.result_bytes(), b"PARENT CHILD 1");
+    }
+
     #[test]
     fn interp_subcommand_words_resolve_like_tcl_get_index_from_obj() {
         const MUST: &str = "must be alias, aliases, bgerror, children, create, debug, \

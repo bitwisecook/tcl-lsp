@@ -40,7 +40,8 @@
 
 use tcl_lexer::Token;
 
-use super::types::SignatureScanResult;
+use super::scope::{SignatureNamespaceScope, SignatureSourceCommand};
+use super::types::{SignatureProc, SignatureScanResult};
 
 /// A factory-wrapper call captured during the first scan pass.
 ///
@@ -63,8 +64,9 @@ pub(super) struct FactoryCandidate {
     /// Token of the body argument (used for the synthetic proc's
     /// `body_range`).
     pub(super) body_tok: Token,
-    /// Effective namespace at the call site, no leading `::`.
+    /// Effective rooted constructed namespace key at the call site.
     pub(super) ns_prefix: String,
+    pub(super) namespace_scope: Option<SignatureNamespaceScope>,
 }
 
 /// First-pass record of a proc body, used to identify factory
@@ -86,8 +88,10 @@ pub(super) struct ProcBodyInfo {
     /// Verbatim proc body text.
     pub(super) body_text: String,
     /// Namespace any synthetic procs created by this wrapper live
-    /// in, no leading `::`.
+    /// in, as a rooted constructed namespace key.
     pub(super) ns_prefix: String,
+    pub(super) namespace_scope: Option<SignatureNamespaceScope>,
+    pub(super) source_name: Option<SignatureSourceCommand>,
 }
 
 /// Mutable scan context threaded through the walker.
@@ -127,14 +131,190 @@ pub(super) struct ScanCtx<'r> {
     /// one.  Threaded from the scan's entry point, which derives it from
     /// the registry's own profile.
     pub(super) config: tcl_lexer::LexerConfig,
+    pub(super) namespace_scope: Option<SignatureNamespaceScope>,
+    pub(super) ambiguous_proc_names: std::collections::HashSet<String>,
+}
+
+impl ScanCtx<'_> {
+    /// Pure source assistance; the policy never supplies a runtime lookup receipt.
+    pub(super) fn name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        self.registry?.profile().and_then(|profile| {
+            tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+        })
+    }
+
+    pub(super) fn current_namespace(&self, compatibility: &str) -> Option<SignatureNamespaceScope> {
+        self.namespace_scope.clone().or_else(|| {
+            let root = SignatureNamespaceScope::root(self.name_policy());
+            root.child(compatibility, self.name_policy())
+        })
+    }
+
+    pub(super) fn procedure_name_in_context(
+        &self,
+        namespace: &SignatureNamespaceScope,
+        written: &str,
+    ) -> Option<(
+        String,
+        String,
+        SignatureNamespaceScope,
+        Option<SignatureSourceCommand>,
+    )> {
+        let Some(policy) = self.name_policy() else {
+            let qualified = crate::naming::qualify(&namespace.display()?, written);
+            let (holder, simple) = crate::naming::key_holder_and_tail(&qualified);
+            return Some((
+                qualified.clone(),
+                simple.to_owned(),
+                SignatureNamespaceScope::Symbolic(holder.to_owned()),
+                None,
+            ));
+        };
+        let recipe = policy.recipe();
+        let context = namespace.context()?;
+        if let tcl_syntax::naming::NativeNameProtocol::C(version) = recipe {
+            let selected = recipe
+                .command_lookup_slot(context, written.as_bytes())
+                .ok()?;
+            tcl_registry::native_procedure::procedure_name_creation_error(
+                tcl_registry::InvocationDialect::for_version(version),
+                selected.namespace.is_root(),
+                selected.simple.as_bytes(),
+            )?
+            .ok()?;
+        }
+        let slot = recipe
+            .command_publication_slot(context, written.as_bytes())
+            .ok()?;
+        let qualified = match recipe {
+            tcl_syntax::naming::NativeNameProtocol::C(_) => {
+                String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()?
+            }
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                let reported = recipe
+                    .jim_namespace_canonical_input(context, written.as_bytes())
+                    .ok()?;
+                format!("::{}", std::str::from_utf8(reported.selected()).ok()?)
+            }
+        };
+        let source_name = SignatureSourceCommand::new(policy, slot);
+        let body_scope = source_name.body_scope()?;
+        let simple = source_name.simple_name()?;
+        Some((qualified, simple, body_scope, Some(source_name)))
+    }
+
+    pub(super) fn publication_name(
+        &self,
+        namespace: &SignatureNamespaceScope,
+        written: &str,
+        purpose: tcl_syntax::naming::NativeNamePurpose,
+    ) -> Option<(String, Option<SignatureSourceCommand>)> {
+        let Some(policy) = self.name_policy() else {
+            return Some((crate::naming::qualify(&namespace.display()?, written), None));
+        };
+        let recipe = policy.recipe();
+        let context = namespace.context()?;
+        let slot = match purpose {
+            tcl_syntax::naming::NativeNamePurpose::CommandPublication => {
+                recipe.command_publication_slot(context, written.as_bytes())
+            }
+            tcl_syntax::naming::NativeNamePurpose::RenameDestination => {
+                recipe.rename_destination_slot(context, written.as_bytes())
+            }
+            tcl_syntax::naming::NativeNamePurpose::AliasPublication => {
+                recipe.alias_publication_slot(context, written.as_bytes())
+            }
+            _ => return None,
+        }
+        .ok()?;
+        let reported = if recipe.is_jim084()
+            && purpose != tcl_syntax::naming::NativeNamePurpose::AliasPublication
+        {
+            let reported = recipe
+                .jim_namespace_canonical_input(context, written.as_bytes())
+                .ok()?;
+            format!("::{}", std::str::from_utf8(reported.selected()).ok()?)
+        } else {
+            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()?
+        };
+        Some((reported, Some(SignatureSourceCommand::new(policy, slot))))
+    }
+
+    pub(super) fn namespace_context(
+        &self,
+        namespace: &str,
+        written: &str,
+    ) -> Option<SignatureNamespaceScope> {
+        self.current_namespace(namespace)?
+            .child(written, self.name_policy())
+    }
+
+    pub(super) fn record_proc(&mut self, declaration: SignatureProc) {
+        let name = declaration.qualified_name.clone();
+        if self
+            .result
+            .procs
+            .get(&name)
+            .is_some_and(|previous| previous.source_name != declaration.source_name)
+        {
+            self.result.procs.remove(&name);
+            self.ambiguous_proc_names.insert(name.clone());
+        }
+        if !self.ambiguous_proc_names.contains(&name) {
+            self.result.procs.insert(name, declaration.clone());
+        }
+        self.result.procedure_declarations.push(declaration);
+    }
+
+    #[cfg(test)]
+    pub(super) fn command_keys(&self, namespace: &str, written: &str) -> Vec<String> {
+        let local = crate::naming::qualify(namespace, written);
+        let global = crate::naming::qualify("::", written);
+        if local == global || written.starts_with("::") {
+            vec![local]
+        } else {
+            vec![local, global]
+        }
+    }
+}
+
+/// Project source declarations with an explicitly authored policy. The returned
+/// analytical key carries no entered command identity or execution authority.
+pub(super) fn authored_publication_key(
+    namespace: &str,
+    written: &str,
+    policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    purpose: tcl_syntax::naming::NativeNamePurpose,
+) -> Option<String> {
+    use tcl_syntax::naming::{NativeNameContext, NativeNamePurpose};
+    let Some(policy) = policy else {
+        return Some(crate::naming::qualify(namespace, written));
+    };
+    let path =
+        tcl_core_types::ByteNamespacePath::from_segments(crate::naming::key_segments(namespace));
+    let context = NativeNameContext::with_jim_namespace(
+        &path,
+        namespace.strip_prefix("::").unwrap_or(namespace).as_bytes(),
+    );
+    let recipe = policy.recipe();
+    let slot = match purpose {
+        NativeNamePurpose::RenameDestination => {
+            recipe.rename_destination_slot(context, written.as_bytes())
+        }
+        NativeNamePurpose::AliasPublication => {
+            recipe.alias_publication_slot(context, written.as_bytes())
+        }
+        _ => return None,
+    }
+    .ok()?;
+    String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(&slot)).ok()
 }
 
 /// Factory-skip heads that are **not** registered commands and so
 /// cannot carry the registry's `NOT_PROC_FACTORY` trait: the `TclOO`
 /// definition keywords `method` / `classmethod` and the
 /// (unregistered) itcl class-definition heads.  `extract_signatures`
-/// unions these with the registry-stamped heads to rebuild the full
-/// former `_FACTORY_SKIP_HEADS` set.
+/// unions these with the registry-stamped heads for factory exclusion.
 pub(super) const FACTORY_SKIP_NONCOMMAND_HEADS: &[&str] =
     &["method", "classmethod", "itcl::class", "::itcl::class"];
 
@@ -153,9 +333,12 @@ mod tests {
     #[test]
     fn default_ctx_is_empty() {
         let ctx = ScanCtx::default();
-        assert!(ctx.candidates.is_empty());
-        assert!(ctx.proc_bodies.is_empty());
-        assert!(ctx.result.procs.is_empty());
-        assert!(ctx.result.command_invocations.is_empty());
+        assert_eq!(ctx.candidates.len(), 0);
+        assert_eq!(ctx.proc_bodies.len(), 0);
+        assert_eq!(ctx.result.procs.len(), 0);
+        assert_eq!(
+            ctx.result.command_invocations,
+            [] as [crate::signature_scan::types::SignatureCommandInvocation; 0]
+        );
     }
 }

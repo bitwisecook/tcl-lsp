@@ -40,6 +40,38 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+// The no-option conversion form cannot bind -failindex. The C8.4/8.5
+// monolithic handler and C8.6+ private workers only read encoding state and
+// coerce the input object; modern option forms retain their variable effects.
+const CONVERTTO_FORMS: &[crate::forms::SubCommandForm] = &[crate::forms::SubCommandForm {
+    name: "value",
+    arity: Arity::new(1, 2),
+    successful_handler: Some(
+        crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+            lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                ensemble: "::encoding",
+                member: "convertto",
+                slot: "::tcl::encoding::convertto",
+                command: "encoding",
+                prepended: &["convertto"],
+            },
+            implementation_from: TclVersion::V8_6,
+            direct_provider: None,
+        },
+    ),
+    traits: Some(Traits::FRAMELESS_RUNTIME),
+    side_effects: Some(&[SideEffect {
+        target: SideEffectTarget::InterpState,
+        reads: true,
+        ..SideEffect::DEFAULT
+    }]),
+    completion: Some(CompletionDescriptor::exact(&[
+        crate::completion::CompletionCode::Ok,
+        crate::completion::CompletionCode::Error,
+    ])),
+    ..crate::forms::SubCommandForm::DEFAULT
+}];
+
 /// `-profile`'s values (`encoding(n)` PROFILES section) — Tcl 9.0+ only
 /// (absent from every 8.4/8.5/8.6 encoding.n fetch; present, with these
 /// exact three members and wording, in both 9.0.4 and 9.1b0). `strict` is
@@ -163,6 +195,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "convertto",
+        subcommand_forms: CONVERTTO_FORMS,
         traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 6),
         detail: "Convert a Tcl string to the specified encoding, returning a byte sequence; if encoding is omitted, uses the current system encoding.",
@@ -266,6 +299,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "encoding",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
@@ -291,5 +332,63 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conversion_value_form_keeps_option_outputs_outside_its_normal_contract() {
+        use crate::InvocationWord::Literal;
+        use crate::native_compilation::NormalHandlerImplementationLookup;
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let registry = crate::CommandRegistry::build_default();
+            let args = [Literal("convertto"), Literal("utf-8"), Literal("hello")];
+            let resolved = registry.resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("encoding"), &args)
+                    .with_dialect(dialect),
+                dialect.authoring_query(),
+            );
+            let facts = resolved.resolved().unwrap().facts();
+            assert!(facts.successful_handler.is_some(), "{version:?}");
+            assert_eq!(
+                matches!(
+                    facts.normal_handler_implementation_lookup(Some(dialect)),
+                    NormalHandlerImplementationLookup::Required(_)
+                ),
+                version >= TclVersion::V8_6,
+            );
+            if version >= TclVersion::V9_0 {
+                let args = [
+                    Literal("convertto"),
+                    Literal("-failindex"),
+                    Literal("index"),
+                    Literal("utf-8"),
+                    Literal("hello"),
+                ];
+                let resolved = registry.resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("encoding"), &args)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                );
+                assert!(
+                    resolved
+                        .resolved()
+                        .unwrap()
+                        .facts()
+                        .successful_handler
+                        .is_none()
+                );
+            }
+        }
     }
 }

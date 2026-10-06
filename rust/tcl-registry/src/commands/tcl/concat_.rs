@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `concat` — concatenate lists.
+//! `concat` — concatenate original Lists or trimmed string bytes.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
@@ -27,18 +27,33 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         name: "concat",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            // TclCompileConcatCmd accepts all retained argument counts; the
+            // enclosing compiler declines expanded words before calling it.
+            grammar: crate::native_compilation::NativeCompilationGrammar::ArgumentConcatFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
-        const_fold: Some(crate::const_fold::fold_concat),
+        const_fold: Some(|args| Some(crate::const_fold::fold_concat(args))),
         codegen_hook: Some(CodegenHookId::Concat),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::PURE
-            | Traits::PRODUCES_CANONICAL_LIST
             | Traits::EXPANSION_ESCAPE_SAFE
             | Traits::BYTE_COMPILED,
         arity: Arity::any(),
-        return_type: Some(TclType::List),
+        return_type: Some(TclType::String),
         hover: Some(HoverSnippet {
             summary: "Join lists together",
             synopsis: &["concat ?arg arg ...?"],
@@ -48,6 +63,17 @@ pub fn spec() -> CommandSpec {
             return_value: "The concatenated string, or the empty string when no arguments are given.",
         }),
         forms: FORMS,
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
+}
+
+/// Jim's native concat can depend on retained list representations.
+pub fn jim_spec() -> CommandSpec {
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.const_fold = None;
+    command
 }

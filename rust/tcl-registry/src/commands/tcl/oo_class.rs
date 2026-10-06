@@ -20,6 +20,16 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+// Pinned C Tcl 8.6.18 AllocObject creates public object commands without a
+// compileProc. C 9.0.4 and 9.1.0 retain that registration, and their ooCmds
+// tables explicitly give define, objdefine and copy NULL compiler hooks.
+pub(crate) const OO_NATIVE_COMPILATION: crate::native_compilation::NativeCompilationSpec =
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    };
+
 const CLASS_NAMED_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::CommandBindings,
     StateTransitionDomain::Namespaces,
@@ -55,6 +65,7 @@ const CLASS_FACTORY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(class_create_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -67,6 +78,7 @@ const CLASS_CREATE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescr
 
 const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(class_new_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[],
@@ -77,6 +89,7 @@ const CLASS_NEW_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescript
 const CLASS_CREATE_WITH_NAMESPACE_TRANSITIONS: StateTransitionDescriptor =
     StateTransitionDescriptor {
         composition: StateTransitionComposition::Extend,
+        success_resolver: None,
         resolver: Some(class_create_with_namespace_state_transitions),
         argument_shape: StateTransitionArgumentShape::Positional,
         dynamic_widening: &[
@@ -256,6 +269,7 @@ pub(crate) fn oo_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::class",
+        native_compilation: Some(OO_NATIVE_COMPILATION),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::IS_OO_METACLASS
             | Traits::LANGUAGE_KEYWORD

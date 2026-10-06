@@ -949,7 +949,10 @@ mod tests {
         let commands: Vec<SegmentedCommand> = segment_commands_with_offset(source, 0);
         let cmd = &commands[0];
         assert!(!a.detect_stolen_close_brace(cmd));
-        assert!(a.result.diagnostics.is_empty());
+        assert_eq!(
+            a.result.diagnostics,
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
     }
 
     #[test]

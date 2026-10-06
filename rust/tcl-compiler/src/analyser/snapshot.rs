@@ -65,6 +65,10 @@ use super::types::AnalysisResult;
 ///   (resolved post-walk by W307).
 #[derive(Debug, Clone, Default)]
 pub struct AnalyserSnapshot {
+    /// Driver-attested execution input used to rebuild the retained world.
+    pub source_analysis_entry: Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
+    /// Explicit editing input retained independently of its display label.
+    pub resolved_input: Option<super::ResolvedAnalysisInput>,
     /// Captured result tree (deep-copied).
     pub result: AnalysisResult,
     /// Path through ``result.global_scope`` to the active scope.
@@ -139,6 +143,12 @@ impl Analyser {
     #[must_use]
     pub fn snapshot(&self) -> AnalyserSnapshot {
         AnalyserSnapshot {
+            source_analysis_entry: self.source_analysis_entry.clone(),
+            resolved_input: self
+                .result
+                .resolved_input
+                .clone()
+                .or_else(|| self.resolved_input.clone()),
             result: self.result.clone(),
             current_scope_path: self.current_scope_path.clone(),
             last_comment: self.last_comment.clone(),
@@ -175,7 +185,19 @@ impl Analyser {
     /// (``disabled_diagnostics`` / ``file_path``) or will be
     /// rebuilt as the walk continues from the restored point.
     pub fn restore(&mut self, snap: AnalyserSnapshot) {
+        self.source_analysis_entry = snap.source_analysis_entry;
+        self.resolved_input = snap.resolved_input;
         self.result = snap.result;
+        self.head_identities = self
+            .result
+            .command_realm
+            .as_deref()
+            .cloned()
+            .unwrap_or_default();
+        if self.resolved_input.is_some() {
+            let label = self.result.dialect.clone();
+            self.resolve_walk_environment(&label);
+        }
         self.current_scope_path = snap.current_scope_path;
         self.last_comment = snap.last_comment;
         self.current_event = snap.current_event;
@@ -234,16 +256,59 @@ mod tests {
     fn snapshot_of_empty_analyser_is_default() {
         let a = Analyser::new();
         let snap = a.snapshot();
-        assert!(snap.result.all_procs.is_empty());
-        assert!(snap.current_scope_path.is_empty());
-        assert!(snap.last_comment.is_empty());
+        assert_eq!(snap.result.all_procs.len(), 0);
+        assert_eq!(snap.current_scope_path, [] as [usize; 0]);
+        assert_eq!(snap.last_comment, "");
         assert!(snap.current_event.is_none());
         assert_eq!(snap.conditional_depth, 0);
-        assert!(snap.command_aliases.is_empty());
-        assert!(snap.const_strings.is_empty());
-        assert!(snap.regex_vars.is_empty());
-        assert!(snap.var_command_sites.is_empty());
-        assert!(snap.cmd_command_sites.is_empty());
+        assert_eq!(snap.command_aliases.len(), 0);
+        assert_eq!(snap.const_strings.len(), 0);
+        assert_eq!(snap.regex_vars.len(), 0);
+        assert_eq!(
+            snap.var_command_sites,
+            [] as [crate::analyser::state::VarCommandSite; 0]
+        );
+        assert_eq!(
+            snap.cmd_command_sites,
+            [] as [crate::analyser::state::CmdCommandSite; 0]
+        );
+    }
+
+    #[test]
+    fn partial_snapshot_retains_the_resolved_default_environment() {
+        let source = "set x 1";
+        let commands = crate::segmenter::segment_commands(source);
+        let (_, mut snapshots) = Analyser::new().analyse_chunked(source, vec![commands], "tcl8.4");
+        let snapshot = snapshots.pop().unwrap();
+        let input = snapshot.resolved_input.clone().unwrap();
+        let realm = snapshot.result.retained_command_realm().unwrap().clone();
+        let mut restored = Analyser::new();
+        restored.analyse("set decoy 2", "tcl9.0");
+        restored.restore(snapshot);
+        assert_eq!(restored.resolved_analysis_input(), input);
+        assert_eq!(restored.profile.core_point, input.profile.core_point);
+        assert_eq!(restored.head_identities, realm);
+        assert!(std::ptr::eq(
+            restored.result.resolved_profile().unwrap(),
+            input.unit_profile,
+        ));
+    }
+
+    #[test]
+    fn restoring_an_empty_snapshot_withdraws_the_previous_temporal_world() {
+        let empty = Analyser::new().snapshot();
+        let mut restored = Analyser::new();
+        restored.analyse("proc decoy {} {}", "tcl9.0");
+        assert_ne!(
+            restored.head_identities,
+            crate::realm::CommandBindingRealm::default()
+        );
+        restored.restore(empty);
+        assert_eq!(
+            restored.head_identities,
+            crate::realm::CommandBindingRealm::default()
+        );
+        assert!(restored.result.retained_command_realm().is_none());
     }
 
     #[test]
@@ -257,10 +322,10 @@ mod tests {
             .insert("alias".to_string(), ("target".to_string(), vec![]));
         a.restore(snap);
         // State is back to empty.
-        assert!(a.result.all_procs.is_empty());
-        assert!(a.last_comment.is_empty());
+        assert_eq!(a.result.all_procs.len(), 0);
+        assert_eq!(a.last_comment, "");
         assert_eq!(a.conditional_depth, 0);
-        assert!(a.command_aliases.is_empty());
+        assert_eq!(a.command_aliases.len(), 0);
     }
 
     #[test]

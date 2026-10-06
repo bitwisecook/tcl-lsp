@@ -1,0 +1,2227 @@
+{
+  "source": "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+  "source_sha256": "c3a2673dbb3eccbcf9c97335b754ac6092c841c22829d305f31efde93d4bb07e",
+  "cases": [
+    [
+      "compiled-set-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-set-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-set-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-set-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict set d k NEXT} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-set-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict set d k NEXT} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-unset-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-unset-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-unset-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-unset-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict unset d k} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-unset-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict unset d k} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-incr-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-incr-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-incr-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-incr-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict incr d k 2} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-incr-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict incr d k 2} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-append-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-append-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-append-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-append-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict append d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-append-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict append d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-lappend-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-lappend-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-lappend-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {dict lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-lappend-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict lappend d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-lappend-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {dict lappend d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "compiled-set-plain",
+      "proc work {} {set d {k 3};dict set d k NEXT;set d};work"
+    ],
+    [
+      "compiled-unset-plain",
+      "proc work {} {set d {k 3};dict unset d k;set d};work"
+    ],
+    [
+      "compiled-incr-plain",
+      "proc work {} {set d {k 3};dict incr d k 2;set d};work"
+    ],
+    [
+      "compiled-append-plain",
+      "proc work {} {set d {k 3};dict append d k Y Z;set d};work"
+    ],
+    [
+      "compiled-lappend-plain",
+      "proc work {} {set d {k 3};dict lappend d k Y Z;set d};work"
+    ],
+    [
+      "generic-set-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-set-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-set-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] set d k NEXT} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-set-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] set d k NEXT} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-set-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] set d k NEXT} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-unset-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-unset-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-unset-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] unset d k} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-unset-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] unset d k} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-unset-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] unset d k} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-incr-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-incr-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-incr-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] incr d k 2} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-incr-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] incr d k 2} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-incr-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] incr d k 2} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-append-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-append-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-append-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] append d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-append-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] append d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-append-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] append d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-lappend-read-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k OBS}}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-lappend-read-relink",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {unset d;upvar #0 ::other d}};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-lappend-read-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error READ_FAIL};proc work {} {set d {k 3};trace add variable d read observer;set c [catch {[lindex {dict} 0] lappend d k Y Z} m];trace remove variable d read observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-lappend-write-change",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;uplevel 1 {set d {k POST}}};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] lappend d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-lappend-write-error",
+      "set ::log {};set ::other {k OTHER};proc observer {n1 n2 op} {lappend ::log $op;error WRITE_FAIL};proc work {} {set d {k 3};trace add variable d write observer;set c [catch {[lindex {dict} 0] lappend d k Y Z} m];trace remove variable d write observer;list $c $m $d $::other $::log};work"
+    ],
+    [
+      "generic-set-plain",
+      "proc work {} {set d {k 3};[lindex {dict} 0] set d k NEXT;set d};work"
+    ],
+    [
+      "generic-unset-plain",
+      "proc work {} {set d {k 3};[lindex {dict} 0] unset d k;set d};work"
+    ],
+    [
+      "generic-incr-plain",
+      "proc work {} {set d {k 3};[lindex {dict} 0] incr d k 2;set d};work"
+    ],
+    [
+      "generic-append-plain",
+      "proc work {} {set d {k 3};[lindex {dict} 0] append d k Y Z;set d};work"
+    ],
+    [
+      "generic-lappend-plain",
+      "proc work {} {set d {k 3};[lindex {dict} 0] lappend d k Y Z;set d};work"
+    ]
+  ],
+  "case_count": 60,
+  "observations": [
+    {
+      "version": "8.4.20",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-8.4.20"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-8.4.20.jsonl",
+      "log_sha256": "5960ed94358e476c3c697fb1c848e0d8d81ccc32e650e8bb2800fb7509cfbc68",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-8.4.20",
+      "binary_sha256": "35c3c0a8727935bf8e58d39946b907ba0385d4003d36f9f5220cc34e157881bc",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h",
+      "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf"
+    },
+    {
+      "version": "8.5.19",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-8.5.19"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-8.5.19.jsonl",
+      "log_sha256": "9c3f01ea07bc6a6e9e6b33698496247de8d24478e0fc8f53016246317b3e345d",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-8.5.19",
+      "binary_sha256": "1d497488b75341feafdb48c82ae648a0aa43db0be606ed9fe8c27b6ac098fceb",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tcl.h",
+      "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5"
+    },
+    {
+      "version": "8.6.18",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-8.6.18"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-8.6.18.jsonl",
+      "log_sha256": "72c6da58f0f75d927f365c489cbd0f452adc042f37a56f7b7eb5691a3eb2350d",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-8.6.18",
+      "binary_sha256": "3d5132fcfa0e09fb2418db5e0ff8a787be89485897e76ff783cbe04d49221464",
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "header": "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tcl.h",
+      "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245"
+    },
+    {
+      "version": "9.0.4",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-9.0.4"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-9.0.4.jsonl",
+      "log_sha256": "72c6da58f0f75d927f365c489cbd0f452adc042f37a56f7b7eb5691a3eb2350d",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-9.0.4",
+      "binary_sha256": "d2fa9e1db663eaa8d58d88ef1ded1b8383cc9a1ba1b935fae286ef82cd21245c",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tcl.h",
+      "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a"
+    },
+    {
+      "version": "9.1.0",
+      "command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-Wl,-rpath,/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-9.1.0"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": -11,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-9.1.0.jsonl",
+      "log_sha256": "842dba502a97194fde58618549e024052b15099e2ec68f39e423956f9672ade2",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-9.1.0",
+      "binary_sha256": "5dee747ef25ebfa154280a04905936fee0789fab12f798ebe34ae93ee4fdce32",
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "header": "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tcl.h",
+      "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950"
+    },
+    {
+      "version": "Jim",
+      "command": [
+        "cc",
+        "-DUSE_JIM",
+        "-I/tmp/2286-oracles/jimtcl",
+        "/workspace/.proofs/2286-dictionary-rmw-native2.c",
+        "/tmp/2286-oracles/jimtcl/libjim.a",
+        "-lm",
+        "-ldl",
+        "-lssl",
+        "-lcrypto",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-dictionary-rmw-native2-Jim"
+      ],
+      "compile_exit": 0,
+      "exit_statuses": [
+        {
+          "case": "compiled-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "compiled-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-relink",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-read-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-change",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-write-error",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-set-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-unset-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-incr-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-append-plain",
+          "exit": 0,
+          "rows": 1
+        },
+        {
+          "case": "generic-lappend-plain",
+          "exit": 0,
+          "rows": 1
+        }
+      ],
+      "rows": 60,
+      "log": "/workspace/.proofs/2286-dictionary-rmw-native2-Jim.jsonl",
+      "log_sha256": "9739c14c056d44c49876c6fc02a2d2f0bbcd6521e323ca1eee6fb50d8b330e6b",
+      "binary": "/workspace/.proofs/2286-dictionary-rmw-native2-Jim",
+      "binary_sha256": "f1af81b53069339ab5e92ee7130804c40a21950bc6a53911479c838907d216b1",
+      "library": "/tmp/2286-oracles/jimtcl/libjim.a",
+      "library_sha256": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+      "header": "/tmp/2286-oracles/jimtcl/jim.h",
+      "header_sha256": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d"
+    }
+  ],
+  "vm_comparisons": 0,
+  "observation_window": "original catch completed before trace removal and final cell observations; evaluated result/options reporter captures completion before global observer",
+  "positive_fixture_rows": 345,
+  "signal_terminated_controls": 15
+}

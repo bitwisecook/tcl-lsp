@@ -18,6 +18,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
 | `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, and the C Tcl extension shim over it. |
+| `tcl-host-c-abi` | Safe native thread numeric-environment access and explicitly loaded, digest-checked Tcl 8.4 integer updater over the host C ABI. Depends on `tcl-platform`, libc and SHA-256; contains the reviewed errno/conversion/dynamic-library unsafe boundary. |
 | `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio` | SpecTcl runtime pack support (`.tclspec` loader, pack discovery, compiled-pack cache, registry insertion), the sandboxed hook host, and the spec-studio field schema / draft model / renderers behind the web UI. |
 | `tcl-regex` | Tcl regex engine port. |
 | `tcl-bigip`, `tcl-bigip-io`, `tcl-bigip-query`, `tcl-f5mku`, `bigip-report-gen` | F5 BIG-IP object model + config parser, config I/O, the `f5 query` DSL engine, the `f5mku` SecureVault envelope, and the standalone HTML estate report generator. |

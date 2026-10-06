@@ -1,0 +1,86 @@
+[
+  {
+    "version": "8.5.19",
+    "command": [
+      "cc",
+      "-Itmp/tcl8.5.19/generic",
+      "-Itmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-probe.c",
+      "tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-ldl",
+      "-lz",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-8.5.19"
+    ],
+    "exit": 0,
+    "stdout": "lookup\tbefore=1 lookup=1 after=0 code=0\t0\nbytecode\tbefore=1 lookup=-1 after=1 code=0\t0\ninvoke\tbefore=1 lookup=-1 after=1 code=0\t0\nmissing\tbefore=1 lookup=-1 after=1 code=1\t0\n",
+    "stderr": "",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "source_sha256": "4d9756556ec31be9a8365aeca65fe5fa68cbe7492b301d0fbc1d474271e74733"
+  },
+  {
+    "version": "8.6.18",
+    "command": [
+      "cc",
+      "-Itmp/tcl8.6.18/generic",
+      "-Itmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-probe.c",
+      "tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-ldl",
+      "-lz",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-8.6.18"
+    ],
+    "exit": 0,
+    "stdout": "lookup\tbefore=1 lookup=0 after=0 code=0\t0\nbytecode\tbefore=1 lookup=-1 after=0 code=0\t0\ninvoke\tbefore=1 lookup=-1 after=1 code=0\t0\nmissing\tbefore=1 lookup=-1 after=0 code=1\t0\n",
+    "stderr": "",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "source_sha256": "4d9756556ec31be9a8365aeca65fe5fa68cbe7492b301d0fbc1d474271e74733"
+  },
+  {
+    "version": "9.0.4",
+    "command": [
+      "cc",
+      "-Itmp/tcl9.0.4/generic",
+      "-Itmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-probe.c",
+      "tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-ldl",
+      "-lz",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-9.0.4"
+    ],
+    "exit": 0,
+    "stdout": "lookup\tbefore=1 lookup=0 after=0 code=0\t0\nbytecode\tbefore=1 lookup=-1 after=0 code=0\t0\ninvoke\tbefore=1 lookup=-1 after=1 code=0\t0\nmissing\tbefore=1 lookup=-1 after=0 code=1\t0\n",
+    "stderr": "",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "source_sha256": "4d9756556ec31be9a8365aeca65fe5fa68cbe7492b301d0fbc1d474271e74733"
+  },
+  {
+    "version": "9.1.0",
+    "command": [
+      "cc",
+      "-Itmp/tcl9.1.0/generic",
+      "-Itmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-probe.c",
+      "tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-ldl",
+      "-lz",
+      "-lpthread",
+      "-lm",
+      "-o",
+      "/workspace/.proofs/2286-packages-dialects/array-usage-native/reset-9.1.0"
+    ],
+    "exit": 0,
+    "stdout": "lookup\tbefore=1 lookup=0 after=0 code=0\t0\nbytecode\tbefore=1 lookup=-1 after=0 code=0\t0\ninvoke\tbefore=1 lookup=-1 after=1 code=0\t0\nmissing\tbefore=1 lookup=-1 after=0 code=1\t0\n",
+    "stderr": "",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "source_sha256": "4d9756556ec31be9a8365aeca65fe5fa68cbe7492b301d0fbc1d474271e74733"
+  }
+]

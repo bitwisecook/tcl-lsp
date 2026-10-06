@@ -35,10 +35,119 @@
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
+use tcl_registry::native_binary_usage::NativeBinaryArgumentUsage;
 
 /// Register `binary`.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"binary", binary_cmd);
+    const NAMES: &[&[u8]] = &[
+        b"decode".as_slice(),
+        b"encode".as_slice(),
+        b"format".as_slice(),
+        b"scan".as_slice(),
+    ];
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "binary",
+        NAMES,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+        b"binary",
+        binary_cmd,
+        STOCK_MEMBERS,
+        admitted,
+    );
+    if interp
+        .native_invocation_dialect()
+        .ensemble_implementation_namespace(
+            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+        )
+        .is_some()
+    {
+        interp.register_stock_nested_ensemble(
+            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+            b"::tcl::binary::encode",
+            stock_encode,
+            &[
+                (b"hex", stock_encode_hex),
+                (b"base64", stock_encode_base64),
+                (b"uuencode", stock_encode_uuencode),
+            ],
+        );
+        interp.register_stock_nested_ensemble(
+            tcl_registry::invocation_words::EnsembleImplementationFamily::Binary,
+            b"::tcl::binary::decode",
+            stock_decode,
+            &[
+                (b"hex", stock_decode_hex),
+                (b"base64", stock_decode_base64),
+                (b"uuencode", stock_decode_uuencode),
+            ],
+        );
+    }
+    if let Some(ingress) = interp.native_invocation_dialect().binary_scripted_ingress() {
+        interp.install_stock_scripted_binary(ingress, &[stock_format, stock_scan]);
+    }
+}
+
+const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"decode", stock_decode),
+    (b"encode", stock_encode),
+    (b"format", stock_format),
+    (b"scan", stock_scan),
+];
+
+fn stock_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"decode"], binary_cmd)
+}
+
+fn stock_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"encode"], binary_cmd)
+}
+
+fn stock_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"format"], binary_cmd)
+}
+
+fn stock_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"scan"], binary_cmd)
+}
+
+fn stock_encode_hex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"encode", b"hex"], binary_cmd)
+}
+
+fn stock_encode_base64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"encode", b"base64"], binary_cmd)
+}
+
+fn stock_encode_uuencode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"encode", b"uuencode"], binary_cmd)
+}
+
+fn stock_decode_hex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"decode", b"hex"], binary_cmd)
+}
+
+fn stock_decode_base64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"decode", b"base64"], binary_cmd)
+}
+
+fn stock_decode_uuencode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"binary", b"decode", b"uuencode"], binary_cmd)
+}
+
+fn binary_wrong_args(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    prefix_words: usize,
+    operation: NativeBinaryArgumentUsage,
+) -> Code {
+    let suffix = interp
+        .native_invocation_dialect()
+        .binary_argument_usage(operation)
+        .unwrap_or(operation.compatibility_usage());
+    interp.wrong_args_for_prefix(argv, prefix_words, suffix.as_bytes())
 }
 
 fn err(interp: &mut Interp, msg: &[u8]) -> Code {
@@ -59,21 +168,38 @@ const BINARY_FORMATS: &[&[u8]] = &[b"base64", b"hex", b"uuencode"];
 
 fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"binary subcommand ?arg ...?");
+        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
     let word = obj_bytes(argv[1]);
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "binary",
         BINARY_SUBS,
     );
-    let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
-        return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-            subs,
-            &word,
-            true,
-            b"::tcl::binary",
-        ));
+    let Some(protocol) = interp.native_invocation_dialect().binary_root_dispatch() else {
+        return interp.error(b"native binary root protocol required");
+    };
+    let index = match protocol {
+        tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Ensemble => {
+            let Some(index) = tcl_cmd_core::ensemble::resolve_subcommand(subs, &word, true) else {
+                return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    subs,
+                    &word,
+                    true,
+                    b"::tcl::binary",
+                ));
+            };
+            index
+        }
+        tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed
+        | tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Scripted => {
+            // Scripted ingress reaches only its separately registered helpers;
+            // their immutable parser prefix selects this internal parse view.
+            match interp.native_static_option_index(argv[1], subs, false, "option") {
+                Ok(index) => index,
+                Err(error) => return interp.report_cmd_error(error),
+            }
+        }
     };
     match subs[index] {
         b"format" => binary_format(interp, argv),
@@ -89,13 +215,13 @@ fn binary_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `tcl_cmd_core::binary`; this adapter handles option parsing + result/error.
 fn binary_encode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp.wrong_args(b"binary encode format ?options? data");
+        return interp.wrong_args_for_prefix(argv, 2, b"subcommand ?arg ...?");
     }
     let fmt = obj_bytes(argv[2]);
     match fmt.as_slice() {
         b"hex" => {
             if argv.len() != 4 {
-                return interp.wrong_args(b"binary encode hex data");
+                return binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeHex);
             }
             let data = match interp.binary_bytes(argv[3]) {
                 Ok(data) => data,
@@ -128,7 +254,7 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
     while i < argv.len() - 1 {
         match obj_bytes(argv[i]).as_slice() {
             b"-maxlen" if i + 1 < argv.len() - 1 => {
-                match crate::cmd_list::index_spec(&obj_bytes(argv[i + 1]), 0) {
+                match crate::cmd_list::index_spec(interp, &obj_bytes(argv[i + 1]), 0) {
                     Some(n) if n >= 0 => maxlen = n as usize,
                     _ => return interp.set_error(b"line length out of range"),
                 }
@@ -138,11 +264,18 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
                 wrapchar = obj_bytes(argv[i + 1]);
                 i += 2;
             }
-            _ => return interp.wrong_args(b"binary encode format ?options? data"),
+            _ => {
+                return binary_wrong_args(
+                    interp,
+                    argv,
+                    3,
+                    NativeBinaryArgumentUsage::EncodeWrapped,
+                );
+            }
         }
     }
     if argv.len() - i != 1 {
-        return interp.wrong_args(b"binary encode format ?options? data");
+        return binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::EncodeWrapped);
     }
     let data = match interp.binary_bytes(argv[i]) {
         Ok(data) => data,
@@ -161,101 +294,142 @@ fn binary_encode_wrapped(interp: &mut Interp, argv: &[*mut TclObj], uu: bool) ->
 /// shared in `tcl_cmd_core::binary`; this adapter handles options + errors.
 fn binary_decode(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp.wrong_args(b"binary decode format ?options? data");
+        return interp.wrong_args_for_prefix(argv, 2, b"subcommand ?arg ...?");
     }
-    let fmt = obj_bytes(argv[2]);
-    match fmt.as_slice() {
-        b"hex" => {
-            if argv.len() != 4 {
-                return interp.wrong_args(b"binary decode hex data");
+    let codec = obj_bytes(argv[2]);
+    if !BINARY_FORMATS.contains(&codec.as_slice()) {
+        return binary_encode_bad(interp, &codec);
+    }
+    let operands = &argv[3..];
+    let option = (operands.len() == 2).then(|| obj_bytes(operands[0]));
+    let layout =
+        match tcl_cmd_core::binary::decode_argument_layout(operands.len(), option.as_deref()) {
+            Ok(layout) => layout,
+            Err(tcl_cmd_core::binary::DecodeArgumentsError::UnknownOption(word)) => {
+                let failure =
+                    tcl_cmd_core::binary::DecodeArgumentsError::UnknownOption(word.clone());
+                let message = failure.option_message().expect("actual unknown switch");
+                let code = crate::interp::error_code_list(&[
+                    b"TCL", b"LOOKUP", b"INDEX", b"option", &word,
+                ]);
+                return interp.error_with_code(&message, &code);
             }
-            match tcl_cmd_core::binary::hex_decode(&obj_bytes(argv[3])) {
-                Ok(out) => {
-                    interp.set_result_byte_array(&out);
-                    Code::Ok
-                }
-                Err(e) => decode_invalid(interp, b"hexadecimal digit", e),
+            Err(_) => return binary_wrong_args(interp, argv, 3, NativeBinaryArgumentUsage::Decode),
+        };
+    let Some(policy) = interp.native_invocation_dialect().binary_decode_source() else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "binary decoder source",
+            ),
+        );
+    };
+    let recipe = match interp.byte_array_string_recipe() {
+        Ok(recipe) => recipe,
+        Err(code) => return code,
+    };
+    let input = crate::bytearray::native_decode_input(operands[layout.data], policy, recipe);
+    let decoded = match codec.as_slice() {
+        b"hex" => tcl_cmd_core::binary::hex_decode_with_strict(input.bytes(), layout.strict),
+        b"base64" => tcl_cmd_core::binary::base64_decode(input.bytes(), layout.strict),
+        _ => match tcl_cmd_core::binary::uu_decode_with_strict(input.bytes(), layout.strict) {
+            Ok(bytes) => Ok(bytes),
+            Err(tcl_cmd_core::binary::UuDecodeError::Invalid(error)) => Err(error),
+            Err(tcl_cmd_core::binary::UuDecodeError::Short) => {
+                return interp.error_with_code(b"short uuencode data", b"TCL BINARY DECODE SHORT");
             }
-        }
-        b"base64" => binary_decode_b64(interp, argv),
-        b"uuencode" => binary_decode_uu(interp, argv),
-        _ => binary_encode_bad(interp, &fmt),
-    }
-}
-
-/// `invalid <what> "<byte>" (U+XXXXXX) at position N`, code `TCL BINARY DECODE
-/// INVALID` — the decode-failure message shared by `hex` and `base64`.
-fn decode_invalid(interp: &mut Interp, what: &[u8], e: tcl_cmd_core::binary::DecodeError) -> Code {
-    let mut m = b"invalid ".to_vec();
-    m.extend_from_slice(what);
-    m.extend_from_slice(b" \"");
-    m.push(e.byte);
-    m.extend_from_slice(
-        format!("\" (U+{:06X}) at position {}", u32::from(e.byte), e.pos).as_bytes(),
-    );
-    interp.error_with_code(&m, b"TCL BINARY DECODE INVALID")
-}
-
-fn binary_decode_b64(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut strict = false;
-    let mut i = 3;
-    while i < argv.len() - 1 {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-strict" => {
-                strict = true;
-                i += 1;
-            }
-            _ => return interp.wrong_args(b"binary decode format ?options? data"),
+        },
+    };
+    match decoded {
+        Ok(bytes) => interp.set_result_byte_array(&bytes),
+        Err(error) => {
+            let what = match codec.as_slice() {
+                b"hex" => "hexadecimal digit",
+                b"base64" => "base64 character",
+                _ => "uuencode character",
+            };
+            let Some(message) = interp
+                .native_invocation_dialect()
+                .binary_decode_error(what, &input, error.pos)
+            else {
+                return interp.error(b"native binary decoder presentation required");
+            };
+            interp.error_with_code(message.as_bytes(), b"TCL BINARY DECODE INVALID")
         }
     }
-    if argv.len() - i != 1 {
-        return interp.wrong_args(b"binary decode format ?options? data");
-    }
-    match tcl_cmd_core::binary::base64_decode(&obj_bytes(argv[i]), strict) {
-        Ok(out) => {
-            interp.set_result_byte_array(&out);
-            Code::Ok
-        }
-        Err(e) => decode_invalid(interp, b"base64 character", e),
-    }
-}
-
-fn binary_decode_uu(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut i = 3;
-    while i < argv.len() - 1 {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-strict" => i += 1,
-            _ => return interp.wrong_args(b"binary decode format ?options? data"),
-        }
-    }
-    if argv.len() - i != 1 {
-        return interp.wrong_args(b"binary decode format ?options? data");
-    }
-    let out = tcl_cmd_core::binary::uu_decode(&obj_bytes(argv[i]));
-    interp.set_result_byte_array(&out);
-    Code::Ok
 }
 
 fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp.wrong_args(b"binary format formatString ?arg ...?");
+        return binary_wrong_args(interp, argv, 2, NativeBinaryArgumentUsage::Format);
     }
     let fmt = obj_bytes(argv[2]);
-    let mut args = Vec::with_capacity(argv.len().saturating_sub(3));
-    for &arg in &argv[3..] {
-        let bytes = match interp.binary_bytes(arg) {
-            Ok(bytes) => bytes,
-            Err(code) => return code,
-        };
-        args.push(bytes);
-    }
-    let refs: Vec<&[u8]> = args.iter().map(Vec::as_slice).collect();
-    match tcl_cmd_core::binary::format(&fmt, &refs) {
+    match tcl_cmd_core::binary::format_values(interp, &fmt, &argv[3..]) {
         Ok(out) => {
-            interp.set_result_byte_array(&out);
+            if interp
+                .native_invocation_dialect()
+                .binary_format_conversion()
+                == Some(tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8)
+            {
+                // Jim's compound format procedure returns raw string bytes;
+                // C's byte-array Unicode stringification is a separate type.
+                interp.set_result_bytes(&out);
+            } else {
+                return interp.set_result_byte_array(&out);
+            }
             Code::Ok
         }
         Err(e) => interp.report_cmd_error(e),
+    }
+}
+
+impl tcl_cmd_core::binary::FormatValueOps for Interp {
+    type Value = *mut TclObj;
+
+    fn binary_format_bytes(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Vec<u8>, tcl_cmd_core::CmdError> {
+        let policy = self
+            .native_invocation_dialect()
+            .binary_format_conversion()
+            .ok_or_else(|| {
+                tcl_cmd_core::CmdError::from(
+                    tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "binary format conversion",
+                    ),
+                )
+            })?;
+        // Tcl9 format narrows a copy; encode/scan instead perform checked conversion.
+        let cache = self.native_invocation_dialect().binary_data_conversion() == Some(policy);
+        self.native_binary_bytes_with(*value, policy, cache)
+            .map_err(|_| {
+                if let Some(refusal) = self.native_access_refusal() {
+                    return tcl_cmd_core::CmdError::from(refusal);
+                }
+                tcl_cmd_core::CmdError::with_error_code_bytes(
+                    self.result_bytes(),
+                    self.error_code(),
+                )
+            })
+    }
+
+    fn binary_format_integer(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<i64, tcl_cmd_core::CmdError> {
+        let syntax = self.native_invocation_dialect().numbers;
+        tcl_cmd_core::binary::integer_value(self, value, syntax)
+    }
+
+    fn binary_format_double(&mut self, value: &Self::Value) -> Result<f64, tcl_cmd_core::CmdError> {
+        Ok(tcl_syntax::value::ValueOps::as_double(self, value)?)
+    }
+
+    fn binary_format_elements(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Vec<Self::Value>, tcl_cmd_core::CmdError> {
+        Ok(tcl_syntax::value::ValueOps::list_elements(self, value)?)
     }
 }
 
@@ -263,7 +437,7 @@ fn binary_format(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"binary scan string formatString ?varName ...?");
+        return binary_wrong_args(interp, argv, 2, NativeBinaryArgumentUsage::Scan);
     }
     let data = match interp.binary_bytes(argv[2]) {
         Ok(data) => data,
@@ -272,7 +446,7 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let fmt = obj_bytes(argv[3]);
     let vars = &argv[4..];
     // The unpack grammar is shared; the variable assignment (Family-B) stays here.
-    let values = match tcl_cmd_core::binary::scan(&data, &fmt) {
+    let values = match tcl_cmd_core::binary::scan_values(&data, &fmt) {
         Ok(v) => v,
         Err(e) => return interp.report_cmd_error(e),
     };
@@ -286,7 +460,28 @@ fn binary_scan(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `var_set`/`var_set_elem` routing `set` uses, so this doesn't
         // hand-roll a second name parser.
         let (base, elem) = crate::frame::split_array_ref(&name);
-        let o = crate::bytearray::new_byte_array(val);
+        let o = match val {
+            tcl_cmd_core::binary::ScanValue::Bytes(bytes) => {
+                if interp.native_invocation_dialect().binary_data_conversion()
+                    == Some(tcl_registry::native_binary_value::NativeBinaryByteConversion::Utf8)
+                {
+                    obj::new_string_bytes(bytes)
+                } else {
+                    match interp.new_native_byte_array(bytes) {
+                        Ok(value) => value,
+                        Err(code) => return code,
+                    }
+                }
+            }
+            tcl_cmd_core::binary::ScanValue::Double(value) => obj::new_double_obj(*value),
+            tcl_cmd_core::binary::ScanValue::Doubles(values) => {
+                let elements: Vec<_> = values
+                    .iter()
+                    .map(|value| obj::new_double_obj(*value))
+                    .collect();
+                interp.new_list_object(&elements)
+            }
+        };
         let stored = match &elem {
             Some(k) => interp.var_set_elem(&base, k, o),
             None => interp.var_set(&base, o),
@@ -326,6 +521,126 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    fn compare_native_binary(path: &std::path::Path, dialect: &str, sources: &[&str]) {
+        for source in sources {
+            let oracle =
+                tcl_test_support::run_script(path, format!("puts [{source}]\n").as_bytes())
+                    .unwrap();
+            assert!(
+                oracle.success() && oracle.stderr.is_empty(),
+                "{dialect}: {source}: {:?}",
+                oracle.stderr
+            );
+            let mut interpreter = Interp::new();
+            interpreter.set_dialect_profile(crate::environment::profile_for_dialect(dialect));
+            assert_eq!(
+                interpreter.eval_str(source.as_bytes()),
+                Code::Ok,
+                "{dialect}: {source}"
+            );
+            let mut actual = interpreter.result_bytes();
+            actual.push(b'\n');
+            assert_eq!(actual, oracle.stdout, "{dialect}: {source}");
+        }
+    }
+
+    #[test]
+    fn binary_objects_and_decoders_follow_actual_native_input_policies() {
+        use tcl_test_support::binary_values::{BINARY_DECODER_SCRIPTS, BINARY_VALUE_SCRIPTS};
+        for reference in tcl_test_support::available_tclshs() {
+            let dialect = format!("tcl{}", reference.version.version_string());
+            compare_native_binary(&reference.path, &dialect, BINARY_VALUE_SCRIPTS);
+            if tcl_registry::InvocationDialect::for_version(reference.version)
+                .binary_root_dispatch()
+                == Some(tcl_registry::native_binary_usage::NativeBinaryRootDispatch::Indexed)
+            {
+                for source in BINARY_VALUE_SCRIPTS.iter().skip(2).take(6) {
+                    let with_code = format!("{source}; list $c $r $::errorCode");
+                    compare_native_binary(&reference.path, &dialect, &[with_code.as_str()]);
+                }
+            }
+            if reference.version >= tcl_dialect::TclVersion::V8_6 {
+                compare_native_binary(&reference.path, &dialect, BINARY_DECODER_SCRIPTS);
+            }
+        }
+        if let Some(reference) = tcl_test_support::locate_jimsh().expect("validated Jim override") {
+            compare_native_binary(&reference.path, "jim", BINARY_VALUE_SCRIPTS);
+        }
+    }
+
+    #[test]
+    fn binary_usage_retains_actual_names_and_native_prefix_quoting() {
+        use tcl_dialect::TclVersion;
+
+        for (version, expected) in [
+            (
+                TclVersion::V8_4,
+                b"binary name format formatString ?arg arg ...?".as_slice(),
+            ),
+            (
+                TclVersion::V8_5,
+                b"binary name format formatString ?arg arg ...?".as_slice(),
+            ),
+            (
+                TclVersion::V8_6,
+                b"binary name format formatString ?arg ...?".as_slice(),
+            ),
+            (
+                TclVersion::V9_0,
+                b"{binary name} format formatString ?arg ...?".as_slice(),
+            ),
+            (
+                TclVersion::V9_1,
+                b"{binary name} format formatString ?arg ...?".as_slice(),
+            ),
+        ] {
+            leak_free(|interp| {
+                interp.set_runtime_version(version);
+                assert_eq!(interp.eval_str(b"rename binary {binary name}"), Code::Ok);
+                assert_eq!(interp.eval_str(b"{binary name} format"), Code::Error);
+                let mut message = b"wrong # args: should be \"".to_vec();
+                message.extend_from_slice(expected);
+                message.push(b'"');
+                assert_eq!(interp.result_bytes(), message, "{version:?}");
+            });
+        }
+    }
+
+    #[test]
+    fn actual_usage_rewrite_retains_byte_values_and_requires_the_full_prefix() {
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            let head = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"private"));
+            let member = crate::obj::Owned::fresh(crate::obj::new_string_bytes(b"codec"));
+            let arguments = [head.as_ptr(), member.as_ptr()];
+            assert!(interp.begin_ensemble_rewrite(
+                vec![
+                    crate::obj::Owned::fresh(crate::interp::new_string(&[0xff, b' '])),
+                    crate::obj::Owned::fresh(crate::interp::new_string(b"hex"))
+                ],
+                2,
+                2
+            ));
+            assert_eq!(
+                interp.wrong_args_for_prefix(&arguments, 2, b"data"),
+                Code::Error
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                b"wrong # args: should be \"{\xff } hex data\""
+            );
+            assert_eq!(
+                interp.wrong_args_for_prefix(&arguments, 1, b"data"),
+                Code::Error
+            );
+            assert_eq!(
+                interp.result_bytes(),
+                b"wrong # args: should be \"private data\""
+            );
+            interp.clear_ensemble_rewrite();
+        });
     }
 
     /// `binary` is a `TclMakeEnsemble` command, while

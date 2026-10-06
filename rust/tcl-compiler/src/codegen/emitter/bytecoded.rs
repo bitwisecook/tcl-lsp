@@ -54,9 +54,35 @@ pub fn try_bytecoded(
     try_bytecoded_with_tokens(ctx, cmd, args, None, used_generic_invoke)
 }
 
-/// Source-aware variant used by executable IR emission.  Hand-built callers
+/// Source-aware variant used by executable IR emission. Hand-built callers
 /// have no lexical word facts and therefore take the conservative wrapper.
 pub fn try_bytecoded_with_tokens(
+    ctx: &mut CodegenCtx,
+    cmd: &str,
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    used_generic_invoke: &mut bool,
+) -> bool {
+    let operands = args
+        .iter()
+        .enumerate()
+        .map(|(index, word)| {
+            (
+                word.clone(),
+                ctx.cmd_arg_braced.get(index).copied().unwrap_or(false),
+            )
+        })
+        .collect::<Vec<_>>();
+    ctx.with_native_hook_operands(cmd, &operands, |ctx, logical| {
+        let arguments = logical
+            .iter()
+            .map(|(word, _)| word.clone())
+            .collect::<Vec<_>>();
+        try_bytecoded_in_layout(ctx, cmd, &arguments, tokens, used_generic_invoke)
+    })
+}
+
+fn try_bytecoded_in_layout(
     ctx: &mut CodegenCtx,
     cmd: &str,
     args: &[String],
@@ -70,10 +96,6 @@ pub fn try_bytecoded_with_tokens(
             return true;
         }
     }
-
-    // Some typed inline hooks are shared with value position. Their command
-    // statement bridge owns the narrower applicability check and trailing
-    // result discard; unsupported hook variants safely fall through here.
     ctx.try_inline_statement_codegen(cmd, args, tokens, used_generic_invoke)
 }
 
@@ -84,7 +106,7 @@ fn resolved_codegen_hook(
     cmd: &str,
     args: &[String],
 ) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
-    if ctx.plain_command_dispatch {
+    if ctx.plain_command_dispatch || !ctx.invocation_specialisation_proved() {
         return None;
     }
     registry_codegen_hook(ctx, cmd, args)
@@ -103,44 +125,28 @@ fn registry_codegen_hook(
     cmd: &str,
     args: &[String],
 ) -> Option<(CodegenHookId, tcl_runtime_api::CommandBindingIdentity)> {
+    if let Some(tokens) = ctx.invocation_tokens.as_deref()
+        && tokens.source_binding.is_some()
+    {
+        let admitted = crate::registry_invocation::admitted_native_compiler_invocation(
+            ctx.registry,
+            None,
+            tokens,
+        )?;
+        return Some((
+            admitted.codegen_hook()?,
+            ctx.command_binding_identity(cmd, admitted.canonical_registration_name()),
+        ));
+    }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // The registry's own point: a
-    // profile-built registry suppresses the specialised emission of a
-    // command its release does not have, keeping it on the generic invoke
-    // where the runtime's availability gate can reject it.
+    // The retained native point selects backend metadata independently of
+    // the assisting catalogue's command surface.
     let resolved = ctx
         .registry
-        .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())?;
+        .resolve_call(cmd, &arg_refs, ctx.invocation_surface_query())?;
     let hook = resolved.codegen_hook?;
     let identity = ctx.command_binding_identity(cmd, resolved.spec.name);
     Some((hook, identity))
-}
-
-/// Binding assumed when this exact command shape would use a typed bytecode
-/// hook in statement position.
-///
-/// Whole-command substitutions deliberately use a yieldable generic invoke,
-/// but C Tcl has already entered a command whose compile hook accepted that
-/// shape. Probe the same dispatcher in an isolated context so the surrogate
-/// inherits the hook's one authoritative applicability guard rather than a
-/// second command/arity table.
-pub(crate) fn applicable_codegen_binding(
-    ctx: &CodegenCtx,
-    cmd: &str,
-    args: &[String],
-) -> Option<tcl_runtime_api::CommandBindingIdentity> {
-    if ctx.plain_command_dispatch {
-        return None;
-    }
-    let (hook, identity) = registry_codegen_hook(ctx, cmd, args)?;
-    let mut probe = CodegenCtx::new(ctx.is_proc, &[], ctx.registry);
-    probe.numbers = ctx.numbers;
-    probe.escapes = ctx.escapes;
-    probe.braced_var = ctx.braced_var;
-    probe.dialect = ctx.dialect;
-    probe.cmd_arg_braced.clone_from(&ctx.cmd_arg_braced);
-    let mut used_generic_invoke = false;
-    dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke).then_some(identity)
 }
 
 /// Dispatch a typed [`CodegenHookId`] to its emitter.
@@ -170,10 +176,46 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Concat => concat_cmd(ctx, args),
         CodegenHookId::Global => global_cmd(ctx, args),
         CodegenHookId::Upvar => upvar_cmd(ctx, args),
+        CodegenHookId::Uplevel => uplevel_cmd(ctx, args),
     }
 }
 
 // list
+
+/// Emit the already selected native frame operation from its frozen argv layout.
+fn uplevel_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    let Some(tokens) = ctx.invocation_tokens.as_deref() else {
+        return false;
+    };
+    let Some(invocation) =
+        crate::registry_invocation::admitted_native_compiler_invocation(ctx.registry, None, tokens)
+    else {
+        return false;
+    };
+    let Some(spec) = invocation.native_compilation() else {
+        return false;
+    };
+    let Some(layout) =
+        invocation.with_argument_words(|words| spec.uplevel_operands(words.arguments()))
+    else {
+        return false;
+    };
+    if let Some(level) = layout.level {
+        ctx.emit_word_arg(level, &args[level]);
+    } else {
+        ctx.push_lit("1");
+    }
+    for (index, argument) in args.iter().enumerate().skip(layout.script_from) {
+        ctx.emit_word_arg(index, argument);
+    }
+    let scripts = args.len() - layout.script_from;
+    if scripts > 1 {
+        ctx.emit(Op::CONCAT_STK, vec![Operand::Imm(bytecode_imm(scripts))]);
+    }
+    ctx.emit(Op::UPLEVEL, vec![]);
+    ctx.emit(Op::POP, vec![]);
+    true
+}
 
 /// `llength $list` → `emit_word list; LIST_LENGTH; POP`.
 fn llength(ctx: &mut CodegenCtx, args: &[String]) -> bool {
@@ -253,79 +295,65 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     true
 }
 
-/// `lset varname ?index ...? newvalue` — proc-context with a
-/// simple (non-qualified) variable name compiles to
-/// `loadScalar1 SLOT; LSET_LIST | LSET_FLAT; storeScalar1 SLOT`;
-/// everything else uses stack-based `loadStk` / `storeStk`.
+/// Emit the admitted lset compiler using original words and its actual
+/// scalar, array or stack address. The load occurs after index/value argv.
 fn lset(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.len() < 3 {
+    if args.len() < 2 {
         return false;
     }
-    let var_name = &args[0];
-    let indices = &args[1..args.len() - 1];
-    let value = args.last().expect("args.len() >= 3");
-
-    if ctx.compiles_locals() && !is_qualified(var_name) && !indices.is_empty() {
-        let slot = ctx.lvt.intern(var_name);
-        for idx in indices {
-            ctx.emit_value_interpolated(idx);
-        }
-        ctx.emit_value_interpolated(value);
-        let load_op = if slot < 256 {
-            Op::LOAD_SCALAR1
-        } else {
-            Op::LOAD_SCALAR4
-        };
-        ctx.emit_comment(
-            load_op,
-            vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
-            &format!("var \"{var_name}\""),
-        );
-        if indices.len() >= 2 {
-            ctx.emit(
-                Op::LSET_FLAT,
-                vec![Operand::Imm(bytecode_imm(indices.len() + 2))],
-            );
-        } else {
-            ctx.emit(Op::LSET_LIST, vec![]);
-        }
-        let op = if slot < 256 {
-            Op::STORE_SCALAR1
-        } else {
-            Op::STORE_SCALAR4
-        };
-        ctx.emit_comment(
-            op,
-            vec![Operand::Imm(i32::try_from(slot).unwrap_or(i32::MAX))],
-            &format!("var \"{var_name}\""),
-        );
-    } else {
-        // Non-proc or qualified: stack-based form with OVER to duplicate the
-        // variable reference onto the top of stack so loadStk finds it. A single
-        // index uses `LSET_LIST` (the index arg is itself an index *path*, so
-        // `lset l {1 0} v` works); two or more indices are flat, so they use
-        // `LSET_FLAT N` like the proc path — otherwise only the last index would
-        // reach `LSET_LIST`.
-        ctx.push_lit(var_name);
-        for idx in indices {
-            ctx.emit_value_interpolated(idx);
-        }
-        ctx.emit_value_interpolated(value);
-        ctx.emit(
-            Op::OVER,
-            vec![Operand::Imm(bytecode_imm(indices.len() + 1))],
-        );
-        ctx.emit(Op::LOAD_STK, vec![]);
-        if indices.len() >= 2 {
-            ctx.emit(
-                Op::LSET_FLAT,
-                vec![Operand::Imm(bytecode_imm(indices.len() + 2))],
-            );
-        } else {
-            ctx.emit(Op::LSET_LIST, vec![]);
-        }
-        ctx.emit(Op::STORE_STK, vec![]);
+    let address = emit_append_address(ctx, &args[0]);
+    for (index, argument) in args.iter().enumerate().skip(1) {
+        ctx.emit_word_arg(index, argument);
     }
+    let (load, store, operands) = match address {
+        AppendAddress::Scalar(slot) => (
+            if slot < 256 {
+                Op::LOAD_SCALAR1
+            } else {
+                Op::LOAD_SCALAR4
+            },
+            if slot < 256 {
+                Op::STORE_SCALAR1
+            } else {
+                Op::STORE_SCALAR4
+            },
+            vec![Operand::Imm(bytecode_imm(slot))],
+        ),
+        AppendAddress::Array(slot) => {
+            ctx.emit(Op::OVER, vec![Operand::Imm(bytecode_imm(args.len() - 1))]);
+            (
+                if slot < 256 {
+                    Op::LOAD_ARRAY1
+                } else {
+                    Op::LOAD_ARRAY4
+                },
+                if slot < 256 {
+                    Op::STORE_ARRAY1
+                } else {
+                    Op::STORE_ARRAY4
+                },
+                vec![Operand::Imm(bytecode_imm(slot))],
+            )
+        }
+        AppendAddress::ArrayStack => {
+            // Preserve the original root/key below the index and value words.
+            let depth = bytecode_imm(args.len());
+            ctx.emit(Op::OVER, vec![Operand::Imm(depth)]);
+            ctx.emit(Op::OVER, vec![Operand::Imm(depth)]);
+            (Op::LOAD_ARRAY_STK, Op::STORE_ARRAY_STK, vec![])
+        }
+        AppendAddress::Stack => {
+            ctx.emit(Op::OVER, vec![Operand::Imm(bytecode_imm(args.len() - 1))]);
+            (Op::LOAD_STK, Op::STORE_STK, vec![])
+        }
+    };
+    ctx.emit(load, operands.clone());
+    if args.len() == 3 {
+        ctx.emit(Op::LSET_LIST, vec![]);
+    } else {
+        ctx.emit(Op::LSET_FLAT, vec![Operand::Imm(bytecode_imm(args.len()))]);
+    }
+    ctx.emit(store, operands);
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -349,12 +377,46 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     let sub = args[0].as_str();
     let rest = &args[1..];
 
+    if rest.len() == 3 && ctx.cmd_arg_braced.get(3).copied() == Some(true) {
+        let emitted = match sub {
+            "for" => ctx.emit_dict_for(&rest[0], &rest[1], &rest[2]),
+            "map" => ctx.emit_dict_map(&rest[0], &rest[1], &rest[2]),
+            _ => false,
+        };
+        if emitted {
+            ctx.emit(Op::POP, vec![]);
+            return true;
+        }
+    }
+
     // Non-proc (or qualified-var) mutating `dict` subcommand → the top-level
     // ensemble-rewrite `INVOKE_REPLACE` form (see [`dict_ensemble`]); the
     // proc-local scalar path below keeps its specialised `DICT_*` opcodes.
     let proc_local = ctx.compiles_locals() && !is_qualified(&rest[0]);
     if !proc_local && matches!(sub, "set" | "unset" | "incr" | "append" | "lappend") {
-        dict_ensemble(ctx, sub, rest);
+        if let Some((registration, prefix)) = ctx.native_hook_layout.clone() {
+            ctx.push_lit(&registration);
+            for (index, argument) in args.iter().enumerate().skip(prefix) {
+                ctx.emit_word_arg(index, argument);
+            }
+            let count = bytecode_imm(1 + args.len() - prefix);
+            ctx.emit(
+                if count < 256 {
+                    Op::INVOKE_STK1
+                } else {
+                    Op::INVOKE_STK4
+                },
+                vec![Operand::Imm(count)],
+            );
+            ctx.emit(Op::POP, vec![]);
+            return true;
+        }
+        let Some(namespace) =
+            native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Dict)
+        else {
+            return false;
+        };
+        dict_ensemble(ctx, namespace, sub, rest);
         return true;
     }
 
@@ -373,11 +435,26 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         "append" if rest.len() == 3 => dict_append(ctx, var_name, rest),
         "lappend" if rest.len() == 3 => dict_lappend(ctx, var_name, rest),
         // `dict update var k1 v1 ?k2 v2 …? body` and `dict with var body`
-        // compile inline (C Tcl's `dictUpdateStart`/`dictExpand` machinery) when
-        // the body is straight-line; otherwise fall through to the runtime
-        // invoke. The path form of `dict with` (`rest.len() > 2`) is not inlined.
-        "update" if rest.len() >= 4 && rest.len().is_multiple_of(2) => ctx.emit_dict_update(rest),
-        "with" if rest.len() == 2 => ctx.emit_dict_with(&rest[0], &rest[1]),
+        // Compile literal bodies with the shared command-at-time owner.
+        // The path form of `dict with` uses the runtime command.
+        "update"
+            if rest.len() >= 4
+                && rest.len().is_multiple_of(2)
+                && ctx.cmd_arg_braced.get(args.len() - 1).copied() == Some(true) =>
+        {
+            let emitted = ctx.emit_dict_update(rest);
+            if emitted {
+                ctx.emit(Op::POP, vec![]);
+            }
+            emitted
+        }
+        "with" if rest.len() == 2 && ctx.cmd_arg_braced.get(2).copied() == Some(true) => {
+            let emitted = ctx.emit_dict_with(&rest[0], &rest[1]);
+            if emitted {
+                ctx.emit(Op::POP, vec![]);
+            }
+            emitted
+        }
         _ => false,
     }
 }
@@ -386,7 +463,9 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 fn dict_set(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     let keys = &rest[1..rest.len() - 1];
     let value = rest.last().unwrap();
-    let slot = ctx.lvt.intern(var_name);
+    let Some(slot) = ctx.command_variable_slot(var_name.as_bytes()) else {
+        return false;
+    };
     for k in keys {
         ctx.emit_value_interpolated(k);
     }
@@ -406,7 +485,9 @@ fn dict_set(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
 /// `dict unset var k1 ?k2 …?` → `DICT_UNSET N slot`.
 fn dict_unset(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     let keys = &rest[1..];
-    let slot = ctx.lvt.intern(var_name);
+    let Some(slot) = ctx.command_variable_slot(var_name.as_bytes()) else {
+        return false;
+    };
     for k in keys {
         ctx.emit_value_interpolated(k);
     }
@@ -433,7 +514,9 @@ fn dict_incr(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     } else {
         1
     };
-    let slot = ctx.lvt.intern(var_name);
+    let Some(slot) = ctx.command_variable_slot(var_name.as_bytes()) else {
+        return false;
+    };
     ctx.emit_value_interpolated(key);
     ctx.emit_comment(
         Op::DICT_INCR_IMM,
@@ -448,7 +531,9 @@ fn dict_incr(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
 fn dict_append(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     let key = &rest[1];
     let value = &rest[2];
-    let slot = ctx.lvt.intern(var_name);
+    let Some(slot) = ctx.command_variable_slot(var_name.as_bytes()) else {
+        return false;
+    };
     ctx.emit_value_interpolated(key);
     ctx.emit_value_interpolated(value);
     ctx.emit_comment(
@@ -464,7 +549,9 @@ fn dict_append(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
 fn dict_lappend(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
     let key = &rest[1];
     let value = &rest[2];
-    let slot = ctx.lvt.intern(var_name);
+    let Some(slot) = ctx.command_variable_slot(var_name.as_bytes()) else {
+        return false;
+    };
     ctx.emit_value_interpolated(key);
     ctx.emit_value_interpolated(value);
     ctx.emit_comment(
@@ -481,13 +568,23 @@ fn dict_lappend(ctx: &mut CodegenCtx, var_name: &str, rest: &[String]) -> bool {
 /// invokeReplace objc 2`). `sub_args` is the words after the subcommand (e.g.
 /// the var name, keys, value); `sub` must have a registered
 /// `::tcl::dict::<sub>` implementation.
-fn dict_ensemble(ctx: &mut CodegenCtx, sub: &str, sub_args: &[String]) {
+fn native_ensemble_namespace(
+    ctx: &CodegenCtx,
+    family: tcl_registry::EnsembleImplementationFamily,
+) -> Option<&'static str> {
+    ctx.registry
+        .profile()
+        .map(tcl_registry::InvocationDialect::of_profile)
+        .and_then(|dialect| dialect.ensemble_implementation_namespace(family))
+}
+
+fn dict_ensemble(ctx: &mut CodegenCtx, namespace: &str, sub: &str, sub_args: &[String]) {
     ctx.push_lit("dict");
     ctx.push_lit(sub);
     for a in sub_args {
         ctx.emit_value_interpolated(a);
     }
-    ctx.push_lit(&format!("::tcl::dict::{sub}"));
+    ctx.push_lit(&format!("{namespace}::{sub}"));
     let objc = bytecode_imm(2 + sub_args.len());
     ctx.emit(
         Op::INVOKE_REPLACE,
@@ -514,6 +611,11 @@ fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mu
     if args.first().map(String::as_str) != Some("eval") || args.len() < 3 {
         return false;
     }
+    let Some(namespace) =
+        native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Namespace)
+    else {
+        return false;
+    };
     ctx.push_lit("namespace");
     ctx.push_lit("eval");
     // Push the namespace and every body word exactly as the generic path would:
@@ -523,7 +625,7 @@ fn namespace_cmd(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mu
     for (i, a) in args.iter().enumerate().skip(1) {
         ctx.emit_word_arg(i, a);
     }
-    ctx.push_lit("::tcl::namespace::eval");
+    ctx.push_lit(&format!("{namespace}::eval"));
     // objc = all original words (`namespace eval ns body ...`); replace the
     // two-word `namespace eval` prefix with the resolved implementation.
     let objc = bytecode_imm(1 + args.len());
@@ -557,7 +659,12 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     // braced body are pushed verbatim), then `invokeStk1 4`. Analysis still
     // sees the `array` barrier (registry-aware), so this is codegen-only.
     if sub == "for" && rest.len() == 3 {
-        ctx.push_lit("::tcl::array::for");
+        let Some(namespace) =
+            native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Array)
+        else {
+            return false;
+        };
+        ctx.push_lit(&format!("{namespace}::for"));
         for (i, a) in rest.iter().enumerate() {
             // `emit_word_arg` reads `cmd_arg_braced[idx]`, indexed by the
             // original arg list (arg 0 is the `for` subcommand word), so
@@ -583,7 +690,12 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
     }
     match sub {
         "names" | "size" if !rest.is_empty() => {
-            ctx.push_lit(&format!("::tcl::array::{sub}"));
+            let Some(namespace) =
+                native_ensemble_namespace(ctx, tcl_registry::EnsembleImplementationFamily::Array)
+            else {
+                return false;
+            };
+            ctx.push_lit(&format!("{namespace}::{sub}"));
             for a in rest {
                 ctx.emit_value_interpolated(a);
             }
@@ -629,127 +741,269 @@ fn is_compilable_scalar_local(ctx: &CodegenCtx, var: &str) -> bool {
     is_compilable_local(ctx, var) && split_array_ref(var).is_none()
 }
 
-/// `append varName value ...` — statement-position specialisation for a
-/// proc-local variable. A single value emits `appendScalar`/`appendArray`;
-/// multiple scalar values push all, `reverse N`, then `appendScalar; pop`
-/// per value (mirroring C Tcl's `TclCompileAppendCmd`). Toplevel, qualified,
-/// dynamic, and multi-value array forms fall back to the generic invoke.
+/// Native variable-name emission keeps source eligibility separate from its
+/// evaluated value. A literal array key is data, even when it contains `$`.
+#[derive(Clone, Copy)]
+enum AppendAddress {
+    Scalar(usize),
+    Array(usize),
+    ArrayStack,
+    Stack,
+}
+
+fn compiled_append_local_name(ctx: &CodegenCtx, variable: &str) -> Option<String> {
+    if !ctx.compiles_locals() {
+        return None;
+    }
+    let source = ctx
+        .original_hook_argument(0)
+        .and_then(|index| ctx.invocation_tokens.as_deref()?.words().get(index + 1));
+    let direct = match source {
+        Some(word) => {
+            crate::registry_invocation::compiled_local_name_value(word, ctx.escapes, ctx.word_rules)
+        }
+        // Hand-built hooks supply literal names without a source carrier.
+        None => is_compilable_local(ctx, variable).then(|| variable.to_owned()),
+    }?;
+    (!is_qualified(&direct)).then_some(direct)
+}
+
+fn emit_append_address(ctx: &mut CodegenCtx, variable: &str) -> AppendAddress {
+    use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+    let source = ctx
+        .original_hook_argument(0)
+        .and_then(|index| ctx.invocation_tokens.as_deref()?.words().get(index + 1))
+        .cloned();
+    let projected = source
+        .as_ref()
+        .and_then(|word| ctx.original_variable_operand(word));
+    match projected {
+        Some(NativeVariableWordOperand::Literal { name, index, .. }) => {
+            let slot = ctx.command_variable_slot(&name);
+            if slot.is_none() {
+                ctx.push_lit_bytes_exact(&name);
+            }
+            if let Some(index) = index {
+                ctx.push_lit_bytes_exact(&index);
+                return slot.map_or(AppendAddress::ArrayStack, AppendAddress::Array);
+            }
+            return slot.map_or(AppendAddress::Stack, AppendAddress::Scalar);
+        }
+        Some(NativeVariableWordOperand::CompoundArray { name, index, .. }) => {
+            let slot = ctx.command_variable_slot(&name);
+            if slot.is_none() {
+                ctx.push_lit_bytes_exact(&name);
+            }
+            ctx.emit_executable_arena(&index);
+            return slot.map_or(AppendAddress::ArrayStack, AppendAddress::Array);
+        }
+        Some(NativeVariableWordOperand::DynamicWord) => {
+            ctx.emit_word_arg(0, variable);
+            return AppendAddress::Stack;
+        }
+        None => {}
+    }
+    // Authored hooks without retained lexical geometry consume resolved data.
+    if ctx.native_entry.is_some() {
+        ctx.refuse_native_dependency();
+    } else if let Some(name) = compiled_append_local_name(ctx, variable) {
+        let (base, index) =
+            split_array_ref(&name).map_or((name.as_str(), None), |(base, key)| (base, Some(key)));
+        if let Some(slot) = ctx.command_variable_slot(base.as_bytes()) {
+            if let Some(key) = index {
+                ctx.push_lit_exact(key);
+                return AppendAddress::Array(slot);
+            }
+            return AppendAddress::Scalar(slot);
+        }
+    }
+    ctx.emit_word_arg(0, variable);
+    AppendAddress::Stack
+}
+
+fn append_single_op(address: AppendAddress, list: bool) -> (Op, Vec<Operand>) {
+    let (op, slot) = match (address, list) {
+        (AppendAddress::Scalar(slot), false) => (
+            if slot < 256 {
+                Op::APPEND_SCALAR1
+            } else {
+                Op::APPEND_SCALAR4
+            },
+            Some(slot),
+        ),
+        (AppendAddress::Array(slot), false) => (
+            if slot < 256 {
+                Op::APPEND_ARRAY1
+            } else {
+                Op::APPEND_ARRAY4
+            },
+            Some(slot),
+        ),
+        (AppendAddress::Scalar(slot), true) => (
+            if slot < 256 {
+                Op::LAPPEND_SCALAR1
+            } else {
+                Op::LAPPEND_SCALAR4
+            },
+            Some(slot),
+        ),
+        (AppendAddress::Array(slot), true) => (
+            if slot < 256 {
+                Op::LAPPEND_ARRAY1
+            } else {
+                Op::LAPPEND_ARRAY4
+            },
+            Some(slot),
+        ),
+        (AppendAddress::ArrayStack, false) => (Op::APPEND_ARRAY_STK, None),
+        (AppendAddress::ArrayStack, true) => (Op::LAPPEND_ARRAY_STK, None),
+        (AppendAddress::Stack, false) => (Op::APPEND_STK, None),
+        (AppendAddress::Stack, true) => (Op::LAPPEND_STK, None),
+    };
+    (
+        op,
+        slot.map(|slot| vec![Operand::Imm(bytecode_imm(slot))])
+            .unwrap_or_default(),
+    )
+}
+
 fn append_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.len() < 2 || !is_compilable_local(ctx, &args[0]) {
+    let Some(variable) = args.first() else {
+        return false;
+    };
+    if args.len() > 2
+        && compiled_append_local_name(ctx, variable)
+            .is_none_or(|name| split_array_ref(&name).is_some())
+    {
         return false;
     }
-    let var = &args[0];
+    let address = emit_append_address(ctx, variable);
     let values = &args[1..];
-
-    if let Some((base, key)) = split_array_ref(var) {
-        if values.len() != 1 {
-            return false;
-        }
-        let slot = ctx.lvt.intern(base);
-        let op = if slot < 256 {
-            Op::APPEND_ARRAY1
-        } else {
-            Op::APPEND_ARRAY4
+    if values.is_empty() {
+        let (op, operands) = match address {
+            AppendAddress::Scalar(slot) => (
+                if slot < 256 {
+                    Op::LOAD_SCALAR1
+                } else {
+                    Op::LOAD_SCALAR4
+                },
+                vec![Operand::Imm(bytecode_imm(slot))],
+            ),
+            AppendAddress::Array(slot) => (
+                if slot < 256 {
+                    Op::LOAD_ARRAY1
+                } else {
+                    Op::LOAD_ARRAY4
+                },
+                vec![Operand::Imm(bytecode_imm(slot))],
+            ),
+            AppendAddress::ArrayStack => (Op::LOAD_ARRAY_STK, vec![]),
+            AppendAddress::Stack => (Op::LOAD_STK, vec![]),
         };
-        ctx.push_array_key(key);
-        ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(
-            op,
-            vec![Operand::Imm(bytecode_imm(slot))],
-            &format!("var \"{base}\""),
-        );
+        ctx.emit(op, operands);
         ctx.emit(Op::POP, vec![]);
         return true;
     }
-
-    let slot = ctx.lvt.intern(var);
-    let op = if slot < 256 {
-        Op::APPEND_SCALAR1
-    } else {
-        Op::APPEND_SCALAR4
-    };
-    if values.len() == 1 {
-        ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(
-            op,
-            vec![Operand::Imm(bytecode_imm(slot))],
-            &format!("var \"{var}\""),
-        );
-        ctx.emit(Op::POP, vec![]);
-    } else {
-        for v in values {
-            ctx.emit_value_interpolated(v);
-        }
+    for (index, value) in values.iter().enumerate() {
+        ctx.emit_word_arg(index + 1, value);
+    }
+    let (op, operands) = append_single_op(address, false);
+    if values.len() > 1 {
+        // The registry admits this protocol only for a direct scalar local.
+        debug_assert!(matches!(address, AppendAddress::Scalar(_)));
         ctx.emit(Op::REVERSE, vec![Operand::Imm(bytecode_imm(values.len()))]);
-        for _ in values {
-            ctx.emit_comment(
-                op,
-                vec![Operand::Imm(bytecode_imm(slot))],
-                &format!("var \"{var}\""),
-            );
-            ctx.emit(Op::POP, vec![]);
-        }
+    }
+    for _ in values {
+        ctx.emit(op, operands.clone());
+        ctx.emit(Op::POP, vec![]);
     }
     true
 }
 
-/// `lappend varName value ...` — statement-position specialisation for a
-/// proc-local variable. A single value emits `lappendScalar`/`lappendArray`;
-/// multiple scalar values build a list (`list N`) and emit `lappendList`
-/// (mirroring C Tcl's `TclCompileLappendCmd`). Toplevel, qualified, dynamic,
-/// and multi-value array forms fall back to the generic invoke.
-fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.len() < 2 || !is_compilable_local(ctx, &args[0]) {
-        return false;
-    }
-    let var = &args[0];
-    let values = &args[1..];
-
-    if let Some((base, key)) = split_array_ref(var) {
-        if values.len() != 1 {
-            return false;
-        }
-        let slot = ctx.lvt.intern(base);
-        let op = if slot < 256 {
-            Op::LAPPEND_ARRAY1
-        } else {
-            Op::LAPPEND_ARRAY4
-        };
-        ctx.push_array_key(key);
-        ctx.emit_value_interpolated(&values[0]);
-        ctx.emit_comment(
-            op,
+fn append_list_op(address: AppendAddress) -> (Op, Vec<Operand>) {
+    match address {
+        AppendAddress::Scalar(slot) => (Op::LAPPEND_LIST, vec![Operand::Imm(bytecode_imm(slot))]),
+        AppendAddress::Array(slot) => (
+            Op::LAPPEND_LIST_ARRAY,
             vec![Operand::Imm(bytecode_imm(slot))],
-            &format!("var \"{base}\""),
-        );
-        ctx.emit(Op::POP, vec![]);
-        return true;
+        ),
+        AppendAddress::ArrayStack => (Op::LAPPEND_LIST_ARRAY_STK, vec![]),
+        AppendAddress::Stack => (Op::LAPPEND_LIST_STK, vec![]),
     }
+}
 
-    let slot = ctx.lvt.intern(var);
-    if values.len() == 1 {
-        ctx.emit_value_interpolated(&values[0]);
-        let op = if slot < 256 {
-            Op::LAPPEND_SCALAR1
-        } else {
-            Op::LAPPEND_SCALAR4
-        };
-        ctx.emit_comment(
-            op,
-            vec![Operand::Imm(bytecode_imm(slot))],
-            &format!("var \"{var}\""),
-        );
+pub(crate) fn emit_lappend_values(
+    ctx: &mut CodegenCtx,
+    variable: &str,
+    values: &[(String, bool, bool)],
+) {
+    let address = emit_append_address(ctx, variable);
+    let script_frame = !ctx.compiles_locals();
+    let single = values.len() == 1 && !values[0].2 && !script_frame;
+    if single {
+        ctx.emit_word_arg(1, &values[0].0);
     } else {
-        for v in values {
-            ctx.emit_value_interpolated(v);
-        }
-        ctx.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(values.len()))]);
-        ctx.emit_comment(
-            Op::LAPPEND_LIST,
-            vec![Operand::Imm(bytecode_imm(slot))],
-            &format!("var \"{var}\""),
+        ctx.emit_native_argument_list(
+            values
+                .iter()
+                .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded)),
+            1,
+            0,
         );
+        if values.len() == 1 && values[0].2 {
+            // C Tcl 9.1 drops the expanded list's string representation before
+            // the selected variable operation can retain its object.
+            ctx.emit(
+                Op::LIST_RANGE_IMM,
+                vec![Operand::Imm(0), Operand::Imm(INDEX_END)],
+            );
+        }
     }
+    let (op, operands) = if single {
+        append_single_op(address, true)
+    } else {
+        append_list_op(address)
+    };
+    ctx.emit(op, operands);
+}
+
+pub(crate) fn try_expanded_lappend(
+    ctx: &mut CodegenCtx,
+    command: &str,
+    arguments: &[(String, bool, bool)],
+) -> bool {
+    let Some((variable, _, false)) = arguments.first() else {
+        return false;
+    };
+    let words = arguments
+        .iter()
+        .map(|(word, _, _)| word.clone())
+        .collect::<Vec<_>>();
+    let Some((CodegenHookId::Lappend, binding)) = resolved_codegen_hook(ctx, command, &words)
+    else {
+        return false;
+    };
+    emit_lappend_values(ctx, variable, &arguments[1..]);
+    ctx.require_command_binding(&binding);
+    true
+}
+
+fn lappend_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    let Some(variable) = args.first() else {
+        return false;
+    };
+    let values = args[1..]
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            (
+                value.clone(),
+                ctx.cmd_arg_braced.get(index + 1).copied().unwrap_or(false),
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+    emit_lappend_values(ctx, variable, &values);
     ctx.emit(Op::POP, vec![]);
     true
 }
@@ -766,28 +1020,28 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if !ctx.compiles_locals() {
         return false;
     }
-    // Leading options: `-nocomplain` clears the complain flag; `--` ends
-    // option parsing. The flag operand is 1 (complain) unless suppressed.
-    let mut flags: i32 = 1;
-    let mut i = 0;
-    while i < args.len() && args[i].starts_with('-') {
-        if args[i] == "--" {
-            i += 1;
-            break;
-        }
-        if args[i] == "-nocomplain" {
-            flags = 0;
-        }
-        i += 1;
-    }
-    let names = &args[i..];
+    let Some(protocol) = ctx
+        .native_hook_dialect()
+        .and_then(|dialect| dialect.unset_option_protocol())
+    else {
+        return false;
+    };
+    let options = protocol
+        .parse_known_source(args.len(), |index| {
+            Ok::<_, std::convert::Infallible>(args[index].as_bytes())
+        })
+        .expect("original source arguments are available");
+    let flags = i32::from(options.complain);
+    let names = &args[options.names_from..];
     if names.is_empty() {
         return false;
     }
     for name in names {
         if !is_qualified(name) && !name.starts_with('$') && !name.starts_with('[') {
             if let Some((base, key)) = split_array_ref(name) {
-                let slot = ctx.lvt.intern(base);
+                let Some(slot) = ctx.command_variable_slot(base.as_bytes()) else {
+                    return false;
+                };
                 ctx.push_array_key(key);
                 ctx.emit_comment(
                     Op::UNSET_ARRAY,
@@ -795,7 +1049,9 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
                     &format!("var \"{base}\""),
                 );
             } else {
-                let slot = ctx.lvt.intern(name);
+                let Some(slot) = ctx.command_variable_slot(name.as_bytes()) else {
+                    return false;
+                };
                 ctx.emit_comment(
                     Op::UNSET_SCALAR,
                     vec![Operand::Imm(flags), Operand::Imm(bytecode_imm(slot))],
@@ -815,24 +1071,182 @@ fn unset_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 
 // tailcall
 
-/// `tailcall command ?arg ...?` — push the literal `"tailcall"` word, then
-/// each argument, and emit `tailcall N` where N counts the `"tailcall"`
-/// prefix plus the arguments (mirroring C Tcl's `TclCompileTailcallCmd`).
-/// The result is popped at statement level (dropped into `done` in tail
-/// position). `tailcall` with no arguments falls back to the generic invoke.
+/// Emit a retained tailcall namespace and original argv. The registry owns
+/// release-specific namespace capture and list-versus-stack selection.
 fn tailcall_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
-    if args.is_empty() {
+    let words = args
+        .iter()
+        .enumerate()
+        .map(|(index, argument)| {
+            (
+                argument.as_str(),
+                ctx.cmd_arg_braced.get(index).copied().unwrap_or(false),
+                false,
+            )
+        })
+        .collect::<Vec<_>>();
+    if !emit_tailcall(ctx, &words) {
         return false;
     }
-    ctx.push_lit("tailcall");
-    for a in args {
-        ctx.emit_value_interpolated(a);
-    }
-    ctx.emit(
-        Op::TAILCALL,
-        vec![Operand::Imm(bytecode_imm(1 + args.len()))],
-    );
     ctx.emit(Op::POP, vec![]);
+    true
+}
+
+fn emit_tailcall(ctx: &mut CodegenCtx, words: &[(&str, bool, bool)]) -> bool {
+    use tcl_registry::native_compilation::NativeTailcallStack;
+    let Some(protocol) = ctx.native_hook_dialect().and_then(|dialect| {
+        NativeTailcallStack::for_invocation(dialect, words.len(), words.iter().any(|word| word.2))
+    }) else {
+        return false;
+    };
+    match protocol {
+        NativeTailcallStack::NamespacePrefixedList => {
+            ctx.emit(Op::CURRENT_NAMESPACE, vec![]);
+            ctx.emit_native_argument_list(words.iter().copied(), 0, 1);
+            ctx.emit(Op::TAILCALL_LIST, vec![]);
+        }
+        NativeTailcallStack::NamespaceBeforeArguments
+        | NativeTailcallStack::NamespaceAfterArguments => {
+            if protocol == NativeTailcallStack::NamespaceBeforeArguments {
+                ctx.emit(Op::CURRENT_NAMESPACE, vec![]);
+            }
+            for (index, (word, _, _)) in words.iter().enumerate() {
+                ctx.emit_word_arg(index, word);
+            }
+            if protocol == NativeTailcallStack::NamespaceAfterArguments {
+                ctx.emit(Op::CURRENT_NAMESPACE, vec![]);
+                ctx.emit(
+                    Op::REVERSE,
+                    vec![Operand::Imm(bytecode_imm(words.len() + 1))],
+                );
+                if words.len() > 1 {
+                    ctx.emit(Op::REVERSE, vec![Operand::Imm(bytecode_imm(words.len()))]);
+                }
+            }
+            ctx.emit(
+                if protocol == NativeTailcallStack::NamespaceBeforeArguments {
+                    Op::TAILCALL4
+                } else {
+                    Op::TAILCALL
+                },
+                vec![Operand::Imm(bytecode_imm(words.len() + 1))],
+            );
+        }
+    }
+    true
+}
+
+/// Value-position bridge for admitted statement hooks. Original operand
+/// quoting and private-worker layout share the ordinary statement owner.
+pub(in crate::codegen) fn try_value_bytecoded(
+    ctx: &mut CodegenCtx,
+    command: &str,
+    args: &[(String, bool)],
+) -> bool {
+    ctx.with_native_hook_operands(command, args, |ctx, logical| {
+        try_value_bytecoded_in_layout(ctx, command, logical)
+    })
+}
+
+fn try_value_bytecoded_in_layout(
+    ctx: &mut CodegenCtx,
+    command: &str,
+    args: &[(String, bool)],
+) -> bool {
+    // The same authenticated primitive leaves one value in statement, value,
+    // catch and try-handler contexts; each caller owns only its result use.
+    if let Some(
+        hook @ (tcl_registry::hooks::InlineCodegenHookId::NamespaceOrigin
+        | tcl_registry::hooks::InlineCodegenHookId::NamespaceCode),
+    ) = ctx.inline_cmd_subst_hook_candidate(command, args)
+    {
+        if ctx.inline_cmd_subst_hook(command, args) != Some(hook) {
+            return false;
+        }
+        let tokens = ctx.invocation_tokens.clone();
+        return match hook {
+            tcl_registry::hooks::InlineCodegenHookId::NamespaceOrigin => {
+                ctx.emit_inline_namespace_origin(tokens.as_deref())
+            }
+            _ => ctx.emit_inline_namespace_code(tokens.as_deref()),
+        };
+    }
+    let values = args
+        .iter()
+        .map(|(argument, _)| argument.clone())
+        .collect::<Vec<_>>();
+    let Some((
+        hook @ (CodegenHookId::Lset
+        | CodegenHookId::Tailcall
+        | CodegenHookId::Lappend
+        | CodegenHookId::Dict),
+        binding,
+    )) = resolved_codegen_hook(ctx, command, &values)
+    else {
+        return false;
+    };
+    if hook == CodegenHookId::Lappend {
+        // This result protocol belongs to the original compiler admission.
+        // A generic no-value handler can resolve a new cell after a read trace;
+        // the compiled operation must keep its selected receiver instead.
+        if ctx
+            .invocation_tokens
+            .as_deref()
+            .and_then(|tokens| tokens.source_binding.as_ref())
+            .and_then(|binding| binding.admitted_inline_invocation())
+            .is_none()
+        {
+            return false;
+        }
+        let Some((variable, _)) = args.first() else {
+            return false;
+        };
+        let additions = args[1..]
+            .iter()
+            .map(|(word, braced)| (word.clone(), *braced, false))
+            .collect::<Vec<_>>();
+        emit_lappend_values(ctx, variable, &additions);
+        ctx.require_command_binding(&binding);
+        ctx.used_inline_cmd_subst = true;
+        return true;
+    }
+    let mut generic = false;
+    if !dispatch_codegen_hook(hook, ctx, &values, &mut generic) {
+        return false;
+    }
+    debug_assert_eq!(
+        ctx.instructions.last().map(|instruction| instruction.op),
+        Some(Op::POP)
+    );
+    ctx.instructions.pop();
+    ctx.require_command_binding(&binding);
+    ctx.used_inline_cmd_subst = true;
+    true
+}
+
+/// Expanded tailcall retains the actual compiler's namespace-prefixed list.
+pub(in crate::codegen) fn try_expanded_tailcall(
+    ctx: &mut CodegenCtx,
+    command: &str,
+    args: &[(String, bool, bool)],
+) -> bool {
+    let values = args
+        .iter()
+        .map(|argument| argument.0.clone())
+        .collect::<Vec<_>>();
+    let Some((CodegenHookId::Tailcall, binding)) = resolved_codegen_hook(ctx, command, &values)
+    else {
+        return false;
+    };
+    let words = args
+        .iter()
+        .map(|(word, braced, expanded)| (word.as_str(), *braced, *expanded))
+        .collect::<Vec<_>>();
+    if !emit_tailcall(ctx, &words) {
+        return false;
+    }
+    ctx.require_command_binding(&binding);
+    ctx.used_inline_cmd_subst = true;
     true
 }
 
@@ -892,7 +1306,9 @@ fn global_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     }
     ctx.push_lit("::");
     for name in args {
-        let slot = ctx.lvt.intern(name);
+        let Some(slot) = ctx.command_variable_slot(name.as_bytes()) else {
+            return false;
+        };
         ctx.push_lit(name);
         ctx.emit_comment(
             Op::NSUPVAR,
@@ -946,7 +1362,9 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     ctx.push_lit(level);
     for pair in pairs.as_chunks::<2>().0 {
         let (other, local) = (&pair[0], &pair[1]);
-        let slot = ctx.lvt.intern(local);
+        let Some(slot) = ctx.command_variable_slot(local.as_bytes()) else {
+            return false;
+        };
         ctx.emit_value_interpolated(other);
         ctx.emit_comment(
             Op::UPVAR,
@@ -966,6 +1384,41 @@ mod tests {
 
     use super::*;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn private_ensemble_rewrites_require_a_native_implementation() {
+        for (environment, namespace_rewrite, dict_rewrite) in [
+            ("tcl8.4", false, false),
+            ("tcl8.5", false, true),
+            ("tcl8.6", true, true),
+            ("tcl9.0", true, true),
+            ("tcl9.1", true, true),
+            ("jim", false, false),
+        ] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(environment).unit_profile();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert_eq!(
+                namespace_cmd(
+                    &mut ctx,
+                    &["eval".into(), "::N".into(), "set x 1".into()],
+                    &mut false
+                ),
+                namespace_rewrite,
+                "{environment}"
+            );
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert_eq!(
+                dict(
+                    &mut ctx,
+                    &["set".into(), "d".into(), "k".into(), "v".into()]
+                ),
+                dict_rewrite,
+                "{environment}"
+            );
+        }
+    }
 
     #[test]
     fn lassign_rejects_wrong_arity() {
@@ -1020,7 +1473,8 @@ mod tests {
 
     #[test]
     fn array_names_emits_fq_invoke() {
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["names".into(), "${arr}".into()];
         let mut used = false;
@@ -1119,9 +1573,67 @@ mod tests {
     fn lset_rejects_too_few_args() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        let args = vec!["lst".to_string(), "new".into()];
+        let args = vec!["lst".to_string()];
         let mut used = false;
         assert!(!try_bytecoded(&mut ctx, "lset", &args, &mut used));
+    }
+
+    #[test]
+    fn lset_without_indices_replaces_value_after_loading_the_original_cell() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(
+            &mut ctx,
+            "lset",
+            &["lst".into(), "new".into()],
+            &mut used
+        ));
+        assert!(ctx.instructions.iter().any(|instruction| {
+            instruction.op == Op::LSET_FLAT && instruction.operands == [Operand::Imm(2)]
+        }));
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::LOAD_SCALAR1)
+        );
+        assert!(
+            ctx.instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::STORE_SCALAR1)
+        );
+    }
+
+    #[test]
+    fn lset_array_reuses_the_captured_key_for_post_argv_load_and_store() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut used = false;
+        assert!(try_bytecoded(
+            &mut ctx,
+            "lset",
+            &["a(k)".into(), "0".into(), "new".into()],
+            &mut used
+        ));
+        let ops = ctx
+            .instructions
+            .iter()
+            .map(|instruction| instruction.op)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ops,
+            [
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::OVER,
+                Op::LOAD_ARRAY1,
+                Op::LSET_LIST,
+                Op::STORE_ARRAY1,
+                Op::POP
+            ]
+        );
+        assert_eq!(ctx.literals.entries()[0], "k");
     }
 
     // Dict subcommands.
@@ -1203,7 +1715,8 @@ mod tests {
     fn dict_in_non_proc_context_uses_ensemble() {
         // Top-level `dict set` compiles to the ensemble-rewrite invokeReplace
         // form (tclsh's top-level codegen), not the proc-local DICT_* opcodes.
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["set".into(), "d".into(), "k".into(), "v".into()];
         let mut used = false;
@@ -1217,7 +1730,8 @@ mod tests {
     fn dict_with_qualified_name_uses_ensemble() {
         // A qualified target var can't use the proc-local DICT_* slot form, so it
         // takes the same ensemble-rewrite invokeReplace path.
-        let registry = CommandRegistry::build_default();
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["set".into(), "::global::d".into(), "k".into(), "v".into()];
         let mut used = false;
@@ -1278,33 +1792,48 @@ mod tests {
     }
 
     #[test]
-    fn append_toplevel_falls_back() {
+    fn append_toplevel_uses_the_evaluated_stack_name() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let args = vec!["x".into(), "a".into()];
         let mut used = false;
-        assert!(!try_bytecoded(&mut ctx, "append", &args, &mut used));
+        assert!(try_bytecoded(&mut ctx, "append", &args, &mut used));
+        assert!(ctx.instructions.iter().any(|i| i.op == Op::APPEND_STK));
+        assert!(ctx.lvt.is_empty());
     }
 
     #[test]
-    fn append_qualified_and_dynamic_fall_back() {
+    fn append_qualified_and_dynamic_names_use_the_stack_once() {
         let registry = CommandRegistry::build_default();
+        for name in ["::g::x", "$dyn"] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            let mut used = false;
+            assert!(try_bytecoded(
+                &mut ctx,
+                "append",
+                &[name.into(), "a".into()],
+                &mut used
+            ));
+            assert_eq!(
+                ctx.instructions
+                    .iter()
+                    .filter(|i| i.op == Op::APPEND_STK)
+                    .count(),
+                1
+            );
+            let mut multi = CodegenCtx::new(true, &[], &registry);
+            assert!(!try_bytecoded(
+                &mut multi,
+                "append",
+                &[name.into(), "a".into(), "b".into()],
+                &mut used
+            ));
+            assert!(multi.instructions.is_empty());
+        }
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
-        assert!(!try_bytecoded(
-            &mut ctx,
-            "append",
-            &["::g::x".into(), "a".into()],
-            &mut used
-        ));
-        assert!(!try_bytecoded(
-            &mut ctx,
-            "append",
-            &["$dyn".into(), "a".into()],
-            &mut used
-        ));
-        // No value: nothing to append → generic invoke.
-        assert!(!try_bytecoded(&mut ctx, "append", &["x".into()], &mut used));
+        assert!(try_bytecoded(&mut ctx, "append", &["x".into()], &mut used));
+        assert!(ctx.instructions.iter().any(|i| i.op == Op::LOAD_SCALAR1));
     }
 
     #[test]
@@ -1344,14 +1873,24 @@ mod tests {
     }
 
     #[test]
-    fn lappend_multi_array_falls_back() {
-        // Multi-value array lappend is not specialised (would need the key
-        // re-pushed per element); it falls back to the generic invoke.
+    fn lappend_multi_array_captures_one_key_and_builds_one_list() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let args = vec!["arr(k)".into(), "a".into(), "b".into()];
         let mut used = false;
-        assert!(!try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+        assert!(try_bytecoded(&mut ctx, "lappend", &args, &mut used));
+        let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
+        assert_eq!(
+            ops,
+            vec![
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::PUSH1,
+                Op::LIST,
+                Op::LAPPEND_LIST_ARRAY,
+                Op::POP
+            ]
+        );
     }
 
     #[test]
@@ -1407,6 +1946,34 @@ mod tests {
         let args = vec!["--".into(), "-x".into()];
         assert!(try_bytecoded(&mut ctx, "unset", &args, &mut used));
         assert_eq!(ctx.instructions[0].op, Op::UNSET_SCALAR);
+    }
+
+    #[test]
+    fn unset_unknown_and_repeated_options_remain_variable_operands() {
+        let registry = CommandRegistry::build_default();
+        for (args, first_name, flag) in [
+            (vec!["-bad".into(), "x".into()], "-bad", 1),
+            (
+                vec!["-nocomplain".into(), "-nocomplain".into(), "x".into()],
+                "-nocomplain",
+                0,
+            ),
+        ] {
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            let mut used = false;
+            assert!(try_bytecoded(&mut ctx, "unset", &args, &mut used));
+            let targets: Vec<_> = ctx
+                .instructions
+                .iter()
+                .filter(|instruction| instruction.op == Op::UNSET_SCALAR)
+                .collect();
+            assert_eq!(targets.len(), 2);
+            assert_eq!(targets[0].operands[0], Operand::Imm(flag));
+            assert_eq!(
+                targets[0].operands[1],
+                Operand::Imm(bytecode_imm(ctx.lvt.find(first_name).unwrap()))
+            );
+        }
     }
 
     #[test]
@@ -1489,7 +2056,7 @@ mod tests {
     // Tailcall statement-position specialisation.
 
     #[test]
-    fn tailcall_pushes_literal_prefix_then_args() {
+    fn tailcall_captures_namespace_after_legacy_arguments() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut used = false;
@@ -1502,19 +2069,21 @@ mod tests {
                 Op::PUSH1,
                 Op::PUSH1,
                 Op::PUSH1,
-                Op::PUSH1,
+                Op::CURRENT_NAMESPACE,
+                Op::REVERSE,
+                Op::REVERSE,
                 Op::TAILCALL,
                 Op::POP
             ]
         );
-        // operand counts the "tailcall" prefix plus the three args.
+        // Operand counts the retained namespace plus the three arguments.
         let tc = ctx
             .instructions
             .iter()
             .find(|i| i.op == Op::TAILCALL)
             .unwrap();
         assert_eq!(tc.operands[0], Operand::Imm(4));
-        assert_eq!(ctx.literals.entries()[0], "tailcall");
+        assert_eq!(ctx.literals.entries()[0], "foo");
     }
 
     #[test]

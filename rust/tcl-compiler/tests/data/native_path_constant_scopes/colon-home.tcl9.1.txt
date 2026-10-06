@@ -1,0 +1,2 @@
+home:/LIB
+normal:1

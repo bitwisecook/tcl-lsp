@@ -23,7 +23,7 @@
 //! `InterproceduralAnalysis`) plus the call-target resolver, which
 //! plug into the side-effect classifier and the SCCP evaluator.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 pub use tcl_registry::Arity;
 
@@ -271,6 +271,45 @@ pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcInde
         }
     }
     index
+}
+
+/// Exact original call/formal/registry caller-link advice for diagnostics.
+/// This projection never publishes a runtime read or a store-removal licence.
+pub(crate) fn collect_positioned_call_by_name_reads(
+    cfg: &crate::cfg::Function,
+    registry: &tcl_registry::CommandRegistry,
+    identities: &crate::realm::CommandBindingRealm,
+) -> HashSet<String> {
+    let bindings = identities.source_bindings_ref();
+    let mut output = HashSet::new();
+    for statement in cfg.blocks.values().flat_map(|block| &block.statements) {
+        let Some(tokens) = statement
+            .tokens()
+            .filter(|tokens| tokens.synthetic.is_none())
+        else {
+            continue;
+        };
+        output.extend(
+            bindings
+                .declaration_caller_alias_arguments(tokens, registry)
+                .unwrap_or_default(),
+        );
+        let config =
+            tokens.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile()));
+        let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
+            continue;
+        };
+        for call in calls {
+            if let Some(tokens) = call.tokens {
+                output.extend(
+                    bindings
+                        .declaration_caller_alias_arguments(&tokens, registry)
+                        .unwrap_or_default(),
+                );
+            }
+        }
+    }
+    output
 }
 
 /// Record any literal-name argument landing on a callee param that
@@ -579,14 +618,38 @@ pub fn namespace_parts_from_proc(qname: &str) -> Vec<String> {
 /// typing is available (an IR-only caller, or a context that needs no callback
 /// edges).
 #[derive(Clone, Copy)]
-pub struct ObjectTypeMap<'a>(pub &'a HashMap<String, HashSet<String>>);
+pub struct ObjectTypeCandidates<'a> {
+    candidates: &'a HashMap<String, HashSet<String>>,
+    unknown_residual: bool,
+}
 
-impl ObjectTypeMap<'static> {
+/// Compatibility name for advisory callback reachability candidates.
+/// This carrier cannot establish runtime object contents or closed dispatch.
+pub type ObjectTypeMap<'a> = ObjectTypeCandidates<'a>;
+
+impl<'a> ObjectTypeCandidates<'a> {
+    /// Supply possible classes for additional callback reachability edges.
+    #[must_use]
+    pub const fn candidates(classes: &'a HashMap<String, HashSet<String>>) -> Self {
+        Self {
+            candidates: classes,
+            unknown_residual: true,
+        }
+    }
+
+    /// Scope/name unions always leave the actual receiver's contents unresolved.
+    #[must_use]
+    pub const fn unknown_residual(self) -> bool {
+        self.unknown_residual
+    }
+}
+
+impl ObjectTypeCandidates<'static> {
     /// The empty map — no object-handle typing (no instance-method callback
     /// edges).  Backed by a process-wide empty map so it needs no local.
     #[must_use]
     pub fn none() -> Self {
-        ObjectTypeMap(&EMPTY_OBJECT_TYPES)
+        ObjectTypeCandidates::candidates(&EMPTY_OBJECT_TYPES)
     }
 }
 
@@ -667,7 +730,7 @@ fn build_interprocedural_analysis_inner(
     declared: Option<&tcl_registry::model::DeclaredSurface>,
     cfg_module: Option<&crate::cfg::CfgModule>,
 ) -> InterproceduralAnalysis {
-    let object_types = object_types.0;
+    let object_types = object_types.candidates;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
 
     let local = scan_all_procs(
@@ -1255,9 +1318,10 @@ fn scan_method_body_facts(
         dialect,
         params: &params,
         // Method bodies are not call-graph nodes; no object-type map needed.
-        object_types: ObjectTypeMap::none().0,
+        object_types: ObjectTypeMap::none().candidates,
         identities,
         declared,
+        positioned_substitutions: false,
     };
     scan_script(&body_def.body, ctx, facts, 0);
     // Fall-through exit is non-constant (O103); see `scan_proc`.
@@ -1269,13 +1333,77 @@ fn scan_method_body_facts(
     // though the write looks like a plain local `set`.
     if !body_def.instance_vars.is_empty() {
         collect_instance_var_writes(&body_def.body, &body_def.instance_vars, written_ivars, 0);
+        collect_possible_instance_var_writes(
+            &body_def.body,
+            &body_def.instance_vars,
+            registry,
+            dialect,
+            written_ivars,
+        );
+    }
+}
+
+/// Candidate name operands identify possible instance-write hazards, even
+/// when receiver lookup prevents a Must handler or physical destination proof.
+fn collect_possible_instance_var_writes(
+    script: &crate::ir::Script,
+    ivars: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    out: &mut HashSet<String>,
+) {
+    use crate::registry_invocation::EffectiveInvocationWord;
+    let context = dialect
+        .or_else(|| registry.profile())
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let mut pending = vec![(script, 0)];
+    while let Some((script, depth)) = pending.pop() {
+        if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
+            continue;
+        }
+        for statement in &script.statements {
+            if let Some(names) = statement.tokens().and_then(|tokens| {
+                crate::registry_invocation::possible_variable_name_operands(
+                    registry, context, tokens,
+                )
+            }) {
+                for operand in names.contents_write_operands() {
+                    match operand {
+                        EffectiveInvocationWord::Literal(name) => {
+                            check_ivar_write(name, ivars, out);
+                        }
+                        EffectiveInvocationWord::ArrayElementName { root } => {
+                            check_ivar_write(root, ivars, out);
+                        }
+                        EffectiveInvocationWord::ByteLiteral(_)
+                        | EffectiveInvocationWord::Dynamic
+                        | EffectiveInvocationWord::Expanded
+                        | EffectiveInvocationWord::KnownExpansion(_)
+                        | EffectiveInvocationWord::Opaque => out.extend(ivars.iter().cloned()),
+                    }
+                }
+                if names
+                    .unresolved_roles()
+                    .any(|role| role == tcl_registry::ArgRole::VarWrite)
+                {
+                    out.extend(ivars.iter().cloned());
+                }
+            }
+            pending.extend(
+                statement
+                    .child_scripts()
+                    .into_iter()
+                    .map(|child| (child, depth + 1)),
+            );
+        }
     }
 }
 
 /// Recursively collect the base names of instance-variable *writes* in
 /// a method body, comparing each written name against `ivars`. Walks
-/// the CFG, counting every `defs` of a non-`::variable` / `::upvar`
-/// Call, plus every assign / incr / loop / catch target. Array-element
+/// the CFG, counting explicit assign / incr / loop / catch targets.
+/// Positioned Call hazards come from the candidate contents-write owner;
+/// unpositioned IR conservatively retains its declared `defs`. Array-element
 /// writes (`counter(0)`) compare on the base scalar name so they are
 /// not missed. Over-approximating writes is the sound direction (a
 /// spurious write only costs an O126 fold; a missed one would wrongly
@@ -1297,17 +1425,11 @@ fn collect_instance_var_writes(
             | Statement::AssignExpr { name, .. }
             | Statement::AssignValue { name, .. }
             | Statement::Incr { name, .. } => check_ivar_write(name, ivars, out),
-            Statement::Call {
-                command,
-                canonical_command,
-                defs,
-                ..
-            } => {
-                // `variable` / `upvar` link or declare a name; they are
-                // not writes to instance state.
-                if is_variable_or_upvar(command, canonical_command.as_deref()) {
-                    continue;
-                }
+            Statement::Call { defs, tokens, .. }
+                if tokens
+                    .as_ref()
+                    .is_none_or(|tokens| tokens.source_binding.is_none()) =>
+            {
                 for d in defs {
                     check_ivar_write(d, ivars, out);
                 }
@@ -1406,15 +1528,6 @@ fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String
     if ivars.contains(base) {
         out.insert(base.to_owned());
     }
-}
-
-/// True iff a statement's command (preferring its canonical form,
-/// `::`-stripped) is `variable` or `upvar` — a link/declaration, not a
-/// write to instance state.
-fn is_variable_or_upvar(command: &str, canonical: Option<&str>) -> bool {
-    let c = canonical.unwrap_or(command);
-    let c = c.strip_prefix("::").unwrap_or(c);
-    c == "variable" || c == "upvar"
 }
 
 fn scan_all_procs(
@@ -1709,6 +1822,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
         object_types,
         identities,
         declared,
+        positioned_substitutions: false,
     };
     scan_script(&proc.body, ctx, &mut facts, 0);
     // If the body can fall off the end, its implicit exit returns the
@@ -1754,6 +1868,9 @@ struct ScanCtx<'a> {
     /// second table beside `registry`. `None` for a caller with no document
     /// (the optimiser's own unit tests).
     declared: Option<&'a tcl_registry::model::DeclaredSurface>,
+    /// Substitutions of the current retained invocation were already scanned
+    /// from exact source carriers; raw text must not regain declined semantics.
+    positioned_substitutions: bool,
 }
 
 impl<'a> ScanCtx<'a> {
@@ -1778,7 +1895,13 @@ fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFa
         return;
     }
     for stmt in &script.statements {
-        scan_statement(stmt, ctx, facts, depth);
+        scan_statement(
+            stmt,
+            script.retained_source_tokens_for_statement(stmt),
+            ctx,
+            facts,
+            depth,
+        );
     }
 }
 
@@ -1839,36 +1962,17 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         }
     }
 
-    // Object-instance method-callback dispatch — `$g walk … -command cb` /
-    // `objName walkproc … cb`.  The receiver's class(es) come from the
-    // module's object-handle map (SSA/VTA-derived); resolve the *method's*
-    // command prefixes (`instance_method_command_prefixes`) so a bareword
-    // callback that names an in-module proc becomes a call-graph edge, exactly
-    // like a top-level prefix.  Over-approximate across candidate classes — an
-    // extra reachability edge is sound (never a missed edge / false dead-code).
-    if let Some(method) = args.first()
-        && !ctx.object_types.is_empty()
-    {
-        let receiver = extract_var_name(command).unwrap_or(command);
-        if let Some(classes) = ctx.object_types.get(receiver) {
-            for class in classes {
-                for (idx, _appended) in
-                    registry.instance_method_command_prefixes(class, method, &arg_strs[1..])
-                {
-                    // `idx` is relative to the words after the method name, so
-                    // the callback word is `args[idx + 1]`.
-                    if let Some(word) = args
-                        .get(idx + 1)
-                        .and_then(|a| command_prefix_head(registry, a))
-                        && is_plain_proc_name(&word)
-                        && let Some(target) = resolve_internal_call(&word, caller, known)
-                    {
-                        facts.direct_calls.insert(target);
-                    }
-                }
-            }
-        }
-    }
+    let words: Vec<_> = arg_strs
+        .iter()
+        .map(|value| tcl_registry::InvocationWord::Literal(value))
+        .collect();
+    scan_candidate_method_callbacks(
+        extract_var_name(command).unwrap_or(command),
+        &arg_strs,
+        &words,
+        ctx,
+        facts,
+    );
 
     // A call that resolves to an internal proc contributes ONLY a
     // call-graph edge — its purity / effects flow through the
@@ -2019,6 +2123,7 @@ fn scan_call_statement(
     command: &str,
     args: &[String],
     defs: &[String],
+    tokens: Option<&crate::ir::CommandTokens>,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
@@ -2062,7 +2167,7 @@ fn scan_call_statement(
         }
     }
     scan_call_facts(command, args, ctx, facts);
-    scan_role_code_arguments(command, args, ctx, facts);
+    scan_role_code_arguments(command, args, tokens, ctx, facts);
 }
 
 /// Recurse into the code-bearing arguments of a statement that carries them
@@ -2099,6 +2204,7 @@ fn scan_call_statement(
 fn scan_role_code_arguments(
     command: &str,
     args: &[String],
+    tokens: Option<&crate::ir::CommandTokens>,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
@@ -2106,7 +2212,49 @@ fn scan_role_code_arguments(
     let surface = ctx.surface();
     let resolved: &str = ctx.identities.resolve_unpositioned(command).spec_name();
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let traits = ctx.registry.invocation_traits(resolved, &arg_strs, None);
+    let structured = tokens.map(|tokens| {
+        crate::registry_invocation::resolve_command_tokens(
+            ctx.registry,
+            ctx.dialect
+                .or_else(|| ctx.registry.profile())
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            tokens,
+        )
+    });
+    let roles;
+    let traits;
+    if let Some(structured) = structured {
+        let Ok(crate::registry_invocation::RegistryInvocationResolution::Resolved(resolved)) =
+            structured
+        else {
+            return;
+        };
+        if !resolved.arg_roles_complete {
+            return;
+        }
+        traits = resolved.traits;
+        roles = resolved
+            .arg_roles
+            .iter()
+            .map(|&(index, role)| (resolved.argument_offset + usize::from(index), role))
+            .collect::<Vec<_>>();
+    } else {
+        traits = ctx.registry.invocation_traits(resolved, &arg_strs, None);
+        roles = [
+            tcl_registry::ArgRole::NamespaceName,
+            tcl_registry::ArgRole::Name,
+            tcl_registry::ArgRole::Body,
+            tcl_registry::ArgRole::Expr,
+        ]
+        .into_iter()
+        .flat_map(|role| {
+            surface
+                .arg_indices_for_role(resolved, &arg_strs, role)
+                .into_iter()
+                .map(move |index| (index, role))
+        })
+        .collect();
+    }
     if traits.intersects(
         tcl_registry::traits::FRAME_REACH_TRAITS
             .union(Traits::DEFINES_PROCEDURE)
@@ -2122,20 +2270,99 @@ fn scan_role_code_arguments(
         tcl_registry::ArgRole::Name,
     ]
     .into_iter()
-    .flat_map(|role| surface.arg_indices_for_role(resolved, &arg_strs, role))
+    .flat_map(|wanted| {
+        roles
+            .iter()
+            .filter(move |(_, role)| *role == wanted)
+            .map(|(index, _)| *index)
+    })
     .filter_map(|index| args.get(index))
     .any(|name| name.starts_with("::"))
     {
         return;
     }
-    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Body) {
+    for index in roles
+        .iter()
+        .filter(|(_, role)| *role == tcl_registry::ArgRole::Body)
+        .map(|(index, _)| *index)
+    {
         if let Some(body_text) = args.get(index) {
             scan_source_for_calls(body_text, ctx, facts, 0);
         }
     }
-    for index in surface.arg_indices_for_role(resolved, &arg_strs, tcl_registry::ArgRole::Expr) {
+    for index in roles
+        .iter()
+        .filter(|(_, role)| *role == tcl_registry::ArgRole::Expr)
+        .map(|(index, _)| *index)
+    {
         if let Some(expr_text) = args.get(index) {
             scan_value_substitutions(strip_one_brace_layer(expr_text), ctx, facts, 0);
+        }
+    }
+}
+
+/// Structured roles retain argv positions even when a captured prefix has no
+/// presentation. Only separately proved body values can be re-segmented.
+fn scan_resolved_role_code_arguments(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use tcl_registry::{ArgRole, Traits};
+    let metadata = &invocation.facts;
+    if !metadata.arg_roles_complete
+        || metadata.traits.intersects(
+            tcl_registry::traits::FRAME_REACH_TRAITS
+                .union(Traits::DEFINES_PROCEDURE)
+                .union(Traits::DECLARES_NAMESPACE),
+        )
+    {
+        return;
+    }
+    for (index, role) in &metadata.arg_roles {
+        let index = metadata.argument_offset + usize::from(*index);
+        if matches!(role, ArgRole::Name | ArgRole::NamespaceName)
+            && invocation
+                .argument_literal(index)
+                .is_none_or(|name| name.starts_with("::"))
+        {
+            return;
+        }
+    }
+    for (index, role) in &metadata.arg_roles {
+        let index = metadata.argument_offset + usize::from(*index);
+        if !matches!(role, ArgRole::Body | ArgRole::Expr) {
+            continue;
+        }
+        let Some(value) = invocation.argument_literal(index) else {
+            facts.has_unknown_calls = true;
+            facts.local_pure = false;
+            continue;
+        };
+        match role {
+            ArgRole::Body => scan_source_for_calls(&value, ctx, facts, 0),
+            ArgRole::Expr => scan_value_substitutions(&value, ctx, facts, 0),
+            _ => unreachable!("only executable language roles selected above"),
+        }
+    }
+}
+
+fn scan_unproved_invocation(args: &[String], ctx: ScanCtx<'_>, facts: &mut LocalFacts) {
+    facts.has_barrier = true;
+    facts.has_unknown_calls = true;
+    facts.local_pure = false;
+    facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+    facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+    for arg in args {
+        scan_value_substitutions(arg, ctx, facts, 0);
+        for param in ctx.params {
+            if text_references_name(arg, param) {
+                facts
+                    .param_trait_flags
+                    .entry(param.clone())
+                    .or_default()
+                    .insert(ProcArgTrait::Passthrough);
+            }
         }
     }
 }
@@ -2150,6 +2377,443 @@ fn strip_one_brace_layer(word: &str) -> &str {
         .unwrap_or(word)
 }
 
+/// Project alias identities from the same resolved transition facts as the
+/// point-binding solver. The registry owns optional-level and pair grammar;
+/// this consumer only records which caller parameters and visible cells a
+/// transition can reach.
+fn scan_resolved_aliases(
+    resolved: &crate::registry_invocation::ResolvedStatementInvocation,
+    defs: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    use tcl_registry::frame_effect::FrameLevel;
+    use tcl_registry::state_transition::{
+        CallerFrameSelection, StateTransition, TransitionSubject, VariableAliasTarget,
+    };
+    let parameter = |subject: &TransitionSubject| -> Option<String> {
+        let TransitionSubject::Unknown { argument_index, .. } = subject else {
+            return None;
+        };
+        let crate::ir::WordExpr::Variable { spelling, .. } = resolved
+            .effective
+            .words
+            .get(argument_index.checked_add(1)?)?
+        else {
+            return None;
+        };
+        let name = extract_var_name(spelling)?;
+        ctx.params.contains(name).then(|| name.to_owned())
+    };
+    let mut declarations = HashSet::new();
+    if let Some(transitions) = resolved.facts.state_transitions.declared() {
+        for fact in transitions.facts() {
+            let StateTransition::VariableCellAlias(alias) = &fact.transition else {
+                continue;
+            };
+            if let Some(local) = alias.local.literal() {
+                if !alias.writes_value {
+                    declarations.insert(local.to_owned());
+                }
+            } else if let Some(name) = parameter(&alias.local) {
+                facts
+                    .param_trait_flags
+                    .entry(name)
+                    .or_default()
+                    .insert(ProcArgTrait::VarWrite);
+            }
+            let (visible, caller, variable) = match &alias.target {
+                VariableAliasTarget::Global { variable }
+                | VariableAliasTarget::CurrentNamespace { variable }
+                | VariableAliasTarget::Namespace { variable, .. } => (true, false, variable),
+                VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                    let level = match frame {
+                        CallerFrameSelection::DefaultCaller => Some(FrameLevel::DEFAULT),
+                        CallerFrameSelection::Explicit(subject) => {
+                            subject.literal().and_then(|word| {
+                                resolved.dialect.map_or_else(
+                                    || FrameLevel::parse(word),
+                                    |dialect| FrameLevel::parse_for_dialect(word, dialect),
+                                )
+                            })
+                        }
+                    };
+                    (
+                        level.is_none_or(|level| {
+                            matches!(level, FrameLevel::Absolute(_) | FrameLevel::Dynamic)
+                        }),
+                        level == Some(FrameLevel::DEFAULT),
+                        variable,
+                    )
+                }
+            };
+            if visible {
+                match alias.local.literal() {
+                    Some(local) => {
+                        facts.global_aliases.insert(local.to_owned());
+                    }
+                    None => facts.writes_global = true,
+                }
+                facts.writes_global |= alias.writes_value;
+            }
+            if let Some(name) = parameter(variable) {
+                facts
+                    .param_trait_flags
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(ProcArgTrait::VarRead);
+                if caller && let Some(local) = alias.local.literal() {
+                    facts.upvar_aliases.insert(local.to_owned(), name);
+                }
+            }
+        }
+    }
+    // Barrier-shaped calls can retain exact native write roles even when their
+    // value is dynamic. Projection must not depend on structural lowering.
+    let mut writes: BTreeSet<String> = defs.iter().cloned().collect();
+    writes.extend(resolved.facts.arg_roles.iter().filter_map(|(index, role)| {
+        (*role == tcl_registry::ArgRole::VarWrite)
+            .then(|| {
+                resolved.argument_literal(resolved.facts.argument_offset + usize::from(*index))
+            })
+            .flatten()
+    }));
+    for name in writes.iter().filter(|name| !declarations.contains(*name)) {
+        mark_upvar_alias_write(name, facts);
+        facts.writes_global |= name.starts_with("::") || facts.global_aliases.contains(name);
+    }
+}
+
+/// Project normal physical writes without licensing native execution. The
+/// selected handler may still carry a compiler-error or unknown completion.
+fn scan_normal_visible_writes(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return;
+    };
+    let Some(normal) = crate::registry_invocation::normal_transfer_invocation(
+        ctx.registry,
+        ctx.dialect
+            .or_else(|| ctx.registry.profile())
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    ) else {
+        return;
+    };
+    facts.writes_global |= normal
+        .mutation_places(&binding.variable_context, ctx.registry)
+        .iter()
+        .any(|place| {
+            place.cell.as_ref().is_some_and(|cell| {
+                matches!(
+                    cell.owner,
+                    crate::place::CellOwner::Namespace(_)
+                        | crate::place::CellOwner::NamespaceIdentity(_)
+                )
+            })
+        });
+}
+
+/// Candidate class metadata contributes callback reachability only. It does
+/// not prove the receiver's implementation, effects or method execution.
+fn scan_candidate_method_callbacks(
+    receiver: &str,
+    arguments: &[&str],
+    words: &[tcl_registry::InvocationWord<'_>],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    let Some(method) = words.first().and_then(|word| word.literal()) else {
+        return;
+    };
+    let Some(classes) = ctx.object_types.get(receiver) else {
+        return;
+    };
+    for class in classes {
+        for (index, _) in ctx.registry.instance_method_command_prefixes_structured(
+            class,
+            method,
+            &arguments[1..],
+            &words[1..],
+        ) {
+            if let Some(word) = words
+                .get(index + 1)
+                .and_then(|word| word.literal())
+                .and_then(|word| command_prefix_head(ctx.registry, word))
+                && is_plain_proc_name(&word)
+                && let Some(target) = resolve_internal_call(&word, ctx.caller, ctx.known)
+            {
+                facts.direct_calls.insert(target);
+            }
+        }
+    }
+}
+
+/// Candidate callback reachability reads original ordinary source words when
+/// the opaque receiver prevents a reached argv snapshot. Source substitutions
+/// remain dynamic; this projection never grants handler entry or effects.
+fn scan_positioned_candidate_callbacks(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    if tokens.synthetic.is_some()
+        || tokens.words().len() != tokens.argv.len()
+        || tokens
+            .words()
+            .iter()
+            .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
+    {
+        return;
+    }
+    let Some(head) = tokens.words().first() else {
+        return;
+    };
+    let frozen = tokens
+        .source_binding
+        .as_ref()
+        .filter(|binding| binding.evaluated_argument_values.len() + 1 == tokens.words().len());
+    let receiver = head
+        .sole_variable_substitution()
+        .and_then(|(spelling, _)| extract_var_name(spelling))
+        .or_else(|| frozen.and_then(|binding| binding.evaluated_command_word()))
+        .or_else(|| crate::registry_invocation::invocation_word(head).literal());
+    let Some(receiver) = receiver else {
+        return;
+    };
+    let words: Vec<_> = tokens.words()[1..]
+        .iter()
+        .enumerate()
+        .map(|(index, word)| {
+            frozen
+                .and_then(|binding| binding.evaluated_argument_values[index].as_deref())
+                .map_or_else(
+                    || crate::registry_invocation::invocation_word(word),
+                    tcl_registry::InvocationWord::Literal,
+                )
+        })
+        .collect();
+    // The spelling view is diagnostic-only. Structured words keep unknown
+    // runtime operands opaque to literal-sensitive callback selectors.
+    let spellings: Vec<_> = tokens.words()[1..]
+        .iter()
+        .map(crate::ir::WordExpr::legacy_text)
+        .collect();
+    let arguments: Vec<_> = spellings.iter().map(String::as_str).collect();
+    scan_candidate_method_callbacks(receiver, &arguments, &words, ctx, facts);
+}
+
+/// Successful handler entry can contribute a possible call edge without
+/// withdrawing a compiler or completion obligation from its statement.
+fn scan_normal_procedure_caller(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation(
+        ctx.registry,
+        ctx.dialect
+            .or_else(|| ctx.registry.profile())
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    ) && let Some(callee) = resolve_internal_call(&call.target, ctx.caller, ctx.known)
+    {
+        // A possible successful handler entry contributes a call-graph edge.
+        // Compiler/completion uncertainty below still withdraws effects and purity.
+        facts.direct_calls.insert(callee);
+    }
+}
+
+/// Possible call edges are independent of the later strict effect proof.
+fn scan_positioned_reachability(
+    tokens: &crate::ir::CommandTokens,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) {
+    let Some(binding) = &tokens.source_binding else {
+        return;
+    };
+    scan_normal_procedure_caller(tokens, ctx, facts);
+    scan_positioned_candidate_callbacks(tokens, ctx, facts);
+    if let Some((reads, writes)) =
+        crate::registry_invocation::possible_normal_handler_effect_regions(
+            ctx.registry,
+            ctx.dialect
+                .or_else(|| ctx.registry.profile())
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            tokens,
+        )
+    {
+        facts.effect_reads |= reads;
+        facts.effect_writes |= writes;
+    }
+    // Reachability depends on the target identity, independently of whether
+    // a retained alias prefix has printable bytes or a composable argv shape.
+    // Unknown/absent residuals still withdraw effects and purity below.
+    for target in binding.execution_targets() {
+        if !target.registry_backed
+            && let Some(callee) = resolve_internal_call(&target.command, ctx.caller, ctx.known)
+        {
+            facts.direct_calls.insert(callee);
+        }
+    }
+    if let Some(site) = binding.invocation_site() {
+        for child in ctx.identities.possible_entered_body_invocations(site) {
+            for target in child.execution_targets() {
+                if !target.registry_backed
+                    && let Some(callee) =
+                        resolve_internal_call(&target.command, ctx.caller, ctx.known)
+                {
+                    facts.direct_calls.insert(callee);
+                }
+            }
+        }
+    }
+}
+
+/// Consume positioned implementation facts before assistance projections.
+fn scan_positioned_invocation(
+    stmt: &crate::ir::Statement,
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) -> bool {
+    use crate::ir::Statement;
+    let (args, defs, tokens) = match stmt {
+        Statement::Call {
+            args,
+            defs,
+            tokens: Some(tokens),
+            ..
+        } => (args, defs.as_slice(), tokens),
+        Statement::Barrier {
+            args,
+            tokens: Some(tokens),
+            ..
+        } => (args, &[][..], tokens),
+        _ => return false,
+    };
+    let Some(binding) = &tokens.source_binding else {
+        return false;
+    };
+    let params = ctx.params;
+    scan_positioned_reachability(tokens, ctx, facts);
+    let Some(target) = binding.proved_execution_target() else {
+        scan_unproved_invocation(args, ctx, facts);
+        return true;
+    };
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
+        scan_unproved_invocation(args, ctx, facts);
+        return true;
+    };
+    let Some(_effective_args) = effective.argument_presentations(args) else {
+        scan_unproved_invocation(args, ctx, facts);
+        return true;
+    };
+    // The exact point binding supersedes a whole-document assistance join.
+    let positioned = ScanCtx {
+        identities: crate::realm::CommandBindingRealm::none(),
+        ..ctx
+    };
+    if target.registry_backed {
+        let Some(resolved) = crate::registry_invocation::resolved_statement_invocation(
+            ctx.registry,
+            ctx.dialect
+                .or_else(|| ctx.registry.profile())
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            stmt,
+        ) else {
+            scan_unproved_invocation(args, ctx, facts);
+            return true;
+        };
+        scan_resolved_aliases(&resolved, defs, positioned, facts);
+        if let Some(presented) = resolved
+            .arguments
+            .iter()
+            .cloned()
+            .collect::<Option<Vec<_>>>()
+        {
+            scan_call_facts(
+                &resolved.facts.canonical_command,
+                &presented,
+                positioned,
+                facts,
+            );
+        } else {
+            // The target is proved, but a legacy textual effect/callback
+            // query cannot invent bytes for a captured unmaterialised value.
+            scan_unproved_invocation(args, positioned, facts);
+        }
+        scan_resolved_role_code_arguments(&resolved, positioned, facts);
+    } else if let Some(target) = resolve_internal_call(&target.command, ctx.caller, ctx.known) {
+        facts.direct_calls.insert(target);
+        for arg in args {
+            scan_value_substitutions(arg, ctx, facts, 0);
+            for param in params {
+                if text_references_name(arg, param) {
+                    facts
+                        .param_trait_flags
+                        .entry(param.clone())
+                        .or_default()
+                        .insert(ProcArgTrait::ForwardedToCallee);
+                }
+            }
+        }
+    } else {
+        scan_unproved_invocation(args, ctx, facts);
+    }
+    if matches!(stmt, Statement::Barrier { .. }) {
+        facts.has_barrier = true;
+        facts.local_pure = false;
+        facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+        facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+    }
+    true
+}
+
+fn scan_retained_substitutions<'a>(
+    tokens: Option<&crate::ir::CommandTokens>,
+    ctx: ScanCtx<'a>,
+    facts: &mut LocalFacts,
+) -> ScanCtx<'a> {
+    use crate::ir::Statement;
+    if let Some(tokens) = tokens.filter(|tokens| tokens.source_binding.is_some()) {
+        let positioned = ScanCtx {
+            positioned_substitutions: true,
+            ..ctx
+        };
+        for lifted in crate::word_subst::lifted_calls_with_surface(
+            Some(tokens),
+            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            &ctx.surface(),
+        ) {
+            let nested = Statement::Call {
+                span: lifted.span,
+                command: lifted.command,
+                canonical_command: None,
+                args: lifted.args,
+                defs: Vec::new(),
+                reads: Vec::new(),
+                reads_own_defs: false,
+                safe_on_uninit: false,
+                tokens: lifted.tokens,
+                foreach_groups: None,
+            };
+            if !scan_positioned_invocation(&nested, positioned, facts) {
+                // Missing retained provenance cannot authorise a lexical query.
+                if let Statement::Call { args, .. } = &nested {
+                    scan_unproved_invocation(args, positioned, facts);
+                }
+            }
+        }
+        positioned
+    } else {
+        ctx
+    }
+}
+
 /// `depth` is `stmt`'s own nesting level — see
 /// [`MAX_INTERPROCEDURAL_WALK_DEPTH`]. Dispatch-only (no nested `Script`
 /// entered here) keeps the same `depth`; recursing into a nested body
@@ -2157,6 +2821,7 @@ fn strip_one_brace_layer(word: &str) -> &str {
 /// [`scan_control_flow_statement`]) passes `depth + 1`.
 fn scan_statement(
     stmt: &crate::ir::Statement,
+    retained_tokens: Option<&crate::ir::CommandTokens>,
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
     depth: u32,
@@ -2166,8 +2831,27 @@ fn scan_statement(
         return;
     }
     let ScanCtx { params, .. } = ctx;
+    let ctx = scan_retained_substitutions(retained_tokens, ctx, facts);
+    if let Some(tokens) = retained_tokens {
+        scan_normal_visible_writes(tokens, ctx, facts);
+    }
+    if scan_positioned_invocation(stmt, ctx, facts) {
+        return;
+    }
     match stmt {
-        Statement::Barrier { command, args, .. } => {
+        Statement::NativeCall { .. } => {
+            facts.has_barrier = true;
+            facts.local_pure = false;
+            facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
+            facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
+        }
+
+        Statement::Barrier {
+            command,
+            args,
+            tokens,
+            ..
+        } => {
             // A barrier makes effects opaque; it does not erase the call's
             // registry-declared identities.  In particular, same-invocation
             // command prefixes such as `lsort -command cb` still make `cb`
@@ -2175,7 +2859,7 @@ fn scan_statement(
             // lower to a barrier retain their callback edge too — and neither
             // does it erase the script its `ArgRole::Body` words carry.
             scan_call_facts(command, args, ctx, facts);
-            scan_role_code_arguments(command, args, ctx, facts);
+            scan_role_code_arguments(command, args, tokens.as_ref(), ctx, facts);
             facts.has_barrier = true;
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
@@ -2219,7 +2903,11 @@ fn scan_statement(
             }
         }
         Statement::Return { value, expr, .. } => {
-            let kind = classify_return(value.as_deref(), expr.as_ref(), params);
+            let config = retained_tokens
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .and_then(|binding| binding.variable_context.invocation_dialect)
+                .map(|dialect| tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar));
+            let kind = classify_return(value.as_deref(), expr.as_ref(), params, config);
             facts.returns.push(kind);
             // For a return, scan `[cmd …]` substitutions in the return
             // value (`return [add $x $x]`) for call-graph edges.
@@ -2233,9 +2921,10 @@ fn scan_statement(
             command,
             args,
             defs,
+            tokens,
             ..
         } => {
-            scan_call_statement(command, args, defs, ctx, facts);
+            scan_call_statement(command, args, defs, tokens.as_ref(), ctx, facts);
         }
         Statement::If { .. }
         | Statement::For { .. }
@@ -2476,6 +3165,9 @@ fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
 /// [`scan_source_for_calls`] (which resolves the head, applies the
 /// callee's effects, and recurses into `BODY`-role args).
 fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
+    if ctx.positioned_substitutions {
+        return;
+    }
     let dialect = ctx.dialect;
     if !text.contains('[') {
         return;
@@ -2625,8 +3317,8 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
         // this value/expression context (`set x [matchclass [HTTP::uri] …]`,
         // `if {[matchclass [HTTP::uri] …]}`), so its nested effects and edges
         // propagate too. This worker is reached
-        // only from value/return/expr scanning (plain statements go through the
-        // `Statement::Call` arm, which does *not* propagate). Braced args are
+        // only from value/return/expr scanning. Positioned statement operands
+        // use their retained WordExpr substitution carrier instead. Braced args are
         // inert (no `Cmd` token inside `{…}`); the
         // body/expr args handled above are idempotent under a re-scan.
         for arg in texts {
@@ -2768,11 +3460,12 @@ fn classify_return(
     value: Option<&str>,
     expr: Option<&crate::expr_ast::ExprNode>,
     params: &HashSet<String>,
+    config: Option<tcl_lexer::LexerConfig>,
 ) -> ReturnKind {
     // Prefer the structured `expr` when the return was `return
     // [expr {…}]` or similar — the AST gives precise information.
     if let Some(node) = expr {
-        return classify_return_expr(node, params);
+        return classify_return_expr(node, params, config);
     }
 
     let Some(raw) = value else {
@@ -2817,7 +3510,11 @@ fn classify_return(
     ReturnKind::Other
 }
 
-fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<String>) -> ReturnKind {
+fn classify_return_expr(
+    node: &crate::expr_ast::ExprNode,
+    params: &HashSet<String>,
+    config: Option<tcl_lexer::LexerConfig>,
+) -> ReturnKind {
     use crate::expr_ast::ExprNode;
 
     if let ExprNode::Literal { text, .. } = node {
@@ -2833,10 +3530,13 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
             ReturnKind::Literal(value.to_owned())
         });
     }
-    if let ExprNode::Var { name, .. } = node
-        && params.contains(name)
+    if let ExprNode::Var { text, .. } = node
+        && let Some(config) = config
+        && let Ok(crate::native_lowering::cells::CellPlace::Named { name }) =
+            crate::native_lowering::cells::variable_reference_place(text, config)
+        && params.contains(&name)
     {
-        return ReturnKind::Passthrough(name.clone());
+        return ReturnKind::Passthrough(name);
     }
     // Walk the AST collecting var references against the param
     // set; any match → UsesParam.
@@ -3196,9 +3896,10 @@ mod tests {
             registry: &registry,
             dialect: None,
             params: &params,
-            object_types: ObjectTypeMap::none().0,
+            object_types: ObjectTypeMap::none().candidates,
             identities: crate::realm::CommandBindingRealm::none(),
             declared: None,
+            positioned_substitutions: false,
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
@@ -3378,8 +4079,11 @@ mod tests {
     use tcl_registry::CommandRegistry;
 
     fn build(source: &str) -> InterproceduralAnalysis {
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(source, &registry, false);
+        // The fixture's identity surface below is explicitly C Tcl 8.6.
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(source, &registry, false, profile);
         // The document's own binding facts, exactly as
         // `CompilationUnit::with_interprocedural` supplies them.
         let identities = crate::realm::document_realm_bindings(
@@ -3390,11 +4094,148 @@ mod tests {
         build_interprocedural_analysis(
             &cu.ir_module,
             &registry,
-            None,
+            Some(profile),
             ObjectTypeMap::none(),
             &identities,
             None,
         )
+    }
+
+    fn source_point_trace(source: &str, body: &str) -> Vec<String> {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let unit = CompilationUnit::build_for_profile(source, &registry, false, profile);
+        let statements = unit
+            .ir_module
+            .procedures
+            .get(body)
+            .map(|body| &body.body)
+            .or_else(|| unit.ir_module.methods.get(body).map(|body| &body.body));
+        statements.into_iter().flat_map(|body| body.statements.iter().map(|statement| {
+            let Some(tokens) = body.retained_source_tokens_for_statement(statement) else {
+                return format!("no source carrier {:?}", statement.span());
+            };
+            let Some(binding) = &tokens.source_binding else {
+                return format!("{:?}: no source binding", tokens.argv_texts);
+            };
+            let normal = crate::registry_invocation::normal_transfer_invocation(
+                &registry, None, tokens,
+            );
+            format!(
+                "{:?}: unknown={} absent={} handler={:?} frame={:?} ns={} known={} globals={:?} ns_vars={:?} mutations={:?}",
+                tokens.argv_texts, binding.unknown, binding.may_be_absent,
+                binding.proved_handler_target().map(|target| (&target.command, target.registry_backed)),
+                binding.variable_context.frame_kind, binding.variable_context.namespace,
+                binding.variable_context.namespace_known, binding.variable_context.globals,
+                binding.variable_context.ns_vars,
+                normal.map(|normal| normal.mutation_places(&binding.variable_context, &registry)),
+            )
+        })).collect()
+    }
+
+    #[test]
+    fn positioned_alias_traits_use_selected_frame_and_transition_grammar() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            for (level, caller_write) in [("0x1", true), ("#0", false), ("0", false)] {
+                let source = format!("proc writer {{n}} {{upvar {level} $n local; set local NEW}}");
+                let unit = CompilationUnit::build_for_dialect(&source, registry, false, dialect);
+                let identities = crate::realm::document_realm_bindings(&source, profile, registry);
+                let analysis = build_interprocedural_analysis(
+                    &unit.ir_module,
+                    registry,
+                    Some(profile),
+                    ObjectTypeMap::none(),
+                    &identities,
+                    None,
+                );
+                let traits = &analysis.procedures["::writer"].param_traits["n"];
+                assert!(
+                    traits.contains(&ProcArgTrait::VarRead),
+                    "{dialect} {level}: {traits:?}; source body: {:#?}",
+                    unit.ir_module.procedures["::writer"].body
+                );
+                assert_eq!(
+                    traits.contains(&ProcArgTrait::VarWrite),
+                    caller_write,
+                    "only the caller-frame alias writes this caller parameter: {dialect} {level}: {traits:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn document_alias_prefix_preserves_the_call_graph_target() {
+        let facts = build(
+            "proc target {prefix value} {return $value}\ninterp alias {} invoke {} target FIXED\nproc caller {value} {invoke $value}",
+        );
+        let caller = &facts.procedures["::caller"];
+        assert!(
+            caller
+                .direct_calls
+                .iter()
+                .any(|callee| callee == "::target"),
+            "document alias target must remain a call edge: {:?}",
+            caller.direct_calls
+        );
+        assert!(
+            !caller
+                .direct_calls
+                .iter()
+                .any(|callee| callee == "::invoke")
+        );
+    }
+
+    #[test]
+    fn unknown_alias_prefix_bytes_preserve_document_call_graph_target() {
+        let facts = build(
+            "proc target {prefix value} {return $value}\nproc caller {prefix value} {interp alias {} invoke {} target $prefix; invoke $value}",
+        );
+        let caller = &facts.procedures["::caller"];
+        assert!(
+            caller
+                .direct_calls
+                .iter()
+                .any(|callee| callee == "::target"),
+            "unknown prefix bytes preserve target identity and argv slots: {:?}",
+            caller.direct_calls
+        );
+        assert!(
+            !caller
+                .direct_calls
+                .iter()
+                .any(|callee| callee == "::invoke")
+        );
+    }
+
+    #[test]
+    fn document_procedure_named_like_wrapper_does_not_inherit_body_roles() {
+        let facts = build(
+            "proc time {script} {return SAFE}\nproc helper {} {return VALUE}\nproc caller {} {time {helper}}",
+        );
+        let caller = &facts.procedures["::caller"];
+        assert!(caller.direct_calls.iter().any(|callee| callee == "::time"));
+        assert!(
+            !caller
+                .direct_calls
+                .iter()
+                .any(|callee| callee == "::helper"),
+            "{:?}",
+            caller.direct_calls
+        );
+    }
+
+    #[test]
+    fn uncertain_point_binding_preserves_unknown_effect_obligation() {
+        let facts = build(
+            "if {$flag} {proc time {script} {return SAFE}}\nproc caller {} {time {puts SAFE}}",
+        );
+        let caller = &facts.procedures["::caller"];
+        assert!(caller.has_unknown_calls || caller.has_barrier);
+        assert!(!caller.pure);
     }
 
     #[test]
@@ -3486,22 +4327,74 @@ mod tests {
 
     #[test]
     fn instance_method_callback_is_a_direct_call() {
-        // `with_interprocedural` computes the object-handle map, so a
-        // `$g walk … -command cb` instance-method callback inside a proc body
-        // resolves through the receiver's class and becomes a `direct_calls`
-        // edge (feeding the call graph + O124 not-dead).
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(
-            "proc onNode {a g n} {}\nproc build {} { struct::graph g\n g walk root -command onNode }\n",
-            &registry,
-            false,
+        use crate::provider_fixtures::{Provider, entry};
+        let environment = tcl_registry::model::ingress::resolve_environment("tcl8.6");
+        let context = environment.default_context_registry();
+        let registry = context.commands().as_ref();
+        let source = "package require struct::graph\nproc onNode {a g n} {}\nproc build {} { struct::graph g\n g node insert root\n g walk root -command onNode }\nbuild\n";
+        let selected = entry(registry, &[Provider::Graph]);
+        let cu = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                dialect: Some(environment.analyser_profile()),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &selected,
         )
-        .with_interprocedural(&registry, Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()));
+        .with_interprocedural(registry, Some(environment.analyser_profile()));
         let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
         assert!(
-            summary.direct_calls.iter().any(|c| c == "::onNode"),
-            "build's summary must carry a direct_call to onNode via the instance-method callback; got {:?}",
+            summary.direct_calls.iter().any(|call| call == "::onNode"),
+            "the actual loaded graph's callback must reach onNode: {:?}; candidates={:?}; argv={:?}",
             summary.direct_calls,
+            crate::object_types::object_handle_classes(&cu, registry),
+            cu.procedures
+                .get("::build")
+                .into_iter()
+                .flat_map(|unit| unit.cfg.blocks.values())
+                .flat_map(|block| &block.statements)
+                .filter_map(|statement| {
+                    let tokens = statement.tokens()?;
+                    let binding = tokens.source_binding.as_ref()?;
+                    Some((
+                        tokens.argv_texts.first(),
+                        binding.evaluated_command_word(),
+                        &binding.evaluated_argument_values,
+                        tokens.synthetic.is_some(),
+                    ))
+                })
+                .collect::<Vec<_>>(),
+        );
+        assert!(
+            summary.has_unknown_calls && !summary.pure,
+            "candidate callback reachability cannot close the receiver's effects",
+        );
+        let unprovided = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                dialect: Some(environment.analyser_profile()),
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry(registry, &[]),
+        )
+        .with_interprocedural(registry, Some(environment.analyser_profile()));
+        assert!(
+            !unprovided
+                .interproc
+                .as_ref()
+                .expect("interproc")
+                .procedures
+                .get("::build")
+                .is_some_and(|summary| summary.direct_calls.iter().any(|call| call == "::onNode")),
+            "an unloaded graph catalogue cannot license a callback edge",
         );
     }
 
@@ -3529,7 +4422,11 @@ mod tests {
         ] {
             let ia = build(src);
             let s = ia.procedures.get("::f").expect("::f summary");
-            assert!(s.writes_global, "expected writes_global for: {src}");
+            assert!(
+                s.writes_global,
+                "expected writes_global for: {src}; points={:?}",
+                source_point_trace(src, "::f"),
+            );
         }
     }
 
@@ -3559,7 +4456,7 @@ mod tests {
              }",
         );
         let m = ia.methods.get("::C::get").expect("method summary");
-        assert!(m.base.pure, "read-only getter should be pure");
+        assert!(m.base.pure, "read-only getter should be pure: {:?}", m.base);
         assert!(m.writes_instance_vars.is_empty());
         assert_eq!(m.class_name, "::C");
         assert_eq!(m.method_kind, "method");
@@ -3611,7 +4508,7 @@ mod tests {
         assert!(!a.base.pure, "my-dispatch caller must be impure");
         // The pure leaf method still summarises pure.
         let b = ia.methods.get("::C::b").expect("method b");
-        assert!(b.base.pure);
+        assert!(b.base.pure, "absolute literal return leaf: {:?}", b.base);
     }
 
     #[test]
@@ -4151,61 +5048,61 @@ mod tests {
 #[cfg(test)]
 mod effect_propagation_tests {
     use super::*;
-    use crate::lowering::lower_to_ir;
-    use tcl_dialect::model::{Family, SurfaceLayer};
-
     use tcl_registry::CommandRegistry;
 
-    fn irules_registry() -> CommandRegistry {
-        let mut reg = CommandRegistry::build_default();
-        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
-        reg
+    fn irules_registry() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("f5-irules")
+            .commands()
+            .clone()
     }
 
-    /// A `[cmd …]` substitution that executes in a *value / expression* context
-    /// (`set x [matchclass [HTTP::uri] …]`, `if {[…]}`) propagates the nested
-    /// command's connection-state effect up to the enclosing body, while the
-    /// same call as a *plain statement* does not.
+    fn analyse_irules(source: &str, registry: &CommandRegistry) -> InterproceduralAnalysis {
+        let profile = registry.profile().expect("selected F5 provider profile");
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source, registry, false, profile,
+        );
+        let identities = crate::realm::document_realm_bindings_with_source_entry(
+            source,
+            unit.ir_module.lexer_config,
+            registry,
+            &unit.ir_module.source_entry,
+        );
+        build_interprocedural_analysis(
+            &unit.ir_module,
+            registry,
+            Some(profile),
+            ObjectTypeMap::none(),
+            &identities,
+            None,
+        )
+    }
+
+    /// Reached substitutions contribute their effects in assignments, returns,
+    /// conditions and ordinary command operands. A braced value is inert.
     #[test]
-    fn nested_substitution_effects_propagate_in_value_context_only() {
+    fn nested_substitution_effects_propagate_only_when_evaluated() {
         let reg = irules_registry();
 
         for src in [
             "proc p {} { set x [matchclass [HTTP::uri] equals $::l] }",
             "proc p {} { return [matchclass [HTTP::uri] equals $::l] }",
             "proc p {} { if {[matchclass [HTTP::uri] equals $::l]} {} }",
+            "proc p {} { matchclass [HTTP::uri] equals $::l }",
         ] {
-            let module = lower_to_ir(src, &reg);
-            let ia = build_interprocedural_analysis(
-                &module,
-                &reg,
-                Some(tcl_dialect::DialectProfile::irules()),
-                ObjectTypeMap::none(),
-                crate::realm::CommandBindingRealm::none(),
-                None,
-            );
+            let ia = analyse_irules(src, &reg);
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
                 s.effect_reads.contains(EffectRegion::HTTP_STATE),
-                "value-context nested [HTTP::uri] should propagate HTTP_STATE; src={src:?} reads={:?}",
+                "evaluated nested [HTTP::uri] should propagate HTTP_STATE; src={src:?} reads={:?}",
                 s.effect_reads
             );
         }
 
-        // Plain statement: nested arg effects are NOT propagated.
-        let module = lower_to_ir("proc q {} { matchclass [HTTP::uri] equals $::l }", &reg);
-        let ia = build_interprocedural_analysis(
-            &module,
-            &reg,
-            Some(tcl_dialect::DialectProfile::irules()),
-            ObjectTypeMap::none(),
-            crate::realm::CommandBindingRealm::none(),
-            None,
-        );
+        let ia = analyse_irules("proc q {} { matchclass {[HTTP::uri]} equals $::l }", &reg);
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(
             !s.effect_reads.contains(EffectRegion::HTTP_STATE),
-            "plain-statement arg must not propagate HTTP_STATE; reads={:?}",
+            "inert braced operand must not propagate HTTP_STATE; reads={:?}",
             s.effect_reads
         );
     }

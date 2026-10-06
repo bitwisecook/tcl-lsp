@@ -1,0 +1,247 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# _user_surface_data.tcl -- AUTO-GENERATED from tcl-registry by `cargo xtask gen-irule-test-data`
+#
+# DO NOT EDIT. Regenerate with:
+#   cargo xtask gen-irule-test-data
+#
+# Modern core command availability includes qualified ensemble members.
+
+namespace eval ::tmm {
+    variable _gen_unavailable_modern_commands {
+        ::!
+        ::!=
+        ::%
+        ::&
+        ::*
+        ::**
+        ::+
+        ::-
+        ::/
+        ::<
+        ::<<
+        ::<=
+        ::==
+        ::>
+        ::>=
+        ::>>
+        ::^
+        ::apply
+        ::callback
+        ::chan
+        ::classvariable
+        ::const
+        ::coroinject
+        ::coroprobe
+        ::coroutine
+        ::dict
+        ::divmod
+        ::eq
+        ::foreachLine
+        ::fpclassify
+        ::frexp
+        ::ge
+        ::gt
+        ::in
+        ::lassign
+        ::le
+        ::ledit
+        ::lfilter
+        ::link
+        ::lmap
+        ::lpop
+        ::lremove
+        ::lrepeat
+        ::lreverse
+        ::lseq
+        ::lt
+        ::modf
+        ::my
+        ::mymethod
+        ::ne
+        ::next
+        ::nextto
+        ::ni
+        ::oo::Helpers::callback
+        ::oo::Helpers::classvariable
+        ::oo::Helpers::link
+        ::oo::Helpers::mymethod
+        ::oo::Helpers::next
+        ::oo::Helpers::nextto
+        ::oo::Helpers::self
+        ::oo::abstract
+        ::oo::class
+        ::oo::configurable
+        ::oo::copy
+        ::oo::define
+        ::oo::define::classmethod
+        ::oo::define::constructor
+        ::oo::define::definitionnamespace
+        ::oo::define::deletemethod
+        ::oo::define::destructor
+        ::oo::define::export
+        ::oo::define::filter
+        ::oo::define::forward
+        ::oo::define::initialise
+        ::oo::define::initialize
+        ::oo::define::method
+        ::oo::define::mixin
+        ::oo::define::private
+        ::oo::define::property
+        ::oo::define::renamemethod
+        ::oo::define::self
+        ::oo::define::superclass
+        ::oo::define::unexport
+        ::oo::define::variable
+        ::oo::objdefine
+        ::oo::object
+        ::oo::singleton
+        ::readFile
+        ::remquo
+        ::self
+        ::tailcall
+        ::tcl::build-info
+        ::tcl::dict::append
+        ::tcl::dict::create
+        ::tcl::dict::exists
+        ::tcl::dict::filter
+        ::tcl::dict::for
+        ::tcl::dict::get
+        ::tcl::dict::getdef
+        ::tcl::dict::getwithdefault
+        ::tcl::dict::incr
+        ::tcl::dict::info
+        ::tcl::dict::keys
+        ::tcl::dict::lappend
+        ::tcl::dict::map
+        ::tcl::dict::merge
+        ::tcl::dict::remove
+        ::tcl::dict::replace
+        ::tcl::dict::set
+        ::tcl::dict::size
+        ::tcl::dict::unset
+        ::tcl::dict::update
+        ::tcl::dict::values
+        ::tcl::dict::with
+        ::tcl::idna
+        ::tcl::mathfunc
+        ::tcl::mathfunc::abs
+        ::tcl::mathfunc::acos
+        ::tcl::mathfunc::acosh
+        ::tcl::mathfunc::asin
+        ::tcl::mathfunc::asinh
+        ::tcl::mathfunc::atan
+        ::tcl::mathfunc::atan2
+        ::tcl::mathfunc::atanh
+        ::tcl::mathfunc::bool
+        ::tcl::mathfunc::cbrt
+        ::tcl::mathfunc::ceil
+        ::tcl::mathfunc::copysign
+        ::tcl::mathfunc::cos
+        ::tcl::mathfunc::cosh
+        ::tcl::mathfunc::dim
+        ::tcl::mathfunc::double
+        ::tcl::mathfunc::entier
+        ::tcl::mathfunc::erf
+        ::tcl::mathfunc::erfc
+        ::tcl::mathfunc::exp
+        ::tcl::mathfunc::exp2
+        ::tcl::mathfunc::expm1
+        ::tcl::mathfunc::floor
+        ::tcl::mathfunc::fma
+        ::tcl::mathfunc::fmod
+        ::tcl::mathfunc::gamma
+        ::tcl::mathfunc::hypot
+        ::tcl::mathfunc::int
+        ::tcl::mathfunc::isfinite
+        ::tcl::mathfunc::isinf
+        ::tcl::mathfunc::isnan
+        ::tcl::mathfunc::isnormal
+        ::tcl::mathfunc::isqrt
+        ::tcl::mathfunc::issubnormal
+        ::tcl::mathfunc::isunordered
+        ::tcl::mathfunc::ldexp
+        ::tcl::mathfunc::lgamma
+        ::tcl::mathfunc::log
+        ::tcl::mathfunc::log10
+        ::tcl::mathfunc::log1p
+        ::tcl::mathfunc::log2
+        ::tcl::mathfunc::logb
+        ::tcl::mathfunc::max
+        ::tcl::mathfunc::min
+        ::tcl::mathfunc::nextafter
+        ::tcl::mathfunc::pow
+        ::tcl::mathfunc::rand
+        ::tcl::mathfunc::remainder
+        ::tcl::mathfunc::round
+        ::tcl::mathfunc::signbit
+        ::tcl::mathfunc::sin
+        ::tcl::mathfunc::sinh
+        ::tcl::mathfunc::sqrt
+        ::tcl::mathfunc::srand
+        ::tcl::mathfunc::tan
+        ::tcl::mathfunc::tanh
+        ::tcl::mathfunc::trunc
+        ::tcl::mathfunc::wide
+        ::tcl::mathop
+        ::tcl::mathop::!
+        ::tcl::mathop::!=
+        ::tcl::mathop::%
+        ::tcl::mathop::&
+        ::tcl::mathop::*
+        ::tcl::mathop::**
+        ::tcl::mathop::+
+        ::tcl::mathop::-
+        ::tcl::mathop::/
+        ::tcl::mathop::<
+        ::tcl::mathop::<<
+        ::tcl::mathop::<=
+        ::tcl::mathop::==
+        ::tcl::mathop::>
+        ::tcl::mathop::>=
+        ::tcl::mathop::>>
+        ::tcl::mathop::^
+        ::tcl::mathop::eq
+        ::tcl::mathop::ge
+        ::tcl::mathop::gt
+        ::tcl::mathop::in
+        ::tcl::mathop::le
+        ::tcl::mathop::lt
+        ::tcl::mathop::ne
+        ::tcl::mathop::ni
+        ::tcl::mathop::|
+        ::tcl::mathop::~
+        ::tcl::prefix
+        ::tcl::process
+        ::tcl::unsupported::corotype
+        ::tcl::unsupported::grapheme
+        ::tcl::zipfs
+        ::throw
+        ::timer
+        ::timerate
+        ::try
+        ::unicode
+        ::writeFile
+        ::yield
+        ::yieldto
+        ::zipfs
+        ::zlib
+        ::|
+        ::~
+    }
+}

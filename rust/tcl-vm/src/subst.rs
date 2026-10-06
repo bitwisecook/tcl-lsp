@@ -16,33 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Runtime word substitution for literal `PUSH` operands.
+//! Original byte word and template substitution through the shared lexical owner.
 //!
-//! This compiler defers some substitution to the runtime: a word it cannot
-//! fully inline is emitted as a literal, with variable substitutions normalised
-//! to `${name}` and command substitutions left as `[script]` (a bare `$` — e.g.
-//! from a braced word — stays literal). The VM resolves those at `PUSH` time,
-//! mirroring the reference VM's `subst_command`. Whole-word simple variables are
-//! already inlined to `loadStk`, so only `${…}` and `[…]` trigger here.
-//!
-//! Scope: `${name}` variable substitution and `[script]` command
-//! substitution (via the injected `CompileService`), plus backslash decoding
-//! of the literal runs between them.
-//!
-//! The word decomposition itself is **not** implemented here: this module is a
-//! consumer of `tcl_lexer::word_parts`, the one owner shared with
-//! `runtime/rust` and (next lane) the compiler's segmenter. The compiled-word
-//! convention — a bare `$` is data, `${…}` and `[…]` substitute — is the
-//! owner's `SubstFlags::compiled_word()` rather than a private scanner.
+//! Compiled words retain bare dollar bytes as data and substitute `${…}`,
+//! command bodies and selected Jim expression components. Written expression
+//! references use their independent variable grammar. Executable array indices
+//! are flat arena lists and evaluate with heap frames, without a recursive tree.
 
 use tcl_runtime_api::Code;
-// A braced literal suppresses *all* substitution, so the codegen marks such
-// words by keeping their outer `{...}` braces (see `emit_one_proc_def` /
-// `emit_cmd_subst_arg`); `subst_word` strips them and returns the content
-// verbatim, mirroring the reference VM's `PUSH` handling. The balance walk is
-// shared with the codegen side, which has to answer the same question about
-// the same word — a second copy is how `{}${z}` came to be stripped to `}${z}`
-// there while the VM read it correctly.
+#[cfg(test)]
 use tcl_syntax::word_rules::whole_braced_word as whole_braced;
 
 use crate::error::TclError;
@@ -74,6 +56,7 @@ use crate::value::Value;
 /// variable name` on tclsh 8.6.16 and 9.0.4 alike. Discarding the owner's
 /// message with `.ok()` and substituting the outer one at every call site is
 /// exactly the error the owner's own contract warns against.
+#[cfg(test)]
 fn command_end(
     b: &[u8],
     start: usize,
@@ -88,101 +71,81 @@ fn command_end(
     .map(|end| end - 1)
 }
 
-fn read_var(vm: &mut Vm, name: &str) -> Result<Value, TclError> {
-    match vm.read_var_traced(name) {
-        Err(c) => Err(TclError::new(c.result.to_str().to_string())),
-        Ok(Some(value)) => Ok(value),
-        Ok(None) => Err(TclError::new(format!(
-            "can't read \"{name}\": no such variable"
-        ))),
+/// Apply the selected original expression quote protocol to a bracket's
+/// complete guest completion. Host refusals have already left this channel.
+pub(crate) fn settle_expression_quote(
+    mut completion: tcl_runtime_api::Completion<Value>,
+    policy: tcl_registry::invocation_words::ExpressionQuoteControl,
+) -> tcl_runtime_api::Completion<Value> {
+    use tcl_registry::invocation_words::ExpressionQuoteControl;
+    if policy == ExpressionQuoteControl::Propagate {
+        return completion;
     }
-}
-
-/// Compile + run a command-substitution body, surfacing a non-`OK` completion
-/// as an error rather than silently using the error message as the value.
-fn eval_subst(vm: &mut Vm, inner: &str) -> Result<Value, TclError> {
-    let c = vm.eval_source(inner)?;
-    match c.code {
-        tcl_runtime_api::Code::Ok => Ok(c.result),
-        tcl_runtime_api::Code::Error => Err(TclError::new(c.result.to_str().to_string())),
-        // A `break`/`continue`/`return` escaping the substitution carries its
-        // own completion code out (so an enclosing loop / proc handles it),
-        // rather than degrading to an error.
-        other => Err(TclError::with_code(c.result.to_str().to_string(), other)),
-    }
-}
-
-/// The `subst` command: perform variable, command, and backslash substitution
-/// on `s` (each independently switchable). Returns the substituted string.
-///
-/// `subst` gives embedded command substitutions special control-flow handling,
-/// distinct from ordinary `[...]` substitution and verified against C
-/// (subst-8.x/10.x): a `break` stops substitution and yields the text
-/// accumulated so far; a `continue` drops just that bracket's value and resumes;
-/// a `return` (or any other non-error code) substitutes the result and resumes.
-/// An unclosed `[` is a `missing close-bracket` error (subst-5.5).
-#[allow(clippy::many_single_char_names)] // b/s/i/n name the byte buffer and scan cursor, mirroring the C subst loop.
-pub fn subst_command(
-    vm: &mut Vm,
-    s: &str,
-    backslashes: bool,
-    commands: bool,
-    variables: bool,
-) -> Result<String, TclError> {
-    let b = s.as_bytes();
-    let n = b.len();
-    let mut out = String::with_capacity(n);
-    let mut i = 0;
-    while i < n {
-        match b[i] {
-            b'\\' if backslashes => {
-                // Decode exactly one backslash escape and advance past it. The
-                // extent is the canonical `TclParseBackslash` rule *of the
-                // emulated release* (8.6+ caps `\x` at two hex digits, 8.4/8.5
-                // take every trailing one; the `\<newline>` continuation — LF,
-                // CR, or CRLF — absorbs the following spaces/tabs), so the
-                // decode always sees one whole escape and reads it the way the
-                // pinned release would.
-                let escapes = vm.escape_syntax();
-                let end = tcl_syntax::backslash::escape_end_in(s, i, escapes);
-                out.push_str(&tcl_syntax::backslash::decode_in(&s[i..end], escapes));
-                i = end;
-            }
-            b'[' if commands => {
-                // An unclosed `[` is a parse error reported before the bracket
-                // body would run (subst-5.5/5.6/5.7).
-                let end = command_end(b, i, vm.lexer_config()).map_err(TclError::new)?;
-                let c = vm.eval_source(&s[i + 1..end])?;
-                match c.code {
-                    // `return` / a custom code substitutes its result and resumes.
-                    Code::Ok | Code::Return | Code::Other(_) => out.push_str(&c.result.to_str()),
-                    Code::Continue => {} // drop this bracket's value, resume
-                    Code::Break => return Ok(out), // stop, yield what we have
-                    Code::Error => return Err(TclError::new(c.result.to_str().to_string())),
-                }
-                i = end + 1;
-            }
-            b'$' if variables && i + 1 < n => match subst_var(vm, s, i)? {
-                VarFlow::Append(text, next) => {
-                    out.push_str(&text);
-                    i = next;
-                }
-                VarFlow::Skip(next) => i = next,
-                VarFlow::Break => return Ok(out),
-                VarFlow::Literal => {
-                    out.push('$');
-                    i += 1;
-                }
-            },
-            _ => {
-                // Copy one UTF-8 char.
-                let ch = s[i..].chars().next().unwrap_or('\u{fffd}');
-                out.push(ch);
-                i += ch.len_utf8();
-            }
+    match completion.code {
+        Code::Return => {
+            completion.code = Code::Ok;
+            completion.options =
+                crate::command::with_return_option(&completion.options, "-code", Value::int(0));
+            completion
         }
+        Code::Break => crate::command::err_with_code("invoked \"break\" outside of a loop", "NONE"),
+        Code::Continue => {
+            crate::command::err_with_code("invoked \"continue\" outside of a loop", "NONE")
+        }
+        Code::Other(_) => tcl_runtime_api::Completion::new_error_metadata(
+            Code::Error,
+            completion.result,
+            crate::command::options_dict(Code::Error, 0, &[("-errorcode", Value::string("NONE"))]),
+        ),
+        Code::Ok | Code::Error => completion,
     }
-    Ok(out)
+}
+
+/// Blocking counterpart to the resumable original-word scanner. It uses the
+/// same source/index geometry and retains a complete bracket completion until
+/// the selected purpose settles it; it never uses `subst` command absorption.
+pub(crate) fn subst_expression_string(
+    vm: &mut Vm,
+    source: impl Into<SubstSource>,
+    control: SubstitutionControl,
+) -> Result<tcl_runtime_api::Completion<Value>, TclError> {
+    let mut state = SubstState::new(source, true, true, true, control);
+    let mut options = Value::empty();
+    loop {
+        let mut completion = match subst_scan_step(vm, &mut state) {
+            SubstStep::Done(bytes) => {
+                return Ok(tcl_runtime_api::Completion::new(
+                    Code::Ok,
+                    Value::from_string_bytes(bytes),
+                    options,
+                ));
+            }
+            SubstStep::Error(error) => return Err(error),
+            SubstStep::Bracket(script) => {
+                vm.eval_source_image_at_internal(&tcl_lexer::SourceImage::native(script), None)?
+            }
+            SubstStep::ArrayIndex(index) => {
+                subst_expression_string(vm, index, SubstitutionControl::Word)?
+            }
+        };
+        if let SubstitutionControl::Expression(policy) = control {
+            completion = settle_expression_quote(completion, policy);
+        }
+        if completion.code != Code::Ok {
+            return Err(TclError::from_completion(completion));
+        }
+        options = completion.options;
+        let value = if let Some(base) = state.pending_array.take() {
+            let key = materialise_word_component(vm, &completion.result)?;
+            vm.read_variable_result_bytes(&base, Some(&key))
+                .map_err(TclError::from_completion)?
+        } else {
+            completion.result
+        };
+        state
+            .out
+            .extend_from_slice(&materialise_word_component(vm, &value)?);
+    }
 }
 
 /// Resumable state for a **yieldable** `subst` command activation:
@@ -191,242 +154,212 @@ pub fn subst_command(
 /// `crate::exec`), so it freezes with a suspended coroutine and resumes after
 /// each `[…]` completes. Backslash / `$…` runs never yield, so they are scanned
 /// natively; only a top-level `[…]` pauses the scan.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SubstitutionControl {
+    Command,
+    Word,
+    Expression(tcl_registry::invocation_words::ExpressionQuoteControl),
+}
+
+/// Immutable original template or an index list in the same source arena.
+#[derive(Clone)]
+pub(crate) enum SubstSource {
+    Bytes(std::rc::Rc<[u8]>),
+    Parts {
+        arena: std::rc::Rc<tcl_lexer::ExecutablePartArena>,
+        list: tcl_lexer::PartListId,
+    },
+}
+impl From<Vec<u8>> for SubstSource {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self::Bytes(bytes.into())
+    }
+}
+impl From<String> for SubstSource {
+    fn from(text: String) -> Self {
+        text.into_bytes().into()
+    }
+}
+impl From<&str> for SubstSource {
+    fn from(text: &str) -> Self {
+        text.as_bytes().to_vec().into()
+    }
+}
+impl From<&[u8]> for SubstSource {
+    fn from(bytes: &[u8]) -> Self {
+        bytes.to_vec().into()
+    }
+}
+
 pub(crate) struct SubstState {
-    pub(crate) template: String,
-    pub(crate) cursor: usize,
-    pub(crate) out: String,
-    pub(crate) backslashes: bool,
-    pub(crate) commands: bool,
-    pub(crate) variables: bool,
+    pub(crate) control: SubstitutionControl,
+    pub(crate) pending_array: Option<Vec<u8>>,
+    source: SubstSource,
+    cursor: usize,
+    pub(crate) out: Vec<u8>,
+    flags: tcl_lexer::word_parts::SubstFlags,
 }
 
 impl SubstState {
     pub(crate) fn new(
-        template: String,
+        template: impl Into<SubstSource>,
         backslashes: bool,
         commands: bool,
         variables: bool,
+        control: SubstitutionControl,
     ) -> Self {
         Self {
-            template,
+            control,
+            pending_array: None,
+            source: template.into(),
             cursor: 0,
-            out: String::new(),
-            backslashes,
-            commands,
-            variables,
-        }
-    }
-}
-
-/// One step of the resumable `subst` scan.
-pub(crate) enum SubstStep {
-    /// The scan finished (end of template, or a `break` from a `$…` array index):
-    /// the accumulated output is the `subst` result.
-    Done(String),
-    /// A top-level `[inner]` command substitution: compile + run `inner` on the
-    /// explicit stack (yieldably). The cursor is left just past the `]`, so
-    /// re-entry resumes after the bracket; the bracket's completion is folded back
-    /// into `out` by the subst rules in `crate::exec`'s `unwind`.
-    Bracket(String),
-    /// A scan error (missing close-bracket, or a variable read / index error).
-    Error(String),
-}
-
-/// Advance the resumable scan from `st.cursor`, appending literal / backslash /
-/// `$…` runs (which never yield) into `st.out`, until it reaches a top-level `[`
-/// (→ `Bracket`, cursor past the `]`), the end / a `break` (→ `Done`), or an
-/// error. This is the resumable analogue of [`subst_command`]'s loop — the
-/// literal/backslash/`$` arms match it exactly; only the `[…]` arm differs (it
-/// pauses instead of calling `eval_source`).
-pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
-    // Clone the (immutable) template so the scan can borrow it while `st.out`
-    // is mutated; restored to `st` before any pause/return.
-    let template = st.template.clone();
-    let b = template.as_bytes();
-    let n = b.len();
-    let mut i = st.cursor;
-    let mut out = std::mem::take(&mut st.out);
-    while i < n {
-        match b[i] {
-            b'\\' if st.backslashes => {
-                let escapes = vm.escape_syntax();
-                let end = tcl_syntax::backslash::escape_end_in(&template, i, escapes);
-                out.push_str(&tcl_syntax::backslash::decode_in(
-                    &template[i..end],
-                    escapes,
-                ));
-                i = end;
-            }
-            b'[' if st.commands => {
-                let end = match command_end(b, i, vm.lexer_config()) {
-                    Ok(end) => end,
-                    Err(msg) => {
-                        st.out = out;
-                        st.cursor = i;
-                        return SubstStep::Error(msg.to_owned());
-                    }
-                };
-                let inner = template[i + 1..end].to_owned();
-                st.out = out;
-                st.cursor = end + 1;
-                return SubstStep::Bracket(inner);
-            }
-            b'$' if st.variables && i + 1 < n => match subst_var(vm, &template, i) {
-                Ok(VarFlow::Append(text, next)) => {
-                    out.push_str(&text);
-                    i = next;
-                }
-                Ok(VarFlow::Skip(next)) => i = next,
-                Ok(VarFlow::Break) => return SubstStep::Done(out),
-                Ok(VarFlow::Literal) => {
-                    out.push('$');
-                    i += 1;
-                }
-                Err(e) => {
-                    st.out = out;
-                    st.cursor = i;
-                    return SubstStep::Error(e.message);
-                }
+            out: Vec::new(),
+            flags: tcl_lexer::word_parts::SubstFlags {
+                backslashes,
+                cmds: commands,
+                vars: variables,
+                ..Default::default()
             },
-            _ => {
-                let ch = template[i..].chars().next().unwrap_or('\u{fffd}');
-                out.push(ch);
-                i += ch.len_utf8();
-            }
         }
     }
-    SubstStep::Done(out)
+
+    fn prepare(&mut self, vm: &Vm) -> Result<(), TclError> {
+        let SubstSource::Bytes(bytes) = &self.source else {
+            return Ok(());
+        };
+        let end = u32::try_from(bytes.len()).map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native substitution source extent",
+            )
+        })?;
+        let image = tcl_lexer::SourceImage::native(bytes.as_ref());
+        let arena = if self.control == SubstitutionControl::Command {
+            let policy = vm.expression_template_policy().ok_or(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native substitution template grammar",
+                ),
+            )?;
+            tcl_lexer::ExecutablePartArena::decompose_template(
+                image,
+                tcl_lexer::Span::new(0, end),
+                self.flags,
+                vm.lexer_config(),
+                policy.variable_syntax(),
+            )
+        } else {
+            tcl_lexer::ExecutablePartArena::decompose(
+                image,
+                tcl_lexer::Span::new(0, end),
+                self.flags,
+                vm.lexer_config(),
+            )
+        }
+        .map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native substitution source geometry",
+            )
+        })?;
+        let list = arena.root();
+        self.source = SubstSource::Parts {
+            arena: std::rc::Rc::new(arena),
+            list,
+        };
+        Ok(())
+    }
 }
 
-/// The outcome of substituting a top-level `$`-reference.
-enum VarFlow {
-    /// Append this text and resume at the byte offset.
-    Append(String, usize),
-    /// Drop the reference (a `continue` in its array index) and resume.
-    Skip(usize),
-    /// A `break` in the array index: stop substitution.
-    Break,
-    /// `$` not followed by a parseable name: emit it literally.
-    Literal,
+pub(crate) enum SubstStep {
+    Done(Vec<u8>),
+    Bracket(Vec<u8>),
+    ArrayIndex(SubstSource),
+    Error(TclError),
 }
 
-/// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
-fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at, vm.lexer_config())? else {
-        return Ok(VarFlow::Literal);
+/// Execute the shared flat component list in order. Index frames retain their
+/// source arena; parse errors are observed only after preceding components.
+pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
+    use tcl_lexer::ExecutablePart;
+    if let Err(error) = st.prepare(vm) {
+        return SubstStep::Error(error);
+    }
+    let SubstSource::Parts { arena, list } = &st.source else {
+        unreachable!("prepared arena");
     };
-    let Some(raw_index) = vr.index else {
-        let v = read_var(vm, vr.base)?;
-        return Ok(VarFlow::Append(v.to_str().to_string(), vr.next));
-    };
-    // `$name(index)` — the index is itself substituted (subst-4.3), and a
-    // control-flow code from a command in the index decides the reference's
-    // fate (subst-8.9).
-    match subst_index(vm, raw_index)? {
-        IndexFlow::Index(idx) => {
-            let full = format!("{}({idx})", vr.base);
-            let v = read_elem(vm, &full)?;
-            Ok(VarFlow::Append(v.to_str().to_string(), vr.next))
-        }
-        IndexFlow::Substitute(v) => Ok(VarFlow::Append(v, vr.next)),
-        IndexFlow::Skip => Ok(VarFlow::Skip(vr.next)),
-        IndexFlow::Break => Ok(VarFlow::Break),
-    }
-}
-
-/// The outcome of substituting an array index in `subst`.
-enum IndexFlow {
-    /// The fully-substituted index string.
-    Index(String),
-    /// A `return` (or other non-error code) in the index: replace the whole
-    /// reference with this value (subst-8.9).
-    Substitute(String),
-    /// A `continue` in the index: drop the reference.
-    Skip,
-    /// A `break` in the index: stop substitution.
-    Break,
-}
-
-/// Substitute an array index. Unlike the top level this is single-pass: the
-/// first control-flow code from an embedded command stops the index and decides
-/// the reference's fate.
-fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
-    let b = idx.as_bytes();
-    let n = b.len();
-    let mut out = String::new();
-    let mut i = 0;
-    while i < n {
-        match b[i] {
-            b'\\' => {
-                let escapes = vm.escape_syntax();
-                let end = tcl_syntax::backslash::escape_end_in(idx, i, escapes);
-                out.push_str(&tcl_syntax::backslash::decode_in(&idx[i..end], escapes));
-                i = end;
-            }
-            b'[' => {
-                let end = command_end(b, i, vm.lexer_config()).map_err(TclError::new)?;
-                let c = vm.eval_source(&idx[i + 1..end])?;
-                match c.code {
-                    Code::Ok => {
-                        out.push_str(&c.result.to_str());
-                        i = end + 1;
-                    }
-                    Code::Return | Code::Other(_) => {
-                        return Ok(IndexFlow::Substitute(c.result.to_str().to_string()));
-                    }
-                    Code::Continue => return Ok(IndexFlow::Skip),
-                    Code::Break => return Ok(IndexFlow::Break),
-                    Code::Error => return Err(TclError::new(c.result.to_str().to_string())),
+    let arena = std::rc::Rc::clone(arena);
+    let list = *list;
+    while let Some(component) = arena.list(list).get(st.cursor) {
+        st.cursor += 1;
+        let result = match &component.part {
+            ExecutablePart::Text(_) => {
+                let text = vm
+                    .source_string_protocol()
+                    .ok_or_else(|| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native executable text recipe",
+                        )
+                    })
+                    .and_then(|protocol| {
+                        tcl_syntax::backslash::native_arena_text(
+                            &arena,
+                            component,
+                            vm.lexer_config().escapes,
+                            protocol,
+                        )
+                        .map_err(|_| {
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "native executable text decoding",
+                            )
+                        })
+                    });
+                match text {
+                    Ok(text) => st.out.extend_from_slice(&text),
+                    Err(error) => return SubstStep::Error(error.into()),
                 }
+                continue;
             }
-            b'$' if i + 1 < n => {
-                if let Some(vr) = parse_var_ref_parts(idx, i, vm.lexer_config())? {
-                    let v = match vr.index {
-                        None => read_var(vm, vr.base)?,
-                        // A nested array index recurses; control flow from it
-                        // propagates to decide the outer reference's fate.
-                        Some(inner) => match subst_index(vm, inner)? {
-                            IndexFlow::Index(k) => read_elem(vm, &format!("{}({k})", vr.base))?,
-                            other => return Ok(other),
-                        },
-                    };
-                    out.push_str(&v.to_str());
-                    i = vr.next;
-                } else {
-                    out.push('$');
-                    i += 1;
-                }
+            ExecutablePart::Variable {
+                name,
+                index: Some(index),
+            } => {
+                st.pending_array = Some(arena.bytes(*name).expect("arena name geometry").to_vec());
+                return SubstStep::ArrayIndex(SubstSource::Parts {
+                    arena: std::rc::Rc::clone(&arena),
+                    list: *index,
+                });
             }
-            _ => {
-                let ch = idx[i..].chars().next().unwrap_or('\u{fffd}');
-                out.push(ch);
-                i += ch.len_utf8();
+            ExecutablePart::Variable { name, index: None } => vm
+                .read_variable_result_bytes(arena.bytes(*name).expect("arena name geometry"), None)
+                .map_err(TclError::from_completion),
+            ExecutablePart::Command { body } => {
+                return SubstStep::Bracket(
+                    arena.bytes(*body).expect("arena command geometry").to_vec(),
+                );
             }
+            ExecutablePart::Expression { expression } => {
+                vm.eval_expr_bytes(arena.bytes(*expression).expect("arena expression geometry"))
+            }
+            ExecutablePart::ParseError(message) => return SubstStep::Error(TclError::new(message)),
+        };
+        match result {
+            Ok(value) => match materialise_word_component(vm, &value) {
+                Ok(bytes) => st.out.extend_from_slice(&bytes),
+                Err(error) => return SubstStep::Error(error),
+            },
+            Err(error) => return SubstStep::Error(error),
         }
     }
-    Ok(IndexFlow::Index(out))
-}
-
-/// Read an array element `base(key)` (firing read traces) with the standard
-/// "no such variable" error. `var_get` resolves the `base(key)` form.
-fn read_elem(vm: &mut Vm, full: &str) -> Result<Value, TclError> {
-    match vm.read_var_traced(full) {
-        Err(c) => Err(TclError::new(c.result.to_str().to_string())),
-        Ok(Some(value)) => Ok(value),
-        Ok(None) => Err(TclError::new(format!(
-            "can't read \"{full}\": no such variable"
-        ))),
-    }
+    SubstStep::Done(std::mem::take(&mut st.out))
 }
 
 /// A parsed `$`-reference split into its base name and optional raw array index.
-struct VarRef<'a> {
+#[cfg(test)]
+pub(crate) struct VarRef<'a> {
     /// The `$name` / `${name}` base variable (or array) name.
-    base: &'a str,
+    pub(crate) base: &'a str,
     /// The raw (unsubstituted) array index span, for `$name(index)`.
-    index: Option<&'a str>,
+    pub(crate) index: Option<&'a str>,
     /// Byte offset just past the whole reference.
-    next: usize,
+    pub(crate) next: usize,
 }
 
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
@@ -445,7 +378,8 @@ struct VarRef<'a> {
 /// `subst` reproduces C's left-to-right substitution, where earlier command
 /// substitutions in the same template have already run and kept their side
 /// effects — verified against both oracles.
-fn parse_var_ref_parts(
+#[cfg(test)]
+pub(crate) fn parse_var_ref_parts(
     s: &str,
     at: usize,
     config: tcl_lexer::LexerConfig,
@@ -470,131 +404,291 @@ fn parse_var_ref_parts(
     }
 }
 
-/// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
-/// words return the underlying value (type-preserving); mixed words build a
-/// string.
+/// Substitute the compiler's retained word convention. Bare `$` bytes are data;
+/// `${…}`, complete `[…]` and selected Jim expression substitutions execute.
+/// A single substitution retains its original result object.
 pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
-    let b = word.as_bytes();
-    let n = b.len();
+    subst_word_bytes(word.as_bytes(), vm)
+}
 
-    // A whole-word braced literal suppresses all substitution: strip the outer
-    // braces and return the content verbatim.
-    if let Some(inner) = whole_braced(word) {
-        return Ok(Value::string(inner));
+/// Substitute original compiled-word bytes without a Unicode name projection.
+///
+/// # Errors
+/// Preserves guest completions and typed host source/materialisation refusals.
+pub fn subst_word_bytes(word: &[u8], vm: &mut Vm) -> Result<Value, TclError> {
+    if let Some(inner) = tcl_syntax::word_rules::whole_braced_word_bytes(word) {
+        return Ok(Value::from_native_string_bytes(inner));
     }
-
-    // Fast path: the whole word is one command substitution.
-    if b.first() == Some(&b'[')
-        && let Ok(end) = command_end(b, 0, vm.lexer_config())
-        && end == n - 1
+    // Literal PUSH bytes already have their source escapes decoded. Only a
+    // retained substitution causes the compiled-word scanner to run again.
+    if !word.windows(2).any(|pair| pair == b"${")
+        && !word.contains(&b'[')
+        && !(vm.lexer_config().var_syntax.has_expr_sugar()
+            && word.windows(2).any(|pair| pair == b"$("))
     {
-        return eval_subst(vm, &word[1..end]);
+        return Ok(Value::from_native_string_bytes(word));
     }
-    // Fast path: the whole word is one `${name}`.
-    //
-    // The close rule is the release's, resolved through the one shared owner.
-    // A naive `find('}')` — the 8.x first-close rule applied at *every*
-    // release — would read a compiled word `${a{b}c}` as the variable `a{b`
-    // even when emulating 9.x. `subst`'s own engine resolves this through
-    // `parse_var_ref_parts`; this is the compiled-word path, with its own
-    // copy of the same rule.
-    //
-    // Do not go hunting for a test that pins the *style* here: there is none,
-    // and that was measured, not assumed. Pinning this call to `FirstClose`
-    // leaves every vector in a ~130-program search unchanged, because the arm is
-    // only ever *reached* when both rules agree. A whole-word `${name}` whose
-    // rules agree is resolved at compile time (`parse_simple_var_ref` →
-    // `load_var`) and never reaches `subst_word` at all; one whose rules
-    // disagree fails this arm's `close == n - 1` test under either style and
-    // falls through to the general scan below, which is the arm the release
-    // rule is observable through (and which is pinned by
-    // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
-    // It is written release-aware anyway so the two arms cannot drift apart —
-    // that drift is exactly the risk two independent copies of the same rule
-    // carry.
-    let braced_var = vm.braced_var_style();
-    if n >= 3
-        && b[0] == b'$'
-        && b[1] == b'{'
-        && let tcl_lexer::BracedVarEnd::Closed(close) =
-            tcl_lexer::braced_var_name_end(b, 2, braced_var)
-        && close == n - 1
-    {
-        return read_var(vm, &word[2..close]);
-    }
-    // No substitution triggers: a `PUSH` literal with no `${…}` and no `[…]`
-    // left in it *is* its value, escapes included. The codegen has already
-    // decoded this word's source escapes once, so decoding again would eat the
-    // backslashes it produced — `set body "list e\\n} f\\$} "` is 15
-    // characters on both oracles, and a second decode makes it 13.
-    //
-    // This is not the site of a related divergence. `set n [string length "x\$y"]`
-    // answers 4 where both oracles say 3, but the divergence is upstream: the
-    // compiler emits the literal `x\$y` for that word where the value is
-    // `x$y`, and the identical `set body …` word above proves the VM's rule is
-    // the right one — a blanket decode here fixes the first vector by breaking
-    // the second. The fix belongs in the compiler's literal emission for a
-    // word nested in a bracket word (`rust/tcl-compiler`), not in the word
-    // decomposer; see `docs/design/contracts/shared-utility-contracts-rust.md`
-    // § `tcl-compiler` — nested command-substitution words.
-    if !word.contains("${") && !word.contains('[') {
-        return Ok(Value::string(word));
-    }
+    let arena = substitution_arena(word, tcl_lexer::word_parts::SubstFlags::compiled_word(), vm)?;
+    evaluate_arena(&arena, vm)
+}
 
-    // General scan, through the shared owner: literal runs (backslash-decoded)
-    // interleaved with `${…}` and `[…]` substitutions.
-    //
-    // `SubstFlags::compiled_word()` is the codegen's convention — a surviving
-    // bare `$` is data, because every real variable reference was either
-    // inlined to `loadStk` or normalised to `${name}` — and the release axes
-    // (the `${…}` close rule; the escape grammar) ride on the
-    // `LexerConfig`. The scan replaces a hand-rolled loop that carried its own
-    // second copy of the `${…}` close rule and its own bracket search.
-    let config = vm.lexer_config();
-    let flags = tcl_lexer::word_parts::SubstFlags::compiled_word();
-    let parts = match tcl_lexer::word_parts::decompose(b, flags, config) {
-        tcl_lexer::word_parts::WordBody::Literal(bytes) => {
-            return Ok(Value::string(String::from_utf8_lossy(bytes)));
-        }
-        tcl_lexer::word_parts::WordBody::Parts(parts) => parts,
-    };
-    let mut out = String::with_capacity(n);
-    for part in parts {
-        match part {
-            tcl_lexer::word_parts::WordPart::Text(bytes) => {
-                out.push_str(&String::from_utf8_lossy(&bytes));
-            }
-            tcl_lexer::word_parts::WordPart::Variable(var) => {
-                // `bare_var_refs` is off, so the only spelling that reaches
-                // here is `${name}`, which carries no array index.
-                let name = String::from_utf8_lossy(var.name).into_owned();
-                out.push_str(&read_var(vm, &name)?.to_str());
-            }
-            tcl_lexer::word_parts::WordPart::Command(script) => {
-                let inner = String::from_utf8_lossy(script).into_owned();
-                out.push_str(&eval_subst(vm, &inner)?.to_str());
-            }
-            // C reports a parse error before the command runs at all: it
-            // parses every word of a command before evaluating any of them, so
-            // no earlier `[…]` in this word has run when this fires —
-            // `puts "[side]pre${abc"` never calls `side` on 8.6.16 or 9.0.4,
-            // and does not here either. (Pinned by
-            // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
-            // which also records why no vector reaches this arm today: the
-            // compiler rejects such source before the VM sees it.)
-            tcl_lexer::word_parts::WordPart::ParseError(message) => {
-                return Err(TclError::new(message));
-            }
+/// Evaluate one original expression variable reference, including its index.
+/// The written-word grammar is independent of the compiled-word convention.
+pub(crate) fn subst_variable_reference_bytes(
+    reference: &[u8],
+    vm: &mut Vm,
+) -> Result<Value, TclError> {
+    let arena = substitution_arena(reference, tcl_lexer::word_parts::SubstFlags::default(), vm)?;
+    validate_arena(&arena)?;
+    if !matches!(
+        arena.list(arena.root()),
+        [tcl_lexer::word_parts::SpannedExecutablePart {
+            part: tcl_lexer::word_parts::ExecutablePart::Variable { .. },
+            ..
+        }]
+    ) {
+        return Err(substitution_host_refusal(
+            vm,
+            "expression variable operand lacks an original sole-reference extent".into(),
+        ));
+    }
+    evaluate_arena(&arena, vm)
+}
+
+fn substitution_arena(
+    source: &[u8],
+    flags: tcl_lexer::word_parts::SubstFlags,
+    vm: &mut Vm,
+) -> Result<tcl_lexer::word_parts::ExecutablePartArena, TclError> {
+    let end = u32::try_from(source.len()).map_err(|_| {
+        substitution_host_refusal(vm, "substitution source extent unavailable".into())
+    })?;
+    tcl_lexer::word_parts::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::native(source),
+        tcl_lexer::Span::new(0, end),
+        flags,
+        vm.lexer_config(),
+    )
+    .map_err(|error| {
+        substitution_host_refusal(
+            vm,
+            format!("substitution source geometry unavailable: {error:?}"),
+        )
+    })
+}
+
+fn substitution_host_refusal(vm: &mut Vm, reason: String) -> TclError {
+    let _ = vm.refuse_host_command(reason);
+    TclError::from_execution_failure(
+        vm.execution_refusal
+            .clone()
+            .expect("recorded substitution host refusal"),
+    )
+}
+
+fn validate_arena(arena: &tcl_lexer::word_parts::ExecutablePartArena) -> Result<(), TclError> {
+    for component in arena.all_parts() {
+        if let tcl_lexer::word_parts::ExecutablePart::ParseError(message) = component.part {
+            return Err(TclError::new(message));
         }
     }
-    Ok(Value::string(out))
+    Ok(())
+}
+
+struct WordEvaluationFrame {
+    list: tcl_lexer::word_parts::PartListId,
+    next: usize,
+    result: Option<Value>,
+    read_after: Option<tcl_lexer::Span>,
+}
+
+fn evaluate_arena(
+    arena: &tcl_lexer::word_parts::ExecutablePartArena,
+    vm: &mut Vm,
+) -> Result<Value, TclError> {
+    use tcl_lexer::word_parts::ExecutablePart;
+    // Parse the complete word before executing any of its substitutions.
+    validate_arena(arena)?;
+    let mut frames = vec![WordEvaluationFrame {
+        list: arena.root(),
+        next: 0,
+        result: None,
+        read_after: None,
+    }];
+    loop {
+        let frame = frames.last_mut().expect("root or index evaluation frame");
+        let value = if let Some(component) = arena.list(frame.list).get(frame.next) {
+            frame.next += 1;
+            match &component.part {
+                ExecutablePart::Text(_) => {
+                    let protocol = vm.source_string_protocol().ok_or_else(|| {
+                        substitution_host_refusal(
+                            vm,
+                            "native word source string protocol unavailable".into(),
+                        )
+                    })?;
+                    let text = tcl_syntax::backslash::native_arena_text(
+                        arena,
+                        component,
+                        vm.lexer_config().escapes,
+                        protocol,
+                    )
+                    .map_err(|error| {
+                        substitution_host_refusal(
+                            vm,
+                            format!("native word text unavailable: {error:?}"),
+                        )
+                    })?;
+                    Value::from_native_string_bytes(text.as_ref())
+                }
+                ExecutablePart::Variable {
+                    name,
+                    index: Some(index),
+                } => {
+                    let child = WordEvaluationFrame {
+                        list: *index,
+                        next: 0,
+                        result: None,
+                        read_after: Some(*name),
+                    };
+                    frames.push(child);
+                    continue;
+                }
+                ExecutablePart::Variable { name, index: None } => vm
+                    .read_variable_result_bytes(
+                        arena.bytes(*name).expect("validated original name extent"),
+                        None,
+                    )
+                    .map_err(TclError::from_completion)?,
+                ExecutablePart::Command { body } => {
+                    let completion = vm.eval_source_image_at_internal(
+                        &tcl_lexer::SourceImage::native(
+                            arena.bytes(*body).expect("validated script extent"),
+                        ),
+                        None,
+                    )?;
+                    if completion.code != Code::Ok {
+                        return Err(TclError::from_completion(completion));
+                    }
+                    completion.result
+                }
+                ExecutablePart::Expression { expression } => vm.eval_expr_bytes(
+                    arena
+                        .bytes(*expression)
+                        .expect("validated expression extent"),
+                )?,
+                ExecutablePart::ParseError(_) => unreachable!("validated word syntax"),
+            }
+        } else {
+            let completed = frames.pop().expect("completed evaluation frame");
+            let value = completed
+                .result
+                .unwrap_or_else(|| Value::from_native_string_bytes(&b""[..]));
+            let Some(name) = completed.read_after else {
+                return Ok(value);
+            };
+            let index = materialise_word_component(vm, &value)?;
+            vm.read_variable_result_bytes(
+                arena.bytes(name).expect("validated original array name"),
+                Some(&index),
+            )
+            .map_err(TclError::from_completion)?
+        };
+        let result = &mut frames.last_mut().expect("parent evaluation frame").result;
+        *result = Some(match result.take() {
+            None => value,
+            Some(previous) => {
+                // Materialisation follows completion of the next component,
+                // matching the compiler's concatenation evaluation order.
+                let mut bytes = materialise_word_component(vm, &previous)?.to_vec();
+                bytes.extend_from_slice(&materialise_word_component(vm, &value)?);
+                Value::from_native_string_bytes(bytes)
+            }
+        });
+    }
+}
+
+fn materialise_word_component(vm: &mut Vm, value: &Value) -> Result<std::rc::Rc<[u8]>, TclError> {
+    vm.native_name_operand_bytes(value).map_err(|error| {
+        tcl_syntax::value::ValueError::NativeStringAccess(
+            tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
+        )
+        .into()
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
+    use super::{
+        SubstState, SubstStep, SubstitutionControl, command_end, parse_var_ref_parts,
+        subst_scan_step, whole_braced,
+    };
     use crate::interp::Vm;
+    use crate::value::Value;
     use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
+
+    #[test]
+    fn compiled_byte_words_preserve_opaque_results_and_bare_dollar_data() {
+        let mut vm = Vm::new();
+        vm.set_var_bytes(b"\xff", Value::from_native_string_bytes(&b"R\xff\0"[..]))
+            .unwrap();
+        assert_eq!(
+            super::subst_word_bytes(b"${\xff}", &mut vm)
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"R\xff\0"
+        );
+        assert_eq!(
+            super::subst_word_bytes(b"pre${\xff}tail", &mut vm)
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"preR\xff\0tail"
+        );
+        assert_eq!(
+            super::subst_word_bytes(b"$untouched\\n", &mut vm)
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"$untouched\\n"
+        );
+        assert_eq!(
+            super::subst_word_bytes(b"{${\xff}}", &mut vm)
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"${\xff}"
+        );
+    }
+
+    #[test]
+    fn original_byte_variable_reference_evaluates_full_depth_indices() {
+        let mut vm = Vm::new();
+        vm.set_var_bytes(
+            b"a(x\xff\0)",
+            Value::from_native_string_bytes(&b"x\xff\0"[..]),
+        )
+        .unwrap();
+        let mut reference = Vec::new();
+        for _ in 0..2_000 {
+            reference.extend_from_slice(b"$a(");
+        }
+        reference.extend_from_slice(b"x\xff\0");
+        reference.extend(std::iter::repeat_n(b')', 2_000));
+        assert_eq!(
+            super::subst_variable_reference_bytes(&reference, &mut vm)
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"x\xff\0"
+        );
+        assert!(
+            super::subst_variable_reference_bytes(b"prefix${a}", &mut vm)
+                .unwrap_err()
+                .is_host()
+        );
+    }
 
     /// A config pinning just the two axes a var-reference scan turns on,
     /// over the default grammar — these tests exercise the release axes
@@ -617,10 +711,67 @@ mod tests {
         }
     }
 
-    /// `subst_command` with only backslash substitution enabled.
+    /// Exercise the actual command owner and trampoline, preserving any abrupt
+    /// guest completion or operational host failure until this byte consumer.
+    fn dispatch_subst(
+        vm: &mut Vm,
+        template: &str,
+        backslashes: bool,
+        commands: bool,
+        variables: bool,
+    ) -> Result<Vec<u8>, crate::error::TclError> {
+        let mut args = Vec::new();
+        for (enabled, option) in [
+            (backslashes, "-nobackslashes"),
+            (commands, "-nocommands"),
+            (variables, "-novariables"),
+        ] {
+            if !enabled {
+                args.push(Value::string(option));
+            }
+        }
+        args.push(Value::string(template));
+        let completion = vm.invoke_command("subst", &args);
+        if let Some(refusal) = vm.execution_refusal.clone() {
+            return Err(crate::error::TclError::from_execution_failure(refusal));
+        }
+        if completion.code != tcl_runtime_api::Code::Ok {
+            return Err(crate::error::TclError::from_completion(completion));
+        }
+        Ok(completion.result.string_bytes().to_vec())
+    }
+
+    /// Actual `subst` dispatch with only backslash substitution enabled.
     fn subst_backslashes(template: &str) -> String {
         let mut vm = Vm::new();
-        subst_command(&mut vm, template, true, false, false).expect("subst")
+        String::from_utf8(dispatch_subst(&mut vm, template, true, false, false).expect("subst"))
+            .expect("Unicode fixture")
+    }
+
+    #[test]
+    fn jim_subst_scanners_preserve_raw_results_and_expression_ingress() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
+        );
+        vm.set_var("raw", Value::from_string_bytes([0xff, 0].as_slice()))
+            .expect("raw variable");
+        let template = "pre$(1+2)$raw\\xff";
+        let expected = b"pre3\xff\0\xff";
+        assert_eq!(
+            dispatch_subst(&mut vm, template, true, true, true).expect("subst"),
+            expected
+        );
+        let mut state = SubstState::new(template, true, true, true, SubstitutionControl::Command);
+        match subst_scan_step(&mut vm, &mut state) {
+            SubstStep::Done(bytes) => assert_eq!(bytes, expected),
+            _ => panic!("literal expression and variable should finish the scan"),
+        }
+        assert_eq!(
+            dispatch_subst(&mut vm, "$(1+2)", true, true, false).expect("no variables"),
+            b"$(1+2)"
+        );
+        assert!(dispatch_subst(&mut vm, "$(k)", true, true, true).is_err());
     }
 
     #[test]
@@ -690,7 +841,13 @@ mod tests {
         let Err(modern) = modern else {
             panic!("Tcl 9 rejects raw braces");
         };
-        assert_eq!(modern.message, tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX);
+        assert_eq!(
+            modern
+                .message_unicode()
+                .expect("Unicode fixture error")
+                .as_ref(),
+            tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX
+        );
     }
 
     #[test]

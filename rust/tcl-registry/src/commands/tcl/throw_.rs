@@ -46,6 +46,12 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "throw",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Unresolved,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
         // already resolves availability correctly for every non-core dialect

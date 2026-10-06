@@ -26,20 +26,18 @@
 //! lexical visibility.  When the cursor is not on a variable, or no
 //! declaration is found, it falls back to plain go-to-definition.
 //!
-//! The declared-name argument positions come from the analyser's
-//! `var_scoping` index helpers (the same ones the memory-SSA pass
-//! uses), so all the level-word / `namespace upvar`
-//! grammar forms are handled identically.  Visibility is the set of
+//! Declared names and body positions come from the shared original
+//! declaration-layout owner, with retained dialect, alias prefix and source
+//! origins. This navigation projection supplies no executed alias facts.
+//! Visibility is the set of
 //! enclosing scope body spans (`definition::scope_body_spans_at`); an
 //! empty set means the whole file is visible (cursor at global scope).
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_compiler::var_scoping::scope_alias_declaration_indices;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::CommandRegistry;
-use tcl_registry::arg_role::ArgRole;
 
 /// Recursion depth guard for nested body walks — a defensive stack-overflow
 /// bound, kept at or above the compiler analyser's own `MAX_BODY_DEPTH` so
@@ -203,35 +201,28 @@ fn collect_declarations_in_region(
         LexerConfig::from_grammar(dialect.grammar),
     );
     for cmd in &commands {
-        let Some(head_tok) = cmd.argv.first() else {
+        if cmd.argv.is_empty() {
+            continue;
+        }
+        // The retained original declaration frame selects unanimous grammar
+        // and maps effective alias arguments to their written source tokens.
+        let mut tokens = tcl_compiler::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            LexerConfig::from_grammar(dialect.grammar),
+            cmd,
+        );
+        identities.stamp_original_tokens(&mut tokens);
+        let Some(assistance) = identities.original_declaration_assistance(&tokens, registry) else {
             continue;
         };
-        // The head's *effective command identity*, resolved exactly as the
-        // semantic-token walk resolves it: a proven `interp alias` / `rename` /
-        // `namespace import` answers with the command the head really names,
-        // and a spelling whose binding was provably taken over answers with
-        // nothing, so no registry grammar is applied to it.
-        let written = token_text(source, head_tok.span);
-        let head = identities
-            .head_words(written, head_tok.span.start())
-            .resolved;
-        // Argument tokens, excluding the command word — the coordinate
-        // system the `var_scoping` index helpers expect.
+        // The owner returns positions among the original post-head arguments.
         let arg_tokens = &cmd.argv[1..];
-        let arg_texts: Vec<String> = arg_tokens
-            .iter()
-            .map(|t| token_text(source, t.span).to_owned())
-            .collect();
-
         // A scoping statement records its declared-name token spans …
-        record_declaration_tokens(
-            registry, head, arg_tokens, &arg_texts, target, visible, found,
-        );
+        record_declaration_tokens(&assistance.declarations, arg_tokens, target, visible, found);
 
         // … and *every* command may carry body-role arguments to recurse
         // into (control-flow blocks, `namespace eval`, `catch`, …).
-        let arg_refs: Vec<&str> = arg_texts.iter().map(String::as_str).collect();
-        for body_idx in registry.arg_indices_for_role(head, &arg_refs, ArgRole::Body) {
+        for body_idx in assistance.body_arguments {
             if let Some(body_tok) = arg_tokens.get(body_idx) {
                 collect_declarations_in_region(scan, body_tok.span, depth + 1, found);
             }
@@ -261,7 +252,7 @@ fn collect_declarations_in_region(
         // body — the analyser's scope tree has no `apply`-body scope kind for
         // `scan.visible` to reflect, so the direct span/offset containment
         // check stands in for "the cursor's scope chain includes this frame".
-        for lambda_idx in registry.arg_indices_for_role(head, &arg_refs, ArgRole::LambdaLiteral) {
+        for lambda_idx in assistance.lambda_arguments {
             let Some(&lambda_tok) = arg_tokens.get(lambda_idx) else {
                 continue;
             };
@@ -282,23 +273,20 @@ fn collect_declarations_in_region(
 /// Record the visible declaration-name token spans for a single
 /// scope-alias command (`global` / `variable` / `upvar` /
 /// `namespace upvar` / `my variable`) into `found`.  Recognition and the
-/// per-form argument grammar come from the registry-driven
-/// [`scope_alias_declaration_indices`] (the navigation flavour of the
-/// shared `var_scoping` recogniser), never a head-name list here.
+/// per-form argument grammar come from the shared original declaration
+/// assistance, including alias prefixes and selected member positions.
 fn record_declaration_tokens(
-    registry: &CommandRegistry,
-    head: &str,
+    declarations: &[tcl_compiler::registry_invocation::DeclarationArgument],
     arg_tokens: &[tcl_lexer::Token],
-    arg_texts: &[String],
     target: &str,
     visible: &[Span],
     found: &mut DeclSpans,
 ) {
-    for i in scope_alias_declaration_indices(registry, head, arg_texts) {
-        let Some(tok) = arg_tokens.get(i) else {
+    for declaration in declarations {
+        let Some(tok) = arg_tokens.get(declaration.argument) else {
             continue;
         };
-        if bare_name(&arg_texts[i]) != target {
+        if declaration.name != target {
             continue;
         }
         if !is_visible(tok.span, visible) {
@@ -315,16 +303,6 @@ fn is_visible(span: Span, visible: &[Span]) -> bool {
         || visible
             .iter()
             .any(|v| v.start() <= span.start() && span.end() <= v.end())
-}
-
-/// Slice the source for `span`, clamped to the buffer.
-fn token_text(source: &str, span: Span) -> &str {
-    let (s, e) = (span.start() as usize, span.end() as usize);
-    if s <= e && e <= source.len() {
-        &source[s..e]
-    } else {
-        ""
-    }
 }
 
 /// Reduce a declaration name to its bare form: strip a `$` / `${…}`
@@ -653,6 +631,29 @@ mod tests {
         // Guard: an unbound `decl` declares nothing.
         let src = upvar_body("set y 1\n", "decl");
         assert!(scanned_declaration_lines(&src, "local").is_empty());
+    }
+
+    #[test]
+    fn declaration_scan_maps_alias_prefixes_to_original_local_operands() {
+        let src = upvar_body("interp alias {} decl {} upvar 1 other\n", "decl");
+        // The captured prefix supplies the level and target. Only the written
+        // local argument can be a source declaration position.
+        let src = src.replace("decl 1 other local", "decl local");
+        assert_eq!(scanned_declaration_lines(&src, "local"), vec![2]);
+        assert!(scanned_declaration_lines(&src, "other").is_empty());
+    }
+
+    #[test]
+    fn declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv() {
+        let src = "interp alias {} body {} if 1\nproc f {} {\nbody {global x}\nputs $x\n}\n";
+        assert_eq!(scanned_declaration_lines(src, "x"), vec![2]);
+    }
+
+    #[test]
+    fn declaration_scan_uses_the_declared_local_tail_of_a_global_name() {
+        let src = "namespace eval ::n {variable x 1}\nproc f {} {\nglobal ::n::x\nputs $x\n}\n";
+        assert_eq!(scanned_declaration_lines(src, "x"), vec![2]);
+        assert!(scanned_declaration_lines(src, "n::x").is_empty());
     }
 
     #[test]

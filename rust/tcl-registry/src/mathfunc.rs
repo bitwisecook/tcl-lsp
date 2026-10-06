@@ -139,6 +139,10 @@ pub fn expr_grammar_ceiling(profile: &'static DialectProfile) -> Option<MathFunc
 /// `profile` — the axis that governs the *in-`expr`* spelling `bare(…)`.
 #[must_use]
 pub fn available_in_expr(bare: &str, profile: &'static DialectProfile) -> bool {
+    let dialect = crate::InvocationDialect::of_profile(profile);
+    if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
+        return jim_fixed_math_function_names(dialect).is_some_and(|names| names.contains(&bare));
+    }
     let Some(since) = tcl_syntax::expr::mathfunc::added_in(bare) else {
         return false;
     };
@@ -153,10 +157,242 @@ pub fn available_in_expr(bare: &str, profile: &'static DialectProfile) -> bool {
 /// `sin` — only exists from 8.5 onward.
 #[must_use]
 pub fn command_wrappers_available(profile: &'static DialectProfile) -> bool {
+    if crate::InvocationDialect::of_profile(profile).family()
+        == Some(tcl_dialect::model::Family::Jim)
+    {
+        return false;
+    }
     expr_grammar_ceiling(profile).is_none_or(|ceiling| ceiling >= MathFuncSince::Tcl85)
 }
 
+/// Fixed native functions measured in the current math-enabled Jim build.
+/// An unmeasured Jim release never inherits C Tcl's open math command table.
+#[must_use]
+pub fn jim_fixed_math_function_names(
+    dialect: crate::InvocationDialect,
+) -> Option<&'static [&'static str]> {
+    dialect
+        .core_point
+        .is_some_and(|point| point.release() == tcl_dialect::model::Release::JIM_0_84)
+        .then_some(tcl_syntax::expr::mathfunc::jim_fixed_function_names())
+}
+
+/// Presence in the original stock fixed-function registration roster of a
+/// fresh native interpreter. The caller separately retains that fresh,
+/// unchanged table contract; actual runtime tables override this advice.
+/// This supplies no registration token, arity, result or compiler authority.
+#[must_use]
+pub fn fresh_fixed_function_presence(
+    dialect: crate::InvocationDialect,
+    name: &str,
+) -> Option<bool> {
+    if native_function_dispatch(dialect) != Some(NativeMathFunctionDispatch::FixedTable) {
+        return None;
+    }
+    match dialect.family()? {
+        // Tcl_CreateInterp registers tclBuiltinFuncTable (tclExecute.c)
+        // through Tcl_CreateMathFunc before any source is evaluated.
+        tcl_dialect::model::Family::Tcl => {
+            Some(tcl_syntax::expr::mathfunc::added_in(name) == Some(MathFuncSince::Tcl84))
+        }
+        tcl_dialect::model::Family::Jim => {
+            jim_fixed_math_function_names(dialect).map(|names| names.contains(&name))
+        }
+        _ => None,
+    }
+}
+
+/// Native lookup protocol for reached expression function calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeMathFunctionDispatch {
+    /// Actual interpreter-owned registration table; command names cannot replace it.
+    FixedTable,
+    /// Namespace-relative Tcl command lookup after evaluating function operands.
+    CommandTable,
+}
+
+/// Select the native protocol from actual engine axes, independently of the
+/// assistance catalogue. Unknown engines and unmeasured Jim releases abstain.
+#[must_use]
+pub fn native_function_dispatch(
+    dialect: crate::InvocationDialect,
+) -> Option<NativeMathFunctionDispatch> {
+    use tcl_dialect::model::Family;
+    match dialect.family()? {
+        Family::Tcl => dialect.tcl_version.map(|version| {
+            if version == TclVersion::V8_4 {
+                NativeMathFunctionDispatch::FixedTable
+            } else {
+                NativeMathFunctionDispatch::CommandTable
+            }
+        }),
+        Family::Jim => {
+            jim_fixed_math_function_names(dialect).map(|_| NativeMathFunctionDispatch::FixedTable)
+        }
+        _ => None,
+    }
+}
+
+/// Select the numeric implementation independently of function lookup.
+/// Unknown native policies never silently acquire C math semantics.
+#[must_use]
+pub fn native_math_protocol(
+    dialect: crate::InvocationDialect,
+) -> Option<tcl_syntax::expr::mathfunc::NativeMathProtocol> {
+    use tcl_syntax::expr::mathfunc::NativeMathProtocol;
+    if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
+        return jim_fixed_math_function_names(dialect).map(|_| NativeMathProtocol::Jim084);
+    }
+    dialect.tcl_version.map(|_| NativeMathProtocol::Tcl)
+}
+
+/// Audited scalar native implementation, separate from its command spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeScalarMathOperation {
+    /// Native square root converts one operand and returns a double object.
+    Sqrt,
+    /// C Tcl double converts one operand and returns a double object.
+    Double,
+}
+
+/// Numeric subtype treatment at the selected scalar operand conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeMathNumericOperandPolicy {
+    /// C native double access reads existing numeric representations directly.
+    PreserveCategory,
+    /// Jim may replace an integer representation with its coerced-double cache.
+    /// The object remains numeric, but its earlier subtype is no longer proved.
+    WeakenToNumeric,
+}
+
+/// Independent world obligation of the selected scalar operand conversion.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeScalarMathInputRequirement {
+    /// An actual current native numeric object bypasses string callbacks.
+    /// Otherwise its string access must be independently closed, including
+    /// nested element updaters. Ordinary outer container shape is insufficient.
+    NumericOrClosedStringAccess {
+        /// Absolute post-head operand whose native conversion occurs.
+        argument: usize,
+    },
+}
+
+/// Selected scalar native result and operand protocol. Actual implementation
+/// identity, normal completion and execution observers remain caller obligations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeScalarMathProtocol {
+    dialect: crate::InvocationDialect,
+    operand_at: usize,
+}
+
+impl NativeScalarMathProtocol {
+    pub(crate) fn for_invocation(
+        operation: NativeScalarMathOperation,
+        arguments: crate::InvocationArguments<'_>,
+        argument_offset: usize,
+    ) -> Option<Self> {
+        if argument_offset.checked_add(1) != arguments.exact_argv_len() {
+            return None;
+        }
+        let dialect = arguments.dialect()?;
+        native_function_dispatch(dialect)?;
+        // Jim double selects its numeric-unary operator, including a separate
+        // Boolean fallback, rather than C Tcl's selected double conversion.
+        if operation == NativeScalarMathOperation::Double
+            && dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+        {
+            return None;
+        }
+        Some(Self {
+            dialect,
+            operand_at: argument_offset,
+        })
+    }
+
+    /// Absolute post-head operand converted before the normal result is made.
+    #[must_use]
+    pub const fn operand_at(self) -> usize {
+        self.operand_at
+    }
+
+    /// Operand-world obligation, independent of normal result and completion.
+    #[must_use]
+    pub const fn input_requirement(self) -> NativeScalarMathInputRequirement {
+        NativeScalarMathInputRequirement::NumericOrClosedStringAccess {
+            argument: self.operand_at,
+        }
+    }
+
+    /// Numeric representation of the actual normal result, without value,
+    /// allocation freshness, compiler admission or world-effect permission.
+    #[must_use]
+    pub const fn result_production(self) -> crate::native_result::NativeNumericResultProduction {
+        crate::native_result::NativeNumericResultProduction::Double
+    }
+
+    /// Completion codes of the selected native implementation after operand
+    /// evaluation. Command observers and replacement functions remain separate.
+    #[must_use]
+    pub const fn completion_route(self) -> crate::completion_route::InvocationCompletionRoute {
+        crate::completion_route::InvocationCompletionRoute::TclAlternatives(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])
+    }
+
+    /// Treatment of an independently proved current numeric operand subtype.
+    /// Non-numeric objects still require their actual conversion footprint.
+    #[must_use]
+    pub fn numeric_operand_policy(self) -> NativeMathNumericOperandPolicy {
+        if self.dialect.family() == Some(tcl_dialect::model::Family::Jim) {
+            NativeMathNumericOperandPolicy::WeakenToNumeric
+        } else {
+            NativeMathNumericOperandPolicy::PreserveCategory
+        }
+    }
+}
+
 impl CommandRegistry {
+    /// Protocol for an actual interpreter-owned fixed registration. The caller
+    /// supplies the retained row's native registry identity and actual arity;
+    /// a function name, stock presence or wrapper availability is insufficient.
+    /// Wrapper command floors do not govern C 8.4 or Jim fixed-table dispatch.
+    #[must_use]
+    pub fn fixed_scalar_math_protocol(
+        &self,
+        dialect: crate::InvocationDialect,
+        registry_identity: &str,
+        registered_arity: Option<usize>,
+        call_arity: usize,
+    ) -> Option<NativeScalarMathProtocol> {
+        if native_function_dispatch(dialect) != Some(NativeMathFunctionDispatch::FixedTable)
+            || registered_arity != Some(call_arity)
+            || call_arity != 1
+        {
+            return None;
+        }
+        let specs = self.specs(registry_identity);
+        let contract = specs.first()?.native_result?;
+        if !specs.iter().all(|spec| {
+            spec.native_result == Some(contract)
+                && spec.successful_handler
+                    == Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+                && spec.arity == crate::arity::Arity::exact(1)
+        }) {
+            return None;
+        }
+        let crate::native_result::NativeResultContract::ScalarMath(operation) = contract else {
+            return None;
+        };
+        // One retained native row argument remains one unknown value word.
+        let words = [crate::InvocationWord::DynamicNonOption];
+        NativeScalarMathProtocol::for_invocation(
+            operation,
+            crate::InvocationArguments::structured(&words).with_dialect(dialect),
+            0,
+        )
+    }
+
     /// The registry [`CommandSpec`] backing the **in-`expr`** spelling of the
     /// bare math-function word `bare` under `profile`, or `None` when `bare`
     /// is not a built-in `expr` function this profile has.
@@ -199,6 +435,140 @@ impl CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn double_scalar_protocol_requires_selected_c_implementation_and_exact_operand() {
+        let registry = crate::CommandRegistry::build_default();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let values = [crate::InvocationWord::DynamicNonOption];
+            if version == tcl_dialect::TclVersion::V8_4 {
+                let protocol = registry
+                    .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::double", Some(1), 1)
+                    .unwrap();
+                assert_eq!(protocol.operand_at(), 0);
+                assert_eq!(
+                    protocol.result_production(),
+                    crate::native_result::NativeNumericResultProduction::Double
+                );
+            } else {
+                let words = crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("::tcl::mathfunc::double"),
+                    &values,
+                )
+                .with_dialect(dialect);
+                let mut facts = registry
+                    .resolve_structured_invocation(words, dialect.authoring_query())
+                    .resolved()
+                    .unwrap()
+                    .facts();
+                let protocol = facts
+                    .normal_scalar_math_protocol(words.arguments())
+                    .unwrap();
+                assert_eq!(protocol.operand_at(), 0);
+                assert_eq!(
+                    protocol.numeric_operand_policy(),
+                    super::NativeMathNumericOperandPolicy::PreserveCategory
+                );
+                facts.refine_scalar_math_input_effects(words.arguments(), false);
+                assert!(facts.effects.requires_world_barrier());
+                assert!(!facts.traits.contains(crate::Traits::PURE));
+                facts.successful_handler = None;
+                assert!(
+                    facts
+                        .normal_scalar_math_protocol(words.arguments())
+                        .is_none()
+                );
+            }
+            for values in [
+                vec![],
+                vec![crate::InvocationWord::Dynamic; 2],
+                vec![crate::InvocationWord::Expanded],
+            ] {
+                assert!(
+                    super::NativeScalarMathProtocol::for_invocation(
+                        super::NativeScalarMathOperation::Double,
+                        crate::InvocationArguments::structured(&values).with_dialect(dialect),
+                        0,
+                    )
+                    .is_none()
+                );
+            }
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert!(
+            registry
+                .fixed_scalar_math_protocol(jim, "::tcl::mathfunc::double", Some(1), 1)
+                .is_none()
+        );
+        assert!(
+            super::NativeScalarMathProtocol::for_invocation(
+                super::NativeScalarMathOperation::Double,
+                crate::InvocationArguments::literals(&["21"]),
+                0,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn fixed_scalar_math_requires_native_registration_identity_and_arity() {
+        let registry = crate::CommandRegistry::build_default();
+        for dialect in [
+            crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+            crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+                tcl_dialect::model::Release::JIM_0_84,
+            )),
+        ] {
+            let protocol = registry
+                .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::sqrt", Some(1), 1)
+                .unwrap();
+            assert_eq!(
+                protocol.result_production(),
+                crate::native_result::NativeNumericResultProduction::Double
+            );
+            assert_eq!(
+                protocol.numeric_operand_policy(),
+                if dialect.family() == Some(tcl_dialect::model::Family::Jim) {
+                    super::NativeMathNumericOperandPolicy::WeakenToNumeric
+                } else {
+                    super::NativeMathNumericOperandPolicy::PreserveCategory
+                }
+            );
+            assert!(
+                registry
+                    .fixed_scalar_math_protocol(dialect, "sqrt", Some(1), 1)
+                    .is_none()
+            );
+            assert!(
+                registry
+                    .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::sqrt", None, 1)
+                    .is_none()
+            );
+            assert!(
+                registry
+                    .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::sqrt", Some(1), 2)
+                    .is_none()
+            );
+            assert!(
+                registry
+                    .fixed_scalar_math_protocol(dialect, "::tcl::mathfunc::abs", Some(1), 1)
+                    .is_none()
+            );
+        }
+        assert!(
+            registry
+                .fixed_scalar_math_protocol(
+                    crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+                    "::tcl::mathfunc::sqrt",
+                    Some(1),
+                    1
+                )
+                .is_none()
+        );
+    }
+
     use super::*;
 
     fn profile(name: &str) -> &'static DialectProfile {
@@ -262,6 +632,36 @@ mod tests {
         assert!(!command_wrappers_available(profile("tcl8.4")));
         assert!(command_wrappers_available(profile("tcl8.5")));
         assert!(command_wrappers_available(profile("tcl9.0")));
+    }
+
+    #[test]
+    fn native_dispatch_uses_actual_engine_instead_of_assistance_profile() {
+        for version in TclVersion::ALL {
+            assert_eq!(
+                native_function_dispatch(crate::InvocationDialect::for_version(version)),
+                Some(if version == TclVersion::V8_4 {
+                    NativeMathFunctionDispatch::FixedTable
+                } else {
+                    NativeMathFunctionDispatch::CommandTable
+                })
+            );
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert!(command_wrappers_available(profile("tcl9.1")));
+        assert_eq!(
+            native_function_dispatch(jim),
+            Some(NativeMathFunctionDispatch::FixedTable)
+        );
+        assert_eq!(
+            native_function_dispatch(crate::InvocationDialect::of_profile(profile("tcl"))),
+            None
+        );
+        assert_eq!(
+            native_function_dispatch(crate::InvocationDialect::of_profile(profile("f5-irules"))),
+            None
+        );
     }
 
     #[test]

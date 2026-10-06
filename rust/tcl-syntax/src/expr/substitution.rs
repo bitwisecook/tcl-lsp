@@ -33,6 +33,33 @@ pub struct LiveExpressionSubstitutions {
     pub commands: Vec<Span>,
 }
 
+/// Retain compiler-visible command substitutions in a checked expression.
+///
+/// These are lexical compiler visits, including both lazy branches. They do
+/// not prove runtime execution. Rejected or unsupported syntax returns `None`;
+/// every range includes the brackets and is half-open in the original source.
+#[must_use]
+pub fn command_substitutions_in_checked_expression(
+    source: &str,
+    context: &super::parser::ExprParseContext,
+) -> Option<Vec<Span>> {
+    if !matches!(
+        super::parser::parse_expr_checked_with_context(source, context),
+        super::parser::CheckedExprParse::Parsed(_),
+    ) {
+        return None;
+    }
+    let mut commands = Vec::new();
+    scan_expression(
+        source,
+        0,
+        source.len(),
+        context.lexer_grammar.expr_comments.comments(),
+        &mut commands,
+    );
+    Some(commands)
+}
+
 /// Return every variable and complete command substitution directly evaluated
 /// by `source` as a Tcl expression.
 ///
@@ -570,8 +597,11 @@ mod tests {
             ["[live]"]
         );
         assert_eq!(texts("{[braced]} eq [live]", Some("f5-irules")), ["[live]"]);
-        assert!(texts("[unterminated", Some("f5-irules")).is_empty());
-        assert!(texts("\"[complete_but_unquoted]", Some("f5-irules")).is_empty());
+        assert_eq!(texts("[unterminated", Some("f5-irules")), [] as [String; 0]);
+        assert_eq!(
+            texts("\"[complete_but_unquoted]", Some("f5-irules")),
+            [] as [String; 0]
+        );
     }
 
     #[test]

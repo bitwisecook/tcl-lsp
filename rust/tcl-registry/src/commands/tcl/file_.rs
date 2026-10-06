@@ -21,14 +21,101 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+// The native file ensemble delegates TclCompileBasic*ArgCmd to its private
+// worker with the original ensemble rewrite. C8.4/C8.5 use a monolithic
+// handler; C8.6+ materialise ::tcl::file workers. Compiler arity is independent
+// of the public handler's option grammar.
+macro_rules! named_file_compiler {
+    ($member:literal, no_hook) => {
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
+                compiler: &crate::native_compilation::NativeCompilationSpec {
+                    grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+                    operation: crate::SemanticOperationId::Invoke,
+                    body: crate::native_compilation::NativeBodyCompilation::Inherit,
+                },
+                lookups: &[
+                    crate::native_compilation::NativeCompilerImplementationLookup {
+                        ensemble: "::file",
+                        member: $member,
+                        slot: concat!("::tcl::file::", $member),
+                        command: "file",
+                        prepended: &[$member],
+                    },
+                ],
+                implementation_from: tcl_dialect::TclVersion::V8_6,
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }
+    };
+    ($member:literal, $arity:expr, $first:expr $(,)?) => {
+        crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::file",
+                    member: $member,
+                    slot: concat!("::tcl::file::", $member),
+                    command: "file",
+                    prepended: &[$member],
+                },
+                implementation_from: $first,
+                hook_from: $first,
+                arity: $arity,
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }
+    };
+}
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "file option name ?arg arg ...?",
     ..FormSpec::DEFAULT
 }];
 
+fn filesystem_changed(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if !arguments.is_empty() {
+        transitions.push(StateTransition::Package(
+            crate::model::binding::PackageTransition::DiscoveryDependencyChanged {
+                dependency: crate::model::binding::PackageResolverDependency::Filesystem,
+            },
+        ));
+    }
+    transitions
+}
+
+fn filesystem_attributes_changed(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() >= 3 {
+        filesystem_changed(arguments)
+    } else {
+        StateTransitions::default()
+    }
+}
+
+fn filesystem_time_changed(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() == 2 {
+        filesystem_changed(arguments)
+    } else {
+        StateTransitions::default()
+    }
+}
+
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "atime",
+        native_compilation: Some(named_file_compiler!(
+            "atime",
+            Arity::new(1, 2),
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_time_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         arity: Arity::new(1, 2),
         detail: "Returns a decimal string giving the time at which file name was last accessed; if time is given, sets the access time instead. On Windows FAT filesystems atime is unsupported; on zipfs it is mapped to the modification time.",
         synopsis: "file atime name ?time?",
@@ -44,6 +131,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "attributes",
+        native_compilation: Some(named_file_compiler!("attributes", no_hook)),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_attributes_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         arity: Arity::at_least(1),
         detail: "Query or set platform-specific file attributes: with no option, lists every attribute and its value; with an option only, returns that value; with option/value pairs, sets them. Available attributes are platform-specific (-permissions/-owner/-group on Unix, -archive/-hidden/-readonly/-system on Windows, -creator/-rsrclength on macOS); files inside a zipfs-mounted archive additionally expose read-only -archive/-compsize/-crc/-mount/-offset/-uncompsize attributes (Tcl 9.0+).",
         synopsis: "file attributes name\nfile attributes name option\nfile attributes name option value ?option value ...?",
@@ -59,6 +153,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "channels",
+        native_compilation: Some(named_file_compiler!(
+            "channels",
+            Arity::new(0, 1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::new(0, 1),
         detail: "Returns a list of names of all registered open channels in this interpreter, or only those matching pattern (using the same rules as string match) if given.",
         synopsis: "file channels ?pattern?",
@@ -70,6 +169,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // more `source`s copied into an existing `targetDir` (the second
         // form is selected automatically when target is a directory).
         name: "copy",
+        native_compilation: Some(named_file_compiler!("copy", no_hook)),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         arity: Arity::at_least(2),
         detail: "Copy a file or directory (recursively) to target, or one or more sources into an existing targetDir. Does not overwrite an existing destination unless -force is given, which also adjusts destination permissions if needed; overwriting a non-empty directory, a directory with a file, or a file with a directory is always an error. Symbolic links are copied as links, not their targets.",
         synopsis: "file copy ?-force? ?--? source target\nfile copy ?-force? ?--? source ?source ...? targetDir",
@@ -111,6 +217,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // tighter `>= 1` bound held only for 8.4/8.5, and the registry has no
         // dialect-split arity to express that exception.
         name: "delete",
+        native_compilation: Some(named_file_compiler!(
+            "delete",
+            Arity::at_least(0),
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         traits: Traits::FIRE_AND_FORGET_TEARDOWN,
         arity: Arity::at_least(0),
         detail: "Removes the file or directory specified by each pathname argument. A non-empty directory is removed only with -force. Operates on a symbolic link itself, never its target. A non-existent pathname is not an error; a read-only file is still deleted regardless of -force.",
@@ -149,6 +266,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "dirname",
+        native_compilation: Some(named_file_compiler!(
+            "dirname",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns all of the path components in name excluding the last element.",
         synopsis: "file dirname name",
@@ -159,6 +281,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "executable",
+        native_compilation: Some(named_file_compiler!(
+            "executable",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is executable by the current user, 0 otherwise. On Windows, which has no executable attribute, every directory and any file with extension exe, com, cmd, or bat is treated as executable.",
         synopsis: "file executable name",
@@ -172,6 +299,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "exists",
+        native_compilation: Some(named_file_compiler!(
+            "exists",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name exists and the current user has search privileges for the directories leading to it, 0 otherwise.",
         synopsis: "file exists name",
@@ -185,6 +317,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "extension",
+        native_compilation: Some(named_file_compiler!(
+            "extension",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns all of the characters in name after and including the last dot.",
         synopsis: "file extension name",
@@ -197,6 +334,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // New in Tcl 9.0 (TIP 543): absent from the 8.4/8.5/8.6 `file`
         // manpage subcommand list, present from the 9.0 manpage on.
         name: "home",
+        native_compilation: Some(named_file_compiler!(
+            "home",
+            Arity::new(0, 1),
+            tcl_dialect::TclVersion::V9_0,
+        )),
         arity: Arity::new(0, 1),
         detail: "Returns the home directory of the current user, or of username if given. Generally the value of $HOME (backslashes converted to forward slashes on Windows); a specific user's configured home directory may differ from $HOME even for the current user. Errors if $HOME is unset, or if username does not correspond to a real account.",
         synopsis: "file home ?username?",
@@ -207,6 +349,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "isdirectory",
+        native_compilation: Some(named_file_compiler!(
+            "isdirectory",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is a directory, 0 otherwise.",
         synopsis: "file isdirectory name",
@@ -220,6 +367,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "isfile",
+        native_compilation: Some(named_file_compiler!(
+            "isfile",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is a regular file, 0 otherwise.",
         synopsis: "file isfile name",
@@ -233,6 +385,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "join",
+        native_compilation: Some(named_file_compiler!(
+            "join",
+            Arity::at_least(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::at_least(1),
         detail: "Combines one or more file names using the correct path separator for the current platform.",
         synopsis: "file join name ?name ...?",
@@ -249,6 +406,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // create a new link and error if linkName already exists or
         // target does not — present unchanged across 8.4-9.1.
         name: "link",
+        native_compilation: Some(named_file_compiler!(
+            "link",
+            Arity::new(1, 3),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::new(1, 2),
         detail: "With one argument, returns the target of the symbolic link linkName (an error if it is not a readable link). With two arguments, creates a new link linkName pointing at the existing target and returns target; errors if linkName already exists or target does not. -linktype (-symbolic or -hard) forces a specific link type when creating, otherwise the platform default is used.",
         synopsis: "file link ?-linktype? linkName ?target?",
@@ -293,6 +455,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // gap): the floor of 1 below is only correct for 9.0+; 8.4-8.6
         // require exactly 2 args (name and varName).
         name: "lstat",
+        native_compilation: Some(named_file_compiler!(
+            "lstat",
+            Arity::exact(2),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::new(1, 2),
         detail: "Same as stat except uses the lstat kernel call instead of stat, so a symbolic link name reports information about the link itself rather than its target. varName is optional from Tcl 9.0 on; omitting it returns a dict of the stat fields instead of populating the array and returning an empty string (mandatory in 8.4-8.6).",
         synopsis: "file lstat name ?varName?",
@@ -316,6 +483,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // TIP 323 (Tcl 8.6+): the zero-argument form is a legal no-op; the
         // `>= 1` bound held only for 8.4/8.5.
         name: "mkdir",
+        native_compilation: Some(named_file_compiler!(
+            "mkdir",
+            Arity::at_least(0),
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         arity: Arity::at_least(0),
         detail: "Creates each directory specified, including any non-existing parent directories. An already-existing directory is not an error. Halts at the first error, if any, leaving earlier directories (processed in the order given) created.",
         synopsis: "file mkdir ?dir ...?",
@@ -331,6 +509,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "mtime",
+        native_compilation: Some(named_file_compiler!(
+            "mtime",
+            Arity::new(1, 2),
+            tcl_dialect::TclVersion::V8_6,
+        )),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_time_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         arity: Arity::new(1, 2),
         detail: "Returns a decimal string giving the time at which file name was last modified; if time is given, sets the modification time instead (equivalent to Unix touch). On zipfs filesystems the modification time cannot be explicitly set.",
         synopsis: "file mtime name ?time?",
@@ -346,6 +535,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "nativename",
+        native_compilation: Some(named_file_compiler!(
+            "nativename",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns the platform-specific name of the file.",
         synopsis: "file nativename name",
@@ -356,6 +550,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "normalize",
+        native_compilation: Some(named_file_compiler!(
+            "normalize",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns a unique normalized absolute path for the file-system object: ../ and ./ removed, in the platform's standard form. Symbolic links along the path are resolved, except possibly the final component, so the link itself (rather than what it points to) can still be operated on.",
         synopsis: "file normalize name",
@@ -373,6 +572,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "owned",
+        native_compilation: Some(named_file_compiler!(
+            "owned",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is owned by the current user, 0 otherwise.",
         synopsis: "file owned name",
@@ -386,6 +590,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "pathtype",
+        native_compilation: Some(named_file_compiler!(
+            "pathtype",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns one of absolute, relative, volumerelative.",
         synopsis: "file pathtype name",
@@ -395,6 +604,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "readable",
+        native_compilation: Some(named_file_compiler!(
+            "readable",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is readable by the current user, 0 otherwise.",
         synopsis: "file readable name",
@@ -408,6 +622,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "readlink",
+        native_compilation: Some(named_file_compiler!(
+            "readlink",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns the value of the symbolic link given by name; errors if name is not a readable symbolic link. Undefined on systems without symbolic-link support.",
         synopsis: "file readlink name",
@@ -424,6 +643,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Two forms in every version 8.4-9.1: `source target`, or one or
         // more `source`s moved into an existing `targetDir`.
         name: "rename",
+        native_compilation: Some(named_file_compiler!("rename", no_hook)),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(filesystem_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         surface: None,
         arity: Arity::at_least(2),
         detail: "Rename or move a file or directory source to target, or one or more sources into an existing targetDir. Does not overwrite an existing destination unless -force is given; overwriting a non-empty directory, a directory with a file, or a file with a directory is always an error. Renames a symbolic link itself, never its target. There is no guarantee that metadata such as attributes or access control lists survive the rename.",
@@ -462,6 +688,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "rootname",
+        native_compilation: Some(named_file_compiler!(
+            "rootname",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns all characters in name up to but not including the last dot in the last component.",
         synopsis: "file rootname name",
@@ -472,6 +703,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "separator",
+        native_compilation: Some(named_file_compiler!(
+            "separator",
+            Arity::new(0, 1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::new(0, 1),
         detail: "Returns the character used to separate path segments for native files on this platform.",
         synopsis: "file separator ?name?",
@@ -481,6 +717,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "size",
+        native_compilation: Some(named_file_compiler!(
+            "size",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns a decimal string giving the size of file name in bytes.",
         synopsis: "file size name",
@@ -494,6 +735,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "split",
+        native_compilation: Some(named_file_compiler!(
+            "split",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns a list whose elements are the path components in name.",
         synopsis: "file split name",
@@ -512,6 +758,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // correct for 9.0+; 8.4-8.6 require exactly 2 args (name and
         // varName).
         name: "stat",
+        native_compilation: Some(named_file_compiler!(
+            "stat",
+            Arity::exact(2),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::new(1, 2),
         detail: "Invokes the stat kernel call on name. If varName is given, populates it as an array with atime/ctime/dev/gid/ino/mode/mtime/nlink/size/type/uid elements and returns an empty string. From Tcl 9.0, varName may be omitted, in which case the same fields are returned directly as a dict (mandatory in 8.4-8.6, where the array form is the only form).",
         synopsis: "file stat name ?varName?",
@@ -533,6 +784,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "system",
+        native_compilation: Some(named_file_compiler!(
+            "system",
+            Arity::new(0, 1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns a one- or two-element list: the name of the filesystem responsible for name (e.g. native), and if given, a filesystem-specific type string (e.g. NTFS, FAT on Windows, or vfs ftp for a mounted virtual filesystem). Errors if the file belongs to no filesystem.",
         synopsis: "file system name",
@@ -546,6 +802,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tail",
+        native_compilation: Some(named_file_compiler!(
+            "tail",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns all of the characters in the last filesystem component of name.",
         synopsis: "file tail name",
@@ -559,6 +820,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // subcommand list (which has `tempfile` from 8.6 but no
         // `tempdir`), present from the 9.0 manpage on.
         name: "tempdir",
+        native_compilation: Some(named_file_compiler!(
+            "tempdir",
+            Arity::new(0, 1),
+            tcl_dialect::TclVersion::V9_0,
+        )),
         arity: Arity::new(0, 1),
         detail: "Creates a new, writable temporary directory and returns its name. template may give the containing directory (the part before the last directory separator) and/or a base-name prefix (the part after); defaults to a system-determined directory and the prefix \"tcl\".",
         synopsis: "file tempdir ?template?",
@@ -575,6 +841,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tempfile",
+        native_compilation: Some(named_file_compiler!(
+            "tempfile",
+            Arity::new(0, 2),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         traits: Traits::OPENS_CHANNEL.union(Traits::UNCONDITIONAL_VARIABLE_WRITE),
         arity: Arity::new(0, 2),
         detail: "Creates a temporary file and returns a read-write channel opened on that file. If nameVar is given, the file's name is written there; otherwise Tcl arranges to delete the file once it is no longer needed. template may suggest a directory, base name, or extension, though some platforms ignore parts of it. Temporary files are only ever created on the native filesystem.",
@@ -597,6 +868,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `[subst]`'s tilde handling, this is name-only, purely lexical
         // tilde substitution -- not gated on filesystem access.
         name: "tildeexpand",
+        native_compilation: Some(named_file_compiler!(
+            "tildeexpand",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V9_0,
+        )),
         arity: Arity::exact(1),
         detail: "Returns the result of performing tilde substitution on name: a leading ~ followed immediately by a separator substitutes $HOME, and ~user substitutes that user's home directory. Returns name unmodified if it does not begin with a tilde. Errors if $HOME is unset or the named user does not exist.",
         synopsis: "file tildeexpand name",
@@ -607,6 +883,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "type",
+        native_compilation: Some(named_file_compiler!(
+            "type",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns a string giving the type of file name: one of file, directory, characterSpecial, blockSpecial, fifo, link, or socket.",
         synopsis: "file type name",
@@ -620,6 +901,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "volumes",
+        native_compilation: Some(named_file_compiler!(
+            "volumes",
+            Arity::exact(0),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(0),
         detail: "Returns the absolute paths to the volumes mounted on the system, as a Tcl list. On Unix this is typically just \"/\" (or additionally a zipfs root); on Windows it is the available local drive letters. Any volumes mounted by a virtual filesystem are included too.",
         synopsis: "file volumes",
@@ -633,6 +919,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "writable",
+        native_compilation: Some(named_file_compiler!(
+            "writable",
+            Arity::exact(1),
+            tcl_dialect::TclVersion::V8_6,
+        )),
         arity: Arity::exact(1),
         detail: "Returns 1 if file name is writable by the current user, 0 otherwise.",
         synopsis: "file writable name",
@@ -657,6 +948,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
@@ -683,6 +982,86 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use crate::registry::CommandRegistry;
+
+    #[test]
+    fn file_compiler_roster_matches_all_190_native_registration_windows() {
+        use tcl_dialect::TclVersion;
+        let registry = CommandRegistry::build_default();
+        let fixtures = [
+            (
+                TclVersion::V8_4,
+                include_str!("../../../tests/data/native_file_compilers/8.4.20.tsv"),
+            ),
+            (
+                TclVersion::V8_5,
+                include_str!("../../../tests/data/native_file_compilers/8.5.19.tsv"),
+            ),
+            (
+                TclVersion::V8_6,
+                include_str!("../../../tests/data/native_file_compilers/8.6.18.tsv"),
+            ),
+            (
+                TclVersion::V9_0,
+                include_str!("../../../tests/data/native_file_compilers/9.0.4.tsv"),
+            ),
+            (
+                TclVersion::V9_1,
+                include_str!("../../../tests/data/native_file_compilers/9.1.0.tsv"),
+            ),
+        ];
+        let mut checked = 0;
+        for (version, fixture) in fixtures {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let slots = registry.stock_native_implementation_slots(dialect);
+            for row in fixture.lines().skip(1) {
+                let (identity, raw_hook) = row.split_once('\t').unwrap();
+                let hook: i32 = raw_hook.parse().unwrap();
+                if hook < 0 {
+                    assert!(
+                        slots.iter().all(|lookup| lookup.slot != identity),
+                        "{version:?}/{identity}"
+                    );
+                    assert!(
+                        registry
+                            .native_compilation_for_registration(identity, dialect)
+                            .is_none(),
+                        "{version:?}/{identity}"
+                    );
+                } else {
+                    let selected = registry
+                        .native_compilation_for_registration(identity, dialect)
+                        .unwrap_or_else(|| panic!("{version:?}/{identity}"));
+                    assert_eq!(
+                        selected.compiler_hook_presence(dialect),
+                        Some(hook != 0),
+                        "{version:?}/{identity}"
+                    );
+                    if identity != "file" {
+                        assert!(
+                            slots.iter().any(|lookup| lookup.slot == identity),
+                            "{version:?}/{identity}"
+                        );
+                    }
+                }
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 190);
+        let jim = crate::InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert!(
+            registry
+                .stock_native_implementation_slots(jim)
+                .iter()
+                .all(|lookup| lookup.command != "file")
+        );
+        assert!(
+            registry
+                .native_compilation_for_registration("::tcl::file::exists", jim)
+                .is_none()
+        );
+    }
 
     #[test]
     fn file_delete_and_mkdir_allow_zero_args() {

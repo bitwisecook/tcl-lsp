@@ -403,6 +403,32 @@ pub fn segment_commands_with_offset_and_config(
         .collect()
 }
 
+/// Segment an unchanged Unicode structural view of an original source image.
+/// The same lexer/grouper/CST owners consume the retained input channel. Opaque
+/// bytes or an unavailable token stream return `None`, rather than no commands.
+/// Spans in the returned projection are relocated by `base_offset`.
+#[must_use]
+pub fn segment_commands_image_with_offset_and_config(
+    image: &tcl_lexer::SourceImage,
+    base_offset: u32,
+    config: LexerConfig,
+) -> Option<Vec<SegmentedCommand>> {
+    let source = image.try_text().ok()?;
+    let sm = SourceMap::from_image(image);
+    let (document, _) = crate::parsing::syntax::build::build_document_image(image, config)?;
+    let mut segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    if config.brace_line_continuation.continues() {
+        segments = merge_f5_if_else_lookahead(source, segments);
+    }
+    if base_offset != 0 {
+        segments = segments
+            .into_iter()
+            .map(|segment| segment.shifted_by(base_offset))
+            .collect();
+    }
+    Some(segments)
+}
+
 /// Whether `source` contains exactly one Tcl command under `config`.
 ///
 /// This is the conservative shape gate for consumers that re-lex a command's
@@ -1095,6 +1121,39 @@ fn merge_f5_if_else_lookahead(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn original_image_segmentation_keeps_channel_and_unavailable_text_distinct() {
+        let source = "set a A\\\r\nset b B";
+        let config = LexerConfig::default();
+        let native = tcl_lexer::SourceImage::native(source.as_bytes());
+        let document = tcl_lexer::SourceImage::document(source);
+        let native_commands =
+            segment_commands_image_with_offset_and_config(&native, 17, config).unwrap();
+        let document_commands =
+            segment_commands_image_with_offset_and_config(&document, 17, config).unwrap();
+        assert_eq!(native_commands.len(), 2);
+        assert_eq!(document_commands.len(), 1);
+        assert_eq!(native_commands[0].span.start(), 17);
+        assert_eq!(native_commands[1].texts, ["set", "b", "B"]);
+        assert!(
+            segment_commands_image_with_offset_and_config(
+                &tcl_lexer::SourceImage::native(b"set \xff V".as_slice()),
+                0,
+                config,
+            )
+            .is_none()
+        );
+        assert_eq!(
+            segment_commands_image_with_offset_and_config(
+                &tcl_lexer::SourceImage::native(b"".as_slice()),
+                0,
+                config,
+            )
+            .unwrap(),
+            []
+        );
+    }
+
     use super::*;
     use tcl_core_types::DiagCode;
 
@@ -1311,7 +1370,10 @@ mod tests {
 
     #[test]
     fn empty_source() {
-        assert!(segment_commands("").is_empty());
+        assert_eq!(
+            segment_commands(""),
+            [] as [crate::segmenter::SegmentedCommand; 0]
+        );
     }
 
     #[test]
@@ -1344,7 +1406,7 @@ mod tests {
         let words =
             |cs: &[SegmentedCommand]| cs.iter().map(|c| c.texts.clone()).collect::<Vec<_>>();
         assert_eq!(words(&rec), words(&plain));
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [crate::analyser::types::Diagnostic; 0]);
     }
 
     #[test]

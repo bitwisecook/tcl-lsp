@@ -35,10 +35,14 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// index 2 onward to the end of the call.  Resolve `VarWrite` dynamically for
 /// every trailing arg rather than hard-coding a finite slot count, so calls
 /// with 20 / 50 / 100 vars don't false-fire W210 on the unmodelled tail.
-fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+/// Only cardinality is needed; unknown input or format values retain this layout.
+fn scan_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
     // Index 1 is the %-string (the §6 argument-DSL rung: `%b` is 8.6+).
     std::iter::once((1u8, ArgRole::ScanFormat))
-        .chain((2..args.len()).filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))))
+        .chain(
+            (2..argument_count)
+                .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))),
+        )
         .collect()
 }
 
@@ -70,7 +74,7 @@ fn scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 ///   space-join that renders identically to tclsh's returned list.
 /// * a literal mismatch, a failed / partial / empty conversion set, or a
 ///   non-ASCII string / format all bail.
-fn fold_scan(args: &[&str]) -> Option<String> {
+pub(crate) fn fold_scan(args: &[&str]) -> Option<String> {
     let [string, fmt] = args else {
         return None; // `scan str fmt var ...` writes vars — never fold
     };
@@ -218,6 +222,17 @@ fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::ConditionalVariableOperands(
+                crate::variable_output::NativeVariableOutputSpec::Scan,
+            ),
+        ),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
@@ -254,7 +269,7 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
-        arg_role_resolver: Some(scan_arg_roles),
+        arg_role_count_resolver: Some(scan_arg_roles),
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         // `scan`'s conversion string is the same printf-style mini-language
         // `format` writes; `scan_arg_roles` puts `ArgRole::ScanFormat` at the

@@ -1,0 +1,3 @@
+traced 1 {variable "v" has traces: can't use for upvar} X
+scalarArray 1 {can't define "arr(k)": name refers to an element in an array} 0 0 SCALAR
+rebound 0 REPLACED REPLACED

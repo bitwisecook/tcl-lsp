@@ -22,13 +22,86 @@
 //! consumed by the expression parser and lowering — not by the lexer
 //! itself.
 //!
-//! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) is the
-//! **one** canonical source for namespace-name parsing, shared by the compiler
-//! (`normalise_qualified_name`) and the WASM runtime's command **and** variable
-//! resolvers (`runtime/rust/src/namespace.rs`, the var coordinator) — mirroring
-//! C Tcl's `TclGetNamespaceForQualName` segmentation (`tmp/tcl9.0.4`). Byte-based
-//! so the runtime (which works in UTF-8 bytes) and the compiler (`&str`) share it
-//! without one re-deriving the other.
+//! The `::`-qualifier split ([`qualifier_segments`] / [`is_qualified`]) owns
+//! C-style written namespace segmentation. [`NativeNameProtocol`] selects the
+//! purpose-specific native input extent before that segmentation. Jim command
+//! and namespace objects have separate flat composition rules. Constructed
+//! namespace segments are retained directly, without reparsing display text.
+
+mod aliases;
+pub use aliases::{
+    c_family_local_alias_name_bytes, global_local_name_bytes, variable_local_name_bytes,
+};
+mod autoload;
+pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
+mod compiled_variables;
+mod jim_enumeration;
+mod oo_variables;
+pub use compiled_variables::{
+    NativeCompiledScalarName, NativeCompiledVariableAuthority, NativeCompiledVariableEnvironment,
+    NativeCompiledVariableLookup, NativeCompiledVariableProtocol, NativeCompiledVariableRecipe,
+};
+pub use oo_variables::{
+    NativeOoVariableError, NativeOoVariableSlotOperation, NativeOoVariableSlotSelection,
+    apply_native_oo_slot_records, apply_native_oo_variable_slot, native_oo_variable_slot,
+    validate_native_oo_variable,
+};
+mod native;
+pub use native::{
+    NamePolicyAuthority, NamePolicyProtocol, NameProjectionUnavailable,
+    NativeDictionaryMissingKeyError, NativeDictionaryMissingKeyOperation,
+    NativeJimNamespaceConstruction, NativeNameContext, NativeNameProjection, NativeNameProtocol,
+    NativeNamePurpose, NativeNameQualification, NativeNameReportPurpose,
+    NativeNamespaceLookupError, NativeNamespaceLookupOperation, NativeNamespaceOperationError,
+    NativeVariableDiagnosticOperation, NativeVariableDiagnosticProjection,
+    NativeVariableDiagnosticReason, NativeVariableFailureSite, NativeVariableInputForm,
+    NativeVariableProjection, NativeVariableTraceNames, NativeVariableTraceReportingInput,
+    checked_command_slot_utf8, checked_namespace_path_utf8, native_command_full_name_bytes,
+    native_command_source_spelling, native_constant_failure_verb,
+    native_jim_namespace_source_spelling, native_namespace_source_spelling,
+    native_procedure_compilation_name_input, report_native_dictionary_missing_key,
+    report_native_name_bytes, report_native_namespace_lookup_error,
+    report_native_namespace_operation_error, report_native_variable_access_trace_names,
+    report_native_variable_diagnostic, report_native_variable_diagnostic_at,
+};
+
+/// Jim's flat global-variable key from a rooted constructed namespace.
+///
+/// Absolute written names beginning with `::` discard every leading colon.
+/// Relative names prepend the namespace after removing its one root marker;
+/// literal colon segments inside that constructed namespace stay intact.
+/// Names and namespace segments retain their exact bytes, including NUL.
+#[must_use]
+pub fn jim_global_variable_key_bytes(rooted_namespace: &[u8], name: &[u8]) -> Vec<u8> {
+    if name.starts_with(b"::") {
+        let start = name
+            .iter()
+            .position(|byte| *byte != b':')
+            .unwrap_or(name.len());
+        return name[start..].to_vec();
+    }
+    let prefix = rooted_namespace
+        .strip_prefix(b"::")
+        .unwrap_or(rooted_namespace);
+    let mut key = Vec::with_capacity(prefix.len() + name.len() + 2);
+    key.extend_from_slice(prefix);
+    if !prefix.is_empty() {
+        key.extend_from_slice(b"::");
+    }
+    key.extend_from_slice(name);
+    key
+}
+
+/// Unicode projection of [`jim_global_variable_key_bytes`].
+/// The namespace is a rooted constructed key, not a written name to parse.
+#[must_use]
+pub fn jim_global_variable_key(rooted_namespace: &str, name: &str) -> String {
+    String::from_utf8(jim_global_variable_key_bytes(
+        rooted_namespace.as_bytes(),
+        name.as_bytes(),
+    ))
+    .expect("joining Unicode namespace and name bytes preserves Unicode")
+}
 
 /// Does `name` contain a `::` namespace separator (i.e. is it qualified)?
 #[must_use]
@@ -190,18 +263,18 @@ pub fn canonical_written_command(name: &str) -> String {
     format!("{}{trailing}", segs.join("::"))
 }
 
-/// The simple (tail) name of a **constructed** qualified key — the inverse of
-/// the `"{ns_key}::{simple}"` / `"::{simple}"` construction the analyser, the
-/// workspace index, and the VM use as canonical identity, where `simple` never
-/// contains a `::` run but may itself contain (or be) a lone `:`
-/// (`proc : args {…}`).
+/// The simple tail selected by the authored constructed-key convention.
+/// The input is an analytical presentation, independent of a written native
+/// name or an actual namespace object's retained component path.
 ///
-/// This is **not** C's `namespace tail` of a *written* word — C consumes a
-/// whole colon run as one separator, so the written `:::` has an empty tail.
-/// A constructed key `":::"` (`"::" + ":"`), by contrast, unambiguously
-/// carries the simple name `:`: the suffix after the rightmost `::` that
-/// leaves a non-empty suffix.  A trailing-separator key (`"::x::"`, the
-/// empty-named command in `::x`) correctly yields `""`.
+/// C's `namespace tail` consumes a whole colon run as one written separator.
+/// This authored convention preserves a lone-colon simple name in examples
+/// such as `":::"` and an empty simple name after `"::x::"`.
+///
+/// Joining arbitrary native components is not injective: `["a:", "b"]` and
+/// `["a", ":b"]` both render as `"::a:::b"`. This helper cannot recover their
+/// original holders or grant a native lookup identity. Native consumers retain
+/// the exact component path and namespace incarnation independently.
 ///
 /// ```
 /// use tcl_syntax::naming::key_tail;
@@ -296,9 +369,10 @@ fn constructed_namespace_path_is_valid(path: &[u8]) -> bool {
     false
 }
 
-/// Split a **constructed** qualified key into its holder-namespace key and
-/// simple tail — the exact inverse of the `"{holder}::{simple}"` construction
-/// ([`key_tail`] for the tail rule).  The holder of a root-level key is `"::"`
+/// Select an analytical holder and tail from a constructed display key.
+/// This projection is not an inverse of native path construction: `["a:", "b"]`
+/// and `["a", ":b"]` both render as `"::a:::b"`. Native lookup retains its
+/// original component path and namespace incarnation instead. The holder of a root-level key is `"::"`
 /// (`key_holder_and_tail("::x")` → `("::", "x")`), and the holder chain of a
 /// colon-named nesting is preserved (`"::::::"` — proc `:` in the namespace
 /// named `:` — → `(":::", ":")`).
@@ -329,9 +403,10 @@ pub fn key_holder_and_tail(key: &str) -> (&str, &str) {
     }
 }
 
-/// Split a **constructed** namespace key into its segments — the inverse of
-/// the `"::"`-join construction, one [`key_holder_and_tail`] step per level,
-/// so a legitimately colon-named segment survives (`":::"` → `[":"]`,
+/// Select analytical segments from a constructed namespace display key, one
+/// [`key_holder_and_tail`] step per level. The selected split cannot recover
+/// every native component path because `"::"`-joining is not injective.
+/// A legitimately colon-named segment survives (`":::"` → `[":"]`,
 /// `"::a::b"` → `["a", "b"]`, `"::"` → `[]`).  Accepts rooted or unrooted
 /// keys.  Contrast [`qualifier_segments`], the *written-name* split, which
 /// collapses colon runs.
@@ -1012,6 +1087,54 @@ pub fn qualify(prefix: &str, name: &str) -> String {
     format!("::{p}::{canonical}")
 }
 
+/// Qualify a written C namespace name under a constructed namespace key.
+/// Trailing separators select the namespace itself; empty relative input
+/// retains the current namespace. This is an authored naming abstraction,
+/// without native namespace existence or execution authority.
+#[must_use]
+pub fn qualify_namespace(prefix: &str, written: &str) -> String {
+    if written.starts_with("::") {
+        return normalise_qualified_name(written);
+    }
+    let parts = qualifier_segments_owned(written);
+    if parts.is_empty() {
+        let relative = unroot_rooted_key(prefix).unwrap_or(prefix);
+        return if relative.is_empty() {
+            "::".to_owned()
+        } else {
+            format!("::{relative}")
+        };
+    }
+    qualify(prefix, &parts.join("::"))
+}
+
+/// Byte-preserving qualification for command glob patterns and names.
+/// The prefix is constructed; only the written name's colon runs collapse.
+#[must_use]
+pub fn qualify_bytes(prefix: &[u8], name: &[u8]) -> Vec<u8> {
+    let mut result = if name.starts_with(b"::") {
+        b"::".to_vec()
+    } else {
+        let prefix = prefix.strip_prefix(b"::").unwrap_or(prefix);
+        let mut rooted = b"::".to_vec();
+        rooted.extend_from_slice(prefix);
+        if !prefix.is_empty() {
+            rooted.extend_from_slice(b"::");
+        }
+        rooted
+    };
+    for (index, segment) in qualifier_segments(name).into_iter().enumerate() {
+        if index != 0 {
+            result.extend_from_slice(b"::");
+        }
+        result.extend_from_slice(segment);
+    }
+    if ends_with_separator(name) && !name.iter().all(|byte| *byte == b':') {
+        result.extend_from_slice(b"::");
+    }
+    result
+}
+
 /// Add the global root marker to an **unrooted constructed key**.
 ///
 /// This is not written-name canonicalisation: the input has already been
@@ -1031,6 +1154,22 @@ pub fn qualify(prefix: &str, name: &str) -> String {
 #[must_use]
 pub fn root_unrooted_key(key: &str) -> String {
     format!("::{key}")
+}
+
+/// Remove exactly the root marker from a **rooted constructed key**.
+/// This is the inverse of [`root_unrooted_key`], preserving colon-named
+/// segments rather than canonicalising the spelling as a written name.
+///
+/// ```
+/// use tcl_syntax::naming::{root_unrooted_key, unroot_rooted_key};
+/// for key in ["", "N", ":", ":::p"] {
+///     assert_eq!(unroot_rooted_key(&root_unrooted_key(key)), Some(key));
+/// }
+/// assert_eq!(unroot_rooted_key("relative"), None);
+/// ```
+#[must_use]
+pub fn unroot_rooted_key(key: &str) -> Option<&str> {
+    key.strip_prefix("::")
 }
 
 /// Candidate qualified names for Tcl's real bareword command/procedure
@@ -1165,6 +1304,40 @@ pub fn command_resolution_candidates<S: AsRef<str>>(
     }
     push_base("::", &mut out);
     out
+}
+
+/// Ordered command candidates using retained constructed namespace keys.
+///
+/// The command operand is written syntax; current and path namespaces are
+/// already selected contexts. Literal-colon components in those keys remain
+/// data. A candidate key does not certify a globally callable source spelling.
+#[must_use]
+pub fn command_resolution_candidates_from_namespace_keys<S: AsRef<str>>(
+    namespace: &str,
+    path: &[S],
+    cmd_name: &str,
+) -> Vec<String> {
+    if cmd_name.starts_with("::") {
+        return vec![canonical_written_command(cmd_name)];
+    }
+    let command = canonical_written_command(cmd_name);
+    let mut candidates = Vec::with_capacity(path.len() + 2);
+    for context in std::iter::once(namespace)
+        .chain(path.iter().map(AsRef::as_ref))
+        .chain(std::iter::once("::"))
+    {
+        let key = if context.is_empty() || context == "::" {
+            format!("::{command}")
+        } else if context.starts_with("::") {
+            format!("{context}::{command}")
+        } else {
+            format!("::{context}::{command}")
+        };
+        if !candidates.contains(&key) {
+            candidates.push(key);
+        }
+    }
+    candidates
 }
 
 /// Resolve a command name the way C Tcl's `Tcl_FindCommand` does: walk
@@ -1636,6 +1809,63 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn retained_namespace_candidates_preserve_unaddressable_contexts() {
+        use super::command_resolution_candidates_from_namespace_keys;
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys(":::", &["::n", ":::"], "p"),
+            [":::::p", "::n::p", "::p"]
+        );
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys("::n", &[":::"], "p"),
+            ["::n::p", ":::::p", "::p"]
+        );
+        assert_eq!(
+            command_resolution_candidates_from_namespace_keys(":::", &[":::"], ":::::p"),
+            ["::p"]
+        );
+    }
+
+    #[test]
+    fn jim_global_keys_preserve_native_written_name_distinctions() {
+        use super::{jim_global_variable_key, jim_global_variable_key_bytes, qualify_bytes};
+
+        // Pinned Jim 0.84 resolves :::x as x, while :x is a different key.
+        // Its flat keys also distinguish foo:::bar from foo::bar.
+        for (namespace, name, expected) in [
+            ("::", ":::x", "x"),
+            ("::n", "::::x", "x"),
+            ("::", ":x", ":x"),
+            ("::n", ":x", "n:::x"),
+            ("::", "foo:::bar", "foo:::bar"),
+            ("::n", "foo:::bar", "n::foo:::bar"),
+            ("::n", "::foo:::bar", "foo:::bar"),
+            ("::n", ":::", ""),
+        ] {
+            assert_eq!(jim_global_variable_key(namespace, name), expected);
+            assert_eq!(
+                jim_global_variable_key_bytes(namespace.as_bytes(), name.as_bytes()),
+                expected.as_bytes()
+            );
+        }
+        assert_eq!(qualify_bytes(b"::", b"foo:::bar"), b"::foo::bar");
+    }
+
+    #[test]
+    fn jim_global_keys_keep_constructed_namespace_segments_and_raw_bytes() {
+        use super::jim_global_variable_key_bytes;
+
+        // Strip one root marker from an already constructed namespace key.
+        // These segments are not absolute written names to canonicalise.
+        assert_eq!(jim_global_variable_key_bytes(b":::::n", b"x"), b":::n::x");
+        assert_eq!(jim_global_variable_key_bytes(b"::", b"A\0B"), b"A\0B");
+        assert_eq!(jim_global_variable_key_bytes(b"::n", b":::\xff"), b"\xff");
+        assert_eq!(
+            jim_global_variable_key_bytes(b"::\xff", b"A\0B"),
+            b"\xff::A\0B"
+        );
+    }
+
     /// Every `${…}` reader in this module resolves the closer
     /// through the one owner, so they agree with each other *and* move
     /// together with the release.
@@ -2081,7 +2311,7 @@ mod tests {
         assert_eq!(qualifier_segments(b"::cmd"), vec![&b"cmd"[..]]);
         assert_eq!(qualifier_segments(b"cmd"), vec![&b"cmd"[..]]);
         assert_eq!(qualifier_segments(b"a::b"), vec![&b"a"[..], b"b"]);
-        assert!(qualifier_segments(b"::").is_empty());
+        assert_eq!(qualifier_segments(b"::"), [] as [&[u8]; 0]);
         // a trailing separator drops the empty tail; a lone interior colon stays.
         assert_eq!(qualifier_segments(b"a::b::"), vec![&b"a"[..], b"b"]);
         // a run of >=2 colons is one separator (all consecutive colons consumed).

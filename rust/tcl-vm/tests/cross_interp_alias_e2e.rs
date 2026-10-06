@@ -21,10 +21,9 @@
 //! children, in both directions.
 //!
 //! Every vector is a complete script whose stdout is compared against the
-//! bytecode VM **and** — when installed — real `tclsh8.6` / `tclsh9.0`
-//! (identical expectations across versions; `TCL_LSP_TCLSH86` /
-//! `TCL_LSP_TCLSH90` override the binary), so the table cannot drift from
-//! C Tcl.  Key pinned facts:
+//! matching physical-core VM and every pinned C8.4–C9.1 interpreter through
+//! the shared strict oracle runner. Jim's absent C-style surfaces have separate
+//! native controls.  Key pinned facts:
 //!
 //! * a refused self-alias **destroys** the proc it clobbered (C creates the
 //!   command first and does not restore it on rollback);
@@ -36,76 +35,17 @@
 //! * loops are detected across the interp boundary in both directions,
 //!   with the error naming the *defining* command.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
+use tcl_dialect::TclVersion;
+use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Run `src` in the VM; the script's `puts` output is returned.
-fn vm_output(src: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-
-    let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let _ = vm.run_module(&asm);
-    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
-}
-
-/// Run `src` under a real tclsh, or `None` when that binary isn't available.
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write");
-        let out = child.wait_with_output().expect("run");
-        if out.status.success() {
-            return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-        }
-    }
-    None
+fn vm_output(source: &str) -> String {
+    common::vm_output(source, "tcl9.0")
 }
 
 /// One behaviour vector: the script prints its observations; `want` is the
-/// full expected stdout (identical under 8.6 and 9.0).
+/// full expected stdout under C8.5–C9.1; the C8.4 rename diagnostic is separate.
 struct Vector {
     name: &'static str,
     script: &'static str,
@@ -222,10 +162,27 @@ const VECTORS: &[Vector] = &[
     },
 ];
 
+fn expected(vector: &Vector, version: TclVersion) -> String {
+    if version == TclVersion::V8_4
+        && vector.name == "rename onto a loop-forming name is refused and rolled back"
+    {
+        // Actual C8.4 reports the source alias; later C reports the destination.
+        return vector.want.replacen("alias \"b\"", "alias \"a\"", 1);
+    }
+    vector.want.to_owned()
+}
+
 #[test]
 fn vm_matches_the_pinned_cross_interp_alias_vectors() {
-    for v in VECTORS {
-        assert_eq!(vm_output(v.script), v.want, "{}", v.name);
+    for version in TclVersion::ALL {
+        for vector in VECTORS {
+            assert_eq!(
+                common::vm_output(vector.script, version.dialect_name()),
+                expected(vector, version),
+                "{version:?}: {}",
+                vector.name
+            );
+        }
     }
 }
 
@@ -274,24 +231,49 @@ fn child_interpreter_deletion_uses_command_token_lifecycle_once() {
     );
 }
 
-/// The table itself is pinned to C Tcl: every vector's `want` must match what
-/// the real tclsh prints (8.6 and 9.0 agree on all of these).  Skips
-/// per-binary when not installed.
+/// All five validated C engines retain the exact native behavior vectors.
 #[test]
 fn vectors_match_real_tclsh() {
-    let mut ran = 0;
-    for v in VECTORS {
-        for (env, names) in [
-            ("TCL_LSP_TCLSH86", &["tclsh8.6"][..]),
-            ("TCL_LSP_TCLSH90", &["tclsh9.0"][..]),
-        ] {
-            if let Some(got) = tclsh_output(env, names, v.script) {
-                assert_eq!(got, v.want, "[{env}] {}", v.name);
-                ran += 1;
-            }
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned C alias engines") {
+        for vector in VECTORS {
+            assert_eq!(
+                common::oracle_output(&oracle.path, vector.script),
+                expected(vector, oracle.version),
+                "{}: {}",
+                oracle.patchlevel,
+                vector.name
+            );
         }
     }
-    if ran == 0 {
-        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
+}
+
+#[test]
+fn jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported() {
+    let oracle = require_jimsh().expect("pinned Jim interpreter surface");
+    assert!(!oracle.supports(JimCapability::InterpCreate));
+    assert!(!oracle.supports(JimCapability::InterpAlias));
+    let script = "puts [catch {interp create c} m]\nputs $m\nputs [catch {interp alias {} a {} list} m]\nputs $m\n";
+    let expected = "1\nwrong # args: should be \"interp\"\n1\nwrong # args: should be \"interp\"";
+    assert_eq!(common::oracle_output(&oracle.path, script), expected);
+    assert_eq!(common::vm_output(script, "jim"), expected);
+}
+
+#[test]
+fn jim_child_handle_aliases_keep_original_parent_lookup_and_retirement() {
+    let oracle = require_jimsh().expect("pinned Jim child aliases");
+    assert!(oracle.supports(JimCapability::InterpHandleCreate));
+    assert!(oracle.supports(JimCapability::InterpHandleAlias));
+    for (script, expected) in [
+        (
+            "set child [interp]; $child alias collect list PREFIX; puts [$child eval {collect ARG}]; $child delete; puts [llength [info commands $child]]\n",
+            "PREFIX ARG\n0",
+        ),
+        (
+            "set child [interp]; $child alias collect list PREFIX; rename list originalList; proc list args {originalList OVERRIDE {*}$args}; puts [$child eval {collect ARG}]; $child delete\n",
+            "OVERRIDE PREFIX ARG",
+        ),
+    ] {
+        assert_eq!(common::oracle_output(&oracle.path, script), expected);
+        assert_eq!(common::vm_output(script, "jim"), expected);
     }
 }

@@ -1,0 +1,53 @@
+{
+  "source_sha256": "938e4ee3c0e7ed17eec76d45991555841fb29cfb3a549b4bb6e8115099e41e59",
+  "captures": [
+    {
+      "engine": "C84",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n{namespace upvar n a} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n{namespace upvar n a b} 1 {bad option \"upvar\": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which}\n",
+      "stderr": "",
+      "budget": 60
+    },
+    {
+      "engine": "C85",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}\n",
+      "stderr": "",
+      "budget": 60
+    },
+    {
+      "engine": "C86",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}\n",
+      "stderr": "",
+      "budget": 60
+    },
+    {
+      "engine": "C90",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}\n",
+      "stderr": "",
+      "budget": 60
+    },
+    {
+      "engine": "C91",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 0 {}\n{namespace upvar n a} 1 {wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"}\n{namespace upvar n a b} 0 {}\n",
+      "stderr": "",
+      "budget": 60
+    },
+    {
+      "engine": "Jim",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "exit": 0,
+      "stdout": "{namespace upvar n} 1 {wrong # args: should be \"upvar ?level? otherVar myVar ?otherVar myVar ...?\"}\n{namespace upvar n a} 0 {}\n{namespace upvar n a b} 0 {}\n",
+      "stderr": "",
+      "budget": 60
+    }
+  ]
+}

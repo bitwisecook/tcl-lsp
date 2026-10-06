@@ -557,7 +557,7 @@ mod tests {
     fn build_mro_map_all_classes() {
         let s = supers(&[("A", &[]), ("B", &["A"]), ("C", &["B"])]);
         let (mro_map, errors) = build_mro_map(&s, &empty_mixins());
-        assert!(errors.is_empty());
+        assert_eq!(errors, [] as [String; 0]);
         assert_eq!(mro_map["A"], vec!["A"]);
         assert_eq!(mro_map["B"], vec!["B", "A"]);
         assert_eq!(mro_map["C"], vec!["C", "B", "A"]);
@@ -567,7 +567,7 @@ mod tests {
     fn build_mro_map_collects_errors_for_cycles() {
         let s = supers(&[("A", &["B"]), ("B", &["A"]), ("C", &[])]);
         let (mro_map, errors) = build_mro_map(&s, &empty_mixins());
-        assert!(!errors.is_empty());
+        assert_ne!(errors, [] as [String; 0]);
         // C is independent — should still get a clean MRO.
         assert_eq!(mro_map["C"], vec!["C"]);
     }

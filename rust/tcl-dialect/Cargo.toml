@@ -27,7 +27,7 @@
 # Dependency DAG (no cycles):
 #   tcl-dialect  <-  tcl-lexer  <-  tcl-syntax  <-  { tcl-registry, … }
 #
-# It depends only on `bitflags` (which tcl-syntax already carries) so it stays
+# It depends on leaf core types and `bitflags` so it stays
 # `wasm32`-clean — the runtime (a workspace-excluded wasm32 crate) reaches it
 # through its tcl-lexer / tcl-syntax path-deps.
 #
@@ -46,6 +46,7 @@ description = "Foundational dialect vocabulary: DialectSet, TclVersion, grammar 
 
 [dependencies]
 bitflags = "2"
+tcl-core-types = { path = "../tcl-core-types" }
 
 [lints]
 workspace = true

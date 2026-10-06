@@ -1,0 +1,14 @@
+middle 0 1 {wrong # args: should be "p a args b"}
+renamed 0 1 {can't read "rest": no such variable}
+trailing_default 0 0 args
+optional_before_required 0 1 {wrong # args: should be "p a ?b? c"}
+qualified 1 - {formal parameter "n::x" is not a simple name}
+array 1 - {formal parameter "a(k)" is an array element}
+empty 1 - {argument with no name}
+duplicate 0 0 A
+quoted 0 0 x
+ref 0 0 AFTER
+target BEFORE
+ref_default 0 0 &x
+missing_ref 0 0 AFTER
+middle_short 0 1 {wrong # args: should be "p a args b"}

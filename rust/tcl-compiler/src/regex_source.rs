@@ -29,26 +29,25 @@
 //! This is a dataflow query over an already-built [`CompilationUnit`] (the SSA
 //! tier), using the exact reaching definition visible at the pattern word:
 //!
-//! 1. Walk every function's CFG statements in parallel with its SSA statements
-//!    (keyed by [`BlockId`]), maintaining the in-scope SSA version of each
-//!    variable (`entry_versions` + per-statement `uses`/`defs`, exactly as
-//!    `minify::collect_folds_for_scope`).
-//! 2. Record, per SSA value `(name, version)`:
+//! 1. Walk every function's CFG statements alongside its SSA statements.
+//! 2. Record, per physical SSA value `(symbol, version)`:
 //!    * the source span of the assigned **value word** for a literal
 //!      assignment (`AssignConst` / `AssignValue`), and
 //!    * the incoming versions of a φ (control-flow merge), so a conditionally
 //!      / re-assigned pattern resolves to *all* its reaching literals.
-//! 3. Record every `regexp` / `regsub` call whose pattern argument is a bare
-//!    `$var`, with the variable's SSA version at that use.
+//! 3. Select the original pattern operand through the actual handler's registry
+//!    layout, then ask `SsaSourceView::read_word` for that exact substitution's
+//!    physical symbol and version. Quoted and qualified reads use this same API;
+//!    an unknown receiver or missing read inventory yields no source proof.
 //! 4. For each such use, require every reaching definition to be a lexical
 //!    source literal, then resolve its def-site spans (recursing through φs).
 //!    This point-in-time proof remains valid when a callback-bearing command
 //!    conservatively widens SCCP after its arguments have already substituted.
 //!
-//! The pattern grammar is version-invariant across Tcl 8.4–9.0, and `set` /
-//! variable resolution are identical across versions, so this query needs no
-//! dialect gating (the `dialect` argument only configures the segmenter that
-//! recovers a value word's boundaries).
+//! The selected handler's registry descriptor owns pattern argument layout.
+//! Original source words and the retained native dialect select that layout;
+//! aliases retain their written operand origins. Variable reads require exact
+//! physical SSA evidence at that operand.
 //!
 //! # Scope
 //!
@@ -64,12 +63,11 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::{Span, TokenType};
 use tcl_registry::CommandRegistry;
-use tcl_registry::patterns::PatternType;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands_with_offset_and_config;
-use crate::ssa::Version;
+use crate::ssa::{Symbol, ValueKey, Version};
 
 /// Source spans of the def-site value literals that feed a `regexp` / `regsub`
 /// pattern through a variable whose reaching definitions are all lexical
@@ -107,17 +105,16 @@ pub fn regex_source_literal_spans(
 /// Per-function scan state.
 #[derive(Default)]
 struct Scan {
-    /// `(name, version)` → absolute source span of the assigned value word,
+    /// `(physical symbol, version)` → absolute source span of the assigned value word,
     /// for a literal-assignment def.
-    const_def_span: HashMap<(String, Version), Span>,
+    const_def_span: HashMap<ValueKey, Span>,
     /// Definitions whose assigned value is a source literal, used for the
     /// point-in-time fallback when a later callback barrier widens SCCP.
-    literal_source_defs: HashSet<(String, Version)>,
-    /// `(name, version)` → φ incoming versions (control-flow merge defs).
-    phi_incoming: HashMap<(String, Version), Vec<Version>>,
-    /// `(pattern-variable name, SSA version at the use)` for each `regexp` /
-    /// `regsub` call whose pattern operand is a bare `$var`.
-    regex_uses: Vec<(String, Version)>,
+    literal_source_defs: HashSet<ValueKey>,
+    /// `(physical symbol, version)` → φ incoming versions (control-flow merge defs).
+    phi_incoming: HashMap<ValueKey, Vec<Version>>,
+    /// Exact physical read key for each selected sole pattern substitution.
+    regex_uses: Vec<ValueKey>,
 }
 
 fn collect_in_function(
@@ -138,37 +135,23 @@ fn collect_in_function(
         }
         // φ definitions at the block head.
         for phi in &ssa_block.phis {
-            let key = (fu.ssa.var_name(phi.name).to_owned(), phi.version);
+            let key = (phi.name, phi.version);
             let incoming: Vec<Version> = phi.incoming.values().copied().collect();
             scan.phi_incoming.entry(key).or_insert(incoming);
         }
-
-        // Running name → version map, seeded from the block entry.
-        let mut vars: HashMap<String, Version> = ssa_block
-            .entry_versions
-            .iter()
-            .map(|(sym, ver)| (fu.ssa.var_name(*sym).to_owned(), *ver))
-            .collect();
 
         for (stmt_idx, stmt) in block.statements.iter().enumerate() {
             let Some(ssa_stmt) = ssa_block.statements.get(stmt_idx) else {
                 continue;
             };
-            // Versions visible *at* this statement (uses resolve to their
-            // reaching version, defs to the new version afterwards).
-            let mut uses = vars.clone();
-            for (sym, ver) in &ssa_stmt.uses {
-                uses.insert(fu.ssa.var_name(*sym).to_owned(), *ver);
-            }
-
             // A literal assignment records its value-word span, keyed by the
             // SSA version it defines.
             if is_literal_assignment(stmt)
                 && let Some(vspan) = value_word_span(source, dialect, fu.abs_span(stmt.span()))
             {
                 for (sym, ver) in &ssa_stmt.defs {
-                    let key = (fu.ssa.var_name(*sym).to_owned(), *ver);
-                    scan.const_def_span.entry(key.clone()).or_insert(vspan);
+                    let key = (*sym, *ver);
+                    scan.const_def_span.entry(key).or_insert(vspan);
                     // `AssignValue` also covers a quoted or bare literal
                     // (`set re "x+"`, `set re x+`) when the word has no
                     // substitution.  Admit only that statically literal
@@ -183,16 +166,15 @@ fn collect_in_function(
                 }
             }
 
-            // A `regexp`/`regsub` call with a bare-`$var` pattern records the
-            // variable and the version reaching this use.
-            if let Some(var) = regex_pattern_var(stmt, registry)
-                && let Some(&ver) = uses.get(&var)
+            // Resolve the exact substitution rather than looking up a display
+            // name in a statement-wide union of versions.
+            if let Some(word) = regex_pattern_word(stmt, registry)
+                && let Some(read) =
+                    crate::ssa::SsaSourceView::at_statement(&fu.ssa, *block_id, stmt_idx)
+                        .read_word(word)
+                && let Some(version) = read.version
             {
-                scan.regex_uses.push((var, ver));
-            }
-
-            for (sym, ver) in &ssa_stmt.defs {
-                vars.insert(fu.ssa.var_name(*sym).to_owned(), *ver);
+                scan.regex_uses.push((read.symbol, version));
             }
         }
     }
@@ -204,11 +186,11 @@ fn collect_in_function(
         // Source provenance is the final gate: a substituted/dynamic
         // `AssignValue` must not count as a literal even if SCCP has inferred
         // a string for it.
-        if !all_reaching_defs_are_literals(&scan, name, *use_ver, &mut literal_proof) {
+        if !all_reaching_defs_are_literals(&scan, *name, *use_ver, &mut literal_proof) {
             continue;
         }
-        let mut visited: HashSet<(String, Version)> = HashSet::new();
-        resolve_def_spans(&scan, name, *use_ver, &mut visited, out);
+        let mut visited: HashSet<ValueKey> = HashSet::new();
+        resolve_def_spans(&scan, *name, *use_ver, &mut visited, out);
     }
 }
 
@@ -221,12 +203,12 @@ fn collect_in_function(
 /// have a literal source span preserves abstention at dynamic or mixed phis.
 fn all_reaching_defs_are_literals(
     scan: &Scan,
-    name: &str,
+    name: Symbol,
     version: Version,
-    visited: &mut HashSet<(String, Version)>,
+    visited: &mut HashSet<ValueKey>,
 ) -> bool {
-    let key = (name.to_owned(), version);
-    if !visited.insert(key.clone()) {
+    let key = (name, version);
+    if !visited.insert(key) {
         // A cyclic phi needs a fixed-point proof, which this source-span query
         // deliberately does not attempt. Abstain rather than let the cycle
         // prove itself literal.
@@ -256,13 +238,13 @@ fn all_reaching_defs_are_literals(
 /// φ merges.  `visited` guards against φ cycles (loops).
 fn resolve_def_spans(
     scan: &Scan,
-    name: &str,
+    name: Symbol,
     version: Version,
-    visited: &mut HashSet<(String, Version)>,
+    visited: &mut HashSet<ValueKey>,
     out: &mut Vec<Span>,
 ) {
-    let key = (name.to_owned(), version);
-    if !visited.insert(key.clone()) {
+    let key = (name, version);
+    if !visited.insert(key) {
         return;
     }
     if let Some(span) = scan.const_def_span.get(&key) {
@@ -415,92 +397,56 @@ fn scan_to_close(bytes: &[u8], mut i: usize, open: u8, close: u8) -> usize {
     bytes.len()
 }
 
-/// Index of the first positional (**pattern**) argument of a `regexp` /
-/// `regsub` call, after skipping leading option switches — `-start` consumes
-/// a value word, every other flag is boolean, and `--` terminates the option
-/// scan. `args` **excludes** the command word. Returns `None` when no
-/// positional argument remains (only options were supplied).
-///
-/// The one canonical option-skip for `regexp` / `regsub`, shared by the taint
-/// (T103), security (W306 / W303), regex-source-tracking, and const-string
-/// harvesting paths so they can never drift out of agreement.
+/// Project a single pattern slot through the selected registry-owned layout.
+/// Unknown options and expansion keep the source position indeterminate.
 #[must_use]
-pub(crate) fn regexp_pattern_index(args: &[String]) -> Option<usize> {
-    let mut i = 0;
-    while i < args.len() {
-        let a = args[i].as_str();
-        if a == "--" {
-            i += 1;
-            break;
-        }
-        if a.starts_with('-') {
-            i += 1;
-            if a == "-start" && i < args.len() {
-                i += 1;
-            }
-            continue;
-        }
-        break;
-    }
-    (i < args.len()).then_some(i)
-}
-
-/// When `stmt` is a `regexp` / `regsub` call whose (option-skipped) pattern
-/// argument is a bare `$var`, return that variable's name.  Mirrors the
-/// semantic-token layer's option-skip.
-fn regex_pattern_var(stmt: &Statement, registry: &CommandRegistry) -> Option<String> {
-    let (Statement::Call {
-        command,
-        canonical_command,
-        args,
-        tokens: Some(toks),
-        ..
-    }
-    | Statement::Barrier {
-        command,
-        canonical_command,
-        args,
-        tokens: Some(toks),
-        ..
-    }) = stmt
-    else {
+pub(crate) fn regexp_pattern_index(
+    registry: &CommandRegistry,
+    command: &str,
+    args: tcl_registry::InvocationArguments<'_>,
+) -> Option<usize> {
+    let indices =
+        registry.arg_indices_for_role_words(command, args, tcl_registry::ArgRole::Pattern)?;
+    let [index] = indices.as_slice() else {
         return None;
     };
-    let name = canonical_command.as_deref().unwrap_or(command.as_str());
-    let is_regex = registry
-        .get(name)
-        .and_then(|s| s.pattern_type)
-        .is_some_and(|p| p == PatternType::Regex);
-    if !is_regex {
-        return None;
-    }
-    // `argv[0]` is the command.  The registry owns option availability and
-    // positional shifting (including version-mismatched options that still
-    // consume their value before version diagnostics run), so source
-    // harvesting must not maintain a second option skipper.
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let idx = registry
-        .arg_indices_for_role(name, &arg_refs, tcl_registry::ArgRole::Pattern)
-        .into_iter()
-        .next()?;
-    let argv_idx = idx + 1; // shift back past the command word
-    if toks.argv_kinds.get(argv_idx) != Some(&TokenType::Var) {
-        return None;
-    }
-    bare_var_name(toks.argv_texts.get(argv_idx)?)
+    Some(*index)
 }
 
-/// Extract a plain scalar variable name from a `$name` / `${name}` reference,
-/// or `None` for an array element / computed / complex reference.
-fn bare_var_name(text: &str) -> Option<String> {
-    let inner = text
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-        .or_else(|| text.strip_prefix('$'))?;
-    if inner.is_empty() || inner.contains(['(', '$', '[', ' ', ':']) {
-        return None;
-    }
-    Some(inner.to_owned())
+/// Recover the original segmented argument words for an authoring-only query.
+/// This does not establish the handler identity or a runtime operation proof.
+#[must_use]
+pub(crate) fn source_pattern_index(
+    source: &str,
+    registry: &CommandRegistry,
+    command: &str,
+    arg_tokens: &[tcl_lexer::Token],
+    config: tcl_lexer::LexerConfig,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<usize> {
+    crate::registry_invocation::with_source_argument_words(
+        source,
+        arg_tokens,
+        config,
+        dialect,
+        |arguments| regexp_pattern_index(registry, command, arguments),
+    )?
+}
+
+/// Retain the original sole variable substitution selected as the pattern by
+/// the actual handler. Physical read identity is resolved separately by SSA.
+fn regex_pattern_word<'a>(
+    stmt: &'a Statement,
+    registry: &CommandRegistry,
+) -> Option<&'a crate::ir::WordExpr> {
+    let toks = stmt.tokens()?;
+    let normal =
+        crate::registry_invocation::normal_representation_invocation(registry, None, toks)?;
+    let idx = normal.pattern_source_argument_index(registry)?;
+    let argv_idx = idx + 1; // shift back past the command word
+    let word = toks.word_exprs.get(argv_idx)?;
+    word.sole_variable_substitution()?;
+    Some(word)
 }
 
 #[cfg(test)]
@@ -508,17 +454,7 @@ mod tests {
     use super::*;
 
     fn spans_text(source: &str) -> Vec<String> {
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(source, &registry, false);
-        regex_source_literal_spans(
-            source,
-            &cu,
-            &registry,
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-        )
-        .into_iter()
-        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-        .collect()
+        spans_text_dialect(source, tcl_dialect::DialectProfile::find("tcl9.0").unwrap())
     }
 
     #[test]
@@ -531,8 +467,16 @@ mod tests {
     #[test]
     fn regexp_pattern_index_skips_options() {
         let idx = |a: &[&str]| {
-            let owned: Vec<String> = a.iter().map(|s| (*s).to_owned()).collect();
-            regexp_pattern_index(&owned)
+            let registry = CommandRegistry::build_default();
+            regexp_pattern_index(
+                &registry,
+                "regexp",
+                tcl_registry::InvocationArguments::literals(a).with_dialect(
+                    tcl_registry::InvocationDialect::of_profile(
+                        tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+                    ),
+                ),
+            )
         };
         // No options — pattern is arg 0.
         assert_eq!(idx(&["pat", "s"]), Some(0));
@@ -549,6 +493,83 @@ mod tests {
         // `-start` consumes the following word as its index value, so a lone
         // `-start pat` leaves no pattern behind → None.
         assert_eq!(idx(&["-start", "pat"]), None);
+    }
+
+    #[test]
+    fn pattern_layout_preserves_unknown_options_and_fixed_option_values() {
+        use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord};
+        let registry = CommandRegistry::build_default();
+        let dialect = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let locate = |words: &[InvocationWord<'_>]| {
+            regexp_pattern_index(
+                &registry,
+                "regexp",
+                InvocationArguments::structured(words).with_dialect(dialect),
+            )
+        };
+        assert_eq!(
+            locate(&[
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("s")
+            ]),
+            None
+        );
+        assert_eq!(
+            locate(&[
+                InvocationWord::Literal("-start"),
+                InvocationWord::Dynamic,
+                InvocationWord::Literal("p"),
+                InvocationWord::Dynamic
+            ]),
+            Some(2)
+        );
+        assert_eq!(
+            locate(&[
+                InvocationWord::Literal("--"),
+                InvocationWord::Dynamic,
+                InvocationWord::Dynamic
+            ]),
+            Some(1)
+        );
+        assert_eq!(
+            locate(&[
+                InvocationWord::Expanded,
+                InvocationWord::Literal("p"),
+                InvocationWord::Literal("s")
+            ]),
+            None
+        );
+    }
+
+    #[test]
+    fn source_pattern_layout_uses_original_substitution_and_quote_boundaries() {
+        let registry = CommandRegistry::build_default();
+        let dialect = tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        for (source, expected) in [
+            ("regexp -start $start \"a+$suffix\" $input", Some(2)),
+            ("regexp $option {a+} $input", None),
+            ("regexp -- \"-a+$suffix\" $input", Some(1)),
+            ("regexp {*}$options {a+} $input", None),
+        ] {
+            let segment = segment_commands_with_offset_and_config(source, 0, config)
+                .into_iter()
+                .next()
+                .unwrap();
+            assert_eq!(
+                source_pattern_index(
+                    source,
+                    &registry,
+                    "regexp",
+                    segment.arg_tokens(),
+                    config,
+                    dialect
+                ),
+                expected,
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -615,7 +636,7 @@ mod tests {
     #[test]
     fn conditional_resolves_to_all_reaching_literals() {
         // Both branches assign a constant → both literals are regex sources.
-        let src = "if {$c} {\n  set re \"aa\"\n} else {\n  set re \"bb\"\n}\nregexp $re $s\n";
+        let src = "proc p {c s} {if {$c} {\n  set re \"aa\"\n} else {\n  set re \"bb\"\n}\nregexp $re $s\n}";
         let mut got = spans_text(src);
         got.sort();
         assert_eq!(got, vec!["\"aa\"".to_owned(), "\"bb\"".to_owned()]);
@@ -700,7 +721,8 @@ mod tests {
         // `array for {k v} arr body` (Tcl 9.0) runs its body in the caller's
         // frame, so it is inlined into the caller unit with the loop vars bound;
         // a `set re`/`regexp` inside the body tracks its def-site literal.
-        let src = "array for {k v} a {\n  set re \".*x\"\n  regexp $re $v\n}\n";
+        let src =
+            "array set a {one foo}\narray for {k v} a {\n  set re \".*x\"\n  regexp $re $v\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["\".*x\"".to_owned()]);
     }
@@ -711,7 +733,7 @@ mod tests {
         // `regexp $re` reading a *caller* literal resolves to it — the inline
         // lowering shares the caller unit's reaching defs (regression for the
         // fresh-frame-body-unit false-negative).
-        let src = "proc p {} {\n  set re {a+}\n  array for {k v} a {regexp $re $v}\n}\n";
+        let src = "proc p {} {\n  array set a {one foo}\n  set re {a+}\n  array for {k v} a {regexp $re $v}\n}\n";
         let got = spans_text(src);
         assert_eq!(got, vec!["{a+}".to_owned()]);
     }
@@ -721,9 +743,22 @@ mod tests {
         // The pattern variable is the loop var `v` (bound per entry), not a body
         // literal — so there is no def-site literal to highlight. Proves the
         // inline lowering binds the loop vars so they shadow any caller scalar.
-        let src = "array for {k v} a {\n  regexp $v $s\n}\n";
+        let src = "array set a {one foo}\narray for {k v} a {\n  regexp $v $s\n}\n";
         let got = spans_text(src);
         assert!(got.is_empty(), "{got:?}");
+    }
+
+    #[test]
+    fn missing_array_rejects_iteration_before_pattern_body_entry() {
+        // C Tcl 9.0/9.1 rejects a missing array before entering the body;
+        // earlier releases do not provide this subcommand. A lexical body
+        // must not invent reached pattern reads in either case.
+        let src = "array for {k v} a {set re {a+}; regexp $re $v}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let got = spans_text_dialect(src, profile);
+            assert!(got.is_empty(), "{dialect}: {got:?}");
+        }
     }
 
     #[test]
@@ -752,8 +787,8 @@ mod tests {
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Vec<String> {
-        let registry = CommandRegistry::build_default();
-        let cu = CompilationUnit::build_for(source, &registry, false);
+        let registry = CommandRegistry::build_default().project_for_profile(dialect);
+        let cu = CompilationUnit::build_for_profile(source, &registry, false, dialect);
         regex_source_literal_spans(source, &cu, &registry, dialect)
             .into_iter()
             .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
@@ -780,17 +815,15 @@ mod tests {
 
     #[test]
     fn wrong_dialect_option_does_not_misplace_pattern() {
-        // `regsub -command` is a 9.0-only option; under an 8.6 target the
-        // generic leading-option skip still steps over it, so the pattern
-        // variable is located and its source literal tracked (option-dialect
-        // validity is a diagnostics concern, not a highlighting one).
+        // The physical-read query must use the selected release's actual
+        // option grammar; C8.6 rejects -command before selecting a pattern.
         let src = "set re {x+}\nregsub -command $re $s Y out\n";
         assert_eq!(
             spans_text_dialect(
                 src,
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
             ),
-            vec!["{x+}".to_owned()]
+            Vec::<String>::new()
         );
         assert_eq!(
             spans_text_dialect(
@@ -853,31 +886,79 @@ mod tests {
     }
 
     #[test]
+    fn pattern_read_uses_physical_identity_for_qualified_and_quoted_words() {
+        for read in ["$::re", "\"$::re\"", "${::re}"] {
+            let source = format!("set ::re {{x+}}; regexp {read} x");
+            assert_eq!(spans_text(&source), vec!["{x+}"], "{source}");
+        }
+        let source = "set ::re {x+}; upvar #0 ::re alias; regexp $alias x";
+        assert_eq!(spans_text(source), vec!["{x+}"]);
+    }
+
+    #[test]
+    fn pattern_read_preserves_the_receiver_selected_after_alias_retargeting() {
+        let source = "set ::first {x+}; set ::second {y+}; upvar #0 ::first alias; \
+                      regexp $alias x; upvar #0 ::second alias; regexp $alias y";
+        assert_eq!(spans_text(source), vec!["{x+}", "{y+}"]);
+        let opaque = "set ::first {x+}; upvar #0 $receiver alias; regexp $alias x";
+        assert_eq!(spans_text(opaque), [] as [String; 0]);
+    }
+
+    #[test]
     fn shared_diamond_literal_phi_is_not_rejected_as_cycle() {
         // The seed definition is shared by two nested-diamond arms.  The
         // proof must revisit that same incoming version after the first arm;
         // a global visited set would falsely treat the second visit as a
         // cycle and abstain.
-        let src = "set re {seed}\n\
-                   if {$outer} {\
-                     if {$inner} { set re {left} }\
-                   }\n\
-                   regsub -command $re $s callback out\n";
-        let mut got = spans_text(src);
-        got.sort();
-        assert_eq!(got, vec!["{left}".to_owned(), "{seed}".to_owned()]);
+        for invocation in [
+            "regexp $re $s",
+            "regsub -command $re $s callback out",
+            "regsub $re $s replacement out",
+        ] {
+            let source = format!(
+                "proc p {{outer inner s}} {{set re {{seed}}\n\
+                 if {{$outer}} {{if {{$inner}} {{set re {{left}}}}}}\n\
+                 {invocation}\n}}"
+            );
+            let mut got = spans_text(&source);
+            got.sort();
+            assert_eq!(
+                got,
+                vec!["{left}".to_owned(), "{seed}".to_owned()],
+                "nested diamond at {invocation}"
+            );
+        }
+    }
+
+    #[test]
+    fn joined_values_that_change_generic_pattern_layout_are_not_tracked() {
+        let source = "proc p {choice subject} {\n\
+                      set re {seed}\n\
+                      if {$choice} {set re {-all}}\n\
+                      regsub -command $re $subject callback out\n}";
+        assert_eq!(spans_text(source), [] as [String; 0]);
     }
 
     #[test]
     fn literal_proof_uses_stack_for_cycles_but_revisits_shared_defs() {
         let mut scan = Scan::default();
-        scan.literal_source_defs.insert(("re".to_owned(), 1));
-        scan.phi_incoming.insert(("re".to_owned(), 2), vec![1, 1]);
-        scan.phi_incoming.insert(("re".to_owned(), 3), vec![3, 1]);
+        scan.literal_source_defs.insert((Symbol(0), 1));
+        scan.phi_incoming.insert((Symbol(0), 2), vec![1, 1]);
+        scan.phi_incoming.insert((Symbol(0), 3), vec![3, 1]);
 
         let mut stack = HashSet::new();
-        assert!(all_reaching_defs_are_literals(&scan, "re", 2, &mut stack));
+        assert!(all_reaching_defs_are_literals(
+            &scan,
+            Symbol(0),
+            2,
+            &mut stack
+        ));
         stack.clear();
-        assert!(!all_reaching_defs_are_literals(&scan, "re", 3, &mut stack));
+        assert!(!all_reaching_defs_are_literals(
+            &scan,
+            Symbol(0),
+            3,
+            &mut stack
+        ));
     }
 }

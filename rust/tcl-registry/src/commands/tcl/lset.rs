@@ -97,6 +97,21 @@ const LSET_FLAT_PATH: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lset",
+        semantic_operation: Some(crate::SemanticOperationId::Intrinsic(
+            crate::IntrinsicId::ListSet,
+        )),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ArityFrom {
+                first: tcl_dialect::TclVersion::V8_4,
+                arity: Arity::at_least(2),
+            },
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `lset` reads the list's current value before rewriting one element,
         // and — like `set`/`append`/`lappend`/`incr` — its first argument is
         // a variable *name*, so it joins the name-first set the write-command
@@ -138,6 +153,7 @@ pub fn spec() -> CommandSpec {
         codegen_hook: Some(CodegenHookId::Lset),
         command_forms: &[LSET_REPLACE, LSET_SINGLE_INDEX, LSET_FLAT_PATH],
         forms: FORMS,
+        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
         side_effects: SIDE_EFFECTS,
         arg_types: &[(
             0,
@@ -148,5 +164,78 @@ pub fn spec() -> CommandSpec {
             },
         )],
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn logical_list_set_operation_does_not_supply_native_compiler_authority() {
+        use crate::native_compilation::{
+            NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+            NativeCompilationSelection, NativeCompilationWordShape,
+        };
+        let spec = super::spec();
+        for profile in ["jim", "tcl8.6"] {
+            let dialect = crate::InvocationDialect::of_point(
+                tcl_dialect::model::DialectPoint::of_dialect_name(Some(profile)).unwrap(),
+            );
+            let registry = crate::model::ingress::static_context_for(profile).commands();
+            let arguments = [
+                crate::InvocationWord::Literal("l"),
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Dynamic,
+            ];
+            let words = crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("lset"),
+                &arguments,
+            )
+            .with_dialect(dialect);
+            let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());
+            let facts = resolved
+                .resolved()
+                .map(|resolved| resolved.facts())
+                .or_else(|| registry.native_registration_invocation_facts(words))
+                .unwrap();
+            assert_eq!(
+                facts.operation,
+                crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet)
+            );
+            let selected = spec.native_compilation.unwrap().select(
+                words,
+                &[
+                    NativeCompilationWordShape::Literal,
+                    NativeCompilationWordShape::Substituted,
+                    NativeCompilationWordShape::Substituted,
+                ],
+                Some(dialect),
+                NativeCompilationContext {
+                    mode: NativeCompilationMode::BytecodeObject,
+                    frame: NativeCompilationFrame::ProcedureCode,
+                    loop_depth: 0,
+                    catch_depth: Some(0),
+                },
+            );
+            assert_eq!(
+                matches!(selected, NativeCompilationSelection::Inline { .. }),
+                profile != "jim"
+            );
+            if profile == "jim" {
+                assert_eq!(selected, NativeCompilationSelection::Generic);
+            }
+            assert_eq!(
+                spec.native_compilation.unwrap().select(
+                    words,
+                    &[NativeCompilationWordShape::Literal; 3],
+                    None,
+                    NativeCompilationContext {
+                        mode: NativeCompilationMode::BytecodeObject,
+                        frame: NativeCompilationFrame::ProcedureCode,
+                        ..NativeCompilationContext::default()
+                    }
+                ),
+                NativeCompilationSelection::Unknown
+            );
+        }
     }
 }

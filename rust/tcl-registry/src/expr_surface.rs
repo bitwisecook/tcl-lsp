@@ -178,7 +178,7 @@ impl RuntimeExprSurface {
     /// provide a name that is not a builtin for this release. Engines gate only
     /// their registry-backed builtin registrations, leaving normal command
     /// resolution to honour those indirections.
-    pub fn validate(self, node: &ExprNode) -> Result<(), ExprSurfaceError> {
+    pub fn validate<Text>(self, node: &ExprNode<Text>) -> Result<(), ExprSurfaceError> {
         match node {
             ExprNode::Binary { op, left, right } => {
                 self.validate(left)?;

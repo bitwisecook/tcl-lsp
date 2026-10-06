@@ -20,6 +20,15 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+// The documented getter returns already collected bytes. It neither evaluates
+// Tcl callbacks nor performs the replacement protocol of the sibling member.
+const GETTER_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    name: "collected-bytes",
+    arity: Arity::new(0, 1),
+    successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+    ..crate::forms::CommandForm::DEFAULT
+}];
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -45,6 +54,8 @@ pub const fn spec() -> CommandSpec {
         surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 4),
         data_collection: Some(TCP_PAYLOAD),
+        command_forms: GETTER_FORMS,
+        default_form_first_word: Some(DefaultFormFirstWord::Integer),
         hover: Some(HoverSnippet {
             summary: "Returns or changes the data collected by TCP::collect.",
             synopsis: &[

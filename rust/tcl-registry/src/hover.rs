@@ -788,18 +788,11 @@ impl OptionSpec {
     /// The half-open `args` range this option consumes as its value(s) when the
     /// option word sits at `flag_idx`.
     ///
-    /// Honours arity ([`OptionArity`]), clamps to the argument list, and stops
-    /// at an option terminator `--` (so `-index --` consumes nothing, matching
-    /// the existing value-colouring convention).  Empty for a
-    /// [`OptionValue::Flag`].  The single source of the value-span logic shared
-    /// by [`Self::value_indices`] / [`Self::value_word_count`] and, through
-    /// them, every option-scanning loop.
-    ///
-    /// The `--` scan is bounded to the consumed window (`start + want`) rather
-    /// than the whole remaining argument list, so a `One`/`Fixed` option is
-    /// O(arity) not O(remaining args) — the option-scan loops call this once
-    /// per value-taking flag, so an unbounded scan would be quadratic in the
-    /// number of such flags on one command.
+    /// Honours arity ([`OptionArity`]) and clamps to the argument list.
+    /// A fixed-arity value consumes its slot even when its bytes are `--`;
+    /// option termination applies when the next option word is scanned.
+    /// Hook-defined arities own any value-dependent stopping rule. Shared by
+    /// [`Self::value_indices`] / [`Self::value_word_count`] and source queries.
     fn value_span<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> core::ops::Range<usize> {
         let OptionValue::Takes(arg) = self.value else {
             return 0..0;
@@ -814,13 +807,7 @@ impl OptionSpec {
                 resolve(&owned, start).words
             }
         };
-        let window_end = (start + want).min(hard_end);
-        // Only a `--` inside the consumed window matters; bound the scan to it.
-        let term = args[start..window_end]
-            .iter()
-            .position(|w| w.as_ref() == "--")
-            .map_or(window_end, |p| start + p);
-        start..term
+        start..start.saturating_add(want).min(hard_end)
     }
 
     /// The absolute indices into `args` this option consumes as its value(s)
@@ -835,6 +822,29 @@ impl OptionSpec {
     #[must_use]
     pub fn value_word_count<S: AsRef<str>>(&self, args: &[S], flag_idx: usize) -> usize {
         self.value_span(args, flag_idx).len()
+    }
+
+    /// Prove the value span using evaluated source-word knowledge.
+    /// Fixed value arities depend only on cardinality; dynamic arity hooks
+    /// require their actual inputs rather than invented strings.
+    #[must_use]
+    pub fn value_word_count_for_arguments(
+        &self,
+        args: crate::InvocationArguments<'_>,
+        flag_idx: usize,
+    ) -> Option<usize> {
+        let OptionValue::Takes(arg) = self.value else {
+            return Some(0);
+        };
+        let start = flag_idx.checked_add(1)?.min(args.exact_argv_len()?);
+        let want = match arg.arity {
+            OptionArity::One => 1,
+            OptionArity::Fixed(n) => usize::from(n),
+            OptionArity::Hook(_) => {
+                return Some(self.value_word_count(&args.literal_values()?, flag_idx));
+            }
+        };
+        Some(start.saturating_add(want).min(args.len()) - start)
     }
 
     /// Check whether this option is available in *dialect*.

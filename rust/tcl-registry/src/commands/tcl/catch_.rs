@@ -63,6 +63,14 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "catch",
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::CatchOutputs),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Catch,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Catch,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -90,5 +98,61 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Catch),
         ..CommandSpec::DEFAULT
+    }
+}
+
+/// Original C Tcl and F5 completion envelope, before return-options capture.
+pub fn legacy_spec() -> CommandSpec {
+    CommandSpec {
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
+        arity: Arity::new(1, 2),
+        arg_roles: &[(0, ArgRole::Body), (1, ArgRole::VarWrite)],
+        ..spec()
+    }
+}
+
+fn jim_roles(arguments: &[&str]) -> Vec<(u8, ArgRole)> {
+    let dialect = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+        tcl_dialect::model::Release::JIM_0_84,
+    ));
+    let crate::catch_invocation::CatchInvocationSelection::Valid(selected) =
+        crate::catch_invocation::select_catch_invocation(
+            crate::InvocationArguments::literals(arguments),
+            dialect,
+        )
+    else {
+        return Vec::new();
+    };
+    let mut roles = Vec::new();
+    if let Ok(index) = u8::try_from(selected.script_at) {
+        roles.push((index, ArgRole::Body));
+    }
+    for index in [selected.result_var_at, selected.options_var_at]
+        .into_iter()
+        .flatten()
+    {
+        if let Ok(index) = u8::try_from(index) {
+            roles.push((index, ArgRole::VarWrite));
+        }
+    }
+    roles
+}
+
+/// Jim's completion-switch grammar and positional capture variables.
+pub fn jim_spec() -> CommandSpec {
+    CommandSpec {
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Jim,
+            &[("0.84", None)]
+        )]),
+        arity: Arity::at_least(1),
+        arg_roles: &[],
+        arg_role_resolver: Some(jim_roles),
+        arg_role_resolver_roles: &[ArgRole::Body, ArgRole::VarWrite],
+        inline_codegen_hook: None,
+        ..spec()
     }
 }

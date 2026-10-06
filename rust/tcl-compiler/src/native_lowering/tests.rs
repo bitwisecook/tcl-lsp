@@ -239,27 +239,40 @@ fn a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge() {
 
 #[test]
 fn renaming_a_math_function_stops_the_native_arm() {
+    fn retains_runtime_dispatch(function: &NativeFunction) {
+        let literals: BTreeMap<_, _> = all_ops(function)
+            .into_iter()
+            .filter_map(|op| match op {
+                NativeOp::ConstStr { dst, text } => Some((*dst, text.as_str())),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            all_ops(function).into_iter().any(|op| {
+                matches!(op, NativeOp::MathFunc { name, args, .. }
+                    if name == "abs" && args.len() == 1)
+                    || matches!(op, NativeOp::NestedInvoke { argv, .. }
+                if argv.len() == 2
+                && literals.get(&argv[0]) == Some(&"expr")
+                && literals.get(&argv[1]) == Some(&"abs($a)"))
+            }),
+            "runtime math dispatch must be retained: {:?}",
+            all_ops(function)
+        );
+    }
     // `expr` resolves `abs(…)` through the command table: after
     // `rename ::tcl::mathfunc::abs {}` tclsh raises `invalid command name`,
     // so the compiler must not keep folding it to a native absolute value.
     let renamed = "rename ::tcl::mathfunc::abs {}\nset a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(renamed, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "the call must go back through the command table: {:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // A `namespace import` into `::tcl::mathfunc` replaces the function just
-    // as a rename does — tclsh answers `EVIL` for the sheet below — and no
-    // name is *rebound*, so only the resolution-changed signal catches it.
-    let imported = "namespace eval ::tcl::mathfunc { namespace import -force ::evil::abs }\n\
+    // as a rename does — C9.0 answers 999 for this source.
+    let imported = "namespace eval ::evil {proc abs x {return 999}; namespace export abs}\n\
+         namespace eval ::tcl::mathfunc { namespace import -force ::evil::abs }\n\
          set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(imported, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "{:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // The namespace transition may itself be reached through an alias prefix.
     // The closed binding owner must carry that lookup effect into every
     // compiler consumer; a second syntax-only scan would miss `mutate` here.
@@ -268,11 +281,7 @@ fn renaming_a_math_function_stops_the_native_arm() {
          namespace eval ::tcl::mathfunc { ::mutate ::evil::abs }\n\
          set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(alias_imported, native_config()).expect("lowers");
-    assert!(
-        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
-        "an alias-resolved import must return math dispatch to the command table: {:?}",
-        all_ops(&function)
-    );
+    retains_runtime_dispatch(&function);
     // Untouched, `abs` still folds to the inline compare/negate arm.
     let plain = "set a -2\nputs [expr {abs($a)}]\n";
     let (function, _) = lower(plain, native_config()).expect("lowers");
@@ -281,6 +290,11 @@ fn renaming_a_math_function_stops_the_native_arm() {
         0,
         "{:?}",
         all_ops(&function)
+    );
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::NestedInvoke { .. })),
+        0,
+        "the unchanged installed abs implementation retains its native path"
     );
 }
 
@@ -357,7 +371,7 @@ fn a_traced_variable_keeps_its_barrier_and_its_runtime_incr() {
 
 #[test]
 fn a_dynamic_trace_target_guards_incr_with_the_runtime_trace_bit() {
-    let source = "set name a\ntrace add variable $name write puts\nset a 1\nincr a\n";
+    let source = "proc watch args {}\nset name [read stdin]\ntrace add variable $name write watch\nset a 1\nincr a\n";
     let (function, _) = lower(source, native_config()).expect("lowers");
     assert!(all_ops(&function).iter().any(|op| matches!(
         op,
@@ -707,5 +721,48 @@ fn a_definition_with_a_written_body_still_binds_under_the_same_proof() {
     assert_eq!(
         count(&lowered, |op| matches!(op, NativeOp::DefineProc { .. })),
         1
+    );
+}
+
+#[test]
+fn native_lowering_cannot_bypass_an_unresolved_chunk_entry() {
+    use crate::command_binding::{CommandAllocationSite, ExecutedScriptSource, SourceOriginId};
+    use crate::native_compilation_admission::NativeCompilationAdmission;
+    use std::sync::Arc;
+    let registry = CommandRegistry::build_default();
+    let unit = CompilationUnit::build_for_dialect("set before 1", &registry, false, "tcl9.0");
+    let facts = &unit.top_level.semantic_facts;
+    let mut function = facts.executable().function().unwrap().clone();
+    let source = ExecutedScriptSource::materialised(
+        CommandAllocationSite {
+            source: Arc::new(SourceOriginId::authored(&Arc::from(unit.source.as_str()))),
+            offset: 0,
+        },
+        vec![0],
+        &unit.source,
+    );
+    function.native_compilation_admission = Some(Arc::new(NativeCompilationAdmission {
+        source: Some(source),
+        failure: None,
+        provider_required: true,
+    }));
+    let hints = BTreeMap::new();
+    let input = LoweringInput {
+        registry: &registry,
+        context: facts.context(),
+        function: &function,
+        source: &unit.source,
+        module: &unit.ir_module,
+        mutations: &unit.command_mutations,
+        config: native_config(),
+        escape: None,
+        top_level: true,
+        line_origin: 0,
+        entry_assumption: facts.dispatch_entry_assumption(),
+        type_hints: &hints,
+    };
+    assert_eq!(
+        lower_function(&input).unwrap_err(),
+        FunctionDecline::NativeCompilationAdmissionRequired
     );
 }

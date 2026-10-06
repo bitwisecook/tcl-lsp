@@ -1191,7 +1191,7 @@ fn param_body_shape_carries_param_name() {
     let m = module_for("proc dispatcher {body} { uplevel 1 $body }\n");
     let candidates = detect_passthrough_candidates(&m, &reg());
     match candidates.get("::dispatcher") {
-        Some(PassthroughShape::ParamBody { param_name }) => assert_eq!(param_name, "body"),
+        Some(PassthroughShape::ParamBody { param_name, .. }) => assert_eq!(param_name, "body"),
         other => panic!("expected ParamBody {{ body }}, got {other:?}"),
     }
 }

@@ -25,6 +25,23 @@ Two consumers read the same data by other routes and are worth knowing about:
   `gvn::is_pure_command_with_traces`, which wraps the classifier with the
   execution-trace gate described below.
 
+## Opaque native invocations
+
+`Statement::NativeCall` retains an invocation whose original byte operands cannot
+be projected into the named analysis IR. `Statement::has_opaque_native_accesses`,
+`Function::has_opaque_native_accesses` and
+`SsaFunction::has_opaque_native_accesses` expose that residual independently of
+named reads and definitions. Empty named sets do not prove absence of effects.
+
+The physical access projection records an unknown read followed by a clobber,
+without inventing a definite variable definition. Binding state widens, value
+numbering loses reusable state, and source-edit eligibility is absent. Load
+forwarding, dead-store removal and code motion decline the affected function or
+crossing. Taint retains unknown effects on existing SSA values and procedure
+summaries; an opaque invocation cannot certify a clean result merely because it
+has no named definitions. Consumers must retain this residual when projecting
+SSA or effect data rather than substitute a guessed variable name.
+
 ## Architecture
 
 ### Enums (the vocabulary)
@@ -107,15 +124,21 @@ Convenience methods: `reads_any()`, `writes_any()`, `affects_target(t)`,
 |-------|-----------|----------|
 | `Connection` | Immutable for the life of the TCP/UDP flow | `IP::client_addr`, `TCP::client_port` |
 | `Event` | Stable within a single `when` block; may change between events | `HTTP::uri`, `IP::server_addr`, `SSL::cert` |
-| `Static` | System-wide, survives across connections | `static::` variables |
+| `Static` | Persistent within the executing TMM worker; runtime writes do not propagate to other workers | Resolved `::static::` namespace cells |
 | `SessionTable` | Keyed, with explicit lifetime/timeout | `table` entries |
 | `Persistence` | F5 persistence records | `session`/`persist` entries |
 
-For a `Variable` effect the scope is derived from the name by
-`scope_from_varname`: a `static::` prefix gives `Static`; a `::NAME` with no
-further qualification gives `Global` with namespace `"::"`; a
-`::NS::…::VAR` gives `Namespace` with the leading segments as the namespace;
-everything else gives `ProcLocal`.
+Variable effects resolve through the common `var_resolve` cell owner before
+host policy. `classify_side_effects_with_context` accepts the point-specific
+namespace, frame and alias facts. `classify_side_effects` is the compatibility
+root-procedure query. A proven namespace cell has one canonical key regardless
+of absolute spelling or the local alias used to reach it.
+
+`tcl-registry::f5::namespace_storage_domain` applies the TMM overlay to a
+resolved root `::static` namespace. A namespace named `static` in ordinary Tcl
+has ordinary namespace storage. A nested `::app::static` namespace is distinct,
+and relative namespace lookup remains release-dependent Tcl semantics.
+Unresolved targets retain unknown effects.
 
 Key distinctions and what causes values to change:
 
@@ -124,7 +147,7 @@ Key distinctions and what causes values to change:
 - **TLS state** (`SSL::cert`, `SSL::cipher`) uses `EVENT` — the TLS session is stable within an event, but an event handler can trigger a renegotiation (e.g. `SSL::authenticate`), which may produce a different client certificate or cipher suite in the next event.
 - **HTTP request state** (`HTTP::uri`, `HTTP::header`, `HTTP::method`) uses `EVENT` — stable within `HTTP_REQUEST` or `HTTP_RESPONSE`, but each new HTTP transaction on a keepalive connection delivers entirely new request/response state.
 
-For compiler analysis (which operates within a single event handler), both `CONNECTION` and `EVENT` scopes are effectively pure — the value cannot change during the analysis window. The scope annotation preserves the semantic distinction for documentation, cross-event reasoning, and future analyses that may need to track what persists across event boundaries.
+For compiler analysis (which operates within a single event handler), both `CONNECTION` and `EVENT` scopes are effectively pure — the value cannot change during the analysis window. The scope annotation distinguishes connection lifetime from event lifetime and supports cross-event reasoning.
 
 ### EffectRegion bridge
 
@@ -136,8 +159,9 @@ The mapping lives in `target_to_region(target, scope)`:
 |-------------|-------------|
 | `HTTP_STATE` | `HttpHeader`, `HttpBody`, `HttpStatus`, `HttpUri`, `HttpCookie`, `HttpMethod`, `Http2State` |
 | `RESPONSE_LIFECYCLE \| HTTP_STATE` | `ResponseCommit` — committing the response is also an HTTP-state write |
-| `GLOBAL_STATE` | `Variable` with `Global` or `Namespace` scope |
-| `NONE` | `Variable` in any other scope, and `FileIo` / `NetworkIo` / `LogIo` — external I/O does not mutate compiler-tracked in-memory state |
+| `GLOBAL_STATE` | `Variable` with `Global`, `Namespace` or `Static` scope |
+| `NONE` | Proven local/event/connection variable storage, and `FileIo` / `NetworkIo` / `LogIo` |
+| `UNKNOWN_STATE` | A variable target whose storage could not be resolved |
 | `UNKNOWN_STATE` | Everything else, plus `dynamic_barrier` (added to the *writes* set by `to_effect_regions`) |
 
 A `NONE` region is why a proc that only calls `puts` is impure

@@ -515,9 +515,26 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let usage = b"puts ?-nonewline? ?channelId? string";
     let mut rest = &argv[1..];
     let mut newline = true;
-    if rest.first().map(|&a| obj_bytes(a)) == Some(b"-nonewline".to_vec()) {
-        newline = false;
-        rest = &rest[1..];
+    if let Some(&first) = rest.first() {
+        let nonewline = if interp
+            .native_invocation_dialect()
+            .native_jim_enum_protocol()
+            .is_some()
+        {
+            const FLAG: &[&str] = &["-nonewline"];
+            let table =
+                tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(FLAG);
+            match interp.native_jim_compare_immediate(first, &table, 0) {
+                Ok(matched) => matched,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        } else {
+            obj_bytes(first) == b"-nonewline"
+        };
+        if nonewline {
+            newline = false;
+            rest = &rest[1..];
+        }
     }
     let (chan, string) = match rest {
         [s] => (b"stdout".to_vec(), obj_bytes(*s)),
@@ -726,9 +743,16 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .unwrap_or(0);
     let origin = match argv.get(3) {
         None => 0,
-        Some(&a) => match SEEK_ORIGINS.index_of(&obj_bytes(a)) {
+        Some(&a) => match interp.native_index_operand(
+            a,
+            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+                SEEK_ORIGINS.names(),
+            ),
+            false,
+            "origin",
+        ) {
             Ok(i) => i,
-            Err(m) => return interp.set_error(&m),
+            Err(error) => return interp.report_cmd_error(error),
         },
     };
     let from = match origin {

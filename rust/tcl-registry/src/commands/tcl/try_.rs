@@ -148,6 +148,14 @@ const FIRST_CLAUSE_KEYWORD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "try",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Try,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Try,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `FRAMELESS_RUNTIME` deliberately absent: unlike `throw`/`error`/
         // `return` (which build their completion directly with no `vm`
         // touch), `cmd_try` evaluates `body`, every handler `script`, and

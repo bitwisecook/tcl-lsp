@@ -1,0 +1,6 @@
+normal 3 0 6 0 6
+normal 2.5 0 5.0 0 5.0
+normal notANumber 1 {cannot use non-numeric string "notANumber" as left operand of "*"} 1 {cannot use non-numeric string "notANumber" as left operand of "*"}
+normal 0x10 0 32 0 32
+custom-original 0 6 2
+custom-rewritten 0 6 1

@@ -24,6 +24,7 @@
 #![allow(non_snake_case)]
 
 mod after_;
+mod alias_;
 mod append_;
 mod apply;
 mod array_;
@@ -153,14 +154,14 @@ mod registry_;
 mod regsub_;
 mod rename_;
 mod return_;
-mod scan_;
+pub(crate) mod scan_;
 mod seek_;
 mod set_;
 mod socket_;
 mod source_;
 mod split_;
 mod string_;
-mod subst_;
+pub(crate) mod subst_;
 mod switch_;
 mod tailcall_;
 mod tcl__build_info;
@@ -258,11 +259,14 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         oo_callback::spec(),
         case_::spec(),
         catch_::spec(),
+        catch_::legacy_spec(),
+        catch_::jim_spec(),
         cd::spec(),
         chan_::spec(),
         clock_::spec(),
         close_::spec(),
         concat_::spec(),
+        concat_::jim_spec(),
         const_::spec(),
         continue_::spec(),
         coroinject::spec(),
@@ -273,10 +277,12 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         encoding_::spec(),
         eof_::spec(),
         error_::spec(),
+        error_::jim_spec(),
         eval_::spec(),
         exec_::spec(),
         exit_::spec(),
         expr_::spec(),
+        expr_::jim_spec(),
         fblocked::spec(),
         fconfigure_::spec(),
         fcopy::spec(),
@@ -294,9 +300,11 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         if_::spec(),
         incr_::spec(),
         info_::spec(),
+        interp::jim_spec(),
         interp::spec(),
         join_::spec(),
         lappend_::spec(),
+        lappend_::jim_spec(),
         lassign::spec(),
         ledit::spec(),
         lfilter::spec(),
@@ -329,6 +337,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
     vec![
         mathfunc::spec(),
         mathop::spec(),
+        namespace_::jim_spec(),
         namespace_::spec(),
         oo_abstract::spec(),
         oo_class::spec(),
@@ -348,6 +357,7 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         oo_self::spec(),
         oo_singleton::spec(),
         open_::spec(),
+        package_::jim_spec(),
         package_::spec(),
         parray::spec(),
         pid::spec(),
@@ -360,16 +370,19 @@ fn tcl_specs_m_through_z() -> Vec<CommandSpec> {
         regex__quote::spec(),
         regex_quote::spec(),
         regexp_::spec(),
+        regexp_::jim_spec(),
         regexp_quote::spec(),
         registry_::spec(),
         regsub_::spec(),
         rename_::spec(),
+        alias_::spec(),
         return_::spec(),
         scan_::spec(),
         seek_::spec(),
         set_::spec(),
         socket_::spec(),
         source_::spec(),
+        source_::jim_spec(),
         split_::spec(),
         string_::spec(),
         subst_::spec(),
@@ -429,7 +442,6 @@ mod tests {
         ("set", IR_ASSIGNMENT),
         ("array default", ARRAY_TARGET),
         ("array set", ARRAY_TARGET),
-        ("array unset", "removes array elements"),
         ("file stat", ARRAY_TARGET),
         ("file lstat", ARRAY_TARGET),
         ("dict update", DICT_KEYS),
@@ -533,3 +545,7 @@ mod tests {
         );
     }
 }
+
+pub(crate) use if_::bpf_conditional_operands;
+pub(crate) use if_::check_if_shape as native_if_shape_error;
+pub(crate) use if_::native_compile_shape_message as native_if_compile_shape_message;

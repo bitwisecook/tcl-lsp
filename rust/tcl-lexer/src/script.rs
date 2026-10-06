@@ -116,7 +116,7 @@ pub enum WordKind {
 }
 
 /// One word of a command, as spans and token indices only.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WordSpan {
     /// How the word was written.
     pub kind: WordKind,
@@ -244,6 +244,16 @@ pub fn group_commands(tokens: &[Token], src: &str, config: LexerConfig) -> Vec<C
     // lands here rather than at the ~300 call sites, and so this entry point
     // matches every sibling in the crate.
     let _ = config;
+    group_commands_bytes(tokens, src.as_bytes(), config)
+}
+
+/// Group a shared lexer stream over original source bytes.
+///
+/// The source and tokens must have the same local byte coordinates. This uses
+/// the same token-stream grouper as the Unicode document entry.
+#[must_use]
+pub fn group_commands_bytes(tokens: &[Token], src: &[u8], config: LexerConfig) -> Vec<CommandSpan> {
+    let _ = config;
     Grouper::new(tokens, src).run()
 }
 
@@ -260,7 +270,7 @@ struct PendingWord {
 /// everything that is CST- rather than boundary-shaped.
 struct Grouper<'a> {
     tokens: &'a [Token],
-    src: &'a str,
+    src: &'a [u8],
     out: Vec<CommandSpan>,
 
     words: Vec<WordSpan>,
@@ -280,7 +290,7 @@ struct Grouper<'a> {
 }
 
 impl<'a> Grouper<'a> {
-    fn new(tokens: &'a [Token], src: &'a str) -> Self {
+    fn new(tokens: &'a [Token], src: &'a [u8]) -> Self {
         Self {
             tokens,
             src,
@@ -389,7 +399,7 @@ impl<'a> Grouper<'a> {
             && self
                 .prev_tok
                 .and_then(|i| self.tokens.get(i))
-                .and_then(|t| self.src.as_bytes().get(t.span.start() as usize))
+                .and_then(|t| self.src.get(t.span.start() as usize))
                 == Some(&b'{')
     }
 
@@ -417,7 +427,7 @@ impl<'a> Grouper<'a> {
         if self.prev_type != TokenType::Esc {
             return false;
         }
-        let bytes = self.src.as_bytes();
+        let bytes = self.src;
         let opened_with_quote = self
             .cur
             .as_ref()
@@ -431,7 +441,7 @@ impl<'a> Grouper<'a> {
             return false;
         };
         let end = prev.span.end() as usize;
-        let closer = if crate::source_map::token_text_in(self.src, *prev).is_empty() {
+        let closer = if crate::source_map::token_bytes_in(self.src, *prev).is_empty() {
             end.checked_sub(1)
         } else {
             Some(end)
@@ -460,7 +470,7 @@ impl<'a> Grouper<'a> {
         let last = self.tokens[word.end];
         let kind = if word.start == word.end && first.kind == TokenType::Str {
             WordKind::Braced
-        } else if self.src.as_bytes().get(first.span.start() as usize) == Some(&b'"') {
+        } else if self.src.get(first.span.start() as usize) == Some(&b'"') {
             WordKind::Quoted
         } else {
             WordKind::Bare
@@ -500,7 +510,7 @@ impl<'a> Grouper<'a> {
                 && self
                     .src
                     .get(self.tokens[i].span.as_range())
-                    .is_some_and(|raw| raw.bytes().filter(|&b| b == b'\n').count() > 1)
+                    .is_some_and(|raw| bytecount::count(raw, b'\n') > 1)
             {
                 self.comment.clear();
             }
@@ -651,7 +661,7 @@ mod tests {
         let src = "foo \"q\"{*}$z";
         let (toks, cmds) = group(src);
         assert_eq!(word_texts(src, &cmds[0], &toks), ["foo", "\"q\"{*}$z"]);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert!(cmds[0].words.iter().all(|w| !w.expand));
         // The close-quote weld is the sibling flag, not this one.
         assert!(!cmds[0].words[1].welded_after_close);
@@ -674,7 +684,7 @@ mod tests {
         let src = "foo {*}";
         let (_toks, cmds) = group(src);
         assert_eq!(cmds[0].words.len(), 2);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert_eq!(cmds[0].words[1].kind, WordKind::Braced);
     }
 
@@ -695,7 +705,7 @@ mod tests {
         let cmds = group_commands(&tokens, src, LexerConfig::default());
         assert_eq!(cmds.len(), 1, "the marker-only command is discarded");
         assert_eq!(cmds[0].span, Span::new(4, 7));
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
     }
 
     #[test]
@@ -721,7 +731,7 @@ mod tests {
         let src = "foo {*}$b";
         let (_toks, cmds) = group_with(src, LexerConfig::for_dialect("tcl8.4"));
         assert_eq!(cmds[0].words.len(), 2);
-        assert!(cmds[0].expand_markers.is_empty());
+        assert_eq!(cmds[0].expand_markers, [] as [usize; 0]);
         assert!(!cmds[0].words[1].expand);
         // `{*}$b` is one word: a braced `{*}` welded to `$b`.
         assert!(cmds[0].words[1].welded_after_close);
@@ -952,6 +962,6 @@ mod tests {
         let mut tokens = Lexer::new(src).tokenise_all().unwrap();
         tokens.insert(0, Token::new(TokenType::Eof, Span::empty(0)));
         let cmds = group_commands(&tokens, src, LexerConfig::default());
-        assert!(cmds.is_empty());
+        assert_eq!(cmds, [] as [CommandSpan; 0]);
     }
 }

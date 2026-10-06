@@ -1,0 +1,29 @@
+disassembly accepted {ByteCode <address>, refCt 1, epoch 22, interp <address> (epoch 22)
+  Source "ensemble mem *"
+  Cmds 1, src 14, inst 7, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc <address>, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-5, src 0-13
+  Command 1: "ensemble mem *"
+    (0) push1 0 	# "::private"
+    (2) push1 1 	# "*"
+    (4) invokeStk1 2 
+    (6) done 
+}
+result accepted 0 {}
+disassembly declined {ByteCode <address>, refCt 1, epoch 22, interp <address> (epoch 22)
+  Source "ensemble member a b"
+  Cmds 1, src 19, inst 17, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Proc <address>, refCt 1, args 0, compiled locals 0
+  Commands 1:
+      1: pc 0-15, src 0-18
+  Command 1: "ensemble member a b"
+    (0) push1 0 	# "ensemble"
+    (2) push1 1 	# "member"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "b"
+    (8) push1 4 	# "::private"
+    (10) invokeReplace 4 2 
+    (16) done 
+}
+result declined 1 {wrong # args: should be "ensemble member ?pattern?"}

@@ -58,36 +58,24 @@ impl From<&super::state::VarCommandSite> for W308DiagnosticSite {
     }
 }
 
-/// The "known command name" sets for the W307 non-literal-command check:
-/// registry command names, user proc qualified names, their simple-name tails,
-/// and class simple-name tails.
-struct W307KnownNames {
-    cmds: HashSet<String>,
-    /// Qualified proc name → establishing offset: the offset lets
-    /// `is_known_command` check each candidate is still live — not
-    /// renamed/deleted away with no later re-establishment — at the dispatch
-    /// site via `fact_live_for_call`.
-    procs: HashMap<String, u32>,
-    /// Bare tail → `(qualified_name, establishing_offset)` pairs — a tail
-    /// may match several qualified procs across namespaces.
-    proc_by_tail: HashMap<String, Vec<(String, u32)>>,
-    /// [`Self::proc_by_tail`]'s twin for classes.
-    class_by_tail: HashMap<String, Vec<(String, u32)>>,
-}
-
 /// All the borrowed analysis data the W307 per-site suppression decision
 /// reads, bundled so [`Analyser::w307_site_suppressed`] takes one context
 /// argument instead of a dozen.
 struct W307Ctx<'a> {
-    known: &'a W307KnownNames,
     all_constsets: &'a std::collections::HashMap<String, HashSet<String>>,
-    func_ranges: &'a [(String, u32, u32)],
-    fu_by_qname: &'a std::collections::HashMap<String, &'a crate::compilation_unit::FunctionUnit>,
+    func_ranges: &'a [W307FunctionRange<'a>],
     factory_object_ranges: &'a [(u32, u32, HashSet<String>)],
     snit_var_ranges: &'a [(u32, u32, &'a Vec<String>)],
     proc_body_ranges: &'a [(u32, u32, String, HashSet<String>)],
     dispatch_counts: &'a FxHashMap<(String, String), usize>,
     tainted_by_scope: &'a FxHashMap<String, HashSet<String>>,
+}
+
+/// Exact declaration owner retained with its original range.
+struct W307FunctionRange<'a> {
+    function: &'a crate::compilation_unit::FunctionUnit,
+    start: u32,
+    end: u32,
 }
 
 impl Analyser {
@@ -150,358 +138,32 @@ impl Analyser {
         })
     }
 
-    /// Harvest `set x [Cls new]` / `set x [Cls create name]` where `Cls` is a
-    /// known `TclOO` class: `x` then holds an Object of class `Cls`, so a later
-    /// `$x method` dispatch resolves through the W308 method check instead of
-    /// firing W307.  The type lattice doesn't model the constructor return
-    /// type for a var assignment yet (the cmd-site path recognises the
-    /// bare-class `new`/`create` pattern directly), so mirror that recognition
-    /// here for the var-assignment shape.
-    fn harvest_constructor_object_types(
-        &self,
-        cu: &crate::compilation_unit::CompilationUnit,
-        out: &mut HashMap<String, HashSet<String>>,
-    ) {
-        use crate::ir::Statement;
-        let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
-        for fu in units {
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    let Statement::AssignValue {
-                        name,
-                        value,
-                        span,
-                        tokens,
-                        ..
-                    } = stmt
-                    else {
-                        continue;
-                    };
-                    let trimmed = value.trim();
-                    let mut class_qn = None;
-                    if let Some((head, args)) =
-                        crate::value_shapes::parse_command_substitution_with_config(
-                            trimmed,
-                            self.lexer_config(),
-                        )
-                        && let Some(manufacturer_word) = args.first()
-                    {
-                        // The constructor call must still be live at this
-                        // assignment — a dead class fails the call, so `x`
-                        // is never assigned an object.
-                        let qn = self.canonicalise_class_name(&head);
-                        let off = span.start();
-                        if self.class_live_for_call(&qn, off)
-                            || self.class_live_for_call(&head, off)
-                        {
-                            if self.class_command_constructs_with(&qn, manufacturer_word) {
-                                class_qn = Some(qn);
-                            }
-                        } else {
-                            // The head may reach a live class through a
-                            // `rename` or `interp alias` — `rename Dog Cat`
-                            // then `set d [Cat new]` types `d` as `::Dog`.
-                            // Resolved to the *canonical*
-                            // name so the `ClassDef` / method lookup keys.
-                            class_qn =
-                                self.class_reachable_by_indirection(&head, off)
-                                    .filter(|reached| {
-                                        self.class_command_constructs_with(
-                                            reached,
-                                            manufacturer_word,
-                                        )
-                                    });
-                        }
-                    }
-                    // The constructor's class head is a `$var` reference
-                    // rather than a literal bareword:
-                    // defer to the same flow-sensitive resolution
-                    // `instance_classes` uses, so the type lattice agrees
-                    // with hover/definition on the same dispatch.
-                    if class_qn.is_none() {
-                        class_qn = self.harvest_indirect_constructor_class(
-                            cu,
-                            fu,
-                            trimmed,
-                            tokens.as_ref(),
-                        );
-                    }
-                    if let Some(class_qn) = class_qn {
-                        out.entry(name.clone()).or_default().insert(class_qn);
-                    }
-                }
-            }
-        }
-    }
-
-    /// The `$class`-headed indirection counterpart of the literal-bareword
-    /// check above: resolves the class variable's
-    /// constant contributors via the flow-sensitive value model — the same
-    /// `class_var_head_constructor_subst` shape-parse
-    /// [`Analyser::record_pending_instance_class_site`] uses for
-    /// `instance_classes` — so the SSA type-lattice (W307/W308) agrees with
-    /// hover/definition on the exact same `$var`-headed constructor
-    /// dispatch. Abstains (`None`) on anything unprovable or genuinely
-    /// (branch-)ambiguous, the same soundness bar as that sibling settle
-    /// path.
-    fn harvest_indirect_constructor_class(
-        &self,
-        cu: &crate::compilation_unit::CompilationUnit,
-        fu: &crate::compilation_unit::FunctionUnit,
-        value: &str,
-        tokens: Option<&crate::ir::CommandTokens>,
-    ) -> Option<String> {
-        let (class_var, manufacturer_word, offset) =
-            super::super::commands::class_var_head_constructor_subst(value)?;
-        if cu.ir_module.has_dynamic_variable_trace
-            || cu.ir_module.traced_variables.contains(&class_var)
-        {
-            return None;
-        }
-        let value_start = tokens?.argv.get(2)?.start();
-        let contributors = crate::value_provenance::const_contributors(
-            fu,
-            value_start + offset,
-            &class_var,
-            self.lexer_config(),
-        )?;
-        let mut resolved: Option<String> = None;
-        for c in &contributors {
-            let v = c.value.trim();
-            if v.is_empty() || crate::naming::is_dynamic_word(v) {
-                return None;
-            }
-            let qn = self.canonicalise_class_name(v);
-            let known = if self.result.all_classes.contains_key(&qn) {
-                qn
-            } else if self.result.all_classes.contains_key(v) {
-                v.to_string()
-            } else {
-                return None;
-            };
-            if !self.class_command_constructs_with(&known, &manufacturer_word) {
-                return None;
-            }
-            match &resolved {
-                None => resolved = Some(known),
-                Some(existing) if *existing != known => return None,
-                Some(_) => {}
-            }
-        }
-        resolved
-    }
-
-    /// Per-proc `(body_start, body_end, factory_local_vars)` ranges — the
-    /// variables that hold an *object factory* result, so a `$var method`
-    /// dispatch on them suppresses W307 (an object handle is a designed,
-    /// non-literal command target, not a static error).
-    ///
-    /// A factory local is a `set X [head …]`
-    /// where `head` is object-returning: a known `TclOO` class command, a
-    /// namespaced factory (the documented tcllib `::ns::cmd` convention, minus
-    /// known user procs and registry commands with a non-OBJECT return type),
-    /// or another proc proven object-returning by the fixpoint.  This tracks
-    /// *no* class identity — it only suppresses W307 (it never enables W308).
-    /// Aggregate type-lattice object knowledge across every analysable unit
-    /// (top level, procs, *and* method bodies) plus constructor-harvested
-    /// types: var name → the set of `TclType::Object` class qualified names it
-    /// can hold, for the W308 method-resolution check.
-    ///
-    /// The map itself is **unfiltered**. Deletion awareness —
-    /// `type_infer.rs`'s `constructor_object_type` types `[Cls new]` straight
-    /// off a "known classes" set that has none — belongs at the *emit* sites,
-    /// which know the dispatch offset and can ask
-    /// [`Self::class_live_for_call`]. Filtering here with
-    /// `class_live_at_file_end` and dropping the type outright costs the
-    /// diagnostic in both directions: a class used before a *later* deletion
-    /// loses its W308 and draws a spurious W307 in its place, even though the
-    /// dispatch happens while the class is still live.
-    ///
-    /// Oracle (tclsh8.6): `proc foo {} {
-    /// set y [Dog new]; set x $y; $x fly }`, `foo`, then `rename Dog {}`
-    /// fails with `unknown method "fly"` — the class is alive at the
-    /// dispatch, and the trailing rename is irrelevant to it.
-    fn aggregate_object_types(
-        &self,
-        cu: &crate::compilation_unit::CompilationUnit,
-    ) -> std::collections::HashMap<String, HashSet<String>> {
-        use crate::types::TypeKind;
-        let mut all_object_types: std::collections::HashMap<String, HashSet<String>> =
-            std::collections::HashMap::new();
-        let collect_object_types =
-            |fu: &crate::compilation_unit::FunctionUnit,
-             out: &mut std::collections::HashMap<String, HashSet<String>>| {
-                for ((sym, _ver), tl) in fu.types.iter() {
-                    if tl.kind() != TypeKind::Known {
-                        continue;
-                    }
-                    if !matches!(tl.tcl_type(), Some(tcl_registry::TclType::Object)) {
-                        continue;
-                    }
-                    let Some(class_name) = tl.class_name() else {
-                        continue;
-                    };
-                    out.entry(fu.ssa.var_name(*sym).to_owned())
-                        .or_default()
-                        .insert(class_name.to_owned());
-                }
-            };
-        collect_object_types(&cu.top_level, &mut all_object_types);
-        for fu in cu.procedures.values() {
-            collect_object_types(fu, &mut all_object_types);
-        }
-        // Method bodies are real analysable units (`cu.methods` carries a full
-        // FunctionUnit per method). Including them lets `$var method` dispatch
-        // inside a method body see object/const evidence from the same body.
-        for fu in cu.methods.values() {
-            collect_object_types(fu, &mut all_object_types);
-        }
-        self.harvest_constructor_object_types(cu, &mut all_object_types);
-        all_object_types
-    }
-
-    /// W308 method validation for a `$var method` dispatch where `var` is
-    /// known to hold an Object of one of `class_names`.
-    ///
-    /// A method counts as found when the hierarchy resolves it, a local class
-    /// declares it (or it's a class-system built-in such as
-    /// `new`/`create`/`destroy`, or an `unknown` handler), it is a
-    /// property accessor on a configurable class, an inherited `unknown`
-    /// handler exists, the class has an external (unindexed) superclass or
-    /// mixin, the receiver var was `oo::objdefine`d, or any candidate class is
-    /// a snit metaclass (whose delegation the analyser can't model).  W308
-    /// fires only when not found and at least one candidate class is locally
-    /// known.
-    ///
-    /// A dispatch with no method word at all (`$obj` alone) is a different,
-    /// unconditional failure — see [`Self::e001_for_bare_object_dispatch`] —
-    /// so it is routed there before any method-name-shaped logic runs.
+    /// An absent method name can be diagnosed only from the immutable method
+    /// inventory captured by the actual instance receipt. A name in that
+    /// inventory supplies no visibility, arity, or dispatch implementation proof.
     fn w308_for_object_var(
         &self,
         site: &crate::analyser::state::VarCommandSite,
-        class_names: &HashSet<String>,
-        hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
-        objdefined_vars: &HashSet<String>,
+        instance: &crate::command_binding::SourceObjectInstanceProof,
     ) -> Option<super::types::Diagnostic> {
-        let Some(method_name) = site.method_name.as_ref() else {
-            return self.e001_for_bare_object_dispatch(site, class_names);
+        let class = &instance.class_target().command;
+        let Some(method) = site.method_name.as_ref() else {
+            return self.e001_for_bare_object_dispatch(site, &HashSet::from([class.clone()]));
         };
-        let hierarchy = hierarchy?;
-        let mut found = false;
-        let mut has_local_class = false;
-        for cls in class_names {
-            if let Some(provider) = hierarchy.method_target(cls, method_name) {
-                found = true;
-                // Arity-check only when the receiver's class is
-                // unambiguous and the call carries no `{*}` expansion —
-                // the same any-uncertainty-abstains convention as the
-                // same-file proc/alias arity check
-                // (`Analyser::resolve_indirect_call_target`). A method
-                // resolved through several *disjoint-arity* candidate
-                // classes, or through a `{*}`-expanded call whose
-                // runtime argument count is unknowable, is left
-                // unchecked rather than risk a false positive.
-                if class_names.len() == 1
-                    && !site.has_expand
-                    && let Some(diag) =
-                        self.method_arity_diagnostic(site, method_name, provider, cls, hierarchy)
-                {
-                    return Some(diag);
-                }
-                break;
-            }
-            if let Some(cd) = self.result.all_classes.get(cls) {
-                has_local_class = true;
-                // The class system's own built-in object methods come from
-                // the registry — the same query
-                // `validate_method_on_class` uses, so the `$obj m` and
-                // `[cmd] m` paths cannot disagree about what `TclOO` /
-                // snit / itcl supplies for free.
-                let unknown = self
-                    .class_definer_grammar(cls)
-                    .and_then(|grammar| grammar.unknown_dispatch_method);
-                if cd.methods.contains_key(method_name)
-                    || cd.class_methods.contains_key(method_name)
-                    || self.builtin_object_method_reachable(
-                        cd,
-                        method_name,
-                        site.receiver.method_reach(),
-                    )
-                    || unknown.is_some_and(|name| cd.methods.contains_key(name))
-                {
-                    found = true;
-                    break;
-                }
-            }
-        }
-        // Inherited fallback handler via MRO.  Its name belongs to the
-        // class-system grammar, not this consumer.
-        if !found && has_local_class {
-            for cls in class_names {
-                let fallback = self
-                    .class_definer_grammar(cls)
-                    .and_then(|grammar| grammar.unknown_dispatch_method);
-                if fallback.is_some_and(|name| hierarchy.method_target(cls, name).is_some()) {
-                    found = true;
-                    break;
-                }
-            }
-        }
-        // The class's method set cannot be enumerated — an external
-        // superclass or mixin, opaque metaclass-spliced inheritance, or
-        // members installed reflectively — so a method might exist that this
-        // index cannot see.
-        if !found && has_local_class {
-            found = class_names.iter().any(|cls| {
-                self.result
-                    .all_classes
-                    .get(cls)
-                    .is_some_and(|cd| self.method_set_unknowable(cd))
-            });
-        }
-        // A method the class system generates from the class's declared
-        // properties (`oo::configurable`'s `configure`); no member table or
-        // MRO provider entry carries one.
-        if !found
-            && class_names.iter().any(|cls| {
-                hierarchy.is_property_accessor(self.registry.as_deref(), cls, method_name)
-            })
+        if instance.instance_method_names()?.contains(method)
+            || !Self::method_word_is_literal(method)
+            || self.disabled_diagnostics.contains("W308")
         {
-            found = true;
+            return None;
         }
-        // ``oo::objdefine`` adds per-instance methods we can't see at the
-        // class level.
-        if !found && objdefined_vars.contains(&site.var_name) {
-            found = true;
-        }
-        // Some class systems have open-ended dispatch (for example wildcard
-        // delegation).  The registry declares that property, so method
-        // validation abstains without recognising the family by name.
-        if !found
-            && class_names.iter().any(|cls| {
-                self.class_definer_grammar(cls)
-                    .is_some_and(|grammar| grammar.dynamic_method_dispatch)
-            })
-        {
-            found = true;
-        }
-        if !found
-            && has_local_class
-            && Self::method_word_is_literal(method_name)
-            && !self.disabled_diagnostics.contains("W308")
-        {
-            let mut classes_sorted: Vec<&str> = class_names.iter().map(String::as_str).collect();
-            classes_sorted.sort_unstable();
-            let cls_display = classes_sorted.join(", ");
-            return Some(self.w308_diagnostic(
-                method_name,
-                &cls_display,
-                &classes_sorted,
-                Some(hierarchy),
-                W308DiagnosticSite::from(site),
-            ));
-        }
-        None
+        // The receipt includes private names only to avoid false absence
+        // claims. It cannot safely supply public-method suggestions either.
+        Some(super::types::Diagnostic::new(
+            DiagCode::W308,
+            site.method_span.unwrap_or(site.cmd_span),
+            format!("Unknown method '{method}' on class '{class}'"),
+            Severity::Warning,
+        ))
     }
 
     /// Build the W308 (unknown method) diagnostic: anchored on the method
@@ -663,204 +325,6 @@ impl Analyser {
         ))
     }
 
-    /// Check a resolved `$obj method …` dispatch's argument count
-    /// against the providing class's own method definition — same
-    /// arity algorithm as a proc
-    /// ([`crate::signature_scan::arity::arity_of`]), since `TclOO`
-    /// methods obey identical Tcl argument-binding rules (confirmed
-    /// against tclsh 9.0.4).
-    ///
-    /// A `forward` method (`forward NAME TARGET ?ARG…?`) is `TclOO`'s
-    /// version of `interp alias` partial application — its arity is the
-    /// target's own arity shifted down by the prepended argument count
-    /// (see [`super::validity::shift_arity`]). A bare method name is
-    /// *not* a valid forward target — `forward fwd base` fails at run
-    /// time with `invalid command name "base"`, confirmed against tclsh
-    /// 9.0.4, because `TARGET` is resolved as an ordinary command, and a
-    /// `method`/`forward` never creates one. The documented, working
-    /// idiom for forwarding to a sibling or inherited method is routing
-    /// through the object's own dispatcher, `forward NAME my TARGET
-    /// ?ARG…?` (confirmed against tclsh 9.0.4: `my`'s target resolves
-    /// through the receiver's full MRO, arity-shifted by any args after
-    /// it; `self` is not usable here — it errors at run time with `self
-    /// may only be called from inside a method`, since forwarding
-    /// doesn't run inside a method body). Both forms, and same-file
-    /// proc / registry-builtin targets, are chased through the same
-    /// hop-limited loop (mirroring
-    /// [`Analyser::resolve_indirect_call_target`]'s guard against a
-    /// self-referential cycle, never legitimate Tcl), accumulating the
-    /// shift transitively across a chain of forwards.
-    fn method_arity_diagnostic(
-        &self,
-        site: &crate::analyser::state::VarCommandSite,
-        method_name: &str,
-        providing_class: &str,
-        receiver_class: &str,
-        hierarchy: &super::class_hierarchy::ClassHierarchy,
-    ) -> Option<super::types::Diagnostic> {
-        const MAX_HOPS: u8 = 8;
-        let class_def = self.result.all_classes.get(providing_class)?;
-        // Instance dispatch (`$obj method`) can only ever reach an
-        // *instance* method — a class method (`self method` /
-        // `classmethod`, stored in `class_methods`) is called on the
-        // class object itself, never on an instance (confirmed against
-        // tclsh 9.0.4: `set o [C new]; $o make 1` fails "unknown method"
-        // even though `C make 1 2` succeeds). Falling back to
-        // `class_methods` here would compute arity from a signature the
-        // call could never actually reach.
-        let mut method_def = class_def.methods.get(method_name)?;
-        let mut prepended_total: u16 = 0;
-        let mut arity = None;
-        for _ in 0..MAX_HOPS {
-            if method_def.kind != "forward" {
-                arity = Some(method_def.arity());
-                break;
-            }
-            let Some((target, prepended)) = method_def.forward_target.as_ref() else {
-                break;
-            };
-            // `forward m my other` re-dispatches on the same instance. The
-            // self-dispatch keyword comes from the registry (which resolves
-            // the `::`-qualified spelling itself), not a name literal.
-            if self.registry.as_deref().is_some_and(|r| {
-                r.method_dispatch_keyword(target)
-                    == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-            }) {
-                let (next_method, rest) = prepended.split_first()?;
-                let next_provider = hierarchy.method_target(receiver_class, next_method)?;
-                // `my` dispatches on the same instance, so only an
-                // instance method is reachable here too.
-                let next_def = self
-                    .result
-                    .all_classes
-                    .get(next_provider)
-                    .and_then(|cd| cd.methods.get(next_method))?;
-                prepended_total =
-                    prepended_total.saturating_add(u16::try_from(rest.len()).unwrap_or(u16::MAX));
-                method_def = next_def;
-                continue;
-            }
-            prepended_total =
-                prepended_total.saturating_add(u16::try_from(prepended.len()).unwrap_or(u16::MAX));
-            let bare = target.strip_prefix("::").unwrap_or(target);
-            if let Some(def) = self
-                .result
-                .all_procs
-                .get(target)
-                .or_else(|| self.result.all_procs.get(&format!("::{target}")))
-            {
-                arity = Some(def.arity());
-                break;
-            }
-            if !bare.contains("::")
-                && let Some(sig) = self.registry.as_deref().and_then(|r| r.get(bare))
-            {
-                arity = Some(sig.arity);
-                break;
-            }
-            return None;
-        }
-        let arity = super::validity::shift_arity(arity?, prepended_total);
-        // `site.argc` counts the method-name word too; the method's own
-        // argument count is one fewer.
-        let nargs = site.argc.saturating_sub(1);
-        let display_name = format!("{} {method_name}", site.var_name);
-        super::validity::arity_verdict(
-            &display_name,
-            arity,
-            nargs,
-            false,
-            site.cmd_span,
-            None,
-            None,
-        )
-    }
-
-    /// Build the [`W307KnownNames`] universe: registry command names, user proc
-    /// qualified names + their simple-name tails, and class simple-name tails.
-    fn build_w307_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W307KnownNames {
-        let cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
-        let procs: HashMap<String, u32> = self
-            .result
-            .all_procs
-            .iter()
-            .map(|(qn, def)| (qn.clone(), def.name_span.start()))
-            .collect();
-        let proc_by_tail = super::unresolved::group_defs_by_tail(
-            self.result
-                .all_procs
-                .iter()
-                .map(|(qn, def)| (qn, def.name_span.start())),
-        );
-        let class_by_tail = super::unresolved::group_defs_by_tail(
-            self.result
-                .all_classes
-                .iter()
-                .map(|(qn, def)| (qn, def.name_span.start())),
-        );
-        W307KnownNames {
-            cmds,
-            procs,
-            proc_by_tail,
-            class_by_tail,
-        }
-    }
-
-    /// The canonical class a *written* command name reaches at `call_off`
-    /// after following `rename` and `interp alias` indirection, or `None`
-    /// when it reaches no live class.
-    ///
-    /// `rename Dog Cat` makes `Cat` the class command: tclsh8.6.14 and
-    /// tclsh9.0.4 both accept `set d [Cat new]; $d bark` and both reject
-    /// `$d fly` with `unknown method "fly": must be bark or destroy`. The
-    /// class's own identity is unchanged by the rename — its `ClassDef` and
-    /// method table are still keyed by `::Dog` — so this resolves *forward*
-    /// through `renamed_commands` (which maps `new → old`) and returns the
-    /// canonical name, which is what the method lookup needs.
-    ///
-    /// The hop walk itself — order gating, the eight-hop cap, and the
-    /// argument-prepending decline — lives in
-    /// [`crate::analyser::indirection::walk`], which the LSP's navigation
-    /// providers consume through the same entry point: a class
-    /// that go-to-definition follows a rename to and a class this pass types a
-    /// constructor through can never be resolved by two different rules.
-    /// What stays here is the part that is genuinely class-specific — class
-    /// -name canonicalisation and the liveness question at the terminal name.
-    ///
-    /// The two hop kinds are not symmetric in that liveness question, and the
-    /// asymmetry is deliberate:
-    ///
-    /// - A `rename` moves the command once and for all, so the old name being
-    ///   gone afterwards is exactly what freed it up — chasing back through it
-    ///   is always valid. [`Self::class_live_by_name_for_call`] already
-    ///   encodes this by treating a rename *source* class as unconditionally
-    ///   live.
-    /// - An `interp alias` is re-resolved by name on every invocation, so its
-    ///   target must resolve to a live command at the call site — but "live"
-    ///   is judged where the chain *terminates*, not at the alias hop itself:
-    ///   the target may be another alias or a rename destination (`rename Dog
-    ///   Cat; interp alias {} Pup {} Cat` — `Pup new` builds a Dog,
-    ///   tclsh8.6.14/9.0.4-confirmed), and demanding a directly-live class at
-    ///   the hop breaks exactly those chains. A chain that ends *on* an alias
-    ///   target requires the strict direct-class check there — a rename
-    ///   *source* name is vacated, so an alias pointing at it fails `invalid
-    ///   command name` at run time (tclsh8.6.14/9.0.4-confirmed) and the
-    ///   lenient rename-source rule below must not resurrect it.
-    fn class_reachable_by_indirection(&self, written: &str, call_off: u32) -> Option<String> {
-        let hop = crate::analyser::indirection::walk(&self.result, written, call_off, &|name| {
-            self.canonicalise_class_name(name)
-        })?;
-        let live = match hop.last_hop {
-            crate::analyser::indirection::LastHop::Alias => {
-                self.class_live_for_call(&hop.target, call_off)
-            }
-            crate::analyser::indirection::LastHop::Rename => {
-                self.class_live_by_name_for_call(&hop.target, call_off)
-            }
-        };
-        live.then_some(hop.target)
-    }
-
     /// Whether the dispatch site at `off` runs inside a **child
     /// interpreter's** evaluation body (the analyser's synthetic `@interp@…`
     /// scope domain).  The object classes the E001
@@ -875,144 +339,60 @@ impl Analyser {
             .contains("@interp@")
     }
 
-    /// Whether `qualified` names a class that is still live at `call_off`
-    /// — shared by the constructor-recognition sites (`[Cls new]` direct
-    /// calls and `set x [Cls new]` variable assignments alike), which
-    /// otherwise duplicate the identical `all_classes.get(...).is_some_and(...)`
-    /// call three times over.
-    fn class_live_for_call(&self, qualified: &str, call_off: u32) -> bool {
-        self.result
-            .all_classes
-            .get(qualified)
-            .is_some_and(|c| self.fact_live_for_call(qualified, c.name_span.start(), call_off))
-    }
-
-    /// The object classes `site`'s receiver may hold that are still live
-    /// *at this dispatch*: everything [`Self::aggregate_object_types`]
-    /// recorded for the variable, unioned with the object-type lattice's
-    /// scope-keyed binding for the same name at the same offset
-    /// ([`crate::object_types::ObjectHandleFacts::classes_in_scope`]).
-    ///
-    /// The lattice read is what keeps this diagnostic and the LSP's
-    /// navigation from disagreeing on one document: a handle the lattice can
-    /// type — e.g. `set b [$a make]`, the method-return edge — must never
-    /// draw the W307 "cannot statically analyse" warning that hover and
-    /// go-to-definition contradict.  Only the
-    /// *scoped* map is read (never the scope-blind union), so a same-named
-    /// variable in an unrelated proc cannot enable a false W308/E001 here.
-    ///
-    /// A class deleted before the dispatch cannot answer it, so its method
-    /// table says nothing about the call; a class deleted only afterwards is
-    /// fully live here and must still be checked. An empty result means the
-    /// site has no usable
-    /// object type left, and the caller falls through to the W307 path
-    /// exactly as it did when the type was dropped wholesale.
-    fn live_classes_at_dispatch(
+    /// The source-owned allocation and current dispatch receipt. Aggregate
+    /// type labels and bare instance-name assistance supply no runtime proof.
+    fn live_instance_at_dispatch(
         &self,
-        all_object_types: &std::collections::HashMap<String, HashSet<String>>,
         site: &crate::analyser::state::VarCommandSite,
-    ) -> HashSet<String> {
-        let call_off = site.cmd_span.start();
-        let lattice = self
-            .result
-            .object_handle_facts
-            .classes_in_scope(call_off, &site.var_name);
-        // A bareword instance-command site names a `CLASS create NAME`
-        // instance command, never an SSA variable, so it carries no lattice
-        // or constructor-harvest evidence — its class comes from
-        // `instance_classes` instead.  `record_var_or_cmd_command_site`
-        // only ever pushes such a site once that map already resolves it to
-        // a locally-known class, so this is a plain lookup, not a new gate.
-        let bareword_class = (site.receiver
-            == crate::analyser::state::DispatchReceiver::InstanceCommand)
-            .then(|| self.result.instance_classes.get(&site.var_name))
-            .flatten();
-        all_object_types
-            .get(&site.var_name)
-            .into_iter()
-            .chain(lattice)
-            .flatten()
-            .chain(bareword_class)
-            .filter(|cls| self.class_live_by_name_for_call(cls, call_off))
-            .cloned()
-            .collect()
-    }
-
-    /// Whether the class `name` is still live at `call_off` — the
-    /// by-written-name wrapper around [`Self::class_live_for_call`], for the
-    /// type-lattice class names [`Self::aggregate_object_types`] collects.
-    ///
-    /// Gating at the dispatch offset rather than at file end is what keeps
-    /// a class *used before a later deletion* diagnosable: the dispatch runs
-    /// while the class is alive, so its methods are exactly as checkable as
-    /// if the deletion were not there. `fu.types` is flow-insensitive and
-    /// carries no offset of its own, but the *dispatch site* does
-    /// (`VarCommandSite::cmd_span`), and that is the offset that decides
-    /// whether the call succeeds — the same granularity the constructor sites
-    /// use.
-    ///
-    /// A name this file declares no class for (a cross-file or
-    /// registry-provided class) has no deletion fact to check and stays
-    /// live.
-    ///
-    /// # A rename to a name is re-establishment, not deletion
-    ///
-    /// `rename Dog Cat` records a deletion of `::Dog`, which is right for
-    /// the *command name* — `Dog new` genuinely fails afterwards. It is
-    /// wrong for the *class*, which is alive and well under its new name,
-    /// along with every object already constructed from it.
-    ///
-    /// Oracle (tclsh8.6 and tclsh9.0): after `set d [Dog new]` and `rename
-    /// Dog Cat`, `$d bark` returns `woof` and `$d fly` fails with `unknown
-    /// method "fly"`. Treating the class as dead dropped that W308.
-    ///
-    /// So a class named as some rename's *source* stays live here. The
-    /// command-name question is a different one and keeps using
-    /// [`Self::fact_live_for_call`] directly, which is what still lets
-    /// `Dog new` draw its W123.
-    fn class_live_by_name_for_call(&self, name: &str, call_off: u32) -> bool {
-        let qualified = self.canonicalise_class_name(name);
-        if self
-            .result
-            .renamed_commands
-            .values()
-            .any(|old| *old == qualified)
-        {
-            return true;
-        }
+    ) -> Option<&crate::command_binding::SourceObjectInstanceProof> {
         self.result
-            .all_classes
-            .get(&qualified)
-            .is_none_or(|c| self.fact_live_for_call(&qualified, c.name_span.start(), call_off))
+            .object_handle_facts
+            .instance_in_scope(site.cmd_span.start(), &site.var_name)
     }
 
-    /// True when `v` resolves to a known, *live* command at `call_off`: a
-    /// registry name, a user proc (bare / `::`-qualified / tail), or a
-    /// class command. A proc/class renamed or deleted away with no later
-    /// re-establishment does not count: suppressing W307 on a dead
-    /// dynamic-dispatch value would be wrong — confirmed against tclsh 8.6.14
-    /// that calling it still fails "invalid command name".  Reuses
-    /// `fact_live_for_call` rather than re-deriving the same question.
-    fn is_known_command(&self, known: &W307KnownNames, v: &str, call_off: u32) -> bool {
-        let live_at = |qualified: &str, off: u32| self.fact_live_for_call(qualified, off, call_off);
-        let by_tail_live = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
-            defs_by_tail
-                .get(v)
-                .is_some_and(|defs| defs.iter().any(|(qn, off)| live_at(qn, *off)))
+    /// Command lookup at the actual dispatch point, including namespace,
+    /// imports, aliases, provider state and command allocation lifetime.
+    fn command_slot_is_present(&self, value: &str, call_offset: u32) -> bool {
+        self.head_identities
+            .invocation_at_source("", call_offset)
+            .lookup_command_word(value)
+            .selected_slot_presence()
+            == crate::command_binding::SourceCommandSlotPresence::Present
+    }
+
+    /// Positioned absence advice, retaining uncertainty about custom fallback.
+    fn command_slot_has_absence_advice(&self, value: &str, call_offset: u32) -> bool {
+        self.head_identities
+            .invocation_at_source("", call_offset)
+            .lookup_command_word(value)
+            .selected_slot_diagnostic_presence()
+            == crate::command_binding::SourceCommandSlotPresence::Absent
+    }
+
+    /// A formal's original caller operands are diagnostic candidates only.
+    /// Unknown external calls remain open; this never changes runtime lookup,
+    /// SSA parameter values or the independently selected receiver protocol.
+    fn formal_caller_has_absence_advice(&self, offset: u32) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return false;
         };
-        let global = format!("::{v}");
-        known.cmds.contains(v)
-            || known.procs.get(v).is_some_and(|&off| live_at(v, off))
-            || by_tail_live(&known.proc_by_tail)
-            || known.procs.get(&global).is_some_and(|&off| live_at(&global, off))
-            || by_tail_live(&known.class_by_tail)
-            || self
-                .result
-                .all_classes
-                .get(&global)
-                .is_some_and(|c| live_at(&global, c.name_span.start()))
-            // A command bound by `CLASS create NAME`.
-            || self.result.created_instance_commands.contains(v)
+        let binding = self.head_identities.invocation_at_source("", offset);
+        let Some(site) = binding.invocation_site() else {
+            return false;
+        };
+        let Some(candidates) = self
+            .head_identities
+            .source_bindings_ref()
+            .declaration_formal_call_values(offset, registry)
+        else {
+            return false;
+        };
+        !candidates.is_empty()
+            && candidates.iter().all(|candidate| {
+                candidate
+                    .value_in_source(&site.source)
+                    .is_some_and(|value| self.command_slot_has_absence_advice(value, offset))
+            })
     }
 
     /// Decide whether a `$var <method>` dispatch site is suppressed (no W307).
@@ -1028,43 +408,50 @@ impl Analyser {
         site: &crate::analyser::state::VarCommandSite,
         ctx: &W307Ctx<'_>,
     ) -> bool {
+        // Prefer the source owner's executed lookup before advisory value
+        // candidates or the diagnostic's object-usage heuristics.
+        if self
+            .head_identities
+            .invocation_at_source("", site.cmd_span.start())
+            .selected_slot_presence()
+            == crate::command_binding::SourceCommandSlotPresence::Present
+        {
+            return true;
+        }
         // Resolve the dispatch's value first: prefer the exact SSA use-version,
         // falling back to the merged constset.  This drops the merged-set false
         // positive on a variable reassigned from a non-command to a known
         // command before the dispatch (`set c x; set c puts; $c ...`).
         let precise = w307_precise_cmd_values(
             ctx.func_ranges,
-            ctx.fu_by_qname,
             site.cmd_span.start(),
             &site.var_name,
+            self.registry.as_deref(),
         );
         let effective = precise
             .as_ref()
             .or_else(|| ctx.all_constsets.get(&site.var_name));
+        // Method-local advice needs this declaration's exact original read;
+        // aggregate values from another function cannot establish its value.
+        if site.in_method && precise.as_ref().is_none_or(HashSet::is_empty) {
+            return true;
+        }
         let call_off = site.cmd_span.start();
         // SCCP concrete evidence the value IS a known command — suppress.
         if effective.is_some_and(|v| {
-            !v.is_empty()
-                && v.iter()
-                    .all(|x| self.is_known_command(ctx.known, x, call_off))
+            !v.is_empty() && v.iter().all(|x| self.command_slot_is_present(x, call_off))
         }) {
             return true;
         }
-        // SCCP concrete evidence the value is NOT a command: every feasible
-        // value is a literal and none is a known command.  When SCCP proves
-        // this, the heuristic object-dispatch suppressions below (in-method,
-        // proc-param / multi-dispatch) must not silence the real "invalid
-        // command name" hazard (FP-OBJ-09).
-        let sccp_not_command = effective.is_some_and(|v| {
+        // Closed absence advice for every feasible literal overrides the
+        // object-usage suppressions below. Initial autoload may still handle
+        // the command; a custom fallback or incomplete lookup declines this
+        // advice through the shared source owner.
+        let sccp_absence_advice = effective.is_some_and(|v| {
             !v.is_empty()
                 && v.iter()
-                    .all(|x| !self.is_known_command(ctx.known, x, call_off))
+                    .all(|x| self.command_slot_has_absence_advice(x, call_off))
         });
-        // ``in_method`` short-circuits W307 because OO methods routinely use
-        // ``$obj method`` patterns — unless SCCP proves a non-command value.
-        if site.in_method && !sccp_not_command {
-            return true;
-        }
         // Proc-parameter / multi-dispatch object-dispatch suppression: a
         // dispatch on a parameter of the enclosing proc (any count), or on a
         // non-parameter local dispatched ≥2 times in the same scope, is
@@ -1082,7 +469,8 @@ impl Analyser {
             .tainted_by_scope
             .get(encl_qname)
             .is_some_and(|s| s.contains(&site.var_name));
-        if dispatcher_suppressed && !tainted && !sccp_not_command {
+        let original_caller_absence = is_param && self.formal_caller_has_absence_advice(call_off);
+        if dispatcher_suppressed && !tainted && !sccp_absence_advice && !original_caller_absence {
             return true;
         }
         // Namespaced-ensemble dispatch: `${ns}::tail` / `$ns::tail` where `ns`
@@ -1097,7 +485,7 @@ impl Analyser {
             && !values.is_empty()
             && values
                 .iter()
-                .all(|v| self.is_known_command(ctx.known, &format!("{v}::{tail}"), call_off))
+                .all(|v| self.command_slot_is_present(&format!("{v}::{tail}"), call_off))
         {
             return true;
         }
@@ -1122,88 +510,94 @@ impl Analyser {
         // Callback-registration array slot: `$state(-command)` /
         // `$state(doneCallback)` dispatches a command the user registered into a
         // switch-style option / callback slot. Unless SCCP has concrete evidence
-        // the slot holds a non-command (handled above via `sccp_not_command`,
+        // the slot has absence advice (handled above via `sccp_absence_advice`,
         // e.g. `array set state {-command notACommand}` or
         // `set state(-command) notACommand`), treat it as a designed callback
         // dispatch (FP-OBJ-10).
-        if !sccp_not_command && is_callback_array_slot(&site.var_name) {
+        if !sccp_absence_advice && is_callback_array_slot(&site.var_name) {
             return true;
         }
         false
+    }
+
+    /// Nominal object results are assistance. Actual lookup identity and
+    /// catalogue applicability come from the shared point owner.
+    fn nominal_object_result(
+        &self,
+        word: &crate::ir::WordExpr,
+        parent: Option<&crate::ir::CommandTokens>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> (bool, Option<String>) {
+        let Some(commands) =
+            crate::value_shapes::command_substitution_tokens(word, parent, self.lexer_config())
+        else {
+            return (false, None);
+        };
+        let Some(tokens) = commands.last() else {
+            return (false, None);
+        };
+        self.nominal_tokens_object_result(tokens, registry)
+    }
+
+    fn nominal_tokens_object_result(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> (bool, Option<String>) {
+        use crate::registry_invocation::registry_invocation_assistance;
+        let context = tcl_dialect::DialectProfile::find(self.dialect())
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            .or_else(|| {
+                registry
+                    .profile()
+                    .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+            });
+        let object_metadata = registry_invocation_assistance(registry, context, tokens)
+            .is_some_and(|assistance| {
+                assistance
+                    .candidates
+                    .iter()
+                    .any(|shape| shape.nominal_return_type == Some(tcl_registry::TclType::Object))
+            });
+        let Some(binding) = &tokens.source_binding else {
+            return (object_metadata, None);
+        };
+        let dispatcher_name = binding.nominal_definition_name_result(registry).is_some();
+        let object_class = !binding.class_factory_candidates(registry).is_empty();
+        let callee = {
+            let candidates = binding.declared_procedure_result_candidates(tokens);
+            candidates
+                .first()
+                .filter(|first| {
+                    candidates.iter().all(|candidate| {
+                        candidate.implementation_allocation == first.implementation_allocation
+                            && candidate.command == first.command
+                    })
+                })
+                .map(|target| target.command.clone())
+        }
+        .or_else(|| {
+            let candidates = binding.declared_self_method_candidates(registry);
+            let first = candidates.first()?;
+            let class = first.declaring_class()?;
+            candidates
+                .iter()
+                .all(|entry| entry.declaration() == first.declaration())
+                .then(|| format!("{}::{}", class.command, first.name()))
+        });
+        (object_metadata || object_class || dispatcher_name, callee)
     }
 
     fn compute_factory_object_ranges(
         &self,
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-    ) -> Vec<(u32, u32, HashSet<String>)> {
-        // Grouped by tail (unfiltered by deletion — `is_object_returning_head`
-        // below does that, file-end granularity: this predicate classifies
-        // a bare head with no specific call site in hand, unlike
-        // `w307_site_suppressed`'s per-site checks). A class renamed or
-        // deleted away with no later re-establishment can't actually
-        // produce an object, so a `set x [ClassName new]` where
-        // `ClassName` is dead must not mark `x` a factory local (on tclsh
-        // 8.6.14 the constructor call itself fails "invalid command name"
-        // first).
-        let class_by_tail = super::unresolved::group_defs_by_tail(
-            self.result
-                .all_classes
-                .iter()
-                .map(|(qn, def)| (qn, def.name_span.start())),
-        );
-        let is_user_proc = |head: &str| {
-            self.result.all_procs.contains_key(head)
-                || self.result.all_procs.contains_key(&format!("::{head}"))
-        };
-        // A command head whose value-returning invocation yields an object
-        // handle (excluding user procs, which the fixpoint classifies).
-        let is_object_returning_head = |head: &str| -> bool {
-            if class_by_tail.get(head).is_some_and(|defs| {
-                defs.iter()
-                    .any(|(qn, off)| self.fact_live_at_file_end(qn, *off))
-            }) {
-                return true;
-            }
-            let global = format!("::{head}");
-            if self
-                .result
-                .all_classes
-                .get(&global)
-                .is_some_and(|c| self.fact_live_at_file_end(&global, c.name_span.start()))
-            {
-                return true;
-            }
-            if head.contains("::") {
-                let qualified = if head.starts_with("::") {
-                    head.to_string()
-                } else {
-                    format!("::{head}")
-                };
-                // A known user proc defers to the fixpoint (returns false here).
-                if self.result.all_procs.contains_key(&qualified) {
-                    return false;
-                }
-                // A registered command with an explicit non-OBJECT return type
-                // (http::*, clock::*, …) is not a factory.
-                if let Some(spec) = registry.get(head).or_else(|| registry.get(&qualified))
-                    && let Some(rt) = spec.return_type
-                    && rt != tcl_registry::TclType::Object
-                {
-                    return false;
-                }
-                // Unregistered `::pkg::cmd` — treat as a factory (the tcllib
-                // convention; documented heuristic).
-                return true;
-            }
-            false
-        };
-
-        // All analysable units: top level + procedures (not methods, which are
-        // `in_method`-suppressed for W307 anyway).
+    ) -> FactoryObjectAdvice {
+        // Original procedure and method units contribute possible result advice.
         let units: Vec<(&str, &crate::compilation_unit::FunctionUnit)> =
             std::iter::once(("::top", &cu.top_level))
                 .chain(cu.procedures.iter().map(|(q, fu)| (q.as_str(), fu)))
+                .chain(cu.methods.iter().map(|(q, fu)| (q.as_str(), fu)))
                 .collect();
 
         // Per-proc: factory-local vars (non-user-proc factory heads), the last
@@ -1213,8 +607,8 @@ impl Analyser {
             seed_factory_maps(
                 qname,
                 fu,
-                &is_object_returning_head,
-                &is_user_proc,
+                registry,
+                &|word, parent| self.nominal_object_result(word, parent, registry),
                 &mut maps,
                 self.lexer_config(),
             );
@@ -1224,6 +618,7 @@ impl Analyser {
             assigns,
             return_var,
             mut object_returning,
+            returned_callees,
         } = maps;
         // A proc returning one of its own factory locals is object-returning.
         for (qname, rv) in &return_var {
@@ -1243,6 +638,7 @@ impl Analyser {
 
         propagate_object_returning(
             &return_var,
+            &returned_callees,
             &assigns,
             &bare_to_qnames,
             &mut object_returning,
@@ -1261,7 +657,10 @@ impl Analyser {
                 ranges.push((p.span.start(), p.span.end(), names));
             }
         }
-        ranges
+        FactoryObjectAdvice {
+            ranges,
+            object_returning,
+        }
     }
 
     /// W307 — non-literal command name (variable / command-sub
@@ -1278,8 +677,6 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        use std::collections::HashMap;
-
         if self.var_command_sites.is_empty() && self.cmd_command_sites.is_empty() {
             return;
         }
@@ -1290,10 +687,6 @@ impl Analyser {
         // table entry, and a rename rewrites it alongside the proc (keeping
         // the dispatch working).
         self.emit_dispatch_table_command_references(cu);
-        // Aggregate type-lattice knowledge (var name → class qualified names)
-        // so W308 can validate methods against the class hierarchy.
-        let all_object_types = self.aggregate_object_types(cu);
-
         // Build the class hierarchy once for W308 method
         // resolution (uses the ``ClassHierarchy``).
         let hierarchy = if self.result.all_classes.is_empty() {
@@ -1306,37 +699,52 @@ impl Analyser {
 
         // Aggregate constant-string knowledge (var name → flat CONST/CONSTSET
         // value set) across every function in the CompilationUnit.
-        let all_constsets = aggregate_constsets(cu, self.word_rules());
-
-        // Build the "known commands" universe — registry + user procs + class
-        // tail names.
-        let known = self.build_w307_known_names(registry);
+        let all_constsets = aggregate_constsets(cu, self.word_rules(), &self.profile_registry());
 
         // Per-SSA-version refinement: map each
         // function to its source range + FunctionUnit so the W307
         // suppression can read the value at the dispatch's *exact* SSA
         // use-version instead of the merged set.  ``::top`` covers the
-        // whole source; a proc's narrower range wins where it contains
-        // the offset.  Methods are ``in_method``-suppressed, so
-        // they are left out.
-        let mut func_ranges: Vec<(String, u32, u32)> = vec![("::top".to_string(), 0, u32::MAX)];
-        let mut fu_by_qname: HashMap<String, &crate::compilation_unit::FunctionUnit> =
-            HashMap::new();
-        fu_by_qname.insert("::top".to_string(), &cu.top_level);
+        // whole source; each original procedure or method owns its narrower
+        // declaration range and its own symbolic value facts.
+        let mut func_ranges = vec![W307FunctionRange {
+            function: &cu.top_level,
+            start: 0,
+            end: u32::MAX,
+        }];
         for (qname, fu) in &cu.procedures {
-            fu_by_qname.insert(qname.clone(), fu);
             if let Some(ir_proc) = cu.ir_module.procedures.get(qname) {
-                func_ranges.push((qname.clone(), ir_proc.span.start(), ir_proc.span.end()));
+                func_ranges.push(W307FunctionRange {
+                    function: fu,
+                    start: ir_proc.span.start(),
+                    end: ir_proc.span.end(),
+                });
+            }
+        }
+        for (qname, fu) in &cu.methods {
+            if let Some(span) = cu
+                .ir_module
+                .methods
+                .get(qname)
+                .and_then(|method| method.span)
+            {
+                func_ranges.push(W307FunctionRange {
+                    function: fu,
+                    start: span.start(),
+                    end: span.end(),
+                });
             }
         }
 
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);
-        let objdefined_vars = self.objdefined_vars.clone();
         // Object-factory locals: vars holding a factory result (`set x [Class
         // new]` / `set x [::ns::factory]` / `set x [object_returning_proc]`).
         // A `$x method` dispatch on one suppresses W307 (designed object usage).
-        let factory_object_ranges = self.compute_factory_object_ranges(cu, registry);
+        let FactoryObjectAdvice {
+            ranges: factory_object_ranges,
+            object_returning,
+        } = self.compute_factory_object_ranges(cu, registry);
         // Snit / OO instance-variable dispatch: `$mytree get` where `mytree` is
         // a class instance variable and the dispatch sits inside the class body
         // (including non-method helper `proc`s that `upvar` it). An instance var
@@ -1395,10 +803,8 @@ impl Analyser {
         let tainted_by_scope = build_tainted_by_scope(cu);
 
         let w307_ctx = W307Ctx {
-            known: &known,
             all_constsets: &all_constsets,
             func_ranges: &func_ranges,
-            fu_by_qname: &fu_by_qname,
             factory_object_ranges: &factory_object_ranges,
             snit_var_ranges: &snit_var_ranges,
             proc_body_ranges: &proc_body_ranges,
@@ -1410,15 +816,7 @@ impl Analyser {
         // `self.result`, so the per-site decision has to run against `&self`.
         let emitted: Vec<super::types::Diagnostic> = sites
             .iter()
-            .filter_map(|site| {
-                self.diagnose_var_command_site(
-                    site,
-                    &all_object_types,
-                    hierarchy.as_ref(),
-                    &objdefined_vars,
-                    &w307_ctx,
-                )
-            })
+            .filter_map(|site| self.diagnose_var_command_site(site, hierarchy.as_ref(), &w307_ctx))
             .collect();
         self.result.diagnostics.extend(emitted);
         // Restore the sites list — snapshot/restore expects it
@@ -1426,7 +824,7 @@ impl Analyser {
         self.var_command_sites = sites;
 
         // ``[cmd] method`` sites — W307/W308 on command-substitution heads.
-        self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref());
+        self.emit_cmd_command_diagnostics(registry, hierarchy.as_ref(), &object_returning);
     }
 
     /// The diagnostic one recorded dispatch site draws, if any — the body of
@@ -1440,25 +838,22 @@ impl Analyser {
     ///   enclosing object, so it is neither a variable nor a resolvable
     ///   command name and W307's "non-literal command name" question never
     ///   arises. This arm always consumes the site;
-    /// * **W308** — the receiver's class is known, so the method word is
-    ///   validated against the hierarchy;
+    /// * **W308** — a current instance receipt has a closed method-name
+    ///   inventory, so an absent literal method may be diagnosed;
     /// * **W307** — no usable object type, and the head could not be proved
     ///   to reach a finite set of known command names.
     fn diagnose_var_command_site(
         &self,
         site: &crate::analyser::state::VarCommandSite,
-        all_object_types: &HashMap<String, HashSet<String>>,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
-        objdefined_vars: &HashSet<String>,
         w307_ctx: &W307Ctx<'_>,
     ) -> Option<super::types::Diagnostic> {
         if site.receiver == crate::analyser::state::DispatchReceiver::SelfDispatch {
             return self.w308_for_self_dispatch(site, hierarchy);
         }
 
-        let live_classes = self.live_classes_at_dispatch(all_object_types, site);
-        if !live_classes.is_empty() {
-            return self.w308_for_object_var(site, &live_classes, hierarchy, objdefined_vars);
+        if let Some(instance) = self.live_instance_at_dispatch(site) {
+            return self.w308_for_object_var(site, instance);
         }
 
         (!self.w307_site_suppressed(site, w307_ctx)).then(|| {
@@ -1515,8 +910,21 @@ impl Analyser {
         &mut self,
         registry: &tcl_registry::CommandRegistry,
         hierarchy: Option<&super::class_hierarchy::ClassHierarchy>,
+        object_returning: &FxHashSet<String>,
     ) {
-        let cmd_sites = std::mem::take(&mut self.cmd_command_sites);
+        let mut cmd_sites = std::mem::take(&mut self.cmd_command_sites);
+        // A per-item body initially owns an isolated command world. Its
+        // carriers have since been rebased into this document, but rebasing
+        // cannot establish the surrounding class, alias, or mutation state.
+        // Restore exact original-site proofs through the shared source owner
+        // before either analysis strategy classifies a result. Missing sites
+        // remain explicitly unknown; no catalogue or spelling fallback is used.
+        let bindings = self.head_identities.source_bindings();
+        for site in &mut cmd_sites {
+            for tokens in &mut site.commands {
+                bindings.stamp_original_tokens(tokens);
+            }
+        }
         // The walk below takes `&mut self`, so this analysis's own registry
         // is held as a handle rather than re-borrowed from `self` per site.
         let attached = self.registry.clone();
@@ -1536,17 +944,25 @@ impl Analyser {
             // ``SourceMap::token_text``; the leading ``[`` /
             // trailing ``]`` are stripped already because
             // ``content_offset`` skipped them.
-            let inner = site.cmd_text.trim();
-            let inner = inner
-                .strip_prefix('[')
-                .map_or(inner, str::trim)
-                .strip_suffix(']')
-                .map_or(inner, str::trim);
-            let mut parts = inner.split_whitespace();
-            let Some(head) = parts.next() else {
+            let Some(tokens) = site.commands.first().filter(|_| site.commands.len() == 1) else {
                 continue;
             };
-            let arg_strs: Vec<&str> = parts.collect();
+            let effective = crate::registry_invocation::effective_command_words(tokens);
+            let words = effective
+                .as_ref()
+                .map_or(&[][..], |effective| effective.words.as_slice());
+            let spellings = words
+                .iter()
+                .map(crate::ir::WordExpr::legacy_text)
+                .collect::<Vec<_>>();
+            let head = spellings.first().map_or("", String::as_str);
+            let arg_strs = spellings
+                .iter()
+                .skip(1)
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            let invocation =
+                crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens);
 
             // OO self-dispatch (`my <method>` / `self <method>`): by default
             // the return is treated as an object handle (suppress).  But when
@@ -1558,8 +974,13 @@ impl Analyser {
             // object handle by default. Both kinds come from the registry;
             // `next`/`nextto` are deliberately *not* included — they return
             // the next implementation's result, not a handle.
-            if attached
-                .and_then(|r| r.method_dispatch_keyword(head))
+            if invocation
+                .as_ref()
+                .and_then(|invocation| {
+                    attached.and_then(|registry| {
+                        registry.method_dispatch_keyword(&invocation.facts.canonical_command)
+                    })
+                })
                 .is_some_and(|kind| {
                     matches!(
                         kind,
@@ -1599,8 +1020,7 @@ impl Analyser {
                 continue;
             }
 
-            let ret_type =
-                self.cmd_head_return_type(head, &arg_strs, site.cmd_span.start(), registry);
+            let ret_type = self.cmd_head_return_type(tokens, registry);
 
             // ``Object`` return type — suppress W307; if the
             // class is known, validate the method (W308), and a dispatch
@@ -1646,6 +1066,13 @@ impl Analyser {
                         self.result.diagnostics.push(diag);
                     }
                 }
+                continue;
+            }
+
+            // Nominal candidate metadata can suppress a type warning; it
+            // cannot establish an object class or validate an outer method.
+            let (object, callee) = self.nominal_tokens_object_result(tokens, registry);
+            if object || callee.is_some_and(|callee| object_returning.contains(&callee)) {
                 continue;
             }
 
@@ -1861,180 +1288,111 @@ impl Analyser {
         !method.is_empty() && !method.contains(['$', '[']) && !method.contains("{*}")
     }
 
-    /// The type a `[head args…]` command-substitution head produces, for the
-    /// `[cmd] method` dispatch checks.
-    ///
-    /// `[Dog new]` / `[Dog create name]` produce an Object whose class is
-    /// `Dog` — the registry lookup for a bare class name returns Overdefined
-    /// (the class isn't a built-in command), so the constructor pattern is
-    /// recognised against the analyser's own class set, including a class
-    /// reached through `rename` / `interp alias` indirection
-    /// and excluding one renamed or deleted away with no re-establishment.
-    /// A user factory proc the object-type lattice proved
-    /// object-returning (`ObjectHandleFacts::returns_object`) types the head
-    /// from the same fact the navigation consumers read — keeping
-    /// `[make] bark` off the W307 path and giving the bare `[make]` case its
-    /// E001.  Everything else falls back to the
-    /// registry's return type for built-ins (Overdefined for unknown
-    /// commands).
+    /// Result type selected from the retained executed implementation.
+    /// Concrete class results require construction closure or the actual
+    /// procedure's return proof; unresolved results stay unknown.
     fn cmd_head_return_type(
         &self,
-        head: &str,
-        arg_strs: &[&str],
-        off: u32,
+        tokens: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
     ) -> crate::types::TypeLattice {
-        let mut class_qn = self.canonicalise_class_name(head);
-        let mut head_is_known_class =
-            self.class_live_for_call(&class_qn, off) || self.class_live_for_call(head, off);
-        if !head_is_known_class
-            && let Some(reached) = self.class_reachable_by_indirection(head, off)
-        {
-            class_qn = reached;
-            head_is_known_class = true;
+        if let Some(binding) = &tokens.source_binding {
+            if let Some(class) = binding.proved_construction_result(registry) {
+                return crate::types::TypeLattice::object_of(class);
+            }
+            if let Some(target) = binding
+                .proved_execution_target()
+                .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+                && let Some(result) = self
+                    .result
+                    .object_handle_facts
+                    .normal_procedure_result(target)
+            {
+                return result.clone();
+            }
         }
-        let is_constructor_call = head_is_known_class
-            && arg_strs
-                .first()
-                .is_some_and(|word| self.class_command_constructs_with(&class_qn, word));
-        if is_constructor_call {
-            return crate::types::TypeLattice::object_of(class_qn);
-        }
-        if let Some(factory_class) = self
-            .result
-            .object_handle_facts
-            .returns_object
-            .get(&format!("::{}", head.trim_start_matches("::")))
-        {
-            return crate::types::TypeLattice::object_of(factory_class.clone());
-        }
-        // The constructor case is handled above using the analyser's
-        // authoritative class set, so the registry fallback only needs to
-        // recognise registered built-ins — pass an empty class set / root
-        // namespace.
-        crate::type_infer::return_type_for_command(
-            registry,
-            head,
-            arg_strs,
-            &std::collections::HashSet::new(),
-            "::",
-        )
+        crate::registry_invocation::normal_representation_invocation(registry, None, tokens)
+            .and_then(|invocation| invocation.result_representation_type())
+            .map_or_else(
+                crate::types::TypeLattice::overdefined,
+                crate::types::TypeLattice::of,
+            )
     }
 
     /// W250 — instantiating an `oo::abstract` class.
     ///
     /// `TclOO`'s `oo::abstract` removes `new` / `create` from the class, so
     /// `AbstractClass new` / `AbstractClass create obj` is a runtime error.
-    /// Flags the direct-call shape (`Foo new …`) and the assignment shape
-    /// (`set o [Foo new …]`) where `Foo` resolves to a locally-known
-    /// abstract class.  Sound: only fires on a class whose recorded
-    /// metaclass is `oo::abstract` (never on the `oo::abstract create Foo`
-    /// definition itself, whose command word is the metaclass, not `Foo`).
+    /// Uses the retained live class incarnation and its original factory,
+    /// including alias prefixes and nested invocations in generic calls.
+    /// Factory metadata supplies the diagnostic grammar independently of
+    /// constructor completion and native opcode eligibility.
     pub(super) fn emit_abstract_instantiation_diagnostics(
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
     ) {
-        use crate::ir::Statement;
         if self.disabled_diagnostics.contains("W250") {
             return;
         }
-        let is_abstract_class = |name: &str| -> bool {
-            let q = self.canonicalise_class_name(name);
-            let Some(cd) = self
-                .result
-                .all_classes
-                .get(&q)
-                .or_else(|| self.result.all_classes.get(name))
-            else {
-                return false;
-            };
-            let direct = self
-                .registry
-                .as_deref()
-                .and_then(|registry| registry.get(&cd.metaclass));
-            if direct.is_some_and(|spec| {
-                spec.traits
-                    .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
-            }) {
-                return true;
-            }
-            self.metaclass_def(&cd.qualified_name)
-                .and_then(|meta| meta.factory.as_ref())
-                .and_then(|factory| {
-                    self.registry
-                        .as_deref()
-                        .and_then(|registry| registry.get(&factory.root_metaclass))
-                })
-                .is_some_and(|spec| {
-                    spec.traits
-                        .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
-                })
-        };
-        let any_abstract = self
-            .result
-            .all_classes
-            .keys()
-            .any(|name| is_abstract_class(name));
-        if !any_abstract {
+        let Some(registry) = self.registry.as_deref() else {
             return;
-        }
-        let is_forbidden_manufacturer = |class: &str, sub: Option<&String>| {
-            is_abstract_class(class)
-                && sub.is_some_and(|word| {
-                    let q = self.canonicalise_class_name(class);
-                    self.class_definer_grammar(&q)
-                        .is_some_and(|grammar| grammar.manufacturer(word).is_some())
-                })
         };
-        let config = self.lexer_config();
-        let mut diags: Vec<super::types::Diagnostic> = Vec::new();
-        let mut flag = |span: tcl_lexer::Span, class: &str| {
-            diags.push(crate::analyser::types::Diagnostic::new(
+        let diagnostic = |tokens: &crate::ir::CommandTokens, span: tcl_lexer::Span| {
+            let binding = tokens.source_binding.as_ref()?;
+            let (factory, target) = binding.proved_class_definition_factory()?;
+            let query = binding
+                .variable_context
+                .invocation_dialect?
+                .authoring_query()?
+                .with_realm(binding.invocation_realm()?);
+            let spec = registry.get_for_surface(factory, Some(query))?;
+            if !spec
+                .traits
+                .contains(tcl_registry::Traits::ABSTRACT_CLASS_FACTORY)
+            {
+                return None;
+            }
+            let member = if let Some(prefix) = target.prepended.first() {
+                prefix.as_registry_word().literal()?
+            } else {
+                binding.evaluated_argument_values.first()?.as_deref()?
+            };
+            spec.definition_body?.manufacturer(member)?;
+            Some(crate::analyser::types::Diagnostic::new(
                 DiagCode::W250,
                 span,
-                format!("Instantiating abstract class '{class}' — use a concrete subclass"),
+                format!(
+                    "Instantiating abstract class '{}' — use a concrete subclass",
+                    target.command
+                ),
                 super::types::Severity::Warning,
-            ));
+            ))
         };
-        let units = std::iter::once(&cu.top_level)
-            .chain(cu.procedures.values())
-            .chain(cu.methods.values());
-        for fu in units {
-            for block in fu.cfg.blocks.values() {
-                for stmt in &block.statements {
-                    match stmt {
-                        // `Foo new …` / `Foo create obj …`
-                        Statement::Call {
-                            command,
-                            args,
-                            span,
-                            ..
-                        }
-                        | Statement::Barrier {
-                            command,
-                            args,
-                            span,
-                            ..
-                        } if is_forbidden_manufacturer(command, args.first()) => {
-                            flag(*span, command);
-                        }
-                        // `set o [Foo new …]`
-                        Statement::AssignValue { value, span, .. } => {
-                            if let Some((head, cargs)) =
-                                crate::value_shapes::parse_command_substitution_with_config(
-                                    value.trim(),
-                                    config,
-                                )
-                                && is_forbidden_manufacturer(&head, cargs.first())
-                            {
-                                flag(*span, &head);
-                            }
-                        }
-                        _ => {}
+        let mut diags = Vec::new();
+        for fu in cu.analysable_body_function_units() {
+            for statement in fu.cfg.blocks.values().flat_map(|block| &block.statements) {
+                let Some(tokens) = statement.tokens() else {
+                    continue;
+                };
+                if let Some(diag) = diagnostic(tokens, fu.abs_span(statement.span())) {
+                    diags.push(diag);
+                }
+                // A normal assignment can remain a generic call. Lift its
+                // original evaluated words through the shared substitution
+                // owner; no string reparse or AssignValue-only branch can
+                // preserve all nested invocation identities.
+                for call in crate::word_subst::lifted_calls(Some(tokens), cu.ir_module.lexer_config)
+                {
+                    if let Some(tokens) = call.tokens
+                        && let Some(diag) = diagnostic(&tokens, fu.abs_span(call.span))
+                        && !diags.contains(&diag)
+                    {
+                        diags.push(diag);
                     }
                 }
             }
         }
+
         self.result.diagnostics.extend(diags);
     }
 
@@ -2052,91 +1410,44 @@ impl Analyser {
         &mut self,
         cu: &crate::compilation_unit::CompilationUnit,
     ) {
-        let base_of = |name: &str| name.split('(').next().unwrap_or(name).to_owned();
-        // The consumption gate: every variable base a dispatch site reads.
-        // A self-dispatch head (`my`) reads no variable at all — its
-        // `var_name` is the keyword — so it consumes nothing and is skipped,
-        // lest a table held in a variable that happens to be *called* `my`
-        // be treated as consumed by it.
-        let mut consumed: HashSet<String> = self
+        let consumed = self
             .var_command_sites
             .iter()
-            .filter(|s| s.receiver != crate::analyser::state::DispatchReceiver::SelfDispatch)
-            .map(|s| base_of(&s.var_name))
-            .collect();
-        for site in &self.cmd_command_sites {
-            // `[dict get $table $k]`-shaped heads: any `$base` mentioned in
-            // the substitution counts as consumed.
-            for var in site.cmd_text.split('$').skip(1) {
-                let base: String = var
-                    .chars()
-                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == ':')
-                    .collect();
-                if !base.is_empty() {
-                    consumed.insert(base_of(&base));
-                }
-            }
+            .filter(|site| site.receiver != crate::analyser::state::DispatchReceiver::SelfDispatch)
+            .map(|site| site.cmd_span.start())
+            .chain(
+                self.cmd_command_sites
+                    .iter()
+                    .map(|site| site.cmd_span.start()),
+            )
+            .collect::<HashSet<_>>();
+        #[cfg(test)]
+        if std::env::var_os("TCL_TABLE_PROOF_DEBUG").is_some() {
+            eprintln!("table consumption sites={consumed:?}");
         }
-        if consumed.is_empty() {
-            return;
-        }
-        let harvested = harvest_table_command_value_spans(cu, &self.source);
-        if harvested.is_empty() {
-            return;
-        }
-        let mut seen_spans: HashSet<(u32, u32)> = self
-            .result
-            .command_invocations
-            .iter()
-            .map(|i| (i.range.start(), i.range.end()))
-            .collect();
-        let mut new_invocations = Vec::new();
-        for (base, value, span) in harvested {
-            if !consumed.contains(&base) || crate::naming::is_dynamic_word(&value) {
-                continue;
-            }
-            if !seen_spans.insert((span.start(), span.end())) {
-                continue;
-            }
-            let ns = crate::analyser::scope::command_resolution_namespace_at(
-                &self.result.global_scope,
-                span.start(),
-            );
-            // A candidate must still be *live* at this dispatch-table
-            // entry's own position — renamed or deleted away with no
-            // later re-establishment must not synthesise a phantom
-            // reference — the same question `unresolved.rs`'s W123 pass
-            // answers via `fact_live_for_call`, reused here rather than
-            // reimplemented.
-            let known = |qualified: &str| {
-                self.result.all_procs.get(qualified).is_some_and(|p| {
-                    self.fact_live_for_call(qualified, p.name_span.start(), span.start())
-                }) || self.result.all_classes.get(qualified).is_some_and(|c| {
-                    self.fact_live_for_call(qualified, c.name_span.start(), span.start())
+        let harvested = harvest_table_command_value_spans(
+            cu,
+            &self.source,
+            &self.profile_registry(),
+            &consumed,
+        );
+        for (value, span, reference) in harvested {
+            if !reference.is_user_command()
+                || self.result.command_invocations.iter().any(|existing| {
+                    existing.range == span
+                        && existing.resolved_qualified_name.as_deref() == Some(reference.slot())
+                        && existing.resolved_command_reference.as_ref() == Some(&reference)
+                        && existing.resolved_user_definition == reference.is_direct_definition()
                 })
-            };
-            let Some(winner) =
-                crate::naming::resolve_command_with::<&str, _>(&ns, &[], &value, known)
-            else {
+            {
                 continue;
-            };
-            new_invocations.push(crate::signature_scan::types::SignatureCommandInvocation {
-                name: value.clone(),
-                range: span,
-                resolved_qualified_name: Some(winner),
-                resolved_user_definition: true,
-                resolution_candidates: crate::naming::bareword_resolution_candidates(&ns, &value),
-                argc: None,
-                callback_arity: None,
-                callback_baked_args: 0,
-                indirect: false,
-                rename_safe: true,
-                existence_probe: false,
-                is_mathfunc_call: false,
-                ensemble_dispatch: None,
-            });
+            }
+            let mut invocation = crate::signature_scan::types::SignatureCommandInvocation::written(
+                value, span, None,
+            );
+            invocation.retain_reference(&reference);
+            self.result.command_invocations.push(invocation);
         }
-        self.result.command_invocations.extend(new_invocations);
     }
 
     /// Resolve a possibly-bare class name to its fully-qualified form keyed
@@ -2274,9 +1585,8 @@ impl Analyser {
     /// * [`ClassDef::member_set_incomplete`] — the class's own body installs
     ///   members reflectively.
     ///
-    /// Shared by [`Self::w308_for_object_var`] and
-    /// [`Self::validate_method_on_class`] so the two escape hatches cannot
-    /// drift.
+    /// Used by the class-definition assistance path; source-owned instance
+    /// receipts retain their independent method-inventory completeness.
     ///
     /// [`ClassDef::inheritance_unknown`]: super::types::ClassDef::inheritance_unknown
     /// [`ClassDef::member_set_incomplete`]: super::types::ClassDef::member_set_incomplete
@@ -2300,151 +1610,27 @@ impl Analyser {
                 .any(|s| !self.result.all_classes.contains_key(s) && !OO_BASE.contains(&s.as_str()))
     }
 
-    /// Suppress W123 diagnostics whose command-name contains a
-    /// `$` interpolation that resolves cleanly via SCCP.
-    ///
-    /// Walks every emitted W123, extracts the command name
-    /// from the message, and runs
-    /// [`crate::text::fold_interpolation_set`] over the
-    /// aggregated SCCP results.  When every resolved value is
-    /// a known command, proc, class, or class-tail name, the
-    /// W123 is removed.
-    ///
-    /// **Simplification.**  This uses the union of
-    /// every function's SCCP — slightly more permissive
-    /// (over-suppresses if a same-named variable in a
-    /// different function happens to resolve cleanly) but
-    /// safe in practice.  Range-based per-function lookup
-    /// could be added later.
-    pub(super) fn resolve_interpolated_w123_diagnostics(
-        &mut self,
-        cu: &crate::compilation_unit::CompilationUnit,
-    ) {
-        use crate::analyses::{ConstValue, LatticeValue};
-        use std::collections::HashMap;
-
-        // Bail early when no W123 carries a ``$`` — the common
-        // case for non-iRules code.
-        let has_interpolated = self
-            .result
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagCode::W123 && d.message.contains('$'));
-        if !has_interpolated {
-            return;
-        }
-
-        // Aggregate SCCP-resolved string sets per variable name
-        // across every function in the CU.  Same shape as
-        // ``emit_var_command_diagnostics``.
-        let mut all_constsets: HashMap<String, HashSet<String>> = HashMap::new();
-        let collect_from = |fu: &crate::compilation_unit::FunctionUnit,
-                            out: &mut HashMap<String, HashSet<String>>| {
-            for ((sym, _ver), lv) in &fu.sccp.values {
-                let values: Option<Vec<String>> = match lv {
-                    LatticeValue::Const(ConstValue::String(s)) => Some(vec![s.clone()]),
-                    LatticeValue::ConstSet(set) => set
-                        .iter()
-                        .map(|cv| match cv {
-                            ConstValue::String(s) => Some(s.clone()),
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<_>>>(),
-                    _ => None,
-                };
-                let Some(values) = values else { continue };
-                let entry = out.entry(fu.ssa.var_name(*sym).to_owned()).or_default();
-                for v in values {
-                    entry.insert(v);
+    /// Suppress an interpolated W123 only when the source owner proves its
+    /// actual executed lookup. A value from another scope cannot settle it.
+    pub(super) fn resolve_interpolated_w123_diagnostics(&mut self) {
+        let diagnostics = std::mem::take(&mut self.result.diagnostics);
+        self.result.diagnostics = diagnostics
+            .into_iter()
+            .filter(|diagnostic| {
+                if diagnostic.code != DiagCode::W123 {
+                    return true;
                 }
-            }
-        };
-        collect_from(&cu.top_level, &mut all_constsets);
-        for fu in cu.procedures.values() {
-            collect_from(fu, &mut all_constsets);
-        }
-
-        // Build the universe of names that count as "known
-        // commands" for the resolution check.  The same set the emitter uses
-        // to skip suggestions.
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let known_cmds: HashSet<String> = registry.command_names().map(str::to_string).collect();
-        // Grouped by tail (unfiltered by deletion — the per-diagnostic live
-        // check below does that): a tail may match several qualified
-        // procs, each tracked with its own establishing offset so a
-        // renamed-or-deleted-away one (with no later re-establishment)
-        // doesn't count as resolving this interpolated head — the same
-        // question `unresolved.rs`'s `proc_defs_by_tail` already answers for
-        // ordinary bareword W123, reused here via
-        // `fact_live_for_call` rather than reimplemented).
-        let mut proc_defs_by_tail: HashMap<String, Vec<(String, u32)>> = HashMap::new();
-        for (qn, def) in &self.result.all_procs {
-            if let Some((_, tail)) = qn.rsplit_once("::")
-                && !tail.is_empty()
-            {
-                proc_defs_by_tail
-                    .entry(tail.to_string())
-                    .or_default()
-                    .push((qn.clone(), def.name_span.start()));
-            }
-        }
-
-        // Walk W123 diagnostics and remove those whose
-        // interpolated command name resolves cleanly.
-        let drained = std::mem::take(&mut self.result.diagnostics);
-        let mut kept: Vec<super::types::Diagnostic> = Vec::with_capacity(drained.len());
-        for d in drained {
-            if d.code != DiagCode::W123 {
-                kept.push(d);
-                continue;
-            }
-            let Some(cmd_name) = extract_quoted_word(&d.message) else {
-                kept.push(d);
-                continue;
-            };
-            if !cmd_name.contains('$') {
-                kept.push(d);
-                continue;
-            }
-            let Some(resolved) =
-                crate::text::fold_interpolation_set(&cmd_name, &all_constsets, self.braced_var())
-            else {
-                kept.push(d);
-                continue;
-            };
-            // All resolved candidates must be known commands — live ones,
-            // not a proc renamed or deleted away with no later
-            // re-establishment: deleting an already-correct W123 for e.g.
-            // `do${suffix}` folding to `doThing` after `rename doThing {}`
-            // would be wrong — confirmed against tclsh 8.6.14 that the call
-            // still fails "invalid command
-            // name").
-            let call_off = d.span.start();
-            let proc_tail_live = |name: &str| {
-                proc_defs_by_tail.get(name).is_some_and(|defs| {
-                    defs.iter()
-                        .any(|(qn, off)| self.fact_live_for_call(qn, *off, call_off))
-                })
-            };
-            let proc_qualified_live = |qualified: &str| {
-                self.result.all_procs.get(qualified).is_some_and(|p| {
-                    self.fact_live_for_call(qualified, p.name_span.start(), call_off)
-                })
-            };
-            let all_known = resolved.iter().all(|name| {
-                known_cmds.contains(name)
-                    || proc_tail_live(name)
-                    || proc_qualified_live(&format!("::{name}"))
-                    || proc_qualified_live(name)
-            });
-            if all_known {
-                // Suppress this W123 — the interpolated head
-                // statically resolves to a known command set.
-                continue;
-            }
-            kept.push(d);
-        }
-        self.result.diagnostics = kept;
+                let Some(command) = extract_quoted_word(&diagnostic.message) else {
+                    return true;
+                };
+                !command.contains('$')
+                    || self
+                        .head_identities
+                        .invocation_at_source("", diagnostic.span.start())
+                        .proved_target()
+                        .is_none()
+            })
+            .collect();
     }
 }
 
@@ -2518,127 +1704,161 @@ fn is_callback_array_slot(var_name: &str) -> bool {
         .any(|suffix| k.ends_with(suffix))
 }
 
-/// Harvest direct single-element array assignments — `set arr(key) <literal>`,
-/// which lowers to an `AssignValue { name: "arr(key)", value }` (the scalar
-/// `set_literal_body` path excludes `(`-bearing names) — into the constset map
-/// keyed by `arr(key)`. The SSA const collector keys on scalar SSA variables
-/// and does not track array elements, and `harvest_array_set_constants` only
-/// covers the `array set` list form; this covers the single-element form so the
-/// W307 callback-array suppression can see the slot's concrete value
-/// (FP-OBJ-10 SCCP-evidence override). Also accepts the `AssignConst` / generic
-/// `Call "set"` shapes defensively.
-/// Harvest `(table-base, literal value, value span)` triples
-/// from the dispatch-table constructors whose value text is recoverable in
-/// the source — `set arr(k) value` / `array set arr {k v …}` /
-/// `dict create` / `dict set`.  The span locates the value's own literal
-/// token (searched inside the statement's source slice), so a reference
-/// anchored there carries the written command name.  Values only reachable
-/// through folding (`string map`, computed keys) have no span and are not
-/// harvested — the documented abstention.
+/// Values are harvested only through original reached consumption carriers and
+/// exact physical contents ancestry. A literal's command lookup occurs in the
+/// consuming invocation's post-argv world, rather than its producer's namespace.
 fn harvest_table_command_value_spans(
     cu: &crate::compilation_unit::CompilationUnit,
     source: &str,
-) -> Vec<(String, String, tcl_lexer::Span)> {
-    use crate::ir::Statement;
-    use tcl_lexer::Span;
-    let is_literal = |s: &str| !s.contains('$') && !s.contains('[') && !s.is_empty();
-    let base_of = |name: &str| name.split('(').next().unwrap_or(name).to_owned();
-    // Locate `needle` inside the statement's source slice, preferring the
-    // *last* occurrence (the value word follows the key/name words).
-    let locate = |span: Span, needle: &str| -> Option<Span> {
-        let slice = source.get(span.start() as usize..span.end() as usize)?;
-        let rel = slice.rfind(needle)?;
-        let start = span.start() + u32::try_from(rel).ok()?;
-        Some(Span::new(start, start + u32::try_from(needle.len()).ok()?))
-    };
-    // Per-element positions inside a literal list word: walk whitespace-split
-    // elements with a running offset (the `list_word_elements` convention).
-    let list_elem_spans = |list_text: &str, list_start: u32| -> Vec<(String, Span)> {
-        let mut out = Vec::new();
-        let mut search = 0usize;
-        for elem in list_text.split_whitespace() {
-            if let Some(rel) = list_text[search..].find(elem) {
-                let idx = search + rel;
-                let start = list_start + u32::try_from(idx).unwrap_or(0);
-                out.push((
-                    elem.to_owned(),
-                    Span::new(start, start + u32::try_from(elem.len()).unwrap_or(0)),
-                ));
-                search = idx + elem.len();
-            }
-        }
-        out
-    };
-    let mut out = Vec::new();
-    let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
-    for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                let (Statement::Call {
-                    span,
-                    command,
-                    args,
-                    ..
-                }
-                | Statement::Barrier {
-                    span,
-                    command,
-                    args,
-                    ..
-                }) = stmt
+    registry: &tcl_registry::CommandRegistry,
+    consumed: &HashSet<u32>,
+) -> Vec<(
+    String,
+    tcl_lexer::Span,
+    crate::command_binding::SourceCommandReference,
+)> {
+    use crate::ir::WordExpr;
+    if consumed.is_empty() {
+        return Vec::new();
+    }
+    let mut selected = HashMap::new();
+    for unit in cu.all_body_function_units() {
+        for (&block, body) in &unit.ssa.blocks {
+            for index in 0..body.statements.len() {
+                let view = crate::ssa::SsaSourceView::at_statement(&unit.ssa, block, index);
+                let Some(tokens) = view
+                    .source_tokens()
+                    .filter(|tokens| tokens.synthetic.is_none())
                 else {
                     continue;
                 };
-                let canonical = stmt.canonical_command_or_source();
-                match (command.as_str(), canonical) {
-                    // set arr(k) value
-                    ("set", _) | (_, "::set")
-                        if args.len() == 2 && args[0].contains('(') && is_literal(&args[1]) =>
-                    {
-                        if let Some(vspan) = locate(*span, &args[1]) {
-                            out.push((base_of(&args[0]), args[1].clone(), vspan));
-                        }
+                let Some(head) = tokens.words().first() else {
+                    continue;
+                };
+                let expanded = matches!(head, WordExpr::Expand { .. });
+                let written_start = unit.abs_span(head.source().span).start();
+                let head = if let WordExpr::Expand { word, .. } = head {
+                    word.as_ref()
+                } else {
+                    head
+                };
+                if !consumed.contains(&written_start)
+                    && !consumed.contains(&unit.abs_span(head.source().span).start())
+                {
+                    continue;
+                }
+                let Some(binding) = &tokens.source_binding else {
+                    continue;
+                };
+                let read = dispatch_table_values(cu, unit, tokens, head, source, registry);
+                for value in read.into_iter().flatten() {
+                    let Some(value) = dispatch_table_head(value, expanded, binding) else {
+                        continue;
+                    };
+                    let Some(span) = value.literal_span else {
+                        continue;
+                    };
+                    let reference = binding.command_reference(&value.value);
+                    let key = (span.start(), span.end());
+                    let entry = selected
+                        .entry(key)
+                        .or_insert_with(|| (value.value.clone(), span, reference.clone()));
+                    if entry.0 != value.value || entry.2 != reference {
+                        entry.2 = None;
                     }
-                    // array set arr {k v ...}
-                    ("array", _) | (_, "::array")
-                        if args.len() >= 3
-                            && args.first().map(String::as_str) == Some("set")
-                            && is_literal(&args[2]) =>
-                    {
-                        let slice_start = span.start() as usize;
-                        let Some(slice) = source.get(slice_start..span.end() as usize) else {
-                            continue;
-                        };
-                        let Some(rel) = slice.rfind(args[2].as_str()) else {
-                            continue;
-                        };
-                        let list_start = span.start() + u32::try_from(rel).unwrap_or(0);
-                        for (idx, (elem, espan)) in list_elem_spans(&args[2], list_start)
-                            .into_iter()
-                            .enumerate()
-                        {
-                            if idx % 2 == 1 {
-                                out.push((base_of(&args[1]), elem, espan));
-                            }
-                        }
-                    }
-                    // dict set d k value  /  dict create k v ... (assigned via set)
-                    ("dict", _) | (_, "::dict")
-                        if args.len() >= 4
-                            && args.first().map(String::as_str) == Some("set")
-                            && is_literal(args.last().expect("len checked")) =>
-                    {
-                        let value = args.last().expect("len checked");
-                        if let Some(vspan) = locate(*span, value) {
-                            out.push((base_of(&args[1]), value.clone(), vspan));
-                        }
-                    }
-                    _ => {}
                 }
             }
         }
     }
-    out
+    selected
+        .into_values()
+        .filter_map(|(value, span, reference)| Some((value, span, reference?)))
+        .collect()
+}
+
+fn dispatch_table_values(
+    compilation: &crate::compilation_unit::CompilationUnit,
+    unit: &crate::compilation_unit::FunctionUnit,
+    tokens: &crate::ir::CommandTokens,
+    head: &crate::ir::WordExpr,
+    source: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<Vec<crate::table_value_provenance::TableValueContributor>> {
+    if head.sole_variable_substitution().is_some() {
+        return crate::table_value_provenance::table_values(
+            compilation,
+            unit,
+            tokens,
+            head,
+            None,
+            source,
+            registry,
+        );
+    }
+    let dialect = tokens
+        .source_binding
+        .as_ref()?
+        .variable_context
+        .invocation_dialect?;
+    let mut nested = crate::word_subst::whole_word_command_tokens(
+        head,
+        tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+    )?;
+    nested.inherit_nested_bindings(tokens);
+    let (input, keys) =
+        crate::registry_invocation::normal_representation_invocation(registry, None, &nested)?
+            .dictionary_lookup()?;
+    if keys.is_empty() {
+        return None;
+    }
+    crate::table_value_provenance::table_values(
+        compilation,
+        unit,
+        &nested,
+        &input,
+        Some(&keys),
+        source,
+        registry,
+    )
+}
+
+fn dispatch_table_head(
+    value: crate::table_value_provenance::TableValueContributor,
+    expanded: bool,
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> Option<crate::value_provenance::ValueContributor> {
+    let mut value = match value {
+        crate::table_value_provenance::TableValueContributor::ListHead(value) => {
+            return expanded.then_some(value);
+        }
+        crate::table_value_provenance::TableValueContributor::SingletonList(value) => {
+            return (expanded
+                || tcl_syntax::list::join_list([value.value.as_str()]) == value.value)
+                .then_some(value);
+        }
+        crate::table_value_provenance::TableValueContributor::Prefix(value) => value,
+    };
+    if !expanded {
+        return Some(value);
+    }
+    let rules = binding.variable_context.invocation_dialect?.word_values;
+    if rules.split_list(&value.value).ok()?.is_empty() {
+        return None;
+    }
+    let element =
+        tcl_syntax::list::find_element_with_syntax(&value.value, 0, rules.list).ok()??;
+    if !element.literal {
+        return None;
+    }
+    let base = value.literal_span?.start();
+    value.literal_span = Some(tcl_lexer::Span::new(
+        base.checked_add(u32::try_from(element.value.start).ok()?)?,
+        base.checked_add(u32::try_from(element.value.end).ok()?)?,
+    ));
+    value.value.get(element.value.clone())?;
+    value.value.truncate(element.value.end);
+    value.value.replace_range(..element.value.start, "");
+    Some(value)
 }
 
 fn harvest_array_element_set_constants(
@@ -2684,24 +1904,49 @@ fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
     rules: tcl_syntax::word_rules::WordValueRules,
+    registry: &tcl_registry::CommandRegistry,
 ) {
-    use crate::ir::Statement;
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
-                let (Statement::Call { command, args, .. }
-                | Statement::Barrier { command, args, .. }) = stmt
+                let context = registry
+                    .profile()
+                    .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+                let Some(invocation) = crate::registry_invocation::resolved_statement_invocation(
+                    registry, context, stmt,
+                ) else {
+                    continue;
+                };
+                let Some(tcl_registry::VarElementsEffect::SetsArrayElementsFromList { values_at }) =
+                    invocation.facts.var_elements_effect
                 else {
                     continue;
                 };
-                let is_array =
-                    command == "array" || stmt.canonical_command_or_source() == "::array";
-                if !is_array || args.first().map(String::as_str) != Some("set") || args.len() < 3 {
+                let escapes = registry
+                    .profile()
+                    .map_or(tcl_dialect::EscapeSyntax::Tcl86, |profile| {
+                        profile.grammar.escapes
+                    });
+                let target = invocation
+                    .facts
+                    .arg_roles
+                    .iter()
+                    .find(|(_, role)| *role == tcl_registry::ArgRole::VarWrite)
+                    .map(|(index, _)| invocation.facts.argument_offset + usize::from(*index));
+                let Some(arr_name) = target
+                    .and_then(|index| invocation.effective.argument_literal(index, escapes, rules))
+                else {
                     continue;
-                }
-                let arr_name = &args[1];
-                let items = crate::tcl_expr_eval::split_tcl_list(&args[2], rules);
+                };
+                let Some(list) = invocation.effective.argument_literal(
+                    invocation.facts.argument_offset + usize::from(values_at),
+                    escapes,
+                    rules,
+                ) else {
+                    continue;
+                };
+                let items = crate::tcl_expr_eval::split_tcl_list(&list, rules);
                 if !items.len().is_multiple_of(2) {
                     continue;
                 }
@@ -2723,22 +1968,27 @@ fn harvest_dict_with_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
     rules: tcl_syntax::word_rules::WordValueRules,
+    registry: &tcl_registry::CommandRegistry,
 ) {
-    use crate::ir::Statement;
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
-        for block in fu.cfg.blocks.values() {
-            for stmt in &block.statements {
-                let (Statement::Barrier { command, args, .. }
-                | Statement::Call { command, args, .. }) = stmt
-                else {
+        for (&block_id, block) in &fu.cfg.blocks {
+            for (statement_index, stmt) in block.statements.iter().enumerate() {
+                let context = registry
+                    .profile()
+                    .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+                let Some(invocation) = crate::registry_invocation::resolved_statement_invocation(
+                    registry, context, stmt,
+                ) else {
                     continue;
                 };
-                let is_dict = command == "dict" || stmt.canonical_command_or_source() == "::dict";
-                if !is_dict || args.first().map(String::as_str) != Some("with") {
+                let args = &invocation.arguments;
+                if invocation.facts.analyser_hook
+                    != Some(tcl_registry::hooks::AnalyserHookId::DictWith)
+                {
                     continue;
                 }
-                let Some(dict_var) = args.get(1) else {
+                let Some(dict_var) = args.get(1).and_then(Option::as_deref) else {
                     continue;
                 };
                 let dvar = crate::naming::normalise_var_name(dict_var);
@@ -2747,8 +1997,8 @@ fn harvest_dict_with_constants(
                     crate::analyses::ConstValue::String(dict_text),
                 )) = fu
                     .ssa
-                    .var_symbol(dvar)
-                    .and_then(|s| fu.sccp.values.get(&(s, 0)))
+                    .var_symbol_at(block_id, statement_index, dvar)
+                    .and_then(|s| fu.diagnostic_value_facts().values().get(&(s, 0)))
                 else {
                     continue;
                 };
@@ -2834,13 +2084,14 @@ fn build_tainted_by_scope(
 fn aggregate_constsets(
     cu: &crate::compilation_unit::CompilationUnit,
     rules: tcl_syntax::word_rules::WordValueRules,
+    registry: &tcl_registry::CommandRegistry,
 ) -> std::collections::HashMap<String, HashSet<String>> {
     let mut all_constsets: std::collections::HashMap<String, HashSet<String>> =
         std::collections::HashMap::new();
     let collect_from =
         |fu: &crate::compilation_unit::FunctionUnit,
          out: &mut std::collections::HashMap<String, HashSet<String>>| {
-            for ((sym, _ver), lv) in &fu.sccp.values {
+            for ((sym, _ver), lv) in fu.diagnostic_value_facts().values() {
                 let Some(values) = lattice_command_values(lv) else {
                     continue;
                 };
@@ -2861,70 +2112,137 @@ fn aggregate_constsets(
         collect_from(fu, &mut all_constsets);
     }
 
-    harvest_array_set_constants(cu, &mut all_constsets, rules);
+    harvest_array_set_constants(cu, &mut all_constsets, rules, registry);
     harvest_array_element_set_constants(cu, &mut all_constsets);
-    harvest_dict_with_constants(cu, &mut all_constsets, rules);
+    harvest_dict_with_constants(cu, &mut all_constsets, rules, registry);
     all_constsets
 }
 
 /// The per-proc maps built by the factory-object analysis in
 /// [`Analyser::compute_factory_object_ranges`]: factory-local vars, the
 /// `{var -> rhs command head}` assignment map, the last returned var, and the
-/// set of procs proven object-returning.
+/// set of procedures with a possible object result.
+struct FactoryObjectAdvice {
+    ranges: Vec<(u32, u32, HashSet<String>)>,
+    object_returning: FxHashSet<String>,
+}
+
 #[derive(Default)]
 struct FactoryMaps {
     factory_locals: FxHashMap<String, HashSet<String>>,
     assigns: FxHashMap<String, FxHashMap<String, String>>,
     return_var: FxHashMap<String, Option<String>>,
     object_returning: FxHashSet<String>,
+    returned_callees: FxHashMap<String, FxHashSet<String>>,
 }
 
 /// Populate [`FactoryMaps`] for one analysable unit (`qname` / `fu`): record
 /// every `set X [head …]` assignment, mark `X` a factory local when `head` is
 /// object-returning and not a user proc, capture the last returned var, and
-/// seed `object_returning` when *every* return value is an object-returning
-/// command substitution.
+/// retain possible factory returns independently of completion and dispatch
+/// closure. Unknown return paths never become strict result-type evidence.
 fn seed_factory_maps(
     qname: &str,
     fu: &crate::compilation_unit::FunctionUnit,
-    is_object_returning_head: &impl Fn(&str) -> bool,
-    is_user_proc: &impl Fn(&str) -> bool,
+    registry: &tcl_registry::CommandRegistry,
+    nominal_result: &impl Fn(
+        &crate::ir::WordExpr,
+        Option<&crate::ir::CommandTokens>,
+    ) -> (bool, Option<String>),
     maps: &mut FactoryMaps,
     config: tcl_lexer::LexerConfig,
 ) {
-    use crate::ir::Statement;
     let mut names = HashSet::new();
     let mut amap = FxHashMap::default();
+    let mut returns = Vec::new();
+    let mut returned_variables = Vec::new();
     for block in fu.cfg.blocks.values() {
         for stmt in &block.statements {
-            let Statement::AssignValue { name, value, .. } = stmt else {
-                continue;
+            let assignments = match stmt {
+                crate::ir::Statement::AssignValue {
+                    name,
+                    value,
+                    tokens,
+                    ..
+                } => tokens
+                    .as_ref()
+                    .and_then(|tokens| tokens.words().get(2))
+                    .cloned()
+                    .or_else(|| crate::value_shapes::value_word_with_config(value, config))
+                    .map(|value| {
+                        vec![crate::registry_invocation::AdvisoryValueAssignment {
+                            name: name.clone(),
+                            value,
+                        }]
+                    })
+                    .unwrap_or_default(),
+                _ => stmt
+                    .tokens()
+                    .map(|tokens| {
+                        crate::registry_invocation::advisory_value_assignments(registry, tokens)
+                    })
+                    .unwrap_or_default(),
             };
-            let Some((head, _)) =
-                crate::value_shapes::parse_command_substitution_with_config(value.trim(), config)
-            else {
-                continue;
-            };
-            amap.insert(name.clone(), head.clone());
-            if is_object_returning_head(&head) && !is_user_proc(&head) {
-                names.insert(name.clone());
+            for word in stmt.tokens().into_iter().flat_map(|tokens| {
+                crate::registry_invocation::advisory_return_values(registry, tokens)
+            }) {
+                returned_variables.push(match &word {
+                    crate::ir::WordExpr::Variable { spelling, .. } => extract_dollar_var(spelling),
+                    _ => None,
+                });
+                let (object, callee) = nominal_result(&word, stmt.tokens());
+                returns.push(object);
+                if let Some(callee) = callee {
+                    maps.returned_callees
+                        .entry(qname.to_owned())
+                        .or_default()
+                        .insert(callee);
+                }
             }
+            for assignment in assignments {
+                let (object, callee) = nominal_result(&assignment.value, stmt.tokens());
+                if object {
+                    names.insert(assignment.name.clone());
+                }
+                if let Some(callee) = callee {
+                    amap.insert(assignment.name, callee);
+                }
+            }
+        }
+        if let Some(crate::cfg::Terminator::Return {
+            value_word, tokens, ..
+        }) = &block.terminator
+        {
+            let (object, callee) = value_word.as_ref().map_or((false, None), |word| {
+                nominal_result(word, tokens.as_deref())
+            });
+            returns.push(object);
+            if let Some(callee) = callee {
+                maps.returned_callees
+                    .entry(qname.to_owned())
+                    .or_default()
+                    .insert(callee);
+            }
+        } else if block.terminator.is_none() {
+            returns.push(false);
         }
     }
     maps.factory_locals.insert(qname.to_string(), names);
     maps.assigns.insert(qname.to_string(), amap);
-    maps.return_var
-        .insert(qname.to_string(), last_return_var_of(&fu.cfg));
-    // Seed: a proc whose every return value is a namespaced object-returning
-    // cmd-sub is itself object-returning (G4: ALL returns must qualify, so a
-    // string-returning branch disqualifies).
-    let rvs = return_values_of(&fu.cfg);
-    if !rvs.is_empty()
-        && rvs.iter().all(|rv| {
-            crate::value_shapes::parse_command_substitution_with_config(rv.trim(), config)
-                .is_some_and(|(head, _)| is_object_returning_head(&head))
-        })
-    {
+    let advisory_variable = returned_variables
+        .first()
+        .cloned()
+        .flatten()
+        .filter(|first| {
+            returned_variables
+                .iter()
+                .all(|candidate| candidate.as_ref() == Some(first))
+        });
+    maps.return_var.insert(
+        qname.to_string(),
+        advisory_variable.or_else(|| last_return_var_of(&fu.cfg)),
+    );
+    if returns.iter().any(|value| *value) {
         maps.object_returning.insert(qname.to_string());
     }
 }
@@ -2940,6 +2258,7 @@ fn seed_factory_maps(
 /// qualified names the analysis is keyed on.
 fn propagate_object_returning(
     return_var: &FxHashMap<String, Option<String>>,
+    returned_callees: &FxHashMap<String, FxHashSet<String>>,
     assigns: &FxHashMap<String, FxHashMap<String, String>>,
     bare_to_qnames: &FxHashMap<&str, Vec<&str>>,
     object_returning: &mut FxHashSet<String>,
@@ -2958,6 +2277,18 @@ fn propagate_object_returning(
     let mut changed = true;
     while changed {
         changed = false;
+        for (qname, callees) in returned_callees {
+            if !object_returning.contains(qname)
+                && callees.iter().any(|callee| {
+                    resolve_candidates(callee)
+                        .iter()
+                        .any(|candidate| object_returning.contains(candidate))
+                })
+            {
+                object_returning.insert(qname.clone());
+                changed = true;
+            }
+        }
         for (qname, rv) in return_var {
             let Some(rv) = rv else { continue };
             if object_returning.contains(qname) {
@@ -3013,25 +2344,6 @@ fn last_return_var_of(cfg: &crate::cfg::Function) -> Option<String> {
         }
     }
     last
-}
-
-/// Every return value (statement + terminator) a proc body can produce, as raw
-/// text.  Seeds the object-returning-proc inference.
-fn return_values_of(cfg: &crate::cfg::Function) -> Vec<String> {
-    use crate::cfg::Terminator;
-    use crate::ir::Statement;
-    let mut out = Vec::new();
-    for block in cfg.blocks.values() {
-        for stmt in &block.statements {
-            if let Statement::Return { value: Some(v), .. } = stmt {
-                out.push(v.clone());
-            }
-        }
-        if let Some(Terminator::Return { value: Some(v), .. }) = &block.terminator {
-            out.push(v.clone());
-        }
-    }
-    out
 }
 
 /// External OO base classes that aren't in the per-document
@@ -3101,22 +2413,22 @@ fn w307_enclosing_idx(
 }
 
 fn w307_precise_cmd_values(
-    func_ranges: &[(String, u32, u32)],
-    fu_by_qname: &std::collections::HashMap<String, &crate::compilation_unit::FunctionUnit>,
+    func_ranges: &[W307FunctionRange<'_>],
     offset: u32,
     var_name: &str,
+    registry: Option<&tcl_registry::CommandRegistry>,
 ) -> Option<HashSet<String>> {
     // Narrowest function range containing `offset`.
-    let mut best: Option<(u32, &str)> = None;
-    for (qname, start, end) in func_ranges {
-        if *start <= offset && offset <= *end {
-            let width = end - start;
+    let mut best = None;
+    for range in func_ranges {
+        if range.start <= offset && offset <= range.end {
+            let width = range.end - range.start;
             if best.is_none_or(|(bw, _)| width < bw) {
-                best = Some((width, qname.as_str()));
+                best = Some((width, range.function));
             }
         }
     }
-    let fu = fu_by_qname.get(best?.1)?;
+    let fu = best?.1;
     // A command-head variable that is not an SSA variable of `fu` has no
     // precise per-version value here.
     let sym = fu.ssa.var_symbol(var_name)?;
@@ -3137,17 +2449,60 @@ fn w307_precise_cmd_values(
             let Some(ssa_stmt) = ssa_block.statements.get(idx) else {
                 continue;
             };
-            let Some(version) = ssa_stmt.uses.get(&sym) else {
+            let version = ssa_stmt.uses.get(&sym).copied().or_else(|| {
+                declaration_head_value_version(
+                    fu,
+                    *block_name,
+                    idx,
+                    offset,
+                    var_name,
+                    sym,
+                    registry?,
+                )
+            });
+            let Some(version) = version else {
                 continue;
             };
             let width = span.end() - span.start();
             if best_width.is_none_or(|bw| width < bw) {
                 best_width = Some(width);
-                best_version = Some(*version);
+                best_version = Some(version);
             }
         }
     }
     let version = best_version?;
-    let lv = fu.sccp.values.get(&(sym, version))?;
+    let lv = fu.diagnostic_value_facts().values().get(&(sym, version))?;
     Some(lattice_command_values(lv)?.into_iter().collect())
+}
+
+/// Conditional declaration-local value advice for this exact original head read.
+/// No represented SSA use, executed lookup or physical read is created.
+fn declaration_head_value_version(
+    fu: &crate::compilation_unit::FunctionUnit,
+    block: crate::cfg::BlockId,
+    index: usize,
+    offset: u32,
+    name: &str,
+    symbol: crate::ssa::Symbol,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<crate::ssa::Version> {
+    let tokens = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()?;
+    let head = tokens.words().first()?;
+    if head.source().span.start() != offset {
+        return None;
+    }
+    let crate::ir::WordExpr::Variable { spelling, .. } = head else {
+        return None;
+    };
+    let binding = tokens.source_binding.as_ref()?;
+    let reads = binding.declaration_read_occurrences(registry, tokens)?;
+    let mut exact = reads.iter().filter(|read| {
+        read.name() == name && read.source() == head.source() && read.spelling() == spelling
+    });
+    let read = exact.next()?;
+    if exact.next().is_some() {
+        return None;
+    }
+    let (selected, version) = read.diagnostic_version(&fu.ssa, block, index, registry)?;
+    (selected == symbol).then_some(version)
 }

@@ -125,28 +125,18 @@ struct CopyPair {
 /// The effective command, subcommand, form, target position, and arity floor
 /// are all registry data. Unknown or dynamic shapes abstain.
 ///
-/// The context-less (`None`) primitive call is deliberate under invariant
-/// I4: this is a **widening** query — a mutation answer widens the S101
-/// shimmer warning set, so over-approximating across environments is the
-/// conservative direction, never a specialisation on an unproved binding.
-fn mutation_target<'a>(stmt: &'a Statement, registry: &CommandRegistry) -> Option<&'a str> {
-    let Statement::Call { args, .. } = stmt else {
-        return None;
-    };
-    let values: Vec<&str> = args.iter().map(String::as_str).collect();
-    let invocation = tcl_registry::model::resolve_invocation_in_context(
-        registry,
-        None,
-        stmt.canonical_command_or_source(),
-        &values,
-    )?;
-    let offset = invocation.semantics.argument_offset;
-    let effective_count = args.len().checked_sub(offset)?;
-    let target = invocation
-        .semantics
-        .representation_effect
+fn mutation_target(stmt: &Statement, registry: &CommandRegistry) -> Option<String> {
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let invocation =
+        crate::registry_invocation::normal_statement_representation(registry, context, stmt)?;
+    let offset = invocation.argument_offset();
+    let effective_count = invocation.argument_count().checked_sub(offset)?;
+    let index = invocation
+        .representation_effect()
         .mutation_target_index(effective_count, offset)?;
-    args.get(target).map(String::as_str)
+    invocation.argument_literal(index)
 }
 
 /// Function-wide inputs and memos threaded through the walk.
@@ -234,7 +224,14 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
                 Statement::AssignValue {
                     name, value, span, ..
                 } => {
-                    if let Some(pair) = copy_pair(&ctx, ss, name, value, *span) {
+                    if let Some(pair) = copy_pair(
+                        &ctx,
+                        crate::ssa::SsaSourceView::at_statement(ssa, block_id, idx),
+                        ss,
+                        name,
+                        value,
+                        *span,
+                    ) {
                         pairs.push(pair);
                     }
                 }
@@ -255,6 +252,7 @@ pub(crate) fn find_sharing_warnings<S: std::hash::BuildHasher>(
 /// name, a self-copy, or an assignment whose SSA versions are unavailable.
 fn copy_pair(
     ctx: &SharingCtx<'_>,
+    source: crate::ssa::SsaSourceView<'_>,
     ss: &crate::ssa::SsaStatement,
     name: &str,
     value: &str,
@@ -265,12 +263,30 @@ fn copy_pair(
     }
     let dst_name = normalise_var_name(name);
     let src_name = normalise_var_name(value);
-    let dst_sym = ctx.ssa.var_symbol(dst_name)?;
-    let src_sym = ctx.ssa.var_symbol(src_name)?;
+    let dst_sym = source.symbol(dst_name)?;
+    let context = ctx
+        .registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let invocation = crate::registry_invocation::normal_statement_representation(
+        ctx.registry,
+        context,
+        &ss.statement,
+    )?;
+    let word = invocation.effective_words().words.get(2)?;
+    let place = source.read_word_place(word, ctx.registry)?;
+    if matches!(
+        place.kind,
+        crate::place::PlaceKind::ArrayElem | crate::place::PlaceKind::ArrayWhole
+    ) {
+        return None;
+    }
+    let read = source.read_word(word)?;
+    let src_sym = read.symbol;
     if dst_sym == src_sym || ctx.excluded(dst_name, dst_sym) || ctx.excluded(src_name, src_sym) {
         return None;
     }
-    let src_ver = *ss.uses.get(&src_sym)?;
+    let src_ver = read.version?;
     let dst_ver = *ss.defs.get(&dst_sym)?;
     // A version-0 source is a parameter/live-in — still a genuine share
     // (tclsh-verified in the module docs), so it is kept.
@@ -293,8 +309,11 @@ fn mutation_warning(
     stmt: &Statement,
     pairs: &[CopyPair],
 ) -> Option<SharingWarning> {
-    let target_name = normalise_var_name(mutation_target(stmt, ctx.registry)?);
-    let target_sym = ctx.ssa.var_symbol(target_name)?;
+    let target = mutation_target(stmt, ctx.registry)?;
+    let target_name = normalise_var_name(&target);
+    let target_sym = ctx
+        .ssa
+        .var_symbol_at(ctx.cfg.block_id(block_name)?, stmt_idx, target_name)?;
     if ctx.excluded(target_name, target_sym) {
         return None;
     }
@@ -365,10 +384,13 @@ fn partner_read_after(
     stmt_idx: usize,
     partner: (Symbol, Version),
 ) -> Option<LiveRead> {
-    let partner_name = ctx.ssa.var_name(partner.0).to_owned();
-    let uses: &[UseSite] = ctx.def_use.uses_of(&partner_name, partner.1);
+    let partner_key = ctx.ssa.cell_key(partner.0).clone();
+    let uses: &[UseSite] = ctx.def_use.uses_of(&partner_key, partner.1);
     let mut verdict: Option<LiveRead> = None;
     for u in uses {
+        if u.class == crate::ssa::UseClass::Quoted {
+            continue;
+        }
         let qualifies = match u.kind {
             UseKind::PhiIncoming => false,
             UseKind::Terminator => {
@@ -624,8 +646,27 @@ mod tests {
     /// wanted, silent (deliberate under-approximation; see module docs).
     #[test]
     fn s103_silent_when_source_dead_after_mutation() {
-        let w = warnings_for("set a [list 1 2 3]\nset b $a\nlappend b y\nputs [llength $b]");
-        assert!(w.is_empty(), "dead source must be silent: {w:?}");
+        let registry = registry();
+        let unit = CompilationUnit::build_for(
+            "set a [list 1 2 3]\nset b $a\nlappend b y\nputs [llength $b]",
+            &registry,
+            false,
+        );
+        let function = unit.function("::top").unwrap();
+        let warnings = find_sharing_warnings(
+            &function.cfg,
+            &function.ssa,
+            &function.def_use,
+            &function.sccp.executable_blocks,
+            &registry,
+            None::<&HashSet<String>>,
+        );
+        assert!(
+            warnings.is_empty(),
+            "dead source must be silent: {warnings:?}; cells {:?}; chains {:?}",
+            function.ssa.cell_names(),
+            function.def_use.chains
+        );
     }
 
     /// FP guard: the source was redefined before the mutation — `b` is the

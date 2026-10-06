@@ -656,7 +656,7 @@ mod tests {
     #[test]
     fn every_advertised_cli_family_has_a_recipe() {
         let families = cli_capable_families();
-        assert!(!families.is_empty());
+        assert_ne!(families.len(), 0);
         for family in &families {
             assert!(
                 cli_prereq_recipe(family).is_ok(),

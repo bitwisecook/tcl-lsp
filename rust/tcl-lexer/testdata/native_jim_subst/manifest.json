@@ -1,0 +1,18 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "exit_code": 0,
+  "cases": 32,
+  "tokens": 68,
+  "script_interpreter_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+  "probe_sha256": "b560c6a7360b1133cbb40c2769e0d0e87d3c95a76fd09f942dcc671d2bef4247",
+  "source_sha256": "d9882bbacee2bf2a96055a9ea31dae4dd3b3002ac8952e908b5c2918f0446f99",
+  "log_sha256": "c7d966b9a9ebfb6643705c3f5786ab8b1632a69c384f566f764b80ce4dc2b91a",
+  "fixture_sha256": "5124e232496acc11e1f4643c1b5b295570410eaaecf8cf6dd7089da4f32b23a0",
+  "proof_directory": "/workspace/.proofs/2286-jim-indexed-substitution-native",
+  "notes": [
+    "Original JimParseSubst tokens before object construction; ordinary newlines retain native parser-line behavior.",
+    "Flags all 0..7. Counted raw-NUL input excludes C terminator.",
+    "No Rust comparisons have run for these token rows."
+  ]
+}

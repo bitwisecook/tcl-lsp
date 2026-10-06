@@ -104,7 +104,7 @@ pub struct LinkContext<'a> {
     /// (`WorkspaceIndex::imported_path_constants_for`).  `None`
     /// means no import view is available (single-file callers), which only
     /// costs coverage, never correctness.
-    pub imported_constants: Option<&'a std::collections::HashMap<String, String>>,
+    pub imported_constants: Option<&'a tcl_compiler::auto_path_eval::FoldedPathConstants>,
     /// Directory relative paths resolve against — typically the document's
     /// own enclosing directory.  `None` leaves relative paths unresolvable,
     /// so only absolute ones produce links.
@@ -183,9 +183,10 @@ pub fn document_links_in_context(
     // directory reached through an intermediate resolves, and
     // an import view from the host makes values sourced-in from ancestor
     // documents resolve exactly as they do for navigation.
-    let no_imports = std::collections::HashMap::new();
+    let no_imports = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
+    let assignments = tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect);
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
-        &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
+        &assignments,
         script_path,
         ctx.imported_constants.unwrap_or(&no_imports),
     );
@@ -196,11 +197,19 @@ pub fn document_links_in_context(
         script_path,
     ));
 
-    for seg in segment_commands_with_offset_and_config(
-        source,
-        0,
-        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-    ) {
+    let config = tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar);
+    let mut commands = segment_commands_with_offset_and_config(source, 0, config);
+    for span in assignments.namespace_body_spans() {
+        if let Some(body) = source.get(span.start() as usize..span.end() as usize) {
+            commands.extend(segment_commands_with_offset_and_config(
+                body,
+                span.start(),
+                config,
+            ));
+        }
+    }
+    commands.sort_by_key(|command| command.span.start());
+    for seg in commands {
         if seg.texts.is_empty() {
             continue;
         }
@@ -267,7 +276,7 @@ pub fn document_links_in_context(
             path.as_str(),
             seg.single_token_word.get(idx).copied(),
             script_path,
-            &constants,
+            &constants.at(seg.span.start()),
         ) else {
             continue;
         };
@@ -467,11 +476,11 @@ fn link_anchor(
 ///
 /// Anything else abstains.  A multi-token word (`$dir/x.tcl` spliced from
 /// several tokens) abstains too, for the same reason.
-fn resolve_source_argument(
+fn resolve_source_argument<C: tcl_compiler::auto_path_eval::PathConstantLookup + ?Sized>(
     path: &str,
     single_token_word: Option<bool>,
     script_path: Option<&str>,
-    constants: &std::collections::HashMap<String, String>,
+    constants: &C,
 ) -> Option<String> {
     if !carries_substitution(path) {
         // Genuinely literal — but still only when the word is one token, so
@@ -772,6 +781,18 @@ mod tests {
         );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
+    }
+
+    #[test]
+    fn original_namespace_source_links_use_typed_jim_local_scope_without_export() {
+        let source = "namespace eval N {set dir /FIRST; source $dir/a.tcl}; namespace eval N {source $dir/b.tcl}; source $dir/c.tcl";
+        let links = document_links(
+            source,
+            tcl_registry::model::ingress::resolve_environment("jim").analyser_profile(),
+            Some("/workspace"),
+        );
+        assert_eq!(links.len(), 1, "{links:?}");
+        assert_eq!(links[0].target, "file:///FIRST/a.tcl");
     }
 
     #[test]

@@ -49,6 +49,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fpclassify",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Added in Tcl 9.0 (`package require tcl 9.0` in its own SYNOPSIS)
         // and unchanged in 9.1 — see the module comment.
         surface: Some(SpecSurface::TCL90_PLUS),

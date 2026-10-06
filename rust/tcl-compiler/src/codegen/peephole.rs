@@ -46,6 +46,12 @@ impl CodegenCtx<'_> {
         if self.instructions[n - 2].op != Op::POP {
             return;
         }
+        if !self.instructions[n - 2]
+            .native_operation_selections
+            .is_empty()
+        {
+            return;
+        }
         // Don't strip pop after reverse — it's part of catch epilogue.
         if n >= 3 && self.instructions[n - 3].op == Op::REVERSE {
             return;
@@ -89,6 +95,10 @@ impl CodegenCtx<'_> {
                     && matches!(self.instructions[i - 2].op, Op::UPVAR | Op::NSUPVAR));
             if self.instructions[i].op == Op::PUSH1
                 && self.instructions[i + 1].op == Op::POP
+                // VM substituting pushes may run commands, variable reads,
+                // traces, or errors. Only an explicitly finished value is a
+                // discardable constant; the literal pool alone is no proof.
+                && self.instructions[i].push_verbatim
                 && (self.instructions[i].comment != "\"\"" || after_unset)
                 && !self.instructions[i].no_fold
                 && !after_start_cmd
@@ -134,9 +144,11 @@ impl CodegenCtx<'_> {
         }
 
         // Build first-occurrence map.
-        let mut first: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        let mut first: std::collections::HashMap<&[u8], usize> = std::collections::HashMap::new();
         for (idx, val) in entries.iter().enumerate() {
-            first.entry(val.as_str()).or_insert(idx);
+            if let Some(bytes) = val.byte_payload() {
+                first.entry(bytes).or_insert(idx);
+            }
         }
 
         // Patch surviving pushes to use the earliest slot, but only
@@ -146,18 +158,23 @@ impl CodegenCtx<'_> {
                 continue;
             }
             // Skip no-dedup pushes
-            if self.instructions[i].comment.contains(NO_DEDUP_TAG) {
+            if self.instructions[i].push_verbatim
+                || self.instructions[i].comment.contains(NO_DEDUP_TAG)
+            {
                 continue;
             }
             if let Some(&Operand::Imm(lit_idx)) = self.instructions[i].operands.first() {
                 let lit_idx = lit_idx as usize;
                 if lit_idx < entries.len() {
-                    let earliest = first[entries[lit_idx].as_str()];
+                    let Some(bytes) = entries[lit_idx].byte_payload() else {
+                        continue;
+                    };
+                    let earliest = first[bytes];
                     if earliest != lit_idx && !live_indices.contains(&earliest) {
                         let mut new_operands = self.instructions[i].operands.clone();
                         new_operands[0] = Operand::Imm(earliest as i32);
-                        let mut new_instr = Instruction::new(self.instructions[i].op, new_operands);
-                        new_instr.comment.clone_from(&self.instructions[i].comment);
+                        let mut new_instr = self.instructions[i].clone();
+                        new_instr.operands = new_operands;
                         self.instructions[i] = new_instr;
                         live_indices.remove(&lit_idx);
                         live_indices.insert(earliest);
@@ -184,7 +201,8 @@ impl CodegenCtx<'_> {
         let last = self.instructions.last().unwrap();
         if last.op == Op::RETURN_IMM && last.operands == [Operand::Imm(0), Operand::Imm(1)] {
             let n = self.instructions.len();
-            self.instructions[n - 1] = Instruction::new(Op::DONE, vec![]);
+            self.instructions[n - 1].op = Op::DONE;
+            self.instructions[n - 1].operands.clear();
         }
     }
 
@@ -200,6 +218,7 @@ impl CodegenCtx<'_> {
         let mut i = 0;
         while i < self.instructions.len() {
             let is_empty = self.instructions[i].op == Op::START_CMD
+                && self.instructions[i].native_operation_selections.is_empty()
                 && self.instructions[i]
                     .operands
                     .first()
@@ -260,6 +279,7 @@ impl CodegenCtx<'_> {
         let mut i = 0;
         while i < self.instructions.len() {
             if self.instructions[i].op == Op::START_CMD
+                && self.instructions[i].native_operation_selections.is_empty()
                 && !self.instructions[i]
                     .source_command_boundary
                     .is_inline_replay()
@@ -291,7 +311,11 @@ impl CodegenCtx<'_> {
             .instructions
             .iter()
             .enumerate()
-            .filter(|(_, instr)| instr.op == Op::START_CMD && instr.comment == SC_GENERIC_TAG)
+            .filter(|(_, instr)| {
+                instr.op == Op::START_CMD
+                    && instr.comment == SC_GENERIC_TAG
+                    && instr.native_operation_selections.is_empty()
+            })
             .map(|(i, _)| i)
             .collect();
 
@@ -326,6 +350,57 @@ mod tests {
     use crate::codegen::CodegenCtx;
     use tcl_bytecode::SourceCommandBoundary;
     use tcl_registry::CommandRegistry;
+
+    fn operation_site(end: &str) -> tcl_bytecode::NativeOperationSelectionSite {
+        tcl_bytecode::NativeOperationSelectionSite {
+            compiler_prerequisite: None,
+            requirements: vec![tcl_runtime_api::CommandBindingIdentity::new(
+                "return", "return",
+            )],
+            guard: tcl_runtime_api::CommandBindingGuard::BeforeArguments,
+            end: end.to_owned(),
+            source: tcl_lexer::SourceImage::document("return"),
+            span: tcl_lexer::Span::new(0, 6),
+            namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            namespace_context: None,
+        }
+    }
+
+    #[test]
+    fn trailing_pop_keeps_the_operation_entry_boundary() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.push_lit("result");
+        ctx.emit(Op::POP, vec![]);
+        ctx.instructions[1]
+            .native_operation_selections
+            .push(operation_site("end"));
+        ctx.emit(Op::DONE, vec![]);
+        ctx.remove_trailing_pop();
+        assert_eq!(ctx.instructions[1].op, Op::POP);
+        assert_eq!(
+            ctx.instructions[1].native_operation_selections,
+            [operation_site("end")]
+        );
+    }
+
+    #[test]
+    fn tail_return_fold_keeps_selection_before_arguments() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.push_lit("");
+        ctx.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
+        ctx.instructions[1]
+            .native_operation_selections
+            .push(operation_site("end"));
+        ctx.fold_tail_return_to_done();
+        let instruction = ctx.instructions.last().unwrap();
+        assert_eq!(instruction.op, Op::DONE);
+        assert_eq!(
+            instruction.native_operation_selections,
+            [operation_site("end")]
+        );
+    }
 
     #[test]
     fn remove_trailing_pop_basic() {
@@ -437,7 +512,7 @@ mod tests {
             Op::START_CMD,
             vec![Operand::Label("end_0".into()), Operand::Imm(1)],
         );
-        ctx.push_lit("42");
+        ctx.push_lit_exact("42");
         ctx.emit(Op::DONE, vec![]);
         assert_eq!(ctx.instructions.len(), 3);
         ctx.strip_unused_start_cmd();
@@ -454,7 +529,7 @@ mod tests {
             Op::START_CMD,
             vec![Operand::Label("end_0".into()), Operand::Imm(1)],
         );
-        replay.source_cmd_text = "list a b".to_owned();
+        replay.source_cmd_text = tcl_lexer::SourceImage::document("list a b");
         replay.source_command_boundary = SourceCommandBoundary::InlineReplay;
         ctx.instructions.push(replay);
         ctx.push_lit("a b");
@@ -561,7 +636,7 @@ mod tests {
     fn fold_const_push_pop_nops_basic() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.push_lit("42");
+        ctx.push_lit_verbatim("42");
         ctx.emit(Op::POP, vec![]);
         ctx.push_lit("result");
         ctx.emit(Op::DONE, vec![]);
@@ -572,6 +647,22 @@ mod tests {
         assert_eq!(ctx.instructions[2].op, Op::NOP);
         // Rest unchanged
         assert_eq!(ctx.instructions[3].op, Op::PUSH1);
+    }
+
+    #[test]
+    fn discarded_substituting_push_retains_word_execution() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        ctx.push_lit("[incr ::count; set ::changed 1]");
+        ctx.emit(Op::POP, vec![]);
+        ctx.push_lit("${missing}");
+        ctx.emit(Op::POP, vec![]);
+        ctx.fold_const_push_pop_nops();
+        assert_eq!(ctx.instructions.len(), 4);
+        assert_eq!(ctx.instructions[0].op, Op::PUSH1);
+        assert_eq!(ctx.instructions[1].op, Op::POP);
+        assert_eq!(ctx.instructions[2].op, Op::PUSH1);
+        assert_eq!(ctx.instructions[3].op, Op::POP);
     }
 
     #[test]

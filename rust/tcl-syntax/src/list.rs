@@ -58,6 +58,103 @@ use std::ops::Range;
 
 use tcl_lexer::backslash_subst;
 
+/// Materialise native Tcl concatenation without parsing or re-quoting lists.
+/// Whitespace-only operands disappear; other operands are separated by one
+/// space after their unescaped boundary whitespace is trimmed.
+#[must_use]
+pub fn concat_values<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
+    // Unicode inputs remain Unicode because trimming only removes ASCII bytes.
+    String::from_utf8(concat_bytes(values.into_iter().map(str::as_bytes)))
+        .expect("ASCII trimming preserves Unicode")
+}
+
+/// Byte-exact native Tcl concatenation, without parsing or re-quoting operands.
+#[must_use]
+pub fn concat_bytes<'a>(values: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
+    let mut output = Vec::new();
+    for value in values
+        .into_iter()
+        .map(trim_concat_bytes)
+        .filter(|value| !value.is_empty())
+    {
+        if !output.is_empty() {
+            output.push(b' ');
+        }
+        output.extend_from_slice(value);
+    }
+    output
+}
+
+/// Concatenate Jim string representations, including a separator before trailing empty inputs.
+#[must_use]
+pub fn concat_values_jim<'a>(values: impl IntoIterator<Item = &'a str>) -> String {
+    String::from_utf8(concat_bytes_jim(values.into_iter().map(str::as_bytes)))
+        .expect("ASCII trimming preserves Unicode")
+}
+
+/// Byte-exact pinned Jim concatenation. Native ASCII whitespace is trimmed;
+/// the immediately preceding backslash protects trailing whitespace.
+#[must_use]
+pub fn concat_bytes_jim<'a>(values: impl IntoIterator<Item = &'a [u8]>) -> Vec<u8> {
+    let values: Vec<_> = values.into_iter().collect();
+    let mut output = Vec::new();
+    for (position, value) in values.iter().enumerate() {
+        let value = trim_concat_bytes(value);
+        if !value.is_empty() {
+            output.extend_from_slice(value);
+            if position + 1 < values.len() {
+                output.push(b' ');
+            }
+        }
+    }
+    output
+}
+
+/// Trim one native concatenation operand while retaining exact non-whitespace bytes.
+#[must_use]
+pub fn trim_concat_bytes(value: &[u8]) -> &[u8] {
+    let mut start = 0;
+    while start < value.len() && is_list_space(value[start]) {
+        start += 1;
+    }
+    let mut end = value.len();
+    while end > start && is_list_space(value[end - 1]) {
+        if end > start + 1 && value[end - 2] == b'\\' {
+            break;
+        }
+        end -= 1;
+    }
+    &value[start..end]
+}
+
+/// Unicode convenience view of the same native byte trim.
+#[must_use]
+pub fn trim_concat_element(value: &str) -> &str {
+    std::str::from_utf8(trim_concat_bytes(value.as_bytes()))
+        .expect("ASCII trimming preserves Unicode")
+}
+
+#[cfg(test)]
+mod concat_tests {
+    use super::concat_values;
+
+    #[test]
+    fn native_boundaries_preserve_escaped_whitespace_and_drop_empty_operands() {
+        assert_eq!(concat_values(["\n a ", "", " b\t", ""]), "a b");
+        assert_eq!(concat_values(["a\\ ", "b"]), "a\\  b");
+        assert_eq!(concat_values(["a\\\\ ", "b"]), "a\\\\  b");
+        assert_eq!(concat_values(["\u{a0}a\u{a0}", "b"]), "\u{a0}a\u{a0} b");
+    }
+
+    #[test]
+    fn concatenated_comment_loses_the_fragment_boundary_newline() {
+        assert_eq!(
+            concat_values(["# comment\n", "set x 1"]),
+            "# comment set x 1"
+        );
+    }
+}
+
 /// Why splitting a string as a Tcl list failed (the `tclUtil.c` error set).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListError {
@@ -98,6 +195,23 @@ impl ListError {
         }
     }
 
+    /// The complete error message retaining an original byte-valued list.
+    #[must_use]
+    pub fn full_message_bytes(self, source: &[u8]) -> Vec<u8> {
+        if let Ok(source) = std::str::from_utf8(source) {
+            return self.full_message(source).into_bytes();
+        }
+        let kind = match self {
+            Self::BraceFollowedByJunk => "braces",
+            Self::QuoteFollowedByJunk => "quotes",
+            _ => return self.message().as_bytes().to_vec(),
+        };
+        let mut message = format!("list element in {kind} followed by \"").into_bytes();
+        message.extend_from_slice(&source[junk_fragment_range(source)]);
+        message.extend_from_slice(b"\" instead of space");
+        message
+    }
+
     /// The complete Tcl error message for splitting `src` as a list. For the
     /// `…followed by "X" instead of space` cases this surfaces the offending
     /// fragment `X` directly after the closing delimiter (`tclUtil.c`); the other
@@ -124,11 +238,19 @@ impl ListError {
 /// composes itself rather than taking [`ListError::full_message`] verbatim.
 #[must_use]
 pub fn junk_fragment(src: &str) -> String {
-    let bytes = src.as_bytes();
+    let range = junk_fragment_range(src.as_bytes());
+    let mut end = range.end;
+    while end > range.start && !src.is_char_boundary(end) {
+        end -= 1;
+    }
+    src.get(range.start..end).unwrap_or("").to_string()
+}
+
+fn junk_fragment_range(bytes: &[u8]) -> Range<usize> {
     let len = bytes.len();
     // The failing element begins where the last successful element left off.
     let mut start = 0;
-    while let Ok(Some(el)) = find_element(src, start) {
+    while let Ok(Some(el)) = find_element_bytes(bytes, start) {
         start = el.next;
     }
     let mut pos = start;
@@ -159,27 +281,14 @@ pub fn junk_fragment(src: &str) -> String {
             }
             pos + 1 // past the closing quote
         }
-        _ => return String::new(),
+        _ => return 0..0,
     };
     let end = (junk + 20).min(len);
     let mut p = junk;
     while p < end && !is_list_space(bytes[p]) {
         p += 1;
     }
-    // C's cap counts **bytes** (`p2 < p+20`), so it can stop part-way through a
-    // multi-byte character — `{b}` + 19 ASCII + `é` puts the limit between the
-    // `é`'s two bytes. A `&str` slice must end on a character boundary, so back
-    // off to the previous one; the partial character is dropped, which is what
-    // tclsh renders (verified byte-for-byte on 8.6.16 and 9.0.4: the fragment
-    // is the 19 ASCII characters, *not* a replacement character and not empty).
-    //
-    // Backing off matters more than it looks: `src.get(junk..p)` returns `None`
-    // on a mid-character index, so without this the whole fragment silently
-    // became the empty string and the message lost its offending text entirely.
-    while p > junk && !src.is_char_boundary(p) {
-        p -= 1;
-    }
-    src.get(junk..p).unwrap_or("").to_string()
+    junk..p
 }
 
 /// One located list element: the interior byte range in the source, whether it
@@ -214,7 +323,12 @@ pub fn is_list_space(c: u8) -> bool {
 /// Locate the next list element in `s` at/after `start`. Returns `Ok(None)` when
 /// only trailing whitespace remains. (`tclUtil.c:577`).
 pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError> {
-    let bytes = s.as_bytes();
+    find_element_bytes(s.as_bytes(), start)
+}
+
+/// Locate the next element in exact native string bytes. Delimiter and
+/// whitespace parsing does not require a Unicode projection.
+pub fn find_element_bytes(bytes: &[u8], start: usize) -> Result<Option<Element>, ListError> {
     let len = bytes.len();
     let mut pos = start;
 
@@ -393,84 +507,216 @@ pub fn split_list_raw(s: &str) -> Result<Vec<&str>, ListError> {
 /// tclsh 8.6 / 9.0, which raise on each of them.
 #[must_use]
 pub fn split_list_jim(s: &str) -> Vec<Cow<'_, str>> {
-    let bytes = s.as_bytes();
-    let len = bytes.len();
     let mut out = Vec::new();
     let mut pos = 0;
+    while let Some(element) = find_element_jim(s, pos) {
+        let raw = &s[element.value];
+        out.push(if element.braced {
+            Cow::Borrowed(raw)
+        } else {
+            Cow::Owned(backslash_subst(raw).into_owned())
+        });
+        pos = element.next;
+    }
+    out
+}
 
-    while pos < len {
-        while pos < len && is_list_space(bytes[pos]) {
-            pos += 1;
-        }
-        if pos >= len {
-            break;
-        }
+/// Locate an element under the selected native list grammar. Values that need
+/// escape decoding retain their source extent but are not byte-preserving.
+pub fn find_element_with_syntax(
+    s: &str,
+    start: usize,
+    syntax: tcl_dialect::ListParse,
+) -> Result<Option<Element>, ListError> {
+    match syntax {
+        tcl_dialect::ListParse::Strict => find_element(s, start),
+        tcl_dialect::ListParse::Lenient => Ok(find_element_jim(s, start)),
+    }
+}
 
-        match bytes[pos] {
-            b'{' => {
-                let start = pos + 1;
-                let mut depth = 1usize;
-                let mut i = start;
-                let mut close = None;
-                while i < len {
-                    match bytes[i] {
-                        b'\\' => i += 1,
-                        b'{' => depth += 1,
-                        b'}' => {
-                            depth -= 1;
-                            if depth == 0 {
-                                close = Some(i);
-                                break;
-                            }
+fn find_element_jim(s: &str, pos: usize) -> Option<Element> {
+    find_element_jim_bytes(s.as_bytes(), pos)
+}
+
+fn find_element_jim_bytes(bytes: &[u8], pos: usize) -> Option<Element> {
+    find_element_jim_bytes_at_line(bytes, pos, &mut 0).map(|(element, _)| element)
+}
+
+fn find_element_jim_bytes_at_line(
+    bytes: &[u8],
+    mut pos: usize,
+    line: &mut u32,
+) -> Option<(Element, u32)> {
+    let len = bytes.len();
+    while pos < len && is_list_space(bytes[pos]) {
+        if bytes[pos] == b'\n' {
+            *line = line.wrapping_add(1);
+        }
+        pos += 1;
+    }
+    let element_line = *line;
+    let opener = *bytes.get(pos)?;
+    let (start, end, next, braced) = match opener {
+        b'{' => {
+            let start = pos + 1;
+            let mut depth = 1usize;
+            let mut i = start;
+            let mut close = None;
+            while i < len {
+                match bytes[i] {
+                    b'\\' => {
+                        i += 1;
+                        if bytes.get(i) == Some(&b'\n') {
+                            *line = line.wrapping_add(1);
                         }
-                        _ => {}
                     }
-                    i += 1;
-                }
-                // A braced value is never backslash-collapsed, terminated or
-                // not; an unterminated one simply reaches the end.
-                let (end, next) = close.map_or((len, len), |c| (c, c + 1));
-                out.push(Cow::Borrowed(&s[start..end]));
-                pos = next;
-            }
-            b'"' => {
-                let start = pos + 1;
-                let mut i = start;
-                let mut close = None;
-                while i < len {
-                    match bytes[i] {
-                        b'\\' => i += 1,
-                        b'"' => {
+                    b'\n' => *line = line.wrapping_add(1),
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
                             close = Some(i);
                             break;
                         }
-                        _ => {}
                     }
-                    i += 1;
+                    _ => {}
                 }
-                let (end, next) = close.map_or((len, len), |c| (c, c + 1));
-                out.push(Cow::Owned(
-                    backslash_subst(&s[start..end.min(len)]).into_owned(),
-                ));
-                pos = next;
+                i += 1;
             }
-            _ => {
-                let start = pos;
-                let mut i = pos;
-                while i < len && !is_list_space(bytes[i]) {
-                    if bytes[i] == b'\\' {
-                        i += 1;
-                    }
-                    i += 1;
-                }
-                let end = i.min(len);
-                out.push(Cow::Owned(backslash_subst(&s[start..end]).into_owned()));
-                pos = end;
-            }
+            let (end, next) = close.map_or((len, len), |c| (c, c + 1));
+            (start, end, next, true)
         }
-    }
+        b'"' => {
+            let start = pos + 1;
+            let mut i = start;
+            let mut close = None;
+            while i < len {
+                match bytes[i] {
+                    b'\\' => i += 1,
+                    b'\n' => *line = line.wrapping_add(1),
+                    b'"' => {
+                        close = Some(i);
+                        break;
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            let (end, next) = close.map_or((len, len), |c| (c, c + 1));
+            (start, end, next, false)
+        }
+        _ => {
+            let mut i = pos;
+            while i < len && !is_list_space(bytes[i]) {
+                if bytes[i] == b'\\' {
+                    i += 1;
+                }
+                i += 1;
+            }
+            let end = i.min(len);
+            (pos, end, end, false)
+        }
+    };
+    Some((
+        Element {
+            value: start..end,
+            literal: braced || !bytes[start..end].contains(&b'\\'),
+            braced,
+            next,
+        },
+        element_line,
+    ))
+}
 
-    out
+/// Locate a native list element in exact bytes under the selected grammar.
+pub fn find_element_bytes_with_syntax(
+    bytes: &[u8],
+    start: usize,
+    syntax: tcl_dialect::ListParse,
+) -> Result<Option<Element>, ListError> {
+    match syntax {
+        tcl_dialect::ListParse::Strict => find_element_bytes(bytes, start),
+        tcl_dialect::ListParse::Lenient => Ok(find_element_jim_bytes(bytes, start)),
+    }
+}
+
+/// Split native string bytes using the selected list and escape grammars.
+/// Braced and unescaped elements borrow their original bytes; decoded elements
+/// retain the byte decoder's exact result, including Jim numeric UTF8 units.
+pub fn split_list_bytes_in(
+    bytes: &[u8],
+    syntax: tcl_dialect::ListParse,
+    escapes: tcl_dialect::EscapeSyntax,
+) -> Result<Vec<Cow<'_, [u8]>>, ListError> {
+    let mut elements = Vec::new();
+    let mut offset = 0;
+    while let Some(element) = find_element_bytes_with_syntax(bytes, offset, syntax)? {
+        let value = &bytes[element.value];
+        elements.push(if element.literal {
+            Cow::Borrowed(value)
+        } else {
+            crate::backslash::decode_bytes_in(value, escapes)
+        });
+        offset = element.next;
+    }
+    Ok(elements)
+}
+
+/// One original native List element and its selected parser line offset.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeListElement<'a> {
+    /// Decoded counted native element bytes.
+    pub value: Cow<'a, [u8]>,
+    /// Jim parser line delta from the caller's signed source baseline.
+    pub line_delta: u32,
+}
+
+/// Split an actual native object's string, independently of source lexer overrides.
+/// Existing literal elements retain their exact bytes; backslash conversions
+/// use the selected engine's native string units.
+///
+/// # Errors
+/// Returns a native list-shape error under the selected C or Jim recipe.
+pub fn split_native_list_bytes(
+    bytes: &[u8],
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Vec<Cow<'_, [u8]>>, ListError> {
+    split_native_list_elements(bytes, protocol)
+        .map(|elements| elements.into_iter().map(|element| element.value).collect())
+}
+
+/// Split native element values and retain the original Jim scanner line.
+/// Quoted and bare escaped newlines differ from braced and separator newlines.
+///
+/// # Errors
+/// Returns the selected native List shape error.
+pub fn split_native_list_elements(
+    bytes: &[u8],
+    protocol: crate::native_string::NativeStringProtocol,
+) -> Result<Vec<NativeListElement<'_>>, ListError> {
+    let mut elements = Vec::new();
+    let mut offset = 0;
+    let mut line = 0;
+    loop {
+        let selected = if protocol.is_jim084() {
+            find_element_jim_bytes_at_line(bytes, offset, &mut line)
+        } else {
+            find_element_bytes(bytes, offset)?.map(|element| (element, 0))
+        };
+        let Some((element, line_delta)) = selected else {
+            break;
+        };
+        let raw = &bytes[element.value];
+        let value = if element.literal {
+            Cow::Borrowed(raw)
+        } else {
+            crate::backslash::native_source_string_bytes_in(raw, protocol.escape_syntax(), protocol)
+                .expect("the native recipe supplies its own compatible escape grammar")
+        };
+        elements.push(NativeListElement { value, line_delta });
+        offset = element.next;
+    }
+    Ok(elements)
 }
 
 /// [`split_list`] that never fails: on a malformed tail (unmatched brace/quote,
@@ -512,7 +758,13 @@ pub fn split_list_raw_lenient(s: &str) -> Vec<&str> {
 /// decide error phrasing, never as an actual element count (`{a b}` counts 2).
 #[must_use]
 pub fn max_list_length(s: &str) -> usize {
-    let bytes = s.as_bytes();
+    max_list_length_bytes(s.as_bytes())
+}
+
+/// Native whitespace-run upper bound, retaining arbitrary original bytes.
+/// This does not validate list grammar or count decoded elements.
+#[must_use]
+pub fn max_list_length_bytes(bytes: &[u8]) -> usize {
     let Some(&first) = bytes.first() else {
         return 0; // empty string: no elements
     };
@@ -549,6 +801,43 @@ pub fn describe_bad_value(s: &str) -> String {
         }
         format!("\"{}\"", &s[..end])
     }
+}
+
+/// Numeric/boolean diagnostic operand on native C bytes and character boundaries.
+/// List recognition uses the selected native list and escape grammars; clipping
+/// preserves the original byte spelling and never repairs it through Unicode.
+#[must_use]
+pub fn describe_bad_value_bytes_in(
+    bytes: &[u8],
+    version: tcl_dialect::TclVersion,
+    syntax: tcl_dialect::ListParse,
+    escapes: tcl_dialect::EscapeSyntax,
+) -> Vec<u8> {
+    let bytes = if version == tcl_dialect::TclVersion::V8_4 {
+        tcl_core_types::c_string_extent(bytes)
+    } else {
+        bytes
+    };
+    if version >= tcl_dialect::TclVersion::V9_0
+        && max_list_length_bytes(bytes) > 1
+        && split_list_bytes_in(bytes, syntax, escapes).is_ok()
+    {
+        return b"a list".to_vec();
+    }
+    let end = if bytes.len() <= 50 {
+        bytes.len()
+    } else if version >= tcl_dialect::TclVersion::V8_5 {
+        crate::native_tcl_utf::NativeTclUtf::for_version(version)
+            .previous_character_boundary(bytes, 51)
+            .expect("retained operand boundary")
+    } else {
+        50
+    };
+    let mut result = Vec::with_capacity(end + 2);
+    result.push(b'"');
+    result.extend_from_slice(&bytes[..end]);
+    result.push(b'"');
+    result
 }
 
 // Join — `Tcl_Merge` / `Tcl_ScanElement` + `Tcl_ConvertElement`.
@@ -1256,5 +1545,79 @@ mod jim_list_tests {
         assert_eq!(jim("a {b\\nc"), ["a", "b\\nc"], "braced: verbatim");
         assert_eq!(jim("a \"b\\nc"), ["a", "b\nc"], "quoted: substituted");
         assert_eq!(jim("a \"b\\\\c"), ["a", "b\\c"]);
+    }
+}
+
+#[cfg(test)]
+mod element_syntax_tests {
+    use super::find_element_with_syntax;
+    use tcl_dialect::ListParse;
+
+    #[test]
+    fn selected_element_spans_preserve_jim_adjacent_and_unterminated_values() {
+        for source in ["{a}b", "\"a\"b", "{a", "\"a"] {
+            assert!(find_element_with_syntax(source, 0, ListParse::Strict).is_err());
+            let first = find_element_with_syntax(source, 0, ListParse::Lenient)
+                .unwrap()
+                .unwrap();
+            assert_eq!(&source[first.value], "a");
+            assert!(first.literal);
+            let next = find_element_with_syntax(source, first.next, ListParse::Lenient).unwrap();
+            assert_eq!(
+                next.map(|element| &source[element.value]),
+                source.ends_with('b').then_some("b")
+            );
+        }
+        let escaped = find_element_with_syntax("a\\ b", 0, ListParse::Lenient)
+            .unwrap()
+            .unwrap();
+        assert!(!escaped.literal);
+        assert_eq!(escaped.value, 0..4);
+    }
+}
+
+#[cfg(test)]
+mod byte_list_tests {
+    use super::split_list_bytes_in;
+    use tcl_dialect::{EscapeSyntax, ListParse};
+
+    #[test]
+    fn jim_elements_keep_literal_bytes_and_decode_actual_byte_escapes() {
+        let source = [
+            b'{', 0xff, b'}', b' ', b'\\', b'x', b'f', b'f', b' ', b'"', b'\\', b'u', b'D', b'8',
+            b'0', b'0', b'"',
+        ];
+        let elements = split_list_bytes_in(&source, ListParse::Lenient, EscapeSyntax::Jim).unwrap();
+        assert_eq!(
+            elements.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+            vec![&[0xff][..], &[0xff][..], &[0xed, 0xa0, 0x80][..]]
+        );
+        assert!(matches!(elements[0], std::borrow::Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn native_list_shape_errors_and_jim_unclosed_tail_remain_distinct() {
+        let source = [b'{', 0xff];
+        assert_eq!(
+            split_list_bytes_in(&source, ListParse::Strict, EscapeSyntax::Tcl90),
+            Err(super::ListError::UnmatchedBrace)
+        );
+        assert_eq!(
+            split_list_bytes_in(&source, ListParse::Lenient, EscapeSyntax::Jim).unwrap()[0]
+                .as_ref(),
+            &[0xff]
+        );
+        assert_eq!(
+            split_list_bytes_in(b"{a}b", ListParse::Strict, EscapeSyntax::Tcl90),
+            Err(super::ListError::BraceFollowedByJunk)
+        );
+        assert_eq!(
+            split_list_bytes_in(b"{a}b", ListParse::Lenient, EscapeSyntax::Jim)
+                .unwrap()
+                .iter()
+                .map(AsRef::as_ref)
+                .collect::<Vec<_>>(),
+            vec![&b"a"[..], &b"b"[..]]
+        );
     }
 }

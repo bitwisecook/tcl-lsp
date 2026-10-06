@@ -45,7 +45,6 @@
 //! command substitutions establish nested command contexts. Rich doc-comment
 //! rendering is not done — the summary is surfaced verbatim.
 
-use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
 use tcl_registry::CommandRegistry;
 
@@ -166,7 +165,7 @@ pub fn signature_help_in_program_with_options(
     options: SignatureHelpOptions<'_>,
 ) -> Option<SignatureHelp> {
     let registry = resolution.registry;
-    let profile = crate::profile_for_dialect(&analysis.dialect);
+    let profile = crate::profile_for_analysis(analysis);
     let structural_registry =
         registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
     let (command, args, active_param) =
@@ -418,44 +417,20 @@ fn lookup_proc<'a>(
     // Alias resolution.  When the cursor's command isn't a visible proc, check
     // whether it matches an `interp alias {} ALIAS {} TARGET` record and follow
     // the chain, resolving the target the same namespace-aware way.
-    let resolved_target = resolve_alias_chain(analysis, name)?;
-    crate::definition::resolve_called_proc(
-        analysis,
-        source,
-        namespace,
-        &resolved_target,
-        call_off,
-        ctx,
-    )
+    let resolved_target = resolve_alias_chain(analysis, name, call_off)?;
+    crate::definition::resolve_called_proc(analysis, source, "::", &resolved_target, call_off, ctx)
 }
 
-/// Follow the alias chain from `name` to its terminal
-/// target.  Returns `None` when `name` doesn't match any
-/// alias record.  Cycles are bounded by `MAX_ALIAS_HOPS`.
-fn resolve_alias_chain(analysis: &AnalysisResult, name: &str) -> Option<String> {
-    const MAX_ALIAS_HOPS: usize = 8;
-    let mut current = name.to_owned();
-    let mut seen = FxHashSet::default();
-    for _ in 0..MAX_ALIAS_HOPS {
-        if !seen.insert(current.clone()) {
-            return None;
-        }
-        let qualified = if current.starts_with("::") {
-            current.clone()
-        } else {
-            format!("::{current}")
-        };
-        if let Some(alias) = analysis
-            .command_aliases
-            .get(&qualified)
-            .or_else(|| analysis.command_aliases.get(&current))
-        {
-            current.clone_from(&alias.target);
-            continue;
-        }
-        return Some(current);
-    }
-    None
+/// Original alias/rename targets use the shared ordered indirection receipt.
+/// The terminal reported name is never passed back as written lookup input.
+fn resolve_alias_chain(analysis: &AnalysisResult, name: &str, call_off: u32) -> Option<String> {
+    let hop = tcl_compiler::analyser::indirection::walk(
+        analysis,
+        name,
+        call_off,
+        &tcl_syntax::naming::normalise_qualified_name,
+    )?;
+    hop.lookup_spelling().map(std::borrow::Cow::into_owned)
 }
 
 /// Render signature help for a built-in command spec.

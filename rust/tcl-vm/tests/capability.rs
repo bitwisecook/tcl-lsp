@@ -47,9 +47,11 @@ fn exec_unsupported_on_sandboxed_host() {
     let err =
         platform::exec(&mut vm, &host, &args).expect_err("a sandboxed host has no subprocess");
     assert!(
-        err.message().contains("no subprocess support"),
-        "expected the faithful unsupported error, got: {}",
         err.message()
+            .expect("Unicode capability diagnostic")
+            .contains("no subprocess support"),
+        "expected the faithful unsupported error, got: {}",
+        err.message().expect("Unicode capability diagnostic")
     );
 }
 

@@ -72,6 +72,11 @@ pub fn linked_editing_ranges(
 ) -> Option<LinkedEditingRanges> {
     let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
     let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+    {
+        return None;
+    }
     let proc = cursor_proc(&line_index, source, line, character, &word, analysis)?;
 
     // Every linked range must cover *identical* text (LSP contract: editing one
@@ -89,19 +94,16 @@ pub fn linked_editing_ranges(
     for inv in &analysis.command_invocations {
         // An indirect site must never live-link: its span is not the written
         // command name.
-        if inv.indirect {
+        if inv.indirect || !inv.lookup.is_execution_site() {
             continue;
         }
-        // The call's resolved qualified name is authoritative when the analyser
-        // settled one: a bare `greet` inside `namespace eval ::b { … }` nested
-        // in `proc ::a::greet` resolves to `::b::greet`, so it must NOT link to
-        // `::a::greet` even though its text equals `greet` — linking it would
-        // corrupt the unrelated call under rename-as-you-type.  Only when no
-        // qualified name was settled is the literal self-name match used.
-        let links_to_proc = match inv.resolved_qualified_name.as_deref() {
-            Some(q) => q == proc.qualified_name,
-            None => matches_self_call(inv.name.as_str(), proc),
-        };
+        let links_to_proc = crate::references::invocation_references_proc(
+            analysis,
+            inv,
+            &proc.qualified_name,
+            proc,
+            source,
+        );
         if !links_to_proc {
             continue;
         }
@@ -145,15 +147,22 @@ fn cursor_proc<'a>(
         if span_contains(proc.name_span, byte_offset) {
             return Some(proc);
         }
-        if span_contains(proc.body_span, byte_offset) {
+        if span_contains(proc.body_span, byte_offset)
+            && crate::definition::invocation_reference_at(analysis, byte_offset).is_none_or(|inv| {
+                inv.lookup.is_execution_site()
+                    && crate::references::invocation_references_proc(
+                        analysis,
+                        inv,
+                        &proc.qualified_name,
+                        proc,
+                        source,
+                    )
+            })
+        {
             return Some(proc);
         }
     }
     None
-}
-
-fn matches_self_call(name: &str, proc: &ProcDef) -> bool {
-    name == proc.name || name == proc.qualified_name
 }
 
 /// The sub-span of a call-head span whose source text is *identical* to
@@ -214,6 +223,21 @@ mod tests {
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, "tcl8.6").clone()
+    }
+
+    #[test]
+    fn replaced_self_name_does_not_borrow_the_original_proc_links() {
+        let source = "proc p {} {p}\nrename p saved\ninterp alias {} p {} list\nsaved\n";
+        let analysis = analyse(source);
+        let inner = source.find("{p}").unwrap() + 1;
+        let reference =
+            crate::definition::invocation_reference_at(&analysis, u32::try_from(inner).unwrap())
+                .and_then(|inv| inv.resolved_command_reference.as_ref())
+                .expect("reached self-name lookup must retain the alias slot");
+        assert!(reference.definition().is_none());
+        assert!(reference.linked_definition().is_none());
+        assert!(linked_editing_ranges(source, 0, 12, &analysis).is_none());
+        assert!(linked_editing_ranges(source, 0, 5, &analysis).is_none());
     }
 
     #[test]

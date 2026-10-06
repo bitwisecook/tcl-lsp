@@ -70,16 +70,16 @@ impl Channel {
 }
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("open", cmd_open);
-    vm.register("close", cmd_close);
-    vm.register("gets", cmd_gets);
-    vm.register("read", cmd_read);
-    vm.register("eof", cmd_eof);
-    vm.register("flush", cmd_flush);
-    vm.register("seek", cmd_seek);
-    vm.register("tell", cmd_tell);
-    vm.register("fconfigure", cmd_fconfigure);
-    vm.register("fblocked", |_vm, _args| ok(Value::int(0)));
+    vm.register_stock_builtin("open", cmd_open);
+    vm.register_stock_builtin("close", cmd_close);
+    vm.register_stock_builtin("gets", cmd_gets);
+    vm.register_stock_builtin("read", cmd_read);
+    vm.register_stock_builtin("eof", cmd_eof);
+    vm.register_stock_builtin("flush", cmd_flush);
+    vm.register_stock_builtin("seek", cmd_seek);
+    vm.register_stock_builtin("tell", cmd_tell);
+    vm.register_stock_builtin("fconfigure", cmd_fconfigure);
+    vm.register_stock_builtin("fblocked", |_vm, _args| ok(Value::int(0)));
 }
 
 /// `open fileName ?access?` — supports the common access strings
@@ -90,7 +90,12 @@ fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [n, m] => (n.to_str().to_string(), m.to_str().to_string()),
         // The permissions argument is accepted but ignored (umask applies).
         [n, m, _perm] => (n.to_str().to_string(), m.to_str().to_string()),
-        _ => return err("wrong # args: should be \"open fileName ?access? ?permissions?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"open fileName ?access? ?permissions?\"",
+            );
+        }
     };
     if name.starts_with('|') {
         return err("command pipelines are not supported");
@@ -99,7 +104,7 @@ fn cmd_open(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let version = vm.runtime_version();
     let access = match resolve_open_access_mode(version, m) {
         Ok(access) => access,
-        Err(error) => return completion_from_cmd_error(error),
+        Err(error) => return completion_from_cmd_error(vm, error),
     };
     let config = ChannelConfig::for_open_access(version, vm.system_encoding(), access);
 
@@ -143,7 +148,10 @@ fn io_reason(e: &std::io::Error) -> String {
 
 fn cmd_close(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [chan] = args else {
-        return err("wrong # args: should be \"close channelId\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"close channelId\"",
+        );
     };
     let id = chan.to_str();
     if is_std(&id) {
@@ -163,7 +171,12 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id, var) = match args {
         [c] => (c.to_str().to_string(), None),
         [c, v] => (c.to_str().to_string(), Some(v.to_str().to_string())),
-        _ => return err("wrong # args: should be \"gets channelId ?varName?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"gets channelId ?varName?\"",
+            );
+        }
     };
     if is_std(&id) {
         // stdin is non-interactive: immediate EOF.
@@ -238,7 +251,12 @@ fn cmd_read(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let cnt = n.as_int().unwrap_or(-1);
             (c.to_str().to_string(), Some(cnt))
         }
-        _ => return err("wrong # args: should be \"read channelId ?numChars?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"read channelId ?numChars?\"",
+            );
+        }
     };
     if is_std(&id) {
         return ok(Value::string(""));
@@ -265,7 +283,10 @@ fn cmd_read(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [chan] = args else {
-        return err("wrong # args: should be \"eof channelId\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"eof channelId\"",
+        );
     };
     let id = chan.to_str();
     if is_std(&id) {
@@ -280,7 +301,10 @@ fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_flush(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [chan] = args else {
-        return err("wrong # args: should be \"flush channelId\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"flush channelId\"",
+        );
     };
     let id = chan.to_str();
     if is_std(&id) {
@@ -298,7 +322,10 @@ fn cmd_flush(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 fn cmd_tell(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [chan] = args else {
-        return err("wrong # args: should be \"tell channelId\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tell channelId\"",
+        );
     };
     let id = chan.to_str();
     match vm.channel_mut(&id) {
@@ -317,13 +344,25 @@ fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id, offset, origin) = match args {
         [c, o] => (c.to_str().to_string(), o.as_int().unwrap_or(0), 0),
         [c, o, w] => {
-            let index = match SEEK_ORIGINS.index_of_str(&w.to_str()) {
+            let index = match vm.native_index_operand(
+                w,
+                &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(
+                    SEEK_ORIGINS.names(),
+                ),
+                false,
+                "origin",
+            ) {
                 Ok(i) => i,
-                Err(e) => return err(e.into_message()),
+                Err(e) => return crate::command::completion_from_cmd_error(vm, e),
             };
             (c.to_str().to_string(), o.as_int().unwrap_or(0), index)
         }
-        _ => return err("wrong # args: should be \"seek channelId offset ?origin?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"seek channelId offset ?origin?\"",
+            );
+        }
     };
     if let Some(Channel::Read { data, pos, .. }) = vm.channel_mut(&id) {
         let base = match origin {
@@ -341,7 +380,10 @@ fn cmd_seek(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// affect byte output; conventional non-output options remain accepted.
 fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((chan, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"fconfigure channelId ?-option value ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"fconfigure channelId ?-option value ...?\"",
+        );
     };
     let id = chan.to_str().to_string();
     let Some(mut config) = channel_config(vm, &id) else {
@@ -356,7 +398,7 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &opt.to_str(),
             ) {
                 Ok(option) => option,
-                Err(error) => return completion_from_cmd_error(error),
+                Err(error) => return completion_from_cmd_error(vm, error),
             };
             ok(Value::string(config_value(option, &id, config)))
         }
@@ -367,19 +409,22 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     &pair[0].to_str(),
                 ) {
                     Ok(option) => option,
-                    Err(error) => return completion_from_cmd_error(error),
+                    Err(error) => return completion_from_cmd_error(vm, error),
                 };
                 let configured = set_config_value(version, &mut config, option, &pair[1].to_str());
                 // Tcl preserves any direction changed before a later
                 // direction of the same translation value reports an error.
                 set_channel_config(vm, &id, config);
                 if let Err(error) = configured {
-                    return completion_from_cmd_error(error);
+                    return completion_from_cmd_error(vm, error);
                 }
             }
             ok(Value::empty())
         }
-        _ => err("wrong # args: should be \"fconfigure channelId ?-option value ...?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"fconfigure channelId ?-option value ...?\"",
+        ),
     }
 }
 

@@ -174,6 +174,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsort",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a
@@ -196,10 +202,12 @@ pub fn spec() -> CommandSpec {
         // `uplevel`-style scope walk back into the caller's frame), so
         // calling `lsort` itself still needs no runtime frame.
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED,
-        arity: Arity::at_least(1),
+        arity: Arity::exact(1).with_positionals(),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
         options: OPTIONS,
+        // Tcl_LsortObjCmd reserves the final list while scanning options.
+        reserved_trailing_words: 1,
         forms: FORMS,
         hover: Some(HoverSnippet {
             summary: "Sort the elements of a list.",

@@ -1,0 +1,10 @@
+SUPPORTED	1
+A	0	before	arithseries,0,0,1,1
+A	0	index	int,0,0
+A	0	after	arithseries,0,0,1,1
+A	1	before	arithseries,0,0,1,1
+A	1	result	arithseries,0,0,1,2
+A	1	after	arithseries,0,0,1,2
+A	2	before	arithseries,0,0,1,1
+A	2	result	list,0,-1,1,-1
+A	2	after	arithseries,0,1,1,1

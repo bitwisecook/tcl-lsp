@@ -503,7 +503,7 @@ fn zero_arg_functions() {
     match p("rand()") {
         ExprNode::Call { function, args, .. } => {
             assert_eq!(function, "rand");
-            assert!(args.is_empty());
+            assert_eq!(args, [] as [tcl_syntax::expr::ExprNode; 0]);
         }
         other => panic!("expected Call, got {other:?}"),
     }
@@ -881,7 +881,7 @@ fn command_texts_collected_from_tree() {
 
 #[test]
 fn command_texts_empty_when_no_commands() {
-    assert!(p("$a + 1").command_texts().is_empty());
+    assert_eq!(p("$a + 1").command_texts(), [] as [String; 0]);
 }
 
 // 10. render_expr round-trips (precedence-preserving).

@@ -27,7 +27,20 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         name: "list",
+        native_result: Some(crate::native_result::NativeResultContract::ListArguments { from: 0 }),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ArgumentList,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_list),
         traits: Traits::FRAMELESS_RUNTIME
@@ -50,6 +63,6 @@ pub fn spec() -> CommandSpec {
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::List),
         forms: FORMS,
-        ..CommandSpec::DEFAULT
+        ..CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
     }
 }

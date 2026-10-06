@@ -417,6 +417,63 @@ fn arity_windows_survive_the_round_trip() {
 
 /// Native resolver declarations and their capability sets are one contract.
 ///
+#[test]
+fn cardinality_role_contract_survives_native_spectcl_and_rust_rendering() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let spec = registry.get("foreach").expect("native foreach descriptor");
+    let shipped = Value::Object(draft::from_command_spec(spec));
+    let trip = round_trip(&shipped);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text
+            .contains("arg_role_count_resolver -native foreach::arg_role_count_resolver")
+    );
+    assert_eq!(
+        trip.reloaded["arg_role_count_resolver"],
+        shipped["arg_role_count_resolver"]
+    );
+    assert!(
+        trip.reloaded[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .is_some_and(|keys| keys.iter().any(|key| key == "arg_role_count_resolver"))
+    );
+    let mut authored = shipped.as_object().expect("draft object").clone();
+    authored.insert(
+        "arg_role_count_resolver".into(),
+        serde_json::json!("Some(native_count_roles)"),
+    );
+    assert!(
+        tcl_spec_studio::render_rs::render(&authored)
+            .contains("arg_role_count_resolver: Some(native_count_roles),")
+    );
+}
+
+#[test]
+fn structured_layout_contract_survives_native_spectcl_and_rust_rendering() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let spec = registry.get("regsub").expect("native regsub descriptor");
+    let shipped = Value::Object(draft::from_command_spec(spec));
+    let trip = round_trip(&shipped);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text
+            .contains("arg_role_layout_resolver -native regsub::arg_role_layout_resolver")
+    );
+    assert_eq!(
+        trip.reloaded["arg_role_layout_resolver"],
+        shipped["arg_role_layout_resolver"]
+    );
+    let mut authored = shipped.as_object().unwrap().clone();
+    authored.insert(
+        "arg_role_layout_resolver".into(),
+        serde_json::json!("Some(native_layout_roles)"),
+    );
+    assert!(
+        tcl_spec_studio::render_rs::render(&authored)
+            .contains("arg_role_layout_resolver: Some(native_layout_roles),")
+    );
+}
+
 /// `binary scan` exercises a subcommand resolver with more than one possible
 /// role, so losing the capability row would make a faithfully rendered pack
 /// fail closed when it is loaded again.

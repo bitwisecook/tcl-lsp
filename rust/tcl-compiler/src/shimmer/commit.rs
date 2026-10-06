@@ -59,8 +59,7 @@ use crate::ssa::{SsaFunction, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice};
 use crate::value_shapes::is_pure_var_ref;
 
-use super::hints::{arg_shimmer_type, inert_braced_args, is_numeric_compatible, is_pure_intrep};
-use super::use_site::foreach_header_expected_type;
+use super::hints::{inert_effective_args, is_numeric_compatible, is_pure_intrep};
 
 /// Upper bound on the tracked may-set — a value committed to more than this
 /// many distinct intreps across paths widens to "unknown" (never fires).
@@ -83,6 +82,76 @@ pub struct CommitState {
 }
 
 impl CommitState {
+    /// Reconcile replayed commitment with the actual captured physical read.
+    /// A current native representation supersedes a version's earlier use;
+    /// equal bytes and an unchanged SSA version do not preserve its intrep.
+    /// Closed container possibilities remain cost-only May facts. Missing
+    /// physical evidence cannot recover a stale container commitment.
+    fn at_captured_representation(
+        mut self,
+        representation: Option<tcl_syntax::value::ValueRepresentation>,
+        alternatives: Option<crate::native_numeric::ClosedContainerRepresentations>,
+        already_numeric: bool,
+    ) -> Self {
+        use tcl_syntax::value::ValueRepresentation;
+        let current = match representation {
+            Some(ValueRepresentation::List) => Some(TclType::List),
+            Some(ValueRepresentation::Dict) => Some(TclType::Dict),
+            Some(ValueRepresentation::String) => return Self::pure(),
+            None | Some(ValueRepresentation::Unknown) => None,
+        };
+        if let Some(current) = current {
+            let first_span = (self.single_committed() == Some(current))
+                .then_some(self.first_span)
+                .flatten();
+            return Self::committed(current, first_span);
+        }
+        if let Some(alternatives) = alternatives {
+            return Self {
+                may: [
+                    (ValueRepresentation::List, TclType::List),
+                    (ValueRepresentation::Dict, TclType::Dict),
+                ]
+                .into_iter()
+                .filter_map(|(representation, ty)| {
+                    alternatives.contains(representation).then_some(ty)
+                })
+                .collect(),
+                all_committed: false,
+                overflowed: false,
+                first_span: None,
+            };
+        }
+        if self
+            .may
+            .iter()
+            .any(|ty| matches!(ty, TclType::List | TclType::Dict))
+        {
+            self.all_committed = false;
+            self.may
+                .retain(|ty| !matches!(ty, TclType::List | TclType::Dict));
+            self.first_span = None;
+        }
+        if !already_numeric
+            && self.may.iter().any(|ty| {
+                matches!(
+                    ty,
+                    TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+                )
+            })
+        {
+            self.all_committed = false;
+            self.may.retain(|ty| {
+                !matches!(
+                    ty,
+                    TclType::Int | TclType::Double | TclType::Numeric | TclType::Boolean
+                )
+            });
+            self.first_span = None;
+        }
+        self
+    }
+
     /// The pure (uncommitted-on-every-path) state.
     #[must_use]
     pub fn pure() -> Self {
@@ -240,6 +309,8 @@ impl CommitFacts {
             ssa: ctx.ssa,
             types: ctx.types,
             values: ctx.values,
+            block: block_id,
+            index: 0,
         }
     }
 
@@ -261,11 +332,14 @@ impl CommitFacts {
 }
 
 /// Read-only inputs threaded through the fixpoint and the per-block walkers.
+#[derive(Clone, Copy)]
 pub struct CommitCtx<'a> {
     /// Command registry, for `arg_types` shimmer hints and foreach headers.
     pub registry: &'a CommandRegistry,
     /// SSA form, for variable symbols and per-statement use versions.
     pub ssa: &'a SsaFunction,
+    /// Source-name projection at the actual read; value keys remain cell identities.
+    pub source: crate::ssa::SsaSourceView<'a>,
     /// Per-version inferred types, for each version's initial purity.
     pub types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constants, for the numeric-literal purity distinction.
@@ -303,9 +377,110 @@ pub struct CommitWalker<'a> {
     ssa: &'a SsaFunction,
     types: &'a HashMap<ValueKey, TypeLattice>,
     values: &'a HashMap<ValueKey, LatticeValue>,
+    block: BlockId,
+    index: usize,
+}
+
+/// Conversion-cost advice reconciled with the exact captured read. This is
+/// neither a constant-value nor an operation-erasure proof.
+pub(super) struct RepresentationCost {
+    pub current: TclType,
+    pub commitment: CommitState,
 }
 
 impl CommitWalker<'_> {
+    /// Convert actual physical read evidence and semantic contents into one
+    /// cost projection. All detectors share this reconciliation; replayed
+    /// commitment alone cannot override a callback's current representation.
+    fn cost_at_read(
+        &self,
+        read: crate::ssa::SsaReadReference,
+        semantic: TclType,
+        expected: TclType,
+        advice: crate::ssa::SsaReadRepresentationAdvice,
+    ) -> Option<RepresentationCost> {
+        let semantic = if advice.already_numeric {
+            advice.numeric_category.unwrap_or(TclType::Numeric)
+        } else {
+            semantic
+        };
+        let current = super::hints::representation_cost_type(
+            semantic,
+            advice.representation,
+            advice.container_alternatives,
+            expected,
+        )?;
+        let mut commitment = self
+            .state_of(read.symbol, read.version?)
+            .at_captured_representation(
+                advice.representation,
+                advice.container_alternatives,
+                advice.already_numeric,
+            );
+        if advice.already_numeric {
+            // Reused object coercions can change its subtype without changing
+            // its bytes or represented contents version. Current production
+            // therefore supersedes replay even when replay has a single type.
+            let first_span = (commitment.single_committed() == Some(semantic))
+                .then_some(commitment.first_span())
+                .flatten();
+            commitment = CommitState::committed(semantic, first_span);
+        }
+        Some(RepresentationCost {
+            current,
+            commitment,
+        })
+    }
+
+    pub(super) fn cost_for_word(
+        &self,
+        source: crate::ssa::SsaSourceView<'_>,
+        word: &crate::ir::WordExpr,
+        read: crate::ssa::SsaReadReference,
+        semantic: TclType,
+        expected: TclType,
+    ) -> Option<RepresentationCost> {
+        self.cost_at_read(
+            read,
+            semantic,
+            expected,
+            source.read_word_representation_advice(word, self.registry),
+        )
+    }
+
+    pub(super) fn cost_for_expression(
+        &self,
+        source: crate::ssa::SsaSourceView<'_>,
+        node: &ExprNode,
+        origin: ExpressionCostOrigin<'_>,
+        read: crate::ssa::SsaReadReference,
+        semantic: TclType,
+        expected: TclType,
+    ) -> Option<RepresentationCost> {
+        let advice = source.read_expression_representation_advice(
+            node,
+            origin.base,
+            origin.executed,
+            self.registry,
+        );
+        self.cost_at_read(read, semantic, expected, advice)
+    }
+
+    pub(super) fn cost_for_native_read(
+        &self,
+        source: crate::ssa::SsaSourceView<'_>,
+        read: crate::ssa::SsaReadReference,
+        semantic: TclType,
+        expected: TclType,
+    ) -> Option<RepresentationCost> {
+        self.cost_at_read(
+            read,
+            semantic,
+            expected,
+            source.native_read_representation_advice(read.symbol, self.registry),
+        )
+    }
+
     /// The numeral grammar of the release being analysed — see
     /// [`CommitCtx::numbers`].
     #[must_use]
@@ -321,6 +496,8 @@ impl CommitWalker<'_> {
         tcl_syntax::word_rules::WordValueRules::of_profile(self.registry.profile())
     }
 
+    /// Raw replay state, for transfer and commitment reporting. Detectors must
+    /// use the captured-read cost projections to reconcile physical effects.
     /// The commitment state of `(sym, ver)` at the current point — versions
     /// not yet touched start at their def's initial state ([`initial_state`]).
     #[must_use]
@@ -332,6 +509,7 @@ impl CommitWalker<'_> {
         let ctx = CommitCtx {
             registry: self.registry,
             ssa: self.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(self.ssa),
             types: self.types,
             values: self.values,
         };
@@ -343,13 +521,22 @@ impl CommitWalker<'_> {
         let ctx = CommitCtx {
             registry: self.registry,
             ssa: self.ssa,
+            source: crate::ssa::SsaSourceView::at_statement(self.ssa, self.block, self.index),
             types: self.types,
             values: self.values,
         };
+        self.index += 1;
         for read in typed_reads_of_statement(&ctx, stmt, uses) {
             apply_read(&ctx, &mut self.state, read, None);
         }
     }
+}
+
+/// Original expression extent or actually evaluated operand origins.
+#[derive(Clone, Copy)]
+pub(super) struct ExpressionCostOrigin<'a> {
+    pub base: Option<u32>,
+    pub executed: Option<&'a crate::command_binding::ExecutedExpressionSource>,
 }
 
 /// The state a version starts in at its def: pure when the producer left the
@@ -416,7 +603,7 @@ pub fn compute_commit_facts<S: std::hash::BuildHasher, E: std::hash::BuildHasher
             if !executable_blocks.contains(&block_id) {
                 continue;
             }
-            let entry = join_entry(ctx, block_id, &preds, executable_edges, &block_exit);
+            let entry = join_entry(ctx, cfg, block_id, &preds, executable_edges, &block_exit);
             let exit = transfer_block(ctx, cfg, block_id, entry.clone(), &mut use_commit_types);
             if block_entry.get(&block_id) != Some(&entry) {
                 block_entry.insert(block_id, entry);
@@ -442,6 +629,7 @@ pub fn compute_commit_facts<S: std::hash::BuildHasher, E: std::hash::BuildHasher
 /// all-paths-committed off a single committing path).
 fn join_entry<E: std::hash::BuildHasher>(
     ctx: &CommitCtx<'_>,
+    cfg: &CfgFunction,
     block_id: BlockId,
     preds: &HashMap<BlockId, HashSet<BlockId>>,
     executable_edges: &HashSet<(BlockId, BlockId), E>,
@@ -467,11 +655,21 @@ fn join_entry<E: std::hash::BuildHasher>(
     for key in keys {
         let mut acc: Option<CommitState> = None;
         for p in &exec_preds {
-            let s = block_exit
-                .get(p)
-                .and_then(|m| m.get(&key))
-                .cloned()
-                .unwrap_or_else(|| initial_state(ctx, key).unwrap_or_default());
+            let s = if cfg.exception_edges.contains(&(*p, block_id)) {
+                // Normal operand conversion promises do not describe an error
+                // partway through a command's reads. An exceptional edge can
+                // retain any prior/partially converted representation.
+                CommitState {
+                    overflowed: true,
+                    ..CommitState::default()
+                }
+            } else {
+                block_exit
+                    .get(p)
+                    .and_then(|m| m.get(&key))
+                    .cloned()
+                    .unwrap_or_else(|| initial_state(ctx, key).unwrap_or_default())
+            };
             match &mut acc {
                 None => acc = Some(s),
                 Some(a) => a.join(&s),
@@ -493,11 +691,19 @@ fn transfer_block(
     use_commit_types: &mut HashMap<ValueKey, Vec<TclType>>,
 ) -> HashMap<ValueKey, CommitState> {
     if let Some(ssa_block) = ctx.ssa.blocks.get(&block_id) {
-        for ss in &ssa_block.statements {
-            for read in typed_reads_of_statement(ctx, &ss.statement, &ss.uses) {
+        for (index, ss) in ssa_block.statements.iter().enumerate() {
+            let positioned = CommitCtx {
+                source: crate::ssa::SsaSourceView::at_statement(ctx.ssa, block_id, index),
+                ..*ctx
+            };
+            for read in typed_reads_of_statement(&positioned, &ss.statement, &ss.uses) {
                 apply_read(ctx, &mut state, read, Some(use_commit_types));
             }
         }
+        let positioned = CommitCtx {
+            source: crate::ssa::SsaSourceView::at_terminator(ctx.ssa, block_id),
+            ..*ctx
+        };
         // Branch-condition and return-expression reads live on the
         // terminator, evaluated after the block's statements with its exit
         // versions. Both must move the state for the same reason: the runtime
@@ -509,11 +715,14 @@ fn transfer_block(
             .and_then(|b| b.terminator.as_ref())
         {
             Some(Terminator::Branch {
-                condition, span, ..
+                condition,
+                span,
+                condition_base,
+                ..
             }) => {
                 let branch_span = span.unwrap_or_else(|| Span::new(0, 0));
                 for read in
-                    typed_reads_of_expr(ctx, condition, &ssa_block.exit_versions, branch_span)
+                    typed_reads_of_expr(&positioned, condition, *condition_base, branch_span)
                 {
                     apply_read(ctx, &mut state, read, Some(use_commit_types));
                 }
@@ -524,7 +733,7 @@ fn transfer_block(
                 ..
             }) => {
                 let return_span = span.unwrap_or_else(|| Span::new(0, 0));
-                for read in typed_reads_of_expr(ctx, expr, &ssa_block.exit_versions, return_span) {
+                for read in typed_reads_of_expr(&positioned, expr, None, return_span) {
                     apply_read(ctx, &mut state, read, Some(use_commit_types));
                 }
             }
@@ -546,40 +755,55 @@ fn typed_reads_of_statement(
 ) -> Vec<TypedRead> {
     let mut out = Vec::new();
     match stmt {
-        Statement::Call {
-            args,
-            foreach_groups,
-            tokens,
-            ..
-        } => {
+        Statement::Call { tokens, .. } => {
             // Tcl evaluates the words — running any `[cmd …]` in them — before
             // it invokes the outer command, so those reads land first. Without
             // them the state is stale for every later read of the same
             // variable: `puts [lindex $x 0]` converts `x` to a list just as
             // surely as a bare `lindex $x 0` does.
-            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
+            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span());
 
-            let lookup = stmt.canonical_command_or_source();
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            // `args` holds the *de-braced* word text, so a brace-quoted
-            // literal arrives spelled exactly like a live substitution.  Tcl
-            // converts nothing at such a position — `lindex {$x} 0` reads the
-            // two characters `$x` — so no commitment happens there either,
-            // and moving the state would make every later read of the same
-            // variable judge itself against an intrep the runtime never
-            // installed.
-            let inert = inert_braced_args(ctx.registry, lookup, &arg_refs, tokens.as_ref());
-            for (i, word) in args.iter().enumerate() {
+            let context = ctx
+                .registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+            let Some(invocation) = crate::registry_invocation::normal_statement_representation(
+                ctx.registry,
+                context,
+                stmt,
+            ) else {
+                return out;
+            };
+            if let Some(tokens) = tokens
+                && let Some(expression) = crate::word_subst::representation_expression_at(
+                    tokens,
+                    ctx.registry,
+                    stmt.span(),
+                )
+            {
+                out.extend(typed_reads_of_executed_expr(ctx, &expression, stmt.span()));
+                return out;
+            }
+            let argument_count = invocation.argument_count();
+
+            let inert = inert_effective_args(ctx.registry, &invocation);
+            for i in 0..argument_count {
                 if inert.contains(&i) {
                     continue;
                 }
-                let expected = if foreach_groups.is_some() {
-                    foreach_header_expected_type(ctx.registry, lookup)
-                } else {
-                    arg_shimmer_type(ctx.registry, lookup, &arg_refs, i)
-                };
-                if let Some(expected) = expected {
-                    push_var_read(ctx, &mut out, word, expected, stmt.span(), uses);
+                let expected = super::hints::invocation_shimmer_expectation(&invocation, i)
+                    .map(|hint| hint.expected);
+                if let Some(expected) = expected
+                    && let Some(word) = invocation.effective_words().words.get(i + 1)
+                {
+                    push_invocation_var_read(
+                        ctx,
+                        &mut out,
+                        (&invocation, i),
+                        word,
+                        expected,
+                        stmt.span(),
+                    );
                 }
             }
         }
@@ -589,10 +813,10 @@ fn typed_reads_of_statement(
             // lift — `set r [list [lindex $x 0]]` converts `x` to a list just
             // as `set r [lindex $x 0]` does, and the outermost `[cmd …]` is
             // only the depth-zero case of that walk.
-            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span(), uses);
+            push_lifted_reads(ctx, &mut out, tokens.as_ref(), stmt.span());
         }
         Statement::Incr { name, amount, .. } => {
-            push_var_read(
+            push_named_target_read(
                 ctx,
                 &mut out,
                 &format!("${name}"),
@@ -602,12 +826,27 @@ fn typed_reads_of_statement(
             );
             if let Some(amt) = amount.as_deref().map(str::trim)
                 && amt.starts_with('$')
+                && let Some(word) = ctx
+                    .source
+                    .source_tokens()
+                    .and_then(|tokens| tokens.words().get(2))
             {
-                push_var_read(ctx, &mut out, amt, TclType::Int, stmt.span(), uses);
+                push_var_read(ctx, &mut out, word, TclType::Int, stmt.span());
             }
         }
-        Statement::AssignExpr { expr, span, .. } | Statement::ExprEval { expr, span, .. } => {
-            out.extend(typed_reads_of_expr(ctx, expr, uses, *span));
+        Statement::AssignExpr {
+            expr,
+            span,
+            expr_base,
+            ..
+        }
+        | Statement::ExprEval {
+            expr,
+            span,
+            expr_base,
+            ..
+        } => {
+            out.extend(typed_reads_of_expr(ctx, expr, *expr_base, *span));
         }
         _ => {}
     }
@@ -629,46 +868,43 @@ fn push_lifted_reads(
     out: &mut Vec<TypedRead>,
     tokens: Option<&crate::ir::CommandTokens>,
     span: Span,
-    uses: &HashMap<Symbol, u32>,
 ) {
     let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
     for lifted in crate::word_subst::lifted_calls(tokens, config) {
-        if let Some(expr_text) = expr_substitution_body(&lifted) {
-            let expr = tcl_syntax::expr::parser::parse_expr_for_profile(
-                &expr_text,
-                ctx.registry.profile(),
-            );
-            out.extend(typed_reads_of_expr(ctx, &expr, uses, span));
+        let Some(tokens) = &lifted.tokens else {
+            continue;
+        };
+        let context = ctx
+            .registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+        let Some(invocation) = crate::registry_invocation::normal_representation_invocation(
+            ctx.registry,
+            context,
+            tokens,
+        ) else {
+            continue;
+        };
+        if let Some(expression) =
+            crate::word_subst::representation_expression_at(tokens, ctx.registry, lifted.span)
+        {
+            out.extend(typed_reads_of_executed_expr(ctx, &expression, span));
             continue;
         }
-        let arg_refs: Vec<&str> = lifted.args.iter().map(String::as_str).collect();
-        for (i, word) in lifted.args.iter().enumerate() {
-            if let Some(expected) = arg_shimmer_type(ctx.registry, &lifted.command, &arg_refs, i) {
-                push_var_read(ctx, out, word, expected, span, uses);
+        let inert = inert_effective_args(ctx.registry, &invocation);
+
+        for i in 0..invocation.argument_count() {
+            if inert.contains(&i) {
+                continue;
+            }
+            if let Some(expected) = super::hints::invocation_shimmer_expectation(&invocation, i)
+                .map(|hint| hint.expected)
+                && let Some(word) = invocation.effective_words().words.get(i + 1)
+            {
+                push_invocation_var_read(ctx, out, (&invocation, i), word, expected, span);
             }
         }
     }
-}
-
-/// The expression text of a lifted `[expr …]`, or `None` for any other
-/// command. `expr` concatenates its arguments, and the single-argument braced
-/// form is the only one whose text is a verbatim source slice, so a
-/// multi-argument `expr` is left alone rather than guessed at.
-fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<String> {
-    if lifted.command != "expr" && lifted.command != "::expr" {
-        return None;
-    }
-    let [only] = lifted.args.as_slice() else {
-        return None;
-    };
-    let trimmed = only.trim();
-    Some(
-        trimmed
-            .strip_prefix('{')
-            .and_then(|t| t.strip_suffix('}'))
-            .unwrap_or(trimmed)
-            .to_owned(),
-    )
 }
 
 /// Extract the typed operand reads of one expression AST: arithmetic /
@@ -679,18 +915,48 @@ fn expr_substitution_body(lifted: &crate::word_subst::LiftedCall) -> Option<Stri
 fn typed_reads_of_expr(
     ctx: &CommitCtx<'_>,
     node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
+    expr_base: Option<u32>,
     span: Span,
 ) -> Vec<TypedRead> {
     let mut out = Vec::new();
-    collect_expr_reads(ctx, node, uses, span, &mut out, 0);
+    collect_expr_reads(
+        ctx,
+        node,
+        ExpressionReads {
+            base: expr_base,
+            executed: None,
+        },
+        span,
+        &mut out,
+        0,
+    );
+    out
+}
+
+#[derive(Clone, Copy)]
+struct ExpressionReads<'a> {
+    base: Option<u32>,
+    executed: Option<&'a crate::command_binding::ExecutedExpressionSource>,
+}
+
+fn typed_reads_of_executed_expr(
+    ctx: &CommitCtx<'_>,
+    expression: &crate::word_subst::LiftedSourceExpression,
+    span: Span,
+) -> Vec<TypedRead> {
+    let mut out = Vec::new();
+    let reads = ExpressionReads {
+        base: expression.expression_base,
+        executed: expression.executed_source.as_ref(),
+    };
+    collect_expr_reads(ctx, &expression.expression, reads, span, &mut out, 0);
     out
 }
 
 fn collect_expr_reads(
     ctx: &CommitCtx<'_>,
     node: &ExprNode,
-    uses: &HashMap<Symbol, u32>,
+    expr_base: ExpressionReads<'_>,
     span: Span,
     out: &mut Vec<TypedRead>,
     depth: u32,
@@ -706,8 +972,8 @@ fn collect_expr_reads(
         ExprNode::Binary {
             op, left, right, ..
         } => {
-            collect_expr_reads(ctx, left, uses, span, out, depth + 1);
-            collect_expr_reads(ctx, right, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, left, expr_base, span, out, depth + 1);
+            collect_expr_reads(ctx, right, expr_base, span, out, depth + 1);
             match op {
                 BinOp::Add
                 | BinOp::Sub
@@ -720,21 +986,21 @@ fn collect_expr_reads(
                 | BinOp::BitAnd
                 | BinOp::BitOr
                 | BinOp::BitXor => {
-                    push_expr_var_read(ctx, out, left, TclType::Numeric, span, uses);
-                    push_expr_var_read(ctx, out, right, TclType::Numeric, span, uses);
+                    push_expr_var_read(ctx, out, left, TclType::Numeric, span, expr_base);
+                    push_expr_var_read(ctx, out, right, TclType::Numeric, span, expr_base);
                 }
                 BinOp::And | BinOp::Or => {
-                    push_expr_var_read(ctx, out, left, TclType::Boolean, span, uses);
-                    push_expr_var_read(ctx, out, right, TclType::Boolean, span, uses);
+                    push_expr_var_read(ctx, out, left, TclType::Boolean, span, expr_base);
+                    push_expr_var_read(ctx, out, right, TclType::Boolean, span, expr_base);
                 }
                 BinOp::In | BinOp::Ni => {
-                    push_expr_var_read(ctx, out, right, TclType::List, span, uses);
+                    push_expr_var_read(ctx, out, right, TclType::List, span, expr_base);
                 }
                 _ => {}
             }
         }
         ExprNode::Unary { operand, .. } => {
-            collect_expr_reads(ctx, operand, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, operand, expr_base, span, out, depth + 1);
         }
         ExprNode::Ternary {
             condition,
@@ -742,9 +1008,9 @@ fn collect_expr_reads(
             false_branch,
             ..
         } => {
-            collect_expr_reads(ctx, condition, uses, span, out, depth + 1);
-            collect_expr_reads(ctx, true_branch, uses, span, out, depth + 1);
-            collect_expr_reads(ctx, false_branch, uses, span, out, depth + 1);
+            collect_expr_reads(ctx, condition, expr_base, span, out, depth + 1);
+            collect_expr_reads(ctx, true_branch, expr_base, span, out, depth + 1);
+            collect_expr_reads(ctx, false_branch, expr_base, span, out, depth + 1);
         }
         _ => {}
     }
@@ -753,7 +1019,7 @@ fn collect_expr_reads(
 /// Push a typed read for a `$var` argument word, resolving its SSA use
 /// version; non-variable words (literals, substitutions) commit nothing here —
 /// their values are not tracked variables.
-fn push_var_read(
+fn push_named_target_read(
     ctx: &CommitCtx<'_>,
     out: &mut Vec<TypedRead>,
     word: &str,
@@ -766,7 +1032,7 @@ fn push_var_read(
         return;
     }
     let var = normalise_var_name(stripped);
-    let Some(sym) = ctx.ssa.var_symbol(var) else {
+    let Some(sym) = ctx.source.symbol(var) else {
         return;
     };
     let Some(&ver) = uses.get(&sym) else {
@@ -783,24 +1049,72 @@ fn push_var_read(
     });
 }
 
-/// Push a typed read for an expression `Var` leaf.
+/// Push a retained word read using the actual reference's cell and version.
+fn push_invocation_var_read(
+    ctx: &CommitCtx<'_>,
+    out: &mut Vec<TypedRead>,
+    selected: (
+        &crate::registry_invocation::NormalRepresentationInvocation,
+        usize,
+    ),
+    word: &crate::ir::WordExpr,
+    expected: TclType,
+    span: Span,
+) {
+    if !super::hints::operand_preserves_captured_cache(
+        selected.0,
+        selected.1,
+        ctx.source
+            .read_word_representation_advice(word, ctx.registry),
+    ) {
+        push_var_read(ctx, out, word, expected, span);
+    }
+}
+
+/// Push an operation's actual conversion using the retained cell and version.
+fn push_var_read(
+    ctx: &CommitCtx<'_>,
+    out: &mut Vec<TypedRead>,
+    word: &crate::ir::WordExpr,
+    expected: TclType,
+    span: Span,
+) {
+    if let Some(read) = ctx.source.read_word(word) {
+        push_positioned_read(out, read, expected, span);
+    }
+}
+
+fn push_positioned_read(
+    out: &mut Vec<TypedRead>,
+    read: crate::ssa::SsaReadReference,
+    expected: TclType,
+    span: Span,
+) {
+    if let Some(ver) = read.version.filter(|ver| *ver != 0) {
+        out.push(TypedRead {
+            sym: read.symbol,
+            ver,
+            expected,
+            span,
+        });
+    }
+}
+
+/// Push a native expression read at the parser's original source base.
 fn push_expr_var_read(
     ctx: &CommitCtx<'_>,
     out: &mut Vec<TypedRead>,
     node: &ExprNode,
     expected: TclType,
     span: Span,
-    uses: &HashMap<Symbol, u32>,
+    expr_base: ExpressionReads<'_>,
 ) {
-    if let ExprNode::Var { name, .. } = node {
-        push_var_read(
-            ctx,
-            out,
-            &format!("${}", name.trim_start_matches('$')),
-            expected,
-            span,
-            uses,
-        );
+    let read = match expr_base.executed {
+        Some(source) => ctx.source.read_executed_expression_variable(node, source),
+        None => ctx.source.read_expression_variable(node, expr_base.base),
+    };
+    if let Some(read) = read {
+        push_positioned_read(out, read, expected, span);
     }
 }
 
@@ -814,6 +1128,71 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    /// Real callback coercion can leave equal bytes in the same SSA version
+    /// with a different intrep. Closed cost alternatives must also never
+    /// recover an every-path commitment from that earlier use.
+    #[test]
+    fn captured_physical_representation_supersedes_replayed_commitment() {
+        use tcl_syntax::value::ValueRepresentation;
+        let old_span = Span::new(0, 4);
+        let earlier = CommitState::committed(TclType::Dict, Some(old_span));
+        let current = earlier.clone().at_captured_representation(
+            Some(ValueRepresentation::List),
+            None,
+            false,
+        );
+        assert_eq!(current.single_committed(), Some(TclType::List));
+        assert!(!current.must_pay(TclType::List));
+        assert_eq!(current.first_span(), None);
+        let pure = earlier.clone().at_captured_representation(
+            Some(ValueRepresentation::String),
+            None,
+            false,
+        );
+        assert_eq!(pure, CommitState::pure());
+        let alternatives =
+            crate::native_numeric::ClosedContainerRepresentations::of(ValueRepresentation::List)
+                .unwrap()
+                .joined(
+                    crate::native_numeric::ClosedContainerRepresentations::of(
+                        ValueRepresentation::Dict,
+                    )
+                    .unwrap(),
+                );
+        let possible = earlier
+            .clone()
+            .at_captured_representation(None, Some(alternatives), false);
+        assert_eq!(possible.may_types(), &[TclType::List, TclType::Dict]);
+        assert!(!possible.must_pay(TclType::Int));
+        assert_eq!(possible.single_committed(), None);
+        assert_eq!(possible.first_span(), None);
+        let unknown = earlier.at_captured_representation(None, None, false);
+        assert!(!unknown.must_pay(TclType::List));
+        assert!(unknown.may_types().is_empty());
+    }
+
+    #[test]
+    fn numeric_commitment_is_separate_from_unknown_container_projection() {
+        let numeric = CommitState::committed(TclType::Double, None);
+        assert_eq!(
+            numeric.clone().at_captured_representation(None, None, true),
+            numeric
+        );
+        assert_eq!(
+            numeric.clone().at_captured_representation(
+                Some(tcl_syntax::value::ValueRepresentation::String),
+                None,
+                false,
+            ),
+            CommitState::pure()
+        );
+        assert!(
+            !numeric
+                .at_captured_representation(None, None, false)
+                .must_pay(TclType::List)
+        );
+    }
+
     fn facts_for<'a>(
         cu: &'a CompilationUnit,
         registry: &'a CommandRegistry,
@@ -823,6 +1202,7 @@ mod tests {
         let ctx = CommitCtx {
             registry,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -853,6 +1233,7 @@ mod tests {
         let ctx = CommitCtx {
             registry: &r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -868,8 +1249,7 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let uses: HashMap<Symbol, u32> = HashMap::new();
-        let _ = typed_reads_of_expr(&ctx, &node, &uses, Span::new(0, 1));
+        let _ = typed_reads_of_expr(&ctx, &node, None, Span::new(0, 1));
     }
 
     /// A read the committed representation already satisfies must not replace
@@ -900,6 +1280,36 @@ mod tests {
         assert_eq!(state.single_committed(), Some(TclType::List));
     }
 
+    #[test]
+    fn exceptional_edge_does_not_inherit_normal_conversion_promise() {
+        let r = registry();
+        let cu = CompilationUnit::build_for("set v 5", &r, false);
+        let fu = cu.function("::top").unwrap();
+        let ctx = CommitCtx {
+            registry: &r,
+            ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        let key = (fu.ssa.var_symbol("v").unwrap(), 1);
+        let source = fu.cfg.entry;
+        let target = BlockId(99);
+        let predecessors = HashMap::from([(target, HashSet::from([source]))]);
+        let executable = HashSet::from([(source, target)]);
+        let exits = HashMap::from([(
+            source,
+            HashMap::from([(key, CommitState::committed(TclType::List, None))]),
+        )]);
+        let mut cfg = fu.cfg.clone();
+        let normal = join_entry(&ctx, &cfg, target, &predecessors, &executable, &exits);
+        assert_eq!(normal[&key].single_committed(), Some(TclType::List));
+        cfg.exception_edges.push((source, target));
+        let exceptional = join_entry(&ctx, &cfg, target, &predecessors, &executable, &exits);
+        assert_eq!(exceptional[&key].single_committed(), None);
+        assert!(!exceptional[&key].must_pay(TclType::Dict));
+    }
+
     /// Straight-line: `expr` commits Numeric; the state at the following
     /// statement must-pays a List read (the classic second-conversion FN).
     #[test]
@@ -910,6 +1320,7 @@ mod tests {
         let ctx = CommitCtx {
             registry: &r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -941,25 +1352,30 @@ mod tests {
     /// pays on only one (stays silent).
     #[test]
     fn merge_of_two_commitments_is_must_only_off_both() {
-        let r = registry();
-        let src = "proc f {c} {\n  set a {1 2}\n  if {$c} { expr {$a + 1} } else { llength $a }\n  dict size $a\n}\n";
-        let cu = CompilationUnit::build_for(src, &r, false);
-        let (facts, fu) = facts_for(&cu, &r, "::f");
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let r = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        // One numeric element reaches the merge from both arms. A two-element
+        // value makes the arithmetic arm error before the following read.
+        let src = "proc f {c} {\n  set a {1}\n  if {$c} { expr {$a + 1} } else { llength $a }\n  dict size $a\n}\n";
+        let cu = CompilationUnit::build_for_profile(src, r, false, profile);
+        let (facts, fu) = facts_for(&cu, r, "::f");
         let ctx = CommitCtx {
-            registry: &r,
+            registry: r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
-        let sym = fu.ssa.var_symbol("a").unwrap();
         // Find the block holding the `dict size` call and replay to it.
         for (&bid, ssa_block) in &fu.ssa.blocks {
             let mut walker = facts.walker(&ctx, bid);
-            for ss in &ssa_block.statements {
+            for (index, ss) in ssa_block.statements.iter().enumerate() {
                 if let Statement::Call { command, args, .. } = &ss.statement
                     && command == "dict"
                     && args.first().map(String::as_str) == Some("size")
                 {
+                    let source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, bid, index);
+                    let sym = source.symbol("a").unwrap();
                     let ver = ss.uses[&sym];
                     let state = walker.state_of(sym, ver);
                     assert!(
@@ -978,6 +1394,149 @@ mod tests {
         panic!("dict size statement not found");
     }
 
+    #[test]
+    fn current_numeric_category_supersedes_semantic_labels_and_replay() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let r = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        // The reached increment creates the numeric store. A constant
+        // expression may instead return a shared compiler-pool object.
+        let src = "set x 0; incr x; llength $x";
+        let last_read = u32::try_from(src.rfind("llength").unwrap()).unwrap();
+        let cu = CompilationUnit::build_for_profile(src, r, false, profile);
+        let (facts, fu) = facts_for(&cu, r, "::top");
+        let ctx = CommitCtx {
+            registry: r,
+            ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        for (&block, body) in &fu.ssa.blocks {
+            let mut walker = facts.walker(&ctx, block);
+            for (index, statement) in body.statements.iter().enumerate() {
+                if statement.statement.span().start() == last_read {
+                    let source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                    let word = &statement.statement.tokens().unwrap().words()[1];
+                    let read = source.read_word(word).expect("original numeric read");
+                    // Neither an incompatible contents label nor an older
+                    // replayed subtype may replace the current native object.
+                    walker.state.insert(
+                        (read.symbol, read.version.unwrap()),
+                        CommitState::committed(TclType::Double, None),
+                    );
+                    let cost = walker
+                        .cost_for_word(source, word, read, TclType::Double, TclType::List)
+                        .expect("current native integer representation");
+                    assert_eq!(cost.current, TclType::Int);
+                    assert_eq!(cost.commitment.single_committed(), Some(TclType::Int));
+                    assert!(cost.commitment.must_pay(TclType::List));
+                    return;
+                }
+                walker.step(&statement.statement, &statement.uses);
+            }
+        }
+        panic!("original numeric read not found");
+    }
+
+    #[test]
+    fn selected_length_replay_preserves_only_the_actual_native_numeric_cache() {
+        let source = "set x 0; incr x; llength $x; incr x";
+        let last = u32::try_from(source.rfind("incr").unwrap()).unwrap();
+        for name in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let unit = CompilationUnit::build_for_profile(source, registry, false, profile);
+            let (facts, function) = facts_for(&unit, registry, "::top");
+            let context = CommitCtx {
+                registry,
+                ssa: &function.ssa,
+                source: crate::ssa::SsaSourceView::unpositioned(&function.ssa),
+                types: &function.types,
+                values: &function.sccp.values,
+            };
+            let mut found = false;
+            for (&block, body) in &function.ssa.blocks {
+                let mut walker = facts.walker(&context, block);
+                for (index, statement) in body.statements.iter().enumerate() {
+                    if statement.statement.span().start() == last {
+                        let point =
+                            crate::ssa::SsaSourceView::at_statement(&function.ssa, block, index);
+                        let read = point
+                            .reaching_binding("x", registry)
+                            .expect("original increment binding");
+                        assert_eq!(
+                            walker
+                                .state_of(read.symbol, read.version.unwrap())
+                                .single_committed(),
+                            Some(if name == "tcl8.6" {
+                                TclType::List
+                            } else {
+                                TclType::Int
+                            }),
+                            "{name}"
+                        );
+                        found = true;
+                    }
+                    walker.step(&statement.statement, &statement.uses);
+                }
+            }
+            assert!(found, "original increment must be retained: {name}");
+        }
+    }
+
+    #[test]
+    fn an_erroring_conversion_arm_cannot_commit_the_normal_merge() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let r = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        // An actual two-element native list supplies independent physical
+        // representation evidence; its arithmetic conversion still errors.
+        let src = "proc f {c} {\n set a [list 1 2]\n\
+                   if {$c} {expr {$a + 1}} else {llength $a}\n llength $a\n}";
+        let last_read = u32::try_from(src.rfind("llength").unwrap()).unwrap();
+        let cu = CompilationUnit::build_for_profile(src, r, false, profile);
+        let (facts, fu) = facts_for(&cu, r, "::f");
+        let ctx = CommitCtx {
+            registry: r,
+            ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
+            types: &fu.types,
+            values: &fu.sccp.values,
+        };
+        for (&block, body) in &fu.ssa.blocks {
+            let mut walker = facts.walker(&ctx, block);
+            for (index, statement) in body.statements.iter().enumerate() {
+                if statement.statement.span().start() == last_read
+                    && matches!(&statement.statement, Statement::Call { command, .. } if command == "llength")
+                {
+                    let source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                    let word = &statement
+                        .statement
+                        .tokens()
+                        .expect("original command")
+                        .words()[1];
+                    let read = source.read_word(word).expect("captured normal a read");
+                    // CFG replay conservatively keeps the erroring arm. Cost
+                    // advice must reconcile it with this actually reached read.
+                    let cost = walker
+                        .cost_for_word(source, word, read, TclType::String, TclType::List)
+                        .expect("normal list read has current representation advice");
+                    let state = cost.commitment;
+                    assert_eq!(cost.current, TclType::List);
+                    assert_eq!(
+                        state.single_committed(),
+                        Some(TclType::List),
+                        "only the successful list conversion reaches this read: {state:?}"
+                    );
+                    assert!(!state.must_pay(TclType::List));
+                    return;
+                }
+                walker.step(&statement.statement, &statement.uses);
+            }
+        }
+        panic!("normal merge list read not found");
+    }
+
     /// Def-site pushback: a pure literal whose only typed read is a List read
     /// resolves to `List` in the single-commitments map.
     #[test]
@@ -988,6 +1547,7 @@ mod tests {
         let ctx = CommitCtx {
             registry: &r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -1010,6 +1570,7 @@ mod tests {
         let ctx = CommitCtx {
             registry: &r,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };

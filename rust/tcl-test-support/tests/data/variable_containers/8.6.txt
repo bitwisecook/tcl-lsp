@@ -1,0 +1,10 @@
+1 {can't read "a": variable is array}
+1 {can't set "a": variable is array} 1
+1 {can't set "a(k)": variable isn't array} 0
+1 {can't read "a": variable is array} 0
+1 {can't set "root": variable is array} 1
+0 0 0
+1
+1 {can't set "a(other)": variable isn't array} 1 {can't read "a(k)": variable isn't array}
+1 NEW 0 1 {can't read "blocked": variable is array}
+1 {can't set "root": variable is array} 1

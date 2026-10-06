@@ -128,6 +128,19 @@ pub(crate) fn invocation_facts_from_tokens(
     }
 }
 
+/// Caller-frame hazard property of an independently proved normal handler.
+/// Compiler selection and opcode capability do not change this classification.
+pub(crate) fn normal_handler_is_frameless(
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> bool {
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    crate::registry_invocation::normal_statement_representation(registry, context, statement)
+        .is_some_and(|invocation| invocation.is_frameless_runtime())
+}
+
 /// True if *arg* is a plain identifier, not a substituted ref.
 /// Applies the same "starts with `$` or `[`" filter used throughout
 /// the memory-SSA alias detectors.
@@ -407,7 +420,7 @@ mod tests {
     fn scan_value_dynamic_info_exists_is_pessimistic() {
         let (pess, names) = scan_value_for_info_hazards("[info exists $dyn]");
         assert!(pess);
-        assert!(names.is_empty());
+        assert_eq!(names, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -424,17 +437,17 @@ mod tests {
     fn scan_value_safe_info_does_not_escape() {
         let (pess, names) = scan_value_for_info_hazards("[info patchlevel]");
         assert!(!pess);
-        assert!(names.is_empty());
+        assert_eq!(names, [] as [std::string::String; 0]);
     }
 
     #[test]
     fn scan_value_no_info_means_no_hazard() {
         let (pess, names) = scan_value_for_info_hazards("plain text");
         assert!(!pess);
-        assert!(names.is_empty());
+        assert_eq!(names, [] as [std::string::String; 0]);
         let (pess, names) = scan_value_for_info_hazards("[other_cmd arg]");
         assert!(!pess);
-        assert!(names.is_empty());
+        assert_eq!(names, [] as [std::string::String; 0]);
     }
 
     #[test]

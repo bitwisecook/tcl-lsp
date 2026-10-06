@@ -60,7 +60,7 @@ const OPT_NOCASE: usize = 8;
 const OPT_REAL: usize = 9;
 const OPT_STRIDE: usize = 10;
 const OPT_UNIQUE: usize = 11;
-const OPT_NAMES: [&str; 12] = [
+static OPT_NAMES: [&str; 12] = [
     "-ascii",
     "-command",
     "-decreasing",
@@ -74,16 +74,34 @@ const OPT_NAMES: [&str; 12] = [
     "-stride",
     "-unique",
 ];
-const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
+static OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
 
-/// An `lsort` failure (message-only — `lsort` sets no `errorCode`).
+/// An `lsort` failure retaining selected native guest error metadata.
 pub struct LsortError {
     pub message: Vec<u8>,
+    /// Complete selected guest error metadata, when supplied by a shared owner.
+    pub command_error: Option<crate::CmdError>,
+    /// Operational Unicode refusal; adapters must bypass guest completion.
+    pub native_access_refusal: Option<tcl_syntax::raw_string::NativeValueAccessRefusal>,
 }
 
 impl LsortError {
+    fn from_command(error: crate::CmdError) -> Self {
+        let native_access_refusal = error.native_access_refusal();
+        let message = error.message_bytes().to_vec();
+        Self {
+            message,
+            command_error: Some(error),
+            native_access_refusal,
+        }
+    }
+
     fn msg(m: impl Into<Vec<u8>>) -> Self {
-        Self { message: m.into() }
+        Self {
+            message: m.into(),
+            command_error: None,
+            native_access_refusal: None,
+        }
     }
 }
 
@@ -150,8 +168,10 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let last = args.len() - 1; // the list
     let mut i = 0;
     while i < last {
-        let opt = ops.as_bytes(&args[i]);
-        match OPTIONS.index_of(&opt).map_err(LsortError::msg)? {
+        match OPTIONS
+            .index_of_original(ops, &args[i])
+            .map_err(LsortError::from_command)?
+        {
             OPT_ASCII => mode = SortMode::Ascii,
             OPT_DICTIONARY => mode = SortMode::Dictionary,
             OPT_INTEGER => mode = SortMode::Integer,
@@ -195,7 +215,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
 
     let elems = ops
         .list_elements(&args[last])
-        .map_err(|e| LsortError::msg(e.message()))?;
+        .map_err(|e| LsortError::from_command(e.into()))?;
     let len = elems.len();
     if len == 0 {
         return Ok(Lsort::Done(ops.new_list(Vec::new())));
@@ -212,7 +232,8 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
             ));
         }
         if !index_path.is_empty() {
-            match index::resolve_opt(&String::from_utf8_lossy(&index_path[0]), group) {
+            match index::resolve_for_ops(ops, &String::from_utf8_lossy(&index_path[0]), group).ok()
+            {
                 Some(g) if g >= 0 && (g as usize) < group => group_offset = g as usize,
                 _ => {
                     return Err(LsortError::msg(
@@ -232,7 +253,7 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
         for l in 0..logical {
             let base = l * group;
             let key = index::drill(ops, &elems[base + group_offset], key_path)
-                .map_err(LsortError::msg)?;
+                .map_err(LsortError::from_command)?;
             items.push((base, key));
         }
         return Ok(Lsort::Command(CommandJob {
@@ -250,8 +271,8 @@ pub fn prepare<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<Lsort<O::V
     let mut items: Vec<(usize, Vec<u8>)> = Vec::with_capacity(logical);
     for l in 0..logical {
         let base = l * group;
-        let key =
-            index::drill(ops, &elems[base + group_offset], key_path).map_err(LsortError::msg)?;
+        let key = index::drill(ops, &elems[base + group_offset], key_path)
+            .map_err(LsortError::from_command)?;
         items.push((base, ops.as_bytes(&key).to_vec()));
     }
     // Validate numeric keys up front (Tcl errors on the first non-number).

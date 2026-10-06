@@ -1,0 +1,191 @@
+{
+  "native_source": "Tcl8.5.19 generic/tclCompCmds.c TclCompileNamespaceCmd and LocalScalarFromToken",
+  "manifest": {
+    "purpose": "native C8.5 namespace upvar compiler accepted/declined geometry; external read-only design evidence",
+    "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+    "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+    "cases": [
+      {
+        "name": "simple",
+        "body": "namespace upvar ::N x local",
+        "source_sha256": "b7ae3f411718e42d3a649aca6f872b0fc27700283ba1924b3e753f854acffebd",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "fa55e1e7560855749c7fbaa0577f5476986a3c582277004071936fb9bc73d665"
+      },
+      {
+        "name": "namespace-child",
+        "body": "namespace upvar [set ns ::N] x local",
+        "source_sha256": "d62d4448609ad9797d74d87645019db1d40ce4224bb1cbad1d3b86ecad0c0d92",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "c8f14384da4697e257440888761b94bcbf3d539ec87876774918cf6e6f7a1cc9"
+      },
+      {
+        "name": "other-child",
+        "body": "namespace upvar ::N [set other x] local",
+        "source_sha256": "0dde4aab88a6654ef8e5c9c7a732bec4cfcb83c8ed8ddc38b2832debf0710d97",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "c45b448c02a58a1e8342b1444b633b48296b17751db303be78ac74d22c9dae6c"
+      },
+      {
+        "name": "ordered-pairs",
+        "body": "namespace upvar [set ns ::N] [set a x] left [set b y] right",
+        "source_sha256": "4800760d8278ba20dde49b17aa3dda78b7e588caf6ff3bd0544c0d9847e18a85",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "1d37b1c6d8354413ddb8c54883ee1d800f57769359a58824048d8e6648190815"
+      },
+      {
+        "name": "quoted-local",
+        "body": "namespace upvar ::N x \"local\"",
+        "source_sha256": "ecc8a730f08dfbbef463953977735e8b1bc1606ef968966f00c6e2b805452ebd",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "96e9530646b2953de6c0692ca6e077a3f7c246c42bb41ff3e903868774312f4a"
+      },
+      {
+        "name": "braced-local",
+        "body": "namespace upvar ::N x {local}",
+        "source_sha256": "2ce17ba94961595a5308049eab5c17cb183f5f808cd2ccaaa61b48abc04b83da",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "174fce20e0f573f801414d20a187953a2f5b554a657a07d2ee32945677d16e3e"
+      },
+      {
+        "name": "escaped-local",
+        "body": "namespace upvar ::N x lo\\x63al",
+        "source_sha256": "da11839b221c86ba128a959d1ad0f08541274938b23737abfda0779d4abee1b8",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "ed49bc08168749071e4da1b7194337f83edf7faab921a3fc18f422dd378c1daf"
+      },
+      {
+        "name": "empty-local",
+        "body": "namespace upvar ::N x {}",
+        "source_sha256": "cd11a138a69d7ecaea741a83644d23827edc5f357e2fc88efc060588127aaf38",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "7966d324fab1831030371c37f290ded1de1fe76870a46fe3c0ada805bebb1336"
+      },
+      {
+        "name": "array-local",
+        "body": "namespace upvar ::N x a(k)",
+        "source_sha256": "4eb0cda65bd5858c302f3d8a6d8ccb547aaae91bc4a5029dcaf952b10399d646",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "f9f8bd754c91caabbe4c3b8efef1179ed98a8aecc86b38c7519b83053418fdf3"
+      },
+      {
+        "name": "qualified-local",
+        "body": "namespace upvar ::N x ::local",
+        "source_sha256": "bab18f1d3bd48b365c34dce5afa4139b63eb4953603f0f0d4dbdcdf786c46f92",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "045f5f91b98f2d14653b9354da346b36c11823974caac01e8a32e4b775ad0d58"
+      },
+      {
+        "name": "partial-array",
+        "body": "namespace upvar [set ns ::N] [set a x] good [set b y] bad(k)",
+        "source_sha256": "fa9c36a9bc2a06db0621be19f4d4f5a687ee12c9a09210f503fdf27ee7a3d495",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "3b3c55e585c49f9dea0699b157baca3268dd76b42577e56d4271c50da834de64"
+      },
+      {
+        "name": "partial-dynamic",
+        "body": "namespace upvar [set ns ::N] [set a x] good [set b y] $local",
+        "source_sha256": "7dfd1910e3981b7a1ea57af1f45599510a037c49d55ad05753b66761bceb6a7f",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "8d32b3568a8fb93873ae5d098ccdcc5475aa8ceb577ef4a1982f7468fcf51059"
+      },
+      {
+        "name": "braced-subcommand",
+        "body": "namespace {upvar} ::N x local",
+        "source_sha256": "23e3572c37caceb1f77a6ef92e106a2955fe9c167903d47babcd333231e2949e",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "0245850bc7677e4628a8436975d7ae87d1da39be4d3ea91198a8a8e96232f5e4"
+      },
+      {
+        "name": "literal-expansion",
+        "body": "namespace {*}{upvar ::N x local}",
+        "source_sha256": "88a0cd7762cc662a94ab1be56a32b73a05fa1bcb9e16e796bb7cd86ee54e48dd",
+        "exit": 0,
+        "nsupvar": true,
+        "log_sha256": "7aa6f15db02c7e8cf208a668935ac893afb9d04c7779f049beb5ba9f8b3c9e44"
+      },
+      {
+        "name": "dynamic-expansion",
+        "body": "namespace upvar ::N {*}$pairs",
+        "source_sha256": "c012ff33364b6020770b23d417193a5a63c5d5278c5a8c7956693d13f5dcc818",
+        "exit": 0,
+        "nsupvar": false,
+        "log_sha256": "339dec23a508288b50c2d5ecdcec64598a8ae3d0bf88e6e5857f8d8fd4c54d90"
+      }
+    ]
+  },
+  "execution": {
+    "purpose": "Actual C85 namespace upvar alias/error/original namespace incarnation execution",
+    "cases": [
+      {
+        "name": "simple-result",
+        "body": "namespace upvar ::N x local; set local",
+        "exit": 0,
+        "output": "0 58\nvisited 0\n",
+        "source_sha256": "1135000d53b42389333a6e1cff643aa9a734e9b77ae23d84dd5f56774d65771b"
+      },
+      {
+        "name": "original-namespace",
+        "body": "namespace upvar [set ns ::N] [set name x] local; set local",
+        "exit": 0,
+        "output": "0 58\nvisited 0\n",
+        "source_sha256": "0ebd24416c5f6c65d5c0ce807be14113757789d0672c5aac3a6b88a6d94534d3"
+      },
+      {
+        "name": "multiple-pairs",
+        "body": "namespace upvar ::N x first y second; list $first $second",
+        "exit": 0,
+        "output": "0 582059\nvisited 0\n",
+        "source_sha256": "90ab4b00b82942c824844c982ea773c7ac2059dd145392c1f5e532daed7c340f"
+      },
+      {
+        "name": "empty-local",
+        "body": "namespace upvar ::N x {}; set {}",
+        "exit": 0,
+        "output": "0 58\nvisited 0\n",
+        "source_sha256": "c1d746ce01a7ff6c46ad6b43327aff53ce33dd77785278461aa80094278d32d4"
+      },
+      {
+        "name": "recreated-namespace",
+        "body": "namespace upvar ::N x first [namespace delete ::N; namespace eval ::N {variable y NEW}; set name y] second; set second",
+        "exit": 0,
+        "output": "0 4e4557\nvisited 0\n",
+        "source_sha256": "e79968bbc89ba9a2cc610d51c5cc56457fa9f3748e4b84345e45c40996bcc760"
+      },
+      {
+        "name": "defined-local",
+        "body": "set local BEFORE; namespace upvar ::N x local",
+        "exit": 0,
+        "output": "1 7661726961626c6520226c6f63616c2220616c726561647920657869737473\nvisited 0\n",
+        "source_sha256": "9f82a98b453f272229cb31bfca4eea3dd97cb580188997324260d46a03b64121"
+      },
+      {
+        "name": "array-local-generic",
+        "body": "namespace upvar ::N x a(k)",
+        "exit": 0,
+        "output": "1 626164207661726961626c65206e616d65202261286b29223a2063616e2774206372656174652061207363616c6172207661726961626c652074686174206c6f6f6b73206c696b6520616e20617272617920656c656d656e74\nvisited 0\n",
+        "source_sha256": "defddaff9cc81e50629efadb08e0c8744dbe2a98fc6024998eebda2393f3da5a"
+      },
+      {
+        "name": "missing-namespace-after-target",
+        "body": "namespace upvar ::MISSING [set ::visited YES; set name x] local",
+        "exit": 0,
+        "output": "1 6e616d65737061636520223a3a4d495353494e4722206e6f7420666f756e64\nvisited 1\n",
+        "source_sha256": "0c25c16b15d1a70bbe3aa58967e27ed178cb6483f418fa202b541d395f40072a"
+      }
+    ]
+  }
+}

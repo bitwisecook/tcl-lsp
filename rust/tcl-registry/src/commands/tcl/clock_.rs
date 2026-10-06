@@ -290,6 +290,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock add timeVal ?count unit ...?",
         return_type: Some(TclType::Int),
         options: ADD_OPTIONS,
+        option_prefix_words: 1,
         // `timeVal` is index 0; each `count unit` pair follows as
         // (integer, unit-word), so the enumerable `unit` words land at
         // 2, 4, 6, and 8 — not at the `count` slots (1, 3, 5, 7).
@@ -318,6 +319,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Format a time value.",
         synopsis: "clock format timeVal ?-option value ...?",
         options: FORMAT_OPTIONS,
+        option_prefix_words: 1,
         // Populates the `format_string_type` field: the
         // family of this call's format string. Paired with the
         // `FormatString` / `ScanFormat` argument role that locates the
@@ -370,6 +372,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "clock scan inputString ?-option value ...?",
         return_type: Some(TclType::Int),
         options: SCAN_OPTIONS,
+        option_prefix_words: 1,
         // Populates the `format_string_type` field: the
         // family of this call's format string. Paired with the
         // `FormatString` / `ScanFormat` argument role that locates the
@@ -463,6 +466,14 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),

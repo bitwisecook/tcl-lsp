@@ -16,33 +16,242 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The typed-scalar read seam** — one owner for "read this `TclObj` as an
-//! integer / double / boolean", with C Tcl's exact message and error code.
+//! Physical scalar getters and expression numeric preparation on live objects.
 //!
-//! This is the runtime half of the `Tcl_Get{WideInt,Double,Boolean}FromObj`
-//! family. Three properties define it, and every consumer gets all three by
-//! coming through here rather than re-deriving one:
+//! `native_scalar_getter` owns primitive Int, Wide, Double and Boolean conversion.
+//! It selects the actual engine, inspects the original cache before string
+//! access, and applies reached cache changes even when conversion fails.
+//! Its failure retains exact bytes and the update to private interpreter state.
 //!
-//! 1. **Write-back.** A successful read caches the parsed internal rep onto the
-//!    object ([`crate::obj::may_cache_parsed_rep`] owns the policy, which is C's:
-//!    convert in place, keep the string rep). A loop reading the same variable
-//!    parses its spelling once, not once per iteration.
-//! 2. **The boolean words come from one table.** Boolean acceptance is
-//!    [`tcl_syntax::boolean`]'s — the shared owner named in the semantic owner
-//!    map — so `tru`, `ye`, `of` and the ambiguous `o` behave identically
-//!    everywhere in the runtime instead of in as many private `match` arms as
-//!    there are call sites.
-//! 3. **The failure text is C's**, including the `a list` rendering
-//!    ([`tcl_syntax::list::describe_bad_value`], `tclStrToD.c`'s `formaterr`)
-//!    and the `-errorcode` the same site sets.
-//!
-//! `boolean` implements the **boolean-context** acceptor
-//! ([`tcl_syntax::boolean::truthiness`]): a boolean word, else any number
-//! compared against zero. That is `Tcl_GetBooleanFromObj`, the acceptor behind
-//! `if`, `while`, and `expr`'s `?:`/`&&`/`||`/`!` — not the stricter
-//! `string is boolean` one.
+//! Expression numeric truth and arithmetic preparation use separate entry
+//! points. Their conversion purposes cannot borrow primitive getter behaviour.
 
 use crate::obj::{self, TclObj};
+
+/// Inspect the original completion-code cache, retaining its engine-specific kind.
+pub(crate) fn completion_code_cache(
+    value: *mut TclObj,
+) -> Option<tcl_cmd_core::return_options::CompletionCodeCache> {
+    obj::completion_code_cache(value)
+}
+
+/// Install the selected completion getter's original-object cache effect.
+pub(crate) fn adopt_completion_code_cache(
+    value: *mut TclObj,
+    cache: tcl_cmd_core::return_options::CompletionCodeCache,
+) -> Result<(), tcl_syntax::value::ValueError> {
+    obj::adopt_completion_code_cache(value, cache)
+}
+
+/// Obtain an original completion operand's available native spelling.
+/// Jim's stringless return-code representation has no native updater.
+pub(crate) fn completion_code_string_bytes(
+    value: *mut TclObj,
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
+    if !obj::native_string_available(value) {
+        return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "Jim return-code string updater",
+        ));
+    }
+    Ok(obj::bytes_of(value))
+}
+
+/// Reach an error-neutral native getter, retaining cache effects without
+/// rendering a failure or forcing a cached object's string representation.
+pub(crate) fn native_scalar_probe(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+) -> Result<
+    Result<
+        tcl_syntax::scalar_getter::NativeScalarGetterValue,
+        tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    >,
+    tcl_syntax::value::ValueError,
+> {
+    native_scalar_probe_with_environment(value, dialect, kind, None)
+}
+pub(crate) fn native_scalar_probe_with_environment(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<
+    Result<
+        tcl_syntax::scalar_getter::NativeScalarGetterValue,
+        tcl_syntax::scalar_getter::NativeScalarGetterFailure,
+    >,
+    tcl_syntax::value::ValueError,
+> {
+    use tcl_syntax::value::ValueError;
+    obj::check_native_liveness(value)?;
+    let protocol = dialect
+        .native_scalar_getter_protocol()
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    if obj::native_word_boolean_version(value)
+        .is_some_and(|version| Some(version) != protocol.tcl_version())
+    {
+        return Err(ValueError::ScalarNumericInputUnavailable);
+    }
+    let cache = obj::native_scalar_cache(value)?;
+    let cached = cache
+        .as_ref()
+        .and_then(|cache| protocol.cached_conversion(kind, cache));
+    let conversion = if let Some(conversion) = cached {
+        conversion
+    } else {
+        let original = crate::bytearray::scalar_getter_string(value, protocol)
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        if protocol.is_jim084()
+            && matches!(
+                kind,
+                tcl_syntax::scalar_getter::NativeScalarGetterKind::Wide
+                    | tcl_syntax::scalar_getter::NativeScalarGetterKind::Double
+            )
+        {
+            crate::native_source::context(value)
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?
+                .fresh_numeric_conversion(protocol, kind, &original)?
+        } else if let Some(environment) =
+            environment.filter(|_| protocol.tcl_version() == Some(tcl_dialect::TclVersion::V8_4))
+        {
+            tcl_cmd_core::native_numeric::fresh_c84_conversion(
+                protocol,
+                kind,
+                &original,
+                environment,
+            )?
+        } else {
+            protocol
+                .fresh_conversion(kind, &original)
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?
+        }
+    };
+    let (materialize, cache, outcome) = conversion.into_parts();
+    if materialize {
+        crate::bytearray::scalar_getter_string(value, protocol)
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    }
+    if let Some(cache) = cache {
+        obj::adopt_native_scalar_cache(value, cache, protocol)?;
+    }
+    Ok(outcome)
+}
+
+/// Probe the original C Number/Bignum primitive without guest error publication.
+/// Cache changes apply before completion; unsupported engines refuse before string access.
+pub(crate) fn native_number_probe(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeNumberGetterKind,
+) -> Result<
+    Result<tcl_syntax::number::Number, tcl_syntax::scalar_getter::NativeScalarGetterFailure>,
+    tcl_syntax::value::ValueError,
+> {
+    use tcl_syntax::value::ValueError;
+    obj::check_native_liveness(value)?;
+    let protocol = dialect
+        .native_scalar_getter_protocol()
+        .filter(|protocol| protocol.supports_number_getter())
+        .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+    if obj::native_word_boolean_version(value)
+        .is_some_and(|version| Some(version) != protocol.tcl_version())
+    {
+        return Err(ValueError::ScalarNumericInputUnavailable);
+    }
+    let current = obj::native_scalar_cache(value)?;
+    let cached = if kind == tcl_syntax::scalar_getter::NativeNumberGetterKind::IncrementNumber {
+        protocol.increment_number_preflight(
+            current.as_ref(),
+            obj::has_string_rep(value).then(|| obj::bytes_of(value).len()),
+            obj::obj_type_ptr(value).is_null(),
+        )
+    } else {
+        current
+            .as_ref()
+            .and_then(|cache| protocol.cached_number_conversion(kind, cache))
+    };
+    let conversion = if let Some(conversion) = cached {
+        conversion
+    } else {
+        let original = crate::bytearray::scalar_getter_string(value, protocol)
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        protocol
+            .fresh_number_conversion(kind, &original)
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?
+    };
+    let (cache, outcome) = conversion.into_parts();
+    if let Some(cache) = cache {
+        obj::adopt_native_scalar_cache(value, cache, protocol)?;
+    }
+    Ok(outcome)
+}
+
+/// Execute a selected physical getter and render its reached guest failure.
+/// Guest publication belongs to the consuming command adapter.
+pub(crate) fn native_scalar_getter(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
+    native_scalar_getter_with_environment(value, dialect, kind, None)
+}
+
+pub(crate) fn native_scalar_getter_with_environment(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    kind: tcl_syntax::scalar_getter::NativeScalarGetterKind,
+    environment: Option<&dyn tcl_platform::NumericEnvironment>,
+) -> Result<tcl_syntax::scalar_getter::NativeScalarGetterValue, tcl_syntax::value::ValueError> {
+    use tcl_syntax::value::ValueError;
+    match native_scalar_probe_with_environment(value, dialect, kind, environment)? {
+        Ok(result) => Ok(result),
+        Err(failure) => {
+            let protocol = dialect
+                .native_scalar_getter_protocol()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let original = crate::bytearray::scalar_getter_string(value, protocol)
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let record = protocol
+                .failure_presentation(kind, failure, &original)
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            Err(ValueError::NativeScalarGetter(Box::new(record)))
+        }
+    }
+}
+
+pub(crate) fn native_wide_int(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<i64, tcl_syntax::value::ValueError> {
+    use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
+    match native_scalar_getter(value, dialect, NativeScalarGetterKind::Wide)? {
+        NativeScalarGetterValue::Wide(integer) => Ok(integer),
+        _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
+    }
+}
+
+pub(crate) fn native_double(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<f64, tcl_syntax::value::ValueError> {
+    use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
+    match native_scalar_getter(value, dialect, NativeScalarGetterKind::Double)? {
+        NativeScalarGetterValue::Double(double) => Ok(double),
+        _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
+    }
+}
+
+pub(crate) fn native_boolean(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<bool, tcl_syntax::value::ValueError> {
+    use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
+    match native_scalar_getter(value, dialect, NativeScalarGetterKind::Boolean)? {
+        NativeScalarGetterValue::Boolean(boolean) => Ok(boolean),
+        _ => Err(tcl_syntax::value::ValueError::ScalarNumericInputUnavailable),
+    }
+}
 
 /// A failed typed read: C's interpreter result and its `-errorcode` list text.
 pub(crate) struct TypedError {
@@ -55,11 +264,21 @@ pub(crate) struct TypedError {
 impl TypedError {
     /// `expected <what> but got <value>` + `TCL VALUE NUMBER` — the error
     /// `TclParseNumber`'s `formaterr` raises for every unparsable spelling.
-    fn expected(what: &str, obj: *mut TclObj) -> Self {
+    fn expected(what: &str, obj: *mut TclObj, dialect: tcl_registry::InvocationDialect) -> Self {
         let bytes = obj::bytes_of(obj);
-        let text = String::from_utf8_lossy(&bytes);
         let mut message = format!("expected {what} but got ").into_bytes();
-        message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
+        if let Some(version) = dialect.native_string_protocol().and_then(|protocol| protocol.tcl_version())
+            .or_else(|| dialect.byte_array_string_recipe(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)).and_then(|recipe| recipe.protocol().tcl_version()))
+        {
+            message.extend_from_slice(&tcl_syntax::list::describe_bad_value_bytes_in(
+                &bytes, version, dialect.lexer_grammar.list_parse, dialect.lexer_grammar.escapes,
+            ));
+        } else {
+            // Jim's expression-specific presenter consumes the original spelling.
+            message.push(b'"');
+            message.extend_from_slice(&bytes);
+            message.push(b'"');
+        }
         TypedError {
             message,
             code: b"TCL VALUE NUMBER",
@@ -67,47 +286,144 @@ impl TypedError {
     }
 }
 
-/// Read `obj` as a Tcl wide integer — `Tcl_GetWideIntFromObj`.
-///
-/// A double-typed object is refused under C's own wording and `TCL VALUE
-/// INTEGER` code (`tclObj.c`); an integer past the wide range is C's
-/// `ARITH IOVERFLOW`; anything else unparsable is `TclParseNumber`'s
-/// `TCL VALUE NUMBER`.
-pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
-    if obj::obj_type_ptr(obj) == &obj::TCL_DOUBLE_TYPE {
-        let bytes = obj::bytes_of(obj);
-        let mut message = b"expected integer but got \"".to_vec();
-        message.extend_from_slice(&bytes);
-        message.push(b'"');
-        return Err(TypedError {
-            message,
-            code: b"TCL VALUE INTEGER",
-        });
+/// Prepare a scalar getter on its original object under the actual engine's
+/// byte boundary. This never changes the retained spelling or parses source.
+pub(crate) fn scalar_number(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+    integer_only: bool,
+) -> Result<Option<tcl_syntax::number::Number>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
+    obj::check_native_liveness(value).map_err(|error| {
+        error
+            .native_access_refusal()
+            .expect("native object lifetime refusal")
+    })?;
+    use tcl_syntax::number::{NativeScalarNumericInputPolicy, Number, ParseFlags};
+    let policy = dialect
+        .scalar_numeric_input_policy()
+        .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)?;
+    if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 && integer_only {
+        if let Some(integer) = obj::restore_jim_coerced_integer(value) {
+            return Ok(Some(Number::Int(integer)));
+        }
     }
-    read_wide_int(obj)
+    if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084
+        && obj::obj_type_ptr(value) == &obj::JIM_COERCED_DOUBLE_TYPE
+    {
+        return Ok((!integer_only).then(|| Number::Double(obj::wide_of(value) as f64)));
+    }
+    if obj::obj_type_ptr(value) == &obj::TCL_INT_TYPE {
+        return Ok(Some(Number::Int(obj::wide_of(value))));
+    }
+    if obj::obj_type_ptr(value) == &obj::TCL_LONG84_TYPE {
+        if dialect
+            .native_scalar_getter_protocol()
+            .and_then(|protocol| protocol.tcl_version())
+            != Some(tcl_dialect::TclVersion::V8_4)
+        {
+            return Err(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable,
+            );
+        }
+        return Ok(Some(Number::Int(obj::wide_of(value))));
+    }
+    if obj::obj_type_ptr(value) == &obj::TCL_DOUBLE_TYPE {
+        return Ok((!integer_only).then(|| Number::Double(obj::double_of(value))));
+    }
+    let original = obj::bytes_of(value);
+    let Some(text) = core::str::from_utf8(policy.input_bytes(&original)).ok() else {
+        return Ok(None);
+    };
+    let mut flags = ParseFlags::for_syntax(dialect.numbers);
+    flags.integer_only = integer_only;
+    let Some(parsed) = tcl_syntax::number::parse_whole_with(text.trim(), flags) else {
+        return Ok(None);
+    };
+    if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
+        use tcl_syntax::expr::mathfunc::{jim_numeric_operand, NumValue};
+        let Some(number) = jim_numeric_operand::<tcl_syntax::expr::mathfunc::NoBig>(&parsed) else {
+            return Ok(None);
+        };
+        let (number, representation) = match number {
+            NumValue::Int(integer) => (
+                Number::Int(integer),
+                obj::NativeNumericRepresentation::Wide(integer),
+            ),
+            NumValue::Float(double) => (
+                Number::Double(double),
+                obj::NativeNumericRepresentation::Double(double),
+            ),
+            NumValue::Big(uninhabited) => match uninhabited {},
+        };
+        obj::adopt_native_numeric_representation(value, representation);
+        return Ok(Some(number));
+    }
+    Ok(Some(parsed))
 }
 
-/// Read `obj` as a Tcl double — `Tcl_GetDoubleFromObj`. An integer or bignum
-/// widens; `NaN` is a value here (the boolean context is where it is an error).
-pub(crate) fn double(obj: *mut TclObj) -> Result<f64, TypedError> {
-    read_double(obj).ok_or_else(|| TypedError::expected("floating-point number", obj))
+/// Boolean words and scalar numeric conversion use the same selected byte
+/// boundary; successful numeric conversion belongs to the original object.
+pub(crate) fn boolean_in(
+    value: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<Result<bool, TypedError>, tcl_syntax::raw_string::NativeValueAccessRefusal> {
+    obj::check_native_liveness(value).map_err(|error| {
+        error
+            .native_access_refusal()
+            .expect("native object lifetime refusal")
+    })?;
+    use tcl_syntax::number::NativeScalarNumericInputPolicy;
+    let policy = dialect
+        .scalar_numeric_input_policy()
+        .ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::ScalarNumericInputUnavailable)?;
+    if policy == NativeScalarNumericInputPolicy::NulTerminatedJim084 {
+        let original = obj::bytes_of(value);
+        if let Ok(text) = core::str::from_utf8(policy.input_bytes(&original)) {
+            if let Some(boolean) = tcl_syntax::boolean::parse_boolean_word(text.trim()) {
+                return Ok(Ok(boolean));
+            }
+        }
+        if scalar_number(value, dialect, true)?.is_none() {
+            let _ = scalar_number(value, dialect, false)?;
+        }
+    }
+    if obj::has_string_rep(value)
+        && dialect
+            .native_scalar_getter_protocol()
+            .and_then(|protocol| protocol.tcl_version())
+            .is_some()
+    {
+        let bytes = obj::bytes_of(value);
+        if core::str::from_utf8(&bytes)
+            .ok()
+            .and_then(|text| tcl_syntax::boolean::parse_boolean_word(text.trim()))
+            .is_some()
+        {
+            match native_boolean(value, dialect) {
+                Ok(boolean) => return Ok(Ok(boolean)),
+                Err(error) => {
+                    if let Some(refusal) = error.native_access_refusal() {
+                        return Err(refusal);
+                    }
+                }
+            }
+        }
+    }
+    Ok(boolean(value, dialect))
 }
 
-/// Read `obj` as a Tcl boolean in **boolean context** —
-/// `Tcl_GetBooleanFromObj`, the acceptor `if`/`while`/`expr`'s logical
-/// operators use.
-///
-/// A boolean word (or unique prefix: `tru`, `ye`, `of`; the ambiguous `o` is
-/// refused) resolves to its value; otherwise any number is compared against
-/// zero, with the numeric read taking the typed rep when the object already has
-/// one and caching one when it does not. `NaN` is C's domain error, not a
-/// truthy value.
-pub(crate) fn boolean(obj: *mut TclObj) -> Result<bool, TypedError> {
+/// Numeric truth for the expression evaluator's operand adapter.
+/// Primitive command Boolean getters use `native_boolean` instead.
+pub(crate) fn boolean(
+    obj: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<bool, TypedError> {
     let bytes = obj::bytes_of(obj);
-    let text = String::from_utf8_lossy(&bytes);
+    let text = core::str::from_utf8(&bytes).ok();
     // The words first: they are release-invariant and never numeric, so this
     // never disturbs an object's rep.
-    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(text.trim()) {
+    if let Some(value) = text.and_then(|text| tcl_syntax::boolean::parse_boolean_word(text.trim()))
+    {
         return Ok(value);
     }
     match read_double(obj) {
@@ -119,37 +435,7 @@ pub(crate) fn boolean(obj: *mut TclObj) -> Result<bool, TypedError> {
         // the tower produces: a bignum is non-zero by construction, and no
         // integer rounds to zero under widening.
         Some(value) => Ok(value != 0.0),
-        None => Err(TypedError::expected("boolean value", obj)),
-    }
-}
-
-/// [`boolean`] over a raw spelling, for a caller that holds bytes rather than an
-/// object — the same shared acceptor
-/// ([`tcl_syntax::boolean::truthiness`]: a boolean word, else any number
-/// against zero), minus the write-back there is no object to perform.
-pub(crate) fn boolean_bytes(bytes: &[u8]) -> Result<bool, TypedError> {
-    let text = String::from_utf8_lossy(bytes);
-    tcl_syntax::boolean::truthiness(text.trim()).ok_or_else(|| {
-        let mut message = b"expected boolean value but got ".to_vec();
-        message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
-        TypedError {
-            message,
-            code: b"TCL VALUE NUMBER",
-        }
-    })
-}
-
-/// The wide-integer classification over the numeric tower.
-#[cfg(have_tommath)]
-fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
-    use crate::bignum::WideRead;
-    match crate::bignum::read_wide(obj) {
-        WideRead::Wide(value) => Ok(value),
-        WideRead::Overflow => Err(TypedError {
-            message: b"integer value too large to represent".to_vec(),
-            code: b"ARITH IOVERFLOW",
-        }),
-        WideRead::NotInteger | WideRead::NotNumeric => Err(TypedError::expected("integer", obj)),
+        None => Err(TypedError::expected("boolean value", obj, dialect)),
     }
 }
 
@@ -159,30 +445,7 @@ fn read_double(obj: *mut TclObj) -> Option<f64> {
     crate::bignum::read_double(obj)
 }
 
-/// Without the tower (a wasm build whose libtommath cross-compile was
-/// unavailable) the same classification runs over the shared number grammar
-/// alone: the typed reps still short-circuit, a beyond-wide integer is the same
-/// overflow, and the write-back still happens for the two reps this build has.
-#[cfg(not(have_tommath))]
-fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
-    use tcl_syntax::number::Number;
-    if obj::obj_type_ptr(obj) == &obj::TCL_INT_TYPE {
-        return Ok(obj::wide_of(obj));
-    }
-    match parse_string_rep(obj) {
-        Some(Number::Int(value)) => {
-            obj::cache_wide_rep(obj, value);
-            Ok(value)
-        }
-        Some(Number::Big { .. }) => Err(TypedError {
-            message: b"integer value too large to represent".to_vec(),
-            code: b"ARITH IOVERFLOW",
-        }),
-        _ => Err(TypedError::expected("integer", obj)),
-    }
-}
-
-/// [`read_double`] without the numeric tower — see [`read_wide_int`]'s note.
+/// Expression numeric truth without an arbitrary-precision backend.
 #[cfg(not(have_tommath))]
 fn read_double(obj: *mut TclObj) -> Option<f64> {
     use tcl_syntax::number::Number;
@@ -247,3 +510,908 @@ fn parse_string_rep(obj: *mut TclObj) -> Option<tcl_syntax::number::Number> {
     let text = core::str::from_utf8(&bytes).ok()?;
     tcl_syntax::number::parse_whole(text)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_dialect::TclVersion;
+    use tcl_syntax::scalar_getter::{
+        NativeScalarCache, NativeScalarGetterKind as Kind, NativeScalarGetterValue as Value,
+    };
+    use tcl_syntax::value::ValueError;
+
+    const VERSIONS: [TclVersion; 5] = [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ];
+
+    fn command_cache(
+        version: TclVersion,
+        name: &[u8],
+    ) -> tcl_runtime_api::native_command_name::NativeCommandNameCache {
+        use tcl_core_types::{ByteNamespacePath, NativeByteCommandSlot};
+        use tcl_runtime_api::native_command_name::{
+            NativeCommandNameCache, NativeCommandNameReference,
+        };
+        NativeCommandNameCache {
+            interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity {
+                owner: 1,
+                interpreter: 2,
+            },
+            version,
+            slot: NativeByteCommandSlot::new(ByteNamespacePath::root(), name.into()),
+            namespace_token: 3,
+            token: 4,
+            implementation_generation: 5,
+            command_epoch: 6,
+            reference: Some(NativeCommandNameReference {
+                namespace_token: 3,
+                command_reference_epoch: 7,
+            }),
+        }
+    }
+
+    #[test]
+    fn command_cache_getters_match_all_native_original_object_rows() {
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+        use tcl_syntax::value::ValueOps;
+        const INPUTS: [&[u8]; 6] = [b"1", b"1.0", b"true", b"1 2", b"1 x", b"bad"];
+        const FIXTURES: [&str; 5] = [
+            include_str!("../tests/data/native_command_cache_getters/8.4.20.tsv"),
+            include_str!("../tests/data/native_command_cache_getters/8.5.19.tsv"),
+            include_str!("../tests/data/native_command_cache_getters/8.6.18.tsv"),
+            include_str!("../tests/data/native_command_cache_getters/9.0.4.tsv"),
+            include_str!("../tests/data/native_command_cache_getters/9.1.0.tsv"),
+        ];
+        let mut rows = 0;
+        let mut unavailable = 0;
+        for (version, fixture) in VERSIONS.into_iter().zip(FIXTURES) {
+            let mut interp = crate::interp::Interp::new();
+            interp.set_runtime_version(version);
+            let dialect = interp.native_invocation_dialect();
+            for row in fixture.lines() {
+                let fields: Vec<_> = row.split('\t').collect();
+                assert_eq!(fields.len(), 8);
+                let stage: u8 = fields[0].parse().unwrap();
+                let case: usize = fields[1].parse().unwrap();
+                let value = obj::Owned::fresh(obj::new_string_bytes(INPUTS[case]));
+                let alias = value.clone();
+                let original_bytes = unsafe { (*value.as_ptr()).bytes };
+                let cache = command_cache(version, INPUTS[case]);
+                obj::install_native_command_name_cache(value.as_ptr(), cache.clone(), dialect)
+                    .unwrap();
+                assert_eq!(
+                    obj::native_command_name_cache(alias.as_ptr()),
+                    Some(cache.clone())
+                );
+                assert_eq!(
+                    obj::native_object_snapshot(value.as_ptr()).unwrap().cache,
+                    NativeObjectCacheSnapshot::CommandName {
+                        version,
+                        resolved: true
+                    }
+                );
+                assert_eq!(fields[2], "cmdName");
+                rows += 1;
+                if fields[3] == "-1" {
+                    assert_eq!((version, stage), (TclVersion::V8_4, 4));
+                    unavailable += 1;
+                    continue;
+                }
+                let result = match stage {
+                    0 => native_scalar_getter(value.as_ptr(), dialect, Kind::Wide).map(|v| {
+                        let Value::Wide(n) = v else {
+                            panic!("Wide getter return")
+                        };
+                        n
+                    }),
+                    1 => native_scalar_getter(value.as_ptr(), dialect, Kind::Double).map(|v| {
+                        let Value::Double(n) = v else {
+                            panic!("Double getter return")
+                        };
+                        n as i64
+                    }),
+                    2 => native_scalar_getter(value.as_ptr(), dialect, Kind::Boolean).map(|v| {
+                        let Value::Boolean(n) = v else {
+                            panic!("Boolean getter return")
+                        };
+                        i64::from(n)
+                    }),
+                    3 => interp.list_len(&value.as_ptr()).map(|n| n as i64),
+                    4 => crate::dict::ensure_dict_native(
+                        value.as_ptr(),
+                        dialect.native_string_protocol().unwrap(),
+                    )
+                    .map(|()| crate::dict::native_cache_size(value.as_ptr()).unwrap() as i64),
+                    5 => interp.native_char_len(&value.as_ptr()).map(|n| n as i64),
+                    _ => unreachable!(),
+                };
+                assert_eq!(
+                    result.is_ok(),
+                    fields[3] == "0",
+                    "{version:?}: {row}: {result:?}"
+                );
+                if let Ok(number) = result {
+                    assert_eq!(
+                        number,
+                        fields[4].parse::<i64>().unwrap(),
+                        "{version:?}: {row}"
+                    );
+                }
+                let observed = if version == TclVersion::V8_4
+                    && matches!(
+                        obj::native_scalar_cache(value.as_ptr()).unwrap(),
+                        Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+                            _
+                        )))
+                    ) {
+                    "wideInt"
+                } else {
+                    let descriptor = obj::obj_type_ptr(value.as_ptr());
+                    assert!(
+                        !descriptor.is_null(),
+                        "{version:?}: {row}: missing primary descriptor"
+                    );
+                    unsafe { core::ffi::CStr::from_ptr((*descriptor).name) }
+                        .to_str()
+                        .unwrap()
+                };
+                assert_eq!(observed, fields[5], "{version:?}: {row}");
+                assert_eq!(
+                    obj::native_command_name_cache(alias.as_ptr()),
+                    (fields[5] == "cmdName").then_some(cache),
+                    "{version:?}: {row}"
+                );
+                assert_eq!(obj::has_string_rep(alias.as_ptr()), fields[6] == "1");
+                assert_eq!(
+                    unsafe { (*alias.as_ptr()).bytes } == original_bytes,
+                    fields[7] == "1"
+                );
+                assert_eq!(obj::bytes_of(alias.as_ptr()), INPUTS[case]);
+            }
+        }
+        assert_eq!(rows, 180);
+        assert_eq!(unavailable, 6);
+    }
+
+    #[test]
+    fn command_cache_priming_matches_every_native_original_object_row() {
+        const FIXTURES: [&str; 5] = [
+            include_str!("../tests/data/native_command_cache_priming/8.4.20.tsv"),
+            include_str!("../tests/data/native_command_cache_priming/8.5.19.tsv"),
+            include_str!("../tests/data/native_command_cache_priming/8.6.18.tsv"),
+            include_str!("../tests/data/native_command_cache_priming/9.0.4.tsv"),
+            include_str!("../tests/data/native_command_cache_priming/9.1.0.tsv"),
+        ];
+        let mut rows = 0;
+        for (version, fixture) in VERSIONS.into_iter().zip(FIXTURES) {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let first = command_cache(version, b"A");
+            let mut second = command_cache(version, b"B");
+            second.token = 9;
+            for row in fixture.lines() {
+                let fields: Vec<_> = row.split('\t').collect();
+                assert_eq!(fields.len(), 7);
+                let case: u8 = fields[0].parse().unwrap();
+                let value = obj::Owned::fresh(if case == 2 {
+                    obj::new_wide_int_obj(7)
+                } else {
+                    obj::new_string_bytes(if case == 1 { b"MISSING" } else { b"A" })
+                });
+                let alias = value.clone();
+                // Actual name lookup obtains the original string before its cache effect.
+                let _ = obj::bytes_of(value.as_ptr());
+                match case {
+                    0 => obj::install_native_command_name_cache(
+                        value.as_ptr(),
+                        first.clone(),
+                        dialect,
+                    )
+                    .unwrap(),
+                    1 | 2 => {
+                        obj::install_unresolved_native_command_name_cache(value.as_ptr(), dialect)
+                            .unwrap()
+                    }
+                    3 | 4 => {
+                        obj::prime_native_command_name_cache(value.as_ptr(), first.clone(), dialect)
+                            .unwrap()
+                    }
+                    _ => unreachable!(),
+                }
+                let type_name = |value| {
+                    let descriptor = obj::obj_type_ptr(value);
+                    if descriptor.is_null() {
+                        return "none";
+                    }
+                    // SAFETY: a non-null live descriptor owns its static name.
+                    unsafe { core::ffi::CStr::from_ptr((*descriptor).name) }
+                        .to_str()
+                        .unwrap()
+                };
+                assert_eq!(type_name(value.as_ptr()), fields[1], "{version:?}: {row}");
+                assert_eq!(obj::has_string_rep(value.as_ptr()), fields[2] == "1");
+                if fields[1] == "cmdName" {
+                    assert_eq!(
+                        obj::native_object_snapshot(value.as_ptr()).unwrap().cache,
+                        tcl_syntax::native_object::NativeObjectCacheSnapshot::CommandName {
+                            version,
+                            resolved: obj::native_command_name_cache(value.as_ptr()).is_some(),
+                        }
+                    );
+                }
+                let original_bytes = unsafe { (*value.as_ptr()).bytes };
+                obj::prime_native_command_name_cache(
+                    value.as_ptr(),
+                    if case == 3 {
+                        first.clone()
+                    } else {
+                        second.clone()
+                    },
+                    dialect,
+                )
+                .unwrap();
+                assert_eq!(type_name(alias.as_ptr()), fields[3], "{version:?}: {row}");
+                let target = obj::native_command_name_cache(alias.as_ptr()).map_or(0, |cache| {
+                    if cache.token == first.token {
+                        1
+                    } else if cache.token == second.token {
+                        2
+                    } else {
+                        panic!("unexpected command token")
+                    }
+                });
+                assert_eq!(
+                    target,
+                    fields[4].parse::<u8>().unwrap(),
+                    "{version:?}: {row}"
+                );
+                assert_eq!(
+                    obj::native_command_name_unresolved_version(alias.as_ptr()),
+                    (target == 0).then_some(version)
+                );
+                assert_eq!(obj::has_string_rep(alias.as_ptr()), fields[5] == "1");
+                assert_eq!(
+                    unsafe { (*alias.as_ptr()).bytes } == original_bytes,
+                    fields[6] == "1"
+                );
+                rows += 1;
+            }
+        }
+        assert_eq!(rows, 25);
+    }
+
+    #[test]
+    fn command_cache_duplicate_origin_and_retirement_preserve_original_storage() {
+        let version = TclVersion::V9_0;
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let value = obj::Owned::fresh(obj::new_string_bytes(b"::opaque\0\xff"));
+        let alias = value.clone();
+        let original_bytes = unsafe { (*value.as_ptr()).bytes };
+        let cache = command_cache(version, b"::opaque\0\xff");
+        obj::install_native_command_name_cache(value.as_ptr(), cache.clone(), dialect).unwrap();
+        let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
+        assert_eq!(
+            obj::native_command_name_cache(duplicate.as_ptr()),
+            Some(cache.clone())
+        );
+        assert_ne!(
+            obj::internal_rep(duplicate.as_ptr()),
+            obj::internal_rep(value.as_ptr())
+        );
+        assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"::opaque\0\xff");
+        assert!(obj::install_native_command_name_cache(
+            value.as_ptr(),
+            cache.clone(),
+            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+        )
+        .is_err());
+        assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
+        assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
+        obj::retire_native_command_name_cache(value.as_ptr()).unwrap();
+        assert!(obj::native_command_name_cache(alias.as_ptr()).is_none());
+        assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
+        let plain = obj::Owned::fresh(obj::new_wide_int_obj(7));
+        assert!(obj::install_native_command_name_cache(
+            plain.as_ptr(),
+            command_cache(version, b"7"),
+            dialect
+        )
+        .is_err());
+        assert!(!obj::has_string_rep(plain.as_ptr()));
+    }
+    const WIDE: [&str; 5] = [
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.4.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.5.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-8.6.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-9.0.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/wide-9.1.txt"),
+    ];
+    const DOUBLE: [&str; 5] = [
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.4.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.5.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-8.6.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-9.0.txt"),
+        include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/double-9.1.txt"),
+    ];
+    fn field<'a>(line: &'a str, key: &str) -> &'a str {
+        line.split_ascii_whitespace()
+            .find_map(|word| {
+                let (name, value) = word.split_once('=')?;
+                (name == key).then_some(value)
+            })
+            .expect("measured getter field")
+    }
+    fn cache_kind(value: *mut TclObj) -> &'static str {
+        match obj::native_scalar_cache(value).unwrap() {
+            None => "string",
+            Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(_))) => "integer",
+            Some(NativeScalarCache::Tcl84Long(_)) => "integer",
+            Some(NativeScalarCache::Number(tcl_syntax::number::Number::Big { .. })) => "bignum",
+            Some(NativeScalarCache::Number(_)) => "double",
+            Some(NativeScalarCache::WordBoolean(_)) => "boolean",
+            Some(NativeScalarCache::JimCoercedInteger(_)) => "coerced-double",
+        }
+    }
+    #[test]
+    fn physical_fresh_getters_match_measured_c_values_and_original_caches() {
+        let mut count = 0;
+        for (kind, fixtures) in [(Kind::Wide, WIDE), (Kind::Double, DOUBLE)] {
+            for (index, fixture) in fixtures.iter().enumerate() {
+                for line in fixture.lines() {
+                    count += 1;
+                    let input = line.split_once('\t').unwrap().0.as_bytes();
+                    let value = obj::Owned::fresh(obj::new_string_bytes(input));
+                    let result = native_scalar_getter(
+                        value.as_ptr(),
+                        tcl_registry::InvocationDialect::for_version(VERSIONS[index]),
+                        kind,
+                    );
+                    let native_type = field(line, "type");
+                    #[cfg(not(have_tommath))]
+                    if native_type == "bignum" {
+                        assert_eq!(
+                            result,
+                            Err(ValueError::ScalarNumericInputUnavailable),
+                            "{line}"
+                        );
+                        assert_eq!(cache_kind(value.as_ptr()), "string");
+                        assert_eq!(obj::bytes_of(value.as_ptr()), input);
+                        continue;
+                    }
+                    assert_eq!(
+                        result.is_ok(),
+                        field(line, "code") == "0",
+                        "engine {index}: {line}: {result:?}"
+                    );
+                    if let Ok(returned) = result {
+                        let bits = match returned {
+                            Value::Wide(integer) => integer.cast_unsigned(),
+                            Value::Double(double) => double.to_bits(),
+                            Value::Boolean(boolean) => u64::from(boolean),
+                        };
+                        assert_eq!(
+                            bits,
+                            u64::from_str_radix(field(line, "bits"), 16).unwrap(),
+                            "{line}"
+                        );
+                    }
+                    let expected = match native_type {
+                        "int" | "wideInt" => "integer",
+                        "booleanString" | "boolean" => "boolean",
+                        other => other,
+                    };
+                    assert_eq!(
+                        cache_kind(value.as_ptr()),
+                        expected,
+                        "engine {index}: {line}"
+                    );
+                    assert_eq!(
+                        obj::bytes_of(value.as_ptr()),
+                        input,
+                        "retained original spelling: {line}"
+                    );
+                }
+            }
+        }
+        assert_eq!(count, 260);
+    }
+    #[test]
+    fn primitive_boolean_storage_and_followup_wide_match_all_native_fixtures() {
+        const FIXTURES: [&str; 6] = [
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.4.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.5.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-8.6.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-9.0.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/boolean-9.1.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/jim-boolean-native.txt"
+            ),
+        ];
+        let inputs: [&[u8]; 7] = [
+            b"1\0X",
+            b"true\0X",
+            b"false\0X",
+            b"true",
+            b"false",
+            b"2",
+            b"1.5",
+        ];
+        let mut count = 0;
+        for (index, fixture) in FIXTURES.iter().enumerate() {
+            let dialect = VERSIONS.get(index).map_or_else(
+                || {
+                    tcl_registry::InvocationDialect::of_profile(
+                        crate::environment::profile_for_dialect("jim"),
+                    )
+                },
+                |&version| tcl_registry::InvocationDialect::for_version(version),
+            );
+            for line in fixture.lines() {
+                let input = inputs[field(line, "case").parse::<usize>().unwrap()];
+                // The C fixture has both storage kinds; Jim's seven rows
+                // are raw strings and its schema intentionally has no kind.
+                let object = if index < VERSIONS.len() && field(line, "kind") == "bytearray" {
+                    crate::bytearray::new_byte_array(
+                        input,
+                        dialect.byte_array_string_recipe(None).unwrap(),
+                    )
+                } else {
+                    obj::new_string_bytes(input)
+                };
+                let value = obj::Owned::fresh(object);
+                let boolean = native_boolean(value.as_ptr(), dialect);
+                assert_eq!(
+                    boolean.is_ok(),
+                    field(line, "boolcode") == "0",
+                    "engine {index}: {line}: {boolean:?}"
+                );
+                if let Ok(boolean) = boolean {
+                    assert_eq!(u8::from(boolean).to_string(), field(line, "bool"), "{line}");
+                }
+                let expected_cache = match field(line, "booltype") {
+                    "int" | "wideInt" => "integer",
+                    "booleanString" | "boolean" => "boolean",
+                    "bytearray" => "string",
+                    other => other,
+                };
+                assert_eq!(
+                    cache_kind(value.as_ptr()),
+                    expected_cache,
+                    "engine {index}: {line}"
+                );
+                let wide = native_wide_int(value.as_ptr(), dialect);
+                assert_eq!(
+                    wide.is_ok(),
+                    field(line, "widecode") == "0",
+                    "engine {index}: {line}: {wide:?}"
+                );
+                if let Ok(wide) = wide {
+                    assert_eq!(wide, field(line, "wide").parse::<i64>().unwrap(), "{line}");
+                }
+                count += 1;
+            }
+        }
+        assert_eq!(count, 77);
+    }
+
+    #[test]
+    fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
+        use tcl_syntax::scalar_getter::NativeScalarGetterErrorCode;
+        const FIXTURES: [&str; 5] = [
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.4.20.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.5.19.txt"
+            ),
+            include_str!(
+                "../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/8.6.18.txt"
+            ),
+            include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.0.4.txt"),
+            include_str!("../../../rust/tcl-syntax/tests/data/native_scalar_getters/int/9.1.0.txt"),
+        ];
+        const INPUTS: [&[u8]; 11] = [
+            b"1\0X",
+            b"2147483648",
+            b"4294967295",
+            b"4294967296",
+            b"-4294967295",
+            b"9223372036854775808",
+            b"1.0",
+            b"NaN",
+            b"08",
+            b"0x1",
+            b"bad",
+        ];
+        fn decode_hex(field: &str) -> Vec<u8> {
+            if field == "-" {
+                return Vec::new();
+            }
+            field
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut count = 0;
+        for (index, fixture) in FIXTURES.iter().enumerate() {
+            let version = VERSIONS[index];
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            obj::install_double_string_policy(tcl_dialect::DoubleStringPolicy::for_tcl_version(
+                version,
+            ));
+            for line in fixture.lines() {
+                let fields: Vec<_> = line.split('\t').collect();
+                assert_eq!(fields.len(), 6, "{line}");
+                let case: usize = fields[0].parse().unwrap();
+                let value = obj::Owned::fresh(match case {
+                    11 => obj::new_double_obj(1.0),
+                    12 => obj::new_wide_int_obj(1),
+                    13 => obj::new_double_obj(f64::NAN),
+                    _ => obj::new_string_bytes(INPUTS[case]),
+                });
+                let alias = value.clone();
+                let result = native_scalar_getter(value.as_ptr(), dialect, Kind::Int);
+                count += 1;
+                #[cfg(not(have_tommath))]
+                if fields[3] == "bignum" {
+                    assert_eq!(
+                        result,
+                        Err(ValueError::ScalarNumericInputUnavailable),
+                        "{line}"
+                    );
+                    assert_eq!(cache_kind(alias.as_ptr()), "string");
+                    assert_eq!(obj::bytes_of(alias.as_ptr()), INPUTS[case]);
+                    continue;
+                }
+                assert_eq!(
+                    result.is_ok(),
+                    fields[1] == "0",
+                    "{version:?}: {line}: {result:?}"
+                );
+                match result {
+                    Ok(Value::Wide(integer)) => {
+                        assert_eq!(integer, fields[2].parse::<i64>().unwrap(), "{line}")
+                    }
+                    Err(ValueError::NativeScalarGetter(error)) => {
+                        assert_eq!(error.getter_kind(), Kind::Int);
+                        assert_eq!(
+                            error.message_bytes(),
+                            decode_hex(fields[4]),
+                            "{version:?}: {line}"
+                        );
+                        let code = match error.error_code_update() {
+                            NativeScalarGetterErrorCode::Unchanged => b"SEEDED CODE".as_slice(),
+                            NativeScalarGetterErrorCode::Set(bytes) => bytes.as_slice(),
+                        };
+                        assert_eq!(code, decode_hex(fields[5]), "{version:?}: {line}");
+                    }
+                    other => panic!("unexpected Int result {version:?}: {line}: {other:?}"),
+                }
+                let native_cache = match fields[3] {
+                    "int" | "wideInt" => "integer",
+                    other => other,
+                };
+                assert_eq!(
+                    cache_kind(alias.as_ptr()),
+                    native_cache,
+                    "{version:?}: {line}"
+                );
+                if case < INPUTS.len() {
+                    assert_eq!(obj::bytes_of(alias.as_ptr()), INPUTS[case], "{line}");
+                }
+                // Width extraction wraps independently of the complete cache.
+                if (1..=4).contains(&case) {
+                    let magnitude = core::str::from_utf8(INPUTS[case])
+                        .unwrap()
+                        .parse::<i64>()
+                        .unwrap();
+                    assert_eq!(
+                        obj::native_scalar_cache(alias.as_ptr()).unwrap(),
+                        Some(
+                            if version == tcl_dialect::TclVersion::V8_4 && fields[3] == "int" {
+                                NativeScalarCache::Tcl84Long(magnitude)
+                            } else {
+                                NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+                                    magnitude,
+                                ))
+                            }
+                        ),
+                        "{line}"
+                    );
+                }
+            }
+        }
+        assert_eq!(count, 70);
+    }
+
+    #[test]
+    fn bytearray_materialization_keeps_modified_nul_distinct_from_raw_string() {
+        for version in VERSIONS {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let raw = obj::Owned::fresh(obj::new_string_bytes(b"1\0X"));
+            let bytes = obj::Owned::fresh(crate::bytearray::new_byte_array(
+                b"1\0X",
+                dialect.byte_array_string_recipe(None).unwrap(),
+            ));
+            let raw_result = native_wide_int(raw.as_ptr(), dialect);
+            assert_eq!(raw_result.is_ok(), version != TclVersion::V8_4);
+            assert!(matches!(
+                native_wide_int(bytes.as_ptr(), dialect),
+                Err(ValueError::NativeScalarGetter(_))
+            ));
+            assert_eq!(obj::bytes_of(raw.as_ptr()), b"1\0X");
+            assert_eq!(obj::bytes_of(bytes.as_ptr()), b"1\xc0\x80X");
+            assert!(core::ptr::eq(
+                obj::obj_type_ptr(bytes.as_ptr()),
+                &crate::bytearray::TCL_BYTE_ARRAY_TYPE
+            ));
+        }
+    }
+    #[test]
+    fn reached_boolean_cache_changes_shared_container_on_the_original_object() {
+        for version in VERSIONS {
+            let item = obj::Owned::fresh(obj::new_string_bytes(b"true"));
+            let value = obj::Owned::fresh(crate::list::new_list_obj(&[item.as_ptr()]));
+            let alias = value.clone();
+            assert_eq!(
+                native_boolean(
+                    value.as_ptr(),
+                    tcl_registry::InvocationDialect::for_version(version)
+                ),
+                Ok(true)
+            );
+            assert_eq!(cache_kind(alias.as_ptr()), "boolean");
+            assert_eq!(obj::bytes_of(alias.as_ptr()), b"true");
+        }
+    }
+    #[test]
+    fn native_word_boolean_descriptor_retains_release_specific_string_contract() {
+        for version in VERSIONS {
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"true"));
+            assert_eq!(
+                native_boolean(
+                    value.as_ptr(),
+                    tcl_registry::InvocationDialect::for_version(version)
+                ),
+                Ok(true)
+            );
+            let descriptor = obj::obj_type_ptr(value.as_ptr());
+            // SAFETY: native_boolean installed a live static descriptor.
+            let (name, updater) = unsafe {
+                (
+                    core::ffi::CStr::from_ptr((*descriptor).name).to_bytes(),
+                    (*descriptor).update_string_proc.is_some(),
+                )
+            };
+            assert_eq!(
+                name,
+                if matches!(version, TclVersion::V8_5 | TclVersion::V8_6) {
+                    b"booleanString".as_slice()
+                } else {
+                    b"boolean".as_slice()
+                }
+            );
+            assert_eq!(updater, version == TclVersion::V8_4);
+            if updater {
+                obj::invalidate_string(value.as_ptr());
+                assert_eq!(obj::bytes_of(value.as_ptr()), b"1");
+            } else {
+                assert_eq!(obj::bytes_of(value.as_ptr()), b"true");
+            }
+        }
+    }
+
+    #[test]
+    fn failed_double_getter_keeps_nan_cache_and_payload() {
+        let value = obj::Owned::fresh(obj::new_string_bytes(b"-NaN(123)"));
+        assert!(matches!(
+            native_double(
+                value.as_ptr(),
+                tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+            ),
+            Err(ValueError::NativeScalarGetter(_))
+        ));
+        assert!(core::ptr::eq(
+            obj::obj_type_ptr(value.as_ptr()),
+            &obj::TCL_DOUBLE_TYPE
+        ));
+        assert_eq!(
+            obj::double_of(value.as_ptr()).to_bits(),
+            0xfff8_0000_0000_0123
+        );
+        assert_eq!(obj::bytes_of(value.as_ptr()), b"-NaN(123)");
+    }
+    #[test]
+    fn cached_numeric_boolean_uses_its_own_string_materialization_obligation() {
+        for version in VERSIONS {
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(2));
+            assert!(!obj::has_string_rep(value.as_ptr()));
+            assert_eq!(
+                native_boolean(
+                    value.as_ptr(),
+                    tcl_registry::InvocationDialect::for_version(version)
+                ),
+                Ok(true)
+            );
+            assert_eq!(
+                obj::has_string_rep(value.as_ptr()),
+                version == TclVersion::V8_4
+            );
+            assert_eq!(
+                cache_kind(value.as_ptr()),
+                if version == TclVersion::V8_4 {
+                    "boolean"
+                } else {
+                    "integer"
+                }
+            );
+            assert_eq!(obj::bytes_of(value.as_ptr()), b"2");
+        }
+    }
+    #[test]
+    fn jim_double_cache_retains_exact_integer_and_wide_restores_it() {
+        let dialect = tcl_registry::InvocationDialect::of_profile(
+            crate::environment::profile_for_dialect("jim"),
+        );
+        let context = crate::native_source::NativeJimObjectContext::new(dialect).unwrap();
+        context.select_numeric_host(std::rc::Rc::new(tcl_host_native::NativeHost::new()));
+        for integer in [17, 9_007_199_254_740_993_i64] {
+            let value = obj::Owned::fresh(obj::new_wide_int_obj(integer));
+            crate::native_source::bind_context(value.as_ptr(), &context).unwrap();
+            assert!(native_double(value.as_ptr(), dialect).is_ok());
+            assert_eq!(cache_kind(value.as_ptr()), "coerced-double");
+            assert_eq!(obj::wide_of(value.as_ptr()), integer);
+            assert_eq!(obj::has_string_rep(value.as_ptr()), integer != 17);
+            assert_eq!(native_wide_int(value.as_ptr(), dialect), Ok(integer));
+            assert_eq!(cache_kind(value.as_ptr()), "integer");
+        }
+    }
+    #[test]
+    fn jim_missing_range_state_and_vendor_engine_are_host_refusals() {
+        let jim = tcl_registry::InvocationDialect::of_profile(
+            crate::environment::profile_for_dialect("jim"),
+        );
+        for input in [b"9223372036854775807".as_slice(), b"-9223372036854775808"] {
+            let value = obj::Owned::fresh(obj::new_string_bytes(input));
+            assert_eq!(
+                native_wide_int(value.as_ptr(), jim),
+                Err(ValueError::ScalarNumericInputUnavailable)
+            );
+            assert_eq!(cache_kind(value.as_ptr()), "string");
+        }
+        let vendor = tcl_registry::InvocationDialect::of_profile(
+            crate::environment::profile_for_dialect("f5-irules"),
+        );
+        let value = obj::Owned::fresh(obj::new_wide_int_obj(3));
+        assert_eq!(
+            native_wide_int(value.as_ptr(), vendor),
+            Err(ValueError::ScalarNumericInputUnavailable)
+        );
+        assert!(!obj::has_string_rep(value.as_ptr()));
+    }
+
+    #[test]
+    fn neutral_probe_preserves_absent_string_and_original_nan_bits() {
+        let dialect = tcl_registry::InvocationDialect::for_version(TclVersion::V8_6);
+        let bits = 0xfff8_0000_0000_0042;
+        let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
+        assert!(!obj::has_string_rep(value.as_ptr()));
+        assert!(native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
+            .unwrap()
+            .is_err());
+        assert!(!obj::has_string_rep(value.as_ptr()));
+        assert_eq!(obj::double_of(value.as_ptr()).to_bits(), bits);
+        assert!(matches!(
+            native_scalar_getter(value.as_ptr(), dialect, Kind::Int),
+            Err(ValueError::NativeScalarGetter(_))
+        ));
+        assert!(obj::has_string_rep(value.as_ptr()));
+    }
+
+    #[test]
+    fn jim_completion_cache_has_no_string_updater() {
+        use tcl_cmd_core::return_options::CompletionCodeCache;
+        let value = obj::Owned::fresh(obj::new_wide_int_obj(7));
+        adopt_completion_code_cache(value.as_ptr(), CompletionCodeCache::Jim(7)).unwrap();
+        assert_eq!(
+            completion_code_cache(value.as_ptr()),
+            Some(CompletionCodeCache::Jim(7))
+        );
+        assert!(completion_code_string_bytes(value.as_ptr()).is_err());
+        assert!(!obj::has_string_rep(value.as_ptr()));
+        let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
+        assert_eq!(
+            completion_code_cache(duplicate.as_ptr()),
+            Some(CompletionCodeCache::Jim(7))
+        );
+        assert!(!obj::has_string_rep(duplicate.as_ptr()));
+        let mut length = 9;
+        assert!(unsafe { obj::get_string(value.as_ptr(), &mut length) }.is_null());
+        assert_eq!(length, 0);
+        assert!(!obj::has_string_rep(value.as_ptr()));
+        let named = obj::Owned::fresh(obj::new_string_bytes(b"return"));
+        adopt_completion_code_cache(named.as_ptr(), CompletionCodeCache::TclKeyword(2)).unwrap();
+        assert_eq!(
+            completion_code_string_bytes(named.as_ptr()).unwrap(),
+            b"return"
+        );
+    }
+
+    #[test]
+    fn native_string_count_keeps_exact_units_origin_and_duplicate_cache() {
+        use tcl_registry::native_stock_list::NativeStockListInputClass;
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+        use tcl_syntax::native_string::NativeStringProtocol;
+        for version in VERSIONS {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let value = obj::Owned::fresh(obj::new_string_bytes(b"a\xc0\x80\xff"));
+            let protocol = NativeStringProtocol::C(version);
+            let representation = dialect.string_length_representation().unwrap();
+            assert_eq!(
+                obj::native_character_count(value.as_ptr(), protocol, representation),
+                Ok(3)
+            );
+            assert_eq!(obj::bytes_of(value.as_ptr()), b"a\xc0\x80\xff");
+            assert_eq!(
+                obj::stock_list_input_class(value.as_ptr()),
+                NativeStockListInputClass::String
+            );
+            let copied = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
+            assert_eq!(
+                obj::native_character_count(copied.as_ptr(), protocol, representation),
+                Ok(3)
+            );
+            assert_eq!(
+                obj::native_unicode_units(copied.as_ptr(), protocol)
+                    .unwrap()
+                    .as_ref(),
+                [97, 0, 255]
+            );
+            assert!(matches!(
+                obj::native_object_snapshot(copied.as_ptr()).unwrap().cache,
+                Cache::String {
+                    unicode: Some(_),
+                    num_chars: Some(3),
+                    ..
+                }
+            ));
+            assert!(matches!(
+                obj::native_object_snapshot(value.as_ptr()).unwrap().cache,
+                Cache::String {
+                    unicode: None,
+                    num_chars: Some(3),
+                    ..
+                }
+            ));
+            let other = if version == TclVersion::V9_0 {
+                TclVersion::V8_6
+            } else {
+                TclVersion::V9_0
+            };
+            assert!(obj::native_character_count(
+                copied.as_ptr(),
+                NativeStringProtocol::C(other),
+                representation
+            )
+            .is_err());
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "native_number_tests.rs"]
+mod native_number_tests;

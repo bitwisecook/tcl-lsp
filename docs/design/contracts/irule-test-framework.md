@@ -7,7 +7,9 @@ that drives them.
 
 The simulation itself is Tcl: an orchestrator, a TMM shim, protocol state
 layers, and command mocks, shipped under `rust/tcl-irule-test/tcl/`. A test
-script is plain Tcl and runs under any `tclsh`.
+script is plain Tcl. Persistent connection activations require a host with
+coroutine support (Tcl 8.6+ or a measured equivalent); earlier hosts report
+that capability as unsupported.
 
 `rust/tcl-irule-test` is the Rust side: it embeds those Tcl assets, stands the
 orchestrator up **in-process on the bytecode VM** (no `tclsh` subprocess),
@@ -44,7 +46,9 @@ The Rust modules are:
 1. **Registry-backed generated data has a native owner.**
    `_event_data.tcl` is generated from `EventRegistry` and `_mock_stubs.tcl`
    from the resolved F5 iRules profile registry plus the hand-written-mock boundary
-   in `command_mocks.tcl`. They must never be edited by hand: `cargo xtask
+   in `command_mocks.tcl`. `_user_surface_data.tcl` projects modern core
+   command availability, including individually callable qualified ensemble
+   members, from the same registry. They must never be edited by hand: `cargo xtask
    gen-irule-test-data` regenerates them and `make xtask-check` detects drift.
    `_mock_stubs.tcl` is a single data table consumed by one generic
    `::itest::cmd::_stub` proc rather than ~1500 individual stub procs, because
@@ -80,9 +84,103 @@ The Rust modules are:
    `run_next_request` fires only per-request events.
    `close_connection` fires CLIENT_CLOSED.
 
-8. **Static variables**: `::static::` namespace persists across
-   connections.  `RULE_INIT` fires once.  `reset_all` clears them;
-   `reset_connection_state` does not.
+8. **Cell and worker ownership**: a real retained coroutine activation owns
+   connection locals across events and keep-alive requests. Resetting a
+   connection retires that activation. `RULE_INIT` executes in the root
+   namespace frame. Each CMP worker owns a real child interpreter, including
+   `::static::`, global cells, aliases, arrays, traces and user command tables.
+   Worker selection never snapshots user values. The declarations are published
+   to every worker, then `RULE_INIT` executes independently when that worker is
+   first selected. Initialisation may produce different values in each worker;
+   publishing the same script is not a value-copy operation. Full orchestrator
+   reset retires the multi-worker interpreters and clears their initialisation
+   markers. Reusing a worker index creates a new interpreter lifetime. The mock
+   `table` and data groups share parent-orchestrator
+   state through command bridges. Legacy global CMP demotion itself remains a
+   separately documented platform behaviour, not a simulator scheduling proof.
+
+   The rule loader executes Tcl declarations through `when`, so top-level
+   procedure declarations and runtime-defined procedures belong to the proper
+   interpreter. The framework's host command surface provides private coroutine
+   and interpreter control; user event code retains the F5 grammar and command
+   availability surface.
+
+   `RuleIdentity` supplies an explicit absolute configuration path; `RuleSource`
+   distinguishes attached rules from unattached procedure libraries.
+   `LiveSession::load_rule`, `SessionPlan::with_rules`, and `simulate_rules`
+   preserve this identity. Existing `load_irule`/`simulate_irule` convenience
+   inputs remain unnamed. The loader never invents a rule owner from source.
+   Named rule procedures occupy independent namespace command tables in every
+   worker; handler metadata retains its logical owner. `call` selects a local
+   procedure, a same-folder `rule::proc`, or an absolute
+   `/Partition/folder/rule::proc`, and nested calls enter the target owner.
+   Dispatch uses the real caller activation, so `upvar 1` reaches its cells.
+   Topology inputs load unattached rules as libraries without registering
+   their events and refuse ambiguous short-name object resolution.
+
+   These logical forms follow the [F5 call reference](https://clouddocs.f5.com/api/irules/call.html).
+   The namespace used to store procedures is a simulator representation; that
+   reference does not establish the physical `namespace current` observed
+   inside procedures on an appliance. C Tcl validates the interpreter/frame
+   mechanics, while build-specific F5 procedure namespace behaviour remains
+   unmeasured.
+
+   `configure_static` is an explicit test configuration broadcast. It stores
+   into each worker's existing `::static` cell and therefore runs that cell's
+   write traces. Deleting and recreating a cell retires its old trace
+   registrations; a broadcast does not restore them or replace ordinary globals.
+   A guest event error retains writes already performed and the connection's
+   local cells, while the framework restores its selected rule/execution state.
+   Event results retain the handler's error instead of rolling back its stores.
+
+   The default single-worker mode executes in the orchestrator interpreter;
+   separate child-interpreter isolation is enabled by `-tmm_count` greater than
+   one. The simulator manages one active connection at a time. Selecting a worker
+   starts a new connection and retires the previously selected connection frame
+   when that frame is next reset. Explicit `fire_event RULE_INIT` can fire a
+   handler again; automatic worker selection tracks one initialisation attempt
+   per worker lifetime. Inspect handler results when testing failed initialisation.
+
+   `LiveSession` explicitly installs an authored timer simulator. Scripted
+   `after milliseconds ?-periodic? script` callbacks retain their original
+   interpreter and connection frame, or the interpreter root for `RULE_INIT`.
+   `LiveSession::advance_time` advances a deterministic logical clock and returns
+   each callback's full guest completion or a separate host/activation refusal.
+   This is a simulator contract, not a measured F5 hardware timer protocol.
+   Ordinary VMs retain Tcl's existing global `after` event loop.
+
+   Timers are ordered by deadline and registration identity. A callback may
+   register or cancel timers, including `after cancel -current`; newly registered
+   callbacks wait for the next advance. Missed periodic intervals coalesce into
+   one dispatch per advance. Periodic delays must be positive. IDs are never
+   reused, and cancellation is confined to the owning worker interpreter.
+   Deleted workers, replaced rules, reset interpreter epochs and destroyed
+   connection frames invalidate their callbacks. A reused frame level or command
+   name does not revive an old callback. `after info` lists the worker's queued
+   IDs or returns one ID's script and timer kind. Bare delays require a resumable
+   event continuation and produce an explicit host refusal; they do not block a
+   host thread or fabricate a resumed event. Standalone Tcl framework mocks still
+   record scripts without supplying this retained-activation provider.
+
+   Callback execution preserves the original rule/event metadata for helper
+   dispatch and restores framework bookkeeping through its retained cells. An
+   error retains user writes already performed. Complete guest return options
+   remain available in the callback report; host refusals stop the drain before
+   later callbacks execute. Synchronous trace callbacks and `call` helpers use
+   their actual interpreter cells and caller frames.
+
+   Private framework builtin capabilities retain the original command identity
+   and the host dialect explicitly. Framework completion capture can therefore
+   use host `catch`/`return` options while user event commands retain the selected
+   TMM grammar. An alias spelling alone never grants this capability.
+
+   Native `if`, `while`, `for`, expression command substitutions, quoted
+   expression strings, math-function calls and array-index substitutions retain
+   continuation state on the VM activation stack. They preserve actual Tcl
+   frames across coroutine suspension; expression arithmetic and traversal share
+   the `tcl-syntax` evaluator with synchronous consumers. Read-trace callbacks
+   remain synchronous, matching measured C Tcl rejection of yielding through
+   its busy C callback stack.
 
 9. **In-process execution.** `LiveSession` compiles and runs the
    orchestrator on `tcl-vm` directly, so a caller needs no external
@@ -388,6 +486,6 @@ can plan multi-TMM test distributions before generating Tcl code.
 
 | Problem | Cause | Fix |
 |---------|-------|-----|
-| `Missing generated file` error | A generated data file is absent | Restore `_event_data.tcl` / `_registry_data.tcl` / `_mock_stubs.tcl` from the tree — they are checked in |
+| `Missing generated file` error | A generated data file is absent | Restore `_event_data.tcl` / `_mock_stubs.tcl` / `_user_surface_data.tcl` from the tree — they are checked in |
 | iRule command returns an empty string | It is being served by the generic stub | Write a hand-written mock in `command_mocks.tcl` |
 | Event not firing | Profile not configured | Check `::orch::configure -profiles {...}` |

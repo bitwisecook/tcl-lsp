@@ -55,7 +55,7 @@ use crate::ir::Statement;
 use crate::value_shapes::parse_command_substitution_with_config;
 
 /// The source extent of one owning scope, plus the keys a
-/// [`ObjectHandleFacts::by_scope`] lookup at an offset inside it may use.
+/// advisory [`ObjectHandleFacts::by_scope`] candidate lookup may use.
 ///
 /// `unit` is the [`FunctionUnit`] key (`::proc`, `::Class::method`,
 /// `::Class::<constructor>`, `::top`).  `class` is `Some` for a method body —
@@ -72,13 +72,90 @@ pub struct OwnerSpan {
     pub class: Option<String>,
 }
 
+/// One object value proved at an original lexical variable read.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjectHandleRead {
+    /// Extent of the actual variable substitution.
+    pub span: Span,
+    /// Author-spelled variable name under its selected grammar.
+    pub variable: String,
+    /// Current class of the actual object allocation reaching this read.
+    pub classes: HashSet<String>,
+    /// Allocation, producing class incarnation, and current OO dispatch receipt.
+    pub instance: crate::command_binding::SourceObjectInstanceProof,
+}
+
+/// Physical read of an SSA value carrying an inferred object class. The read
+/// receipt does not track the object allocation or its OO dispatch generation,
+/// so its class remains candidate evidence and cannot license specialization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalObjectTypeReadEvidence {
+    source: crate::ir::SourceSite,
+    evaluation: crate::command_binding::SourceVariableEvaluationOwner,
+    unit: String,
+    variable: String,
+    place: crate::place::Place,
+    value: crate::ssa::ValueKey,
+    class: String,
+}
+
+impl PhysicalObjectTypeReadEvidence {
+    /// Exact lexical read and its retained provenance.
+    #[must_use]
+    pub fn source(&self) -> &crate::ir::SourceSite {
+        &self.source
+    }
+
+    /// Actual evaluation reaching this read, distinct from lexical containment.
+    #[must_use]
+    pub fn evaluation(&self) -> &crate::command_binding::SourceVariableEvaluationOwner {
+        &self.evaluation
+    }
+
+    /// Function whose SSA arena represents the retained contents version.
+    #[must_use]
+    pub fn unit(&self) -> &str {
+        &self.unit
+    }
+
+    /// Original variable reference normalised by its selected native grammar.
+    #[must_use]
+    pub fn variable(&self) -> &str {
+        &self.variable
+    }
+
+    /// Closed physical address and lifetime selected at the read.
+    #[must_use]
+    pub fn place(&self) -> &crate::place::Place {
+        &self.place
+    }
+
+    /// Represented SSA contents read at this physical boundary.
+    #[must_use]
+    pub const fn value(&self) -> crate::ssa::ValueKey {
+        self.value
+    }
+
+    /// Object allocation and OO dispatch generation remain unproved.
+    #[must_use]
+    pub const fn object_dispatch_unknown(&self) -> bool {
+        true
+    }
+
+    /// Inferred SSA class candidate; object reclassification may invalidate it.
+    #[must_use]
+    pub fn candidate_class(&self) -> &str {
+        &self.class
+    }
+}
+
 /// Owner-attributed object-handle provenance for one
 /// [`CompilationUnit`], carried on
 /// [`crate::analyser::types::AnalysisResult`].
 ///
 /// Every map is **best-effort**: an absent key means *no evidence was found*,
-/// never *proof that the name holds no object*.  A consumer that needs a sound
-/// "provably a different class" answer must read [`Self::by_scope`] singletons
+/// never *proof that the name holds no object*. A consumer that needs a sound
+/// "provably a different class" answer must read [`Self::proven_reads`] singletons
 /// and treat every other shape as an abstention.
 ///
 /// Soundness directions, by map:
@@ -86,10 +163,11 @@ pub struct OwnerSpan {
 /// | map | key | widening risk | safe for |
 /// |---|---|---|---|
 /// | [`Self::any_scope`] | bare name | same name in two procs collides | highlighting, navigation (labelled) |
-/// | [`Self::by_scope`] | `(owner, name)` | none: sources resolve in their own scope | edits, references, rename, refusal gates |
+/// | [`Self::by_scope`] | `(owner, name)` | all versions are unioned | scoped assistance |
+/// | [`Self::proven_reads`] | source substitution | exact SSA contents at the read | edits, references, rename, refusal gates |
 /// | [`Self::collections`] | bare name | cross-scope union (deliberate — the cross-method bridge) | highlighting, collection dispatch |
 /// | [`Self::returns_object`] | proc qname | none (one return type per proc) | factory-call typing |
-/// | [`Self::global_object_cells`] | `::`-qualified name | none (the name *is* the cell) | cross-document index seeds |
+/// | [`Self::global_object_cells`] | `::`-qualified name | all versions and documents may disagree | labelled cross-document assistance |
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ObjectHandleFacts {
     /// The scope-blind union — **verbatim** what [`object_handle_classes`]
@@ -108,13 +186,18 @@ pub struct ObjectHandleFacts {
     /// never through [`Self::any_scope`].  Keying the output alone would be
     /// unsound: after `proc a {} { set x [Pin new] }`, the alias in
     /// `proc b {} { set x 0; set y $x }` would read `a`'s `x` and record
-    /// `(::b, y) → ::Pin`, a false *singleton* in the map the rename edits and
-    /// the "provably a different class" refusal gate treat as authoritative.
+    /// `(::b, y) → ::Pin`, a candidate attributed to the wrong unit. Scoped
+    /// candidates still union all contents versions and never authorise edits
+    /// or a runtime class claim; those require [`Self::proven_reads`].
     /// Cross-*unit* edges are unaffected, because their source is not a scoped
     /// variable read: a proc-return edge's source is the callee's return type,
     /// and a parameter edge resolves its argument in the caller before binding
     /// the parameter in the callee.
     pub by_scope: HashMap<(String, String), HashSet<String>>,
+    /// Source-positioned runtime proofs, independent of advisory scope unions.
+    pub proven_reads: Vec<ObjectHandleRead>,
+    /// Physical SSA read receipts with explicit object-dispatch uncertainty.
+    pub physical_type_reads: Vec<PhysicalObjectTypeReadEvidence>,
     /// Owning-scope extents, sorted by start (then by end descending) for the
     /// binary search in [`Self::owner_at`].  One entry per procedure and
     /// method, plus a whole-file entry for the top level.
@@ -126,13 +209,44 @@ pub struct ObjectHandleFacts {
     /// factory-proc fact the VTA fixpoint computes internally, exported so a
     /// cross-document index can seed on it.
     pub returns_object: HashMap<String, String>,
+    /// Normal result types at their actual implementation source, independently
+    /// of class names, object allocations and method dispatch authority.
+    normal_procedure_results: crate::type_infer::NormalProcedureResultTypes,
     /// The `::`-qualified subset of [`Self::any_scope`] — object handles that
-    /// live in a *global* cell rather than a local, so another document's
-    /// analysis can join against them.
+    /// have a global spelling. Cross-document assistance may join these
+    /// candidates; the spelling does not prove the cell's current contents.
     pub global_object_cells: HashMap<String, HashSet<String>>,
 }
 
 impl ObjectHandleFacts {
+    /// Inferred normal result of the retained source procedure implementation.
+    /// A matching qualified name cannot borrow another declaration's result.
+    #[must_use]
+    pub fn normal_procedure_result(
+        &self,
+        target: &crate::command_binding::SourceCommandTarget,
+    ) -> Option<&crate::types::TypeLattice> {
+        (target.kind == crate::command_binding::BindingKind::Proc).then_some(())?;
+        self.normal_procedure_results
+            .get(target.implementation_allocation.as_ref()?)
+    }
+
+    /// Select a physical type-read receipt at an exact source/evaluation boundary.
+    /// This retains object-dispatch uncertainty and cannot prove a runtime class.
+    #[must_use]
+    pub fn physical_type_read_at(
+        &self,
+        unit: &str,
+        source: &crate::ir::SourceSite,
+        evaluation: &crate::command_binding::SourceVariableEvaluationOwner,
+    ) -> Option<&PhysicalObjectTypeReadEvidence> {
+        let mut proofs = self.physical_type_reads.iter().filter(|proof| {
+            proof.unit == unit && &proof.source == source && &proof.evaluation == evaluation
+        });
+        let first = proofs.next()?;
+        proofs.all(|proof| proof == first).then_some(first)
+    }
+
     /// The innermost owning scope containing `offset`, or `None` at a byte no
     /// tracked definition covers (top-level code outside every proc/method).
     ///
@@ -153,21 +267,37 @@ impl ObjectHandleFacts {
             .find(|o| o.span.end() >= offset)
     }
 
-    /// The classes `var` can hold **in the scope containing `offset`**: the
-    /// owning unit's binding, else the enclosing class's instance-variable
-    /// binding.  `None` when there is no evidence — which is *not* proof the
-    /// name holds no object (see the type-level contract).
+    /// The actual allocation and dispatch receipt at a retained receiver read.
+    /// Missing or conflicting receipts provide no runtime object proof.
+    #[must_use]
+    pub fn instance_in_scope(
+        &self,
+        offset: u32,
+        var: &str,
+    ) -> Option<&crate::command_binding::SourceObjectInstanceProof> {
+        let mut reads = self.proven_reads.iter().filter(|read| {
+            read.variable == var && read.span.start() <= offset && offset <= read.span.end()
+        });
+        let first = reads.next()?;
+        reads
+            .all(|read| read.instance == first.instance)
+            .then_some(&first.instance)
+    }
+
+    /// The runtime classes proved at the variable substitution containing
+    /// `offset`. Missing or conflicting allocation/dispatch receipts remain unknown.
     #[must_use]
     pub fn classes_in_scope(&self, offset: u32, var: &str) -> Option<&HashSet<String>> {
-        let owner = self.owner_at(offset)?;
-        self.by_scope
-            .get(&(owner.unit.clone(), var.to_owned()))
-            .or_else(|| {
-                owner
-                    .class
-                    .as_ref()
-                    .and_then(|c| self.by_scope.get(&(c.clone(), var.to_owned())))
+        let instance = self.instance_in_scope(offset, var)?;
+        self.proven_reads
+            .iter()
+            .find(|read| {
+                read.variable == var
+                    && read.span.start() <= offset
+                    && offset <= read.span.end()
+                    && &read.instance == instance
             })
+            .map(|read| &read.classes)
     }
 }
 
@@ -327,8 +457,21 @@ fn build_facts_gated(
     for fu in units {
         harvest_unit(fu, registry, &mut sink);
     }
+    // A generic compiler refusal can leave a genuine normal handler in the
+    // retained IR without a FunctionUnit. Its nominal factory candidate is
+    // still useful for possible callback edges, independently of SSA proof.
+    for (name, procedure) in &cu.ir_module.procedures {
+        if !cu.procedures.contains_key(name) {
+            harvest_script_factories(&procedure.body, name, registry, &mut sink);
+        }
+    }
+    for (name, method) in &cu.ir_module.methods {
+        if !cu.methods.contains_key(name) {
+            harvest_script_factories(&method.body, name, registry, &mut sink);
+        }
+    }
     sink.stats.seeds = sink.facts.any_scope.len();
-    let returns = returning_procs(cu);
+    let returns = returning_proc_candidates(cu, registry);
     // Fast path.  The early-out inside `propagate_object_flow`
     // checks the *callee-side* maps (returns / proc params / ctor params),
     // which are non-empty for any file that merely defines a proc — so every
@@ -355,7 +498,7 @@ fn build_facts_gated(
         // VTA-lite object-flow propagation.  Having seeded the handles that are
         // locally provable (constructor assignments + SSA `OBJECT` values), push
         // those classes along the type-propagation edges of Variable Type
-        // Analysis (Sundaresan et al., OOPSLA'00) to a bounded fixpoint:
+        // Analysis (Sundaresan et al., OOPSLA'00) to a finite fixpoint:
         //   - *aliasing*         `set A $B`            → A ⊇ classes(B)
         //   - *proc return*      `set A [make …]`      → A ⊇ return-class(make)
         //   - *proc parameter*   `f $obj`              → f's param ⊇ classes($obj)
@@ -369,10 +512,12 @@ fn build_facts_gated(
     let mut facts = sink.facts;
     if mode == FactMode::Full {
         facts.owner_spans = owners.spans;
-        facts.returns_object = returns
+        (facts.proven_reads, facts.physical_type_reads) = proven_object_reads(cu, registry);
+        facts.returns_object = returning_procs(cu)
             .into_iter()
-            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .map(|(k, v)| (k.to_owned(), v.clone()))
             .collect();
+        retain_normal_procedure_result_types(cu, &mut facts);
         facts.collections = object_collection_classes(cu);
         facts.global_object_cells = facts
             .any_scope
@@ -382,6 +527,148 @@ fn build_facts_gated(
             .collect();
     }
     (facts, stats)
+}
+
+fn proven_object_reads(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+) -> (Vec<ObjectHandleRead>, Vec<PhysicalObjectTypeReadEvidence>) {
+    let mut candidates: HashMap<
+        (Span, String),
+        Option<crate::command_binding::SourceObjectInstanceProof>,
+    > = HashMap::new();
+    let mut physical = Vec::new();
+    let document_origin = cu
+        .ir_module
+        .top_level
+        .executed_source
+        .as_ref()
+        .map(|source| &source.origin);
+    for fu in std::iter::once(&cu.top_level)
+        .chain(cu.procedures.values())
+        .chain(cu.methods.values())
+    {
+        for (&block, cfg_block) in &fu.cfg.blocks {
+            for index in (0..cfg_block.statements.len()).chain(std::iter::once(usize::MAX)) {
+                let source = crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index);
+                let Some(tokens) = source.source_tokens() else {
+                    continue;
+                };
+                for access in &tokens.variable_accesses {
+                    let Some(dialect) = access.variable_context.invocation_dialect else {
+                        continue;
+                    };
+                    let name = tcl_syntax::naming::var_reference_for_style(
+                        &access.original_spelling,
+                        dialect.lexer_grammar.braced_var,
+                    )
+                    .to_owned();
+                    let reference =
+                        source.read_reference(&access.source, &access.original_spelling);
+                    let classes = reference
+                        .and_then(|read| fu.types.get(&(read.symbol, read.version?)))
+                        .filter(|value| value.tcl_type() == Some(tcl_registry::TclType::Object))
+                        .and_then(crate::types::TypeLattice::class_name)
+                        .map(|class| HashSet::from([class.to_owned()]));
+                    if let Some(read) = reference
+                        && let Some(class) =
+                            classes.as_ref().and_then(|classes| classes.iter().next())
+                        && let Some(proof) = physical_object_type_read(
+                            access, read, &fu.name, &name, class, registry,
+                        )
+                        && !physical.contains(&proof)
+                    {
+                        physical.push(proof);
+                    }
+                    // Numeric document offsets cannot select a read in an independently
+                    // materialised script, even when its bytes/variable spelling agree.
+                    if tokens
+                        .source_binding
+                        .as_ref()
+                        .and_then(|binding| binding.source_origin())
+                        != document_origin
+                    {
+                        continue;
+                    }
+                    let instance = tokens
+                        .source_binding
+                        .as_ref()
+                        .filter(|binding| binding.retains_object_instance_at_dispatch(access))
+                        .and_then(|_| access.proved_object_instance())
+                        .cloned();
+                    candidates
+                        .entry((access.source.span, name))
+                        .and_modify(|previous| {
+                            if *previous != instance {
+                                *previous = None;
+                            }
+                        })
+                        .or_insert(instance);
+                }
+            }
+        }
+    }
+    let mut reads = candidates
+        .into_iter()
+        .filter_map(|((span, variable), instance)| {
+            let instance = instance?;
+            Some(ObjectHandleRead {
+                span,
+                variable,
+                classes: HashSet::from([instance.class_target().command.clone()]),
+                instance,
+            })
+        })
+        .collect::<Vec<_>>();
+    reads.sort_by_key(|read| (read.span.start(), read.span.end(), read.variable.clone()));
+    (reads, physical)
+}
+
+fn physical_object_type_read(
+    access: &crate::command_binding::SourceVariableAccess,
+    reference: crate::ssa::SsaReadReference,
+    unit: &str,
+    variable: &str,
+    class: &str,
+    registry: &CommandRegistry,
+) -> Option<PhysicalObjectTypeReadEvidence> {
+    if access.context_residual() != crate::command_binding::SourceVariableReadResidual::Closed
+        || matches!(
+            access.owner,
+            crate::command_binding::SourceVariableEvaluationOwner::Unspecified
+        )
+    {
+        return None;
+    }
+    let places = access
+        .context_alternatives()
+        .iter()
+        .map(|context| {
+            crate::var_resolve::resolve_substitution_access(
+                &access.original_spelling,
+                context,
+                registry,
+                tcl_registry::TraceOperation::Read,
+            )
+        })
+        .collect::<Vec<_>>();
+    let place = places.first()?;
+    if place.dynamic
+        || place.observed
+        || place.cell.as_ref()?.generation == crate::place::CellGeneration::Unknown
+        || places.iter().any(|other| other != place)
+    {
+        return None;
+    }
+    Some(PhysicalObjectTypeReadEvidence {
+        source: access.source.clone(),
+        evaluation: access.owner.clone(),
+        unit: unit.to_owned(),
+        variable: variable.to_owned(),
+        place: place.clone(),
+        value: (reference.symbol, reference.version?),
+        class: class.to_owned(),
+    })
 }
 
 /// Which unit — or class — owns a name written inside a given
@@ -542,16 +829,156 @@ impl FactSink<'_> {
 
 /// Callee proc qualified name → the class of the object it returns (the
 /// factory-proc signal behind `set c [makeThing]`).
-fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, &str> {
+fn retain_normal_procedure_result_types(cu: &CompilationUnit, facts: &mut ObjectHandleFacts) {
+    let units = procedure_implementation_units(cu);
+    let mut results = crate::type_infer::NormalProcedureResultTypes::new();
+    for (allocation, unit) in &units {
+        join_procedure_result(&mut results, allocation, unit.return_type.clone());
+    }
+    let known_classes = cu
+        .ir_module
+        .methods
+        .values()
+        .map(|method| method.class_name.clone())
+        .collect::<HashSet<_>>();
+    // Every round propagates an already inferred normal callee result through
+    // one more body. Cycles without an independent result remain overdefined.
+    for _ in 0..=units.len() {
+        let mut next = crate::type_infer::NormalProcedureResultTypes::new();
+        for (allocation, unit) in &units {
+            let result = crate::type_infer::infer_function_return_type_with_results(
+                &unit.cfg,
+                &unit.sccp,
+                &unit.types,
+                cu.ir_module.resolved_registry(),
+                &known_classes,
+                &unit.ssa,
+                Some(&results),
+            );
+            join_procedure_result(&mut next, allocation, result);
+        }
+        if next == results {
+            break;
+        }
+        results = next;
+    }
+    facts.normal_procedure_results = results;
+}
+
+fn join_procedure_result(
+    results: &mut crate::type_infer::NormalProcedureResultTypes,
+    allocation: &crate::command_binding::CommandAllocation,
+    result: crate::types::TypeLattice,
+) {
+    results
+        .entry(allocation.clone())
+        .and_modify(|previous| *previous = crate::types::type_join(previous, &result))
+        .or_insert(result);
+}
+
+/// Match generic analysis units to the source owner's original body inventory.
+/// An allocation site or procedure name alone cannot select a replacement body.
+fn procedure_implementation_units(
+    cu: &CompilationUnit,
+) -> Vec<(&crate::command_binding::CommandAllocation, &FunctionUnit)> {
+    let mut units = Vec::new();
+    for implementation in cu.ir_module.procedure_implementation_bodies.iter() {
+        let parameters = implementation
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.as_str())
+            .collect::<Vec<_>>();
+        for (name, unit) in cu.procedures.iter().chain(&cu.body_units) {
+            let procedure = cu
+                .ir_module
+                .procedures
+                .get(name)
+                .or_else(|| cu.ir_module.body_units.get(name));
+            let Some(procedure) = procedure else {
+                continue;
+            };
+            if procedure.body.executed_source.as_deref() != Some(&implementation.source)
+                || procedure.body.namespace_context.as_deref()
+                    != Some(&implementation.namespace_key)
+                || procedure
+                    .params
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()
+                    != parameters
+            {
+                continue;
+            }
+            if let Some(allocation) = cu
+                .ir_module
+                .installed_procedure_body_units
+                .get(name)
+                .or_else(|| cu.ir_module.original_declaration_body_units.get(name))
+                && allocation != &implementation.allocation
+            {
+                continue;
+            }
+            units.push((&implementation.allocation, unit));
+        }
+    }
+    units
+}
+
+fn returning_procs(cu: &CompilationUnit) -> HashMap<&str, String> {
     cu.procedures
         .values()
-        .filter_map(|fu| {
-            (fu.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
-                .then_some(fu.return_type.class_name())
+        .filter_map(|unit| {
+            (unit.return_type.tcl_type() == Some(tcl_registry::TclType::Object))
+                .then_some(unit.return_type.class_name())
                 .flatten()
-                .map(|c| (fu.name.as_str(), c))
+                .map(|class| (unit.name.as_str(), class.to_owned()))
         })
         .collect()
+}
+
+/// Advisory factory classes, retaining an unknown return-path residual.
+/// These flow candidates never populate the strict returned-object type map.
+fn returning_proc_candidates<'a>(
+    cu: &'a CompilationUnit,
+    registry: &CommandRegistry,
+) -> HashMap<&'a str, String> {
+    let mut returns = returning_procs(cu);
+    // A retained generic body can have original constructor evidence without
+    // an executable FunctionUnit. This is a class candidate only.
+    for (name, procedure) in &cu.ir_module.procedures {
+        if returns.contains_key(name.as_str()) {
+            continue;
+        }
+        let Some(statement) = procedure.body.statements.last() else {
+            continue;
+        };
+        let tokens = procedure
+            .body
+            .retained_source_tokens_for_statement(statement);
+        let candidates = match statement {
+            Statement::Return {
+                value: Some(value), ..
+            } => tokens
+                .into_iter()
+                .flat_map(|tokens| {
+                    tokens
+                        .words()
+                        .iter()
+                        .filter(|word| word.legacy_text() == *value)
+                        .cloned()
+                })
+                .collect::<Vec<_>>(),
+            _ => tokens
+                .map(|tokens| crate::registry_invocation::advisory_return_values(registry, tokens))
+                .unwrap_or_default(),
+        };
+        for value in candidates {
+            if let Some(class) = constructor_class(&value.legacy_text(), registry, tokens) {
+                returns.insert(name, class);
+            }
+        }
+    }
+    returns
 }
 
 /// Method [`FunctionUnit`] key (`::Class::method`) → the class of the object
@@ -584,7 +1011,7 @@ fn returning_methods(cu: &CompilationUnit) -> HashMap<&str, &str> {
 fn propagate_object_flow<'a>(
     cu: &'a CompilationUnit,
     registry: &CommandRegistry,
-    returns: &HashMap<&'a str, &'a str>,
+    returns: &HashMap<&'a str, String>,
     sink: &mut FactSink,
 ) {
     // Callee proc qualified name → parameter names.
@@ -596,13 +1023,13 @@ fn propagate_object_flow<'a>(
         .collect();
     // Class qualified name → its constructor's `FunctionUnit` key + parameter
     // names (the IR module keys a constructor `::Class::<constructor>`).
-    let ctor_params: HashMap<&str, (&str, &[String])> = cu
+    let ctor_params: HashMap<&str, (&str, &crate::ir::MethodDef)> = cu
         .ir_module
         .methods
         .iter()
         .filter_map(|(k, m)| {
             k.ends_with("::<constructor>")
-                .then_some((m.class_name.as_str(), (k.as_str(), m.params.as_slice())))
+                .then_some((m.class_name.as_str(), (k.as_str(), m)))
         })
         .collect();
     let method_returns = returning_methods(cu);
@@ -620,13 +1047,13 @@ fn propagate_object_flow<'a>(
         ctor_params,
     };
 
-    // Bounded fixpoint: a handful of rounds cover realistic alias/call chains
-    // without risking a runaway on a cyclic call graph.  Both facts advance in
-    // the same walk, each reading back only its own map — the union stays the
-    // union it always was, and the scope-keyed map only ever grows from
-    // sources resolved in their owning scope.
+    // This is a finite, monotone domain: existing binding sites receive only
+    // class identities already present in the seeds or return summaries.
+    // Cycles converge when no set grows; a private round limit would lose
+    // evidence along longer chains. Both scoped and union facts participate
+    // in convergence, while reads retain their own scope attribution.
     let scoped = (sink.mode == FactMode::Full).then_some(sink.owners);
-    for _ in 0..6 {
+    loop {
         let bindings = scan_flow_edges(cu, registry, &sink.facts, scoped, &index);
         sink.stats.rounds += 1;
         let mut changed = false;
@@ -674,14 +1101,14 @@ fn propagate_object_flow<'a>(
 /// The callee-side maps one fixpoint round resolves call edges against.
 struct FlowIndex<'a> {
     /// Proc qualified name → returned object class.
-    returns: HashMap<&'a str, &'a str>,
+    returns: HashMap<&'a str, String>,
     /// Method [`FunctionUnit`] key (`::Class::method`) → returned object
     /// class, for the `set b [$a make]` method-return edge.
     method_returns: HashMap<&'a str, &'a str>,
     /// Proc qualified name → parameter names.
     proc_params: HashMap<&'a str, &'a [String]>,
     /// Class qualified name → (constructor unit key, constructor parameters).
-    ctor_params: HashMap<&'a str, (&'a str, &'a [String])>,
+    ctor_params: HashMap<&'a str, (&'a str, &'a crate::ir::MethodDef)>,
 }
 
 /// One type-propagation edge's product: the classes `name` gains, and the unit
@@ -737,41 +1164,9 @@ fn scan_flow_edges(
     scoped: Option<&OwnerIndex>,
     index: &FlowIndex,
 ) -> Vec<Binding> {
-    let FlowIndex {
-        returns,
-        method_returns,
-        proc_params,
-        ctor_params,
-    } = index;
-    // Resolve a proc call head to its callee key, tolerating the `::` global
-    // qualifier the way `CommandRegistry::get` does.
-    let resolve_proc = |cmd: &str, canonical: Option<&str>| -> Option<&str> {
-        for cand in [canonical, Some(cmd)].into_iter().flatten() {
-            if let Some((k, _)) = proc_params.get_key_value(cand) {
-                return Some(*k);
-            }
-        }
-        let q = format!("::{}", cmd.trim_start_matches("::"));
-        proc_params.get_key_value(q.as_str()).map(|(k, _)| *k)
-    };
-    // Resolve a constructor-call head (`Pin`, `::ns::Pin`) to a class that
-    // declares a constructor.  Prefers an exact / `::`-qualified match, then
-    // falls back to the trailing name segment (union-imprecise, acceptable for
-    // highlighting).
-    let resolve_ctor_class = |head: &str| -> Option<String> {
-        if ctor_params.contains_key(head) {
-            return Some(head.to_owned());
-        }
-        let q = format!("::{}", head.trim_start_matches("::"));
-        if ctor_params.contains_key(q.as_str()) {
-            return Some(q);
-        }
-        let tail = head.rsplit("::").next().unwrap_or(head);
-        ctor_params
-            .keys()
-            .find(|k| k.rsplit("::").next() == Some(tail))
-            .map(|k| (*k).to_owned())
-    };
+    let ctor_params = &index.ctor_params;
+    let resolve_ctor_class =
+        |head: &str| -> Option<String> { ctor_params.contains_key(head).then(|| head.to_owned()) };
 
     let mut bindings: Vec<Binding> = Vec::new();
     let units = std::iter::once(&cu.top_level)
@@ -790,60 +1185,177 @@ fn scan_flow_edges(
             owners,
             registry,
             unit: &fu.name,
+            tokens: None,
         };
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
-                match stmt {
-                    Statement::AssignValue { name, value, .. } => {
-                        scan_assign_edges(
-                            AssignSite {
-                                unit: &fu.name,
-                                name,
-                                value,
-                            },
-                            &resolve_ctor_class,
-                            ReturnEdges {
-                                procs: returns,
-                                methods: method_returns,
-                            },
-                            ctx,
-                            &mut bindings,
-                        );
-                    }
-                    Statement::Call {
-                        command,
-                        canonical_command,
-                        args,
-                        ..
-                    } => {
-                        // Proc-parameter edge: `f $obj` binds f's params — in
-                        // the *callee*, which is where the name lives.
-                        if let Some(callee) = resolve_proc(command, canonical_command.as_deref()) {
-                            emit_proc_param_bindings(
-                                callee,
-                                proc_params[callee],
-                                args,
-                                ctx,
-                                &mut bindings,
-                            );
-                        }
-                        // Constructor-parameter edge: `Class create NAME …`.
-                        emit_ctor_param_bindings(
-                            CtorCall {
-                                head: command,
-                                verb_and_args: args,
-                            },
-                            &resolve_ctor_class,
-                            ctx,
-                            &mut bindings,
-                        );
-                    }
-                    _ => {}
-                }
+                let ctx = ScanContext {
+                    tokens: stmt.tokens(),
+                    ..ctx
+                };
+                scan_flow_statement(stmt, ctx, index, &resolve_ctor_class, &mut bindings);
             }
         }
     }
+    for (unit, script) in cu
+        .ir_module
+        .procedures
+        .iter()
+        .filter(|(name, _)| !cu.procedures.contains_key(*name))
+        .map(|(name, procedure)| (name.as_str(), &procedure.body))
+        .chain(
+            cu.ir_module
+                .methods
+                .iter()
+                .filter(|(name, _)| !cu.methods.contains_key(*name))
+                .map(|(name, method)| (name.as_str(), &method.body)),
+        )
+    {
+        let mut pending = vec![script];
+        while let Some(script) = pending.pop() {
+            for statement in &script.statements {
+                let ctx = ScanContext {
+                    ctor_params,
+                    out: &facts.any_scope,
+                    by_scope,
+                    owners,
+                    registry,
+                    unit,
+                    tokens: script.retained_source_tokens_for_statement(statement),
+                };
+                scan_flow_statement(statement, ctx, index, &resolve_ctor_class, &mut bindings);
+                pending.extend(statement.child_scripts());
+            }
+        }
+    }
+
     bindings
+}
+
+/// One advisory flow step, shared by executable CFG and retained generic IR.
+fn scan_flow_statement(
+    stmt: &Statement,
+    ctx: ScanContext<'_>,
+    index: &FlowIndex<'_>,
+    resolve_ctor_class: &impl Fn(&str) -> Option<String>,
+    bindings: &mut Vec<Binding>,
+) {
+    // Argument substitutions precede the parent handler. Their retained
+    // constructor entries remain possible even when that handler's normal
+    // assignment protocol is unknown after the child returns.
+    scan_substitution_constructor_edges(resolve_ctor_class, ctx, bindings);
+    let FlowIndex {
+        returns,
+        method_returns,
+        proc_params,
+        ..
+    } = index;
+    match stmt {
+        Statement::AssignValue { name, value, .. } => {
+            scan_assign_edges(
+                AssignSite {
+                    unit: ctx.unit,
+                    name,
+                    value,
+                },
+                ReturnEdges {
+                    procs: returns,
+                    methods: method_returns,
+                },
+                ctx,
+                bindings,
+            );
+        }
+        Statement::Call { .. } => {
+            if let Some(assignment) = ctx
+                .tokens
+                .and_then(|tokens| {
+                    crate::registry_invocation::normal_representation_invocation(
+                        ctx.registry,
+                        None,
+                        tokens,
+                    )
+                })
+                .and_then(|normal| normal.value_assignment())
+            {
+                scan_assign_edges(
+                    AssignSite {
+                        unit: ctx.unit,
+                        name: &assignment.name,
+                        value: &assignment.value.legacy_text(),
+                    },
+                    ReturnEdges {
+                        procs: returns,
+                        methods: method_returns,
+                    },
+                    ctx,
+                    bindings,
+                );
+            }
+            // Proc-parameter edge: `f $obj` binds f's params — in
+            // the *callee*, which is where the name lives.
+            if let Some(target) = ctx
+                .tokens
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+                .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+                && let Some((callee, params)) = proc_params.get_key_value(target.command.as_str())
+                && let Some(effective) = ctx
+                    .tokens
+                    .and_then(crate::registry_invocation::effective_command_words)
+            {
+                let args = effective
+                    .words
+                    .iter()
+                    .skip(1)
+                    .map(crate::ir::WordExpr::legacy_text)
+                    .collect::<Vec<_>>();
+                emit_proc_param_bindings(callee, params, &args, ctx, bindings);
+            }
+            // Constructor-parameter edge: `Class create NAME …`.
+            emit_ctor_param_bindings(resolve_ctor_class, ctx, bindings);
+        }
+        _ => {}
+    }
+}
+
+fn scan_substitution_constructor_edges(
+    resolve_ctor_class: &impl Fn(&str) -> Option<String>,
+    ctx: ScanContext<'_>,
+    bindings: &mut Vec<Binding>,
+) {
+    let Some(parent) = ctx.tokens else {
+        return;
+    };
+    let mut pending = vec![parent.clone()];
+    while let Some(parent) = pending.pop() {
+        let config =
+            parent.native_lexer_config(tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()));
+        for word in parent.words() {
+            let Some(children) =
+                crate::value_shapes::command_substitution_tokens(word, Some(&parent), config)
+            else {
+                continue;
+            };
+            for child in children {
+                if child.source_binding.as_ref().is_none_or(|binding| {
+                    binding.runtime_reachability()
+                        == crate::command_binding::SourceRuntimeReachability::NotEntered
+                }) {
+                    continue;
+                }
+                emit_ctor_param_bindings(
+                    resolve_ctor_class,
+                    ScanContext {
+                        tokens: Some(&child),
+                        ..ctx
+                    },
+                    bindings,
+                );
+                pending.push(child);
+            }
+        }
+    }
 }
 
 /// One `set NAME VALUE` statement, with the unit it is written in.
@@ -859,18 +1371,16 @@ struct AssignSite<'a> {
 /// [`FlowIndex::method_returns`].
 #[derive(Clone, Copy)]
 struct ReturnEdges<'a, 'b> {
-    procs: &'b HashMap<&'a str, &'a str>,
+    procs: &'b HashMap<&'a str, String>,
     methods: &'b HashMap<&'a str, &'a str>,
 }
 
 /// The edges an assignment can carry — aliasing (`set A $B`), proc return
-/// (`set A [make …]`), and method return (`set A [$obj make …]`)
-/// — plus the nested-constructor parameter edge of a
-/// `set W [Class new $obj]` value.  The assignment edges bind in the
-/// *assigning* unit; the constructor edge binds in the constructor.
+/// (`set A [make …]`), and method return (`set A [$obj make …]`).
+/// Assignment edges bind in the assigning unit; child constructor edges
+/// are scanned independently before this normal assignment projection.
 fn scan_assign_edges(
     site: AssignSite,
-    resolve_ctor_class: &impl Fn(&str) -> Option<String>,
     returns: ReturnEdges<'_, '_>,
     ctx: ScanContext,
     bindings: &mut Vec<Binding>,
@@ -898,13 +1408,26 @@ fn scan_assign_edges(
     ) else {
         return;
     };
-    // Proc-return edge: `set A [make …]`, tolerating the `::` global
-    // qualifier the way `CommandRegistry::get` does.
-    let qualified = format!("::{}", cmd.trim_start_matches("::"));
-    if let Some(class) = returns
-        .procs
-        .get(cmd.as_str())
-        .or_else(|| returns.procs.get(qualified.as_str()))
+    let nested = ctx.tokens.and_then(|parent| {
+        let mut candidates = parent
+            .words()
+            .iter()
+            .filter(|word| word.legacy_text() == site.value);
+        let word = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        sole_substitution_tokens(word, parent, ctx.registry)
+    });
+    let target = nested
+        .as_ref()
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target);
+    // Return flow follows the retained implementation token, independently
+    // of its written spelling or present command slot.
+    if let Some(class) = target
+        .filter(|target| target.kind == crate::command_binding::BindingKind::Proc)
+        .and_then(|target| returns.procs.get(target.command.as_str()))
     {
         // A legitimately cross-scope flow: the source is the *callee's* return
         // type, not a variable read, so there is no scope to confuse and both
@@ -951,16 +1474,6 @@ fn scan_assign_edges(
             }
         }
     }
-    // Constructor-parameter edge for a nested `[Class new …]` / `[Class create …]`.
-    emit_ctor_param_bindings(
-        CtorCall {
-            head: &cmd,
-            verb_and_args: &args,
-        },
-        resolve_ctor_class,
-        ctx,
-        bindings,
-    );
 }
 
 /// Bind `callee`'s parameters to the object classes of a call's arguments.
@@ -991,13 +1504,6 @@ fn emit_proc_param_bindings(
     }
 }
 
-/// A candidate constructor call: the class command and everything after it.
-#[derive(Clone, Copy)]
-struct CtorCall<'a> {
-    head: &'a str,
-    verb_and_args: &'a [String],
-}
-
 /// The read-only context one scan round resolves an argument's classes
 /// against.
 ///
@@ -1007,12 +1513,13 @@ struct CtorCall<'a> {
 /// in — the scope a `$var` read in it resolves against.
 #[derive(Clone, Copy)]
 struct ScanContext<'a> {
-    ctor_params: &'a HashMap<&'a str, (&'a str, &'a [String])>,
+    ctor_params: &'a HashMap<&'a str, (&'a str, &'a crate::ir::MethodDef)>,
     out: &'a HashMap<String, HashSet<String>>,
     by_scope: Option<&'a HashMap<(String, String), HashSet<String>>>,
     owners: &'a OwnerIndex,
     registry: &'a CommandRegistry,
     unit: &'a str,
+    tokens: Option<&'a crate::ir::CommandTokens>,
 }
 
 impl ScanContext<'_> {
@@ -1039,38 +1546,56 @@ impl ScanContext<'_> {
 /// words precede the constructor payload; the flow pass never names a
 /// manufacturer keyword.
 fn emit_ctor_param_bindings(
-    call: CtorCall,
     resolve_ctor_class: &impl Fn(&str) -> Option<String>,
     ctx: ScanContext,
     bindings: &mut Vec<Binding>,
 ) {
-    let CtorCall {
-        head,
-        verb_and_args,
-    } = call;
-    let Some(verb) = verb_and_args.first() else {
+    let Some(tokens) = ctx.tokens else {
         return;
     };
-    let Some(payload_from) = ctx
-        .registry
-        .uniform_manufacturer_constructor_args_from(verb)
+    let Some((target, entry, payload_from)) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.constructor_entry(ctx.registry))
     else {
         return;
     };
-    let Some(ctor_args) = verb_and_args.get(payload_from..) else {
+    let Some(effective) = crate::registry_invocation::effective_command_words(tokens) else {
         return;
     };
+    let ctor_args = effective
+        .words
+        .iter()
+        .skip(1 + payload_from)
+        .map(crate::ir::WordExpr::legacy_text)
+        .collect::<Vec<_>>();
     if ctor_args.is_empty() {
         return;
     }
-    let Some(class) = resolve_ctor_class(head) else {
+    let Some(class) = resolve_ctor_class(&target.command) else {
         return;
     };
-    let Some((ctor_unit, params)) = ctx.ctor_params.get(class.as_str()) else {
+    let Some((ctor_unit, method)) = ctx.ctor_params.get(class.as_str()) else {
         return;
     };
+    // The retained body entry chooses the unit. A document-final class name
+    // cannot substitute a different constructor with equal parameter names.
+    if method
+        .span
+        .is_none_or(|span| span.start() != entry.declaration().offset)
+        || method.body.executed_source.as_deref() != Some(entry.body())
+        || method
+            .params
+            .iter()
+            .map(String::as_str)
+            .ne(entry.formals().iter().map(|(name, _)| name.as_str()))
+    {
+        return;
+    }
     for (i, arg) in ctor_args.iter().enumerate() {
-        let Some(pname) = params.get(i) else { break };
+        let Some((pname, _)) = entry.formals().get(i) else {
+            break;
+        };
         if pname == "args" {
             break;
         }
@@ -1104,7 +1629,7 @@ fn arg_classes(arg: &str, ctx: ScanContext) -> Option<EdgeClasses> {
             scoped: ctx.scoped_classes(var),
         });
     }
-    constructor_class(arg, ctx.registry).map(EdgeClasses::unscoped)
+    constructor_class(arg, ctx.registry, ctx.tokens).map(|class| EdgeClasses::unscoped(&class))
 }
 
 /// The variable name a `$name` / `${name}` argument dereferences, or `None` for
@@ -1156,12 +1681,12 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
         for stmt in &block.statements {
             match stmt {
                 Statement::AssignValue { name, value, .. } => {
-                    if let Some((head, args)) = parse_command_substitution_with_config(
+                    if let Some((_head, args)) = parse_command_substitution_with_config(
                         value.trim(),
                         tcl_lexer::LexerConfig::for_profile(registry.profile()),
                     ) {
-                        if let Some(class) = constructor_class_of(&head, &args, registry) {
-                            sink.bind(&fu.name, name, class);
+                        if let Some(class) = constructor_class(value, registry, stmt.tokens()) {
+                            sink.bind(&fu.name, name, &class);
                         }
                         // The nested-constructor half of the fast-path gate:
                         // `set w [Wrap new [listbox .l]]` reaches `arg_classes`
@@ -1174,14 +1699,18 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
                 // myG` / `struct::tree myT`.  Only a plain bareword name binds
                 // (the `= | := | as | deserialize` operator forms and dynamic
                 // `$name` do not create a statically-known handle).
-                Statement::Call { command, args, .. } => {
-                    if let Some(spec) = registry.get(command)
-                        && let Some(idx) = spec.creates_instance_at
-                        && let Some(oc) = spec.object_class
-                        && let Some(name) = args.get(idx as usize)
-                        && is_plain_object_name(name)
+                Statement::Call { args, .. } => {
+                    if let Some((name, class)) = stmt
+                        .tokens()
+                        .and_then(|tokens| {
+                            crate::registry_invocation::normal_representation_invocation(
+                                registry, None, tokens,
+                            )
+                        })
+                        .and_then(|normal| normal.naming_factory_candidate())
+                        && is_plain_object_name(&name)
                     {
-                        sink.bind(&fu.name, name, oc.class_name);
+                        sink.bind(&fu.name, &name, class);
                     }
                     // Both parameter edges read a call's arguments through
                     // `arg_classes`, whose `[Factory new]` branch needs no
@@ -1204,41 +1733,111 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
     }
 }
 
+fn harvest_script_factories(
+    script: &crate::ir::Script,
+    owner: &str,
+    registry: &CommandRegistry,
+    sink: &mut FactSink,
+) {
+    let mut pending = vec![script];
+    while let Some(script) = pending.pop() {
+        for statement in &script.statements {
+            if let Some((name, class)) = script
+                .retained_source_tokens_for_statement(statement)
+                .and_then(|tokens| {
+                    crate::registry_invocation::normal_representation_invocation(
+                        registry, None, tokens,
+                    )
+                })
+                .and_then(|normal| normal.naming_factory_candidate())
+                && is_plain_object_name(&name)
+            {
+                sink.bind(owner, &name, class);
+            }
+            pending.extend(statement.child_scripts());
+        }
+    }
+}
+
 /// The registry class named by a class-command manufacturer value, or `None`
 /// when the value is not such a call. A `TclOO` class command may be
 /// written with or without the leading `::` global qualifier; the registry's
 /// [`CommandRegistry::object_class`] strips it as [`CommandRegistry::get`] does.
-fn constructor_class<'r>(value: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
-    let (head, args) = parse_command_substitution_with_config(
-        value.trim(),
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    )?;
-    constructor_class_of(&head, &args, registry)
+fn constructor_class(
+    value: &str,
+    registry: &CommandRegistry,
+    parent: Option<&crate::ir::CommandTokens>,
+) -> Option<String> {
+    let parent = parent?;
+    let mut result = None;
+    for word in parent
+        .words()
+        .iter()
+        .filter(|word| word.legacy_text() == value)
+    {
+        let tokens = sole_substitution_tokens(word, parent, registry)?;
+        let class = constructor_class_candidate(&tokens, registry)?;
+        if result.as_ref().is_some_and(|previous| previous != &class) {
+            return None;
+        }
+        result = Some(class);
+    }
+    result
 }
 
-/// [`constructor_class`] on an already-parsed command substitution, so a caller
-/// that needs the parsed words for something else does not parse twice.
-fn constructor_class_of<'r>(
-    head: &str,
-    args: &[String],
-    registry: &'r CommandRegistry,
-) -> Option<&'r str> {
-    // A registry definer's declared manufacturer — or a registry naming
-    // factory returning its own instance (`[struct::graph]` /
-    // `[struct::graph name]`). This matches the SSA lattice's
-    // `return_type_for_command` object-factory typing.
-    if let Some(method) = args.first()
+fn sole_substitution_tokens(
+    word: &crate::ir::WordExpr,
+    parent: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<crate::ir::CommandTokens> {
+    let mut commands = crate::value_shapes::command_substitution_tokens(
+        word,
+        Some(parent),
+        parent.native_lexer_config(tcl_lexer::LexerConfig::for_profile(registry.profile())),
+    )?;
+    (commands.len() == 1).then(|| commands.remove(0))
+}
+
+fn constructor_class_candidate(
+    tokens: &crate::ir::CommandTokens,
+    registry: &CommandRegistry,
+) -> Option<String> {
+    if let Some(class) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.proved_construction_result(registry))
+    {
+        return Some(class);
+    }
+    if let Some(binding) = tokens.source_binding.as_ref() {
+        let candidates = binding.class_factory_candidates(registry);
+        if let Some(first) = candidates.first()
+            && candidates
+                .iter()
+                .all(|candidate| candidate.command == first.command)
+        {
+            return Some(first.command.clone());
+        }
+    }
+    if let Some(class) =
+        crate::registry_invocation::normal_representation_invocation(registry, None, tokens)
+            .and_then(|normal| normal.callable_result_class_candidate())
+    {
+        return Some(class.to_owned());
+    }
+    let invocation =
+        crate::registry_invocation::resolved_tokens_invocation(registry, None, tokens)?;
+    let head = &invocation.facts.canonical_command;
+    if let Some(method) = invocation.argument_literal(0)
         && registry
-            .exported_manufacturer_method(head, method)
+            .exported_manufacturer_method(head, &method)
             .is_some()
     {
-        return registry.object_class(head).map(|class| class.class_name);
+        return registry
+            .object_class(head)
+            .map(|class| class.class_name.to_owned());
     }
-    registry
-        .get(head)
-        .filter(|s| s.creates_instance_at.is_some())
-        .and_then(|s| s.object_class)
-        .map(|c| c.class_name)
+    None
 }
 
 /// Could `word` be the bracketed registry-constructor call that makes
@@ -1291,6 +1890,160 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
+    fn provided_unit(
+        source: &str,
+        providers: &[crate::provider_fixtures::Provider],
+    ) -> (CommandRegistry, CompilationUnit) {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let entry = crate::provider_fixtures::entry(&registry, providers);
+        let unit = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                dialect: registry.profile(),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        );
+        (registry, unit)
+    }
+
+    #[test]
+    fn source_positioned_receiver_proofs_do_not_reuse_an_older_object_value() {
+        let registry = CommandRegistry::build_default();
+        let source =
+            "oo::class create Pin {}\nset x [Pin new]\n$x retained\nset x 0\nset y $x\n$y stale\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        let retained = u32::try_from(source.find("$x retained").unwrap()).unwrap();
+        let stale = u32::try_from(source.find("$y stale").unwrap()).unwrap();
+        assert_eq!(
+            facts.classes_in_scope(retained, "x"),
+            Some(&HashSet::from(["::Pin".to_owned()]))
+        );
+        assert!(facts.classes_in_scope(stale, "y").is_none(), "{facts:?}");
+        let proof = facts
+            .physical_type_reads
+            .iter()
+            .find(|proof| proof.source().span.start() == retained && proof.variable() == "x")
+            .expect("the retained read has a closed physical address receipt");
+        assert_eq!(proof.candidate_class(), "::Pin");
+        assert!(proof.place().cell.is_some());
+        assert_eq!(
+            facts.physical_type_read_at(proof.unit(), proof.source(), proof.evaluation()),
+            Some(proof)
+        );
+        let mut advisory = facts.clone();
+        advisory
+            .any_scope
+            .insert("y".to_owned(), HashSet::from(["::Pin".to_owned()]));
+        advisory.by_scope.insert(
+            ("::top".to_owned(), "y".to_owned()),
+            HashSet::from(["::Pin".to_owned()]),
+        );
+        assert_eq!(advisory.physical_type_reads, facts.physical_type_reads);
+        assert!(advisory.classes_in_scope(stale, "y").is_none());
+    }
+
+    #[test]
+    fn opaque_constructor_cannot_prove_the_original_concrete_class() {
+        let registry = CommandRegistry::build_default();
+        let source = "oo::class create Other {}\noo::class create C {constructor {} {oo::objdefine [self] class Other}}\nset object [C new]\n$object method\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        let offset = u32::try_from(source.find("$object method").unwrap()).unwrap();
+        assert!(
+            facts
+                .classes_in_scope(offset, "object")
+                .is_none_or(|classes| !classes.contains("::C")),
+            "{facts:?}"
+        );
+        assert!(
+            facts.physical_type_reads.iter().all(|proof| {
+                proof.source().span.start() != offset || proof.candidate_class() != "::C"
+            }),
+            "constructor reclassification cannot donate a ::C type-read receipt"
+        );
+    }
+
+    #[test]
+    fn same_cell_reclassification_does_not_prove_the_old_object_class() {
+        let registry = CommandRegistry::build_default();
+        let source = "oo::class create C {method valid {} {return C}}\noo::class create B {method valid {} {return B}}\nset object [C new]\noo::objdefine $object class B\n$object valid\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        let offset = u32::try_from(source.rfind("$object valid").unwrap()).unwrap();
+        assert!(
+            facts
+                .classes_in_scope(offset, "object")
+                .is_none_or(|classes| !classes.contains("::C")),
+            "unchanged variable contents do not preserve the object's class: {facts:?}"
+        );
+    }
+
+    #[test]
+    fn materialised_receiver_reads_do_not_enter_document_offset_queries() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "oo::class create C {method valid {} {return ok}}\nset object [C new]\nset body {$object valid}\neval $body\n";
+        let unit = CompilationUnit::build_for(source, registry, false);
+        let facts = object_handle_facts(&unit, registry);
+        assert!(
+            facts
+                .proven_reads
+                .iter()
+                .all(|read| read.variable != "object"),
+            "{facts:?}"
+        );
+        let original = source.replacen("set body", "$object valid\nset body", 1);
+        let unit = CompilationUnit::build_for(&original, registry, false);
+        let facts = object_handle_facts(&unit, registry);
+        let offset = u32::try_from(original.find("$object valid").unwrap()).unwrap();
+        assert!(
+            facts.instance_in_scope(offset, "object").is_some(),
+            "{facts:?}"
+        );
+    }
+
+    #[test]
+    fn receiver_read_does_not_preserve_class_across_argument_mutation() {
+        let registry = CommandRegistry::build_default();
+        let source = "oo::class create C {method valid {arg} {return C}}\noo::class create B {method valid {arg} {return B}}\nproc mutate {object} {oo::objdefine $object class B; return ARG}\nset object [C new]\n$object valid [mutate $object]\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        let offset = u32::try_from(source.rfind("$object valid").unwrap()).unwrap();
+        assert!(
+            facts.classes_in_scope(offset, "object").is_none(),
+            "a receiver read before argv is not current dispatch proof: {facts:?}"
+        );
+    }
+
+    #[test]
+    fn physical_type_receipts_do_not_close_object_method_dispatch() {
+        let registry = CommandRegistry::build_default();
+        let source = "oo::class create C {method valid {} {return ORIGINAL}}\nset object [C new]\noo::objdefine $object method valid {} {return REPLACED}\n$object valid\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        assert!(
+            facts
+                .physical_type_reads
+                .iter()
+                .all(PhysicalObjectTypeReadEvidence::object_dispatch_unknown)
+        );
+    }
+
+    #[test]
+    fn replaced_class_command_does_not_seed_factory_provenance() {
+        let registry = CommandRegistry::build_default();
+        let source = "oo::class create Pin {}\nrename Pin {}\nproc Pin {args} {return plain}\nset receiver [Pin new]\n";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let facts = object_handle_facts(&cu, &registry);
+        assert!(!facts.any_scope.contains_key("receiver"), "{facts:?}");
+    }
+
     #[test]
     fn bareword_widget_path_is_a_handle() {
         // `ttk::treeview .t` is syntactically identical to the tcllib
@@ -1298,9 +2051,8 @@ mod tests {
         // reads generically via `creates_instance_at`/`object_class` — so a
         // Tk widget's bareword path becomes a tracked handle with zero new
         // code in this pass, once the registry declares those two fields.
-        let registry = CommandRegistry::build_default();
-        let src = "ttk::treeview .t\n.t instate {selected} {}\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
+        let src = "package require Tk\nttk::treeview .t\n.t instate {selected} {}\n";
+        let (registry, cu) = provided_unit(src, &[crate::provider_fixtures::Provider::Tk]);
         let map = object_handle_classes(&cu, &registry);
         assert_eq!(
             map.get(".t").map(|s| s.contains("ttk::treeview")),
@@ -1311,9 +2063,8 @@ mod tests {
 
     #[test]
     fn var_captured_widget_path_is_a_handle() {
-        let registry = CommandRegistry::build_default();
-        let src = "set lb [listbox .l]\n$lb curselection\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
+        let src = "package require Tk\nset lb [listbox .l]\n$lb curselection\n";
+        let (registry, cu) = provided_unit(src, &[crate::provider_fixtures::Provider::Tk]);
         let map = object_handle_classes(&cu, &registry);
         assert_eq!(
             map.get("lb").map(|s| s.contains("listbox")),
@@ -1323,16 +2074,35 @@ mod tests {
     }
 
     #[test]
-    fn scalar_handle_from_constructor() {
+    fn unprovided_widget_and_container_catalogues_do_not_donate_handles() {
         let registry = CommandRegistry::build_default();
-        let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name x\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let map = object_handle_classes(&cu, &registry);
+        for source in [
+            "package require Tk\nset receiver [listbox .l]",
+            "package require struct::tree\nset receiver [struct::tree]",
+        ] {
+            let unit = CompilationUnit::build_for(source, &registry, false);
+            assert!(!object_handle_classes(&unit, &registry).contains_key("receiver"));
+        }
+    }
+
+    #[test]
+    fn scalar_handle_from_constructor() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let src = "oo::class create Chart {method Xaxis {args} {}}\nset chart [Chart new]\n$chart Xaxis -name x\n";
+        let cu = CompilationUnit::build_for(src, registry, false);
+        let map = object_handle_classes(&cu, registry);
         assert_eq!(
-            map.get("chart").map(|s| s.contains("ticklecharts::chart")),
+            map.get("chart").map(|s| s.contains("::Chart")),
             Some(true),
-            "chart should be tracked as a ticklecharts::chart handle; got {map:?}"
+            "chart should retain its actual declared constructor candidate; got {map:?}"
         );
+        let unprovided = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(
+            "set chart [ticklecharts::chart new]\n$chart Xaxis -name x",
+            &unprovided,
+            false,
+        );
+        assert!(!object_handle_classes(&unit, &unprovided).contains_key("chart"));
     }
 
     #[test]
@@ -1341,13 +2111,20 @@ mod tests {
         // (`struct::graph g`) or as a substitution result (`set g [struct::graph]`)
         // — both must be tracked as `struct::graph` handles for `$g walk …`
         // method-callback resolution.
-        let registry = CommandRegistry::build_default();
         for (src, key) in [
             ("struct::graph myG\nmyG walk root -command cb\n", "myG"),
             ("set g [struct::graph]\n$g walk root -command cb\n", "g"),
             ("struct::tree myT\nmyT walkproc root cb\n", "myT"),
         ] {
-            let cu = CompilationUnit::build_for(src, &registry, false);
+            let source =
+                format!("package require struct::graph\npackage require struct::tree\n{src}");
+            let (registry, cu) = provided_unit(
+                &source,
+                &[
+                    crate::provider_fixtures::Provider::Graph,
+                    crate::provider_fixtures::Provider::Tree,
+                ],
+            );
             let map = object_handle_classes(&cu, &registry);
             let class = if src.contains("tree") {
                 "struct::tree"
@@ -1358,6 +2135,142 @@ mod tests {
                 map.get(key).map(|s| s.contains(class)),
                 Some(true),
                 "`{src}` should track {key} as a {class} handle; got {map:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn normal_callable_return_types_do_not_require_a_tcloo_class() {
+        use crate::provider_fixtures::Provider;
+        for (prelude, providers, expected) in [
+            (
+                "",
+                vec![Provider::Tree],
+                Some(tcl_registry::TclType::Object),
+            ),
+            ("", vec![], None),
+            (
+                "rename ::struct::tree ::savedTree; proc ::struct::tree args {return ordinary}\n",
+                vec![Provider::Tree],
+                Some(tcl_registry::TclType::String),
+            ),
+        ] {
+            let source = format!(
+                "package require struct::tree\n{prelude}proc make {{}} {{return [struct::tree]}}\nmake\n"
+            );
+            let (registry, unit) = provided_unit(&source, &providers);
+            let facts = object_handle_facts(&unit, &registry);
+            let result = unit
+                .ir_module
+                .top_level
+                .statements
+                .last()
+                .and_then(|statement| {
+                    unit.ir_module
+                        .top_level
+                        .retained_source_tokens_for_statement(statement)
+                })
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .and_then(crate::command_binding::SourceInvocationBinding::proved_execution_target)
+                .and_then(|target| facts.normal_procedure_result(target))
+                .and_then(crate::types::TypeLattice::tcl_type);
+            assert_eq!(
+                result,
+                expected,
+                "{source}; units={:?}",
+                unit.procedures
+                    .iter()
+                    .map(|(name, unit)| (name, &unit.return_type))
+                    .collect::<Vec<_>>()
+            );
+            assert!(!facts.returns_object.contains_key("::make"));
+            assert!(facts.proven_reads.is_empty());
+        }
+    }
+
+    #[test]
+    fn normal_return_type_receipts_do_not_follow_a_reused_proc_name() {
+        let source = "proc make {} {return 1}\nmake\nproc make {} {return ordinary}\nmake\n";
+        let (registry, unit) = provided_unit(source, &[]);
+        let facts = object_handle_facts(&unit, &registry);
+        let calls = unit
+            .ir_module
+            .top_level
+            .statements
+            .iter()
+            .filter_map(|statement| {
+                let tokens = unit
+                    .ir_module
+                    .top_level
+                    .retained_source_tokens_for_statement(statement)?;
+                let target = tokens.source_binding.as_ref()?.proved_execution_target()?;
+                (target.kind == crate::command_binding::BindingKind::Proc).then(|| {
+                    facts
+                        .normal_procedure_result(target)
+                        .and_then(crate::types::TypeLattice::tcl_type)
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls,
+            [
+                Some(tcl_registry::TclType::Int),
+                Some(tcl_registry::TclType::String)
+            ]
+        );
+    }
+
+    #[test]
+    fn normal_naming_factory_candidates_require_the_actual_loaded_handler() {
+        use crate::provider_fixtures::Provider;
+        let create = "package require struct::graph\nstruct::graph g\n";
+        let (registry, loaded) = provided_unit(create, &[Provider::Graph]);
+        let candidates = object_handle_classes(&loaded, &registry);
+        assert!(
+            candidates
+                .get("g")
+                .is_some_and(|classes| classes.contains("struct::graph"))
+        );
+        // Nominal candidates do not fabricate physical variable/object reads.
+        assert!(
+            object_handle_facts(&loaded, &registry)
+                .proven_reads
+                .is_empty()
+        );
+
+        let (registry, unprovided) = provided_unit(create, &[]);
+        assert!(!object_handle_classes(&unprovided, &registry).contains_key("g"));
+
+        let source = "package require struct::graph\nrename ::struct::graph ::savedGraph\nproc ::struct::graph args {return DECOY}\nstruct::graph g\n";
+        let (registry, replaced) = provided_unit(source, &[Provider::Graph]);
+        assert!(!object_handle_classes(&replaced, &registry).contains_key("g"));
+    }
+
+    #[test]
+    fn retained_procedure_factory_candidates_do_not_require_an_executable_unit() {
+        use crate::provider_fixtures::Provider;
+        for (prelude, providers, expected) in [
+            ("", vec![Provider::Graph], true),
+            ("", vec![], false),
+            (
+                "rename ::struct::graph ::savedGraph; proc ::struct::graph args {return DECOY}\n",
+                vec![Provider::Graph],
+                false,
+            ),
+        ] {
+            let source = format!(
+                "package require struct::graph\n{prelude}proc build {{}} {{struct::graph g; g node insert root}}\nbuild\n"
+            );
+            let (registry, unit) = provided_unit(&source, &providers);
+            assert_eq!(
+                object_handle_classes(&unit, &registry).contains_key("g"),
+                expected,
+                "{source}"
+            );
+            assert!(
+                object_handle_facts(&unit, &registry)
+                    .proven_reads
+                    .is_empty()
             );
         }
     }
@@ -1454,6 +2367,29 @@ mod tests {
     }
 
     #[test]
+    fn child_constructor_arguments_do_not_require_the_parent_assignment_handler() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        for (parent, possible) in [
+            ("outer [Wrap new $p]", true),
+            ("if {0} {outer [Wrap new $p]}", false),
+            ("outer [error STOP; Wrap new $p]", false),
+        ] {
+            let source = format!(
+                "oo::class create Pin {{method cfg {{}} {{}}}}; oo::class create Wrap {{constructor {{inner}} {{$inner cfg}}}}; proc outer args {{return CUSTOM}}; set p [Pin new]; {parent}"
+            );
+            let cu = CompilationUnit::build_for_profile(&source, &registry, false, profile);
+            let map = object_handle_classes(&cu, &registry);
+            assert_eq!(
+                map.get("inner")
+                    .is_some_and(|classes| classes.contains("::Pin")),
+                possible,
+                "{source}: {map:?}",
+            );
+        }
+    }
+
+    #[test]
     fn constructor_param_typed_from_object_arg() {
         // Case B — an object passed *into* a constructor: `Wrap new $p` binds
         // the constructor's parameter `inner` to ::Pin, so `$inner method …`
@@ -1506,18 +2442,36 @@ mod tests {
     }
 
     #[test]
-    fn snit_named_constructor_types_handle() {
-        // `set o [foo create x]` for a snit type types `o` as the snit class,
-        // so `$o method` resolves.  Requires the signature scan to record snit
-        // types as known classes (a pure-snit file has no "class"/"oo::").
-        let registry = CommandRegistry::build_default();
-        let src = "snit::type foo { method smeth {} {} }\nset o [foo create x]\n";
-        let cu = CompilationUnit::build_for(src, &registry, false);
-        let map = object_handle_classes(&cu, &registry);
-        assert_eq!(
-            map.get("o").map(|s| s.contains("::foo")),
-            Some(true),
-            "`o` from `foo create x` should be a ::foo handle; got {map:?}"
+    fn snit_named_constructor_has_nominal_name_without_a_physical_class() {
+        let source = "package require snit\nsnit::type foo { method smeth {} {} }\nset o [foo create x]\n$o smeth\n";
+        let (registry, cu) = provided_unit(source, &[crate::provider_fixtures::Provider::Snit]);
+        let facts = object_handle_facts(&cu, &registry);
+        let read = u32::try_from(source.find("$o smeth").unwrap()).unwrap();
+        assert!(facts.classes_in_scope(read, "o").is_none());
+        assert!(facts.proven_reads.iter().all(|proof| proof.variable != "o"));
+        let create = u32::try_from(source.find("foo create").unwrap()).unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let entry =
+            crate::provider_fixtures::entry(&registry, &[crate::provider_fixtures::Provider::Snit]);
+        let selected = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            &registry,
+            entry.options(),
+        );
+        assert!(
+            selected
+                .invocation_at_source("::foo", create)
+                .nominal_definition_name_result(&registry)
+                .is_some()
+        );
+        let unprovided =
+            crate::command_binding::SourceCommandBindings::analyse(source, config, &registry);
+        assert!(
+            unprovided
+                .invocation_at_source("::foo", create)
+                .nominal_definition_name_result(&registry)
+                .is_none()
         );
     }
 
@@ -1680,6 +2634,40 @@ mod tests {
              onto it (any_scope does: {:?})",
             facts.any_scope.get("b")
         );
+    }
+
+    #[test]
+    fn generic_factory_return_candidates_flow_without_a_return_type_receipt() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (prefix, expected) in [
+            ("oo::class create Pin {}", true),
+            (
+                "oo::class create Pin {}; rename Pin {}; proc Pin args {return plain}",
+                false,
+            ),
+        ] {
+            let source = format!(
+                "{prefix}; proc make {{}} {{return [Pin new]}}; proc take {{dev}} {{return ok}}; set receiver [make]; take $receiver"
+            );
+            let mut unit = CompilationUnit::build_for_profile(
+                &source,
+                registry,
+                false,
+                registry.profile().unwrap(),
+            );
+            unit.procedures.remove("::make");
+            unit.procedures.remove("::take");
+            let facts = object_handle_facts(&unit, registry);
+            assert_eq!(
+                facts
+                    .any_scope
+                    .get("dev")
+                    .is_some_and(|classes| classes.contains("::Pin")),
+                expected,
+                "the retained factory implementation selects the advisory flow: {facts:?}"
+            );
+            assert!(!facts.returns_object.contains_key("::make"));
+        }
     }
 
     #[test]

@@ -33,12 +33,13 @@
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
 use crate::var_escape::handlers::{
-    handle_dynamic_name_first, handle_introspection, handle_variable_aliases, has_expand_word,
+    handle_dynamic_name_first, handle_introspection, handle_normal_variable_aliases,
+    has_expand_word,
 };
 use crate::var_escape::helpers::{
     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
-    is_dynamic_token, is_frameless_runtime_command_in, normalise_cmd_subst_head,
-    scan_value_for_info_hazards,
+    is_dynamic_token, is_frameless_runtime_command_in, normal_handler_is_frameless,
+    normalise_cmd_subst_head, scan_value_for_info_hazards,
 };
 use crate::var_escape::known_names::collect_known_names;
 use crate::var_escape::state::EscapeState;
@@ -154,11 +155,7 @@ pub(crate) fn handle_call(
 
     // Commands outside the frameless-runtime allow-list could
     // reach the eval fallback via the codegen. Mark accordingly.
-    if !facts.as_ref().is_some_and(|facts| {
-        facts
-            .traits
-            .contains(tcl_registry::prelude::Traits::FRAMELESS_RUNTIME)
-    }) {
+    if !normal_handler_is_frameless(stmt, registry) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
             state.record_fallback();
         } else {
@@ -183,8 +180,18 @@ pub(crate) fn handle_call(
         return;
     }
 
+    if let Some(normal) = tokens.as_ref().and_then(|tokens| {
+        crate::registry_invocation::normal_transfer_invocation(
+            registry,
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            tokens,
+        )
+    }) {
+        handle_normal_variable_aliases(&normal, state);
+    }
     if let Some(facts) = facts.as_deref() {
-        handle_variable_aliases(facts, state, registry);
         handle_introspection(facts, args, state);
         if facts
             .traits
@@ -908,9 +915,19 @@ mod tests {
     }
 
     #[test]
-    fn global_escapes_named_var() {
-        let s = analyse("global g");
-        assert!(s.is_frame("g"));
+    fn global_escapes_named_var_in_an_actual_procedure_frame() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = lower_to_ir("proc p {} {global g}", registry);
+        let summary = analyse_script_with_registry(
+            &module.procedures["::p"].body,
+            std::iter::empty::<String>(),
+            registry,
+        );
+        assert!(summary.is_frame("g"));
+        assert!(
+            !analyse("global g").is_frame("g"),
+            "global frame declaration is a no-op"
+        );
     }
 
     #[test]

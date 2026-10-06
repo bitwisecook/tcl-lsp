@@ -88,6 +88,99 @@ fn run(src: &str) -> (bool, String, String) {
     )
 }
 
+#[test]
+fn runtime_loop_break_after_an_inner_compiled_loop_exits_the_outer_loop() {
+    let source = r#"
+interp alias {} scan_loop {} while
+set pos 0
+set len 2
+scan_loop {$pos < $len} {
+    while {$pos < $len} {incr pos}
+    if {$pos >= $len} {break}
+}
+set pos
+"#;
+    let (ok, result, _) = run(source);
+    assert!(ok, "{result}");
+    assert_eq!(result, "2");
+}
+
+#[test]
+fn runtime_loop_continue_after_an_inner_compiled_loop_resumes_the_outer_loop() {
+    let source = r#"
+interp alias {} scan_loop {} while
+set n 0
+scan_loop {$n < 2} {
+    set inner 0
+    while {$inner < 1} {incr inner}
+    incr n
+    continue
+    error UNREACHABLE
+}
+set n
+"#;
+    let (ok, result, _) = run(source);
+    assert!(ok, "{result}");
+    assert_eq!(result, "2");
+}
+
+#[test]
+fn replaced_loop_jump_commands_keep_their_normal_continuation() {
+    for command in ["break", "continue"] {
+        let source = format!(
+            "proc {command} {{}} {{return NORMAL}}; set i 0; set count 0; \
+             while {{$i < 2}} {{incr i; {command}; incr count}}; list $i $count"
+        );
+        let (ok, result, _) = run(&source);
+        assert!(ok, "{command}: {result}");
+        assert_eq!(result, "2 2", "{command}");
+    }
+}
+
+#[test]
+fn replacing_a_loop_jump_during_argument_evaluation_keeps_the_continuation() {
+    for command in ["break", "continue"] {
+        let source = format!(
+            "proc install {{}} {{rename {command} original_jump; \
+             proc {command} args {{return NORMAL}}; return ARG}}; \
+             set i 0; set count 0; while {{$i < 1}} \
+             {{incr i; {command} [install]; incr count}}; list $i $count"
+        );
+        let (ok, result, _) = run(&source);
+        assert!(ok, "{command}: {result}");
+        assert_eq!(result, "1 1", "{command}");
+    }
+}
+
+#[test]
+fn native_option_loop_breaks_through_an_aliased_if() {
+    let script = r#"
+rename while native_while
+interp alias {} while {} native_while
+rename if native_if
+interp alias {} if {} native_if
+proc parse_options {args} {
+    set idx 0
+    set n [llength $args]
+    while {$idx < $n} {
+        set tok [lindex $args $idx]
+        if {$tok eq "--"} {incr idx; break}
+        if {[string index $tok 0] eq "-"} {incr idx} else {break}
+    }
+    return [lindex $args $idx]
+}
+list [parse_options api.example.com equals hosts] [parse_options -nocase -- api.example.com equals hosts]
+"#;
+    assert_eq!(
+        run(script),
+        (
+            true,
+            "api.example.com api.example.com".into(),
+            String::new()
+        )
+    );
+}
+
 /// Runtime compiler which deliberately emits ordinary command dispatch for
 /// every dynamic script. This isolates the generic/plain `catch` and `try`
 /// path without relying on execution-trace side effects to select it.
@@ -95,6 +188,83 @@ struct PlainRuntimeCompiler(BytecodeCompileService);
 
 impl CompileService for PlainRuntimeCompiler {
     type Module = tcl_bytecode::ModuleAsm;
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_procedure_bytes_for_profile(
+            target,
+            profile,
+            tcl_runtime_api::ProcedureDispatch::Plain,
+        )
+    }
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        _dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.0.compile_procedure_bytes_with_entry(
+            target,
+            profile,
+            entry,
+            tcl_runtime_api::ProcedureDispatch::Plain,
+        )
+    }
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+        self.0
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
         self.0.compile_traced(src)
@@ -108,11 +278,23 @@ impl CompileService for PlainRuntimeCompiler {
         self.0.compile_traced_for_profile(src, profile)
     }
 
+    fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
+        self.0.compile_traced(src)
+    }
+
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        self.0.compile_traced_for_profile(src, profile)
+    }
+
     fn script_command_plan_for_profile(
         &self,
         src: &str,
         profile: &'static tcl_dialect::DialectProfile,
-    ) -> ScriptCommandPlan {
+    ) -> Result<ScriptCommandPlan, CompileError> {
         self.0.script_command_plan_for_profile(src, profile)
     }
 }
@@ -1930,18 +2112,10 @@ fn try_handler_var_bind_array_on_scalar_should_fail() {
     assert_eq!(msg, "can't set \"x(y)\": variable isn't array");
 }
 
-// Native-stack safety: the runtime `if`/`while`/`for` fallback
-// (this file) recurses on the host stack via `Vm::eval_source` when driven
-// through a computed command name (`set c if; $c ...`, defeating the
-// compiled fast path — see this file's module doc comment). Confirmed
-// empirically: before `NATIVE_EVAL_SOURCE_DEPTH_LIMIT`, this reliably
-// overflowed the stack (SIGABRT) between depth 50 and 60 on a 2 MiB thread.
-
-/// Deep dynamic-dispatch `if` nesting returns a catchable error instead of
-/// crashing the process. 100 is comfortably past both the measured 50-60
-/// crash range and `NATIVE_EVAL_SOURCE_DEPTH_LIMIT` (16).
+/// Dynamic controls retain their continuations on the VM activation stack.
+/// All five C Tcl references and Jim 0.84 complete this fixed nesting with 1.
 #[test]
-fn deeply_nested_dynamic_if_errors_instead_of_crashing() {
+fn deeply_nested_dynamic_if_uses_retained_vm_continuations() {
     const DEPTH: usize = 100;
     let mut src = "set c if\n".to_owned();
     for _ in 0..DEPTH {
@@ -1952,12 +2126,28 @@ fn deeply_nested_dynamic_if_errors_instead_of_crashing() {
         src.push_str("}\n");
     }
     let (ok, result, _) = run(&src);
-    assert!(!ok, "expected a catchable error, got ok with: {result}");
+    assert!(ok, "{result}");
+    assert_eq!(result, "1");
+}
+
+#[test]
+fn dynamic_controls_preserve_the_configured_procedure_recursion_limit() {
+    let source = r#"
+interp recursionlimit {} 40
+proc walk {n} {
+    set c if
+    $c {$n > 0} {walk [expr {$n - 1}]} else {return done}
+}
+catch {walk 100} message
+set message
+"#;
+    // Real C Tcl 8.4–9.1 all reject this invocation with the same message.
+    let (ok, result, _) = run(source);
+    assert!(ok, "{result}");
     assert_eq!(result, "too many nested evaluations (infinite loop?)");
 }
 
-/// A shallow dynamic-dispatch `if` (well under the safety net) still runs
-/// normally — the safety net must not fire on realistic nesting depths.
+/// A shallow dynamic-dispatch `if` follows the same continuation path.
 #[test]
 fn shallow_dynamic_if_still_runs() {
     assert_eq!(run("set c if\n$c {1} {\n    set done 1\n}\n").1, "1");

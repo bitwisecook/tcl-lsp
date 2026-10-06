@@ -178,8 +178,71 @@ fn if_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 /// `None` for any shape C Tcl accepts — including a bare leading
 /// `else` / `elseif` (`if else {a}`): see [`walk_if`]'s doc comment for
 /// why that is structurally well-formed rather than a malformed `if`.
-fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
+pub(crate) fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
     walk_if(args).error
+}
+
+/// BPF syntax uses the same clause grammar, independently of Tcl execution
+/// admission. Every returned position addresses an original argument word.
+pub(crate) fn bpf_conditional_operands(args: &[&str]) -> Option<Vec<(Option<usize>, usize)>> {
+    // The shared role carrier cannot represent positions beyond this bound.
+    if args.len() > usize::from(u8::MAX) {
+        return None;
+    }
+    let walk = walk_if(args);
+    if walk.error.is_some() {
+        return None;
+    }
+    let mut condition = None;
+    let mut clauses = Vec::new();
+    for (position, role) in walk.roles {
+        match role {
+            ArgRole::Expr => condition = Some(usize::from(position)),
+            ArgRole::Body => clauses.push((condition.take(), usize::from(position))),
+            _ => {}
+        }
+    }
+    Some(clauses)
+}
+
+/// Present an authored C Tcl 8.4 compiler clause defect. Expression words
+/// retain their source delimiters; grammar keywords use their decoded value.
+pub(crate) fn native_compile_shape_message(
+    arguments: &[&str],
+    written_head: &str,
+    spellings: &[&str],
+) -> Option<String> {
+    let walk = walk_if(arguments);
+    let (prefix, token) = match walk.error? {
+        ClauseShapeError::MissingExpr { after } => (
+            "wrong # args: no expression after",
+            after.map_or(Some(written_head), |index| arguments.get(index).copied())?,
+        ),
+        ClauseShapeError::MissingBody { after } => {
+            let expression = walk
+                .roles
+                .iter()
+                .any(|(index, role)| usize::from(*index) == after && *role == ArgRole::Expr);
+            (
+                "wrong # args: no script following",
+                if expression {
+                    spellings.get(after).copied()?
+                } else {
+                    arguments.get(after).copied()?
+                },
+            )
+        }
+        ClauseShapeError::ExtraWords { .. } => {
+            return Some(
+                "wrong # args: extra words after \"else\" clause in \"if\" command".into(),
+            );
+        }
+    };
+    let mut end = token.len().min(50);
+    while !token.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(format!("{prefix} \"{}\" argument", &token[..end]))
 }
 
 /// Command spec for `if`.
@@ -197,9 +260,21 @@ fn check_if_shape(args: &[&str]) -> Option<ClauseShapeError> {
 /// 8.6+ use 4-space indent and wrap that same expression's `||` operators
 /// one per line. `if` has never taken an option, never gained or lost a
 /// form, and has no version-gated behaviour to model here.
+static BPF_CONDITIONAL: crate::bpf_op::BpfOpSpec =
+    crate::bpf_op::BpfOpSpec::structural(crate::bpf_op::BpfOpKind::Conditional);
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
+        bpf_op: Some(&BPF_CONDITIONAL),
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::PossibleBodies),
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Conditional,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::If,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted everywhere. `if` is a pure control-flow
         // keyword with no filesystem/process/network access, so its surface
         // carries an iRules row explicitly (`ALL_TCL.union(IRULES)`) and it
@@ -294,6 +369,19 @@ mod tests {
     #[test]
     fn condition_body_is_well_formed() {
         assert_eq!(shape("1 a"), None);
+    }
+
+    #[test]
+    fn bpf_conditionals_share_exact_clause_positions_and_shape_rejection() {
+        assert_eq!(
+            bpf_conditional_operands(&["else", "then", "A", "elseif", "test", "B", "C"]),
+            Some(vec![(Some(0), 2), (Some(4), 5), (None, 6)]),
+        );
+        assert_eq!(bpf_conditional_operands(&["test", "then"]), None);
+        assert_eq!(
+            bpf_conditional_operands(&["test", "A", "else", "B", "extra"]),
+            None
+        );
     }
 
     #[test]

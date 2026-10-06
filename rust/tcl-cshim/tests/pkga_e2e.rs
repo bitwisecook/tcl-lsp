@@ -386,7 +386,7 @@ fn client_data_and_delete_procs_work_across_calls() {
     );
     assert_eq!(
         interp.commands(),
-        ["pkga_calc", "pkga_eq", "pkga_forget", "pkga_quote"]
+        ["pkga_calc", "pkga_eq", "pkga_forget", "pkga_quote"].map(tcl_core_types::NameBytes::from)
     );
 }
 
@@ -395,6 +395,6 @@ fn provided_packages_are_recorded_shim_side() {
     let interp = loaded();
     assert_eq!(
         interp.provided_packages(),
-        [("pkga".to_owned(), "1.0".to_owned())]
+        [(tcl_core_types::NameBytes::from("pkga"), b"1.0".to_vec())]
     );
 }

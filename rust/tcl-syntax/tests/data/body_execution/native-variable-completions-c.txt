@@ -1,0 +1,16 @@
+trace-ok 0 0
+trace-error 1 1
+trace-return 1 1
+trace-break 1 1
+trace-continue 1 1
+trace-7 1 1
+missing-read 1
+invalid-increment 1
+conflicting-global 1
+self-upvar 1
+proc-opaque-body 0
+proc-invalid-namespace 1
+rename-normal 0
+rename-missing 1
+rename-existing 1
+rename-delete 0

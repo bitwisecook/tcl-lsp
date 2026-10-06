@@ -38,7 +38,7 @@ use crate::deploy::resolve_attach;
 use crate::diag::{BpfDiag, BpfError};
 use crate::event::{event_to_prog_type, known_event_names};
 use crate::ir::{BpfModule, BpfProgramDecl, ProgType};
-use crate::lower::{lower_function, parse_int};
+use crate::lower::{lower_function_with_config, parse_int};
 use crate::profile::{BpfProfileSpec, collect_profile, expand_fields};
 use crate::source::lower_bpf_source;
 use crate::template::{TemplateDef, collect_templates, expand_uses};
@@ -136,7 +136,12 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
             };
             check_policy(&expanded, &policy, registry)?;
             let cfg = build_cfg_function("main", &expanded, false, registry, false);
-            let program = lower_function(&cfg, ProgType::SocketFilter, registry)?;
+            let program = lower_function_with_config(
+                &cfg,
+                ProgType::SocketFilter,
+                registry,
+                module.native_lexer_config(),
+            )?;
             programs.push(BpfProgramDecl {
                 event: "SOCKET_FILTER".to_owned(),
                 priority: 500,
@@ -291,7 +296,9 @@ fn lower_when_decl(
         registry,
         false,
     );
-    let program = lower_function(&cfg, prog_type, registry).map_err(|e| e.offset(source_base))?;
+    let program =
+        lower_function_with_config(&cfg, prog_type, registry, body_module.native_lexer_config())
+            .map_err(|e| e.offset(source_base))?;
 
     Ok(BpfProgramDecl {
         event,
@@ -645,6 +652,31 @@ mod tests {
         let module = compile_module(src).expect("port filter should compile");
         assert_eq!(module.programs.len(), 1);
         assert!(module.programs[0].program.blocks.len() >= 3);
+    }
+
+    #[test]
+    fn bpf_conditional_syntax_preserves_nested_static_branches() {
+        let source = "when SOCKET_FILTER {setint x 2; if {$x == 1} then {accept} elseif {$x == 2} {if {$x > 0} {drop} else {accept}} {accept}}";
+        let module = compile_module(source).expect("static BPF conditional syntax");
+        assert!(module.programs[0].program.blocks.len() >= 5);
+    }
+
+    #[test]
+    fn bpf_conditional_does_not_admit_dynamic_words_or_tcl_replacement() {
+        for body in [
+            "setint x 1; if $x {accept}",
+            "setint x 1; if {$x} $body",
+            "setint x 1; if {*}{$x} {accept}",
+            "setint x 1; if {$x} then",
+            "rename if oldif; if {1} {accept}",
+            "proc if args {return}; if {1} {accept}",
+        ] {
+            let source = format!("when SOCKET_FILTER {{{body}}}");
+            assert!(
+                compile_module(&source).is_err(),
+                "unsupported BPF source: {source}"
+            );
+        }
     }
 
     /// Registry/lowering drift gate: every BPF-dialect command carries a

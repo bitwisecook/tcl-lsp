@@ -1,0 +1,61 @@
+name: Resolution oracles
+
+on:
+  pull_request:
+    paths:
+      - 'rust/**'
+      - 'specs/**'
+      - 'scripts/dev/ensure-jim-oracle.sh'
+      - 'scripts/dev/run-resolution-oracles.sh'
+      - 'scripts/dev/tcl-reference-toolchains.sh'
+      - 'scripts/dev/ensure-test-deps.sh'
+      - '.github/workflows/resolution-oracles.yml'
+  push:
+    branches: [rust]
+    paths:
+      - 'rust/**'
+      - 'specs/**'
+      - 'scripts/dev/ensure-jim-oracle.sh'
+      - 'scripts/dev/run-resolution-oracles.sh'
+      - 'scripts/dev/tcl-reference-toolchains.sh'
+      - 'scripts/dev/ensure-test-deps.sh'
+      - '.github/workflows/resolution-oracles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  complete-reference-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/resolution-tcl-bin
+      TCL_LSP_JIM_ROOT: ${{ runner.temp }}/resolution-jim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+      - name: Cache exact reference sources and binaries
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            tmp/tcl*
+            ${{ runner.temp }}/resolution-jim
+          key: ${{ runner.os }}-resolution-oracles-${{ hashFiles('rust/tcl-dialect/data/reference-toolchains.tsv', 'rust/tcl-test-support/jim-reference.txt') }}
+      - name: Build all pinned C Tcl references and current Jim
+        shell: bash
+        run: |
+          make ensure-tcl-deps
+          bash scripts/dev/ensure-jim-oracle.sh
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          for release in $(tcl_reference_releases); do
+            reference="$(tcl_reference_resolve_tclsh "$release")"
+            compact="${release//./}"
+            printf 'TCL_LSP_TCLSH%s=%s\n' "$compact" "$reference" >> "$GITHUB_ENV"
+          done
+          printf 'TCL_LSP_JIMSH=%s\n' "$TCL_LSP_JIM_ROOT/jimsh" >> "$GITHUB_ENV"
+      - name: Require every reference and verify semantic observations and rewrites
+        run: bash scripts/dev/run-resolution-oracles.sh

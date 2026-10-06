@@ -31,6 +31,51 @@ use std::process::{Command, Stdio};
 
 use tcl_dialect::TclVersion;
 
+pub mod automatic_errors;
+pub mod binary_values;
+pub mod expressions;
+pub mod fixed_sources;
+mod jim;
+pub mod jim_strings;
+pub mod native_integer_formatter;
+pub mod numeric_environment;
+pub mod variable_containers;
+pub mod variable_outputs;
+pub use jim::{JimCapability, JimReference, Jimsh, jim_reference, locate_jimsh, require_jimsh};
+
+/// Emit optional conformance row receipts without changing test admission.
+/// `TCL_LSP_ORACLE_PROGRESS=1` enables stderr records. `None` marks row entry;
+/// a count marks a row whose comparison assertions have all passed.
+pub fn oracle_row_progress(suite: &str, engine: &str, case: &str, completed: Option<usize>) {
+    if std::env::var_os("TCL_LSP_ORACLE_PROGRESS").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        return;
+    }
+    match completed {
+        None => eprintln!("oracle-row start suite={suite} engine={engine} case={case}"),
+        Some(count) => eprintln!(
+            "oracle-row complete suite={suite} engine={engine} case={case} completed={count}"
+        ),
+    }
+}
+
+/// Optional elapsed-time receipt for a physical conformance operation.
+/// This observer does not change selection, assertions, or execution budgets.
+pub fn oracle_phase_progress(
+    suite: &str,
+    engine: &str,
+    case: &str,
+    operation: &str,
+    since: std::time::Instant,
+) {
+    if std::env::var_os("TCL_LSP_ORACLE_PROGRESS").as_deref() != Some(std::ffi::OsStr::new("1")) {
+        return;
+    }
+    eprintln!(
+        "oracle-phase suite={suite} engine={engine} case={case} operation={operation} elapsed_ms={}",
+        since.elapsed().as_millis()
+    );
+}
+
 /// Exact upstream patchlevel pinned for one C Tcl reference release.
 #[must_use]
 pub fn reference_patchlevel(version: TclVersion) -> &'static str {
@@ -296,6 +341,10 @@ pub fn run_script_from_source_tree(
 /// Every available reference interpreter, in release order.
 #[must_use]
 pub fn available_tclshs() -> Vec<Tclsh> {
+    if std::env::var_os("TCL_LSP_REQUIRE_ALL_TCL_ORACLES").is_some() {
+        return required_tclshs(&TclVersion::ALL)
+            .unwrap_or_else(|error| panic!("required C Tcl oracle matrix: {error}"));
+    }
     let mut interpreters = Vec::new();
     for version in TclVersion::ALL {
         match locate_tclsh(version) {
@@ -305,16 +354,142 @@ pub fn available_tclshs() -> Vec<Tclsh> {
                 version.version_string(),
                 release_location(version).binary_env
             ),
-            Err(error) => eprintln!("skipping Tcl {}: {error}", version.version_string()),
+            Err(error) => panic!("invalid Tcl {} oracle: {error}", version.version_string()),
         }
     }
     interpreters
+}
+
+/// Select every requested release, failing if any lane is absent or invalid.
+/// An explicit interpreter override remains a promise, never a skipped lane.
+///
+/// ```no_run
+/// use tcl_dialect::TclVersion;
+/// use tcl_test_support::{required_tclshs, run_script};
+/// # fn example() -> Result<(), tcl_test_support::OracleError> {
+/// for reference in required_tclshs(&TclVersion::ALL)? {
+///     let outcome = run_script(&reference.path, b"puts [info patchlevel]\n")?;
+///     assert!(outcome.success());
+/// }
+/// # Ok(()) }
+/// ```
+pub fn required_tclshs(versions: &[TclVersion]) -> Result<Vec<Tclsh>, OracleError> {
+    versions
+        .iter()
+        .map(|&version| {
+            locate_tclsh(version)?.ok_or_else(|| {
+                OracleError::InvalidInterpreter(format!(
+                    "missing required C Tcl {} oracle; set {}",
+                    reference_patchlevel(version),
+                    release_location(version).binary_env
+                ))
+            })
+        })
+        .collect()
 }
 
 /// Run a Tcl script through a reference interpreter and preserve its raw byte
 /// channels and exit code.
 pub fn run_script(tclsh: &Path, script: &[u8]) -> Result<ScriptOutcome, OracleError> {
     run_script_with_library(tclsh, script, None)
+}
+
+/// Execute a source file using the interpreter's file-evaluation mode.
+/// Unlike interactive stdin, a top-level uncaught error yields a failing
+/// process status. Use this for original-versus-rewritten execution checks.
+pub fn run_script_file(tclsh: &Path, source: &Path) -> Result<ScriptOutcome, OracleError> {
+    let output = Command::new(tclsh)
+        .arg(source)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|source| OracleError::Io {
+            action: "executing Tcl source file",
+            source,
+        })?;
+    Ok(ScriptOutcome {
+        exit_code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    })
+}
+
+/// Execute a script with isolated source files available to package/source loaders.
+///
+/// The script receives `::oracle_fixture_root` from a process environment value,
+/// so path quoting never changes Tcl source semantics. Every file name must be
+/// relative with ordinary components. Each call uses its own temporary directory
+/// and removes it when execution finishes, including when the interpreter errors.
+///
+/// ```no_run
+/// use std::path::Path;
+/// use tcl_test_support::run_script_fixture;
+/// # fn example() -> Result<(), tcl_test_support::OracleError> {
+/// let result = run_script_fixture(Path::new("tclsh8.6"),
+///     "puts [source [file join $::oracle_fixture_root helper.tcl]]",
+///     &[("helper.tcl", "return answer")])?;
+/// assert!(result.success());
+/// # Ok(()) }
+/// ```
+pub fn run_script_fixture(
+    interpreter: &Path,
+    source: &str,
+    files: &[(&str, &str)],
+) -> Result<ScriptOutcome, OracleError> {
+    static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let sequence = SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let root = std::env::temp_dir().join(format!(
+        "tcl-oracle-fixture-{}-{sequence}",
+        std::process::id()
+    ));
+    let io_error = |action, source| OracleError::Io { action, source };
+    fs::create_dir(&root)
+        .map_err(|source| io_error("creating oracle fixture directory", source))?;
+    let temporary = FixtureDirectory(root);
+    for &(name, contents) in files {
+        let name = Path::new(name);
+        if name.as_os_str().is_empty()
+            || !name
+                .components()
+                .all(|part| matches!(part, std::path::Component::Normal(_)))
+        {
+            return Err(OracleError::InvalidOverride(format!(
+                "oracle fixture path must be relative: {}",
+                name.display()
+            )));
+        }
+        let path = temporary.0.join(name);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|source| io_error("creating oracle fixture parents", source))?;
+        }
+        fs::write(path, contents)
+            .map_err(|source| io_error("writing oracle fixture source", source))?;
+    }
+    let script_path = temporary.0.join("oracle-entry.tcl");
+    fs::write(
+        &script_path,
+        format!("set ::oracle_fixture_root $::env(TCL_LSP_ORACLE_FIXTURE_ROOT)\n{source}\n"),
+    )
+    .map_err(|source| io_error("writing oracle fixture entry", source))?;
+    let output = Command::new(interpreter)
+        .arg(&script_path)
+        .env("TCL_LSP_ORACLE_FIXTURE_ROOT", &temporary.0)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|source| io_error("executing oracle fixture entry", source))?;
+    Ok(ScriptOutcome {
+        exit_code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    })
+}
+
+struct FixtureDirectory(PathBuf);
+
+impl Drop for FixtureDirectory {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 fn run_script_with_library(
@@ -555,6 +730,39 @@ mod tests {
     use tcl_dialect::TclVersion;
 
     const SOURCE_ENV_CHILD: &str = "TCL_TEST_SUPPORT_SOURCE_ENV_CHILD";
+
+    #[test]
+    fn strict_requested_oracles_do_not_skip_invalid_overrides() {
+        const CHILD: &str = "TCL_TEST_SUPPORT_REQUIRED_MATRIX_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let c_error = super::required_tclshs(&[TclVersion::V8_4])
+                .expect_err("requested C lane cannot be skipped");
+            assert!(matches!(c_error, OracleError::InvalidOverride(_)));
+            assert!(c_error.to_string().contains("TCL_LSP_TCLSH84"));
+            let jim_error =
+                super::require_jimsh().expect_err("requested Jim lane cannot be skipped");
+            assert!(matches!(jim_error, OracleError::InvalidOverride(_)));
+            assert!(jim_error.to_string().contains("TCL_LSP_JIMSH"));
+            return;
+        }
+        let missing = fixture_root("missing-required-interpreter");
+        assert!(!missing.exists());
+        let output = Command::new(std::env::current_exe().expect("test executable"))
+            .args([
+                "--exact",
+                "tests::strict_requested_oracles_do_not_skip_invalid_overrides",
+            ])
+            .env(CHILD, "1")
+            .env("TCL_LSP_TCLSH84", &missing)
+            .env("TCL_LSP_JIMSH", &missing)
+            .output()
+            .expect("required-matrix child");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
 
     #[test]
     fn upstream_definition_is_bounded_by_its_adjacent_marker() {

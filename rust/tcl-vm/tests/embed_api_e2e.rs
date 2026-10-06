@@ -58,9 +58,11 @@ impl NativeCommand for RelativeHostProcDefiner {
     fn invoke(&self, vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
         match vm.define_procedure("host_relative", &[], "namespace current") {
             Ok(()) => Completion::new(Code::Ok, Value::empty(), Value::empty()),
-            Err(error) => {
-                Completion::new(Code::Error, Value::string(error.message), Value::empty())
-            }
+            Err(error) => Completion::new(
+                Code::Error,
+                error.into_value().expect("guest fixture compilation error"),
+                Value::empty(),
+            ),
         }
     }
 }
@@ -277,7 +279,12 @@ fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
         vm.remove_command("lassign"),
         "embedder teardown must see the raw registered command"
     );
-    assert!(!vm.command_names().iter().any(|name| name == "lassign"));
+    assert!(
+        !vm.command_names()
+            .expect("Unicode command names")
+            .iter()
+            .any(|name| name == "lassign")
+    );
 
     vm.set_dialect_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
@@ -376,11 +383,16 @@ fn an_unlimited_vm_still_counts_commands() {
 #[test]
 fn retain_commands_reduces_the_table_to_a_whitelist() {
     let mut vm = vm();
-    let before = vm.command_names().len();
+    let before = vm.command_names().expect("Unicode command names").len();
     let allowed = ["set", "expr", "if", "string", "list", "lindex", "return"];
     let removed = vm.retain_commands(&|name| allowed.contains(&name));
     assert!(removed > 0 && removed < before);
-    assert!(vm.command_names().iter().all(|n| allowed.contains(&&**n)));
+    assert!(
+        vm.command_names()
+            .expect("Unicode command names")
+            .iter()
+            .all(|n| allowed.contains(&&**n))
+    );
 
     // A whitelisted command still works …
     let ok = vm.invoke_command("string", &[Value::string("length"), Value::string("abc")]);

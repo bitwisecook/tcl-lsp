@@ -72,7 +72,7 @@ pub enum ByteStringEncoding {
 /// that four-byte string, 8.4/8.5 answer code point 240 (`0xF0`, the raw
 /// UTF-8 lead byte), 8.6 answers 55357 (`0xD83D`, the high surrogate), and
 /// 9.x answers 128512 (`U+1F600`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StringCharacterModel {
     /// Tcl 8.4-8.5: count BMP characters, but a supplementary code point
     /// counts as its four UTF-8 bytes (`TCL_UTF_MAX` 3).
@@ -81,6 +81,9 @@ pub enum StringCharacterModel {
     Utf16CodeUnits,
     /// Tcl 9.x: count Unicode scalar values.
     UnicodeScalars,
+    /// Pinned Jim 0.84 UTF8 numeric units, retaining surrogate and invalid bytes.
+    /// Byte-valued counting is implemented by the shared raw-string owner.
+    Jim084Utf8,
 }
 
 impl StringCharacterModel {
@@ -91,6 +94,7 @@ impl StringCharacterModel {
         Self::BmpCharsElseUtf8Bytes,
         Self::Utf16CodeUnits,
         Self::UnicodeScalars,
+        Self::Jim084Utf8,
     ];
 
     /// The number of Tcl characters `value` holds under this model.
@@ -107,7 +111,7 @@ impl StringCharacterModel {
                 .map(|c| if (c as u32) > 0xFFFF { c.len_utf8() } else { 1 })
                 .sum(),
             Self::Utf16CodeUnits => value.encode_utf16().count(),
-            Self::UnicodeScalars => value.chars().count(),
+            Self::UnicodeScalars | Self::Jim084Utf8 => value.chars().count(),
         }
     }
 
@@ -176,7 +180,7 @@ impl CorePackage {
 /// `2³²-1` on 8.x, and `string is wideinteger` / `entier` / `dict` and
 /// `format %b` don't exist (they *raise*) before a given release.  Ordered, so
 /// a fold can test `version >= TclVersion::V8_5`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TclVersion {
     /// Tcl 8.4.
     V8_4,
@@ -470,6 +474,49 @@ impl TclVersion {
         }
     }
 
+    /// Whether package commands accept TIP 268 requirement lists, ranges and
+    /// alpha/beta versions. Tcl 8.4 accepts one numeric dotted version only.
+    #[must_use]
+    pub const fn has_package_requirements(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Bounds accepted by `lset`, including the one-past-end append case.
+    #[must_use]
+    pub const fn list_set_bounds(self) -> ListSetBounds {
+        match self {
+            Self::V8_4 | Self::V8_5 => ListSetBounds::ExistingElement,
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => ListSetBounds::AppendAtEnd,
+        }
+    }
+
+    /// The optional-level presence grammar of `upvar`.
+    #[must_use]
+    pub const fn upvar_level_presence(self) -> FrameLevelPresence {
+        if self.upvar_uses_argument_parity() {
+            FrameLevelPresence::ArgumentParity
+        } else {
+            FrameLevelPresence::DigitOrHash
+        }
+    }
+
+    /// The optional-level presence grammar of `uplevel`.
+    #[must_use]
+    pub const fn uplevel_level_presence(self) -> FrameLevelPresence {
+        match self {
+            Self::V8_4 | Self::V8_5 => FrameLevelPresence::DigitOrHash,
+            Self::V8_6 => FrameLevelPresence::DigitOrNonNegativeInteger,
+            Self::V9_0 | Self::V9_1 => FrameLevelPresence::IntegerOrHash,
+        }
+    }
+
+    /// Whether `upvar` chooses its optional level by argument-count parity.
+    /// Tcl 8.4 and 8.5 instead probe the leading word before checking pairs.
+    #[must_use]
+    pub const fn upvar_uses_argument_parity(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether this release accepts a `+` suffix on package versions.
     ///
     /// Tcl 9 stops package-version conversion at the first `+`, while Tcl 8
@@ -725,7 +772,7 @@ enum Segment<'v> {
     /// zero and `"0005"` is held as `"5"`.  C strips them by advancing past
     /// `'0'` before measuring the run, which is also why a literal `0`
     /// component and a component that simply ran out compare equal.
-    Number(&'v str),
+    Number(&'v [u8]),
 }
 
 /// Zero — the value a version that has run out of components compares as.
@@ -734,7 +781,7 @@ enum Segment<'v> {
 /// leading-zero skip leaves an empty run, which then ties with a literal `0`,
 /// sorts below any longer digit run, and sorts above the negative separator
 /// markers via the sign shortcut.
-const ZERO: Segment<'static> = Segment::Number("");
+const ZERO: Segment<'static> = Segment::Number(b"");
 
 impl Segment<'_> {
     /// The `CompareVersions` per-segment rule.
@@ -792,12 +839,18 @@ impl<'v> ParsedVersion<'v> {
     }
 
     fn parse_for(string: &'v str, allow_plus_suffix: bool) -> Option<Self> {
-        let string = if allow_plus_suffix {
-            string.split_once('+').map_or(string, |(prefix, _)| prefix)
+        Self::parse_bytes_for(string.as_bytes(), allow_plus_suffix)
+    }
+
+    fn parse_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> Option<Self> {
+        let bytes = if allow_plus_suffix {
+            string
+                .iter()
+                .position(|byte| *byte == b'+')
+                .map_or(string, |end| &string[..end])
         } else {
             string
         };
-        let bytes = string.as_bytes();
         if !bytes.first().is_some_and(u8::is_ascii_digit) {
             return None;
         }
@@ -825,7 +878,7 @@ impl<'v> ParsedVersion<'v> {
                 return None;
             }
             has_unstable |= c != b'.';
-            segments.push(number_segment(&string[run_start..i]));
+            segments.push(number_segment(&bytes[run_start..i]));
             segments.push(separator);
             run_start = i + 1;
             prev = c;
@@ -834,7 +887,7 @@ impl<'v> ParsedVersion<'v> {
         if matches!(prev, b'.' | b'a' | b'b') {
             return None;
         }
-        segments.push(number_segment(&string[run_start..]));
+        segments.push(number_segment(&bytes[run_start..]));
         Some(Self {
             segments,
             stable: !has_unstable,
@@ -846,13 +899,15 @@ impl<'v> ParsedVersion<'v> {
     /// runs become segments, recognised separators become their markers, and
     /// any other character is skipped. Never used to decide satisfaction —
     /// only to order two strings that are not versions in the first place.
-    fn lenient_for(string: &'v str, allow_plus_suffix: bool) -> Vec<Segment<'v>> {
-        let string = if allow_plus_suffix {
-            string.split_once('+').map_or(string, |(prefix, _)| prefix)
+    fn lenient_bytes_for(string: &'v [u8], allow_plus_suffix: bool) -> Vec<Segment<'v>> {
+        let bytes = if allow_plus_suffix {
+            string
+                .iter()
+                .position(|byte| *byte == b'+')
+                .map_or(string, |end| &string[..end])
         } else {
             string
         };
-        let bytes = string.as_bytes();
         let mut segments = Vec::new();
         let mut run_start = 0usize;
         for (i, &c) in bytes.iter().enumerate() {
@@ -866,16 +921,16 @@ impl<'v> ParsedVersion<'v> {
                 _ => {
                     // Skipped entirely: close the run before it and reopen
                     // after, so `1x2` still reads as two components.
-                    segments.push(number_segment(&string[run_start..i]));
+                    segments.push(number_segment(&bytes[run_start..i]));
                     run_start = i + 1;
                     continue;
                 }
             };
-            segments.push(number_segment(&string[run_start..i]));
+            segments.push(number_segment(&bytes[run_start..i]));
             segments.push(separator);
             run_start = i + 1;
         }
-        segments.push(number_segment(&string[run_start..]));
+        segments.push(number_segment(&bytes[run_start..]));
         segments
     }
 }
@@ -891,6 +946,48 @@ pub enum RequirementValidationError<'v> {
     InvalidRange(&'v str),
 }
 
+/// Failure in the package requirement grammar, retaining the original bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RequirementBytesValidationError<'v> {
+    /// Invalid single version or range endpoint.
+    InvalidVersion(&'v [u8]),
+    /// Invalid range with more than one separator.
+    InvalidRange(&'v [u8]),
+}
+
+/// Validate an already selected package requirement byte extent.
+///
+/// # Errors
+/// The exact single version, endpoint, or whole range used by the diagnostic.
+pub fn validate_requirement_bytes_for(
+    requirement: &[u8],
+    release: TclVersion,
+) -> Result<(), RequirementBytesValidationError<'_>> {
+    let allow_suffix = release.allows_package_version_suffix();
+    if !release.has_package_requirements() || (allow_suffix && requirement.contains(&b'+')) {
+        return validate_version_bytes_for(requirement, release)
+            .then_some(())
+            .ok_or(RequirementBytesValidationError::InvalidVersion(requirement));
+    }
+    let Some(dash) = requirement.iter().position(|byte| *byte == b'-') else {
+        return validate_version_bytes_for(requirement, release)
+            .then_some(())
+            .ok_or(RequirementBytesValidationError::InvalidVersion(requirement));
+    };
+    if requirement[dash + 1..].contains(&b'-') {
+        return Err(RequirementBytesValidationError::InvalidRange(requirement));
+    }
+    let minimum = &requirement[..dash];
+    let maximum = &requirement[dash + 1..];
+    if !validate_version_bytes_for(minimum, release) {
+        return Err(RequirementBytesValidationError::InvalidVersion(minimum));
+    }
+    if !maximum.is_empty() && !validate_version_bytes_for(maximum, release) {
+        return Err(RequirementBytesValidationError::InvalidVersion(maximum));
+    }
+    Ok(())
+}
+
 /// Check one package version using the strict, release-agnostic parser.
 /// Runtime commands for a pinned interpreter use [`validate_version_for`].
 #[must_use]
@@ -901,7 +998,19 @@ pub fn validate_version(version: &str) -> bool {
 /// Check one package version using a pinned Tcl release's grammar.
 #[must_use]
 pub fn validate_version_for(version: &str, release: TclVersion) -> bool {
-    ParsedVersion::parse_for(version, release.allows_package_version_suffix()).is_some()
+    validate_version_bytes_for(version.as_bytes(), release)
+}
+
+/// Byte-preserving package semantics for already selected input extents.
+#[must_use]
+pub fn validate_version_bytes_for(version: &[u8], release: TclVersion) -> bool {
+    (release.has_package_requirements()
+        || version
+            .iter()
+            .copied()
+            .all(|byte| byte.is_ascii_digit() || byte == b'.'))
+        && ParsedVersion::parse_bytes_for(version, release.allows_package_version_suffix())
+            .is_some()
 }
 
 /// Check one package requirement using the strict, release-agnostic parser.
@@ -915,44 +1024,28 @@ pub fn validate_requirement_for(
     requirement: &str,
     release: TclVersion,
 ) -> Result<(), RequirementValidationError<'_>> {
-    validate_requirement_with_suffix_policy(requirement, release.allows_package_version_suffix())
-}
-
-fn validate_requirement_with_suffix_policy(
-    requirement: &str,
-    allow_plus_suffix: bool,
-) -> Result<(), RequirementValidationError<'_>> {
-    if allow_plus_suffix && requirement.contains('+') {
-        return ParsedVersion::parse_for(requirement, true)
-            .is_some()
-            .then_some(())
-            .ok_or(RequirementValidationError::InvalidVersion(requirement));
-    }
-    let dash = requirement.find('-');
-    let Some(dash) = dash else {
-        return ParsedVersion::parse_for(requirement, allow_plus_suffix)
-            .is_some()
-            .then_some(())
-            .ok_or(RequirementValidationError::InvalidVersion(requirement));
-    };
-    if requirement[dash + 1..].contains('-') {
-        return Err(RequirementValidationError::InvalidRange(requirement));
-    }
-    let (minimum, maximum) = requirement.split_at(dash);
-    if ParsedVersion::parse_for(minimum, allow_plus_suffix).is_none() {
-        return Err(RequirementValidationError::InvalidVersion(minimum));
-    }
-    let maximum = &maximum[1..];
-    if !maximum.is_empty() && ParsedVersion::parse_for(maximum, allow_plus_suffix).is_none() {
-        return Err(RequirementValidationError::InvalidVersion(maximum));
-    }
-    Ok(())
+    validate_requirement_bytes_for(requirement.as_bytes(), release).map_err(|error| match error {
+        RequirementBytesValidationError::InvalidVersion(bytes) => {
+            RequirementValidationError::InvalidVersion(
+                std::str::from_utf8(bytes).expect("original Unicode endpoint"),
+            )
+        }
+        RequirementBytesValidationError::InvalidRange(bytes) => {
+            RequirementValidationError::InvalidRange(
+                std::str::from_utf8(bytes).expect("original Unicode range"),
+            )
+        }
+    })
 }
 
 /// A digit run as a [`Segment::Number`], with C's leading-zero skip applied so
 /// `"0005"`, `"5"` compare equal and `"000"`, `"0"`, `""` all read as zero.
-fn number_segment(run: &str) -> Segment<'_> {
-    Segment::Number(run.trim_start_matches('0'))
+fn number_segment(run: &[u8]) -> Segment<'_> {
+    let first = run
+        .iter()
+        .position(|byte| *byte != b'0')
+        .unwrap_or(run.len());
+    Segment::Number(&run[first..])
 }
 
 /// Compare two internal reps, returning the ordering plus whether the deciding
@@ -997,13 +1090,19 @@ pub fn compare_versions(a: &str, b: &str) -> core::cmp::Ordering {
 /// Compare package versions using a pinned Tcl release's grammar.
 #[must_use]
 pub fn compare_versions_for(a: &str, b: &str, release: TclVersion) -> core::cmp::Ordering {
+    compare_versions_bytes_for(a.as_bytes(), b.as_bytes(), release)
+}
+
+/// Byte-preserving package semantics for already selected input extents.
+#[must_use]
+pub fn compare_versions_bytes_for(a: &[u8], b: &[u8], release: TclVersion) -> core::cmp::Ordering {
     let allow_plus_suffix = release.allows_package_version_suffix();
-    let va = ParsedVersion::parse_for(a, allow_plus_suffix).map_or_else(
-        || ParsedVersion::lenient_for(a, allow_plus_suffix),
+    let va = ParsedVersion::parse_bytes_for(a, allow_plus_suffix).map_or_else(
+        || ParsedVersion::lenient_bytes_for(a, allow_plus_suffix),
         |p| p.segments,
     );
-    let vb = ParsedVersion::parse_for(b, allow_plus_suffix).map_or_else(
-        || ParsedVersion::lenient_for(b, allow_plus_suffix),
+    let vb = ParsedVersion::parse_bytes_for(b, allow_plus_suffix).map_or_else(
+        || ParsedVersion::lenient_bytes_for(b, allow_plus_suffix),
         |p| p.segments,
     );
     compare_internal(&va, &vb).0
@@ -1022,8 +1121,15 @@ pub fn version_is_stable(version: &str) -> bool {
 /// Check package-version stability using a pinned Tcl release's grammar.
 #[must_use]
 pub fn version_is_stable_for(version: &str, release: TclVersion) -> bool {
-    ParsedVersion::parse_for(version, release.allows_package_version_suffix())
-        .is_some_and(|p| p.stable)
+    version_is_stable_bytes_for(version.as_bytes(), release)
+}
+
+/// Byte-preserving package semantics for already selected input extents.
+#[must_use]
+pub fn version_is_stable_bytes_for(version: &[u8], release: TclVersion) -> bool {
+    validate_version_bytes_for(version, release)
+        && ParsedVersion::parse_bytes_for(version, release.allows_package_version_suffix())
+            .is_some_and(|p| p.stable)
 }
 
 /// Does the concrete strict `version` satisfy one `package vsatisfies`
@@ -1059,8 +1165,23 @@ pub fn version_satisfies(version: &str, requirement: &str) -> bool {
 /// Check package-version satisfaction using a pinned Tcl release's grammar.
 #[must_use]
 pub fn version_satisfies_for(version: &str, requirement: &str, release: TclVersion) -> bool {
+    version_satisfies_bytes_for(version.as_bytes(), requirement.as_bytes(), release)
+}
+
+/// Byte-preserving package semantics for already selected input extents.
+#[must_use]
+pub fn version_satisfies_bytes_for(
+    version: &[u8],
+    requirement: &[u8],
+    release: TclVersion,
+) -> bool {
+    if !validate_version_bytes_for(version, release)
+        || validate_requirement_bytes_for(requirement, release).is_err()
+    {
+        return false;
+    }
     let allow_plus_suffix = release.allows_package_version_suffix();
-    let Some(have) = ParsedVersion::parse_for(version, allow_plus_suffix) else {
+    let Some(have) = ParsedVersion::parse_bytes_for(version, allow_plus_suffix) else {
         return false;
     };
     satisfies_internal(&have.segments, requirement, allow_plus_suffix)
@@ -1071,11 +1192,26 @@ pub fn version_satisfies_for(version: &str, requirement: &str, release: TclVersi
 /// Tcl 9 `+` suffix as an ambiguous textual range.
 #[must_use]
 pub fn version_matches_exact_for(version: &str, requested: &str, release: TclVersion) -> bool {
+    version_matches_exact_bytes_for(version.as_bytes(), requested.as_bytes(), release)
+}
+
+/// Byte-preserving package semantics for already selected input extents.
+#[must_use]
+pub fn version_matches_exact_bytes_for(
+    version: &[u8],
+    requested: &[u8],
+    release: TclVersion,
+) -> bool {
+    if !validate_version_bytes_for(version, release)
+        || !validate_version_bytes_for(requested, release)
+    {
+        return false;
+    }
     let allow_plus_suffix = release.allows_package_version_suffix();
-    let Some(version) = ParsedVersion::parse_for(version, allow_plus_suffix) else {
+    let Some(version) = ParsedVersion::parse_bytes_for(version, allow_plus_suffix) else {
         return false;
     };
-    let Some(requested) = ParsedVersion::parse_for(requested, allow_plus_suffix) else {
+    let Some(requested) = ParsedVersion::parse_bytes_for(requested, allow_plus_suffix) else {
         return false;
     };
     compare_internal(&version.segments, &requested.segments).0 == core::cmp::Ordering::Equal
@@ -1084,15 +1220,19 @@ pub fn version_matches_exact_for(version: &str, requested: &str, release: TclVer
 /// [`version_satisfies`] against an already-parsed candidate — the form
 /// [`select_package_version`] needs so a candidate is converted once for the
 /// whole requirement list.
-fn satisfies_internal(have: &[Segment<'_>], requirement: &str, allow_plus_suffix: bool) -> bool {
-    let Some((lo, hi)) = requirement.split_once('-') else {
+fn satisfies_internal(have: &[Segment<'_>], requirement: &[u8], allow_plus_suffix: bool) -> bool {
+    let Some((lo, hi)) = requirement
+        .iter()
+        .position(|byte| *byte == b'-')
+        .map(|at| (&requirement[..at], &requirement[at + 1..]))
+    else {
         return satisfies_bare(have, requirement, allow_plus_suffix);
     };
     // Tcl 8 checks the whole range before splitting it. Tcl 9's version
     // conversion stops at `+` for each endpoint, so dashes after a suffix
     // belong to that ignored suffix rather than making the upper endpoint a
     // second range.
-    if !allow_plus_suffix && hi.contains('-') {
+    if !allow_plus_suffix && hi.contains(&b'-') {
         return false;
     }
     satisfies_range_with_policy(have, lo, (!hi.is_empty()).then_some(hi), allow_plus_suffix)
@@ -1102,10 +1242,10 @@ fn satisfies_internal(have: &[Segment<'_>], requirement: &str, allow_plus_suffix
 /// segment, and the candidate must be equal or greater *without* the
 /// difference landing in the major component — which is what bounds a bare
 /// `X.Y` at the next major without naming an upper bound.
-fn satisfies_bare(have: &[Segment<'_>], requirement: &str, allow_plus_suffix: bool) -> bool {
+fn satisfies_bare(have: &[Segment<'_>], requirement: &[u8], allow_plus_suffix: bool) -> bool {
     use core::cmp::Ordering;
     let Some(mut req) =
-        ParsedVersion::parse_for(requirement, allow_plus_suffix).map(|p| p.segments)
+        ParsedVersion::parse_bytes_for(requirement, allow_plus_suffix).map(|p| p.segments)
     else {
         return false;
     };
@@ -1119,17 +1259,18 @@ fn satisfies_bare(have: &[Segment<'_>], requirement: &str, allow_plus_suffix: bo
 /// ([`version_in_any_window`]) does not have to `format!` it back together
 /// only for this to split it again.
 fn satisfies_range(have: &[Segment<'_>], lo: &str, hi: Option<&str>) -> bool {
-    satisfies_range_with_policy(have, lo, hi, false)
+    satisfies_range_with_policy(have, lo.as_bytes(), hi.map(str::as_bytes), false)
 }
 
 fn satisfies_range_with_policy(
     have: &[Segment<'_>],
-    lo: &str,
-    hi: Option<&str>,
+    lo: &[u8],
+    hi: Option<&[u8]>,
     allow_plus_suffix: bool,
 ) -> bool {
     use core::cmp::Ordering;
-    let Some(min) = ParsedVersion::parse_for(lo, allow_plus_suffix).map(|p| p.segments) else {
+    let Some(min) = ParsedVersion::parse_bytes_for(lo, allow_plus_suffix).map(|p| p.segments)
+    else {
         return false;
     };
     let Some(hi) = hi else {
@@ -1138,7 +1279,8 @@ fn satisfies_range_with_policy(
         min.push(Segment::Alpha);
         return compare_internal(have, &min).0 != Ordering::Less;
     };
-    let Some(max) = ParsedVersion::parse_for(hi, allow_plus_suffix).map(|p| p.segments) else {
+    let Some(max) = ParsedVersion::parse_bytes_for(hi, allow_plus_suffix).map(|p| p.segments)
+    else {
         return false;
     };
     if compare_internal(&min, &max).0 == Ordering::Equal {
@@ -1238,12 +1380,42 @@ pub fn select_package_version_for<S: AsRef<str>>(
     prefer: PackagePrefer,
     release: TclVersion,
 ) -> Option<usize> {
+    let available: Vec<&[u8]> = available
+        .iter()
+        .map(|version| version.as_ref().as_bytes())
+        .collect();
+    let requirements: Vec<&[u8]> = requirements
+        .iter()
+        .map(|requirement| requirement.as_bytes())
+        .collect();
+    select_package_version_bytes_for(&available, &requirements, prefer, release)
+}
+
+/// Select a package provider from original byte spellings using the shared grammar.
+#[must_use]
+pub fn select_package_version_bytes_for<S: AsRef<[u8]>>(
+    available: &[S],
+    requirements: &[&[u8]],
+    prefer: PackagePrefer,
+    release: TclVersion,
+) -> Option<usize> {
     use core::cmp::Ordering;
+    if (!release.has_package_requirements() && requirements.len() > 1)
+        || requirements
+            .iter()
+            .any(|requirement| validate_requirement_bytes_for(requirement, release).is_err())
+    {
+        return None;
+    }
     let allow_plus_suffix = release.allows_package_version_suffix();
     let mut best: Option<(usize, Vec<Segment<'_>>)> = None;
     let mut best_stable: Option<(usize, Vec<Segment<'_>>)> = None;
     for (i, candidate) in available.iter().enumerate() {
-        let Some(parsed) = ParsedVersion::parse_for(candidate.as_ref(), allow_plus_suffix) else {
+        if !validate_version_bytes_for(candidate.as_ref(), release) {
+            continue;
+        }
+        let Some(parsed) = ParsedVersion::parse_bytes_for(candidate.as_ref(), allow_plus_suffix)
+        else {
             continue;
         };
         if !requirements.is_empty()
@@ -1269,9 +1441,9 @@ pub fn select_package_version_for<S: AsRef<str>>(
             best_stable = Some((i, parsed.segments));
         }
     }
-    match prefer {
-        PackagePrefer::Stable => best_stable.or(best),
-        PackagePrefer::Latest => best,
+    match (release.has_package_requirements(), prefer) {
+        (true, PackagePrefer::Stable) => best_stable.or(best),
+        (false, _) | (true, PackagePrefer::Latest) => best,
     }
     .map(|(i, _)| i)
 }
@@ -1284,13 +1456,377 @@ pub fn select_package_version_exact_for<S: AsRef<str>>(
     requested: &str,
     release: TclVersion,
 ) -> Option<usize> {
+    let available: Vec<&[u8]> = available
+        .iter()
+        .map(|version| version.as_ref().as_bytes())
+        .collect();
+    select_package_version_exact_bytes_for(&available, requested.as_bytes(), release)
+}
+
+/// Select a package provider from original byte spellings using the shared grammar.
+#[must_use]
+pub fn select_package_version_exact_bytes_for<S: AsRef<[u8]>>(
+    available: &[S],
+    requested: &[u8],
+    release: TclVersion,
+) -> Option<usize> {
+    if !validate_version_bytes_for(requested, release) {
+        return None;
+    }
     let allow_plus_suffix = release.allows_package_version_suffix();
-    let requested = ParsedVersion::parse_for(requested, allow_plus_suffix)?;
+    let requested = ParsedVersion::parse_bytes_for(requested, allow_plus_suffix)?;
     available.iter().enumerate().find_map(|(index, candidate)| {
-        let candidate = ParsedVersion::parse_for(candidate.as_ref(), allow_plus_suffix)?;
+        if !validate_version_bytes_for(candidate.as_ref(), release) {
+            return None;
+        }
+        let candidate = ParsedVersion::parse_bytes_for(candidate.as_ref(), allow_plus_suffix)?;
         (compare_internal(&candidate.segments, &requested.segments).0 == core::cmp::Ordering::Equal)
             .then_some(index)
     })
+}
+
+/// Native `concat` semantics, including dependence on object representation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ConcatPolicy {
+    /// The selected C release owns pure/canonical List eligibility, original
+    /// header copying, hash-head fallback and string-result construction.
+    Tcl(TclVersion),
+    /// Jim can return list concatenation or string concatenation depending on
+    /// the operands' internal representations. String values alone are insufficient.
+    JimRepresentationSensitive,
+}
+
+/// Container index syntax, independent of numeral spelling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IndexGrammar {
+    /// Tcl 8.4: integers and abbreviated `end` with a subtractive integer.
+    Tcl84,
+    /// Tcl 8.5 and later: one additive or subtractive integer connector.
+    TclModern,
+    /// Jim: safe integer expressions; variable and script requests are rejected.
+    Jim,
+}
+
+/// Integer conversion performed by a native container index parser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IndexIntegerWidth {
+    /// C Tcl 8 accepts signed and unsigned 32-bit integers, then wraps.
+    Tcl32,
+    /// C Tcl 9 uses signed pointer-size integers on the supported 64-bit host.
+    Tcl64,
+    /// Jim encodes absolute and end-relative indices in a signed 32-bit slot.
+    Jim32,
+}
+
+/// Grammar of the regular-expression commands' start offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RegexStartGrammar {
+    /// Tcl 8.4 accepts an integer, without end-relative or index arithmetic.
+    Integer,
+    /// Later C Tcl and Jim use their native container-index parser.
+    Index,
+}
+
+/// The complete native policy needed to parse a container index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct IndexSyntax {
+    /// Integer spelling accepted by the selected release.
+    pub numbers: crate::NumberSyntax,
+    /// Native index expression protocol.
+    pub grammar: IndexGrammar,
+    /// Native conversion width, independently of numeral spelling.
+    pub width: IndexIntegerWidth,
+    /// Whether `e` and `en` abbreviate `end` (C Tcl 8 only).
+    pub end_abbreviations: bool,
+}
+
+impl IndexSyntax {
+    /// Whether one `lindex` operand is a list of successive indices.
+    ///
+    /// C Tcl splits the operand into a path; Jim evaluates it as one index.
+    #[must_use]
+    pub const fn lindex_argument_is_path(self) -> bool {
+        !matches!(self.grammar, IndexGrammar::Jim)
+    }
+
+    /// Regex offset grammar, measured independently of container indices.
+    #[must_use]
+    pub const fn regex_start_grammar(self) -> RegexStartGrammar {
+        if matches!(self.grammar, IndexGrammar::Tcl84) {
+            RegexStartGrammar::Integer
+        } else {
+            RegexStartGrammar::Index
+        }
+    }
+
+    /// Container index policy for a selected C Tcl release.
+    #[must_use]
+    pub const fn for_version(version: TclVersion) -> Self {
+        Self {
+            numbers: version.number_syntax(),
+            grammar: if matches!(version, TclVersion::V8_4) {
+                IndexGrammar::Tcl84
+            } else {
+                IndexGrammar::TclModern
+            },
+            end_abbreviations: !matches!(version, TclVersion::V9_0 | TclVersion::V9_1),
+            width: if matches!(version, TclVersion::V9_0 | TclVersion::V9_1) {
+                IndexIntegerWidth::Tcl64
+            } else {
+                IndexIntegerWidth::Tcl32
+            },
+        }
+    }
+}
+
+/// Whether `lset` may replace the element immediately after the current list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ListSetBounds {
+    /// An index must designate an existing element, as in Tcl 8.4/8.5 and Jim.
+    ExistingElement,
+    /// The list length is also accepted and appends, as in Tcl 8.6 and later.
+    AppendAtEnd,
+}
+
+impl ListSetBounds {
+    /// Check the resolved integer index without changing index-word grammar.
+    #[must_use]
+    pub fn accepts(self, index: i64, length: usize) -> bool {
+        usize::try_from(index)
+            .is_ok_and(|index| index < length || (self == Self::AppendAtEnd && index == length))
+    }
+}
+
+/// Variable namespace/activation lookup policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VariableLookupPolicy {
+    /// Tcl qualified names address namespace cells.
+    Tcl,
+    /// Jim treats relative qualified spellings as activation-local names.
+    Jim,
+}
+
+/// Whether an array is a distinct variable kind or a dictionary value.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VariableContainerModel {
+    /// C Tcl scalar and array roots are distinct; neither overwrites the other.
+    #[default]
+    DistinctArray,
+    /// Jim array elements select entries of an ordinary dictionary-valued cell.
+    DictionaryValue,
+}
+
+/// What a variable alias retains when its selected target is rebound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VariableLinkBinding {
+    /// C Tcl retains the selected variable cell, including detached elements.
+    StableCell,
+    /// Jim retains a name and selected logical frame level, resolving on each
+    /// access. Captured alias wrappers may reach a later activation at that
+    /// level; they do not pin the original physical frame.
+    SelectedFrameName,
+}
+
+/// Formal parameter parsing and activation protocol of the selected engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ParameterGrammar {
+    /// C Tcl scalar formals, trailing variadic args and positional defaults.
+    Tcl,
+    /// Jim name formals, middle variadic args and caller-reference parameters.
+    Jim,
+}
+
+/// Compiler registration installed on a procedure's command header. Body
+/// compilation is a separate phase and does not determine this registration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NativeProcedureHeaderCompilation {
+    /// The command header is dispatched generically.
+    Absent,
+    /// C Tcl installs its argument-evaluating no-op compiler.
+    NoOp,
+    /// Definition bytes, representation or native engine facts are unresolved.
+    Unknown,
+}
+
+impl ParameterGrammar {
+    /// Whether a byte-empty native body validates arity then returns without
+    /// creating a frame or applying formal bindings.
+    #[must_use]
+    pub const fn skips_empty_body_activation(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+}
+
+/// Package discovery and version negotiation protocol of the engine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PackageProtocol {
+    /// C Tcl's versioned package database and deferred loaders.
+    Tcl,
+    /// Jim's direct file lookup; optional version words are ignored.
+    Jim,
+}
+
+/// A direct package file type, distinct from deferred C Tcl index scripts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirectPackageFileKind {
+    /// A loadable native module.
+    Native,
+    /// A Tcl script evaluated directly in the global frame.
+    Script,
+}
+
+/// One candidate in the engine's direct package search order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectPackageFile {
+    /// Portable path spelling passed to the host filesystem.
+    pub path: String,
+    /// Which loader must evaluate this file.
+    pub kind: DirectPackageFileKind,
+}
+
+/// A direct package candidate retaining the engine's filesystem bytes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectPackageFileBytes {
+    /// Native path bytes, without Unicode replacement.
+    pub path: Vec<u8>,
+    /// Loader selected by the package protocol.
+    pub kind: DirectPackageFileKind,
+}
+
+impl PackageProtocol {
+    /// A C Tcl loader's non-error control completion becomes a package error.
+    #[must_use]
+    pub fn ifneeded_completion_error_bytes(
+        self,
+        package: &[u8],
+        version: &[u8],
+        code: i64,
+    ) -> Option<Vec<u8>> {
+        (self == Self::Tcl && code != 0 && code != 1).then(|| {
+            let mut message = b"attempt to provide package ".to_vec();
+            message.extend_from_slice(package);
+            message.push(b' ');
+            message.extend_from_slice(version);
+            message.extend_from_slice(format!(" failed: bad return code: {code}").as_bytes());
+            message
+        })
+    }
+
+    /// Checked Unicode convenience for native loader-completion presentation.
+    #[must_use]
+    pub fn ifneeded_completion_error(
+        self,
+        package: &str,
+        version: &str,
+        code: i64,
+    ) -> Option<String> {
+        self.ifneeded_completion_error_bytes(package.as_bytes(), version.as_bytes(), code)
+            .map(|bytes| String::from_utf8(bytes).expect("Unicode operands and ASCII presentation"))
+    }
+
+    /// Native direct-file candidates. Jim checks its module before its script
+    /// and consumes directory/package operands through its `CString` formatter.
+    #[must_use]
+    pub fn direct_files_bytes(
+        self,
+        directory: &[u8],
+        package: &[u8],
+        native_modules: bool,
+    ) -> Vec<DirectPackageFileBytes> {
+        if self != Self::Jim {
+            return Vec::new();
+        }
+        let directory = tcl_core_types::c_string_extent(directory);
+        let package = tcl_core_types::c_string_extent(package);
+        let path = |extension: &[u8], omit_dot: bool| {
+            let mut bytes = Vec::new();
+            if !omit_dot || directory != b"." {
+                bytes.extend_from_slice(directory);
+                bytes.push(b'/');
+            }
+            bytes.extend_from_slice(package);
+            bytes.extend_from_slice(extension);
+            bytes
+        };
+        let mut files = Vec::new();
+        if native_modules {
+            files.push(DirectPackageFileBytes {
+                path: path(b".so", false),
+                kind: DirectPackageFileKind::Native,
+            });
+        }
+        files.push(DirectPackageFileBytes {
+            path: path(b".tcl", true),
+            kind: DirectPackageFileKind::Script,
+        });
+        files
+    }
+
+    /// Unicode convenience sharing the native direct-search ordering.
+    #[must_use]
+    pub fn direct_files(
+        self,
+        directory: &str,
+        package: &str,
+        native_modules: bool,
+    ) -> Vec<DirectPackageFile> {
+        self.direct_files_bytes(directory.as_bytes(), package.as_bytes(), native_modules)
+            .into_iter()
+            .map(|file| DirectPackageFile {
+                path: String::from_utf8(file.path)
+                    .expect("Unicode path operands with ASCII separators"),
+                kind: file.kind,
+            })
+            .collect()
+    }
+}
+
+/// How namespace imports preserve their source binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NamespaceImportBinding {
+    /// C Tcl imports retain the source command token through renames.
+    CommandToken,
+    /// Jim imports dispatch the original source name at invocation time.
+    SourceName,
+}
+
+/// Integer conversion performed by the process-exit command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ProcessExitConversion {
+    /// Tcl 8.x rejects magnitudes exceeding an unsigned 32-bit integer.
+    Narrow32,
+    /// Tcl 9 accepts a whole integer before host exit-code truncation.
+    WholeInteger,
+    /// Current Jim saturates an out-of-wide integer before host truncation.
+    SaturatingWide,
+}
+
+/// Child interpreter creation and handle dispatch grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum InterpreterProtocol {
+    /// C Tcl's `interp create` and `interp alias` ensemble.
+    Tcl,
+    /// Jim's zero-argument factory and returned eval/delete/alias handle.
+    JimHandles,
+}
+
+impl InterpreterProtocol {
+    /// Subcommands implemented by Jim interpreter handles.
+    pub const JIM_HANDLE_SUBCOMMANDS: &'static [&'static str] = &["eval", "delete", "alias"];
+}
+
+/// How a frame-crossing command locates an optional level operand.
+/// Value parsing remains the dialect's independent numeral grammar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FrameLevelPresence {
+    /// Consume a first word beginning with an ASCII digit or `#`.
+    DigitOrHash,
+    /// Consume a digit/`#` word or a non-negative parsed integer.
+    DigitOrNonNegativeInteger,
+    /// Consume a complete parsed integer, or any `#` word.
+    IntegerOrHash,
+    /// Consume one level word exactly when the argument count is odd.
+    ArgumentParity,
 }
 
 /// A three-valued behaviour policy, so a non-Tcl profile (`f5-bigip`) and
@@ -1334,6 +1870,147 @@ impl Ternary {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn package_version_bytes_follow_counted_native_grammar() {
+        use super::{compare_versions_bytes_for, validate_version_bytes_for};
+        for release in TclVersion::ALL {
+            assert_eq!(
+                validate_version_bytes_for(b"1+\xff", release),
+                release.allows_package_version_suffix()
+            );
+            assert!(!validate_version_bytes_for(b"1\0junk", release));
+            assert!(!validate_version_bytes_for(b"\xff", release));
+            if release.allows_package_version_suffix() {
+                assert_eq!(
+                    compare_versions_bytes_for(b"1+\xff", b"1", release),
+                    std::cmp::Ordering::Equal
+                );
+                assert_eq!(
+                    compare_versions_bytes_for(
+                        b"9223372036854775808+\xff",
+                        b"9223372036854775807",
+                        release
+                    ),
+                    std::cmp::Ordering::Greater
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn package_byte_selection_preserves_provider_and_endpoint_identity() {
+        use super::{
+            RequirementBytesValidationError, select_package_version_bytes_for,
+            validate_requirement_bytes_for,
+        };
+        let providers: &[&[u8]] = &[b"1.2a1+\xff", b"1.2+\xff", b"1.3a1+\xff"];
+        assert_eq!(
+            select_package_version_bytes_for(
+                providers,
+                &[b"1-"],
+                super::PackagePrefer::Stable,
+                TclVersion::V9_0
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            select_package_version_bytes_for(
+                providers,
+                &[b"1-"],
+                super::PackagePrefer::Latest,
+                TclVersion::V9_0
+            ),
+            Some(2)
+        );
+        assert_eq!(
+            validate_requirement_bytes_for(b"1-\xff", TclVersion::V8_6),
+            Err(RequirementBytesValidationError::InvalidVersion(b"\xff"))
+        );
+        assert_eq!(
+            validate_requirement_bytes_for(b"1+\xff-tail", TclVersion::V9_0),
+            Ok(())
+        );
+        assert_eq!(
+            validate_requirement_bytes_for(b"1-2+\xff", TclVersion::V9_0),
+            Err(RequirementBytesValidationError::InvalidVersion(b"1-2+\xff"))
+        );
+    }
+
+    #[test]
+    fn package_search_and_completion_keep_native_name_bytes() {
+        use super::{DirectPackageFileKind, PackageProtocol};
+
+        let files = PackageProtocol::Jim.direct_files_bytes(b".\0ignored", b"p\xff\0suffix", true);
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].path, b"./p\xff.so");
+        assert_eq!(files[0].kind, DirectPackageFileKind::Native);
+        assert_eq!(files[1].path, b"p\xff.tcl");
+        assert_eq!(files[1].kind, DirectPackageFileKind::Script);
+        assert!(
+            PackageProtocol::Tcl
+                .direct_files_bytes(b".", b"p", true)
+                .is_empty()
+        );
+        assert_eq!(
+            PackageProtocol::Tcl
+                .ifneeded_completion_error_bytes(b"p\xff", b"1.0", 2)
+                .unwrap(),
+            b"attempt to provide package p\xff 1.0 failed: bad return code: 2"
+        );
+        assert!(
+            PackageProtocol::Tcl
+                .ifneeded_completion_error_bytes(b"p", b"1.0", 1)
+                .is_none()
+        );
+        assert!(
+            PackageProtocol::Jim
+                .ifneeded_completion_error_bytes(b"p", b"1.0", 2)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn legacy_package_grammar_rejects_modern_versions_and_requirement_lists() {
+        use super::{PackagePrefer, TclVersion};
+        for word in ["1.0a1", "1.0b2", "1.0+tag"] {
+            assert!(
+                !super::validate_version_for(word, TclVersion::V8_4),
+                "{word}"
+            );
+        }
+        for requirement in ["1.0-", "1.0-2.0", "1.0a1"] {
+            assert!(super::validate_requirement_for(requirement, TclVersion::V8_4).is_err());
+        }
+        let candidates = ["1.0", "2.0b1"];
+        assert_eq!(
+            super::select_package_version_for(
+                &candidates,
+                &[],
+                PackagePrefer::Latest,
+                TclVersion::V8_4
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            super::select_package_version_for(
+                &candidates,
+                &[],
+                PackagePrefer::Latest,
+                TclVersion::V8_5
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            super::select_package_version_for(
+                &candidates,
+                &["1.0", "2.0"],
+                PackagePrefer::Latest,
+                TclVersion::V8_4
+            ),
+            None
+        );
+    }
+
     use super::{
         RequirementValidationError, StringCharacterModel, TclVersion, Ternary, exact_requirement,
         validate_requirement, validate_version,
@@ -1390,7 +2067,13 @@ mod tests {
             assert!(super::validate_requirement_for("1.2+platform", release).is_err());
             assert_eq!(
                 super::validate_requirement_for("1-2+platform", release),
-                Err(RequirementValidationError::InvalidVersion("2+platform"))
+                Err(RequirementValidationError::InvalidVersion(
+                    if release == TclVersion::V8_4 {
+                        "1-2+platform"
+                    } else {
+                        "2+platform"
+                    }
+                ))
             );
             assert!(!super::version_satisfies_for(
                 "1.2",

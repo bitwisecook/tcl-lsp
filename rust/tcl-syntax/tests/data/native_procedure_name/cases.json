@@ -1,0 +1,5 @@
+[
+  "namespace eval : {proc p {} {return [namespace current]}; p}",
+  "namespace eval : {set code [catch {proc : {} {return colon}} result]; list $code $result}",
+  "namespace eval : {set code [catch {proc : \\{ {return colon}} result]; list $code $result}"
+]

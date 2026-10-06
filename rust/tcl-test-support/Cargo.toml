@@ -29,6 +29,9 @@ authors.workspace = true
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-host-c-abi = { path = "../tcl-host-c-abi" }
+tcl-platform = { path = "../tcl-platform" }
+sha2 = "0.11"
 
 [lints]
 workspace = true

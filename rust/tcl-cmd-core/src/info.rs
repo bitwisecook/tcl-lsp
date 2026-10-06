@@ -26,7 +26,7 @@
 //! bound and wrap the `Result<V, CmdError>` in their own command ABI.
 
 use tcl_runtime_api::{Frames, Introspect, Namespaces, NsId, Procs, ROOT_NS, VarStore};
-use tcl_syntax::glob::{is_literal_bytes, string_match, string_match_bytes};
+use tcl_syntax::glob::{is_literal_bytes, string_match_bytes};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -121,21 +121,24 @@ where
     }
     // Syntactically an integer but no such call frame (out of range, or <= 0
     // at the global level): `bad level "x"`.
-    Err(CmdError::new(format!("bad level \"{}\"", ops.as_str(n))))
+    Err(CmdError::new(format!(
+        "bad level \"{}\"",
+        ops.try_as_str(n)?
+    )))
 }
 
 /// `info exists varName` — whether `varName` is currently set in the current
 /// scope: a scalar, an array, or an array element (`a(k)`). Mirrors
 /// `Tcl_InfoExistsCmd` — the existence check resolves the name exactly as a read
 /// would, through [`VarStore::exists`] against the current frame.
-pub fn exists<O, V>(ops: &mut O, name: &V) -> V
+pub fn exists<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + VarStore<Value = V> + Frames,
 {
     let here = Frames::current(ops);
-    let name = ops.as_str(name);
-    let present = ops.exists(here, &name);
-    ops.new_bool(present)
+    let name = ops.native_string_bytes(name)?;
+    let present = ops.exists_bytes(here, &name)?;
+    Ok(ops.new_bool(present))
 }
 
 /// `info body procname` — the source body of procedure `name`. Errors with
@@ -145,9 +148,9 @@ pub fn body<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
 {
-    let n = ops.as_str(name);
-    match ops.proc_info(&n) {
-        Some(info) => Ok(ops.new_bytes(&info.body)),
+    let n = ops.native_string_bytes(name)?;
+    match ops.proc_body_bytes(&n)? {
+        Some(body) => Ok(ops.new_bytes(&body)),
         None => Err(not_a_proc(&n)),
     }
 }
@@ -159,11 +162,15 @@ pub fn args<O, V>(ops: &mut O, name: &V) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Procs,
 {
-    let n = ops.as_str(name);
-    let Some(info) = ops.proc_info(&n) else {
+    let n = ops.native_string_bytes(name)?;
+    let Some(parameters) = ops.proc_formal_names_bytes(&n)? else {
         return Err(not_a_proc(&n));
     };
-    let names: Vec<V> = info.params.iter().map(|p| ops.new_bytes(&p.name)).collect();
+    let mut names = Vec::with_capacity(parameters.len());
+    for parameter in &parameters {
+        let name = ops.formal_introspection_name_bytes(parameter)?;
+        names.push(ops.new_bytes(&name));
+    }
     Ok(ops.new_list(names))
 }
 
@@ -181,31 +188,30 @@ pub fn default<O, V>(ops: &mut O, name: &V, arg: &V) -> Result<(V, bool), CmdErr
 where
     O: ValueOps<Value = V> + Procs,
 {
-    let n = ops.as_str(name);
-    let a = ops.as_str(arg);
-    let Some(info) = ops.proc_info(&n) else {
-        return Err(not_a_proc(&n));
-    };
-    let Some(param) = info
-        .params
-        .iter()
-        .find(|p| p.name.as_slice() == a.as_bytes())
-    else {
-        return Err(CmdError::new(format!(
-            "procedure \"{n}\" doesn't have an argument \"{a}\""
-        )));
-    };
-    let (bytes, has): (&[u8], bool) = match &param.default {
-        Some(d) => (d, true),
-        None => (&[], false),
-    };
-    Ok((ops.new_bytes(bytes), has))
+    let n = ops.native_string_bytes(name)?;
+    let a = ops.native_string_bytes(arg)?;
+    match ops.proc_default_value_bytes(&n, &a)? {
+        tcl_runtime_api::ProcDefaultValue::MissingProcedure => Err(not_a_proc(&n)),
+        tcl_runtime_api::ProcDefaultValue::MissingParameter => {
+            let mut message = b"procedure \"".to_vec();
+            message.extend_from_slice(&n);
+            message.extend_from_slice(b"\" doesn't have an argument \"");
+            message.extend_from_slice(&a);
+            message.push(b'"');
+            Err(CmdError::new_bytes(message))
+        }
+        tcl_runtime_api::ProcDefaultValue::Declared(Some(value)) => Ok((value, true)),
+        tcl_runtime_api::ProcDefaultValue::Declared(None) => Ok((ops.new_bytes(b""), false)),
+    }
 }
 
 /// `"name" isn't a procedure` — the shared error the proc-introspection
 /// subcommands (`info body`/`args`/`default`) raise for a non-proc target.
-fn not_a_proc(name: &str) -> CmdError {
-    CmdError::new(format!("\"{name}\" isn't a procedure"))
+fn not_a_proc(name: &[u8]) -> CmdError {
+    let mut message = vec![b'"'];
+    message.extend_from_slice(name);
+    message.extend_from_slice(b"\" isn't a procedure");
+    CmdError::new_bytes(message)
 }
 
 /// `info commands ?pattern?` (`procs_only == false`) / `info procs ?pattern?`
@@ -224,33 +230,89 @@ fn not_a_proc(name: &str) -> CmdError {
 ///
 /// Results are sorted, so the listing is deterministic rather than following
 /// C's hash order.
-pub fn command_list<O, V>(ops: &mut O, pattern: Option<&V>, procs_only: bool) -> V
+pub fn command_list<O, V>(ops: &mut O, pattern: Option<&V>, procs_only: bool) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces,
 {
-    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
+    let pat = pattern
+        .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
+        .transpose()?;
+    let policy = ops.name_policy_protocol().ok_or(
+        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "command enumeration name issuer",
+        ),
+    )?;
+    if policy.recipe().is_jim084() {
+        let current = Namespaces::current(ops);
+        let rooted = Namespaces::name_bytes(ops, current);
+        let namespace = rooted.strip_prefix(b"::").ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "Jim command enumeration namespace object",
+            ),
+        )?;
+        let candidates = if procs_only {
+            ops.procs_in_bytes(ROOT_NS)
+        } else {
+            ops.commands_in_bytes(ROOT_NS)
+        };
+        let names = policy
+            .recipe()
+            .jim_info_command_names(namespace, pat.as_deref(), &candidates, procs_only)
+            .map_err(|_| {
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "Jim command enumeration projection",
+                )
+            })?;
+        return Ok(build_name_list_bytes(ops, names));
+    }
     let cur = Namespaces::current(ops);
-    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
-        qualified_listing(ops, prefix, tail, cur, |o, id| {
+    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
+        qualified_listing_bytes(ops, prefix, tail, cur, |o, id| {
             if procs_only {
-                o.procs_in(id)
+                o.procs_in_bytes(id)
             } else {
-                o.commands_in(id)
+                o.commands_in_bytes(id)
             }
-        })
+        })?
     } else {
         let mut v = if procs_only {
-            ops.procs_in(cur)
+            ops.procs_in_bytes(cur)
         } else {
-            ops.commands_in(cur)
+            ops.commands_in_bytes(cur)
         };
         // `info commands` (not `info procs`) also sees the global commands.
         if !procs_only && cur != ROOT_NS {
-            v.extend(ops.commands_in(ROOT_NS));
+            v.extend(ops.commands_in_bytes(ROOT_NS));
         }
-        finish_unqualified(v, pat.as_deref())
+        finish_unqualified_bytes(v, pat.as_deref())
     };
-    build_name_list(ops, names)
+    Ok(build_name_list_bytes(ops, names))
+}
+
+fn jim_namespace_variables<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
+where
+    O: ValueOps<Value = V> + Namespaces,
+{
+    let pattern = pattern
+        .map(|pattern| ops.native_string_bytes(pattern).map(|bytes| bytes.to_vec()))
+        .transpose()?
+        .unwrap_or_else(|| b"*".to_vec());
+    let rooted = pattern.starts_with(b"::");
+    let current = Namespaces::current(ops);
+    let namespace = Namespaces::name_bytes(ops, current);
+    let key = tcl_syntax::naming::jim_global_variable_key_bytes(&namespace, &pattern);
+    let mut names = filter_ordered_names(ops.vars_in_bytes_checked(ROOT_NS)?, Some(&key));
+    if rooted {
+        names = names
+            .into_iter()
+            .map(|name| {
+                let mut rooted = b"::".to_vec();
+                rooted.extend_from_slice(&name);
+                rooted
+            })
+            .collect();
+    }
+    Ok(build_name_list_bytes(ops, names))
 }
 
 /// `info vars ?pattern?` — the variables visible in the current context (C's
@@ -261,50 +323,66 @@ where
 /// - **In a procedure**, an unqualified pattern lists the frame's own variables —
 ///   genuine locals *and* `upvar`/`global`/`variable` links (by their local name).
 /// - **At namespace/global scope**, it lists the current namespace's variables.
-pub fn vars<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+pub fn vars<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces + Frames,
 {
-    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
+    if Namespaces::variable_lookup_policy(ops) == Some(tcl_dialect::VariableLookupPolicy::Jim) {
+        return jim_namespace_variables(ops, pattern);
+    }
+    let pat = pattern
+        .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
+        .transpose()?;
     let cur = Namespaces::current(ops);
-    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier) {
-        qualified_listing(ops, prefix, tail, cur, Namespaces::vars_in)
+    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
+        qualified_variable_listing_bytes(ops, prefix, tail, cur)?
     } else if Frames::in_proc(ops) {
-        finish_unqualified(ops.var_names(true), pat.as_deref())
+        filter_ordered_names(ops.var_names_bytes_checked(true)?, pat.as_deref())
     } else {
-        finish_unqualified(ops.vars_in(cur), pat.as_deref())
+        filter_ordered_names(ops.vars_in_bytes_checked(cur)?, pat.as_deref())
     };
-    build_name_list(ops, names)
+    Ok(build_name_list_bytes(ops, names))
 }
 
 /// `info locals ?pattern?` — the genuine local variables (no `upvar`/`global`/
 /// `variable` links) of the current procedure frame; empty outside a proc.
-pub fn locals<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+pub fn locals<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Frames,
 {
-    let pat: Option<String> = pattern.map(|p| ops.as_str(p).to_string());
-    let names = finish_unqualified(ops.var_names(false), pat.as_deref());
-    build_name_list(ops, names)
+    let pat = pattern
+        .map(|value| ops.native_string_bytes(value).map(|bytes| bytes.to_vec()))
+        .transpose()?;
+    let names = filter_ordered_names(ops.var_names_bytes_checked(false)?, pat.as_deref());
+    Ok(build_name_list_bytes(ops, names))
 }
 
 /// `info globals ?pattern?` — the variables of the global namespace. A
 /// `::`-prefixed pattern matches global variables written absolute (Bug 1057461:
 /// strip *all* leading colons, so `::x`/`:::x` match `x`, but a lone `:x` does not).
-pub fn globals<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+pub fn globals<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces,
 {
-    let pat: Option<String> = pattern.map(|p| {
-        let s = ops.as_str(p);
-        if s.starts_with("::") {
-            s.trim_start_matches(':').to_string()
-        } else {
-            s.to_string()
-        }
-    });
-    let names = finish_unqualified(ops.vars_in(ROOT_NS), pat.as_deref());
-    build_name_list(ops, names)
+    if Namespaces::variable_lookup_policy(ops) == Some(tcl_dialect::VariableLookupPolicy::Jim) {
+        return jim_namespace_variables(ops, pattern);
+    }
+    let pat = pattern
+        .map(|value| {
+            let bytes = ops.native_string_bytes(value)?;
+            let selected = if bytes.starts_with(b"::") {
+                bytes
+                    .iter()
+                    .position(|byte| *byte != b':')
+                    .map_or(&[][..], |start| &bytes[start..])
+            } else {
+                bytes.as_ref()
+            };
+            Ok::<_, tcl_syntax::value::ValueError>(selected.to_vec())
+        })
+        .transpose()?;
+    let names = filter_ordered_names(ops.vars_in_bytes_checked(ROOT_NS)?, pat.as_deref());
+    Ok(build_name_list_bytes(ops, names))
 }
 
 /// `info consts ?pattern?` — enumerate constant **bindings**, not variables
@@ -314,14 +392,16 @@ where
 ///
 /// This path stays byte-valued through enumeration, pattern matching, and
 /// result construction so a byte-native runtime does not corrupt a Tcl name.
-pub fn consts<O, V>(ops: &mut O, pattern: Option<&V>) -> V
+pub fn consts<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
 where
     O: ValueOps<Value = V> + Namespaces + Frames,
 {
-    let pat = pattern.map(|p| ops.as_bytes(p).to_vec());
+    let pat = pattern
+        .map(|p| ops.native_string_bytes(p).map(|bytes| bytes.to_vec()))
+        .transpose()?;
     let cur = Namespaces::current(ops);
     let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
-        qualified_listing_bytes(ops, prefix, tail, cur, Namespaces::consts_in_bytes)
+        qualified_listing_bytes(ops, prefix, tail, cur, Namespaces::consts_in_bytes)?
     } else {
         let mut names = if Frames::in_proc(ops) {
             ops.const_names_bytes()
@@ -354,7 +434,7 @@ where
         }
         names
     };
-    build_name_list_bytes(ops, names)
+    Ok(build_name_list_bytes(ops, names))
 }
 
 fn qualified_listing_bytes<O, F>(
@@ -363,7 +443,7 @@ fn qualified_listing_bytes<O, F>(
     tail: &[u8],
     cur: NsId,
     enumerate: F,
-) -> Vec<Vec<u8>>
+) -> Result<Vec<Vec<u8>>, CmdError>
 where
     O: Namespaces,
     F: Fn(&O, NsId) -> Vec<Vec<u8>>,
@@ -371,10 +451,10 @@ where
     let target = if prefix.is_empty() {
         Some(ROOT_NS)
     } else {
-        ops.find_namespace_bytes(cur, prefix)
+        ops.find_namespace_bytes_checked(cur, prefix)?
     };
     let Some(id) = target else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let mut raw = enumerate(ops, id);
     raw.sort();
@@ -382,73 +462,65 @@ where
     if id != ROOT_NS {
         prefix_bytes.extend_from_slice(b"::");
     }
-    raw.into_iter()
+    Ok(raw
+        .into_iter()
         .filter(|name| string_match_bytes(tail, name))
         .map(|name| {
             let mut full_name = prefix_bytes.clone();
             full_name.extend_from_slice(&name);
             full_name
         })
-        .collect()
+        .collect())
 }
 
-/// The qualified-pattern listing path shared by `info commands`/`procs`/`vars`:
-/// resolve `prefix` (relative to `cur`, or the global root if empty) to a
-/// namespace, enumerate its members via `enumerate`, re-qualify each to an
-/// absolute name, and glob-filter by `tail`. An unknown namespace → empty.
-fn qualified_listing<O, F>(
+fn qualified_variable_listing_bytes<O: Namespaces>(
     ops: &O,
-    prefix: &str,
-    tail: &str,
-    cur: NsId,
-    enumerate: F,
-) -> Vec<String>
-where
-    O: Namespaces,
-    F: Fn(&O, NsId) -> Vec<String>,
-{
+    prefix: &[u8],
+    tail: &[u8],
+    current: NsId,
+) -> Result<Vec<Vec<u8>>, CmdError> {
     let target = if prefix.is_empty() {
         Some(ROOT_NS)
     } else {
-        ops.find_namespace(cur, prefix)
+        ops.find_namespace_bytes_checked(current, prefix)?
     };
-    let Some(id) = target else {
-        return Vec::new();
+    let Some(target) = target else {
+        return Ok(Vec::new());
     };
-    let mut raw = enumerate(ops, id);
-    raw.sort();
-    let canon = ops.name(id); // "::" for root, "::foo" otherwise
-    let qual = if id == ROOT_NS {
-        canon
-    } else {
-        format!("{canon}::")
-    };
-    raw.into_iter()
-        .filter(|n| string_match(tail, n))
-        .map(|n| format!("{qual}{n}"))
-        .collect()
+    let names = ops.vars_in_bytes_checked(target)?;
+    let mut prefix = ops.name_bytes(target);
+    if target != ROOT_NS {
+        prefix.extend_from_slice(b"::");
+    }
+    Ok(filter_ordered_names(names, Some(tail))
+        .into_iter()
+        .map(|name| {
+            let mut full = prefix.clone();
+            full.extend_from_slice(&name);
+            full
+        })
+        .collect())
+}
+
+/// Filter an already ordered native inventory without changing entry identity,
+/// declaration multiplicity, or physical table traversal.
+fn filter_ordered_names(mut names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Vec<Vec<u8>> {
+    if let Some(pattern) = pattern {
+        names.retain(|name| string_match_bytes(pattern, name));
+    }
+    names
 }
 
 /// Sort, dedupe, and glob-filter `names` by `pat` — the unqualified-listing tail
 /// shared by the `info` listing cores. Sorting makes the listing deterministic
 /// rather than following C's hash order.
-fn finish_unqualified(mut names: Vec<String>, pat: Option<&str>) -> Vec<String> {
+fn finish_unqualified_bytes(mut names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Vec<Vec<u8>> {
     names.sort();
     names.dedup();
-    if let Some(p) = pat {
-        names.retain(|n| string_match(p, n));
+    if let Some(pattern) = pattern {
+        names.retain(|name| string_match_bytes(pattern, name));
     }
     names
-}
-
-/// Build a Tcl list value from `names` (each a fresh string value) — the result
-/// of every `info` listing core.
-fn build_name_list<O, V>(ops: &mut O, names: Vec<String>) -> V
-where
-    O: ValueOps<Value = V>,
-{
-    let vals: Vec<V> = names.into_iter().map(|n| ops.new_string(n)).collect();
-    ops.new_list(vals)
 }
 
 fn build_name_list_bytes<O, V>(ops: &mut O, names: Vec<Vec<u8>>) -> V
@@ -463,15 +535,6 @@ where
 /// `None` when the pattern is unqualified. An empty prefix (a leading `::pat`)
 /// denotes the global namespace. Matches C's `TclGetNamespaceForQualName` split
 /// on colon runs (`foo:::bar` → prefix `foo`, tail `bar`).
-fn split_last_qualifier(p: &str) -> Option<(&str, &str)> {
-    split_last_qualifier_bytes(p.as_bytes()).map(|(prefix, tail)| {
-        (
-            std::str::from_utf8(prefix).expect("subslice of valid UTF-8"),
-            std::str::from_utf8(tail).expect("subslice of valid UTF-8"),
-        )
-    })
-}
-
 fn split_last_qualifier_bytes(p: &[u8]) -> Option<(&[u8], &[u8])> {
     use crate::namespace::Qualifier;
 
@@ -487,6 +550,21 @@ fn split_last_qualifier_bytes(p: &[u8]) -> Option<(&[u8], &[u8])> {
 #[cfg(test)]
 mod tests {
     use super::complete;
+
+    #[test]
+    fn native_variable_filter_preserves_order_and_duplicate_declarations() {
+        let names = [
+            b"x".to_vec(),
+            b"x".to_vec(),
+            b"k05".to_vec(),
+            b"k00".to_vec(),
+        ];
+        assert_eq!(super::filter_ordered_names(names.to_vec(), None), names);
+        assert_eq!(
+            super::filter_ordered_names(names.to_vec(), Some(b"x")),
+            [b"x".to_vec(), b"x".to_vec()]
+        );
+    }
 
     #[test]
     fn complete_matches_c_semantics() {

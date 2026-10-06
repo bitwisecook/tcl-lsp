@@ -57,6 +57,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Proc,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::ProcedureObject,
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::INSTALLS_NAMED_DEFINITION
@@ -85,6 +92,11 @@ pub fn spec() -> CommandSpec {
             (2, ArgRole::Body),
         ],
         return_type: Some(TclType::String),
+        procedure_definition: Some(crate::native_procedure::NativeProcedureDefinitionSpec::Core),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         lowering_hook: Some(LoweringHookId::Proc),
         native_lowering: Some(NativeLowering::Definition),
         // A `proc` body runs in the proc's own frame on each

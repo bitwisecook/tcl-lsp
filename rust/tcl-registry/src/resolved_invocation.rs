@@ -41,7 +41,10 @@ use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
-use crate::spec::{ArgRoleResolver, CommandSpec, SubCommand};
+use crate::spec::{
+    ArgRoleCountResolver, ArgRoleLayoutResolver, ArgRoleResolver, ArgRoleResolverInput,
+    CommandSpec, SubCommand,
+};
 use crate::state_transition::{
     ResolvedStateTransitions, StateTransitionKnowledge, StateTransitions,
 };
@@ -49,7 +52,7 @@ use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
-use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::{SpecSurface, SurfaceQuery};
 
 pub(crate) fn descriptor_operation(
     semantic: Option<SemanticOperationId>,
@@ -110,25 +113,26 @@ fn resolve_invocation_semantics<'r>(
     form: Option<&'r CommandForm>,
     inherit_command: bool,
 ) -> InvocationSemantics<'r> {
-    let (arg_roles, arg_role_resolver) = match form {
-        Some(form) => (form.arg_roles, None),
+    let (arg_roles, arg_role_resolver, arg_role_resolver_roles) = match form {
+        Some(form) => (form.arg_roles, None, &[][..]),
         None => match sub {
-            Some(sub) => (sub.arg_roles, sub.arg_role_resolver),
-            None => (spec.arg_roles, spec.arg_role_resolver),
+            Some(sub) => (
+                sub.arg_roles,
+                sub.arg_role_resolver,
+                sub.arg_role_resolver_roles,
+            ),
+            None => (
+                spec.arg_roles,
+                spec.arg_role_resolver,
+                spec.arg_role_resolver_roles,
+            ),
         },
     };
     let inherited_traits = if inherit_command {
         spec.traits
     } else {
         Traits::empty()
-    } | sub.map_or_else(Traits::empty, |sub| {
-        sub.traits
-            | if sub.pure {
-                Traits::PURE
-            } else {
-                Traits::empty()
-            }
-    });
+    } | sub.map_or_else(Traits::empty, SubCommand::semantic_traits);
     let inherited_side_effects = sub.filter(|sub| !sub.side_effects.is_empty()).map_or_else(
         || {
             if inherit_command {
@@ -140,6 +144,20 @@ fn resolve_invocation_semantics<'r>(
         |sub| sub.side_effects,
     );
     InvocationSemantics {
+        script_metadata: crate::selected_script_timing::SelectedScriptMetadata {
+            command: spec,
+            subcommand: sub,
+        },
+        named_object_factory: if inherit_command && sub.is_none() {
+            spec.creates_instance_at
+                .zip(spec.object_class)
+                .map(|(argument, class)| NamedObjectFactory {
+                    argument,
+                    class_name: class.class_name,
+                })
+        } else {
+            None
+        },
         operation: if inherit_command {
             resolved_operation(spec, sub, form)
         } else {
@@ -173,6 +191,10 @@ fn resolve_invocation_semantics<'r>(
             .or(sub.and_then(|sub| sub.result_stability))
             .or(inherit_command.then_some(spec.result_stability).flatten())
             .unwrap_or_default(),
+        native_result: form
+            .and_then(|form| form.native_result)
+            .or(sub.and_then(|sub| sub.native_result))
+            .or(inherit_command.then_some(spec.native_result).flatten()),
         representation_effect: form
             .and_then(|form| form.representation_effect)
             .or(sub.and_then(|sub| sub.representation_effect))
@@ -180,9 +202,18 @@ fn resolve_invocation_semantics<'r>(
                 .then_some(spec.representation_effect)
                 .flatten())
             .unwrap_or_default(),
+        arg_types: form
+            .and_then(|form| form.arg_types)
+            .unwrap_or_else(|| sub.map_or(spec.arg_types, |sub| sub.arg_types)),
         traits: form
             .and_then(|form| form.traits)
             .unwrap_or(inherited_traits),
+        taint_source: inherit_command.then_some(spec.taint_source).flatten(),
+        taint_transform: crate::taint::SelectedTaintTransform::for_descriptors(
+            spec,
+            sub,
+            inherit_command,
+        ),
         mutator: form
             .and_then(|form| form.mutator)
             .unwrap_or_else(|| sub.is_some_and(|sub| sub.mutator)),
@@ -193,20 +224,60 @@ fn resolve_invocation_semantics<'r>(
         argument_offset: usize::from(sub.is_some()),
         arg_roles,
         arg_role_resolver,
-        options: InvocationOptions {
-            base: sub.map_or(spec.options, |sub| sub.options),
-            form: form.map_or(&[], |form| form.options),
+        arg_role_count_resolver: if form.is_some() {
+            None
+        } else {
+            sub.map_or(spec.arg_role_count_resolver, |sub| {
+                sub.arg_role_count_resolver
+            })
         },
-        return_type: sub.map_or(spec.return_type, |sub| sub.return_type),
-        safe_on_uninit: sub
-            .and_then(|sub| sub.safe_on_uninit)
-            .or(inherit_command.then_some(spec.safe_on_uninit).flatten()),
+        arg_role_layout_resolver: if form.is_some() {
+            None
+        } else {
+            sub.map_or(spec.arg_role_layout_resolver, |sub| {
+                sub.arg_role_layout_resolver
+            })
+        },
+        arg_role_resolver_roles,
+        repeated_args: sub.map_or(spec.repeated_args, |sub| sub.repeated_args),
+        options: invocation_options(spec, sub, form, InvocationAvailability::default()),
+        return_type: form
+            .and_then(|form| form.return_type)
+            .unwrap_or_else(|| sub.map_or(spec.return_type, |sub| sub.return_type)),
+        procedure_definition: inherit_command
+            .then_some(spec.procedure_definition)
+            .flatten(),
+        native_compilation: sub
+            .and_then(|sub| sub.native_compilation)
+            .or(inherit_command.then_some(spec.native_compilation).flatten()),
+        successful_handler: form
+            .and_then(|form| form.successful_handler)
+            .or(sub.and_then(|sub| sub.successful_handler))
+            .or(inherit_command.then_some(spec.successful_handler).flatten()),
+        byte_array_effect: form
+            .and_then(|form| form.byte_array_effect)
+            .unwrap_or_else(|| sub.map_or(spec.byte_array_effect, |sub| sub.byte_array_effect)),
+        byte_array_payload: spec.byte_array_payload,
+        safe_on_uninit: form
+            .and_then(|form| form.safe_on_uninit)
+            .unwrap_or_else(|| {
+                sub.and_then(|sub| sub.safe_on_uninit)
+                    .or(inherit_command.then_some(spec.safe_on_uninit).flatten())
+            }),
         var_write_typing: sub.map_or(spec.var_write_typing, |sub| sub.var_write_typing),
         return_elements: sub.map_or(spec.return_elements, |sub| sub.return_elements),
-        var_elements_effect: sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect),
+        var_elements_effect: form
+            .and_then(|form| form.var_elements_effect)
+            .unwrap_or_else(|| sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect)),
         frame_effect: inherit_command.then_some(spec.frame_effect).flatten(),
         body_kind: sub.map_or(spec.body_kind, |sub| sub.body_kind),
+        body_execution: sub
+            .and_then(|sub| sub.body_execution)
+            .or(spec.body_execution),
         body_interpreter: sub.map_or(spec.body_interpreter, |sub| sub.body_interpreter),
+        analyser_hook: sub
+            .and_then(|sub| sub.analyser_hook)
+            .or(inherit_command.then_some(spec.analyser_hook).flatten()),
         lowering_hook: form
             .and_then(|form| form.lowering_hook)
             .or(sub.and_then(|sub| sub.lowering_hook))
@@ -503,6 +574,15 @@ pub struct ResolvedForm<'r> {
     pub options: &'r [OptionSpec],
 }
 
+/// Availability selected once at semantic invocation ingress.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InvocationAvailability<'r> {
+    /// Actual requested core/package surface, independent of operand syntax.
+    pub query: Option<SurfaceQuery<'r>>,
+    /// Explicit registry/profile floor of the owning package, never inferred from its name.
+    pub package_version: Option<&'r str>,
+}
+
 /// Option descriptors applicable to a resolved invocation.
 ///
 /// Command and subcommand options remain separate from form-local options so
@@ -510,10 +590,134 @@ pub struct ResolvedForm<'r> {
 /// this mirrors the registry keyword-table construction.
 #[derive(Debug, Clone, Copy)]
 pub struct InvocationOptions<'r> {
+    /// Ingress-selected option availability.
+    pub availability: InvocationAvailability<'r>,
+    /// Surface inherited by shared command/subcommand options.
+    pub parent_surface: Option<&'static [SpecSurface]>,
+    /// Surface inherited by form-local options.
+    pub form_surface: Option<&'static [SpecSurface]>,
+    /// The selected option table's actual prefix policy.
+    pub prefix_matching: crate::abbrev::PrefixMatching,
+    /// Authored constructor or lifecycle operands preceding the option prefix.
+    pub positional_prefix_words: usize,
+    /// Native operands excluded from the leading option scan.
+    pub reserved_trailing_words: usize,
+    /// Authored case grammar's conditional optionless layout.
+    pub case_list: Option<&'r crate::spec::CaseListSpec>,
     /// Options declared by the command or resolved subcommand.
     pub base: &'r [OptionSpec],
     /// Options declared only by the matched form.
     pub form: &'r [OptionSpec],
+}
+
+impl<'r> InvocationOptions<'r> {
+    /// Selected option-value roles, relative to this argument slice. Fixed
+    /// value widths preserve positions even when the value bytes are unknown;
+    /// unknown option selection or width withdraws the complete projection.
+    pub(crate) fn value_roles(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<Vec<(usize, ArgRole)>> {
+        let options = self.available().collect::<Vec<_>>();
+        if !options
+            .iter()
+            .any(|option| option.value_role().is_some() || option.value_also_role().is_some())
+        {
+            return Some(Vec::new());
+        }
+        let end = self.leading_word_count(arguments)?;
+        let mut index = self.positional_prefix_words;
+        let mut roles = Vec::new();
+        while index < end {
+            let word = arguments.literal_at(index)?;
+            if word == "--" {
+                break;
+            }
+            let option = crate::spec::resolve_available_option_prefix_with(
+                &options,
+                word,
+                self.prefix_matching,
+            )?;
+            let count = option.value_word_count_for_arguments(arguments, index)?;
+            for role in [option.value_role(), option.value_also_role()]
+                .into_iter()
+                .flatten()
+            {
+                roles.extend((index + 1..index + 1 + count).map(|argument| (argument, role)));
+            }
+            index += 1 + count;
+        }
+        Some(roles)
+    }
+
+    /// Options admitted by the retained ingress surface and package floor.
+    /// Shared and form-local rows keep their own inherited surfaces.
+    pub fn available(self) -> impl Iterator<Item = &'r OptionSpec> + 'r {
+        let admits = move |option: &&OptionSpec, parent| {
+            option.supports_dialect(self.availability.query, parent)
+                && option.available_for_version(self.availability.package_version)
+        };
+        self.base
+            .iter()
+            .filter(move |option| admits(option, self.parent_surface))
+            .chain(
+                self.form
+                    .iter()
+                    .filter(move |option| admits(option, self.form_surface)),
+            )
+    }
+
+    /// Whether an option occurs in the proved leading prefix. Unknown prefix
+    /// words decline; unknown values of a declared fixed-width option remain
+    /// ordinary values and do not change this selection.
+    #[must_use]
+    pub fn prefix_contains(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        name: &str,
+    ) -> Option<bool> {
+        let end = self.leading_word_count(arguments)?;
+        let options = self.available().collect::<Vec<_>>();
+        let mut found = false;
+        let mut index = self.positional_prefix_words;
+        while index < end {
+            let option = crate::spec::resolve_available_option_prefix_with(
+                &options,
+                arguments.literal_at(index)?,
+                self.prefix_matching,
+            )?;
+            found |= option.name == name;
+            index += 1 + option.value_word_count_for_arguments(arguments, index)?;
+        }
+        Some(found)
+    }
+
+    /// Prove the end of the option prefix after any authored constructor words.
+    /// Unknown option words retain uncertainty; fixed option values keep slots.
+    #[must_use]
+    pub fn leading_word_count(self, arguments: crate::InvocationArguments<'_>) -> Option<usize> {
+        let table = self.available().collect::<Vec<_>>();
+        if table.is_empty() {
+            return Some(0);
+        }
+        if arguments.exact_argv_len()? < self.positional_prefix_words {
+            return None;
+        }
+        let consumed = crate::spec::leading_option_word_count_for_arguments(
+            &table,
+            arguments.slice_from(self.positional_prefix_words),
+            self.prefix_matching,
+            match self.case_list {
+                Some(case) => case.option_scan_reserved_for_arguments(
+                    arguments,
+                    self.availability.query,
+                    self.reserved_trailing_words,
+                )?,
+                None => self.reserved_trailing_words,
+            },
+        )?;
+        self.positional_prefix_words.checked_add(consumed)
+    }
 }
 
 /// Target-neutral semantic and effect descriptors for an invocation.
@@ -526,11 +730,17 @@ pub struct InvocationOptions<'r> {
 /// without changing behaviour.
 #[derive(Debug, Clone, Copy)]
 pub struct InvocationSemantics<'r> {
+    script_metadata: crate::selected_script_timing::SelectedScriptMetadata<'r>,
+    /// Selected named-object factory metadata. A candidate class does not
+    /// establish a live object allocation or method implementation.
+    pub named_object_factory: Option<NamedObjectFactory>,
     /// Registry-selected static semantic operation identity.
     ///
     /// This is not a live command identity; runtime command binding and trace
     /// state are established by later common analyses.
     pub operation: SemanticOperationId,
+    /// Effective registry-selected analyser semantic hook.
+    pub analyser_hook: Option<crate::hooks::AnalyserHookId>,
     /// Effective target-neutral completion contract.
     ///
     /// The resolver selects a matching form first, then a resolved subcommand,
@@ -539,10 +749,18 @@ pub struct InvocationSemantics<'r> {
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
     pub result_stability: ResultStability,
+    /// Authored native result dependency, requiring actual implementation proof.
+    pub native_result: Option<crate::native_result::NativeResultContract>,
     /// Effective Tcl value-representation effect.
     pub representation_effect: RepresentationEffect,
+    /// Selected operand representation contracts, before argv layout projection.
+    pub arg_types: &'static [(u8, crate::hooks::ArgTypeHint)],
     /// Additive command and subcommand behaviour traits.
     pub traits: Traits,
+    /// Selected command's authored getter source colour, before argc selection.
+    pub taint_source: Option<crate::taint::TaintColour>,
+    /// Selected successful-result transform, before frozen operand validation.
+    pub taint_transform: Option<crate::taint::SelectedTaintTransform>,
     /// Whether the selected command/subcommand/form mutates its receiver or
     /// other command-specific state.
     pub mutator: bool,
@@ -558,10 +776,30 @@ pub struct InvocationSemantics<'r> {
     ///
     /// A matched form has only static roles and therefore supplies `None`.
     pub arg_role_resolver: Option<ArgRoleResolver>,
+    /// Exact-cardinality resolver, independent of operand contents.
+    pub arg_role_count_resolver: Option<ArgRoleCountResolver>,
+    /// Native structured layout projection, retaining unknown operand values.
+    pub arg_role_layout_resolver: Option<ArgRoleLayoutResolver>,
+    /// Authored roles that remain possible when computed operands prevent
+    /// selecting the resolver's exact positions. This never assigns a role
+    /// to a particular argument or establishes a physical mutation.
+    pub arg_role_resolver_roles: &'static [ArgRole],
+    /// Structural repeating argument roles, independent of operand values.
+    pub repeated_args: &'r [crate::RepeatedArgLayout],
     /// Effective command/subcommand/form option descriptors.
     pub options: InvocationOptions<'r>,
     /// Result Tcl internal-representation type, when declared.
     pub return_type: Option<TclType>,
+    /// Authored native procedure definition grammar.
+    pub procedure_definition: Option<crate::native_procedure::NativeProcedureDefinitionSpec>,
+    /// Selected native compiler descriptor; syntax and compiler entry remain required.
+    pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
+    /// Successful handler transfer without compiler or opcode proof.
+    pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+    /// Selected native byte-array transformation contract.
+    pub byte_array_effect: crate::ByteArrayEffect,
+    /// Selected payload getter/sink operand layout.
+    pub byte_array_payload: Option<crate::BytePayloadSpec>,
     /// Dialects in which this invocation safely initialises an unset target.
     pub safe_on_uninit: Option<&'static [SpecSurface]>,
     /// How the invocation types variables it writes.
@@ -574,6 +812,8 @@ pub struct InvocationSemantics<'r> {
     pub frame_effect: Option<FrameEffectSpec>,
     /// Whether body arguments run as ordinary scripts or structural bodies.
     pub body_kind: BodyKind,
+    /// Registry-authored immediate script execution grammar.
+    pub body_execution: Option<crate::body_execution::BodyExecutionSpec>,
     /// Which interpreter owns evaluated body arguments.
     pub body_interpreter: BodyInterpreter,
     /// Typed common front-end structural-lowering descriptor.
@@ -607,6 +847,31 @@ pub struct InvocationSemantics<'r> {
     pub literal_argument_validator: Option<LiteralArgumentValidator>,
 }
 
+impl InvocationSemantics<'_> {
+    /// Resolver input contract; it does not imply cardinality is known.
+    #[must_use]
+    pub fn arg_role_resolver_input(&self) -> ArgRoleResolverInput {
+        if [
+            self.arg_role_resolver.is_some(),
+            self.arg_role_count_resolver.is_some(),
+            self.arg_role_layout_resolver.is_some(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count()
+            > 1
+        {
+            ArgRoleResolverInput::ConflictingResolvers
+        } else if self.arg_role_layout_resolver.is_some() {
+            ArgRoleResolverInput::StructuredLayout
+        } else if self.arg_role_count_resolver.is_some() {
+            ArgRoleResolverInput::Cardinality
+        } else {
+            ArgRoleResolverInput::LiteralValues
+        }
+    }
+}
+
 /// A command invocation resolved to target-neutral registry semantics.
 ///
 /// The structure retains caller word facts while exposing canonical names and
@@ -628,6 +893,45 @@ pub struct ResolvedInvocation<'r, 'w> {
     pub semantics: InvocationSemantics<'r>,
 }
 
+/// Authored class candidate and name operand of a selected naming factory.
+/// This inert metadata cannot prove a created command, successful invocation,
+/// source declaration or object-method dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NamedObjectFactory {
+    argument: u8,
+    class_name: &'static str,
+}
+
+impl NamedObjectFactory {
+    /// Post-head argument naming the object command under this contract.
+    #[must_use]
+    pub fn argument(self) -> usize {
+        usize::from(self.argument)
+    }
+
+    /// Authored nominal class candidate, independently of runtime identity.
+    #[must_use]
+    pub const fn class_name(self) -> &'static str {
+        self.class_name
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SelectedArgumentTypeHints {
+    table: &'static [(u8, crate::hooks::ArgTypeHint)],
+    first_positional: usize,
+}
+
+impl SelectedArgumentTypeHints {
+    fn at(self, index: usize) -> Option<&'static crate::hooks::ArgTypeHint> {
+        let relative = u8::try_from(index.checked_sub(self.first_positional)?).ok()?;
+        self.table
+            .iter()
+            .find(|(position, _)| *position == relative)
+            .map(|(_, hint)| hint)
+    }
+}
+
 /// An owned, target-neutral projection of a resolved registry invocation.
 ///
 /// This is the hand-off shape for executable IR and shared optimisation
@@ -637,6 +941,10 @@ pub struct ResolvedInvocation<'r, 'w> {
 /// and lowering hook.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationFacts {
+    deferred_script_arguments: Option<Vec<usize>>,
+    argument_type_hints: Option<SelectedArgumentTypeHints>,
+    /// Selected normal naming-factory contract, independent of object identity.
+    pub named_object_factory: Option<NamedObjectFactory>,
     /// Canonical registry command identity used to select these facts.
     pub canonical_command: String,
     /// The complete owned subcommand-resolution outcome.
@@ -646,12 +954,21 @@ pub struct InvocationFacts {
     pub form: Option<String>,
     /// Target-neutral semantic operation selected by the registry.
     pub operation: SemanticOperationId,
+    /// Selected logical structural hook, independently of native admission.
+    pub lowering_hook: Option<LoweringHookId>,
+    /// Effective registry-selected analyser semantic hook.
+    pub analyser_hook: Option<crate::hooks::AnalyserHookId>,
     /// Effective Tcl completion descriptor.
     pub completion: CompletionDescriptor,
     /// Registry-declared dependency contract for the invocation's result.
     pub result_stability: ResultStability,
+    /// Authored native result dependency, requiring actual implementation proof.
+    pub native_result: Option<crate::native_result::NativeResultContract>,
     /// Effective Tcl value-representation effect.
     pub representation_effect: RepresentationEffect,
+    /// Native coercion phase projected from the selected form and actual argv.
+    /// This can affect shared objects without writing their variable cells.
+    pub operand_representation_coercions: crate::representation::RepresentationCoercionSelection,
     /// Fully resolved mutable-world footprint.
     ///
     /// Writes covered by [`Self::transition_effect_coverage`] have already
@@ -669,10 +986,21 @@ pub struct InvocationFacts {
     pub dispatch_dependencies: DispatchDependencies,
     /// Effective command and subcommand traits.
     pub traits: Traits,
+    /// Authored successful result source colour. Actual implementation proof
+    /// remains required; this is not catalogue-based source classification.
+    pub taint_source: Option<crate::taint::TaintColour>,
+    /// Successful-result transform validated against actual frozen operands.
+    /// Handler provenance remains an independent consumer requirement.
+    pub taint_transform: Option<crate::taint::TaintColour>,
     /// Whether the selected invocation form mutates command-specific state.
     pub mutator: bool,
     /// Effective arity after command, subcommand, and form selection.
     pub arity: Arity,
+    /// Count under the authored option/positional grammar of the frozen argv.
+    /// Unknown option layout retains `None`, rather than a guessed argc.
+    pub arity_argument_count: Option<u16>,
+    /// Actual frozen post-head argv cardinality, independent of count axis.
+    pub frozen_argument_count: Option<usize>,
     /// Number of leading post-head words before static argument roles start.
     pub argument_offset: usize,
     /// Effective argument-role declarations for this invocation.
@@ -681,6 +1009,8 @@ pub struct InvocationFacts {
     /// Otherwise this retains the descriptor's conservative static roles and
     /// [`Self::arg_roles_complete`] is `false`.
     pub arg_roles: Vec<(u8, ArgRole)>,
+    /// Repeated layouts retaining conditional-binding policy for consumers.
+    pub repeated_args: Vec<crate::RepeatedArgLayout>,
     /// Whether [`Self::arg_roles`] is the complete role assignment.
     ///
     /// `false` means registry metadata has an argument-role resolver whose
@@ -688,8 +1018,21 @@ pub struct InvocationFacts {
     /// the dynamic role obligation rather than treating this static slice as a
     /// complete answer.
     pub arg_roles_complete: bool,
+    /// Closed capability inventory for unresolved value-dependent role positions.
+    /// Meaningful as uncertainty only while `arg_roles_complete` is false.
+    pub arg_role_resolver_roles: &'static [ArgRole],
     /// Declared result internal-representation type, when available.
     pub return_type: Option<TclType>,
+    /// Native procedure argv selection, preserving invalid/unknown outcomes.
+    pub procedure_definition: Option<crate::native_procedure::NativeProcedureDefinitionSelection>,
+    /// Native compilation capability independent of runtime target selection.
+    pub native_compilation: Option<crate::native_compilation::NativeCompilationSpec>,
+    /// Successful handler transfer without compiler or opcode proof.
+    pub successful_handler: Option<crate::native_compilation::SuccessfulHandlerSpec>,
+    /// Selected native byte-array transformation contract.
+    pub byte_array_effect: crate::ByteArrayEffect,
+    /// Selected payload getter/sink operand layout.
+    pub byte_array_payload: Option<crate::BytePayloadSpec>,
     /// How written variables receive types from this invocation.
     pub var_write_typing: VarWriteTyping,
     /// Result-to-container-element relationship, when declared.
@@ -698,6 +1041,8 @@ pub struct InvocationFacts {
     pub var_elements_effect: Option<VarElementsEffect>,
     /// Whether body words run in the caller frame or a structural scope.
     pub body_kind: BodyKind,
+    /// Registry-authored immediate script execution grammar.
+    pub body_execution: Option<crate::body_execution::BodyExecutionSpec>,
     /// Which interpreter owns evaluated body arguments.
     pub body_interpreter: BodyInterpreter,
     /// Frame-crossing argument grammar, when declared.
@@ -705,6 +1050,195 @@ pub struct InvocationFacts {
 }
 
 impl InvocationFacts {
+    /// Selected deferred single-script/prefix operand positions. Unknown values
+    /// keep their slots; None retains unknown layout, timing or concatenation.
+    /// This metadata supplies positive navigation only, never callback absence,
+    /// execution, future body admission, edit completeness or erasure permission.
+    #[must_use]
+    pub fn deferred_script_argument_indices(&self) -> Option<&[usize]> {
+        self.deferred_script_arguments.as_deref()
+    }
+
+    /// Positional representation advice retained from this selected invocation.
+    /// It establishes neither actual representation nor a conversion result.
+    /// Unknown cardinality/options and rejected arity supply no hint.
+    #[must_use]
+    pub fn argument_type_hint(&self, index: usize) -> Option<&'static crate::hooks::ArgTypeHint> {
+        if self.arity_accepts_frozen_arguments() != Some(true)
+            || index >= self.frozen_argument_count?
+        {
+            return None;
+        }
+        self.argument_type_hints?.at(index)
+    }
+
+    /// Actual normal native numeric result shape, independently of operand
+    /// contents, callback effects, completion guarantees or compiler selection.
+    #[must_use]
+    pub fn normal_numeric_result_production(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::native_result::NativeNumericResultProduction> {
+        if self.successful_handler != Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+            || self.arity_accepts_frozen_arguments() != Some(true)
+            || self.frozen_argument_count != arguments.exact_argv_len()
+        {
+            return None;
+        }
+        if matches!(
+            self.native_result,
+            Some(crate::native_result::NativeResultContract::ScalarMath(_))
+        ) {
+            return self
+                .normal_scalar_math_protocol(arguments)
+                .map(crate::mathfunc::NativeScalarMathProtocol::result_production);
+        }
+        if self.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListLength) {
+            return None;
+        }
+        self.native_result?
+            .normal_numeric_result_production(arguments, self.argument_offset)
+    }
+
+    /// Authored scalar math operand/result protocol from this selected native
+    /// handler. Actual reached implementation and observers remain independent.
+    #[must_use]
+    pub fn normal_scalar_math_protocol(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::mathfunc::NativeScalarMathProtocol> {
+        if self.operation != SemanticOperationId::Invoke
+            || self.successful_handler
+                != Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+            || self.arity_accepts_frozen_arguments() != Some(true)
+            || self.frozen_argument_count != arguments.exact_argv_len()
+        {
+            return None;
+        }
+        let crate::native_result::NativeResultContract::ScalarMath(operation) =
+            self.native_result?
+        else {
+            return None;
+        };
+        crate::mathfunc::NativeScalarMathProtocol::for_invocation(
+            operation,
+            arguments,
+            self.argument_offset,
+        )
+    }
+
+    /// Effect-purpose refinement after proving (or failing to prove) the
+    /// original scalar operand's string-access closure. This changes neither
+    /// native result/completion nor compiler/implementation identity.
+    pub fn refine_scalar_math_input_effects(
+        &mut self,
+        arguments: crate::InvocationArguments<'_>,
+        input_is_closed: bool,
+    ) {
+        if self.normal_scalar_math_protocol(arguments).is_some() && !input_is_closed {
+            self.effects
+                .add_callback(crate::world_effect::CallbackEffect {
+                    kinds: crate::world_effect::CallbackKinds::HOST,
+                    reentrancy: crate::world_effect::Reentrancy::AnyInterpreter,
+                });
+            self.traits
+                .remove(Traits::PURE | Traits::PURE_EVALUATION | Traits::FRAMELESS_RUNTIME);
+        }
+    }
+
+    /// Selected normal-result provider after separate proof of the actual
+    /// native handler. Operand effects and compiler admission stay independent.
+    #[must_use]
+    pub fn normal_list_method_provider(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::native_result::NativeListMethodProvider> {
+        if self.arity_accepts_frozen_arguments() != Some(true)
+            || self.frozen_argument_count != arguments.exact_argv_len()
+        {
+            return None;
+        }
+        self.native_result?
+            .normal_list_method_provider(arguments, self.argument_offset)
+    }
+
+    /// Bound an authored list-length handler after independent proof that its
+    /// original operand is an ordinary List/Dictionary object. This descriptor
+    /// query requires actual handler identity separately and never proves OK.
+    #[must_use]
+    pub fn ordinary_list_length_completion(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+        proved_argument: usize,
+        representation: crate::representation::OrdinaryContainerRepresentation,
+    ) -> Option<crate::completion_route::InvocationCompletionRoute> {
+        if self.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListLength)
+            || self.successful_handler
+                != Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+            || self.arity_accepts_frozen_arguments() != Some(true)
+            || self.frozen_argument_count != arguments.exact_argv_len()
+        {
+            return None;
+        }
+        self.representation_effect.ordinary_list_length_completion(
+            arguments,
+            self.argument_offset,
+            proved_argument,
+            representation,
+        )
+    }
+
+    /// Select the native list-length object-method effect obligation. The
+    /// caller must separately prove the current handler and original operand.
+    /// Tcl 9's `lengthProc` returns a size, but arbitrary registered native
+    /// methods can mutate the interpreter world; this is not a Tcl code bound.
+    #[must_use]
+    pub fn list_length_object_protocol(
+        &self,
+        arguments: crate::InvocationArguments<'_>,
+    ) -> Option<crate::representation::ListLengthObjectProtocol> {
+        use crate::representation::ListLengthObjectProtocol as Protocol;
+        use tcl_dialect::{
+            TclVersion,
+            model::{Family, Release},
+        };
+        if self.operation != SemanticOperationId::Intrinsic(IntrinsicId::ListLength)
+            || self.successful_handler
+                != Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+            || self.arity_accepts_frozen_arguments() != Some(true)
+            || self.frozen_argument_count != arguments.exact_argv_len()
+            || self.argument_offset.checked_add(1) != arguments.exact_argv_len()
+        {
+            return None;
+        }
+        let argument = self.argument_offset;
+        let Some(dialect) = arguments.dialect() else {
+            return Some(Protocol::Unknown);
+        };
+        Some(match (dialect.family(), dialect.tcl_version) {
+            (Some(Family::Tcl), Some(version)) if version >= TclVersion::V9_0 => {
+                Protocol::AbstractLength { argument }
+            }
+            (Some(Family::Tcl), Some(_)) => Protocol::Ordinary { argument },
+            (Some(Family::Jim), _)
+                if dialect
+                    .core_point
+                    .is_some_and(|point| point.release() == Release::JIM_0_84) =>
+            {
+                Protocol::Ordinary { argument }
+            }
+            _ => Protocol::Unknown,
+        })
+    }
+
+    /// Signature validity of the argv which produced these owned facts.
+    /// This does not validate option values or execution effects.
+    #[must_use]
+    pub fn arity_accepts_frozen_arguments(&self) -> Option<bool> {
+        self.arity_argument_count
+            .map(|count| self.arity.accepts(count))
+    }
+
     /// Return the effect footprint ready for completion-aware world-state
     /// projection.
     ///
@@ -734,9 +1268,10 @@ impl InvocationFacts {
         argument_count: usize,
         roles: &[ArgRole],
     ) -> Option<usize> {
-        let effective_count = argument_count.checked_sub(self.argument_offset)?;
-        let effective_count = u16::try_from(effective_count).ok()?;
-        if !self.arity.accepts(effective_count) || !self.arg_roles_complete {
+        if self.frozen_argument_count != Some(argument_count)
+            || self.arity_accepts_frozen_arguments() != Some(true)
+            || !self.arg_roles_complete
+        {
             return None;
         }
 
@@ -759,15 +1294,95 @@ impl InvocationFacts {
     }
 }
 
+/// Retain the selected option tables and their availability context.
+pub(crate) fn invocation_options<'r>(
+    spec: &'r CommandSpec,
+    sub: Option<&'r SubCommand>,
+    form: Option<&'r CommandForm>,
+    availability: InvocationAvailability<'r>,
+) -> InvocationOptions<'r> {
+    let parent_surface = sub.and_then(|sub| sub.surface).or(spec.surface);
+    InvocationOptions {
+        availability,
+        parent_surface,
+        form_surface: form.and_then(|form| form.surface).or(parent_surface),
+        prefix_matching: sub.map_or(spec.prefix_matching, |sub| sub.prefix_matching),
+        positional_prefix_words: if let Some(sub) = sub {
+            sub.option_prefix_words
+        } else if spec.option_prefix_words > 0 {
+            spec.option_prefix_words
+        } else {
+            spec.constructor_prefix_words()
+                .unwrap_or(match spec.body_execution {
+                    Some(crate::body_execution::BodyExecutionSpec::CapturedLifecycle(
+                        lifecycle,
+                    )) => lifecycle.leading_arguments,
+                    _ => 0,
+                })
+        },
+        reserved_trailing_words: if sub.is_none() {
+            spec.reserved_trailing_words
+        } else {
+            0
+        },
+        case_list: if sub.is_none() { spec.case_list } else { None },
+        base: sub.map_or(spec.options, |sub| sub.options),
+        form: form.map_or(&[], |form| form.options),
+    }
+}
+
+/// Assess one invocation using the authored count axis and shared option walk.
+/// This count does not validate option values, effects or native compilation.
+#[must_use]
+pub fn count_invocation_arguments(
+    arity: Arity,
+    arguments: crate::InvocationArguments<'_>,
+    offset: usize,
+    options: InvocationOptions<'_>,
+) -> Option<u16> {
+    let count = arguments.exact_argv_len()?.checked_sub(offset)?;
+    if arity.count == crate::arity::ArityCount::Arguments {
+        return u16::try_from(count).ok();
+    }
+    let end = options.leading_word_count(arguments.slice_from(offset))?;
+    let consumed = end.saturating_sub(options.positional_prefix_words);
+    u16::try_from(count.checked_sub(consumed)?).ok()
+}
+
 impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+    /// Count the actual frozen argv under its selected signature grammar.
+    #[must_use]
+    pub fn argument_count_for_arity(&self) -> Option<u16> {
+        count_invocation_arguments(
+            self.semantics.arity,
+            self.words.arguments(),
+            self.semantics.argument_offset,
+            self.semantics.options,
+        )
+    }
+
     pub(crate) fn new(
         words: InvocationWords<'w>,
         spec: &'r CommandSpec,
         sub: Option<&'r SubCommand>,
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
+        availability: InvocationAvailability<'r>,
     ) -> Self {
-        let semantics = resolve_invocation_semantics(spec, sub, form, true);
+        let mut semantics = resolve_invocation_semantics(spec, sub, form, true);
+        semantics.options = invocation_options(spec, sub, form, availability);
+        if let Some(nested) = sub.and_then(|sub| {
+            sub.nested_native_compilation(words.arguments().slice_from(semantics.argument_offset))
+        }) {
+            semantics.native_compilation = Some(nested);
+        }
+        if sub.is_none()
+            && form.is_none_or(|form| form.return_type.is_none())
+            && let Some(hook) = spec.return_type_hook
+        {
+            semantics.return_type =
+                crate::return_type::resolve_arguments(hook, words.arguments(), semantics.options);
+        }
         Self {
             words,
             canonical_command: spec.name,
@@ -788,8 +1403,20 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         method: &'r SubCommand,
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
+        availability: InvocationAvailability<'r>,
     ) -> Self {
-        let semantics = resolve_invocation_semantics(class_spec, Some(method), form, false);
+        let mut semantics = resolve_invocation_semantics(class_spec, Some(method), form, false);
+        semantics.options = invocation_options(class_spec, Some(method), form, availability);
+        // A selected setter may configure the owning instance's option table.
+        // Explicit method tables keep precedence; query forms carry no setter
+        // trait and therefore cannot inherit executable constructor options.
+        if semantics
+            .traits
+            .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
+            && semantics.options.base.is_empty()
+        {
+            semantics.options.base = class_spec.options;
+        }
         Self {
             words,
             canonical_command: class_spec.name,
@@ -875,6 +1502,214 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .map(|validator| validator(self.words.arguments()))
     }
 
+    fn extend_repeated_roles(
+        &self,
+        roles: &mut Vec<(u8, ArgRole)>,
+        complete: &mut bool,
+        successful: bool,
+    ) {
+        if self.semantics.repeated_args.is_empty() {
+            return;
+        }
+        let arguments = self
+            .words
+            .arguments()
+            .slice_from(self.semantics.argument_offset);
+        let Some(count) = arguments.exact_argv_len() else {
+            *complete = false;
+            return;
+        };
+        for layout in self.semantics.repeated_args {
+            let indices = if layout.optional_leading_word {
+                match self.semantics.frame_effect.map(|effect| {
+                    if successful {
+                        effect.successful_layout(arguments).layout
+                    } else {
+                        effect.resolve_arguments(arguments)
+                    }
+                }) {
+                    Some(crate::frame_effect::FrameArgumentResolution::Valid {
+                        level_word_len,
+                        ..
+                    }) => layout.indices_with_leading_word(count, level_word_len),
+                    Some(crate::frame_effect::FrameArgumentResolution::Invalid) => continue,
+                    _ => {
+                        *complete = false;
+                        continue;
+                    }
+                }
+            } else {
+                layout.indices(count)
+            };
+            for index in indices {
+                let Ok(index) = u8::try_from(index) else {
+                    *complete = false;
+                    continue;
+                };
+                if !roles.contains(&(index, layout.role)) {
+                    roles.push((index, layout.role));
+                }
+            }
+        }
+        roles.sort_by_key(|(index, _)| *index);
+    }
+
+    /// Materialise the selected positional, frame and repeated argument roles.
+    ///
+    /// Indices are relative to [`InvocationSemantics::argument_offset`]. The
+    /// boolean records whether literal-dependent layout selection is complete.
+    /// This is the shared projection used by owned facts and compatibility
+    /// role queries; selecting a command form must not change their answers.
+    #[must_use]
+    pub fn argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
+        self.argument_roles_on_edge(false)
+    }
+
+    /// Argument-role projection on successful completion. A shape eliminated
+    /// by grammar error cannot contribute roles to this normal edge.
+    #[must_use]
+    pub fn argument_roles_after_success(&self) -> (Vec<(u8, ArgRole)>, bool) {
+        self.argument_roles_on_edge(true)
+    }
+
+    fn non_frame_argument_roles(&self) -> (Vec<(u8, ArgRole)>, bool) {
+        if self.semantics.arg_role_resolver_input() == ArgRoleResolverInput::ConflictingResolvers {
+            return (Vec::new(), false);
+        }
+        if let Some(resolver) = self.semantics.arg_role_layout_resolver {
+            resolver(
+                self.words
+                    .arguments()
+                    .slice_from(self.semantics.argument_offset),
+                self.semantics.options,
+            )
+            .map_or_else(
+                || (self.semantics.arg_roles.to_vec(), false),
+                |roles| (roles, true),
+            )
+        } else if let Some(resolver) = self.semantics.arg_role_count_resolver {
+            self.words
+                .arguments()
+                .exact_argv_len()
+                .and_then(|count| count.checked_sub(self.semantics.argument_offset))
+                .map_or_else(
+                    || (self.semantics.arg_roles.to_vec(), false),
+                    |count| (resolver(count), count <= usize::from(u8::MAX) + 1),
+                )
+        } else {
+            match self.semantics.arg_role_resolver {
+                Some(resolver) => self
+                    .words
+                    .arguments()
+                    .literal_values()
+                    .and_then(|arguments| {
+                        arguments
+                            .get(self.semantics.argument_offset..)
+                            .map(resolver)
+                    })
+                    .map_or_else(
+                        || (self.semantics.arg_roles.to_vec(), false),
+                        |roles| (roles, true),
+                    ),
+                None => (self.semantics.arg_roles.to_vec(), true),
+            }
+        }
+    }
+
+    fn argument_roles_on_edge(&self, successful: bool) -> (Vec<(u8, ArgRole)>, bool) {
+        let (mut arg_roles, mut arg_roles_complete) = if let Some(effect) =
+            self.semantics.frame_effect
+            && matches!(
+                effect.layout,
+                crate::FrameArgLayout::ScriptInSelectedFrame | crate::FrameArgLayout::AliasPairs
+            ) {
+            let layout = if successful {
+                effect.successful_layout(self.words.arguments()).layout
+            } else {
+                effect.resolve_arguments(self.words.arguments())
+            };
+            match layout {
+                crate::frame_effect::FrameArgumentResolution::Valid { level_word_len, .. } => {
+                    if effect.layout == crate::FrameArgLayout::AliasPairs {
+                        let roles = (level_word_len + 1..self.words.arguments().len())
+                            .step_by(2)
+                            .filter_map(|index| {
+                                u8::try_from(index)
+                                    .ok()
+                                    .map(|index| (index, ArgRole::VarWrite))
+                            })
+                            .collect();
+                        (
+                            roles,
+                            self.words.arguments().len() <= usize::from(u8::MAX) + 1,
+                        )
+                    } else {
+                        (
+                            vec![(
+                                u8::try_from(level_word_len)
+                                    .expect("optional level has width zero or one"),
+                                ArgRole::Body,
+                            )],
+                            true,
+                        )
+                    }
+                }
+                crate::frame_effect::FrameArgumentResolution::Invalid => (Vec::new(), true),
+                crate::frame_effect::FrameArgumentResolution::Unknown => (Vec::new(), false),
+            }
+        } else {
+            self.non_frame_argument_roles()
+        };
+        self.extend_repeated_roles(&mut arg_roles, &mut arg_roles_complete, successful);
+        match self.semantics.options.value_roles(
+            self.words
+                .arguments()
+                .slice_from(self.semantics.argument_offset),
+        ) {
+            Some(roles) => {
+                for (index, role) in roles {
+                    if let Ok(index) = u8::try_from(index) {
+                        if !arg_roles.contains(&(index, role)) {
+                            arg_roles.push((index, role));
+                        }
+                    } else {
+                        arg_roles_complete = false;
+                    }
+                }
+            }
+            None => arg_roles_complete = false,
+        }
+        if let Some(descriptor) = self.semantics.procedure_definition {
+            match descriptor.select(self.words.arguments()) {
+                crate::native_procedure::NativeProcedureDefinitionSelection::Valid(definition) => {
+                    arg_roles.retain(|(_, role)| *role != ArgRole::Body);
+                    arg_roles.push((
+                        u8::try_from(definition.body_at).expect("native body position"),
+                        ArgRole::Body,
+                    ));
+                }
+                crate::native_procedure::NativeProcedureDefinitionSelection::Invalid => {
+                    arg_roles.clear();
+                }
+                crate::native_procedure::NativeProcedureDefinitionSelection::Unknown => {
+                    arg_roles.clear();
+                    arg_roles_complete = false;
+                }
+            }
+        }
+        // Authored optional positions do not name cells when argv proves those
+        // arguments absent. Expansion retains the unresolved obligations.
+        if let Some(count) = self.words.arguments().exact_argv_len() {
+            arg_roles.retain(|(index, _)| {
+                self.semantics
+                    .argument_offset
+                    .checked_add(usize::from(*index))
+                    .is_some_and(|index| index < count)
+            });
+        }
+        (arg_roles, arg_roles_complete)
+    }
+
     /// Materialise the target-neutral facts for an owned consumer such as an
     /// executable IR node.
     ///
@@ -883,34 +1718,137 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// resolves any lazy world-effect descriptors.
     #[must_use]
     pub fn facts(&self) -> InvocationFacts {
-        let (transitions, transition_effect_coverage) = self
-            .semantics
-            .state_transitions
-            .resolve_with_effect_coverage(self.words.arguments());
-        let (arg_roles, arg_roles_complete) = match self.semantics.arg_role_resolver {
-            Some(resolver) => self
-                .words
-                .arguments()
-                .literal_values()
-                .and_then(|arguments| {
-                    arguments
-                        .get(self.semantics.argument_offset..)
-                        .map(resolver)
-                })
-                .map_or_else(
-                    || (self.semantics.arg_roles.to_vec(), false),
-                    |roles| (roles, true),
-                ),
-            None => (self.semantics.arg_roles.to_vec(), true),
+        self.facts_on_edge(false)
+    }
+
+    /// Materialise facts that hold after successful completion. Keep ordinary
+    /// [`Self::facts`] for invocation, error and partial-commit paths.
+    #[must_use]
+    pub fn facts_after_success(&self) -> InvocationFacts {
+        self.facts_on_edge(true)
+    }
+
+    fn normal_source_colour(&self) -> Option<crate::taint::TaintColour> {
+        use crate::taint::{TaintColour, augment_source_colours};
+        let argc = self.words.arguments().exact_argv_len();
+        let source = self.semantics.taint_source;
+        let traits = self.semantics.traits;
+        let selected = source.is_some()
+            || traits.intersects(Traits::TAINT_SOURCE | Traits::UNNORMALISED_HTTP_GETTER)
+            || (traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS)
+                && argc == Some(self.semantics.argument_offset));
+        if !selected {
+            return None;
+        }
+        let colour = if argc == Some(0) {
+            source.unwrap_or(TaintColour::TAINTED)
+        } else {
+            TaintColour::TAINTED
         };
-        InvocationFacts {
+        Some(augment_source_colours(colour | TaintColour::TAINTED))
+    }
+
+    /// Retain the reached representation-coercion phase independently of
+    /// variable writes, result types and mathematical purity. The caller must
+    /// still prove the selected native handler before consuming this contract.
+    #[must_use]
+    pub fn operand_representation_coercions(
+        &self,
+    ) -> crate::representation::RepresentationCoercionSelection {
+        use crate::representation::RepresentationCoercionSelection as Coercions;
+        let arguments = self.words.arguments();
+        let effect = self
+            .semantics
+            .representation_effect
+            .coercion_selection(arguments, self.semantics.argument_offset);
+        if effect != Coercions::None {
+            return effect;
+        }
+        if !self
+            .semantics
+            .arg_types
+            .iter()
+            .any(|(_, hint)| hint.shimmers)
+        {
+            return Coercions::None;
+        }
+        let Some(hints) = self.selected_argument_type_hints() else {
+            return Coercions::Unknown;
+        };
+        let count = arguments
+            .exact_argv_len()
+            .expect("selected hints retain exact argc");
+        let selected: Vec<_> = self
+            .semantics
+            .arg_types
+            .iter()
+            .filter(|(_, hint)| hint.shimmers)
+            .filter_map(|(index, _)| hints.first_positional.checked_add(usize::from(*index)))
+            .filter(|index| *index < count)
+            .collect();
+        if selected.is_empty() {
+            Coercions::None
+        } else {
+            Coercions::Operands {
+                arguments: selected,
+            }
+        }
+    }
+
+    fn selected_argument_type_hints(&self) -> Option<SelectedArgumentTypeHints> {
+        if self.semantics.arg_types.is_empty()
+            || matches!(
+                self.subcommand,
+                SubcommandResolution::Unknown { .. }
+                    | SubcommandResolution::Ambiguous { .. }
+                    | SubcommandResolution::Indeterminate { .. }
+            )
+        {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        arguments.exact_argv_len()?;
+        let offset = self.semantics.argument_offset;
+        let skipped = self
+            .semantics
+            .options
+            .leading_word_count(arguments.slice_from(offset))?;
+        Some(SelectedArgumentTypeHints {
+            table: self.semantics.arg_types,
+            first_positional: offset.checked_add(skipped)?,
+        })
+    }
+
+    fn facts_on_edge(&self, successful: bool) -> InvocationFacts {
+        let (transitions, transition_effect_coverage) = if successful {
+            self.semantics
+                .state_transitions
+                .resolve_after_success_with_effect_coverage(self.words.arguments())
+        } else {
+            self.semantics
+                .state_transitions
+                .resolve_with_effect_coverage(self.words.arguments())
+        };
+        let (arg_roles, arg_roles_complete) = self.argument_roles_on_edge(successful);
+        let mut facts = InvocationFacts {
+            deferred_script_arguments: self.semantics.script_metadata.deferred_arguments(
+                self,
+                &arg_roles,
+                arg_roles_complete,
+            ),
+            argument_type_hints: self.selected_argument_type_hints(),
+            named_object_factory: self.semantics.named_object_factory,
             canonical_command: self.canonical_command.to_owned(),
             subcommand: self.subcommand.into_owned(),
             form: self.form.map(|form| form.name.to_owned()),
             operation: self.semantics.operation,
+            lowering_hook: self.semantics.lowering_hook,
+            analyser_hook: self.semantics.analyser_hook,
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
+            native_result: self.semantics.native_result,
             representation_effect: self.semantics.representation_effect,
+            operand_representation_coercions: self.operand_representation_coercions(),
             effects: self.effect_footprint_with_transition_coverage(
                 transitions.touches_command_bindings(),
                 &transition_effect_coverage,
@@ -923,19 +1861,53 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             transition_effect_coverage,
             dispatch_dependencies: self.semantics.dispatch_dependencies.resolve(),
             traits: self.semantics.traits,
+            taint_source: self.normal_source_colour(),
+            taint_transform: self.semantics.taint_transform.and_then(|transform| {
+                transform.resolve(
+                    self.words.arguments(),
+                    self.semantics.argument_offset,
+                    self.semantics.options,
+                )
+            }),
             mutator: self.semantics.mutator,
-            arity: self.semantics.arity,
+            arity: self
+                .semantics
+                .procedure_definition
+                .map_or(self.semantics.arity, |descriptor| {
+                    descriptor.arity(self.words.arguments().dialect())
+                }),
+            arity_argument_count: self.argument_count_for_arity(),
+            frozen_argument_count: self.words.arguments().exact_argv_len(),
             argument_offset: self.semantics.argument_offset,
             arg_roles,
+            repeated_args: self.semantics.repeated_args.to_vec(),
             arg_roles_complete,
+            arg_role_resolver_roles: self.semantics.arg_role_resolver_roles,
             return_type: self.semantics.return_type,
+            procedure_definition: self
+                .semantics
+                .procedure_definition
+                .map(|descriptor| descriptor.select(self.words.arguments())),
+            native_compilation: self.semantics.native_compilation,
+            successful_handler: self.semantics.successful_handler,
+            byte_array_effect: self.semantics.byte_array_effect,
+            byte_array_payload: self.semantics.byte_array_payload,
             var_write_typing: self.semantics.var_write_typing,
             return_elements: self.semantics.return_elements,
             var_elements_effect: self.semantics.var_elements_effect,
             body_kind: self.semantics.body_kind,
+            body_execution: self.semantics.body_execution,
             body_interpreter: self.semantics.body_interpreter,
             frame_effect: self.semantics.frame_effect,
+        };
+        if successful
+            && let Some(effects) = facts.successful_value_leaf_world(self.words.arguments())
+        {
+            facts.effects = effects;
+            facts.state_transitions =
+                StateTransitionKnowledge::Declared(StateTransitions::default());
         }
+        facts
     }
 }
 
@@ -956,8 +1928,388 @@ mod tests {
         StateTransition, StateTransitionCommit, StateTransitionDescriptor, StateTransitionDomain,
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
-    use tcl_dialect::model::SpecSurface;
-    use tcl_dialect::model::{Family, SurfaceQuery};
+    use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery};
+
+    #[test]
+    fn selected_option_value_roles_reach_owned_facts_without_classifying_result_data() {
+        let registry = CommandRegistry::build_default();
+        for arguments in [
+            vec!["name", "description", "-body", "expr $x+1", "-result", ""],
+            vec!["name", "description", "-result", "-body"],
+        ] {
+            let resolved = registry
+                .resolve_invocation("tcltest::test", &arguments, None)
+                .expect("available declared option layout");
+            let expected = (arguments.len() == 6).then_some((3, ArgRole::Body));
+            for facts in [resolved.facts(), resolved.facts_after_success()] {
+                let bodies: Vec<_> = facts
+                    .arg_roles
+                    .into_iter()
+                    .filter(|(_, role)| *role == ArgRole::Body)
+                    .collect();
+                assert_eq!(bodies, expected.into_iter().collect::<Vec<_>>());
+            }
+        }
+    }
+
+    #[test]
+    fn selected_option_value_role_width_is_independent_of_unknown_payload() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = CommandRegistry::build_default();
+        let arguments = [
+            Literal("name"),
+            Literal("description"),
+            Literal("-body"),
+            Dynamic,
+        ];
+        let resolved = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("tcltest::test"), &arguments),
+                None,
+            )
+            .resolved()
+            .expect("selected package layout");
+        assert!(resolved.facts().arg_roles.contains(&(3, ArgRole::Body)));
+        let unknown = [
+            Literal("name"),
+            Literal("description"),
+            Dynamic,
+            Literal("expr $x"),
+        ];
+        let resolved = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("tcltest::test"), &unknown),
+                None,
+            )
+            .resolved()
+            .expect("unresolved option word remains an invocation");
+        assert!(!resolved.facts().arg_roles_complete);
+        assert!(!resolved.facts().arg_roles.contains(&(3, ArgRole::Body)));
+    }
+
+    #[test]
+    fn selected_operand_coercions_preserve_shared_object_hazards() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        use crate::representation::RepresentationCoercionSelection as Coercions;
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+        let cases: &[(&str, &[crate::InvocationWord<'_>], Coercions)] = &[
+            (
+                "llength",
+                &[Dynamic],
+                Coercions::Operands { arguments: vec![0] },
+            ),
+            ("llength", &[Expanded], Coercions::Unknown),
+            ("list", &[Dynamic], Coercions::None),
+            (
+                "string",
+                &[Literal("length"), Dynamic],
+                Coercions::Operands { arguments: vec![1] },
+            ),
+            (
+                "expr",
+                &[Literal("2 + 2")],
+                Coercions::Expression {
+                    source_arguments: 0..1,
+                },
+            ),
+        ];
+        for (head, arguments, expected) in cases {
+            let words =
+                crate::InvocationWords::structured(Literal(head), arguments).with_dialect(dialect);
+            let invocation = registry
+                .resolve_structured_invocation(words, None)
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                invocation.operand_representation_coercions(),
+                *expected,
+                "{head}"
+            );
+            assert_eq!(
+                invocation.facts().operand_representation_coercions,
+                *expected,
+                "{head}"
+            );
+        }
+    }
+
+    #[test]
+    fn selected_regexp_result_uses_available_flags_before_unknown_values() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = crate::model::ingress::static_context_for(environment)
+                .commands()
+                .profile()
+                .unwrap();
+            // The raw catalogue's latest row is Jim; actual operand ingress
+            // must select the C row independently of that insertion order.
+            let registry = crate::CommandRegistry::build_default();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for (words, expected) in [
+                (
+                    vec![Literal("-about"), Dynamic],
+                    (environment != "jim").then_some(crate::TclType::List),
+                ),
+                (
+                    vec![Literal("--"), Literal("-about"), Dynamic],
+                    Some(crate::TclType::Int),
+                ),
+                (vec![Dynamic, Dynamic], None),
+                (vec![Literal("-inline"), Dynamic, Dynamic], None),
+                (
+                    vec![Literal("-start"), Literal("-about"), Dynamic, Dynamic],
+                    None,
+                ),
+                (
+                    vec![Literal("-start"), Literal("--"), Dynamic, Dynamic],
+                    None,
+                ),
+            ] {
+                let facts = registry
+                    .resolve_structured_invocation(
+                        crate::InvocationWords::structured(Literal("regexp"), &words)
+                            .with_dialect(dialect),
+                        None,
+                    )
+                    .resolved()
+                    .unwrap()
+                    .facts();
+                assert_eq!(facts.return_type, expected, "{environment}: {words:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn selected_argument_hints_retain_member_options_and_transparency() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands().clone();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+        let arguments = [Literal("map"), Literal("-nocase"), Literal("a b"), Dynamic];
+        let facts = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("string"), &arguments)
+                    .with_dialect(dialect),
+                None,
+            )
+            .resolved()
+            .unwrap()
+            .facts();
+        assert!(facts.argument_type_hint(0).is_none());
+        assert!(facts.argument_type_hint(1).is_none());
+        let mapping = facts.argument_type_hint(2).unwrap();
+        assert_eq!(mapping.expected, Some(crate::TclType::List));
+        assert!(mapping.shimmers);
+        assert_eq!(mapping.transparent_from, &[crate::TclType::Dict]);
+        assert_eq!(
+            facts.argument_type_hint(3).unwrap().expected,
+            Some(crate::TclType::String)
+        );
+        assert!(facts.argument_type_hint(4).is_none());
+        assert_eq!(
+            facts.operand_representation_coercions,
+            crate::representation::RepresentationCoercionSelection::Operands {
+                arguments: vec![2, 3],
+            }
+        );
+        let length_arguments = [Literal("length"), Dynamic];
+        let length = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("string"), &length_arguments)
+                    .with_dialect(dialect),
+                None,
+            )
+            .resolved()
+            .unwrap()
+            .facts();
+        let retained = length.clone();
+        drop(length);
+        drop(registry);
+        assert_eq!(
+            retained.argument_type_hint(1).unwrap().transparent_from,
+            &[crate::TclType::ByteArray]
+        );
+    }
+
+    #[test]
+    fn selected_argument_hints_decline_unresolved_argv_and_rejected_arity() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+        let cases: &[&[crate::InvocationWord<'_>]] = &[
+            &[Dynamic, Literal("x")],
+            &[Literal("map"), Dynamic, Literal("x")],
+            &[Literal("length"), Expanded],
+            &[Literal("length")],
+            &[Literal("length"), Literal("x"), Literal("extra")],
+        ];
+        for arguments in cases {
+            let facts = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("string"), arguments)
+                        .with_dialect(dialect),
+                    None,
+                )
+                .resolved()
+                .unwrap()
+                .facts();
+            for index in 0..4 {
+                assert!(
+                    facts.argument_type_hint(index).is_none(),
+                    "{arguments:?}: slot {index}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn positional_arity_uses_proved_option_boundary_without_inventing_dynamic_values() {
+        use crate::InvocationWord::{Dynamic, DynamicNonOption, Expanded, Literal};
+        let registry = CommandRegistry::build_default();
+        let cases: &[(&[crate::InvocationWord<'_>], Option<u16>)] = &[
+            (
+                &[Literal("create"), Literal("-safe"), Literal("jail")],
+                Some(1),
+            ),
+            (
+                &[Literal("create"), Literal("-safe"), Literal("-safe")],
+                Some(0),
+            ),
+            (
+                &[Literal("create"), Literal("--"), Literal("-safe")],
+                Some(1),
+            ),
+            (&[Literal("create"), Literal("--"), Dynamic], Some(1)),
+            (
+                &[Literal("create"), Literal("-safe"), DynamicNonOption],
+                Some(1),
+            ),
+            (&[Literal("create"), Dynamic], None),
+            (&[Literal("create"), Literal("-safe"), Dynamic], None),
+            (&[Literal("create"), Literal("-unknown")], None),
+            (&[Literal("create"), Expanded], None),
+            (
+                &[Literal("create"), Literal("jail"), Literal("extra")],
+                Some(2),
+            ),
+        ];
+        for &(arguments, expected) in cases {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("interp"), arguments),
+                    None,
+                )
+                .resolved()
+                .expect("literal interp selector resolves");
+            assert_eq!(
+                invocation.argument_count_for_arity(),
+                expected,
+                "{arguments:?}"
+            );
+            assert_eq!(
+                invocation.facts().arity_accepts_frozen_arguments(),
+                expected.map(|count| count <= 1),
+                "{arguments:?}"
+            );
+        }
+        let arguments = [Literal("-nonewline"), Dynamic];
+        let invocation = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("puts"), &arguments),
+                None,
+            )
+            .resolved()
+            .expect("literal puts resolves");
+        assert_eq!(
+            invocation.argument_count_for_arity(),
+            Some(2),
+            "raw argument signatures retain their authored count axis"
+        );
+    }
+
+    #[test]
+    fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let options = [
+            OptionSpec {
+                name: "-offset",
+                aliases: &["-begin"],
+                min_abbrev: Some(4),
+                value: crate::hover::OptionValue::fixed(2, ArgRole::Value, "value"),
+                ..OptionSpec::DEFAULT
+            },
+            OptionSpec {
+                name: "--",
+                ..OptionSpec::DEFAULT
+            },
+        ];
+        let available = options.iter().collect::<Vec<_>>();
+        for spelling in ["-offset", "-begin", "-off", "-beg"] {
+            let arguments = [
+                Literal(spelling),
+                Literal("1"),
+                Literal("2"),
+                Literal("--"),
+                Dynamic,
+            ];
+            assert_eq!(
+                crate::spec::leading_option_word_count_for_arguments(
+                    &available,
+                    InvocationArguments::structured(&arguments),
+                    crate::abbrev::PrefixMatching::Enabled,
+                    0,
+                ),
+                Some(4),
+                "{spelling}"
+            );
+            assert!(
+                crate::spec::resolve_option_prefix_with(
+                    &options,
+                    spelling,
+                    crate::abbrev::PrefixMatching::Enabled,
+                )
+                .is_some()
+            );
+        }
+        assert!(
+            crate::spec::resolve_option_prefix_with(
+                &options,
+                "-of",
+                crate::abbrev::PrefixMatching::Enabled,
+            )
+            .is_none()
+        );
+        let unknown_value = [
+            Literal("-offset"),
+            Dynamic,
+            Literal("2"),
+            Literal("position"),
+        ];
+        assert_eq!(
+            crate::spec::leading_option_word_count_for_arguments(
+                &available,
+                InvocationArguments::structured(&unknown_value),
+                crate::abbrev::PrefixMatching::Enabled,
+                0,
+            ),
+            Some(3),
+            "fixed value arity retains positions independently of dynamic bytes"
+        );
+        let terminator = [Literal("-offset"), Literal("--"), Dynamic];
+        assert_eq!(
+            crate::spec::leading_option_word_count_for_arguments(
+                &available,
+                InvocationArguments::structured(&terminator),
+                crate::abbrev::PrefixMatching::Enabled,
+                0,
+            ),
+            Some(3),
+            "a dash value is consumed before subsequent option scanning"
+        );
+    }
 
     const COMMAND_CODES: &[CompletionCode] = &[CompletionCode::Error];
     const SUBCOMMAND_CODES: &[CompletionCode] = &[CompletionCode::Break];
@@ -1119,6 +2471,204 @@ mod tests {
     }
 
     #[test]
+    fn retained_result_types_respect_option_forms_and_unknown_slots() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        for (command, arguments, expected) in [
+            (
+                "regexp",
+                vec![Literal("-inline"), Literal("a"), Dynamic],
+                None,
+            ),
+            ("regexp", vec![Literal("a"), Dynamic], Some(TclType::Int)),
+            ("regexp", vec![Dynamic, Literal("a"), Dynamic], None),
+            (
+                "lsearch",
+                vec![Literal("-all"), Dynamic, Literal("a")],
+                None,
+            ),
+            ("lsearch", vec![Dynamic, Literal("a")], Some(TclType::Int)),
+            ("lsearch", vec![Literal("--"), Dynamic, Literal("a")], None),
+            (
+                "regsub",
+                vec![Literal("a"), Dynamic, Literal("b")],
+                Some(TclType::String),
+            ),
+        ] {
+            let invocation = registry.resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal(command), &arguments),
+                registry.own_surface_query(),
+            );
+            assert_eq!(
+                invocation.resolved().unwrap().facts().return_type,
+                expected,
+                "{command} {arguments:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn literal_leaf_normal_world_is_separate_from_error_and_dynamic_operands() {
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let arguments = [
+            crate::InvocationWord::Literal("format"),
+            crate::InvocationWord::Literal("a*"),
+            crate::InvocationWord::Literal("hello"),
+        ];
+        let resolve = |arguments| {
+            registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("binary"),
+                        arguments,
+                    )
+                    .with_dialect(dialect),
+                    registry.own_surface_query(),
+                )
+                .resolved()
+                .unwrap()
+        };
+        let invocation = resolve(&arguments);
+        assert!(invocation.facts().effects.requires_world_barrier());
+        let normal = invocation.facts_after_success();
+        assert!(!normal.effects.requires_world_barrier());
+        assert!(
+            normal
+                .effects
+                .accesses()
+                .iter()
+                .all(|access| access.domain == WorldStateDomain::InterpreterResult)
+        );
+        assert!(
+            normal
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .is_empty()
+        );
+        let dynamic = [
+            crate::InvocationWord::Literal("format"),
+            crate::InvocationWord::Literal("a*"),
+            crate::InvocationWord::Dynamic,
+        ];
+        assert!(
+            resolve(&dynamic)
+                .facts_after_success()
+                .effects
+                .requires_world_barrier()
+        );
+    }
+
+    #[test]
+    fn selected_getter_normal_contract_does_not_leak_to_mutator_or_channel_forms() {
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
+        let dialect = crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        for values in [&[][..], &["100"][..]] {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::literals("TCP::payload", values).with_dialect(dialect),
+                    registry.own_surface_query(),
+                )
+                .resolved()
+                .unwrap();
+            assert_eq!(
+                invocation.facts().successful_handler,
+                Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+            );
+            assert!(
+                !invocation
+                    .facts_after_success()
+                    .effects
+                    .requires_world_barrier()
+            );
+            assert!(invocation.facts().native_compilation.is_none());
+        }
+        let replace = registry
+            .resolve_invocation(
+                "TCP::payload",
+                &["replace", "0", "1", "data"],
+                registry.own_surface_query(),
+            )
+            .unwrap();
+        assert!(replace.facts().successful_handler.is_none());
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let current = registry
+            .resolve_invocation("pid", &[], registry.own_surface_query())
+            .unwrap();
+        assert_eq!(
+            current.facts().successful_handler,
+            Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf)
+        );
+        let channel = registry
+            .resolve_invocation("pid", &["channel"], registry.own_surface_query())
+            .unwrap();
+        assert!(channel.facts().successful_handler.is_none());
+    }
+
+    #[test]
+    fn dictionary_constructor_coerces_keys_and_retains_unknown_value_objects() {
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        for (key, value, closed) in [
+            (
+                crate::InvocationWord::Literal("key"),
+                crate::InvocationWord::Dynamic,
+                true,
+            ),
+            (
+                crate::InvocationWord::Dynamic,
+                crate::InvocationWord::Literal("value"),
+                false,
+            ),
+        ] {
+            let operands = [crate::InvocationWord::Literal("create"), key, value];
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(
+                        crate::InvocationWord::Literal("dict"),
+                        &operands,
+                    )
+                    .with_dialect(dialect),
+                    registry.own_surface_query(),
+                )
+                .resolved()
+                .unwrap();
+            let effects = invocation.facts_after_success().effects;
+            assert_eq!(!effects.requires_world_barrier(), closed);
+            if closed {
+                assert!(
+                    effects
+                        .accesses()
+                        .iter()
+                        .all(|access| access.domain == WorldStateDomain::InterpreterResult)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn repeating_target_roles_do_not_require_a_literal_container_value() {
+        let registry = crate::model::ingress::static_context_for("tcl8.6").commands();
+        let words = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("x"),
+            crate::InvocationWord::Literal("y"),
+        ];
+        let invocation = registry.resolve_structured_invocation(
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("lassign"), &words),
+            registry.own_surface_query(),
+        );
+        let facts = invocation.resolved().unwrap().facts();
+        assert!(facts.arg_roles_complete);
+        assert_eq!(
+            facts.arg_roles,
+            vec![(1, ArgRole::VarWrite), (2, ArgRole::VarWrite)]
+        );
+    }
+
+    #[test]
     fn completion_descriptor_precedence_is_form_then_subcommand_then_command() {
         let registry = registry_with_completion_fixture();
 
@@ -1222,6 +2772,269 @@ mod tests {
             explicit_transitions,
             StateTransitionKnowledge::Declared(ref transitions) if transitions.facts().is_empty()
         ));
+    }
+
+    #[test]
+    fn scalar_math_shape_requires_the_selected_native_protocol() {
+        let registry = CommandRegistry::build_default();
+        let values = [crate::InvocationWord::Dynamic];
+        for version in [
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let words = crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("::tcl::mathfunc::sqrt"),
+                &values,
+            )
+            .with_dialect(dialect);
+            let resolution =
+                registry.resolve_structured_invocation(words, dialect.authoring_query());
+            let mut facts = resolution.resolved().unwrap().facts();
+            let protocol = facts
+                .normal_scalar_math_protocol(words.arguments())
+                .unwrap();
+            assert_eq!(protocol.operand_at(), 0);
+            assert_eq!(
+                protocol.numeric_operand_policy(),
+                crate::mathfunc::NativeMathNumericOperandPolicy::PreserveCategory
+            );
+            assert_eq!(
+                facts.normal_numeric_result_production(words.arguments()),
+                Some(crate::native_result::NativeNumericResultProduction::Double)
+            );
+            assert_eq!(
+                facts.completion.codes,
+                crate::completion::CompletionCodeDomain::Exact(&[
+                    CompletionCode::Ok,
+                    CompletionCode::Error
+                ])
+            );
+            let original_effects = facts.effects.clone();
+            facts.refine_scalar_math_input_effects(words.arguments(), true);
+            assert_eq!(facts.effects, original_effects);
+            facts.refine_scalar_math_input_effects(words.arguments(), false);
+            assert!(
+                facts
+                    .effects
+                    .callback()
+                    .kinds
+                    .contains(crate::CallbackKinds::HOST)
+            );
+            assert!(!facts.traits.contains(Traits::PURE));
+            assert_eq!(
+                facts.normal_numeric_result_production(words.arguments()),
+                Some(crate::native_result::NativeNumericResultProduction::Double)
+            );
+            facts.successful_handler = None;
+            assert!(
+                facts
+                    .normal_scalar_math_protocol(words.arguments())
+                    .is_none()
+            );
+            facts.successful_handler = Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf);
+            facts.native_result = None;
+            assert!(
+                facts
+                    .normal_numeric_result_production(words.arguments())
+                    .is_none()
+            );
+        }
+        let expanded = [crate::InvocationWord::Expanded];
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1);
+        let words = crate::InvocationWords::structured(
+            crate::InvocationWord::Literal("::tcl::mathfunc::sqrt"),
+            &expanded,
+        )
+        .with_dialect(dialect);
+        let facts = registry
+            .resolve_structured_invocation(words, dialect.authoring_query())
+            .resolved()
+            .unwrap()
+            .facts();
+        assert!(
+            facts
+                .normal_scalar_math_protocol(words.arguments())
+                .is_none()
+        );
+        assert!(
+            crate::native_result::NativeResultContract::ScalarMath(
+                crate::mathfunc::NativeScalarMathOperation::Sqrt
+            )
+            .normal_numeric_result_production(crate::InvocationArguments::literals(&["4"]), 0)
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn native_list_length_numeric_result_requires_selected_contract_and_normal_identity() {
+        let registry = CommandRegistry::build_default();
+        let values = [crate::InvocationWord::Dynamic];
+        let mut dialects = tcl_dialect::TclVersion::ALL
+            .into_iter()
+            .map(crate::InvocationDialect::for_version)
+            .collect::<Vec<_>>();
+        dialects.push(crate::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        ));
+        for dialect in dialects {
+            let words = crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("llength"),
+                &values,
+            )
+            .with_dialect(dialect);
+            let resolution =
+                registry.resolve_structured_invocation(words, dialect.authoring_query());
+            let mut facts = resolution.resolved().unwrap().facts();
+            assert_eq!(
+                facts.normal_numeric_result_production(words.arguments()),
+                Some(
+                    crate::native_result::NativeNumericResultProduction::Integer {
+                        arithmetic: dialect.arithmetic().unwrap(),
+                    }
+                )
+            );
+            facts.operation = SemanticOperationId::Invoke;
+            assert!(
+                facts
+                    .normal_numeric_result_production(words.arguments())
+                    .is_none()
+            );
+            facts.operation = SemanticOperationId::Intrinsic(IntrinsicId::ListLength);
+            facts.successful_handler = None;
+            assert!(
+                facts
+                    .normal_numeric_result_production(words.arguments())
+                    .is_none()
+            );
+        }
+        let words = crate::InvocationWords::structured(
+            crate::InvocationWord::Literal("llength"),
+            &[crate::InvocationWord::Expanded],
+        )
+        .with_dialect(crate::InvocationDialect::for_version(
+            tcl_dialect::TclVersion::V9_1,
+        ));
+        let resolution = registry.resolve_structured_invocation(words, None);
+        assert!(
+            resolution
+                .resolved()
+                .unwrap()
+                .facts()
+                .normal_numeric_result_production(words.arguments())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn ordinary_list_length_completion_requires_the_selected_operation_and_handler() {
+        use crate::representation::OrdinaryContainerRepresentation;
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let operands = [crate::InvocationWord::Dynamic];
+            let words =
+                InvocationWords::structured(crate::InvocationWord::Literal("llength"), &operands)
+                    .with_dialect(dialect);
+            let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());
+            let mut facts = resolved.resolved().expect("native list length").facts();
+            assert!(
+                facts
+                    .ordinary_list_length_completion(
+                        words.arguments(),
+                        0,
+                        OrdinaryContainerRepresentation::Dictionary,
+                    )
+                    .is_some(),
+                "{environment}"
+            );
+            facts.operation = SemanticOperationId::Invoke;
+            assert!(
+                facts
+                    .ordinary_list_length_completion(
+                        words.arguments(),
+                        0,
+                        OrdinaryContainerRepresentation::Dictionary,
+                    )
+                    .is_none()
+            );
+            facts.operation = SemanticOperationId::Intrinsic(IntrinsicId::ListLength);
+            facts.successful_handler = None;
+            assert!(
+                facts
+                    .ordinary_list_length_completion(
+                        words.arguments(),
+                        0,
+                        OrdinaryContainerRepresentation::Dictionary,
+                    )
+                    .is_none()
+            );
+        }
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "coercion-only",
+            arity: Arity::exact(1),
+            representation_effect: Some(RepresentationEffect::CoerceOrdinaryList { operand: 0 }),
+            successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+            ..CommandSpec::DEFAULT
+        });
+        let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
+        let words = InvocationWords::literals("coercion-only", &["a b"]).with_dialect(dialect);
+        let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());
+        assert!(
+            resolved
+                .resolved()
+                .expect("metadata fixture")
+                .facts()
+                .ordinary_list_length_completion(
+                    words.arguments(),
+                    0,
+                    OrdinaryContainerRepresentation::List,
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn list_length_abstract_method_obligation_retains_native_axes() {
+        use crate::representation::ListLengthObjectProtocol as Protocol;
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            let operands = [crate::InvocationWord::Dynamic];
+            let words =
+                InvocationWords::structured(crate::InvocationWord::Literal("llength"), &operands)
+                    .with_dialect(dialect);
+            let resolved = registry.resolve_structured_invocation(words, dialect.authoring_query());
+            let mut facts = resolved.resolved().expect("native list length").facts();
+            let expected = if dialect
+                .tcl_version
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+            {
+                Protocol::AbstractLength { argument: 0 }
+            } else {
+                Protocol::Ordinary { argument: 0 }
+            };
+            assert_eq!(
+                facts.list_length_object_protocol(words.arguments()),
+                Some(expected),
+                "{environment}"
+            );
+            assert_eq!(
+                facts
+                    .list_length_object_protocol(crate::InvocationArguments::structured(&operands)),
+                Some(Protocol::Unknown)
+            );
+            facts.operation = SemanticOperationId::Invoke;
+            assert_eq!(facts.list_length_object_protocol(words.arguments()), None);
+            facts.operation = SemanticOperationId::Intrinsic(IntrinsicId::ListLength);
+            facts.successful_handler = None;
+            assert_eq!(facts.list_length_object_protocol(words.arguments()), None);
+        }
     }
 
     #[test]
@@ -1497,6 +3310,36 @@ mod tests {
     }
 
     #[test]
+    fn selected_scope_alias_traits_include_subcommand_declarations() {
+        let registry = CommandRegistry::build_default();
+        for (command, arguments, expected) in [
+            ("namespace", &["upvar", "::ns", "source", "local"][..], true),
+            ("dict", &["with", "dictionary", "puts $local"][..], true),
+            (
+                "dict",
+                &["update", "dictionary", "key", "local", "puts $local"][..],
+                true,
+            ),
+            ("my", &["variable", "local"][..], true),
+            ("namespace", &["origin", "::p"][..], false),
+        ] {
+            let facts = registry
+                .resolve_invocation(
+                    command,
+                    arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+                )
+                .unwrap_or_else(|| panic!("{command} {arguments:?} resolves"))
+                .facts();
+            assert_eq!(
+                facts.traits.contains(Traits::CREATES_SCOPE_ALIAS),
+                expected,
+                "{command} {arguments:?}"
+            );
+        }
+    }
+
+    #[test]
     fn clock_result_dependencies_are_selected_by_subcommand() {
         let registry = CommandRegistry::build_default();
         let seconds = registry
@@ -1536,6 +3379,108 @@ mod tests {
         assert!(dependencies.contains(&WorldStateDomain::PackageState));
         assert!(dependencies.contains(&WorldStateDomain::VariableStore));
         assert!(add.effects.requires_world_barrier());
+    }
+
+    #[test]
+    fn optional_roles_follow_proved_argv_presence() {
+        let registry = CommandRegistry::build_default();
+        let query = Some(SurfaceQuery::core(Family::Tcl, "8.6"));
+        for (arguments, expected) in [
+            (vec!["{}"], vec![(0, ArgRole::Body)]),
+            (
+                vec!["{}", "result"],
+                vec![(0, ArgRole::Body), (1, ArgRole::VarWrite)],
+            ),
+            (
+                vec!["{}", "result", "options"],
+                vec![
+                    (0, ArgRole::Body),
+                    (1, ArgRole::VarWrite),
+                    (2, ArgRole::VarWrite),
+                ],
+            ),
+        ] {
+            let invocation = registry
+                .resolve_invocation("catch", &arguments, query)
+                .unwrap();
+            assert_eq!(invocation.argument_roles().0, expected);
+            assert_eq!(invocation.facts().arg_roles, expected);
+            assert_eq!(invocation.facts_after_success().arg_roles, expected);
+        }
+        let words = [crate::InvocationWord::Expanded];
+        let invocation = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(crate::InvocationWord::Literal("catch"), &words),
+                query,
+            )
+            .resolved()
+            .unwrap();
+        assert!(
+            invocation
+                .argument_roles()
+                .0
+                .contains(&(2, ArgRole::VarWrite))
+        );
+    }
+
+    #[test]
+    fn successful_frame_facts_are_separate_from_possible_argument_error_facts() {
+        let registry = CommandRegistry::build_default();
+        let arguments = [
+            crate::InvocationWord::Dynamic,
+            crate::InvocationWord::Literal("linked"),
+        ];
+        let words =
+            crate::InvocationWords::structured(crate::InvocationWord::Literal("upvar"), &arguments)
+                .with_dialect(crate::InvocationDialect::for_version(
+                    tcl_dialect::TclVersion::V8_4,
+                ));
+        let invocation = registry
+            .resolve_structured_invocation(words, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
+            .resolved()
+            .expect("selected native upvar");
+        let ordinary = invocation.facts();
+        assert!(!ordinary.arg_roles_complete);
+        assert!(
+            !ordinary
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .iter()
+                .any(|fact| { matches!(fact.transition, StateTransition::VariableCellAlias(_)) })
+        );
+        let normal = invocation.facts_after_success();
+        assert!(normal.arg_roles_complete);
+        assert_eq!(normal.arg_roles, vec![(1, ArgRole::VarWrite)]);
+        assert!(
+            normal
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .iter()
+                .any(|fact| {
+                    matches!(&fact.transition, StateTransition::VariableCellAlias(alias)
+                    if alias.local == TransitionSubject::Literal("linked".to_owned())
+                        && matches!(&alias.target, VariableAliasTarget::CallerSelectedFrame {
+                            frame: CallerFrameSelection::DefaultCaller, ..
+                        }))
+                })
+        );
+        // Ordinary facts still retain the partial-commit error transfer; the
+        // normal projection cannot replace them in caught-error states.
+        assert!(
+            ordinary
+                .state_transitions
+                .declared()
+                .unwrap()
+                .facts()
+                .iter()
+                .all(|fact| {
+                    fact.commit.abrupt_transfer() == AbruptTransitionTransfer::JoinWithTransition
+                })
+        );
     }
 
     #[test]
@@ -1899,6 +3844,7 @@ mod tests {
             arity: Arity::any(),
             arg_roles: &[(0, ArgRole::VarWrite)],
             arg_role_resolver: Some(resolver_backed_arg_roles),
+            arg_role_resolver_roles: &[ArgRole::VarRead],
             ..CommandSpec::DEFAULT
         });
         let arguments = [
@@ -1919,6 +3865,7 @@ mod tests {
 
         assert_eq!(facts.arg_roles, vec![(0, ArgRole::VarWrite)]);
         assert!(!facts.arg_roles_complete);
+        assert_eq!(facts.arg_role_resolver_roles, &[ArgRole::VarRead]);
     }
 
     #[test]
@@ -2080,5 +4027,212 @@ mod tests {
                     EffectAccessMode::Write | EffectAccessMode::ReadWrite
                 )
         }));
+    }
+    #[test]
+    fn no_value_append_forms_do_not_donate_mutation_contracts() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for command in ["append", "lappend"] {
+                let words = InvocationWords::literals(command, &["x"]).with_dialect(dialect);
+                let resolved =
+                    registry.resolve_structured_invocation(words, dialect.authoring_query());
+                let facts = resolved.resolved().expect("selected native form").facts();
+                assert_eq!(
+                    facts.operation,
+                    SemanticOperationId::Invoke,
+                    "{environment}: {command}"
+                );
+                assert!(!facts.traits.contains(Traits::UNCONDITIONAL_VARIABLE_WRITE));
+                assert_eq!(facts.return_type, None);
+                assert_eq!(facts.byte_array_effect, crate::ByteArrayEffect::None);
+                assert_eq!(facts.var_elements_effect, None);
+                assert_eq!(
+                    facts.native_result,
+                    Some(crate::native_result::NativeResultContract::VariableValue {
+                        variable_at: 0,
+                        phase: crate::native_result::VariableResultPhase::AfterRead,
+                    })
+                );
+                if command == "append" {
+                    assert_eq!(facts.arg_roles, [(0, ArgRole::VarRead)]);
+                    assert_eq!(
+                        resolved
+                            .resolved()
+                            .expect("read form")
+                            .semantics
+                            .safe_on_uninit,
+                        None
+                    );
+                    assert!(registry.arg_type_hint_words(words, 0).is_none());
+                } else {
+                    assert!(facts.traits.contains(Traits::CONDITIONAL_VARIABLE_WRITE));
+                    assert_eq!(facts.successful_handler, Some(crate::native_compilation::SuccessfulHandlerSpec::InitialiseEmptyVariable));
+                    assert_eq!(
+                        registry.arg_type_hint_words(words, 0).is_some(),
+                        environment != "jim"
+                    );
+                }
+                let mutating = registry
+                    .resolve_invocation(command, &["x", "value"], dialect.authoring_query())
+                    .expect("mutating native form")
+                    .facts();
+                assert!(
+                    mutating
+                        .traits
+                        .contains(Traits::UNCONDITIONAL_VARIABLE_WRITE)
+                );
+            }
+        }
+    }
+    #[test]
+    fn cardinality_roles_preserve_dynamic_foreach_operands_and_unknown_expansion() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        let registry = CommandRegistry::build_default();
+        for (arguments, body, complete) in [
+            (
+                vec![Literal("x"), Dynamic, Literal("set y $x")],
+                Some(2),
+                true,
+            ),
+            (
+                vec![Literal("x"), Dynamic, Literal("y"), Dynamic, Dynamic],
+                Some(4),
+                true,
+            ),
+            (
+                vec![Literal("x"), Expanded, Literal("set y $x")],
+                None,
+                false,
+            ),
+        ] {
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("foreach"), &arguments),
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+                )
+                .resolved()
+                .expect("selected foreach");
+            assert_eq!(
+                invocation.semantics.arg_role_resolver_input(),
+                crate::spec::ArgRoleResolverInput::Cardinality
+            );
+            let facts = invocation.facts();
+            assert_eq!(
+                facts
+                    .arg_roles
+                    .iter()
+                    .find_map(|(at, role)| (*role == ArgRole::Body).then_some(*at)),
+                body
+            );
+            assert_eq!(facts.arg_roles_complete, complete);
+        }
+    }
+
+    #[test]
+    fn cardinality_scan_roles_preserve_unknown_values_and_expansion_uncertainty() {
+        use crate::InvocationWord::{Dynamic, Expanded, Literal};
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(environment).commands();
+            let profile = crate::model::ingress::resolve_environment(environment).unit_profile();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for command in ["scan", "binary"] {
+                if command == "binary" && environment == "jim" {
+                    continue;
+                }
+                let prefix = usize::from(command == "binary");
+                let mut operands = Vec::new();
+                if prefix != 0 {
+                    operands.push(Literal("scan"));
+                }
+                operands.extend([Dynamic, Dynamic, Literal("first"), Literal("second")]);
+                let words =
+                    InvocationWords::structured(Literal(command), &operands).with_dialect(dialect);
+                let resolved =
+                    registry.resolve_structured_invocation(words, dialect.authoring_query());
+                let facts = resolved.resolved().expect("selected native scan").facts();
+                assert!(facts.arg_roles_complete, "{environment}: {command}");
+                assert_eq!(
+                    facts.arg_roles,
+                    vec![
+                        (1, ArgRole::ScanFormat),
+                        (2, ArgRole::VarWrite),
+                        (3, ArgRole::VarWrite),
+                    ],
+                    "{environment}: {command}"
+                );
+                operands[prefix] = Expanded;
+                let words =
+                    InvocationWords::structured(Literal(command), &operands).with_dialect(dialect);
+                let resolved =
+                    registry.resolve_structured_invocation(words, dialect.authoring_query());
+                let facts = resolved
+                    .resolved()
+                    .expect("selected scan with unknown cardinality")
+                    .facts();
+                assert!(!facts.arg_roles_complete);
+                assert!(
+                    !facts
+                        .arg_roles
+                        .iter()
+                        .any(|(_, role)| *role == ArgRole::VarWrite)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn positional_count_preserves_native_reserved_tail_and_case_layout() {
+        use crate::InvocationWord::{Dynamic, Literal};
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let registry = crate::CommandRegistry::build_default();
+            let cases: &[(&str, &[crate::InvocationWord<'_>], u16)] = &[
+                ("lsort", &[Literal("-integer"), Dynamic], 1),
+                ("lsort", &[Literal("-integer")], 1),
+                ("lsearch", &[Literal("-exact"), Dynamic, Dynamic], 2),
+                ("lsearch", &[Literal("-exact"), Dynamic], 2),
+                (
+                    "switch",
+                    &[Literal("-exact"), Literal("--"), Dynamic, Literal("x {}")],
+                    2,
+                ),
+            ];
+            for &(head, arguments, expected) in cases {
+                let words = crate::InvocationWords::structured(Literal(head), arguments)
+                    .with_dialect(dialect);
+                let invocation = registry
+                    .resolve_structured_invocation(words, dialect.authoring_query())
+                    .resolved()
+                    .expect("native literal head");
+                assert_eq!(
+                    invocation.argument_count_for_arity(),
+                    Some(expected),
+                    "{version:?} {head}"
+                );
+                assert_eq!(
+                    invocation.facts().arity_accepts_frozen_arguments(),
+                    Some(true)
+                );
+            }
+            let arguments = [Literal("-exact"), Literal("-exact {}")];
+            let invocation = registry
+                .resolve_structured_invocation(
+                    crate::InvocationWords::structured(Literal("switch"), &arguments)
+                        .with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("native switch");
+            assert_eq!(
+                invocation.argument_count_for_arity(),
+                if version == tcl_dialect::TclVersion::V8_4 {
+                    None
+                } else {
+                    Some(2)
+                }
+            );
+        }
     }
 }

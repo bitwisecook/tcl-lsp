@@ -67,7 +67,7 @@ fn comments(source: &str) -> Vec<String> {
 #[test]
 fn t1_1_null_byte_in_word() {
     let t = texts("foo\0 bar");
-    assert!(!t.is_empty());
+    assert_ne!(t, [] as [std::string::String; 0]);
     assert_eq!(t[0], "foo\0");
 }
 
@@ -85,7 +85,7 @@ fn t1_3_leading_whitespace_skipped() {
 fn t1_4_leading_special_whitespace() {
     // \f, \r, \v before the command — does not crash; a command word follows.
     let t = texts("\u{0c}\r\u{0b}foo");
-    assert!(!t.is_empty());
+    assert_ne!(t, [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn comment_not_in_command_position_is_a_word() {
     // A `#` that is NOT in command position is an ordinary word, not a comment
     // (tclsh: `string length #foo` works; `#` is data here).
     let src = "string length #foo";
-    assert!(comments(src).is_empty());
+    assert_eq!(comments(src), [] as [std::string::String; 0]);
     assert!(texts(src).iter().any(|w| w == "#foo"));
 }
 
@@ -383,7 +383,7 @@ fn t12_15_single_colon_stops_var_name() {
 fn t12_18_bare_dollar_is_not_a_var() {
     // `$$ $.` — a `$` not followed by a name char is literal, not a VAR.
     let t = lex("$$ $.");
-    assert!(!t.is_empty());
+    assert_ne!(t, [] as [(tcl_lexer::TokenType, std::string::String); 0]);
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn t12_20_25_array_references() {
     assert!(first("$x(abc)").1.contains('x'));
     // Array index containing a var / command sub still lexes to a VAR token.
     assert_eq!(first("$x(ab$cde[foo bar])").0, TokenType::Var);
-    assert!(!vars("$x(a$y(b))").is_empty());
+    assert_ne!(vars("$x(a$y(b))"), [] as [std::string::String; 0]);
 }
 
 // Group 14: Braced string parsing (parse-14.x)
@@ -513,7 +513,7 @@ fn escaped_hash_is_not_a_comment() {
     let t = lex("\\#notacomment");
     assert_eq!(t.len(), 1);
     assert_eq!(t[0].0, TokenType::Esc);
-    assert!(comments("\\#notacomment").is_empty());
+    assert_eq!(comments("\\#notacomment"), [] as [std::string::String; 0]);
 }
 
 #[test]

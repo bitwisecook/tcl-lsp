@@ -34,6 +34,9 @@ use tcl_syntax::number::ParseFlags;
 /// built for (the ambient). See [`index_int_flags`].
 type Numbers = Option<tcl_syntax::number::NumberSyntax>;
 
+/// Legacy C modern-index compatibility API. Runtime and dialect-aware
+/// analysis must use [`resolve_for_ops`] or [`resolve_in`] instead.
+///
 /// Resolve an index `spec` against a container length `len` (so `end` is
 /// `len - 1`). The result may be negative or `>= len`; callers clamp per their
 /// command's rules. Errors with the canonical message on an unparseable spec.
@@ -41,6 +44,9 @@ pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
     parse(spec, len, None).ok_or_else(|| bad_index(spec.trim()))
 }
 
+/// Legacy modern C index grammar with an explicit numeral grammar. This
+/// does not select the native index grammar or integer width; use [`resolve_in`].
+///
 /// [`resolve`] reading the index under an explicitly named release, for a
 /// compile-time caller (const-folding, the analyser) whose target need not be
 /// the release this process was built for.
@@ -55,6 +61,9 @@ pub fn resolve_with(
     parse(spec, len, Some(numbers)).ok_or_else(|| bad_index(spec.trim()))
 }
 
+/// Legacy C modern-index compatibility API; use [`resolve_opt_in`] for
+/// selected native semantics.
+///
 /// Resolve an index `spec` against `len`, returning `None` (rather than an
 /// error) on an unparseable spec — the `lsearch`/`lsort -index` driving needs the
 /// raw option to classify "bad index" vs "out of range" itself.
@@ -74,6 +83,258 @@ pub fn resolve_opt_with(
     parse(spec, len, Some(numbers))
 }
 
+/// Resolve an index with the complete selected native policy.
+///
+/// # Errors
+/// A dialect-specific bad-index error when the index is invalid.
+pub fn resolve_in(
+    spec: &str,
+    len: usize,
+    syntax: tcl_dialect::IndexSyntax,
+) -> Result<i64, CmdError> {
+    resolve_opt_in(spec, len, syntax).ok_or_else(|| bad_index_in(spec, syntax))
+}
+
+/// Parse an index without discarding its native index grammar.
+#[must_use]
+pub fn resolve_opt_in(spec: &str, len: usize, syntax: tcl_dialect::IndexSyntax) -> Option<i64> {
+    use tcl_dialect::IndexGrammar;
+    let len = i64::try_from(len).ok()?;
+    if syntax.grammar == IndexGrammar::Jim {
+        let (expression, end_relative) = jim_expression(spec)?;
+        let grammar = tcl_dialect::LexerGrammar {
+            numbers: syntax.numbers,
+            expr_comments: tcl_dialect::ExprCommentStyle::None,
+            ..tcl_dialect::LexerGrammar::default()
+        };
+        let tree = tcl_syntax::expr::parser::parse_expr_with_grammar(expression, &grammar);
+        let value = tcl_syntax::expr::wide::literal_expression(
+            &tree,
+            syntax.numbers,
+            tcl_dialect::NativeArithmetic::JimWide,
+        )
+        .ok()?;
+        return finish_jim_index(value, end_relative, len);
+    }
+    if let Some(value) = parse_int_whole(spec, Some(syntax.numbers)) {
+        return narrow_tcl_integer(value, syntax);
+    }
+    let (base, rest) = if spec == "end"
+        || (syntax.end_abbreviations
+            && !spec.is_empty()
+            && spec.len() < 3
+            && "end".starts_with(spec))
+    {
+        return Some(len - 1);
+    } else if let Some(rest) = spec.strip_prefix("end") {
+        (len - 1, rest)
+    } else {
+        if syntax.grammar == IndexGrammar::Tcl84 {
+            return None;
+        }
+        let (base, rest) = parse_int_prefix(spec.trim_start(), Some(syntax.numbers))?;
+        (narrow_tcl_integer(base, syntax)?, rest)
+    };
+    let connector = *rest.as_bytes().first()?;
+    if connector != b'-' && (connector != b'+' || syntax.grammar == IndexGrammar::Tcl84) {
+        return None;
+    }
+    let operand_text = rest.get(1..)?;
+    if syntax.grammar != IndexGrammar::Tcl84 && operand_text.chars().next()?.is_whitespace() {
+        return None;
+    }
+    let operand = narrow_tcl_integer(parse_int_whole(operand_text, Some(syntax.numbers))?, syntax)?;
+    let value = match (syntax.width, connector) {
+        (tcl_dialect::IndexIntegerWidth::Tcl64, b'-') => base.saturating_sub(operand),
+        (tcl_dialect::IndexIntegerWidth::Tcl64, _) => base.saturating_add(operand),
+        (_, b'-') => base.wrapping_sub(operand),
+        _ => base.wrapping_add(operand),
+    };
+    Some(if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64 {
+        value
+    } else {
+        i64::from(tcl_syntax::number::native_int32_low_bits(value))
+    })
+}
+
+fn narrow_tcl_integer(value: i64, syntax: tcl_dialect::IndexSyntax) -> Option<i64> {
+    if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64 {
+        Some(value)
+    } else if (-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&value) {
+        Some(i64::from(tcl_syntax::number::native_int32_low_bits(value)))
+    } else {
+        None
+    }
+}
+
+/// Whether a literal C Tcl index fits the native compiler's immediate encoding.
+/// The wide releases can depend on the target's container-size width; those
+/// ranges retain an unknown result rather than assuming the host compiling us.
+#[must_use]
+pub fn compiler_encodable_in(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Option<bool> {
+    use tcl_dialect::{IndexGrammar, IndexIntegerWidth};
+    if syntax.grammar == IndexGrammar::Jim {
+        return None;
+    }
+    let value = resolve_opt_in(spec, 1, syntax);
+    if syntax.width == IndexIntegerWidth::Tcl32 {
+        return Some(value.is_some());
+    }
+    let value = value?;
+    let end_relative = spec.starts_with("end");
+    if end_relative {
+        return (value > -i64::from(i32::MAX)).then_some(true);
+    }
+    if parse_int_whole(spec, Some(syntax.numbers)).is_none()
+        && parse_int_prefix(spec.trim_start(), Some(syntax.numbers))?.0 < 0
+    {
+        // The native end-offset internal representation also distinguishes
+        // arithmetic whose original base is negative.
+        return None;
+    }
+    (value <= i64::from(i32::MAX) || value >= i64::MAX - 1).then_some(true)
+}
+
+/// Extract Jim's safe integer expression, retaining `end` relativity.
+#[must_use]
+pub fn jim_expression(spec: &str) -> Option<(&str, bool)> {
+    if let Some(rest) = spec.strip_prefix("end") {
+        if rest.is_empty() {
+            return Some(("0", true));
+        }
+        matches!(rest.as_bytes().first(), Some(b'+' | b'-')).then_some((rest, true))
+    } else {
+        Some((spec, false))
+    }
+}
+
+/// Convert Jim's evaluated wide integer to its encoded native index.
+#[must_use]
+pub fn finish_jim_index(value: i64, end_relative: bool, length: i64) -> Option<i64> {
+    if end_relative {
+        if value > 0 {
+            return Some(i64::from(i32::MAX));
+        }
+        let encoded = tcl_syntax::number::native_int32_low_bits(value.wrapping_sub(1));
+        Some(length.wrapping_add(i64::from(encoded)))
+    } else if value < 0 {
+        Some(-i64::from(i32::MAX))
+    } else {
+        (value <= i64::from(i32::MAX)).then_some(value)
+    }
+}
+
+/// Resolve through a runtime value adapter, including Jim's safe expressions.
+///
+/// # Errors
+/// A bad-index error, or an unselected native policy.
+pub fn resolve_for_ops<O: ValueOps>(ops: &mut O, spec: &str, len: usize) -> Result<i64, CmdError> {
+    let syntax = ops
+        .index_syntax()
+        .ok_or_else(|| CmdError::new("container index dialect is not selected"))?;
+    if syntax.grammar != tcl_dialect::IndexGrammar::Jim {
+        if let Some(value) = resolve_opt_in(spec, len, syntax) {
+            return Ok(value);
+        }
+        if syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64
+            && let Some((expression, connector)) = wide_expression(spec, syntax)
+        {
+            let value = ops.eval_index_expression(expression).map_err(|error| {
+                if error.native_access_refusal().is_some() {
+                    CmdError::from(error)
+                } else {
+                    bad_index_in(spec, syntax)
+                }
+            })?;
+            let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+            return Ok(match connector {
+                Some(b'-') => end.saturating_sub(value),
+                Some(_) => end.saturating_add(value),
+                None => value,
+            });
+        }
+        return Err(bad_index_in(spec, syntax));
+    }
+    let (expression, relative) = jim_expression(spec).ok_or_else(|| bad_index_in(spec, syntax))?;
+    let value = ops.eval_index_expression(expression).map_err(|error| {
+        if error.native_access_refusal().is_some() {
+            CmdError::from(error)
+        } else {
+            bad_index_in(spec, syntax)
+        }
+    })?;
+    finish_jim_index(value, relative, i64::try_from(len).unwrap_or(i64::MAX))
+        .ok_or_else(|| bad_index_in(spec, syntax))
+}
+
+fn wide_expression(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Option<(&str, Option<u8>)> {
+    let flags = index_int_flags(Some(syntax.numbers));
+    let whole_integer = |text: &str| tcl_syntax::number::parse_whole_with(text, flags).is_some();
+    if let Some(rest) = spec.strip_prefix("end") {
+        let connector = *rest.as_bytes().first()?;
+        let operand = rest.get(1..)?;
+        if !matches!(connector, b'+' | b'-')
+            || operand.chars().next()?.is_whitespace()
+            || !whole_integer(operand)
+        {
+            return None;
+        }
+        return Some((operand, Some(connector)));
+    }
+    if whole_integer(spec) {
+        return Some((spec, None));
+    }
+    let trimmed = spec.trim_start();
+    let first = tcl_syntax::number::parse(trimmed, flags)?;
+    let rest = trimmed.get(first.end..)?;
+    let connector = *rest.as_bytes().first()?;
+    let operand = rest.get(1..)?;
+    (matches!(connector, b'+' | b'-')
+        && !operand.chars().next()?.is_whitespace()
+        && whole_integer(operand))
+    .then_some((spec, None))
+}
+
+/// Resolve one runtime value under the selected index policy.
+///
+/// # Errors
+/// The same errors as [`resolve_for_ops`].
+pub fn resolve_value<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    len: usize,
+) -> Result<i64, CmdError> {
+    let spelling = ops.try_as_str(value)?;
+    resolve_for_ops(ops, &spelling, len)
+}
+
+/// Validate whether a selected native index can be encoded for a search path.
+#[must_use]
+pub fn encodable_for_ops<O: ValueOps>(ops: &mut O, spec: &str) -> Option<bool> {
+    let syntax = ops.index_syntax()?;
+    let value = resolve_for_ops(ops, spec, 1).ok()?;
+    let end_relative = match syntax.grammar {
+        tcl_dialect::IndexGrammar::Jim => spec.starts_with("end"),
+        _ => spec.starts_with("end") || (!spec.is_empty() && "end".starts_with(spec)),
+    };
+    Some(if end_relative { value <= 0 } else { value >= 0 })
+}
+
+/// Native bad-index message, preserving the authored spelling.
+#[must_use]
+pub fn bad_index_in(spec: impl AsRef<[u8]>, syntax: tcl_dialect::IndexSyntax) -> CmdError {
+    let grammar = match syntax.grammar {
+        tcl_dialect::IndexGrammar::Tcl84 => "integer or end?-integer?",
+        tcl_dialect::IndexGrammar::TclModern => "integer?[+-]integer? or end?[+-]integer?",
+        tcl_dialect::IndexGrammar::Jim => "intexpr or end?[+-]intexpr?",
+    };
+    let mut message = b"bad index \"".to_vec();
+    message.extend_from_slice(spec.as_ref());
+    message.extend_from_slice(b"\": must be ");
+    message.extend_from_slice(grammar.as_bytes());
+    CmdError::new_bytes(message)
+}
+
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
 /// -index`): each spec steps one level. An out-of-range step is an error
 /// (`element <spec> missing from sublist "<list>"`); a non-list step stops,
@@ -86,23 +347,24 @@ pub fn drill<O: ValueOps>(
     ops: &mut O,
     value: &O::Value,
     path: &[Vec<u8>],
-) -> Result<O::Value, Vec<u8>> {
+) -> Result<O::Value, CmdError> {
     let mut cur = value.clone();
     for spec in path {
-        let len = ops.list_len(&cur).map_err(|e| e.message().into_bytes())?;
-        let idx = resolve_opt(&String::from_utf8_lossy(spec), len).ok_or_else(|| {
-            let mut m = b"bad index \"".to_vec();
-            m.extend_from_slice(spec);
-            m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-            m
+        let len = ops.list_len(&cur)?;
+        let spec_text = std::str::from_utf8(spec).map_err(|error| {
+            tcl_syntax::raw_string::UnicodeAccessError {
+                valid_up_to: error.valid_up_to(),
+                error_len: error.error_len(),
+            }
         })?;
+        let idx = resolve_for_ops(ops, spec_text, len)?;
         if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
             let mut m = b"element ".to_vec();
             m.extend_from_slice(spec);
             m.extend_from_slice(b" missing from sublist \"");
             m.extend_from_slice(&ops.as_bytes(&cur));
             m.push(b'"');
-            return Err(m);
+            return Err(CmdError::new_bytes(m));
         }
         match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
             Ok(Some(e)) => cur = e,
@@ -224,6 +486,39 @@ pub fn bad_index(spec: &str) -> CmdError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jim_literal_index_expressions_preserve_end_encoding() {
+        let syntax = tcl_dialect::IndexSyntax {
+            numbers: tcl_dialect::NumberSyntax::Jim080,
+            grammar: tcl_dialect::IndexGrammar::Jim,
+            width: tcl_dialect::IndexIntegerWidth::Jim32,
+            end_abbreviations: false,
+        };
+        for (source, expected) in [
+            ("end--1", i64::from(i32::MAX)),
+            ("end+-1", 3),
+            ("(1+2)*1", 3),
+            ("1 ? 2 : 1/0", 2),
+            ("--1", 1),
+        ] {
+            assert_eq!(
+                resolve_opt_in(source, 5, syntax),
+                Some(expected),
+                "{source}"
+            );
+        }
+        for source in [
+            "$x",
+            "1 ? 2 : $x",
+            "[set x]",
+            "abs(-2)",
+            "1/0",
+            "1 #ignored",
+        ] {
+            assert_eq!(resolve_opt_in(source, 5, syntax), None, "{source}");
+        }
+    }
 
     #[test]
     fn resolve_integer_and_end_forms() {
@@ -378,5 +673,19 @@ mod tests {
         set_runtime_syntax(NumberSyntax::Tcl85);
         assert_eq!(resolve_opt("010", 12), Some(8));
         set_runtime_syntax(restore);
+    }
+}
+#[test]
+fn compiler_encoding_preserves_wide_target_uncertainty() {
+    use tcl_dialect::{IndexSyntax, TclVersion};
+    for version in TclVersion::ALL {
+        let syntax = IndexSyntax::for_version(version);
+        for index in ["0", "end", "end-2", "0x10", "-1"] {
+            assert_eq!(compiler_encodable_in(index, syntax), Some(true));
+        }
+        if version >= TclVersion::V9_0 {
+            assert_eq!(compiler_encodable_in("2147483648", syntax), None);
+            assert_eq!(compiler_encodable_in("end-2147483648", syntax), None);
+        }
     }
 }

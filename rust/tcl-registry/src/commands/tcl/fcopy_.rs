@@ -19,19 +19,23 @@
 //! `fcopy` — copy data from one channel to another.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
-const FORMS: &[FormSpec] = &[
-    FormSpec {
-synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
-..FormSpec::DEFAULT
-},
-];
+const FORMS: &[FormSpec] = &[FormSpec {
+    synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
+    ..FormSpec::DEFAULT
+}];
 
 /// Command spec for `fcopy`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         // C Tcl 9.0 ``Tcl_FcopyObjCmd`` accepts up to four optional
         // option-pair flags after the two channels (``-size N``,
@@ -40,12 +44,12 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],
         return_type: Some(TclType::Int),
         side_effects: &[SideEffect {
-target: SideEffectTarget::FileIo,
-reads: true,
-writes: true,
-..SideEffect::DEFAULT
-}],
-hover: Some(HoverSnippet {
+            target: SideEffectTarget::FileIo,
+            reads: true,
+            writes: true,
+            ..SideEffect::DEFAULT
+        }],
+        hover: Some(HoverSnippet {
             summary: "Copy data from one channel to another",
             synopsis: &["fcopy inputChan outputChan ?-size size? ?-command callback?"],
             snippet: "The fcopy command copies data from one I/O channel, inchan, to another I/O channel, outchan.",

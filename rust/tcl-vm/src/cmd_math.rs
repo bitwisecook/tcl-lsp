@@ -22,7 +22,9 @@
 use num_bigint::BigInt;
 use num_traits::Signed;
 use tcl_runtime_api::Completion;
-use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_with_backend_int_width};
+use tcl_syntax::expr::mathfunc::{
+    IntWidth, NativeMathProtocol, NumValue, try_dispatch_with_backend_protocol,
+};
 use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
@@ -39,7 +41,10 @@ use crate::value::Value;
 /// `zero`, any other integer `normal`); a non-number errors.
 fn cmd_fpclassify(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [v] = args else {
-        return err("wrong # args: should be \"fpclassify floatValue\"");
+        return crate::command::native_wrong_arguments_message(
+            _vm,
+            "wrong # args: should be \"fpclassify floatValue\"",
+        );
     };
     match num_or_nan(v) {
         Ok(d) => ok(Value::string(match d.classify() {
@@ -108,7 +113,13 @@ fn num_err(message: String) -> Completion<Value> {
     }
 }
 
-fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Value> {
+fn shared_math(
+    name: &str,
+    args: &[Value],
+    int_width: IntWidth,
+    protocol: NativeMathProtocol,
+    numbers: tcl_dialect::NumberSyntax,
+) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
     };
@@ -127,6 +138,12 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
     let nums: Result<Vec<NumValue<BigInt>>, Completion<Value>> = args
         .iter()
         .map(|v| {
+            if protocol == NativeMathProtocol::Jim084 {
+                return jim_math_operand(v, numbers);
+            }
+            if let Some(value) = v.double_representation() {
+                return Ok(NumValue::Float(value));
+            }
             if let Ok(i) = v.as_int() {
                 return Ok(NumValue::Int(i));
             }
@@ -154,12 +171,35 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match try_dispatch_with_backend_int_width(name, &nums, int_width) {
+    match try_dispatch_with_backend_protocol(name, &nums, int_width, protocol) {
         Ok(NumValue::Int(i)) => ok(Value::int(i)),
         Ok(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
         Ok(NumValue::Float(f)) => ok(Value::double(f)),
         Err(e) => math_func_err(e),
     }
+}
+
+fn jim_math_operand(
+    value: &Value,
+    numbers: tcl_dialect::NumberSyntax,
+) -> Result<NumValue<BigInt>, Completion<Value>> {
+    if value.existing_string_representation().is_none()
+        && let Some(double) = value.double_representation()
+    {
+        return Ok(NumValue::Float(double));
+    }
+    let parsed = number::parse_whole_with(
+        value.to_str().trim(),
+        number::ParseFlags::for_syntax(numbers),
+    )
+    .and_then(|parsed| tcl_syntax::expr::mathfunc::jim_numeric_operand(&parsed))
+    .ok_or_else(|| err(format!("expected number but got \"{}\"", value.to_str())))?;
+    match parsed {
+        NumValue::Int(integer) => value.cache_integer_representation(integer),
+        NumValue::Float(double) => value.cache_double_representation(double),
+        NumValue::Big(_) => unreachable!("Jim numeric operand has no arbitrary-precision rung"),
+    }
+    Ok(parsed)
 }
 
 /// The one builtin behind every `tcl::mathfunc::NAME`.
@@ -186,18 +226,69 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
 /// operand (`bool(tru)` is `1`, which `shared_math`'s numeric operand
 /// conversion would refuse), and `rand`/`srand` carry interpreter state.
 fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let invoked = vm.invoked_name().unwrap_or_default();
-    let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
+    let Some(identity) = vm.invoked_builtin_identity() else {
+        return vm.refuse_host_command(
+            "math handler has no selected stock implementation identity".into(),
+        );
+    };
+    let name = identity.rsplit("::").next().unwrap_or(identity).to_owned();
     let int_width = IntWidth::for_tcl_version(vm.runtime_version());
-    match name.as_str() {
-        "abs" => m_abs(args),
-        "double" => m_double(args),
-        "bool" => m_bool(args),
-        "srand" => m_srand(vm, args),
-        "rand" => m_rand(vm, args),
-        name => m_integer_conversion(name, args, int_width)
-            .unwrap_or_else(|| shared_math(name, args, int_width)),
+    let dialect = vm.native_invocation_dialect();
+    if dialect.scalar_numeric_input_policy().is_none() && vm.numeric_context().simulation.is_none()
+    {
+        return vm.refuse_host_command(
+            "logical math evaluation requires an explicit numeric simulation provider".into(),
+        );
     }
+    let protocol = tcl_registry::mathfunc::native_math_protocol(dialect)
+        .expect("native math handler dispatch must retain its selected protocol");
+    let context = vm.numeric_context();
+    let mut completion = if context.simulation.is_some() {
+        logical_mathfunc(vm, &name, args, int_width, protocol)
+    } else if protocol == NativeMathProtocol::Jim084 && !matches!(name.as_str(), "rand" | "srand") {
+        shared_math(&name, args, int_width, protocol, dialect.numbers)
+    } else {
+        match name.as_str() {
+            "abs" => m_abs(vm, args),
+            "double" => m_double(vm, args),
+            "bool" => m_bool(vm, args),
+            "srand" => m_srand(vm, args),
+            "rand" => m_rand(vm, args),
+            name => m_integer_conversion(name, args, int_width)
+                .unwrap_or_else(|| shared_math(name, args, int_width, protocol, dialect.numbers)),
+        }
+    };
+    completion.result = completion
+        .result
+        .with_native_double_format(vm.native_invocation_dialect());
+    completion
+}
+
+fn logical_mathfunc(
+    vm: &mut Vm,
+    name: &str,
+    args: &[Value],
+    int_width: IntWidth,
+    protocol: NativeMathProtocol,
+) -> Completion<Value> {
+    if name == "rand" {
+        return m_rand(vm, args);
+    }
+    if name == "srand" {
+        return m_srand(vm, args);
+    }
+    if name == "bool" {
+        return m_bool(vm, args);
+    }
+    let context = vm.numeric_context();
+    let mut prepared = Vec::with_capacity(args.len());
+    for argument in args {
+        match crate::expr::numeric_value_in(context, argument) {
+            Ok(value) => prepared.push(value),
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        }
+    }
+    shared_math(name, &prepared, int_width, protocol, context.numbers)
 }
 
 /// Whether `v` is already an *integer* object — the operand class C's
@@ -282,10 +373,10 @@ pub(crate) fn register(vm: &mut Vm) {
     // already runs inside `builtin_command_visible_for_surface`, so a
     // 9.1-only function is simply invisible under an 8.6 pin.
     for spec in tcl_syntax::expr::mathfunc::all() {
-        vm.register(&format!("tcl::mathfunc::{}", spec.name), m_mathfunc);
+        vm.register_stock_builtin(&format!("tcl::mathfunc::{}", spec.name), m_mathfunc);
     }
     // `fpclassify` is a top-level command, not a math function.
-    vm.register("fpclassify", cmd_fpclassify);
+    vm.register_stock_builtin("fpclassify", cmd_fpclassify);
 }
 
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
@@ -302,11 +393,43 @@ fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>
     }
 }
 
-fn m_abs(args: &[Value]) -> Completion<Value> {
+fn m_abs(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "abs") {
         Ok(v) => v,
         Err(c) => return c,
     };
+    let dialect = vm.native_invocation_dialect();
+    if dialect.arithmetic() == Some(tcl_dialect::NativeArithmetic::Tcl84Wide) {
+        match x.prepare_native_expression_integer84(dialect) {
+            Ok(true) => {}
+            Ok(false) => {
+                return num_err("argument to math function didn't have numeric value".to_owned());
+            }
+            Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
+        }
+        if let Some(integer) = x.integer_representation() {
+            let Some(result) = integer.checked_abs() else {
+                return num_err(tcl_syntax::expr::errors::IOVERFLOW_MESSAGE.to_owned());
+            };
+            let cache = dialect
+                .native_scalar_getter_protocol()
+                .and_then(|protocol| {
+                    protocol.expression_integer_result84(result, &[x.native_scalar_cache()])
+                })
+                .expect("selected C84 abs result");
+            return match Value::from_native_scalar_cache(cache, None, dialect) {
+                Ok(result) => ok(result),
+                Err(error) => crate::command::completion_from_tcl_error(vm, error.into()),
+            };
+        }
+    }
+    if let Some(value) = x.double_representation() {
+        return if value.is_nan() {
+            num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string())
+        } else {
+            ok(Value::double(value.abs()))
+        };
+    }
     if let Ok(n) = x.as_int() {
         return ok(crate::expr::int_value(i128::from(n).abs()));
     }
@@ -325,7 +448,7 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_double(args: &[Value]) -> Completion<Value> {
+fn m_double(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "double") {
         Ok(v) => v,
         Err(c) => return c,
@@ -337,25 +460,29 @@ fn m_double(args: &[Value]) -> Completion<Value> {
             if let Some(b) = crate::expr::value_as_bigint(x) {
                 return ok(Value::double(crate::expr::big_to_f64(&b)));
             }
-            if matches!(
-                number::parse_whole(x.to_str().trim()),
-                Some(Number::Nan { .. })
-            ) {
+            if let Ok(text) = x.try_to_str()
+                && matches!(number::parse_whole(text.trim()), Some(Number::Nan { .. }))
+            {
                 return num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string());
             }
-            err(e.message)
+            crate::command::completion_from_tcl_error(vm, e)
         }
     }
 }
 
-fn m_bool(args: &[Value]) -> Completion<Value> {
+fn m_bool(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "bool") {
         Ok(v) => v,
         Err(c) => return c,
     };
-    match x.as_bool() {
+    let boolean = if vm.numeric_context().simulation.is_some() {
+        tcl_syntax::value::ValueOps::as_bool(vm, x).map_err(crate::TclError::from)
+    } else {
+        x.as_bool()
+    };
+    match boolean {
         Ok(b) => ok(Value::bool(b)),
-        Err(e) => err(e.message),
+        Err(e) => crate::command::completion_from_tcl_error(vm, e),
     }
 }
 
@@ -376,7 +503,12 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // because C passes a NULL interp to the conversion there. Both engines
     // use 8.6's wording so they agree with each other; 9.0's
     // empty-message quirk is not reproduced here.
-    let Ok(seed) = x.as_wide() else {
+    let seed = if vm.numeric_context().simulation.is_some() {
+        tcl_syntax::value::ValueOps::as_int(vm, x).map_err(crate::TclError::from)
+    } else {
+        x.as_wide()
+    };
+    let Ok(seed) = seed else {
         return err_with_code(
             format!("expected integer but got \"{}\"", x.to_str()),
             if x.as_double().is_ok() {
@@ -387,7 +519,10 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         );
     };
     vm.rand_seed_set(seed);
-    ok(Value::double(vm.rand_next()))
+    ok(Value::native_double(
+        vm.rand_next(),
+        vm.native_invocation_dialect(),
+    ))
 }
 
 /// `rand()` — the next draw from the Park–Miller minimal-standard generator, a
@@ -396,5 +531,8 @@ fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !args.is_empty() {
         return err("too many arguments for math function \"rand\"");
     }
-    ok(Value::double(vm.rand_next()))
+    ok(Value::native_double(
+        vm.rand_next(),
+        vm.native_invocation_dialect(),
+    ))
 }

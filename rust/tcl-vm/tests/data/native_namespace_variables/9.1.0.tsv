@@ -1,0 +1,60 @@
+raw00/absent	resident-string		
+raw00/absent	pure-byte-array		
+raw00/full-only	resident-string		
+raw00/full-only	pure-byte-array	3a3a61c0807a	
+raw00/short-only	resident-string	3a3a61	3a3a61
+raw00/short-only	pure-byte-array		3a3a61
+raw00/both	resident-string	3a3a61	3a3a61
+raw00/both	pure-byte-array	3a3a61c0807a	3a3a61
+raw00/declared-undefined	resident-string		
+raw00/declared-undefined	pure-byte-array	3a3a61c0807a	
+raw00/trace-undefined	resident-string	3a3a61	3a3a61
+raw00/trace-undefined	pure-byte-array	3a3a61c0807a	
+modified00/absent	resident-string		
+modified00/absent	pure-byte-array		
+modified00/full-only	resident-string	3a3a61c0807a	
+modified00/full-only	pure-byte-array	3a3a61c380c2807a	
+modified00/short-only	resident-string		3a3a61
+modified00/short-only	pure-byte-array		3a3a61
+modified00/both	resident-string	3a3a61c0807a	3a3a61
+modified00/both	pure-byte-array	3a3a61c380c2807a	3a3a61
+modified00/declared-undefined	resident-string	3a3a61c0807a	
+modified00/declared-undefined	pure-byte-array	3a3a61c380c2807a	
+modified00/trace-undefined	resident-string	3a3a61c0807a	
+modified00/trace-undefined	pure-byte-array	3a3a61c380c2807a	
+rawFF/absent	resident-string		
+rawFF/absent	pure-byte-array		
+rawFF/full-only	resident-string	3a3a61ff	
+rawFF/full-only	pure-byte-array	3a3a61c3bf	
+rawFF/short-only	resident-string		3a3a61
+rawFF/short-only	pure-byte-array		3a3a61
+rawFF/both	resident-string	3a3a61ff	3a3a61
+rawFF/both	pure-byte-array	3a3a61c3bf	3a3a61
+rawFF/declared-undefined	resident-string	3a3a61ff	
+rawFF/declared-undefined	pure-byte-array	3a3a61c3bf	
+rawFF/trace-undefined	resident-string	3a3a61ff	
+rawFF/trace-undefined	pure-byte-array	3a3a61c3bf	
+encodedFF/absent	resident-string		
+encodedFF/absent	pure-byte-array		
+encodedFF/full-only	resident-string	3a3a61c3bf	
+encodedFF/full-only	pure-byte-array	3a3a61c383c2bf	
+encodedFF/short-only	resident-string		3a3a61
+encodedFF/short-only	pure-byte-array		3a3a61
+encodedFF/both	resident-string	3a3a61c3bf	3a3a61
+encodedFF/both	pure-byte-array	3a3a61c383c2bf	3a3a61
+encodedFF/declared-undefined	resident-string	3a3a61c3bf	
+encodedFF/declared-undefined	pure-byte-array	3a3a61c383c2bf	
+encodedFF/trace-undefined	resident-string	3a3a61c3bf	
+encodedFF/trace-undefined	pure-byte-array	3a3a61c383c2bf	
+plain/absent	resident-string		
+plain/absent	pure-byte-array		
+plain/full-only	resident-string	3a3a61	3a3a61
+plain/full-only	pure-byte-array	3a3a61	3a3a61
+plain/short-only	resident-string	3a3a61	3a3a61
+plain/short-only	pure-byte-array	3a3a61	3a3a61
+plain/both	resident-string	3a3a61	3a3a61
+plain/both	pure-byte-array	3a3a61	3a3a61
+plain/declared-undefined	resident-string	3a3a61	3a3a61
+plain/declared-undefined	pure-byte-array	3a3a61	3a3a61
+plain/trace-undefined	resident-string	3a3a61	3a3a61
+plain/trace-undefined	pure-byte-array	3a3a61	3a3a61

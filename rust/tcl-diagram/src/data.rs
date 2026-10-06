@@ -168,7 +168,8 @@ fn command_completion(
                 DiagramCompletion::DynamicReturnOrError
             }
             InvocationCompletionKnowledge::ExitOrError => DiagramCompletion::ExitOrError,
-            InvocationCompletionKnowledge::Dynamic => DiagramCompletion::Dynamic,
+            InvocationCompletionKnowledge::Dynamic
+            | InvocationCompletionKnowledge::CatchableExitOrError => DiagramCompletion::Dynamic,
         };
     }
     match registry.invocation_completion(command, &arg_refs, None) {

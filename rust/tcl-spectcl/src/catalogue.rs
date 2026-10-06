@@ -321,6 +321,7 @@ pub const CODEGEN_HOOKS: &[Variant] = &[
     v("Concat", "concat"),
     v("Global", "global"),
     v("Upvar", "upvar"),
+    v("Uplevel", "uplevel"),
 ];
 
 /// [`InlineCodegenHookId`] — the value-position / catch-body emitter.
@@ -328,6 +329,11 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Expr", "expr"),
     v("Incr", "incr"),
     v("InfoExists", "info exists"),
+    v("InfoLevel", "info level"),
+    v("NamespaceCurrent", "namespace current"),
+    v("NamespaceOrigin", "namespace origin name"),
+    v("NamespaceCode", "namespace code literal-script"),
+    v("InfoCommandsResolve", "info commands absolute literal"),
     v("String", "string"),
     v("Lindex", "lindex"),
     v("Lrange", "lrange"),
@@ -343,6 +349,8 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Break", "break"),
     v("Continue", "continue"),
     v("Try", "try"),
+    v("Yield", "yield"),
+    v("YieldTo", "yieldto"),
 ];
 
 /// [`ReturnTypeHookId`] — the algorithm that types a call whose result shape
@@ -840,7 +848,8 @@ mod tests {
             | CodegenHookId::Tailcall
             | CodegenHookId::Concat
             | CodegenHookId::Global
-            | CodegenHookId::Upvar => true,
+            | CodegenHookId::Upvar
+            | CodegenHookId::Uplevel => true,
         }
     }
 
@@ -850,6 +859,11 @@ mod tests {
             InlineCodegenHookId::Expr
             | InlineCodegenHookId::Incr
             | InlineCodegenHookId::InfoExists
+            | InlineCodegenHookId::InfoLevel
+            | InlineCodegenHookId::NamespaceCurrent
+            | InlineCodegenHookId::NamespaceOrigin
+            | InlineCodegenHookId::NamespaceCode
+            | InlineCodegenHookId::InfoCommandsResolve
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Lindex
             | InlineCodegenHookId::Lrange
@@ -864,7 +878,9 @@ mod tests {
             | InlineCodegenHookId::Error
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
-            | InlineCodegenHookId::Try => true,
+            | InlineCodegenHookId::Try
+            | InlineCodegenHookId::Yield
+            | InlineCodegenHookId::YieldTo => true,
         }
     }
 

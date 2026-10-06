@@ -89,9 +89,7 @@ use crate::definition::LspRange;
 pub(crate) fn braced_var_style(
     analysis: &tcl_compiler::analyser::AnalysisResult,
 ) -> BracedVarStyle {
-    crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .braced_var
+    crate::profile_for_analysis(analysis).grammar.braced_var
 }
 
 /// Every `$name` / `${name}` reference in `text`, as
@@ -301,7 +299,7 @@ pub(crate) struct FrameWalk {
 
 impl FrameWalk {
     pub(crate) fn new(source: &str, analysis: &tcl_compiler::analyser::AnalysisResult) -> Self {
-        let dialect = crate::profile_for_dialect(&analysis.dialect);
+        let dialect = crate::profile_for_analysis(analysis);
         let nesting = crate::registry_for_dialect_profile(dialect);
         Self {
             dialect,

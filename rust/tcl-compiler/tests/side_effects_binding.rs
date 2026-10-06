@@ -348,8 +348,7 @@ fn classify_set_namespace_var() {
 
 #[test]
 fn classify_set_static_var_irules() {
-    // f5-dialect: `static::` is an iRules scope marker; the var is system-wide
-    // (ConnectionSide::Global).
+    // f5-dialect: the root static namespace is persistent per TMM worker.
     let reg = irules_registry();
     let r = classify(
         &reg,
@@ -360,7 +359,7 @@ fn classify_set_static_var_irules() {
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
     assert_eq!(e.connection_side, ConnectionSide::Global);
-    assert_eq!(e.key.as_deref(), Some("static::counter"));
+    assert_eq!(e.key.as_deref(), Some("::static::counter"));
 }
 
 #[test]
@@ -376,7 +375,7 @@ fn classify_set_static_var_f5_irules() {
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
     assert_eq!(e.connection_side, ConnectionSide::Global);
-    assert_eq!(e.key.as_deref(), Some("static::counter"));
+    assert_eq!(e.key.as_deref(), Some("::static::counter"));
 }
 
 #[test]

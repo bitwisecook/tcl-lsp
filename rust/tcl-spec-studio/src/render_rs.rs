@@ -276,9 +276,14 @@ fn arity_expr(value: &Value) -> String {
             max.map_or_else(|| "Arity::UNLIMITED".to_owned(), |m| m.to_string())
         )
     };
-    match also {
+    let expression = match also {
         None => base,
         Some(n) => format!("{base}.with_also_exact({n})"),
+    };
+    if value["count"] == "positionals" {
+        format!("{expression}.with_positionals()")
+    } else {
+        expression
     }
 }
 
@@ -889,6 +894,14 @@ fn sub_subcommand_expr(entry: &Value, indent: &str) -> String {
     parts.extend(dialects_line(entry, indent));
     if let Some(lifecycle) = lifecycle_expr(entry) {
         parts.push(format!("{indent}    lifecycle: {lifecycle},"));
+    }
+    if entry
+        .get("native_compilation")
+        .is_some_and(|value| !value.is_null())
+    {
+        parts.push(format!(
+            "{indent}    // Native worker compilation proof is excluded from this draft."
+        ));
     }
     row_literal("SubSubCommand", &parts, indent)
 }

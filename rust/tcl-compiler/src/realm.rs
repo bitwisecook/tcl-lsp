@@ -16,85 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The document's **realm command-binding state** — the single-realm
-//! `command_bindings` map of the model's `RealmState`, produced by one
-//! top-level scan and answered as [`tcl_registry::model::BindingKnowledge`]
-//! ([`CommandBindingRealm::knowledge_at`]) or as the head-word projection
-//! source-text consumers read ([`CommandBindingRealm::resolve`] /
-//! [`HeadWords`]). It is the only head-identity table: one vocabulary,
-//! spec-keyed.
-//!
-//! Tcl resolves a command by its interpreter-level *binding*, not by the
-//! spelling used to invoke it.  Three statically visible statements move that
-//! binding, and this module turns the ones a document states unconditionally
-//! at top level into a small, offset-keyed table the source-text consumers
-//! consult before they hand a head to the registry:
-//!
-//! ```tcl
-//! namespace import ::tcltest::*   ;# `test`   now *is* `::tcltest::test`
-//! interp alias {} myfmt {} format ;# `myfmt`  now *is* `format`
-//! rename format origfmt           ;# `origfmt` is `format`, and `format` is gone
-//! proc format {args} { … }        ;# `format` is a user proc, not the built-in
-//! ```
-//!
-//! Every fact carries the byte offset of the statement that established it and
-//! applies only to heads **at or after** it, so an alias cannot retroactively
-//! re-tag an earlier call and a `rename` correctly leaves the calls before it
-//! alone.  Verified against tclsh 9.0.4 and 8.6.16 (byte-identical): after
-//! `rename format origfmt; proc format {args} {return USER}`, `format x`
-//! answers `USER` and `origfmt %d 7` answers `7`.
-//!
-//! # What this deliberately does not do
-//!
-//! The table is **sound by abstention** — every shape it cannot prove leaves
-//! the head unchanged, and every shape that provably *breaks* a registry
-//! binding marks the head [`RealmBinding::Rebound`] so no registry grammar is
-//! applied to it.  Specifically:
-//!
-//! * **Dynamic heads and dynamic bindings** — `rename $old new`,
-//!   `interp alias {} $n {} eval`, `interp alias {} n {} $t` — record nothing
-//!   ([`tcl_syntax::naming::is_dynamic_word`] rejects them), so a call through
-//!   the name keeps its literal identity rather than gaining a wrong one.
-//! * **Pre-bound alias arguments** — `interp alias {} pad {} format %08x`
-//!   shifts every argument index, so the layout cannot be reused; the alias
-//!   name is marked `Rebound` instead of aliased.
-//! * **Another interpreter** — a non-empty `srcPath` (`interp alias slave …`)
-//!   binds a name in a *child* interpreter and changes nothing here, so it
-//!   records nothing at all; a non-empty `targetPath` points at a command this
-//!   document cannot see, so the name is marked `Rebound`.  Hidden commands in
-//!   a safe interpreter are likewise invisible: this document's own command
-//!   table is what is being described.
-//! * **Conditional bindings** — a `rename` inside an `if` body, a proc, an
-//!   `eval`, or an `uplevel` is not an unconditional fact and is not scanned.
-//!   A `namespace eval` body *is* unconditional, so it is: its bindings are
-//!   recorded against that namespace rather than the document, because a
-//!   `proc` inside `namespace eval ::n` defines `::n::format`, not `::format`
-//!   (tclsh 9.0.4: `::n::format q` → `ns:q`, global `format` untouched).  A
-//!   bare head reads its own namespace's facts before the global ones, the way
-//!   C Tcl resolves a command.
-//! * **`unknown` fallback and traces** — nothing is inferred from them.
-//!
-//! # Positioned and unpositioned readers
-//!
-//! [`CommandBindingRealm::resolve`] answers for a head at a known byte offset.
-//! Several consumers re-lex a body out of its own decoded text (the formatter
-//! reformats `arg.text`, the minifier re-minifies a body slice, the call-graph
-//! scan segments a body string at offset 0), so no absolute offset exists at
-//! the point of the query.  Those read
-//! [`CommandBindingRealm::resolve_unpositioned`], which considers *every* fact
-//! about the spelling at once and abstains ([`RealmBinding::Rebound`]) unless
-//! they all agree — a document that binds a name twice cannot be read without
-//! a position, and guessing one of the two is exactly the fallback-to-spelling
-//! this module exists to remove.
+//! Source-facing projection of the shared command-binding owner. This module
+//! adapts rich positioned results to legacy head-only consumers; it never
+//! interprets an import, alias, rename, namespace path, or shadow itself.
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 
-use crate::alias::{command_table_transitions, is_current_interpreter};
-use crate::segmenter::segment_commands_with_offset_and_config;
-use rustc_hash::FxHashMap;
+use crate::command_binding::{SourceCommandBindings, SourceInvocationBinding};
+use tcl_registry::CommandRegistry;
 use tcl_registry::model::{BindingKnowledge, BindingTarget, ResolvedContext, SpecKey};
-use tcl_registry::{CommandBindingTransition, CommandRegistry, CommandSpec, TransitionSubject};
-use tcl_syntax::naming::is_dynamic_word;
 
 /// What a command head resolves to at one point in a document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,98 +114,179 @@ impl<'a> HeadWords<'a> {
     }
 }
 
-/// What one realm fact binds a head spelling to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum FactBinding {
-    /// A proven registry identity: the head *is* this spec here (a proven
-    /// import / alias / rename chain).
-    Spec(SpecKey),
-    /// The head's binding was provably taken over by something the
-    /// registry does not model — a user `proc` shadow, an alias with
-    /// pre-bound arguments or an unmodelled target. The command *exists*;
-    /// no registry grammar applies.
-    TakenOver,
-    /// The head was provably deleted (`rename NAME {}`, an alias
-    /// deletion, or a `rename OLD NEW` moving `OLD` away): nothing is
-    /// bound here from this point on.
-    Deleted,
-}
-
-/// One binding fact about one head spelling.
-#[derive(Debug, Clone, Copy)]
-struct RealmFact {
-    /// Byte offset of the statement that established it; the fact applies to
-    /// heads at or after this offset only.
-    from: u32,
-    /// What the head is bound to from that offset.
-    binding: FactBinding,
-    /// The namespace whose command table the fact belongs to: `None` for the
-    /// global one, otherwise an index into
-    /// [`CommandBindingRealm::namespaces`] of the body the statement sat in.
-    /// A bare head reads its own namespace's facts before the global ones.
-    scope: Option<u32>,
-}
-
-/// One `namespace eval` body the scan descended into.
-#[derive(Debug)]
-struct NamespaceScope {
-    /// The namespace's fully-qualified name (`::n`, `::a::b`).  Facts are
-    /// matched by *name*, not by body, so a proc declared in one
-    /// `namespace eval ::a` block is still in force in a later one (tclsh
-    /// 8.6.18 / 9.0.4: `namespace eval a {proc format {args} {return A}}` then
-    /// `namespace eval a {format %d 7}` answers `A`).
-    name: String,
-    /// Byte offsets of the body's inner text, `[start, end)`.
-    start: u32,
-    end: u32,
-}
-
-/// Every statically proven command-identity fact in one document, keyed by the
-/// head spelling as written.
-///
-/// Both the bare and the explicitly global spelling of a bound name are
-/// recorded, because C Tcl resolves them to the same command
-/// (`namespace which -command ::myfmt` → `::myfmt`) and a consumer must not
-/// have to strip qualifiers itself.
-///
-/// A fact stated inside a `namespace eval` body is scoped to that namespace
-/// rather than to the document, because that is what C Tcl does with it: a
-/// bare head is looked up in the current namespace's command table and only
-/// then in the global one.
-#[derive(Debug, Default)]
+/// Legacy head projection over the same command-table interpretation used by
+/// lowering and executable effect consumers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CommandBindingRealm {
-    facts: FxHashMap<String, Vec<RealmFact>>,
-    /// The `namespace eval` bodies the scan descended into, in source order;
-    /// a fact's `scope` indexes this, and an offset finds its namespace here.
-    namespaces: Vec<NamespaceScope>,
+    bindings: SourceCommandBindings,
+    specs: BTreeMap<String, SpecKey>,
 }
 
-/// The shared empty map, for a consumer that has no document to scan (an
-/// IR-only caller, a unit-test harness).  Nothing is bound, so every head
-/// keeps its own spelling.
 static EMPTY_REALM: std::sync::LazyLock<CommandBindingRealm> =
     std::sync::LazyLock::new(CommandBindingRealm::default);
 
 impl CommandBindingRealm {
-    /// The empty map — no document, so no binding fact.
+    /// Retain the same document execution proof when lowering a positioned
+    /// body for a secondary analysis. State snapshots share their allocation.
+    pub(crate) fn source_bindings(&self) -> SourceCommandBindings {
+        self.bindings.clone()
+    }
+
+    /// Borrow the retained inventory for syntax navigation in the same source
+    /// root. Reconstructed/entered sources must select their own origin first.
+    pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {
+        &self.bindings
+    }
+
+    /// Exact dispatch proof from the shared source interpreter.
+    #[must_use]
+    pub fn invocation_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
+        self.bindings.invocation_at_source(head, offset)
+    }
+
+    /// Attach retained original-source receipts to unchanged command tokens.
+    /// Each consumer must select its own purpose projection afterwards;
+    /// attachment itself grants neither dispatch nor body-entry authority.
+    pub fn stamp_original_tokens(&self, tokens: &mut crate::ir::CommandTokens) {
+        self.bindings.stamp_original_tokens(tokens);
+    }
+
+    /// Original declaration grammar and written positions for navigation.
+    /// This conditional projection cannot establish executed aliases or bodies.
+    #[must_use]
+    pub fn original_declaration_assistance(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<crate::registry_invocation::OriginalDeclarationAssistance> {
+        let advice = self
+            .bindings
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| {
+                tokens
+                    .source_binding
+                    .as_ref()?
+                    .original_compilation_lookup_advice(tokens)
+            })?;
+        crate::registry_invocation::original_declaration_assistance(registry, tokens, &advice)
+    }
+
+    /// Exact call/allocation/frame receipt for scoped caller-name navigation.
+    /// Conditional own-body frames grant symbolic identity, never execution,
+    /// physical cells, values or completed writes.
+    #[must_use]
+    pub fn caller_frame_invocation_template_at(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        read_offset: u32,
+        registry: &CommandRegistry,
+    ) -> Option<crate::command_binding::SourceCallerFrameInvocationTemplate> {
+        self.bindings
+            .caller_frame_invocation_template_at(tokens, read_offset, registry)
+    }
+
+    /// Original definition-name operands and their exact class incarnation.
+    /// Missing coverage cannot provide a reference or editable method name.
+    pub fn definition_method_reference_inventories(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &crate::command_binding::SourceCommandTarget,
+            Option<&[crate::command_binding::SourceDefinitionMethodReference]>,
+        ),
+    > {
+        self.bindings.definition_method_reference_inventories()
+    }
+
+    /// Possible child dispatches from retained entered-body observations.
+    /// These preserve actual lookup contexts without asserting parent purity.
+    #[must_use]
+    pub(crate) fn possible_entered_body_invocations(
+        &self,
+        invocation: &crate::command_binding::CommandAllocationSite,
+    ) -> Vec<SourceInvocationBinding> {
+        self.bindings.possible_entered_body_invocations(invocation)
+    }
+
+    /// Actual reads directly owned by this original invocation's argv. Nested
+    /// evaluations and body phases retain their separate temporal owners.
+    #[must_use]
+    pub fn variable_accesses_for_invocation_args(
+        &self,
+        offset: u32,
+    ) -> Vec<crate::command_binding::SourceVariableAccess> {
+        self.bindings.variable_accesses_for_invocation_args(offset)
+    }
+
+    /// Positioned slot advice, independently of executable binding facts.
+    #[must_use]
+    pub fn diagnostic_slot_presence_at(
+        &self,
+        offset: u32,
+    ) -> crate::command_binding::SourceCommandSlotPresence {
+        self.bindings.diagnostic_slot_presence_at(offset)
+    }
+
+    /// Exact native command-table math lookup after the original operands.
+    #[must_use]
+    pub fn diagnostic_math_function_presence_at(
+        &self,
+        function: &str,
+        offset: u32,
+    ) -> crate::command_binding::SourceCommandSlotPresence {
+        self.bindings
+            .diagnostic_math_function_presence_at(function, offset)
+    }
+    /// Name-reference advice in the consuming command's exact post-argv world.
+    #[must_use]
+    pub fn diagnostic_command_slot_presence_at(
+        &self,
+        name: &str,
+        offset: u32,
+    ) -> crate::command_binding::SourceCommandSlotPresence {
+        self.bindings
+            .diagnostic_command_slot_presence_at(name, offset)
+    }
+
+    /// Exact evaluated body carrier retained by the shared source interpreter.
+    #[must_use]
+    pub fn executed_script_for_word(
+        &self,
+        span: tcl_lexer::Span,
+    ) -> Option<&crate::command_binding::ExecutedScriptSource> {
+        self.bindings.executed_script_for_word(span)
+    }
+
+    /// Head-only role projection at an actual site in an evaluated body.
+    #[must_use]
+    pub fn head_words_at_origin<'a>(
+        &'a self,
+        written: &'a str,
+        source: &crate::command_binding::ExecutedScriptSource,
+        offset: u32,
+    ) -> HeadWords<'a> {
+        let binding = self.bindings.invocation_at_origin(&source.origin, offset);
+        let resolved = match self.head_fact(&binding) {
+            RealmBindingFact::Unchanged => written,
+            RealmBindingFact::Command(name) => name,
+            RealmBindingFact::Rebound => "",
+        };
+        HeadWords { written, resolved }
+    }
+
+    /// No source entry contract; assistance keeps its written spelling.
     #[must_use]
     pub fn none() -> &'static Self {
         &EMPTY_REALM
     }
 
-    /// Whether the document stated any binding fact at all — lets a caller
-    /// skip per-head lookups entirely for the overwhelmingly common document
-    /// that imports, aliases, and renames nothing.
+    /// Whether the source changes command-table or namespace lookup state.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.facts.is_empty()
+        !self.bindings.has_transitions()
     }
 
-    /// The effective identity of `head` invoked at byte offset `at`.
-    ///
-    /// The **latest** fact at or before `at` wins, so a document that renames a
-    /// name and then rebinds it again reads correctly at every point between.
-    /// With no applicable fact the head keeps its own spelling.
+    /// Resolve a head for callers whose grammar cannot represent alias prefixes.
     #[must_use]
     pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> RealmBinding<'a> {
         match self.binding_at(head, at) {
@@ -284,90 +296,31 @@ impl CommandBindingRealm {
         }
     }
 
-    /// The command-table fact applicable to `head` at `at`, if any.
-    ///
-    /// Unlike [`Self::resolve`], this never borrows the caller's spelling, so
-    /// registry-owned recursive walkers can use it through
-    /// [`tcl_registry::events::CommandHeadResolver`] without a dependency from
-    /// the registry back into the compiler.
+    /// Preserve explicit uncertainty rather than returning the written name.
     #[must_use]
     pub fn binding_at(&self, head: &str, at: u32) -> RealmBindingFact<'_> {
-        match self.fact_at(head, at) {
-            None => RealmBindingFact::Unchanged,
-            Some(FactBinding::Spec(key)) => RealmBindingFact::Command(key.name()),
-            Some(FactBinding::TakenOver | FactBinding::Deleted) => RealmBindingFact::Rebound,
+        if self.is_empty() {
+            return RealmBindingFact::Unchanged;
         }
+        self.head_fact(&self.bindings.projection_at_source(head, at))
     }
 
-    /// The latest applicable fact's binding for `head` at `at`, if any.
-    fn fact_at(&self, head: &str, at: u32) -> Option<FactBinding> {
-        let facts = self.facts.get(head)?;
-        let latest = |scope: Option<&str>| {
-            facts
-                .iter()
-                .filter(|f| f.from <= at && self.scope_name(f.scope) == scope)
-                .max_by_key(|f| f.from)
-                .map(|f| f.binding)
+    fn head_fact(&self, binding: &SourceInvocationBinding) -> RealmBindingFact<'_> {
+        let Some(target) = binding.proved_target() else {
+            return RealmBindingFact::Rebound;
         };
-        // C Tcl resolves a bare head in the current namespace's command table
-        // and only then in the global one, so a namespace-local shadow
-        // outranks a global fact whichever came first in the file — and a
-        // namespace's own fact is invisible from anywhere else, including a
-        // namespace nested inside it (tclsh 8.6.18 / 9.0.4: with
-        // `proc format` declared in `::a`, a bare `format` inside
-        // `namespace eval b` nested in `::a` still runs the built-in).
-        let enclosing = self.namespace_at(at);
-        if enclosing.is_some()
-            && let Some(local) = latest(enclosing)
-        {
-            return Some(local);
+        if !target.registry_backed || !target.prepended.is_empty() {
+            return RealmBindingFact::Rebound;
         }
-        latest(None)
+        self.specs
+            .get(&target.command)
+            .map_or(RealmBindingFact::Rebound, |spec| {
+                RealmBindingFact::Command(spec.name())
+            })
     }
 
-    /// The fully-qualified name of the namespace a fact's `scope` names.
-    fn scope_name(&self, scope: Option<u32>) -> Option<&str> {
-        let index = scope? as usize;
-        self.namespaces.get(index).map(|ns| ns.name.as_str())
-    }
-
-    /// The namespace whose command table a head at byte offset `at` resolves
-    /// against first — the innermost `namespace eval` body containing `at`,
-    /// or `None` at document level.
-    fn namespace_at(&self, at: u32) -> Option<&str> {
-        self.scope_name(self.scope_index_at(at))
-    }
-
-    /// The innermost `namespace eval` body containing `at`, as an index into
-    /// [`Self::namespaces`].
-    fn scope_index_at(&self, at: u32) -> Option<u32> {
-        // Bodies nest, so the innermost is the last one opened that still
-        // contains the offset; the scan descends, so source order makes that
-        // the highest index.
-        self.namespaces
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, ns)| ns.start <= at && at < ns.end)
-            .and_then(|(i, _)| u32::try_from(i).ok())
-    }
-
-    /// The realm's [`BindingKnowledge`] for `head` at byte offset `at` —
-    /// the document's facts composed over the environment — the one `exists`
-    /// answer for head-identity consumers:
-    ///
-    /// - a proven import / alias / rename chain answers
-    ///   [`BindingKnowledge::Must`] with its [`BindingTarget::Spec`];
-    /// - a proven takeover (user `proc` shadow, unmodelled alias) answers
-    ///   `Must` with a [`BindingTarget::Document`] — the command exists,
-    ///   no catalogue semantics apply, so no hook ever specialises;
-    /// - a proven deletion answers [`BindingKnowledge::Absent`];
-    /// - with no document fact the environment answers: `Must(Spec)` when
-    ///   `context` provides the name, [`BindingKnowledge::Absent`] under a
-    ///   **closed world** (a guarantee iRules derives rather than assumes:
-    ///   world policy applies over this answer, it does not replace it),
-    ///   and [`BindingKnowledge::Unknown`] otherwise (an open world can
-    ///   gain commands at load time).
+    /// The existing public knowledge vocabulary is a projection. It cannot
+    /// express target-or-absence, which therefore remains explicitly unknown.
     #[must_use]
     pub fn knowledge_at(
         &self,
@@ -376,123 +329,76 @@ impl CommandBindingRealm {
         head: &str,
         at: u32,
     ) -> BindingKnowledge {
-        match self.fact_at(head, at) {
-            Some(FactBinding::Spec(key)) => BindingKnowledge::Must(BindingTarget::Spec(key)),
-            Some(FactBinding::TakenOver) => BindingKnowledge::Must(BindingTarget::document(head)),
-            Some(FactBinding::Deleted) => BindingKnowledge::Absent,
-            None => match context.resolve_spec(commands, head) {
-                Some(spec) => BindingKnowledge::Must(BindingTarget::Spec(SpecKey::new(spec))),
-                None => match context.environment.policy_defaults.closed_world {
-                    tcl_dialect::model::WorldPolicy::Closed => BindingKnowledge::Absent,
-                    _ => BindingKnowledge::Unknown,
+        if self.is_empty() {
+            return context.resolve_spec(commands, head).map_or_else(
+                || {
+                    if context.environment.policy_defaults.closed_world
+                        == tcl_dialect::model::WorldPolicy::Closed
+                    {
+                        BindingKnowledge::Absent
+                    } else {
+                        BindingKnowledge::Unknown
+                    }
                 },
-            },
+                |spec| BindingKnowledge::Must(BindingTarget::Spec(SpecKey::new(spec))),
+            );
+        }
+        let binding = self.bindings.projection_at_source(head, at);
+        if binding.unknown || (binding.may_be_absent && !binding.targets.is_empty()) {
+            return BindingKnowledge::Unknown;
+        }
+        if binding.targets.is_empty() {
+            return BindingKnowledge::Absent;
+        }
+        let targets = binding
+            .targets
+            .iter()
+            .map(|target| {
+                self.specs
+                    .get(&target.command)
+                    .filter(|_| target.registry_backed)
+                    .map_or_else(
+                        || BindingTarget::document(&target.command),
+                        |spec| BindingTarget::Spec(*spec),
+                    )
+            })
+            .collect::<Vec<_>>();
+        if targets.len() == 1 {
+            BindingKnowledge::Must(targets[0].clone())
+        } else {
+            BindingKnowledge::May(targets.into())
         }
     }
 
-    /// The effective identity of `head` when the call's byte offset is not
-    /// available — a body the consumer re-lexed out of its own decoded text.
-    ///
-    /// Every fact about the spelling is considered at once.  With none, the
-    /// head keeps its own spelling; with facts that all name the same target,
-    /// that target; otherwise [`RealmBinding::Rebound`], because the reader
-    /// cannot tell which of two bindings is in force and the written spelling
-    /// is precisely the answer that must not be assumed.
+    /// Offset-free assistance abstains unless all represented states agree.
     #[must_use]
     pub fn resolve_unpositioned<'a>(&'a self, head: &'a str) -> RealmBinding<'a> {
-        let Some(facts) = self.facts.get(head) else {
+        if self.is_empty() {
             return RealmBinding::Command(head);
-        };
-        let Some(first) = facts.first() else {
-            return RealmBinding::Command(head);
-        };
-        // Facts naming different specs cannot be read without a position;
-        // a takeover beside a deletion reads Rebound either way, so only
-        // spec disagreement matters here.
-        match first.binding {
-            FactBinding::Spec(key)
-                if facts
-                    .iter()
-                    .all(|f| matches!(f.binding, FactBinding::Spec(other) if other == key)) =>
-            {
-                RealmBinding::Command(key.name())
-            }
-            _ => RealmBinding::Rebound,
+        }
+        match self.head_fact(&self.bindings.invocation_unpositioned(head)) {
+            RealmBindingFact::Command(name) => RealmBinding::Command(name),
+            RealmBindingFact::Unchanged => RealmBinding::Command(head),
+            RealmBindingFact::Rebound => RealmBinding::Rebound,
         }
     }
 
-    /// `head` in both its forms, resolved at byte offset `at`.
+    /// Retain written and resolved identities as separate projections.
     #[must_use]
     pub fn head_words<'a>(&'a self, head: &'a str, at: u32) -> HeadWords<'a> {
-        if self.facts.is_empty() {
-            return HeadWords::plain(head);
-        }
         HeadWords {
             written: head,
             resolved: self.resolve(head, at).spec_name(),
         }
     }
 
-    /// `head` in both its forms, resolved without a position — see
-    /// [`Self::resolve_unpositioned`].
+    /// Retain written text when an offset-free query cannot prove identity.
     #[must_use]
     pub fn head_words_unpositioned<'a>(&'a self, head: &'a str) -> HeadWords<'a> {
-        if self.facts.is_empty() {
-            return HeadWords::plain(head);
-        }
         HeadWords {
             written: head,
             resolved: self.resolve_unpositioned(head).spec_name(),
         }
-    }
-
-    /// Whether an *earlier* fact already gives `head` a registry identity at
-    /// offset `at` — used to notice that a `proc` takes back a name a previous
-    /// `rename` / alias had bound to a built-in.
-    fn resolves_to_a_command(&self, head: &str, at: u32) -> bool {
-        matches!(self.resolve(head, at), RealmBinding::Command(name) if name != head)
-    }
-
-    /// Record `head` → `binding` from byte offset `from`.
-    ///
-    /// The fact takes the scope the *statement* sits in, which is why the
-    /// scan registers a `namespace eval` body ([`Self::open_namespace`])
-    /// before recording anything inside it.
-    fn record(&mut self, head: &str, binding: FactBinding, from: u32) {
-        if head.is_empty() {
-            return;
-        }
-        let scope = self.scope_index_at(from);
-        self.facts
-            .entry(head.to_owned())
-            .or_default()
-            .push(RealmFact {
-                from,
-                binding,
-                scope,
-            });
-    }
-
-    /// Record a fact under both the written spelling and its explicitly global
-    /// twin, so `myfmt` and `::myfmt` classify alike.
-    fn record_both_spellings(&mut self, name: &str, binding: FactBinding, from: u32) {
-        let bare = name.strip_prefix("::").unwrap_or(name);
-        self.record(bare, binding, from);
-        // Inside a `namespace eval` body the explicitly global spelling is a
-        // *different* command and the local binding says nothing about it —
-        // tclsh 8.6.18 / 9.0.4 run the built-in for `::format` inside a
-        // namespace that declares its own `format` — so only a document-level
-        // fact states both spellings.
-        if self.scope_index_at(from).is_none() {
-            self.record(&format!("::{bare}"), binding, from);
-        }
-    }
-
-    /// Register a `namespace eval` body the scan is about to descend into,
-    /// covering `[start, end)` of the source and evaluating in namespace
-    /// `name` (fully qualified).
-    fn open_namespace(&mut self, name: String, start: u32, end: u32) {
-        self.namespaces.push(NamespaceScope { name, start, end });
     }
 }
 
@@ -506,575 +412,104 @@ impl tcl_registry::events::CommandHeadResolver for CommandBindingRealm {
     }
 }
 
-/// Whether `word` is a name this scan may treat as a static command spelling.
-fn is_static_name(word: &str) -> bool {
-    !word.is_empty() && !is_dynamic_word(word) && !word.contains(char::is_whitespace)
-}
-
-/// Scan `source` for the top-level statements that move a command binding and
-/// build the document's [`CommandBindingRealm`].
-///
-/// Which commands mutate the command table is registry data
-/// ([`CommandTableEffect`]) and the argument shapes come from the compiler's
-/// own detectors ([`detect_interp_alias`] / [`detect_rename`]) — the same ones
-/// the IR-lowering pipeline uses — so no command name is spelled here.
+/// Build the source projection using the shared executable binding kernel.
 #[must_use]
 pub fn document_realm_bindings(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> CommandBindingRealm {
-    document_realm_bindings_with_config(
+    let bindings = SourceCommandBindings::analyse_with_options(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         registry,
-    )
+        crate::command_binding::SourceAnalysisOptions {
+            invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+                registry,
+                Some(dialect),
+                tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+            )),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        },
+    );
+    realm_from_source_bindings(bindings, registry)
 }
 
-/// [`document_realm_bindings`] with an explicit lexer configuration, for a
-/// consumer that already holds one (the formatter and the param-trait scan
-/// carry a [`tcl_lexer::LexerConfig`] rather than a dialect string).
+/// Build the projection under the source's already-resolved lexer policy.
 #[must_use]
 pub fn document_realm_bindings_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
     registry: &CommandRegistry,
 ) -> CommandBindingRealm {
-    // One top-level segmentation feeds both halves — the `namespace import`
-    // scan and the command-table mutators.
-    let segments = segment_commands_with_offset_and_config(source, 0, config);
-    let mut map = CommandBindingRealm::default();
-    for (name, (key, offset)) in imported_command_aliases(&segments, registry) {
-        map.record(&name, FactBinding::Spec(key), offset);
-    }
-    record_segment_bindings(
-        &mut map,
-        source,
-        &segments,
-        NamespaceWalk {
-            enclosing: "",
-            depth: 0,
-        },
-        config,
+    realm_from_source_bindings(
+        SourceCommandBindings::analyse(source, config, registry),
         registry,
-    );
-    map
-}
-
-/// How deep the scan follows `namespace eval` bodies into one another.
-///
-/// Bodies nest arbitrarily in principle; the ceiling keeps a pathological
-/// document from recursing without bound, and no real one declares a command
-/// shadow eight namespaces deep.  Past it the scan simply stops descending,
-/// which states fewer facts rather than wrong ones.
-const MAX_NAMESPACE_DEPTH: u8 = 8;
-
-/// Where one pass of [`record_segment_bindings`] sits in the namespace tree.
-#[derive(Clone, Copy)]
-struct NamespaceWalk<'a> {
-    /// Fully-qualified name of the namespace these segments evaluate in,
-    /// empty at document level.
-    enclosing: &'a str,
-    /// How many `namespace eval` bodies deep this pass already is.
-    depth: u8,
-}
-
-/// Record every command-binding fact `segments` states, then descend into the
-/// `namespace eval` bodies among them.
-///
-/// The descent is what makes a namespace-local shadow visible: a `proc format`
-/// inside `namespace eval n` is not a document-wide fact, but it *is* the
-/// binding every bare `format` in that namespace resolves to (tclsh 8.6.18 /
-/// 9.0.4: `namespace eval n {proc format {args} {return NS}; format %b 5}`
-/// answers `NS`), and the realm is the one place that identity is decided.
-fn record_segment_bindings(
-    map: &mut CommandBindingRealm,
-    source: &str,
-    segments: &[crate::segmenter::SegmentedCommand],
-    walk: NamespaceWalk<'_>,
-    config: tcl_lexer::LexerConfig,
-    registry: &CommandRegistry,
-) {
-    for seg in segments {
-        let Some(head) = seg.texts.first() else {
-            continue;
-        };
-        let args = &seg.texts[1..];
-        let transitions = command_table_transitions(registry, head, args);
-        if transitions.command_bindings().next().is_some() {
-            let at = seg.argv[0].span.start();
-            // A `proc` declaration is the one binding fact whose *validity*
-            // is dialect-gated: iRules restricts `proc` to its shared
-            // declaration surface, and a malformed body is not executable.
-            let declares_valid_procedure =
-                valid_irules_procedure_declaration(source, seg, registry);
-            for transition in transitions.command_bindings() {
-                record_binding_transition(map, transition, at, registry, declares_valid_procedure);
-            }
-        }
-        descend_into_namespace_body(map, source, seg, walk, config, registry);
-    }
-}
-
-/// Descend into `seg`'s body when it evaluates one in a namespace.
-///
-/// Recognition is the registry's [`AnalyserHookId::NamespaceEval`] stamp on
-/// the resolved subcommand, never the head spelling, and the dialect's own
-/// command table decides: iRules disables `namespace` outright, so nothing
-/// there is ever descended into.
-///
-/// Three shapes abstain rather than guess, each because the body this scan
-/// would read is not the script Tcl runs:
-///
-/// * a namespace word that is not a static name (`namespace eval $ns …`) —
-///   the facts inside belong to a namespace this scan cannot name;
-/// * a body that is not a single braced word — `namespace eval n $script` is
-///   opaque, and the multi-word form concatenates its arguments, so the
-///   commands are not the ones a segmentation of any one word finds;
-/// * a body nested past [`MAX_NAMESPACE_DEPTH`].
-///
-/// [`AnalyserHookId::NamespaceEval`]: tcl_registry::hooks::AnalyserHookId::NamespaceEval
-fn descend_into_namespace_body(
-    map: &mut CommandBindingRealm,
-    source: &str,
-    seg: &crate::segmenter::SegmentedCommand,
-    walk: NamespaceWalk<'_>,
-    config: tcl_lexer::LexerConfig,
-    registry: &CommandRegistry,
-) {
-    if walk.depth >= MAX_NAMESPACE_DEPTH || seg.texts.len() != 4 || seg.argv.len() != 4 {
-        return;
-    }
-    let evaluates_in_namespace = available_spec(registry, &seg.texts[0])
-        .and_then(|spec| spec.resolve_subcommand(&seg.texts[1]))
-        .and_then(|sub| sub.analyser_hook)
-        == Some(tcl_registry::hooks::AnalyserHookId::NamespaceEval);
-    if !evaluates_in_namespace || !is_static_name(&seg.texts[2]) {
-        return;
-    }
-    let body = seg.argv[3];
-    if body.kind != tcl_lexer::TokenType::Str {
-        return;
-    }
-    let name = qualified_namespace(walk.enclosing, &seg.texts[2]);
-    // The braced body's inner text starts past the `{`, and is carried
-    // literally, so its length gives the end of the region the facts inside
-    // it govern.
-    let start = body.span.start() + u32::from(body.content_offset);
-    let end = start + u32::try_from(seg.texts[3].len()).unwrap_or(0);
-    map.open_namespace(name.clone(), start, end);
-    let inner = segment_commands_with_offset_and_config(&seg.texts[3], start, config);
-    record_segment_bindings(
-        map,
-        source,
-        &inner,
-        NamespaceWalk {
-            enclosing: &name,
-            depth: walk.depth + 1,
-        },
-        config,
-        registry,
-    );
-}
-
-/// The fully-qualified name of the namespace `word` opens inside `enclosing`.
-///
-/// An absolute word names itself; a relative one hangs off the enclosing
-/// namespace, which is how C Tcl reads it (`namespace eval a {namespace eval b
-/// {namespace current}}` answers `::a::b` on tclsh 8.6.18 / 9.0.4).
-fn qualified_namespace(enclosing: &str, word: &str) -> String {
-    let absolute = if word.starts_with("::") {
-        word.to_string()
-    } else if enclosing == "::" {
-        format!("::{word}")
-    } else {
-        format!("{enclosing}::{word}")
-    };
-    // A trailing separator is not part of the name — `namespace eval ::snit::`
-    // and `namespace eval ::snit` open the same namespace.
-    let trimmed = absolute.trim_end_matches(':');
-    if trimmed.is_empty() {
-        "::".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-/// Record one registry-stated command-binding transition as a realm fact.
-///
-/// The argument layout, the dynamic-operand rule, and the alias shape check
-/// all live in the registry's stock resolvers now (ledger C8): this reads
-/// facts, it does not decode words.
-fn record_binding_transition(
-    map: &mut CommandBindingRealm,
-    transition: &CommandBindingTransition,
-    at: u32,
-    registry: &CommandRegistry,
-    declares_valid_procedure: bool,
-) {
-    match transition {
-        CommandBindingTransition::Define { name, .. } => {
-            if declares_valid_procedure {
-                record_proc(map, name, at, registry);
-            }
-        }
-        CommandBindingTransition::Move { from, to } => record_move(map, from, to, at, registry),
-        CommandBindingTransition::Delete { interpreter, name } => {
-            // `rename OLD {}` carries no interpreter; `interp alias {} NAME
-            // {}` carries the source path, and only a deletion in *this*
-            // interpreter changes what the document's later names mean.
-            if interpreter.as_ref().is_none_or(is_current_interpreter)
-                && let Some(name) = static_subject(name)
-            {
-                map.record_both_spellings(name, FactBinding::Deleted, at);
-            }
-        }
-        CommandBindingTransition::Alias {
-            source_interpreter,
-            alias,
-            target_interpreter,
-            target,
-            arguments,
-        } => record_alias(
-            map,
-            AliasFact {
-                source_interpreter,
-                alias,
-                target_interpreter,
-                target,
-                arguments,
-            },
-            at,
-            registry,
-        ),
-        CommandBindingTransition::Unknown { operands } => {
-            // A `rename` whose *source* is dynamic states nothing at all —
-            // neither half of the move can be named. One whose source is
-            // known still vacates that name.
-            if let Some(from) = operands.first().and_then(static_subject) {
-                map.record_both_spellings(from, FactBinding::Deleted, at);
-            }
-        }
-    }
-}
-
-/// The literal value of `subject`, when it is a name this scan may treat as
-/// a static command spelling.
-fn static_subject(subject: &TransitionSubject) -> Option<&str> {
-    subject.literal().filter(|name| is_static_name(name))
-}
-
-/// One `interp alias` fact's operands, bundled so [`record_alias`] stays at
-/// or under the argument limit.
-#[derive(Clone, Copy)]
-struct AliasFact<'a> {
-    source_interpreter: &'a TransitionSubject,
-    alias: &'a TransitionSubject,
-    target_interpreter: &'a TransitionSubject,
-    target: &'a TransitionSubject,
-    arguments: &'a [TransitionSubject],
-}
-
-/// Whether this top-level segmented `proc` can actually create an iRules
-/// procedure declaration.  iRules keeps Tcl's `proc` spelling but restricts
-/// it to the shared declaration surface; a malformed or unterminated body is
-/// not executable and therefore must not poison command-head identity for the
-/// rest of the document.  Other profiles keep ordinary Tcl's name-only
-/// identity semantics.
-fn valid_irules_procedure_declaration(
-    source: &str,
-    seg: &crate::segmenter::SegmentedCommand,
-    registry: &CommandRegistry,
-) -> bool {
-    if !registry
-        .profile()
-        .is_some_and(tcl_dialect::DialectProfile::is_irules)
-    {
-        return true;
-    }
-    let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-    let Some(closed) = tcl_registry::events::closed_braced_argument_words(
-        source,
-        seg.arg_tokens(),
-        seg.arg_single_token(),
-    ) else {
-        return false;
-    };
-    let Some(arguments) = tcl_registry::events::IrulesDeclarationArguments::new(
-        &args,
-        seg.arg_tokens(),
-        seg.arg_single_token(),
-        &closed,
-    ) else {
-        return false;
-    };
-    matches!(
-        registry.irules_top_level_declaration_shape(seg.name(), arguments),
-        Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
     )
 }
 
-/// The spec this profile's command table actually exposes for `name`, or
-/// `None` when the profile disables it.
-///
-/// `CommandRegistry::get` is deliberately dialect-agnostic for diagnostics
-/// such as W002. Realm facts instead model an executed statement, so an
-/// unavailable Tcl command (notably iRules' disabled `interp`, `rename`, and
-/// `namespace`) must produce no fact.
-fn available_spec(registry: &CommandRegistry, name: &str) -> Option<&'static CommandSpec> {
-    registry.profile().map_or_else(
-        || registry.get(name),
-        |profile| registry.get_for_surface(name, Some(profile.surface_query())),
+/// Build a document realm from explicit driver execution provenance.
+#[must_use]
+pub fn document_realm_bindings_with_source_entry(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    entry: &crate::command_binding::SourceAnalysisEntry,
+) -> CommandBindingRealm {
+    realm_from_source_bindings(
+        SourceCommandBindings::analyse_with_options(source, config, registry, entry.options()),
+        registry,
     )
 }
 
-/// [`available_spec`] as a boolean, for the callers that only gate.
-fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
-    available_spec(registry, name).is_some()
-}
-
-/// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops
-/// existing.  (`rename OLD {}` reaches the realm as a `Delete` fact
-/// instead, so this arm only ever sees a genuine move.)
-fn record_move(
-    map: &mut CommandBindingRealm,
-    from: &TransitionSubject,
-    to: &TransitionSubject,
-    at: u32,
+fn realm_from_source_bindings(
+    bindings: SourceCommandBindings,
     registry: &CommandRegistry,
-) {
-    // A dynamic source means neither half of the move can be stated.
-    let Some(old) = static_subject(from) else {
-        return;
-    };
-    if let Some(new) = static_subject(to) {
-        // Only a source the registry models — directly or through an earlier
-        // fact — is worth aliasing; renaming an ordinary user proc leaves `NEW`
-        // an ordinary unknown name, which is already what an absent fact
-        // produces.  A *provably rebound* source is stated, though: it moves
-        // something the registry does not model onto `NEW`, and `NEW` must not
-        // then be read under the built-in's grammar.
-        match inherited_spec(map, old, at, registry) {
-            Some(key) => map.record_both_spellings(new, FactBinding::Spec(key), at),
-            None if map.resolve(old, at).is_rebound() => {
-                map.record_both_spellings(new, FactBinding::TakenOver, at);
-            }
-            None => {}
-        }
-    }
-    // Either way the old name is gone from this point on.
-    map.record_both_spellings(old, FactBinding::Deleted, at);
-}
-
-/// The registry name `source` names at offset `at`, folding in any earlier
-/// fact so a **chain** of bindings composes.
-///
-/// Reading `source` through the map rather than straight off the registry is
-/// what makes `interp alias {} a {} format; rename a b` leave `b` naming
-/// `format` — the behaviour C Tcl has (tclsh 8.6.16 and 9.0.4, byte-identical:
-/// `b %08x 42` answers `0000002a` while `info commands a` answers empty).  The
-/// same read is what stops a chain inheriting a *broken* binding:
-/// `proc format {…} {…}; rename format myfmt` moves the **user proc**, so
-/// `myfmt` must not pick up the built-in's grammar.
-///
-/// `None` means "names nothing the registry models" — either a provably
-/// taken-over spelling or an ordinary unknown name.  The two callers differ in
-/// what they do with that, so the distinction stays at the call site.
-fn inherited_spec(
-    map: &CommandBindingRealm,
-    source: &str,
-    at: u32,
-    registry: &CommandRegistry,
-) -> Option<SpecKey> {
-    match map.fact_at(source, at) {
-        Some(FactBinding::Spec(key)) => Some(key),
-        Some(FactBinding::TakenOver | FactBinding::Deleted) => None,
-        None => available_spec(registry, source).map(SpecKey::new),
-    }
-}
-
-/// `interp alias {} NEW {} TARGET ?arg…?`.  (The deletion form reaches the
-/// realm as a `Delete` fact instead.)
-fn record_alias(
-    map: &mut CommandBindingRealm,
-    fact: AliasFact<'_>,
-    at: u32,
-    registry: &CommandRegistry,
-) {
-    if !is_current_interpreter(fact.source_interpreter) {
-        // A foreign `srcPath` binds a name in a child interpreter; nothing
-        // changes here.  A dynamic path cannot be stated either.
-        return;
-    }
-    let Some(alias) = static_subject(fact.alias) else {
-        return;
-    };
-    if !is_current_interpreter(fact.target_interpreter) {
-        // A foreign *target* path is the one shape worth marking rebound —
-        // the alias exists here but runs elsewhere.
-        map.record_both_spellings(alias, FactBinding::TakenOver, at);
-        return;
-    }
-    // A dynamic target (`interp alias {} myEval {} $target`) names nothing
-    // statically: recording the alias would map `myEval` onto a
-    // never-registered name, so abstain rather than state half a fact.
-    let Some(target) = fact.target.literal() else {
-        return;
-    };
-    // Pre-bound arguments shift every index, so the target's layout cannot be
-    // reused; a target that names nothing the registry models has no layout to
-    // reuse either.  Both cases still *take over* the name — C Tcl lets an
-    // alias shadow an existing command outright (tclsh 8.6.16 / 9.0.4:
-    // `proc myproc …; interp alias {} lindex {} myproc` makes `lindex {a b c}
-    // 1` answer `MINE`) — so the name is marked rebound rather than left alone.
-    // The target is read through the map, so a chain of bindings composes.
-    let effective = fact
-        .arguments
-        .is_empty()
-        .then(|| inherited_spec(map, target, at, registry))
-        .flatten();
-    map.record_both_spellings(
-        alias,
-        effective.map_or(FactBinding::TakenOver, FactBinding::Spec),
-        at,
-    );
-}
-
-/// `proc NAME …` at top level — a user proc that shadows a registry built-in
-/// takes the name over (tclsh 9.0.4: after `proc format {args} {return USER}`,
-/// `format x` is `USER`).
-///
-/// Only a name that *would otherwise* resolve to a registry command is
-/// recorded — either directly, or through an earlier fact (a `proc origfmt`
-/// after `rename format origfmt` takes the moved built-in's name back).  Every
-/// other `proc` leaves the head an ordinary unknown name, which is already what
-/// an absent fact produces.
-fn record_proc(
-    map: &mut CommandBindingRealm,
-    name: &TransitionSubject,
-    at: u32,
-    registry: &CommandRegistry,
-) {
-    let Some(name) = static_subject(name) else {
-        return;
-    };
-    if name.contains("::") {
-        // A qualified `proc ::ns::format` defines a *different* command; only
-        // the global-namespace shadow is stated here.
-        return;
-    }
-    if command_is_available(registry, name) || map.resolves_to_a_command(name, at) {
-        map.record_both_spellings(name, FactBinding::TakenOver, at);
-    }
-}
-
-/// Scan `source` for `namespace import` declarations and map each bare command
-/// name they bring into the global scope to its qualified registry spec name
-/// (`test` → `tcltest::test`).
-///
-/// Recognises the two literal forms — `namespace import EXPORTING::*`
-/// (import-all) and `namespace import EXPORTING::name` (single) — matched
-/// against the registry's `is_namespace_exported` commands in the exporting
-/// namespace.  A bare name that already resolves to a global command is left
-/// alone (Tcl's own `namespace import` refuses to shadow an existing command
-/// without `-force`, and we must not mis-resolve a genuine builtin).  This is a
-/// highlighting-only convenience: it never changes which commands exist, only
-/// lets the registry-driven argument overrides see the real spec for an
-/// unqualified imported command.  Returns an empty map when nothing is imported.
-fn imported_command_aliases(
-    segments: &[crate::segmenter::SegmentedCommand],
-    registry: &CommandRegistry,
-) -> FxHashMap<String, (SpecKey, u32)> {
-    let mut aliases: FxHashMap<String, (SpecKey, u32)> = FxHashMap::default();
-    if !command_is_available(registry, "namespace") {
-        return aliases;
-    }
-    // Wholesale imports (`ns::*`) and single-name imports (`ns::name`), each
-    // tagged with the byte offset of its `namespace import` statement so an
-    // alias only applies to heads at or after it (source order).  Only
-    // top-level imports are seen — a `namespace import` nested inside a
-    // `namespace eval` body is not a top-level segment, so it never leaks a
-    // global bare alias.
-    let mut import_all: Vec<(String, u32)> = Vec::new();
-    let mut import_one: Vec<(String, String, u32)> = Vec::new();
-    for seg in segments {
-        if seg.texts.len() < 3 || seg.texts[0] != "namespace" || seg.texts[1] != "import" {
-            continue;
-        }
-        let import_off = seg.argv[0].span.start();
-        for pat in &seg.texts[2..] {
-            // Skip option flags (`-force`); computed patterns are left alone.
-            if pat.starts_with('-') {
-                continue;
-            }
-            if let Some(ns) = pat.strip_suffix("::*") {
-                import_all.push((ns.trim_start_matches(':').to_string(), import_off));
-            } else if let Some((ns, name)) = pat.rsplit_once("::") {
-                import_one.push((
-                    ns.trim_start_matches(':').to_string(),
-                    name.to_string(),
-                    import_off,
-                ));
-            }
-        }
-    }
-    if import_all.is_empty() && import_one.is_empty() {
-        return aliases;
-    }
-    // Record `name → (spec, offset)`, keeping the *earliest* enabling
-    // import when several would produce the same alias.
-    let mut record = |name: String, key: SpecKey, off: u32| {
-        aliases
-            .entry(name)
-            .and_modify(|(_, o)| *o = (*o).min(off))
-            .or_insert((key, off));
-    };
-    // Import-all: every exported command in an imported namespace whose bare
-    // tail does not already name a global command.
-    if !import_all.is_empty() {
-        for name in registry.command_names() {
-            let Some((ns, tail)) = name.rsplit_once("::") else {
-                continue;
-            };
-            if tail.is_empty() || command_is_available(registry, tail) {
-                continue;
-            }
-            let ns = ns.trim_start_matches(':');
-            let Some(off) = import_all
-                .iter()
-                .filter(|(n, _)| n == ns)
-                .map(|(_, o)| *o)
-                .min()
-            else {
-                continue;
-            };
-            if command_is_available(registry, name)
-                && let Some(spec) = registry.get(name).filter(|s| s.is_namespace_exported)
-            {
-                record(tail.to_string(), SpecKey::new(spec), off);
-            }
-        }
-    }
-    // Single-name imports.
-    for (ns, name, off) in &import_one {
-        if command_is_available(registry, name) {
-            continue;
-        }
-        let qualified = format!("{ns}::{name}");
-        if let Some(spec) = registry
-            .get(&qualified)
-            .filter(|_| command_is_available(registry, &qualified))
-            .filter(|s| s.is_namespace_exported)
-        {
-            record(name.clone(), SpecKey::new(spec), *off);
-        }
-    }
-    aliases
+) -> CommandBindingRealm {
+    let specs = registry
+        .command_names()
+        .filter_map(|name| {
+            registry.get(name).map(|spec| {
+                (
+                    tcl_syntax::naming::normalise_qualified_name(name),
+                    SpecKey::new(spec),
+                )
+            })
+        })
+        .collect();
+    CommandBindingRealm { bindings, specs }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_profile_retains_native_policy_independently_of_lexical_rules() {
+        let registry = CommandRegistry::build_default();
+        for name in ["tcl8.4", "tcl8.6", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).expect("native core");
+            let realm = document_realm_bindings("set x value", profile, &registry);
+            assert_eq!(
+                realm
+                    .invocation_at_source("set", 0)
+                    .variable_context
+                    .invocation_dialect,
+                Some(tcl_registry::InvocationDialect::of_profile(profile))
+            );
+        }
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let realm = document_realm_bindings("set x value", profile, &registry);
+        assert_eq!(
+            realm
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect
+                .and_then(|dialect| dialect.tcl_version),
+            Some(tcl_dialect::TclVersion::V9_0)
+        );
+    }
 
     fn map_for(src: &str) -> CommandBindingRealm {
         let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
@@ -1182,7 +617,13 @@ mod tests {
         assert_eq!(map.resolve("format", 0), RealmBinding::Command("format"));
         assert_eq!(
             map.resolve("format", after_first_line(src)),
-            RealmBinding::Rebound
+            RealmBinding::Command("format"),
+            "the rename entry still sees the old command before its mutation"
+        );
+        assert_eq!(
+            map.resolve("format", u32::try_from(src.len()).unwrap()),
+            RealmBinding::Rebound,
+            "the successful rename continuation has retired the old slot"
         );
     }
 
@@ -1214,11 +655,16 @@ mod tests {
             let at = after_first_line(src);
             assert_eq!(
                 map.resolve("myfmt", at),
-                RealmBinding::Command("myfmt"),
-                "dynamic binding must not state a fact: {src}"
+                RealmBinding::Rebound,
+                "an unresolved target must not acquire a registry identity: {src}"
             );
-            // A dynamic `rename` must not claim the *old* name is gone either.
-            assert_eq!(map.resolve("format", at), RealmBinding::Command("format"));
+            // Missing argv values prevent the transition from being reached;
+            // this cannot donate a new target identity for the alias.
+            assert!(
+                map.invocation_at_source("myfmt", at)
+                    .proved_target()
+                    .is_none()
+            );
         }
     }
 
@@ -1293,12 +739,23 @@ mod tests {
             map.resolve("format", after_first_line(src)),
             RealmBinding::Rebound
         );
-        // A proc that shadows nothing states nothing.
+        // A fresh procedure changes the table even without shadowing a builtin.
         let src = "proc mything {args} { return 1 }\n";
-        assert!(map_for(src).is_empty());
+        let map = map_for(src);
+        assert!(!map.is_empty());
+        assert_eq!(map.resolve("mything", u32::MAX), RealmBinding::Rebound);
+        assert_eq!(
+            map.resolve("format", u32::MAX),
+            RealmBinding::Command("format")
+        );
         // A qualified proc defines a different command entirely.
-        let src = "proc ::ns::format {args} { return 1 }\n";
-        assert!(map_for(src).is_empty());
+        let src = "namespace eval ns {}; proc ::ns::format {args} { return 1 }\n";
+        let map = map_for(src);
+        assert_eq!(map.resolve("::ns::format", u32::MAX), RealmBinding::Rebound);
+        assert_eq!(
+            map.resolve("format", u32::MAX),
+            RealmBinding::Command("format")
+        );
     }
 
     #[test]
@@ -1306,13 +763,30 @@ mod tests {
         // A conditional or deferred binding is not an unconditional statement
         // about the document's command table.
         for src in [
-            "if {$x} { rename format origfmt }\n",
+            "if {0} { rename format origfmt }\n",
             "proc p {} { rename format origfmt }\n",
+        ] {
+            assert_eq!(
+                map_for(src).resolve("format", u32::MAX),
+                RealmBinding::Command("format"),
+                "deferred binding leaked: {src}"
+            );
+        }
+        // Immediate eval and uplevel actually execute their literal bodies.
+        for src in [
             "eval { rename format origfmt }\n",
             "uplevel #0 { rename format origfmt }\n",
-            "interp eval $child { rename format origfmt }\n",
         ] {
-            assert!(map_for(src).is_empty(), "nested binding leaked: {src}");
+            let map = map_for(src);
+            assert_eq!(
+                map.resolve("format", u32::MAX),
+                RealmBinding::Rebound,
+                "executed rename omitted: {src}"
+            );
+            assert_eq!(
+                map.resolve("origfmt", u32::MAX),
+                RealmBinding::Command("format")
+            );
         }
         // A `namespace eval` body *is* unconditional, but it binds in its own
         // namespace: `proc format` there defines `::n::format` and leaves the
@@ -1382,7 +856,7 @@ mod tests {
         );
     }
 
-    /// A body this scan cannot read states nothing at all.
+    /// An unreadable body retains uncertainty rather than a registry identity.
     #[test]
     fn an_unreadable_namespace_body_states_no_local_fact() {
         for src in [
@@ -1391,7 +865,12 @@ mod tests {
             // A non-braced body is not the script Tcl finally runs.
             "namespace eval n $body\n",
         ] {
-            assert!(map_for(src).is_empty(), "unreadable body leaked: {src}");
+            let map = map_for(src);
+            assert_eq!(
+                map.binding_at("format", u32::try_from(src.len()).unwrap()),
+                RealmBindingFact::Rebound,
+                "unreadable namespace body must not license registry semantics: {src}"
+            );
         }
     }
 
@@ -1482,13 +961,11 @@ mod tests {
 
     #[test]
     fn an_unpositioned_read_abstains_when_the_facts_disagree() {
-        // One fact — the unpositioned read matches the positioned one.
+        // The renamed slot was absent before creation. An offset-free query
+        // must retain that disagreement rather than choose the final state.
         let src = "rename format origfmt\n";
         let map = map_for(src);
-        assert_eq!(
-            map.resolve_unpositioned("origfmt"),
-            RealmBinding::Command("format")
-        );
+        assert_eq!(map.resolve_unpositioned("origfmt"), RealmBinding::Rebound);
         assert_eq!(map.resolve_unpositioned("format"), RealmBinding::Rebound);
         // A head nothing binds keeps its own spelling.
         assert_eq!(
@@ -1570,9 +1047,10 @@ mod tests {
         let source = "interp alias {} event {} when\nrename when event\nnamespace import ::x::*\nwhen HTTP_REQUEST {}\n";
         let identities =
             document_realm_bindings(source, tcl_dialect::DialectProfile::irules(), registry);
-        assert!(
-            identities.is_empty(),
-            "disabled commands must not produce command-identity facts"
+        assert_eq!(
+            identities.resolve("when", 0),
+            RealmBinding::Command("when"),
+            "an unavailable mutator must not change the preceding event identity"
         );
         let inferred =
             tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(

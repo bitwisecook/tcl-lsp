@@ -146,14 +146,7 @@ fn build_pass_context<'a>(
     ctx.cross_event_vars = cu
         .connection_scope
         .as_ref()
-        .map(|scope| {
-            scope
-                .cross_event_defs
-                .iter()
-                .chain(scope.cross_event_imports.iter())
-                .cloned()
-                .collect()
-        })
+        .map(crate::connection_scope::ConnectionScope::source_names)
         .unwrap_or_default();
     ctx
 }
@@ -371,7 +364,7 @@ fn couple_propagated_const_dead_stores(
         // Skip a function the complexity guard excluded from deep analysis:
         // its lattices are trivial, so const/dead-store coupling has nothing
         // sound to act on.
-        if fu.complexity_guarded {
+        if fu.complexity_guarded || fu.cfg.has_opaque_native_accesses() {
             continue;
         }
         couple_const_dead_stores_in_function(
@@ -437,8 +430,10 @@ fn couple_const_dead_stores_in_function(
     // Per-variable def count — only single-def scalars qualify.
     let mut def_count: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
     for chain in fu.def_use.chains.values() {
-        if chain.definition.kind == DefKind::Statement {
-            *def_count.entry(chain.key.0.as_str()).or_insert(0) += 1;
+        if chain.definition.kind == DefKind::Statement
+            && let Some(symbol) = fu.ssa.cell_symbol(&chain.key.0)
+        {
+            *def_count.entry(fu.ssa.var_name(symbol)).or_insert(0) += 1;
         }
     }
 
@@ -486,12 +481,13 @@ fn couple_const_dead_store_chain(
     if chain.definition.kind != DefKind::Statement {
         return None;
     }
-    let (var, _ver) = &chain.key;
+    let symbol = fu.ssa.cell_symbol(&chain.key.0)?;
+    let var = fu.ssa.var_name(symbol);
     // Single constant scalar def, never aliased / global / RMW-hidden /
     // traced. The whole-module trace fact stores the canonical
     // (`::`-stripped) spelling, so an unqualified store still
     // matches a `trace add variable ::var …` installed anywhere.
-    if def_count.get(var.as_str()).copied().unwrap_or(0) != 1 {
+    if def_count.get(var).copied().unwrap_or(0) != 1 {
         return None;
     }
     if var.starts_with("::")
@@ -501,12 +497,12 @@ fn couple_const_dead_store_chain(
     {
         return None;
     }
-    // The def-use chain keys on the variable name; resolve it to the SSA
-    // symbol to index the `(Symbol, Version)`-keyed SCCP lattice.
+    // The chain retains cell identity; display names are only used by the
+    // textual coupling guards above and below.
     let is_const = fu
-        .ssa
-        .var_symbol(var)
-        .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
+        .sccp
+        .values
+        .get(&(symbol, chain.key.1))
         .is_some_and(|lv| matches!(lv, LatticeValue::Const(_)));
     if !is_const {
         return None;
@@ -523,6 +519,8 @@ fn couple_const_dead_store_chain(
     }
     let def_block = fu.cfg.block_by_name(&chain.definition.block)?;
     let def_idx = usize::try_from(chain.definition.statement_index).ok()?;
+    fu.cfg
+        .statement_source_edit_span(fu.cfg.block_id(&chain.definition.block)?, def_idx)?;
     let def_stmt = def_block.statements.get(def_idx)?;
     // The def must be a const-foldable scalar assignment whose inlined
     // value carries no substitution metacharacters. Two shapes qualify:
@@ -538,14 +536,13 @@ fn couple_const_dead_store_chain(
     let inlined_value = match def_stmt {
         crate::ir::Statement::AssignConst { value, .. } => value.clone(),
         crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
-            let Some(LatticeValue::Const(c)) = fu
-                .ssa
-                .var_symbol(&chain.key.0)
-                .and_then(|s| fu.sccp.values.get(&(s, chain.key.1)))
-            else {
+            let Some(LatticeValue::Const(c)) = fu.sccp.values.get(&(symbol, chain.key.1)) else {
                 return None;
             };
-            super::helpers::literals::format_constant(c)?
+            super::helpers::literals::format_constant_with_policy(
+                c,
+                crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+            )?
         }
         _ => return None,
     };
@@ -574,7 +571,7 @@ fn couple_const_dead_store_chain(
     // Widen past the inner-end convention before taking the line: a quoted
     // value word leaves its closer outside the statement span, and a deletion
     // that stops short of it strands the closer on a line of its own.
-    let written = full_rewrite_span(source, fu.abs_span(def_stmt.span()));
+    let written = full_rewrite_span(source, fu.abs_span(def_stmt.source_edit_span()?));
     let del_span = line_delete_span(source, written);
     Some(Optimisation::new(
         DiagCode::O109,
@@ -774,23 +771,22 @@ pub fn optimise_raw_for_profile(
     // production callers populate via `with_interprocedural`), so an O103
     // interprocedural fold behaves identically whether exercised through this
     // helper or the real pipeline.
-    let mut cu = CompilationUnit::build_for_with_config(
-        source,
-        registry,
-        false,
-        tcl_lexer::LexerConfig::for_profile(dialect),
+    let mut cu = dialect.map_or_else(
+        || CompilationUnit::build_for(source, registry, false),
+        |profile| CompilationUnit::build_for_profile(source, registry, false, profile),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let identities = crate::realm::document_realm_bindings_with_config(
+    let identities = crate::realm::document_realm_bindings_with_source_entry(
         &cu.source,
-        tcl_lexer::LexerConfig::for_profile(dialect),
+        cu.ir_module.lexer_config,
         registry,
+        &cu.ir_module.source_entry,
     );
     let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
         &cu.ir_module,
         registry,
         dialect,
-        crate::interprocedural::ObjectTypeMap(&object_types),
+        crate::interprocedural::ObjectTypeCandidates::candidates(&object_types),
         &identities,
         Some(&cu.declared_commands),
         &cu.cfg_module,
@@ -954,7 +950,7 @@ mod tests {
     #[test]
     fn empty_source_yields_empty_result() {
         let opts = optimise("", &registry());
-        assert!(opts.is_empty());
+        assert_eq!(opts, [] as [crate::optimiser::Optimisation; 0]);
     }
 
     #[test]
@@ -1312,9 +1308,10 @@ mod tests {
     fn dialect_gated_passes_observe_active_dialect() {
         // irules-only O124 should fire when dialect = f5-irules.
         let src = "proc ::dead {} { return 1 }\nwhen HTTP_REQUEST { set x 0 }\n";
+        let irules = tcl_registry::model::ingress::static_context_for("f5-irules");
         let opts = optimise_with_dialect(
             src,
-            &registry(),
+            irules.commands(),
             Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
@@ -1322,11 +1319,8 @@ mod tests {
             "expected O124 in irules dialect, got {opts:?}",
         );
         // And should NOT fire for plain tcl.
-        let tcl_opts = optimise_with_dialect(
-            src,
-            &registry(),
-            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
-        );
+        let tcl = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let tcl_opts = optimise_with_dialect(src, tcl.commands(), tcl.commands().profile());
         assert!(
             tcl_opts.iter().all(|o| o.code != DiagCode::O124),
             "O124 should be gated on irules dialect, got {tcl_opts:?}",

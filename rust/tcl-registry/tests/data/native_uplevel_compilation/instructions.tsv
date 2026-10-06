@@ -1,0 +1,13 @@
+engine	case	source	uplevel	concat
+9.0	explicit	uplevel 1 {set x OUTER}	0	0
+9.0	default	uplevel {set x OUTER}	0	0
+9.0	concat	uplevel 1 set x OUTER	0	0
+9.0	dynamic	uplevel $level {set x OUTER}	0	0
+9.0	invalid	uplevel -1 {set x OUTER}	0	0
+9.0	sole	uplevel 1	0	0
+9.1	explicit	uplevel 1 {set x OUTER}	1	0
+9.1	default	uplevel {set x OUTER}	1	0
+9.1	concat	uplevel 1 set x OUTER	1	1
+9.1	dynamic	uplevel $level {set x OUTER}	0	0
+9.1	invalid	uplevel -1 {set x OUTER}	0	0
+9.1	sole	uplevel 1	0	0

@@ -62,7 +62,8 @@ pub struct DebugVar {
 pub struct DebugSnapshot {
     /// 1-based source line of the command about to run.
     pub line: u32,
-    /// The command's source text.
+    /// Presentation of the original command bytes. Opaque bytes are escaped;
+    /// this display supplies no executable source or name identity.
     pub command_text: String,
     /// The current (top) frame level.
     pub level: u32,

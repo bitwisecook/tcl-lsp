@@ -1383,7 +1383,7 @@ function renderDisasmFunction(entry, kind) {
     if ((entry.literals || []).length) {
       html += '<div class="disasm-tables-section">Literals:</div>';
       for (var i = 0; i < entry.literals.length; i++) {
-        html += '<div class="wasm-local">' + i + ': "' + esc(entry.literals[i]) + '"</div>';
+        html += '<div class="wasm-local">' + i + ': "' + esc(nativeLiteralDisplay(entry.literals[i])) + '"</div>';
       }
     }
     if ((entry.locals || []).length) {
@@ -2211,6 +2211,17 @@ function normaliseForDiff(entry, kind) {
   return rows;
 }
 
+// Byte-native literals expose an exact byte array when Unicode is unavailable.
+function nativeLiteralDisplay(literal) {
+  if (typeof literal === 'string') return literal;
+  if (literal && Array.isArray(literal.bytes)) {
+    return 'bytes: ' + literal.bytes.map(function (byte) {
+      return byte.toString(16).padStart(2, '0');
+    }).join(' ');
+  }
+  return JSON.stringify(literal);
+}
+
 function normaliseAsmOperand(ins, literals, locals) {
   // Map push1/push4 N → literal text; loadScalar1/storeScalar1 %vN →
   // local name; jump/pc-anchored ops are handled via ``jumpTarget``.
@@ -2220,7 +2231,7 @@ function normaliseAsmOperand(ins, literals, locals) {
   if ((op === 'push1' || op === 'push4') && ins.operandText) {
     var idx = parseInt(ins.operandText);
     if (!isNaN(idx) && idx >= 0 && idx < literals.length) {
-      return { key: 'LIT:' + literals[idx], display: '"' + literals[idx] + '" (#' + idx + ')' };
+      return { key: 'LIT:' + JSON.stringify(literals[idx]), display: '"' + nativeLiteralDisplay(literals[idx]) + '" (#' + idx + ')' };
     }
   }
   if (ins.lvtRef !== null && ins.lvtRef !== undefined) {

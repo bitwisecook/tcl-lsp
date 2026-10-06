@@ -770,10 +770,18 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           max: v.max ?? null,
           step: v.step ?? 0,
           also_exact: v.also_exact ?? null,
+          count: v.count ?? "arguments",
           ...patch,
         });
       };
+      const count = el("select", {}, [
+        el("option", { value: "arguments", text: "all arguments" }),
+        el("option", { value: "positionals", text: "positional operands" }),
+      ]) as HTMLSelectElement;
+      count.value = v.count === "positionals" ? "positionals" : "arguments";
+      count.addEventListener("change", () => update({ count: count.value }));
       return el("div", { class: "ctl" }, [
+        labelled("count", count),
         labelled(
           "min",
           numberInput(asNumber(v.min) ?? 0, (n) => update({ min: n ?? 0 })),
@@ -1159,7 +1167,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         asArray(value),
         () => ({
           name: "",
-          arity: { min: 0, max: null, step: 0, also_exact: null },
+          arity: { min: 0, max: null, step: 0, also_exact: null, count: "arguments" },
           selector: null,
           arg_roles: [],
           options: [],

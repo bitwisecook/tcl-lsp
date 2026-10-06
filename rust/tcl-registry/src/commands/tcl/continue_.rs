@@ -33,6 +33,11 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Continue];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "continue",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Continue,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

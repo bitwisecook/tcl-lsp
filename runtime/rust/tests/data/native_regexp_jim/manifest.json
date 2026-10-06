@@ -1,0 +1,85 @@
+{
+  "version": "Jim0.84",
+  "command": [
+    "cc",
+    "-I",
+    "/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-command-jim-regexp/probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/2286-command-jim-regexp/probe"
+  ],
+  "sources": {
+    "/workspace/.proofs/2286-command-jim-regexp/probe.c": "dbd3c02c4d9b11f3f8cf91cefbffef96ca8a128ed6d84fd20fcec46315372f2e",
+    "/tmp/2286-oracles/jimtcl/jim-regexp.c": "7b0f5acc1cb334b3d372d0a4ce991d7553941983fc7be5ee5026216fa6053ddd",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jimregexp.c": "97cff9c0d8f2b0b6e09c40b46e77d09b80e667ea50aa2382e5e9b74552692acf",
+    "/tmp/2286-oracles/jimtcl/jimregexp.h": "0d23cc41b3f40be1545deb96b42fca290f0b6e80bb0710b4476dbc33a8b02e49",
+    "/tmp/2286-oracles/jimtcl/utf8.c": "905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jimautoconf.h": "c72023de18863d3d368bbb135692e92848cc79b5a49ed96cc68cf97b8fd49e89",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/workspace/.proofs/2286-command-jim-regexp/probe": "ee57f547d7d45cb3ed4c065af67784ba467993b8933e1cce40f0024204a39c70"
+  },
+  "captures": [
+    {
+      "case": 0,
+      "exit": 0,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\t61\n",
+      "stderr": ""
+    },
+    {
+      "case": 1,
+      "exit": 0,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\ncache\t1\nafter\tregexp\t0\t1\n",
+      "stderr": ""
+    },
+    {
+      "case": 2,
+      "exit": -11,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\n",
+      "stderr": ""
+    },
+    {
+      "case": 3,
+      "exit": -6,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\nduplicate\tregexp\t1\t1\ncache\t1\n",
+      "stderr": "free(): double free detected in tcache 2\n"
+    },
+    {
+      "case": 4,
+      "exit": 0,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tff\n",
+      "stderr": ""
+    },
+    {
+      "case": 5,
+      "exit": 0,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tc080\n",
+      "stderr": ""
+    },
+    {
+      "case": 6,
+      "exit": 0,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\ncode\t0\npatternafter\tregexp\t1\t1\nsubject\tnone\t1\t1\nresult\tint\t0\t1\nrange\tstring\t1\t1\nbytes\tf09f9880\n",
+      "stderr": ""
+    },
+    {
+      "case": 7,
+      "exit": 0,
+      "stdout": "pattern\tnone\t1\t1\ncompile\t0\n",
+      "stderr": ""
+    },
+    {
+      "case": 8,
+      "exit": -11,
+      "stdout": "pattern\tregexp\t1\t1\ncompile\t1\n",
+      "stderr": ""
+    }
+  ]
+}

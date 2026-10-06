@@ -16,432 +16,58 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Option-shape factory proc specialisation.
+//! Bounded analysis coverage for bodies installed by native procedure factories.
 //!
-//! Drives the tcltest `Option` pattern:
-//!
-//! ```tcl
-//! proc Configure {name default description} {
-//!     proc $name {{value {}}} [subst -nocommands {
-//!         if {[string length $value] > 0} {
-//!             set Option($name) $value
-//!         }
-//!         return $Option($name)
-//!     }]
-//! }
-//!
-//! Configure verbose 0 "verbose flag"
-//! Configure skip {} "patterns to skip"
-//! ```
-//!
-//! Each call to `Configure` with literal args creates a dedicated
-//! helper proc (`verbose`, `skip`, …). Lowering passes lower the
-//! *factory itself* well — the inner `proc $name` substitutes when
-//! its name and body template are const-known. But the call sites
-//! at top level still fire the factory through interpreted dispatch
-//! on every invocation, which is what this pass fixes.
+//! Lowering retains exact installation receipts and evaluated body origins.
+//! This pass only limits that metadata. Factory calls stay in the executable IR;
+//! neither a lexical declaration shape nor an analysis body installs a callable.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-use tcl_lexer::TokenType;
 use tcl_registry::CommandRegistry;
 
-use crate::ir::{Module, Procedure, Script, Statement};
-use crate::lowering::Lowerer;
-use crate::subst_nocommands::subst_nocommands;
+use crate::ir::Module;
 
-/// The extracted specialisation recipe for an Option-shape factory.
-///
-/// Populated by [`detect_factory_shape`]. Consumed by the call-site
-/// rewriter in [`specialise_factories`] to synthesise per-call
-/// helper procs.
-#[derive(Debug, Clone)]
-pub struct FactoryShape {
-    /// The factory proc's qualified name (e.g. `::Configure`).
-    pub qualified_name: String,
-    /// All parameters of the factory, in declaration order. Used by
-    /// the rewriter to build the `param -> literal-arg` map from a
-    /// call-site's positional args.
-    pub params: Vec<String>,
-    /// Name of the factory parameter whose value becomes the
-    /// synthesised child proc's command name.
-    pub name_param: String,
-    /// Literal params-spec of the child proc (second argument to the
-    /// inner `proc`).
-    pub child_params: String,
-    /// Template body for the inner `proc`. Fed through
-    /// [`subst_nocommands`] with a `param -> literal-arg` map per
-    /// call site.
-    pub child_body_template: String,
-}
-
-/// Default per-factory specialisation cap.
-///
-/// An upper bound on how many call sites of a single factory we
-/// will specialise.
+/// Default number of analysis bodies retained per actual allocation instruction.
 pub const DEFAULT_FACTORY_CAP: usize = 64;
 
-/// Walk every procedure in *module* and rewrite call sites of any
-/// detected Option-shape factory to synthesise a per-call child
-/// proc. Mutates the module in place.
+/// Limit factory body metadata without changing native calls or declarations.
 pub fn specialise_factories(module: &mut Module, registry: &CommandRegistry) {
     specialise_factories_with_cap(module, registry, DEFAULT_FACTORY_CAP);
 }
 
-/// Same as [`specialise_factories`] but with an explicit per-factory
-/// specialisation cap.
-pub fn specialise_factories_with_cap(module: &mut Module, registry: &CommandRegistry, cap: usize) {
-    // The registry carries the environment's profile, so the factory body's
-    // `[subst -nocommands {…}]` interior is segmented under the document's own
-    // grammar.
-    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
-    let mut factories: HashMap<String, FactoryShape> = HashMap::new();
-    for (qname, proc) in &module.procedures {
-        if module.redefined_procedures.contains(qname) {
-            continue;
-        }
-        if let Some(shape) = detect_factory_shape(proc, config, registry) {
-            factories.insert(qname.clone(), shape);
-        }
+/// Apply an explicit cap per exact source allocation site. Names are display
+/// labels; source instance and allocation instruction identify the grouping.
+pub fn specialise_factories_with_cap(module: &mut Module, _registry: &CommandRegistry, cap: usize) {
+    let mut counts = BTreeMap::new();
+    let removed: Vec<_> = module
+        .installed_procedure_body_units
+        .iter()
+        .filter_map(|(label, allocation)| {
+            let count = counts.entry(allocation.site.clone()).or_insert(0usize);
+            *count += 1;
+            (*count > cap).then(|| label.clone())
+        })
+        .collect();
+    for label in removed {
+        module.installed_procedure_body_units.remove(&label);
+        module.body_units.remove(&label);
+        module.lambda_body_units.remove(&label);
     }
-    if factories.is_empty() {
-        return;
+    let removed: Vec<_> = module
+        .original_declaration_body_units
+        .iter()
+        .filter_map(|(label, allocation)| {
+            let count = counts.entry(allocation.site.clone()).or_insert(0usize);
+            *count += 1;
+            (*count > cap).then(|| label.clone())
+        })
+        .collect();
+    for label in removed {
+        module.original_declaration_body_units.remove(&label);
+        module.body_units.remove(&label);
+        module.lambda_body_units.remove(&label);
     }
-
-    let mut counts: HashMap<String, usize> = factories.keys().map(|k| (k.clone(), 0)).collect();
-
-    let mut top = std::mem::take(&mut module.top_level);
-    let synthesised_top = rewrite_script(&mut top, &factories, registry, "::", &mut counts, cap);
-    module.top_level = top;
-    for (name, params, body) in synthesised_top {
-        register_synthesised(module, &name, &params, body);
-    }
-
-    let proc_qnames: Vec<String> = module.procedures.keys().cloned().collect();
-    for qname in proc_qnames {
-        let caller_ns = namespace_of(&qname);
-        let proc = module.procedures.get_mut(&qname).expect("proc key present");
-        let mut body = std::mem::take(&mut proc.body);
-        let synthesised_proc = rewrite_script(
-            &mut body,
-            &factories,
-            registry,
-            &caller_ns,
-            &mut counts,
-            cap,
-        );
-        proc.body = body;
-        for (n, p, b) in synthesised_proc {
-            register_synthesised(module, &n, &p, b);
-        }
-    }
-}
-
-fn register_synthesised(module: &mut Module, name: &str, params: &str, body: Script) {
-    let qualified = if name.starts_with("::") {
-        name.to_string()
-    } else {
-        format!("::{name}")
-    };
-    let proc = Procedure {
-        name: name.to_string(),
-        qualified_name: qualified.clone(),
-        params: parse_simple_params(params),
-        span: tcl_lexer::Span::new(0, 0),
-        body,
-        params_raw: params.to_string(),
-        body_source: None,
-        body_offset: 0,
-        namespace_scoped: false,
-        base_priority: 500,
-    };
-    module.procedures.insert(qualified, proc);
-}
-
-fn parse_simple_params(text: &str) -> Vec<String> {
-    text.split_whitespace().map(str::to_owned).collect()
-}
-
-fn namespace_of(qname: &str) -> String {
-    if let Some(idx) = qname.rfind("::") {
-        if idx == 0 {
-            return "::".to_string();
-        }
-        return qname[..idx].to_string();
-    }
-    "::".to_string()
-}
-
-fn resolve_target<'a>(
-    command: &str,
-    caller_ns: &str,
-    factories: &'a HashMap<String, FactoryShape>,
-) -> Option<&'a String> {
-    if command.starts_with("::") {
-        return factories.get_key_value(command).map(|(k, _)| k);
-    }
-    if caller_ns != "::" {
-        let candidate = format!("{caller_ns}::{command}");
-        if let Some((k, _)) = factories.get_key_value(&candidate) {
-            return Some(k);
-        }
-    }
-    let root = format!("::{command}");
-    factories.get_key_value(&root).map(|(k, _)| k)
-}
-
-/// Recognise the Option-shape factory pattern in *proc*.
-///
-/// Returns `Some(FactoryShape)` when the proc body is exactly one
-/// `Statement::Barrier { reason: "dynamic proc name", command:
-/// "proc", … }` whose tokens match the gate, or `None` otherwise.
-#[must_use]
-pub fn detect_factory_shape(
-    proc: &Procedure,
-    config: tcl_lexer::LexerConfig,
-    registry: &CommandRegistry,
-) -> Option<FactoryShape> {
-    let stmts = &proc.body.statements;
-    if stmts.len() != 1 {
-        return None;
-    }
-    let last = &stmts[0];
-    let Statement::Barrier {
-        reason,
-        command,
-        tokens,
-        ..
-    } = last
-    else {
-        return None;
-    };
-    if reason != "dynamic proc name" || command != "proc" {
-        return None;
-    }
-    let tk = tokens.as_ref()?;
-    if tk.argv.len() != 4 {
-        return None;
-    }
-    if !tk.single_token_word.iter().take(4).all(|&b| b) {
-        return None;
-    }
-    let argv_texts = &tk.argv_texts;
-    if argv_texts.len() != 4 {
-        return None;
-    }
-    // We need the original Token::kind to gate name/body — but
-    // CommandTokens.argv stores Spans only. The lowering preserves
-    // the kind information for the proc-name word via the original
-    // ``$var`` text starting with ``$``. For the body we check the
-    // text shape: a CMD token's text starts with ``[`` and ends
-    // with ``]`` (the segmenter's content_offset stripping isn't
-    // applied to argv_texts, so we see the original brackets).
-    let name_text = &argv_texts[1];
-    let params_text = &argv_texts[2];
-    let body_text = &argv_texts[3];
-
-    // Name must be a single ``$var`` / ``${var}`` reference matching
-    // one of the factory's params.
-    let name_param = if let Some(rest) = name_text.strip_prefix("${") {
-        rest.strip_suffix('}')?
-    } else {
-        name_text.strip_prefix('$')?
-    };
-    if name_param.contains('$')
-        || name_param.contains('[')
-        || name_param.contains('(')
-        || name_param.contains("::")
-        || !name_param
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    {
-        return None;
-    }
-    if !proc.params.iter().any(|p| p == name_param) {
-        return None;
-    }
-
-    // Params spec must be a literal — accept brace-delimited
-    // (starts/ends with `{}`) or a bareword without ``$`` / ``[``.
-    let child_params = if params_text.starts_with('{') && params_text.ends_with('}') {
-        params_text[1..params_text.len() - 1].to_string()
-    } else if !params_text.contains('$') && !params_text.contains('[') {
-        params_text.clone()
-    } else {
-        return None;
-    };
-
-    // Body is a CMD token: text begins with ``[`` and ends with
-    // ``]``. Re-parse the inner text to extract the subst -nocommands
-    // template.
-    if !body_text.starts_with('[') || !body_text.ends_with(']') {
-        return None;
-    }
-    let inner = &body_text[1..body_text.len() - 1];
-    let template = extract_subst_nocommands_template(inner, config, registry)?;
-
-    Some(FactoryShape {
-        qualified_name: proc.qualified_name.clone(),
-        params: proc.params.clone(),
-        name_param: name_param.to_string(),
-        child_params,
-        child_body_template: template,
-    })
-}
-
-/// Extract the brace-string template from a `subst` command-substitution
-/// body the registry says performs
-/// [`SUBST_NOCOMMANDS_KINDS`](crate::lowering::SUBST_NOCOMMANDS_KINDS) — the
-/// effect set [`subst_nocommands`] reproduces, whether the call spells it
-/// `-nocommands` or, from Tcl 9.1, `-variables -backslashes`. Returns `None`
-/// for any other shape, including one that also turns backslash or variable
-/// substitution off: those change what the template substitutes to, so the
-/// materialised body would not match. Used by [`detect_factory_shape`].
-///
-/// The registry answers a call it cannot read — a computed switch word —
-/// with every kind, which is not this set, so the shape is refused.
-fn extract_subst_nocommands_template(
-    inner: &str,
-    config: tcl_lexer::LexerConfig,
-    registry: &CommandRegistry,
-) -> Option<String> {
-    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    if segments.len() != 1 {
-        return None;
-    }
-    let cmd = &segments[0];
-    if cmd.texts.is_empty() || cmd.texts[0] != "subst" {
-        return None;
-    }
-    let texts = cmd.args();
-    let arg_refs: Vec<&str> = texts.iter().map(String::as_str).collect();
-    if registry.substitutions_performed(&cmd.texts[0], &arg_refs)
-        != Some(crate::lowering::SUBST_NOCOMMANDS_KINDS)
-    {
-        return None;
-    }
-    // The operand is the call's final argument; only a braced literal one is
-    // a template the materialiser can substitute into.
-    let idx = texts.len().checked_sub(1)?;
-    if !cmd.single_token_word.get(idx + 1).copied().unwrap_or(false) {
-        return None;
-    }
-    if cmd.arg_tokens().get(idx)?.kind != TokenType::Str {
-        return None;
-    }
-    Some(texts[idx].clone())
-}
-
-/// Walk *script*, rewriting matching call sites and collecting the
-/// synthesised child procs.
-fn rewrite_script(
-    script: &mut Script,
-    factories: &HashMap<String, FactoryShape>,
-    registry: &CommandRegistry,
-    namespace: &str,
-    counts: &mut HashMap<String, usize>,
-    cap: usize,
-) -> Vec<(String, String, Script)> {
-    let mut synthesised: Vec<(String, String, Script)> = Vec::new();
-    for stmt in &mut script.statements {
-        // Recurse into Block bodies; call sites nested in other structured
-        // statements are not rewritten.
-        if let Statement::Block { body, .. } = stmt {
-            let inner = rewrite_script(body, factories, registry, namespace, counts, cap);
-            synthesised.extend(inner);
-            continue;
-        }
-        if let Some(replacement) =
-            try_specialise_call(stmt, factories, registry, namespace, counts, cap)
-        {
-            let (new_stmt, name, params, body) = replacement;
-            synthesised.push((name, params, body));
-            *stmt = new_stmt;
-        }
-    }
-    synthesised
-}
-
-fn try_specialise_call(
-    stmt: &Statement,
-    factories: &HashMap<String, FactoryShape>,
-    registry: &CommandRegistry,
-    namespace: &str,
-    counts: &mut HashMap<String, usize>,
-    cap: usize,
-) -> Option<(Statement, String, String, Script)> {
-    let Statement::Call {
-        command,
-        args,
-        span,
-        tokens,
-        ..
-    } = stmt
-    else {
-        return None;
-    };
-    let target = resolve_target(command, namespace, factories)?;
-    let target = target.clone();
-    let shape = factories.get(&target)?;
-    if args.len() != shape.params.len() {
-        return None;
-    }
-    // per-factory cap.
-    let count = counts.entry(target.clone()).or_insert(0);
-    if *count >= cap {
-        return None;
-    }
-    // Each arg must be a literal token (single STR or single ESC
-    // without substitutions).
-    let tk = tokens.as_ref()?;
-    if tk.argv_texts.len() != args.len() + 1 {
-        return None;
-    }
-    let mut bindings: HashMap<String, String> = HashMap::new();
-    for (i, param) in shape.params.iter().enumerate() {
-        let single = tk.single_token_word.get(i + 1).copied().unwrap_or(false);
-        if !single {
-            return None;
-        }
-        if tk
-            .expand_word
-            .as_ref()
-            .is_some_and(|ew| ew.get(i + 1).copied().unwrap_or(false))
-        {
-            return None;
-        }
-        let arg_text = &args[i];
-        // Inspect the original argv_texts to determine literal-ness.
-        // STR literals are passed as their unbraced content; ESC
-        // bareword literals must not contain `$` / `[`.
-        if arg_text.contains('$') || arg_text.contains('[') {
-            return None;
-        }
-        bindings.insert(param.clone(), arg_text.clone());
-    }
-    let materialised = subst_nocommands(&shape.child_body_template, &bindings)?;
-    // The child proc's name comes from the bound name_param.
-    let child_name = bindings.get(&shape.name_param)?.clone();
-    if child_name.is_empty() || child_name.contains(' ') {
-        return None;
-    }
-    // Lower the materialised body as a fresh script.
-    let mut lowerer = Lowerer::with_config(
-        registry,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    );
-    let body = lowerer.lower_into_script(&materialised, "::");
-    *count += 1;
-    // Replace the call site with a no-op Block (the synthesised
-    // proc registration happens out-of-band via the caller).
-    let replacement = Statement::Block {
-        span: *span,
-        body: Script::default(),
-        namespace: namespace.to_string(),
-        tokens: tokens.clone(),
-        error_context: None,
-    };
-    Some((replacement, child_name, shape.child_params.clone(), body))
 }
 
 #[cfg(test)]
@@ -449,117 +75,102 @@ mod tests {
     use super::*;
     use crate::lowering::lower_to_ir;
 
-    fn reg() -> CommandRegistry {
+    fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
     }
 
-    #[test]
-    fn detects_canonical_factory_shape() {
-        let m = lower_to_ir(
-            "proc Configure {name default description} {\n  proc $name {x} [subst -nocommands {return $default}]\n}",
-            &reg(),
-        );
-        let proc = m.procedures.get("::Configure").expect("registered");
-        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg())
-            .expect("expected factory");
-        assert_eq!(shape.qualified_name, "::Configure");
-        assert_eq!(shape.name_param, "name");
-        assert_eq!(shape.child_params, "x");
-        assert!(shape.child_body_template.contains("return $default"));
+    fn factory(source: &str) -> Module {
+        lower_to_ir(source, &registry())
     }
 
-    /// Tcl 9.1's positive family reaches the same effect set the
-    /// materialiser reproduces, so it folds the same way.
-    ///
-    /// tclsh 9.1b0, with `name` set to `world`:
-    /// `subst -variables -backslashes {hello $name\n[format X]}` → `hello
-    /// world`, a newline, then the untouched `[format X]` — variables and
-    /// backslashes substituted, commands not.
-    #[test]
-    fn detects_factory_shape_with_tcl91_positive_switches() {
-        let m = lower_to_ir(
-            "proc Configure {name default description} {\n  proc $name {x} [subst -variables -backslashes {return $default}]\n}",
-            &reg(),
-        );
-        let proc = m.procedures.get("::Configure").expect("registered");
-        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg())
-            .expect("expected factory");
-        assert!(shape.child_body_template.contains("return $default"));
-    }
-
-    /// A computed switch word makes the call unreadable, and the registry
-    /// answers every kind — never this materialiser's effect set.
-    #[test]
-    fn rejects_factory_with_computed_subst_switch() {
-        let m = lower_to_ir(
-            "proc Configure {name default opt} {\n  proc $name {x} [subst $opt {return $default}]\n}",
-            &reg(),
-        );
-        let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
+    fn installed(module: &Module) -> Vec<&crate::ir::Procedure> {
+        module
+            .installed_procedure_body_units
+            .keys()
+            .map(|key| &module.body_units[key])
+            .collect()
     }
 
     #[test]
-    fn rejects_factory_with_multiple_statements() {
-        // Two statements in body — current detector only matches the
-        // single-statement shape.
-        let m = lower_to_ir(
-            "proc Configure {name default} {\n  set foo 1\n  proc $name {x} [subst -nocommands {return $default}]\n}",
-            &reg(),
+    fn installed_factory_body_is_analysis_only_and_call_is_retained() {
+        let mut module = factory(
+            "proc F {name value} {proc $name {x} [subst -nocommands {return $value}]}\nF made 7",
         );
-        let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
-    }
-
-    #[test]
-    fn rejects_factory_with_non_param_name() {
-        // Inner ``\$other`` doesn't match any of the factory's
-        // parameters — refuse.
-        let m = lower_to_ir(
-            "proc Configure {name default} {\n  proc $other {x} [subst -nocommands {return $default}]\n}",
-            &reg(),
+        let before = module.top_level.clone();
+        specialise_factories(&mut module, &registry());
+        let units = installed(&module);
+        assert_eq!(
+            units.len(),
+            1,
+            "{:#?}",
+            module.installed_procedure_body_units
         );
-        let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default(), &reg()).is_none());
-    }
-
-    #[test]
-    fn specialiser_synthesises_per_call_proc() {
-        let mut m = lower_to_ir(
-            "proc Configure {name default description} {\n  proc $name {x} [subst -nocommands {return $default}]\n}\nConfigure verbose 0 \"verbose flag\"",
-            &reg(),
-        );
-        specialise_factories(&mut m, &reg());
+        assert_eq!(units[0].name, "::made");
+        assert_eq!(units[0].body_source.as_deref(), Some("return 7"));
+        assert_eq!(units[0].params, ["x"]);
+        assert!(!module.procedures.contains_key("::made"));
+        assert_eq!(module.top_level, before);
         assert!(
-            m.procedures.contains_key("::verbose"),
-            "expected ::verbose synthesised, got {:?}",
-            m.procedures.keys().collect::<Vec<_>>()
+            module
+                .executable_script_roots()
+                .iter()
+                .all(|(body, _)| *body != &units[0].body)
         );
     }
 
     #[test]
-    fn specialiser_skips_calls_with_dynamic_args() {
-        let mut m = lower_to_ir(
-            "proc Configure {name default description} {\n  proc $name {x} [subst -nocommands {return $default}]\n}\nConfigure $dyn 0 desc",
-            &reg(),
-        );
-        specialise_factories(&mut m, &reg());
-        // ``\$dyn`` arg made literal-resolution fail; no synthesis.
-        assert!(!m.procedures.contains_key("::verbose"));
+    fn metadata_requires_reached_normal_installation() {
+        for source in [
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}",
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nF $unknown 7",
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nrename subst oldsubst\nproc subst args {error BOOM}\ncatch {F made 7}",
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nF made 7\nrename made {}",
+        ] {
+            let module = factory(source);
+            assert!(installed(&module).is_empty(), "{source}");
+        }
     }
 
     #[test]
-    fn specialiser_respects_per_factory_cap() {
-        let mut m = lower_to_ir(
-            "proc F {name default} {\n  proc $name {x} [subst -nocommands {return $default}]\n}\nF a 1\nF b 2\nF c 3",
-            &reg(),
+    fn metadata_uses_actual_definition_namespace_not_caller_namespace() {
+        let module = factory(
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nnamespace eval n {F made 7}",
         );
-        specialise_factories_with_cap(&mut m, &reg(), 2);
-        assert!(m.procedures.contains_key("::a"));
-        assert!(m.procedures.contains_key("::b"));
-        assert!(
-            !m.procedures.contains_key("::c"),
-            "third call past cap should not synthesise"
+        let units = installed(&module);
+        assert_eq!(units.len(), 1);
+        assert_eq!(units[0].name, "::made");
+        assert!(units[0].qualified_name.starts_with("::installed-body#"));
+    }
+
+    #[test]
+    fn jim_definition_result_and_native_call_are_preserved() {
+        let registry = tcl_registry::model::ingress::static_context_for("jim").commands();
+        let mut module = lower_to_ir(
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nset result [F made 7]",
+            registry,
         );
+        let before = module.top_level.clone();
+        specialise_factories(&mut module, registry);
+        assert_eq!(installed(&module).len(), 1);
+        assert_eq!(module.top_level, before);
+        assert!(!module.procedures.contains_key("::made"));
+        assert_eq!(
+            module.parameter_grammar(),
+            Some(tcl_dialect::ParameterGrammar::Jim)
+        );
+    }
+
+    #[test]
+    fn cap_limits_metadata_and_preserves_calls() {
+        let mut module = factory(
+            "proc F {name value} {proc $name {} [subst -nocommands {return $value}]}\nF a 1\nF b 2",
+        );
+        assert_eq!(installed(&module).len(), 2);
+        let before = module.top_level.clone();
+        specialise_factories_with_cap(&mut module, &registry(), 1);
+        assert_eq!(installed(&module).len(), 1);
+        assert_eq!(module.top_level, before);
+        assert!(!module.procedures.contains_key("::a"));
+        assert!(!module.procedures.contains_key("::b"));
     }
 }

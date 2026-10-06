@@ -737,6 +737,10 @@ pub mod adapters {
         ObjectDispatch,
         /// Safe-interpreter and hidden-command policy state.
         InterpreterPolicy,
+        /// Current interpreter result storage.
+        InterpreterResult,
+        /// Current interpreter completion metadata.
+        CompletionState,
         /// Package-loading state.
         PackageState,
         /// Host-provided capability state.
@@ -777,6 +781,8 @@ pub mod adapters {
                 tcl_registry::WorldStateDomain::CommandTraces => Self::CommandTraces,
                 tcl_registry::WorldStateDomain::OoDispatch => Self::ObjectDispatch,
                 tcl_registry::WorldStateDomain::InterpreterPolicy => Self::InterpreterPolicy,
+                tcl_registry::WorldStateDomain::InterpreterResult => Self::InterpreterResult,
+                tcl_registry::WorldStateDomain::CompletionState => Self::CompletionState,
                 tcl_registry::WorldStateDomain::PackageState => Self::PackageState,
                 tcl_registry::WorldStateDomain::HostCapabilities => Self::HostCapabilities,
                 tcl_registry::WorldStateDomain::VariableStore => Self::VariableStore,
@@ -991,6 +997,8 @@ pub mod adapters {
                 // interpreter, never to its current namespace.
                 WorldRegionKind::InterpreterTopology
                 | WorldRegionKind::InterpreterPolicy
+                | WorldRegionKind::InterpreterResult
+                | WorldRegionKind::CompletionState
                 | WorldRegionKind::PackageState => (
                     WorldInterpreterScope::from_registry(&access.interpreter),
                     WorldNamespaceScope::Any,
@@ -1482,10 +1490,11 @@ mod tests {
             StateVersion::INITIAL,
         );
         let place_state = place_builder.finish().expect("valid place records");
-        assert!(
+        assert_eq!(
             place_state
                 .definitions_overlapping(&second_element, &place_policy)
-                .is_empty()
+                .len(),
+            0
         );
         assert!(place_state.definition_may_overlap(place_version, &whole_array, &place_policy));
 

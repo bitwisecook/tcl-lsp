@@ -31,7 +31,7 @@ use std::collections::HashMap;
 
 use tcl_compiler::cfg::{Block as CfgBlock, Function, Terminator};
 use tcl_compiler::{BinOp, ExprNode, Statement, UnaryOp, parse_expr};
-use tcl_lexer::Span;
+use tcl_lexer::{LexerConfig, Span};
 use tcl_registry::Traits;
 use tcl_registry::bpf_op::{
     BpfDeclKind, BpfOpKind, BpfProgTypeSet, BpfScalarWidth, BpfVerdictKind,
@@ -70,6 +70,21 @@ pub fn lower_function(
     prog_type: ProgType,
     registry: &CommandRegistry,
 ) -> Result<BpfProgram, BpfError> {
+    let config = registry
+        .profile()
+        .map_or_else(LexerConfig::default, |profile| {
+            LexerConfig::from_grammar(profile.grammar)
+        });
+    lower_function_with_config(func, prog_type, registry, config)
+}
+
+/// The source frontend retains native grammar independently of its registry.
+pub(crate) fn lower_function_with_config(
+    func: &Function,
+    prog_type: ProgType,
+    registry: &CommandRegistry,
+    lexer_config: LexerConfig,
+) -> Result<BpfProgram, BpfError> {
     // v1 supports no loops; reject any back-edge up front. Bounded loops are a
     // planned follow-on.
     if let Some(span) = first_loop_span(func) {
@@ -88,6 +103,7 @@ pub fn lower_function(
         // was built for.
         numbers: registry.numbers(),
         expr_dialect: registry.profile().map(|profile| profile.name),
+        lexer_config,
         prog_type,
         env: HashMap::new(),
         slot_types: Vec::new(),
@@ -141,6 +157,8 @@ struct Lowerer<'f> {
     /// this cannot inherit the ambient grammar of an interpreter that happened
     /// to run earlier on the current thread.
     expr_dialect: Option<&'static str>,
+    /// Original variable syntax at the actual source entry.
+    lexer_config: LexerConfig,
     /// Program type — selects verdict semantics (`accept`/`drop` vs `pass`/`tx`).
     prog_type: ProgType,
     /// Typed symbol table: variable name → (stable slot, type). Function-global
@@ -751,6 +769,11 @@ impl Lowerer<'_> {
             ));
         };
         match op.kind {
+            BpfOpKind::Conditional => Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                "BPF conditional requires a valid clause grammar and literal source operands",
+            )),
             BpfOpKind::ScalarSet(width) => {
                 if args.len() != 2 {
                     return Err(arity(span, cmd, "NAME {EXPR}"));
@@ -832,6 +855,50 @@ impl Lowerer<'_> {
         parse_expr(source, self.expr_dialect)
     }
 
+    /// Resolve a scalar operand from its complete original spelling. The AST
+    /// dependency label cannot identify a BPF slot for an indexed reference.
+    fn lower_variable_reference(&self, node: &ExprNode, span: Span) -> Result<SlotId, BpfError> {
+        let reference = node
+            .variable_reference(self.lexer_config)
+            .ok()
+            .flatten()
+            .filter(|reference| reference.index.is_none())
+            .ok_or_else(|| {
+                BpfError::new(
+                    BpfDiag::OutOfSubset,
+                    span,
+                    "only complete scalar variable references are supported in BPF expressions",
+                )
+            })?;
+        let name = std::str::from_utf8(reference.name).map_err(|_| {
+            BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                "a BPF variable reference must have a Unicode name",
+            )
+        })?;
+        if tcl_syntax::naming::split_element_ref(name).is_some() {
+            return Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span,
+                "array element reads are not supported in BPF expressions",
+            ));
+        }
+        match self.env.get(name).copied() {
+            Some((slot, Ty::Int)) => Ok(slot),
+            Some((_, other)) => Err(BpfError::new(
+                BpfDiag::TypeMismatch,
+                span,
+                format!("`${name}` is {other:?} and cannot be used in an integer expression"),
+            )),
+            None => Err(BpfError::new(
+                BpfDiag::UndefinedVar,
+                span,
+                format!("undefined variable `${name}`"),
+            )),
+        }
+    }
+
     fn lower_expr(
         &mut self,
         node: &ExprNode,
@@ -851,19 +918,7 @@ impl Lowerer<'_> {
                 insts.push(Inst::Const { dst, val, span });
                 Ok(dst)
             }
-            ExprNode::Var { name, .. } => match self.env.get(name).copied() {
-                Some((slot, Ty::Int)) => Ok(slot),
-                Some((_, other)) => Err(BpfError::new(
-                    BpfDiag::TypeMismatch,
-                    span,
-                    format!("`${name}` is {other:?} and cannot be used in an integer expression"),
-                )),
-                None => Err(BpfError::new(
-                    BpfDiag::UndefinedVar,
-                    span,
-                    format!("undefined variable `${name}`"),
-                )),
-            },
+            ExprNode::Var { .. } => self.lower_variable_reference(node, span),
             ExprNode::Binary { op, left, right } => {
                 let a = self.lower_expr(left, insts, span)?;
                 let b = self.lower_expr(right, insts, span)?;
@@ -980,6 +1035,14 @@ impl Lowerer<'_> {
             Some(Terminator::Return { span, .. }) => {
                 Err(self.missing_verdict(span.unwrap_or_else(|| Span::empty(0))))
             }
+            Some(Terminator::Complete { route, span }) => Err(BpfError::new(
+                BpfDiag::OutOfSubset,
+                span.or_else(|| block.statements.last().map(Statement::span))
+                    .unwrap_or_else(|| Span::empty(0)),
+                format!(
+                    "native Tcl completion {route:?} requires runtime completion handling, which is outside BPF-Tcl"
+                ),
+            )),
             None => Err(self.missing_verdict(Span::empty(0))),
         }
     }
@@ -1295,6 +1358,39 @@ mod tests {
     }
 
     #[test]
+    fn expression_variable_references_do_not_borrow_an_array_roots_scalar_slot() {
+        for reference in ["$a", "${a}"] {
+            let source =
+                format!("when SOCKET_FILTER {{setint a 1; setint result {{{reference}}}; accept}}");
+            crate::frontend::compile_module(&source)
+                .expect("an actual scalar read stays supported");
+        }
+        for reference in ["$a(k)", "${a(k)}", "${a($key)}"] {
+            let source =
+                format!("when SOCKET_FILTER {{setint a 1; setint result {{{reference}}}; accept}}");
+            let error = crate::frontend::compile_module(&source)
+                .expect_err("an array read cannot borrow the existing scalar root slot");
+            assert_eq!(error.code, BpfDiag::OutOfSubset, "{reference}: {error:?}");
+        }
+    }
+
+    #[test]
+    fn expression_braced_scalar_names_preserve_literal_dollar_and_namespace_bytes() {
+        for name in ["$b", "ns::b", ""] {
+            let source = format!(
+                "when SOCKET_FILTER {{setint b 2; setint {{{name}}} 1; setint result {{${{{name}}}}}; accept}}"
+            );
+            crate::frontend::compile_module(&source)
+                .expect("complete braced names resolve their own scalar slots");
+            let missing =
+                format!("when SOCKET_FILTER {{setint b 2; setint result {{${{{name}}}}}; accept}}");
+            let error = crate::frontend::compile_module(&missing)
+                .expect_err("a complete braced name cannot fall back to another scalar slot");
+            assert_eq!(error.code, BpfDiag::UndefinedVar, "{name}: {error:?}");
+        }
+    }
+
+    #[test]
     fn coroutine_barrier_uses_registry_identity_for_specific_diagnostic() {
         let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
         let mut func = Function::new("::handler", "entry");
@@ -1317,6 +1413,21 @@ mod tests {
         assert_eq!(err.code, BpfDiag::OutOfSubset);
         assert_eq!(err.span, Span::new(4, 11));
         assert!(err.msg.contains("`yield`: concurrency is not supported"));
+    }
+
+    #[test]
+    fn observed_native_completion_is_not_synthesised_as_a_bpf_verdict() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let mut func = Function::new("::handler", "entry");
+        let span = Span::new(7, 18);
+        func.blocks.get_mut(&func.entry).unwrap().terminator = Some(Terminator::Complete {
+            route: tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit,
+            span: Some(span),
+        });
+        let err = lower_function(&func, ProgType::SocketFilter, registry).unwrap_err();
+        assert_eq!(err.code, BpfDiag::OutOfSubset);
+        assert_eq!(err.span, span);
+        assert!(err.msg.contains("runtime completion handling"));
     }
 
     /// Integer literals in the DSL come from the toolchain's one number

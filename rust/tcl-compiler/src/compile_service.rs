@@ -28,26 +28,36 @@ use crate::cfg_builder::build_cfg_codegen_with_registry;
 use crate::cfg_builder::{build_cfg_codegen_with_registry_and_context, prepare_cfg_context_bundle};
 #[cfg(test)]
 use crate::codegen::codegen_module;
-use crate::codegen::codegen_module_with_command_mutations;
-use crate::codegen::emitter::codegen_procedure_module_with_command_mutations;
+use crate::codegen::emitter::{
+    ModuleEmissionScope, codegen_module_with_emission_scope,
+    codegen_procedure_module_with_emission_scope,
+};
 use crate::lowering::{
-    first_fatal_parse_error_with_config, lower_proc_body_module_for_bytecode,
-    lower_script_module_for_bytecode,
+    lower_procedure_bytes_module_for_bytecode_with_options,
+    lower_procedure_target_module_for_bytecode_with_options,
+    lower_script_bytes_module_for_bytecode_with_options,
+    lower_script_module_for_bytecode_with_options,
 };
 use rustc_hash::FxHashMap;
 use std::sync::{Arc, Mutex};
-use tcl_dialect::DialectProfile;
+use tcl_dialect::{DialectProfile, DialectProfileKey};
 use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 use tcl_runtime_api::{
-    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureDispatch,
-    ScriptCommandPlan, ScriptCompileTarget,
+    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureCompileTargetBytes,
+    ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget, ScriptCompileTargetBytes,
 };
+
+fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
+    function
+        .validate_native_compilation_entry()
+        .map_err(CompileError::NativeCompilationAdmission)
+}
 
 enum RegistryTarget {
     Owned {
         registry: CommandRegistry,
-        profile_views: Mutex<FxHashMap<&'static str, Arc<CommandRegistry>>>,
+        profile_views: Mutex<FxHashMap<DialectProfileKey, Arc<CommandRegistry>>>,
     },
     Profile(&'static CommandRegistry),
 }
@@ -88,7 +98,7 @@ impl RegistryTarget {
             } => {
                 let mut views = profile_views.lock().expect("profile registry view mutex");
                 let view = views
-                    .entry(profile.name)
+                    .entry(profile.cache_key())
                     .or_insert_with(|| Arc::new(registry.project_for_profile(profile)));
                 ProfileRegistry::Cached(Arc::clone(view))
             }
@@ -104,11 +114,37 @@ impl RegistryTarget {
 /// Construct profile-less/default-registry consumers with [`Self::new`].
 /// Release- or dialect-aware consumers use [`Self::for_profile`], which obtains
 /// the registry and lexer grammar through the resolved-profile ingress seam.
-/// Both forms support optimised and plain-dispatch compilation.
+/// Both forms support optimised and plain-dispatch compilation. Typed script
+/// and procedure targets emit only their entered source. The legacy `compile`
+/// and `compile_for_profile` entries produce explicit whole-module AOT artifacts.
 pub struct BytecodeCompileService {
     registry: RegistryTarget,
     config: LexerConfig,
     profile: Option<&'static DialectProfile>,
+}
+
+#[derive(Clone, Copy)]
+struct CompileSourcePolicy<'a> {
+    entry: Option<&'a tcl_runtime_api::NativeCompilationEntry>,
+    scope: ModuleEmissionScope,
+}
+
+impl CompileSourcePolicy<'_> {
+    const fn whole_module() -> Self {
+        Self {
+            entry: None,
+            scope: ModuleEmissionScope::WholeModule,
+        }
+    }
+
+    const fn entered(
+        entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+    ) -> CompileSourcePolicy<'_> {
+        CompileSourcePolicy {
+            entry,
+            scope: ModuleEmissionScope::EnteredSource,
+        }
+    }
 }
 
 impl BytecodeCompileService {
@@ -149,6 +185,7 @@ impl BytecodeCompileService {
             self.registry.registry(),
             self.config,
             self.profile,
+            CompileSourcePolicy::whole_module(),
         )
     }
 
@@ -166,6 +203,7 @@ impl BytecodeCompileService {
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
             Some(profile),
+            CompileSourcePolicy::whole_module(),
         )
     }
 
@@ -176,17 +214,26 @@ impl BytecodeCompileService {
         registry: &CommandRegistry,
         config: LexerConfig,
         profile: Option<&'static DialectProfile>,
+        policy: CompileSourcePolicy<'_>,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(message) = first_fatal_parse_error_with_config(source, config) {
-            return Err(CompileError(message));
+        let native_entry = policy.entry;
+        let config = Self::native_entry_config(config, native_entry);
+        if let Some(cut) = tcl_lexer::first_parse_cut_image_checked(
+            &tcl_runtime_api::SourceImage::document(source),
+            config,
+        )
+        .map_err(|error| CompileError::Unsupported(error.to_string()))?
+        {
+            return Err(CompileError::Message(cut.message.into()));
         }
-        let ir = lower_script_module_for_bytecode(
+        let ir = lower_script_module_for_bytecode_with_options(
             source,
             namespace,
             registry,
             config,
             profile,
             plain_command_dispatch,
+            Self::source_analysis_options(policy, registry, config, profile),
         );
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
@@ -196,12 +243,82 @@ impl BytecodeCompileService {
             registry,
             prepared.command_bindings(),
         );
-        Ok(codegen_module_with_command_mutations(
+        let mut module = codegen_module_with_emission_scope(
             &cfg,
             &ir,
             registry,
             &command_mutations,
-        ))
+            policy.scope,
+        );
+        if let Some(profile) = profile {
+            module.profile = profile;
+        }
+        validate_native_function(&module.top_level)?;
+        Ok(module)
+    }
+
+    /// Translate a live runtime entry into the shared source-analysis contract.
+    /// Custom compiler pipelines use this same adapter before applying passes.
+    #[must_use]
+    pub fn native_entry_options<'a>(
+        entry: &'a tcl_runtime_api::NativeCompilationEntry,
+        _profile: Option<&'static DialectProfile>,
+    ) -> crate::command_binding::SourceAnalysisOptions<'a> {
+        use tcl_registry::native_compilation::{
+            NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+        };
+        let mut options = crate::command_binding::SourceAnalysisOptions {
+            compilation_scope: ModuleEmissionScope::EnteredSource,
+            native_entry: Some(entry),
+            native_compilation: NativeCompilationContext {
+                mode: NativeCompilationMode::BytecodeObject,
+                frame: NativeCompilationFrame::ScriptCode,
+                loop_depth: 0,
+                catch_depth: Some(0),
+            },
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        };
+        options.invocation_dialect = options.logical_invocation_dialect();
+        options
+    }
+
+    fn source_analysis_options<'a>(
+        policy: CompileSourcePolicy<'a>,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        profile: Option<&'static DialectProfile>,
+    ) -> Option<crate::command_binding::SourceAnalysisOptions<'a>> {
+        if policy.scope == ModuleEmissionScope::WholeModule && policy.entry.is_none() {
+            return None;
+        }
+        let mut options = policy.entry.map_or_else(
+            || crate::command_binding::SourceAnalysisOptions {
+                invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
+                invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+                    registry, profile, config,
+                )),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..crate::command_binding::SourceAnalysisOptions::default()
+            },
+            |entry| Self::native_entry_options(entry, profile),
+        );
+        options.compilation_scope = policy.scope;
+        Some(options)
+    }
+
+    /// Select a measured interpreter lexical grammar for runtime compilation.
+    /// The catalogue profile remains independent; absent native evidence retains
+    /// the explicitly supplied configuration, including custom grammar axes.
+    #[must_use]
+    pub fn native_entry_config(
+        config: LexerConfig,
+        entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+    ) -> LexerConfig {
+        crate::command_binding::SourceAnalysisOptions {
+            native_entry: entry,
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        }
+        .native_lexer_config(config)
     }
 
     fn compile_procedure_target_with(
@@ -210,17 +327,29 @@ impl BytecodeCompileService {
         registry: &CommandRegistry,
         config: LexerConfig,
         profile: &'static DialectProfile,
+        native_entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(message) = first_fatal_parse_error_with_config(target.source, config) {
-            return Err(CompileError(message));
+        let config = Self::native_entry_config(config, native_entry);
+        if let Some(cut) = tcl_lexer::first_parse_cut_image_checked(
+            &tcl_runtime_api::SourceImage::document(target.source),
+            config,
+        )
+        .map_err(|error| CompileError::Unsupported(error.to_string()))?
+        {
+            return Err(CompileError::Message(cut.message.into()));
         }
-        let ir = lower_proc_body_module_for_bytecode(
-            target.source,
-            target.namespace,
+        let ir = lower_procedure_target_module_for_bytecode_with_options(
+            target,
             registry,
             config,
             Some(profile),
             plain_command_dispatch,
+            Self::source_analysis_options(
+                CompileSourcePolicy::entered(native_entry),
+                registry,
+                config,
+                Some(profile),
+            ),
         );
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
@@ -230,14 +359,110 @@ impl BytecodeCompileService {
             registry,
             prepared.command_bindings(),
         );
-        let params: Vec<&str> = target.parameters.iter().map(String::as_str).collect();
-        Ok(codegen_procedure_module_with_command_mutations(
+        let params: Vec<_> = target
+            .parameters
+            .iter()
+            .map(tcl_runtime_api::NameBytes::from)
+            .collect();
+        let mut module = codegen_procedure_module_with_emission_scope(
             &cfg,
             &ir,
             &params,
             registry,
             &command_mutations,
-        ))
+            ModuleEmissionScope::EnteredSource,
+        );
+        module.profile = profile;
+        validate_native_function(&module.top_level_body)?;
+        Ok(module)
+    }
+    fn compile_script_bytes_target_with(
+        target: ScriptCompileTargetBytes<'_>,
+        plain: bool,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        profile: &'static DialectProfile,
+        entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let config = Self::native_entry_config(config, entry);
+        reject_malformed_byte_script(target.source, config)?;
+        let ir = lower_script_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            plain,
+            Self::source_analysis_options(
+                CompileSourcePolicy::entered(entry),
+                registry,
+                config,
+                Some(profile),
+            ),
+        )
+        .map_err(native_word_compile_error)?;
+        let prepared = prepare_cfg_context_bundle(&ir, registry);
+        let cfg =
+            build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
+        let mutations = crate::command_binding::scan_module_command_mutations_with_bindings(
+            &ir,
+            registry,
+            prepared.command_bindings(),
+        );
+        let mut module = codegen_module_with_emission_scope(
+            &cfg,
+            &ir,
+            registry,
+            &mutations,
+            ModuleEmissionScope::EnteredSource,
+        );
+        module.profile = profile;
+        validate_native_function(&module.top_level)?;
+        Ok(module)
+    }
+
+    fn compile_procedure_bytes_target_with(
+        target: ProcedureCompileTargetBytes<'_>,
+        plain: bool,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        profile: &'static DialectProfile,
+        entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let config = Self::native_entry_config(config, entry);
+        reject_malformed_byte_script(target.source, config)?;
+        let ir = lower_procedure_bytes_module_for_bytecode_with_options(
+            target,
+            registry,
+            config,
+            Some(profile),
+            plain,
+            Self::source_analysis_options(
+                CompileSourcePolicy::entered(entry),
+                registry,
+                config,
+                Some(profile),
+            ),
+        )
+        .map_err(native_word_compile_error)?;
+        let prepared = prepare_cfg_context_bundle(&ir, registry);
+        let cfg =
+            build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
+        let mutations = crate::command_binding::scan_module_command_mutations_with_bindings(
+            &ir,
+            registry,
+            prepared.command_bindings(),
+        );
+        let mut module = codegen_procedure_module_with_emission_scope(
+            &cfg,
+            &ir,
+            target.parameters,
+            registry,
+            &mutations,
+            ModuleEmissionScope::EnteredSource,
+        );
+        module.profile = profile;
+        validate_native_function(&module.top_level_body)?;
+        Ok(module)
     }
 }
 
@@ -275,6 +500,53 @@ impl CompileService for BytecodeCompileService {
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
             Some(profile),
+            CompileSourcePolicy::entered(None),
+        )
+    }
+
+    fn compile_script_with_entry(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        if entry.profile != profile.cache_key() {
+            return Err(CompileError::Unsupported(
+                "native compilation entry profile does not match target".to_owned(),
+            ));
+        }
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_target_with(
+            target.source,
+            target.namespace,
+            false,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            Some(profile),
+            CompileSourcePolicy::entered(Some(entry)),
+        )
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        if entry.profile != profile.cache_key() {
+            return Err(CompileError::Unsupported(
+                "native compilation entry profile does not match target".to_owned(),
+            ));
+        }
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_procedure_target_with(
+            target,
+            dispatch == ProcedureDispatch::Plain,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            Some(entry),
         )
     }
 
@@ -303,6 +575,132 @@ impl CompileService for BytecodeCompileService {
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
             Some(profile),
+            CompileSourcePolicy::entered(None),
+        )
+    }
+
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_script_bytes_target_with(
+            target,
+            false,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            None,
+        )
+    }
+
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<Self::Module, CompileError> {
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_script_bytes_target_with(
+            target,
+            true,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            None,
+        )
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        require_entry_profile(entry, profile)?;
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_script_bytes_target_with(
+            target,
+            false,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            Some(entry),
+        )
+    }
+
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<Self::Module, CompileError> {
+        require_entry_profile(entry, profile)?;
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_script_bytes_target_with(
+            target,
+            true,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            Some(entry),
+        )
+    }
+
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_procedure_bytes_target_with(
+            target,
+            dispatch == ProcedureDispatch::Plain,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            None,
+        )
+    }
+
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<Self::Module, CompileError> {
+        require_entry_profile(entry, profile)?;
+        let registry = self.registry.registry_for_profile(profile);
+        Self::compile_procedure_bytes_target_with(
+            target,
+            dispatch == ProcedureDispatch::Plain,
+            registry.as_ref(),
+            LexerConfig::from_grammar(profile.grammar),
+            profile,
+            Some(entry),
+        )
+    }
+
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static DialectProfile,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        byte_script_command_plan(source, LexerConfig::from_grammar(profile.grammar))
+    }
+
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &tcl_runtime_api::SourceImage,
+        profile: &'static DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        require_entry_profile(entry, profile)?;
+        byte_script_command_plan(
+            source,
+            Self::native_entry_config(LexerConfig::from_grammar(profile.grammar), Some(entry)),
         )
     }
 
@@ -310,12 +708,13 @@ impl CompileService for BytecodeCompileService {
         &self,
         source: &str,
         profile: &'static DialectProfile,
-    ) -> ScriptCommandPlan {
+    ) -> Result<ScriptCommandPlan, CompileError> {
         let segmented = crate::lowering::command_at_time_script_with_config(
             source,
             LexerConfig::from_grammar(profile.grammar),
-        );
-        match segmented.fatal_tail {
+        )
+        .map_err(|error| CompileError::Unsupported(error.to_string()))?;
+        Ok(match segmented.fatal_tail {
             Some((start, message, delimiter_offset)) => ScriptCommandPlan {
                 complete_prefix_len: start,
                 // `command_at_time_script_with_config` truncates the command
@@ -326,7 +725,7 @@ impl CompileService for BytecodeCompileService {
                 fatal_tail: Some(fatal_tail_frame(source, start, message, delimiter_offset)),
             },
             None => ScriptCommandPlan::complete(source.len()),
-        }
+        })
     }
 
     fn compile_procedure_for_profile(
@@ -342,7 +741,41 @@ impl CompileService for BytecodeCompileService {
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
             profile,
+            None,
         )
+    }
+}
+
+fn require_entry_profile(
+    entry: &tcl_runtime_api::NativeCompilationEntry,
+    profile: &'static DialectProfile,
+) -> Result<(), CompileError> {
+    if entry.profile == profile.cache_key() {
+        Ok(())
+    } else {
+        Err(CompileError::Unsupported(
+            "native compilation entry profile does not match target".into(),
+        ))
+    }
+}
+
+fn native_word_compile_error(error: tcl_lexer::NativeWordError) -> CompileError {
+    match error {
+        tcl_lexer::NativeWordError::Parse(message) => CompileError::Message(message.into()),
+        error => CompileError::Unsupported(format!(
+            "original byte word provenance is unavailable: {error:?}"
+        )),
+    }
+}
+
+fn reject_malformed_byte_script(
+    source: &tcl_lexer::SourceImage,
+    config: LexerConfig,
+) -> Result<(), CompileError> {
+    if let Some(tail) = byte_script_command_plan(source, config)?.fatal_tail {
+        Err(CompileError::Message(tail.message))
+    } else {
+        Ok(())
     }
 }
 
@@ -362,28 +795,22 @@ impl CompileService for BytecodeCompileService {
 /// | `set x "abc\ndef` | `set x "` |
 /// | `set x [foo bar` | `set x [` |
 ///
-/// The term is checked against the message before it is trusted: the byte it
-/// points at must be the one that opens the construct the message names. Where
-/// a failure sits inside a `[…]` the cut owner reports it at the bracket,
-/// because the word-part decomposition carries no extent for the inner
-/// construct — so `set x [list "oops]` yields `missing "` with the term on the
-/// `[`. That pair cannot be C's, and rather than quote `set x [` where C
-/// quotes `set x [list "`, this drops the text and the caller logs the bare
-/// message, which is what it did before the frame existed. A wrong frame that
-/// looks right is worse than none.
+/// The cut owner retains the actual nested failure's term separately from its
+/// enclosing reporting offset. Validation checks that retained term against
+/// the original source. It cannot manufacture a missing term from a message.
 /// Whether the byte at `term` opens the construct `message` names.
 ///
 /// C's term for an unterminated construct is the character that opened it, so
 /// the pair is self-checking. A message C reports *in place* — the
 /// `extra characters after …` family — constrains nothing, and is accepted.
-fn term_opens_the_named_construct(source: &str, term: usize, message: &str) -> bool {
+fn term_opens_the_named_construct(source: &[u8], term: usize, message: &str) -> bool {
     let opener = match message {
         tcl_lexer::word_parts::MISSING_QUOTE => b'"',
         tcl_lexer::word_parts::MISSING_CLOSE_BRACE => b'{',
         tcl_lexer::word_parts::MISSING_CLOSE_BRACKET => b'[',
         _ => return true,
     };
-    source.as_bytes().get(term) == Some(&opener)
+    source.get(term) == Some(&opener)
 }
 
 fn fatal_tail_frame(
@@ -392,48 +819,688 @@ fn fatal_tail_frame(
     message: String,
     delimiter_offset: Option<u32>,
 ) -> FatalTail {
+    fatal_tail_frame_bytes(source.as_bytes(), start, message, delimiter_offset)
+}
+
+fn fatal_tail_frame_bytes(
+    source: &[u8],
+    start: usize,
+    message: String,
+    delimiter_offset: Option<u32>,
+) -> FatalTail {
     let end = delimiter_offset
         .map(|offset| offset as usize)
-        .filter(|offset| *offset >= start)
+        .filter(|offset| *offset >= start && *offset < source.len())
         .filter(|offset| term_opens_the_named_construct(source, *offset, &message))
-        // Through the delimiter, not up to it; a multi-byte character there
-        // would otherwise be cut mid-sequence.
-        .map(|offset| {
-            let mut end = (offset + 1).min(source.len());
-            while end < source.len() && !source.is_char_boundary(end) {
-                end += 1;
-            }
-            end
-        });
-    // No trustworthy term, so no frame: the end of the source is a guess that
-    // is only ever *coincidentally* right (when the construct opens on the
-    // last byte). The caller then logs the bare message, which is what it did
-    // before the frame existed.
+        .map(|offset| offset + 1);
     let Some(end) = end else {
         return FatalTail::message_only(message);
     };
-    let command_text = source.get(start..end).unwrap_or_default().to_owned();
+    let command_text = source.get(start..end).unwrap_or_default().to_vec();
     let line = u32::try_from(
         source
             .get(..start)
             .unwrap_or_default()
-            .bytes()
-            .filter(|b| *b == b'\n')
-            .count()
-            + 1,
+            .split(|&byte| byte == b'\n')
+            .count(),
     )
     .unwrap_or(u32::MAX);
     FatalTail {
         message,
         command_text,
+        compilation_command_text: tcl_syntax::native_parse_context::c84_compilation_command_extent(
+            source,
+            start,
+            end - 1,
+        )
+        .map(<[u8]>::to_vec),
         line,
+    }
+}
+
+fn byte_script_command_plan(
+    source: &tcl_runtime_api::SourceImage,
+    config: LexerConfig,
+) -> Result<ScriptCommandPlan, CompileError> {
+    // Tolerant lexical tokens let the shared cut owner retain the first
+    // malformed command, including when strict native compilation rejects it.
+    let parse_config = LexerConfig {
+        strict_quoting: false,
+        ..config
+    };
+    let tokens = tcl_lexer::Lexer::with_source_image(source, parse_config)
+        .tokenise_all()
+        .map_err(|error| CompileError::Message(error.to_string()))?;
+    let commands = tcl_lexer::group_commands_bytes(&tokens, source.bytes(), parse_config);
+    let cut = tcl_lexer::first_parse_cut_image_in_checked(&commands, &tokens, source, parse_config)
+        .map_err(|error| CompileError::Unsupported(error.to_string()))?;
+    match cut {
+        Some(cut) => {
+            let start = commands
+                .get(cut.command)
+                .map_or(0, |command| command.span.start() as usize);
+            Ok(ScriptCommandPlan {
+                complete_prefix_len: start,
+                complete_prefix_commands: cut.command,
+                fatal_tail: Some(fatal_tail_frame_bytes(
+                    source.bytes(),
+                    start,
+                    cut.message.to_owned(),
+                    Some(cut.term),
+                )),
+            })
+        }
+        None => Ok(ScriptCommandPlan {
+            complete_prefix_len: source.len(),
+            complete_prefix_commands: commands.len(),
+            fatal_tail: None,
+        }),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::lower_to_ir_for_bytecode_with_dialect;
+    use crate::lowering::{
+        lower_proc_body_module_for_bytecode, lower_to_ir_for_bytecode_with_dialect,
+    };
+
+    #[test]
+    fn fatal_tail_preserves_distinct_native_runtime_and_compilation_extents() {
+        let decode = |input: &str| {
+            input
+                .as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect::<Vec<_>>()
+        };
+        let mut compared = 0;
+        for row in include_str!("../../tcl-registry/tests/data/native_c84_parse_context/8.4.20.tsv")
+            .lines()
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            if fields[1] == "0" {
+                continue;
+            }
+            let source = decode(fields[6]);
+            let start = fields[2].parse::<usize>().unwrap();
+            let term = fields[4].parse::<usize>().unwrap();
+            let message = String::from_utf8(decode(fields[7])).unwrap();
+            let tail =
+                fatal_tail_frame_bytes(&source, start, message, Some(u32::try_from(term).unwrap()));
+            assert_eq!(tail.command_text, source[start..=term], "{row}");
+            let end = if term + 1 == source.len() {
+                term
+            } else {
+                source.len()
+            };
+            assert_eq!(
+                tail.compilation_command_text.as_deref(),
+                Some(&source[start..end]),
+                "{row}"
+            );
+            assert_eq!(
+                tail.line,
+                u32::try_from(
+                    source[..start]
+                        .iter()
+                        .filter(|&&byte| byte == b'\n')
+                        .count()
+                        + 1
+                )
+                .unwrap(),
+                "{row}"
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, 26);
+        let unavailable = fatal_tail_frame_bytes(b"set x [bad", 0, "missing \"".into(), Some(6));
+        assert!(unavailable.compilation_command_text.is_none());
+        assert!(unavailable.command_text.is_empty());
+    }
+
+    #[test]
+    fn original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let service = BytecodeCompileService::for_profile(profile);
+        let cases: &[(&[u8], &[u8], &[u8], u32)] = &[
+            (b"set x \"", b"set x \"", b"set x ", 1),
+            (b"set x \"abc", b"set x \"", b"set x \"abc", 1),
+            (b"set x {abc", b"set x {", b"set x {abc", 1),
+            (b"set x [bad", b"set x [", b"set x [bad", 1),
+            (
+                b"set x [bad x \"abc",
+                b"set x [bad x \"",
+                b"set x [bad x \"abc",
+                1,
+            ),
+            (b"set x [bad {", b"set x [bad {", b"set x [bad ", 1),
+            (
+                b"set before OK\nset x \"abc",
+                b"set x \"",
+                b"set x \"abc",
+                2,
+            ),
+            (
+                b"set x \"\xc3\xa9abc",
+                b"set x \"",
+                b"set x \"\xc3\xa9abc",
+                1,
+            ),
+            (
+                b"set x \"\xf0\x9f\x98\x80abc",
+                b"set x \"",
+                b"set x \"\xf0\x9f\x98\x80abc",
+                1,
+            ),
+            (b"set x \"\xffabc", b"set x \"", b"set x \"\xffabc", 1),
+            (b"set x \"\0abc", b"set x \"", b"set x \"\0abc", 1),
+            (b"\"", b"\"", b"", 1),
+            (b"{", b"{", b"", 1),
+        ];
+        for &(source, runtime, compilation, line) in cases {
+            let source = tcl_runtime_api::SourceImage::native(source);
+            let tail = service
+                .script_command_plan_bytes_for_profile(&source, profile)
+                .unwrap()
+                .fatal_tail
+                .unwrap();
+            assert_eq!(tail.command_text, runtime, "{source:?}");
+            assert_eq!(
+                tail.compilation_command_text.as_deref(),
+                Some(compilation),
+                "{source:?}"
+            );
+            assert_eq!(tail.line, line, "{source:?}");
+        }
+    }
+
+    #[test]
+    fn immutable_byte_entry_lookup_keeps_names_incarnations_and_residuals() {
+        use tcl_core_types::{ByteNamespacePath, NameBytes, NativeByteCommandSlot};
+        use tcl_runtime_api::native_compilation::{
+            NativeCommandImplementation, NativeCommandLookupUnavailable, NativeCompilationBinding,
+            NativeCompilationNamespace, NativeCompilerHookPresence,
+        };
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let point = tcl_registry::InvocationDialect::of_profile(profile)
+            .core_point
+            .unwrap();
+        let mut entry = policy_entry(profile, point);
+        let local = ByteNamespacePath::from_segments([b"N".as_slice()]);
+        entry.closed = true;
+        entry.current_namespace = 2;
+        entry.namespaces = vec![
+            NativeCompilationNamespace {
+                path: ByteNamespacePath::root(),
+                jim_namespace_object: None,
+                token: 1,
+                visible: true,
+                exports: vec![],
+                command_path: vec![],
+                unknown_handler: None,
+            },
+            NativeCompilationNamespace {
+                path: local.clone(),
+                jim_namespace_object: None,
+                token: 2,
+                visible: false,
+                exports: vec![],
+                command_path: vec![],
+                unknown_handler: None,
+            },
+            NativeCompilationNamespace {
+                path: local.clone(),
+                jim_namespace_object: None,
+                token: 9,
+                visible: true,
+                exports: vec![],
+                command_path: vec![],
+                unknown_handler: None,
+            },
+        ];
+        let binding = |namespace_token, token| NativeCompilationBinding {
+            slot: NativeByteCommandSlot::new(local.clone(), NameBytes::from(b"k\xff".as_slice())),
+            namespace_token,
+            token,
+            implementation_generation: token,
+            implementation: NativeCommandImplementation::Opaque,
+            compiler_hook: NativeCompilerHookPresence::Absent,
+            compiler: None,
+            procedure_header: None,
+            has_execution_trace: false,
+        };
+        entry.commands = vec![binding(2, 12), binding(9, 19)];
+        assert_eq!(
+            entry
+                .lookup_command_bytes(2, b"k\xff\0tail")
+                .unwrap()
+                .unwrap()
+                .token,
+            12
+        );
+        assert_eq!(
+            entry
+                .lookup_command_bytes(2, b"::N::k\xff")
+                .unwrap()
+                .unwrap()
+                .token,
+            19
+        );
+        assert!(entry.lookup_command_bytes(2, b"absent").unwrap().is_none());
+        assert_eq!(
+            entry.lookup_command_bytes(2, b"child::k\xff"),
+            Err(NativeCommandLookupUnavailable::RetainedDescendant)
+        );
+        entry.commands.push(binding(2, 22));
+        assert_eq!(
+            entry.lookup_command_bytes(2, b"k\xff"),
+            Err(NativeCommandLookupUnavailable::ConflictingBinding)
+        );
+        entry.closed = false;
+        assert_eq!(
+            entry.lookup_command_bytes(2, b"k\xff"),
+            Err(NativeCommandLookupUnavailable::OpenTable)
+        );
+    }
+
+    #[test]
+    fn byte_procedure_target_seeds_original_nonunicode_formal_keys() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let service = BytecodeCompileService::for_profile(profile);
+        let source = tcl_runtime_api::SourceImage::native(b"return OK".as_slice());
+        let namespace = tcl_core_types::ByteNamespacePath::root();
+        let parameters = [
+            tcl_core_types::NameBytes::from(b"p\xff".as_slice()),
+            tcl_core_types::NameBytes::from(b"a(k)".as_slice()),
+        ];
+        let module = service
+            .compile_procedure_bytes_for_profile(
+                tcl_runtime_api::ProcedureCompileTargetBytes {
+                    source: &source,
+                    parameters: &parameters,
+                    namespace: &namespace,
+                },
+                profile,
+                tcl_runtime_api::ProcedureDispatch::Optimised,
+            )
+            .unwrap();
+        assert_eq!(module.source, source);
+        assert_eq!(module.source_namespace, namespace);
+        assert_eq!(&module.top_level_body.lvt.entries()[..2], &parameters);
+    }
+
+    #[test]
+    fn original_byte_command_plan_keeps_opaque_prefix_and_exact_bad_tail() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let service = BytecodeCompileService::for_profile(profile);
+        let source = tcl_runtime_api::SourceImage::native(b"set \xff V; set \xfe {a}b".as_slice());
+        let plan = service
+            .script_command_plan_bytes_for_profile(&source, profile)
+            .unwrap();
+        assert_eq!(plan.complete_prefix_commands, 1);
+        assert_eq!(&source.bytes()[..plan.complete_prefix_len], b"set \xff V; ");
+        let tail = plan.fatal_tail.unwrap();
+        assert_eq!(tail.message, "extra characters after close-brace");
+        assert_eq!(tail.command_text, b"set \xfe {a}b");
+        assert_eq!(tail.line, 1);
+    }
+
+    #[test]
+    fn byte_command_plan_preserves_native_and_document_channel_rules() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let service = BytecodeCompileService::for_profile(profile);
+        let text = "set a A\\\r\nset b B";
+        let native = tcl_runtime_api::SourceImage::native(text.as_bytes());
+        let document = tcl_runtime_api::SourceImage::document(text);
+        assert_eq!(
+            service
+                .script_command_plan_bytes_for_profile(&native, profile)
+                .unwrap()
+                .complete_prefix_commands,
+            2
+        );
+        assert_eq!(
+            service
+                .script_command_plan_bytes_for_profile(&document, profile)
+                .unwrap()
+                .complete_prefix_commands,
+            1
+        );
+    }
+
+    fn policy_entry(
+        profile: &'static DialectProfile,
+        point: tcl_dialect::model::DialectPoint,
+    ) -> tcl_runtime_api::NativeCompilationEntry {
+        use tcl_runtime_api::native_compilation::{
+            NativeCompilationEntry, NativeCompilationFrame, NativeInterpreterIdentity,
+        };
+        NativeCompilationEntry {
+            interpreter: NativeInterpreterIdentity {
+                owner: 31,
+                interpreter: 0,
+            },
+            epoch: 4,
+            profile: profile.cache_key(),
+            invocation_policy: Some(profile.cache_key()),
+            execution_point: Some(point),
+            name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
+            compiled_variable_protocol:
+                tcl_syntax::naming::NativeCompiledVariableProtocol::for_native_point(point),
+            compiled_local_layout: None,
+            ensemble_target_objects: None,
+            source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
+                .native_source_string_protocol(),
+            lexer_grammar: None,
+            inline_compilation_disabled: false,
+            authored_tmm_static: None,
+            namespace_variable_tables: None,
+            variable_observers:
+                tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
+            math_functions: None,
+            closed: false,
+            commands: Vec::new(),
+            namespaces: Vec::new(),
+            current_namespace: 0,
+            frame: NativeCompilationFrame::Unknown,
+        }
+    }
+
+    #[test]
+    fn native_entry_keeps_logical_engine_and_lexical_evidence_independent() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let actual = DialectPoint::canonical(Release::JIM_0_84);
+        let mut entry = policy_entry(profile, actual);
+        entry.lexer_grammar = Some(tcl_registry::InvocationDialect::of_point(actual).lexer_grammar);
+        entry.invocation_policy = Some(
+            tcl_registry::model::ingress::resolve_environment("jim")
+                .analyser_profile()
+                .cache_key(),
+        );
+        assert_eq!(
+            BytecodeCompileService::native_entry_options(&entry, Some(profile))
+                .invocation_dialect
+                .expect("actual runtime")
+                .core_point,
+            Some(actual),
+        );
+        assert_eq!(
+            BytecodeCompileService::native_entry_options(&entry, None)
+                .invocation_dialect
+                .expect("runtime without catalogue")
+                .core_point,
+            Some(actual),
+        );
+        let catalogue_config = LexerConfig::from_grammar(profile.grammar);
+        assert_eq!(
+            BytecodeCompileService::native_entry_config(catalogue_config, Some(&entry)),
+            LexerConfig::from_grammar(
+                tcl_registry::InvocationDialect::of_point(actual).lexer_grammar
+            ),
+        );
+        let mut grammar = entry.lexer_grammar.expect("measured grammar");
+        grammar.brace_backslash_newline = tcl_dialect::BraceBackslashNewline::Folds;
+        entry.lexer_grammar = Some(grammar);
+        let selected = BytecodeCompileService::native_entry_options(&entry, Some(profile))
+            .invocation_dialect
+            .expect("independent actual axes");
+        assert_eq!(selected.core_point, Some(actual));
+        assert_eq!(selected.lexer_grammar, grammar);
+        assert_eq!(
+            selected.word_values,
+            tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar)
+        );
+        assert_eq!(
+            BytecodeCompileService::native_entry_config(catalogue_config, Some(&entry)),
+            LexerConfig::from_grammar(grammar)
+        );
+        entry.lexer_grammar = None;
+        assert_eq!(
+            BytecodeCompileService::native_entry_config(catalogue_config, Some(&entry)),
+            catalogue_config
+        );
+        entry.execution_point = None;
+        entry.invocation_policy = Some(profile.cache_key());
+        entry.lexer_grammar = None;
+        assert_eq!(
+            BytecodeCompileService::native_entry_config(catalogue_config, Some(&entry)),
+            catalogue_config
+        );
+        assert_eq!(
+            BytecodeCompileService::native_entry_options(&entry, Some(profile))
+                .invocation_dialect
+                .expect("explicit profile compatibility")
+                .core_point,
+            tcl_registry::InvocationDialect::of_profile(profile).core_point,
+        );
+        assert!(
+            BytecodeCompileService::native_entry_options(&entry, Some(profile))
+                .native_compiler_dialect()
+                .is_none()
+        );
+        entry.execution_point = Some(actual);
+        entry.invocation_policy = None;
+        let unknown_policy = BytecodeCompileService::native_entry_options(&entry, Some(profile));
+        assert!(unknown_policy.invocation_dialect.is_none());
+        assert_eq!(
+            unknown_policy.native_compiler_dialect().unwrap().core_point,
+            Some(actual)
+        );
+    }
+
+    #[test]
+    fn physical_c9_compiler_cannot_replace_f5_logical_value_or_frame_policy() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        use tcl_registry::InvocationDialect;
+        let logical_profile = DialectProfile::find("f5-irules").unwrap();
+        let assistance = DialectProfile::find("tcl9.1").unwrap();
+        let physical_point = DialectPoint::canonical(Release::TCL_9_1);
+        let mut entry = policy_entry(logical_profile, physical_point);
+        let logical = InvocationDialect::of_profile(logical_profile);
+        let physical = InvocationDialect::of_point(physical_point);
+        assert_ne!(logical.numbers, physical.numbers);
+        let options = BytecodeCompileService::native_entry_options(&entry, Some(assistance));
+        assert_eq!(options.invocation_dialect, Some(logical));
+        assert_eq!(options.native_compiler_dialect(), Some(physical));
+        assert_eq!(entry.profile, logical_profile.cache_key());
+
+        // A host can independently select a logical compatibility policy.
+        let compatibility = DialectProfile::find("tcl8.4").unwrap();
+        entry.invocation_policy = Some(compatibility.cache_key());
+        let compatible = BytecodeCompileService::native_entry_options(&entry, Some(assistance));
+        assert_eq!(
+            compatible.invocation_dialect,
+            Some(InvocationDialect::of_profile(compatibility))
+        );
+        assert_eq!(compatible.native_compiler_dialect(), Some(physical));
+        assert_eq!(entry.profile, logical_profile.cache_key());
+        let compatible_policy = compatible.invocation_dialect;
+
+        entry.execution_point = None;
+        let unknown_engine = BytecodeCompileService::native_entry_options(&entry, Some(assistance));
+        assert_eq!(unknown_engine.invocation_dialect, compatible_policy);
+        assert!(unknown_engine.native_compiler_dialect().is_none());
+        entry.execution_point = Some(physical_point);
+        entry.invocation_policy = None;
+        let unknown_policy = BytecodeCompileService::native_entry_options(&entry, Some(assistance));
+        assert!(unknown_policy.invocation_dialect.is_none());
+        assert_eq!(unknown_policy.native_compiler_dialect(), Some(physical));
+    }
+
+    #[test]
+    fn direct_source_options_cannot_fill_missing_live_policy_from_authoring() {
+        use crate::command_binding::{SourceAnalysisOptions, SourceCommandBindings};
+        use tcl_dialect::model::{DialectPoint, Release};
+        use tcl_registry::InvocationDialect;
+        let logical = DialectProfile::find("f5-irules").unwrap();
+        let physical = DialectPoint::canonical(Release::TCL_9_1);
+        let mut entry = policy_entry(logical, physical);
+        let config = LexerConfig {
+            strict_quoting: true,
+            base_line: 12,
+            base_col: 4,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::from_grammar(DialectProfile::find("tcl8.6").unwrap().grammar)
+        };
+        let registry = CommandRegistry::build_default();
+        let retained_policy = |entry: &tcl_runtime_api::NativeCompilationEntry| {
+            let options = SourceAnalysisOptions {
+                native_entry: Some(entry),
+                invocation_dialect: Some(InvocationDialect::of_point(physical)),
+                ..SourceAnalysisOptions::default()
+            };
+            assert_eq!(options.native_lexer_config(config), config);
+            assert_eq!(
+                options.native_compiler_dialect().unwrap().core_point,
+                Some(physical)
+            );
+            SourceCommandBindings::analyse_with_options("set x 1", config, &registry, options)
+                .invocation_at_source("set", 0)
+                .variable_context
+                .invocation_dialect
+        };
+        let policy = retained_policy(&entry).expect("retained logical policy");
+        let expected = InvocationDialect::of_profile(logical);
+        assert_eq!(policy.numbers, expected.numbers);
+        assert_eq!(policy.characters, expected.characters);
+        assert_eq!(policy.upvar_level_presence, expected.upvar_level_presence);
+        assert_eq!(
+            policy.lexer_grammar,
+            config.grammar_over(expected.lexer_grammar)
+        );
+        entry.invocation_policy = None;
+        assert!(retained_policy(&entry).is_none());
+        let mut measured = config.grammar_over(expected.lexer_grammar);
+        measured.var_syntax =
+            InvocationDialect::of_point(DialectPoint::canonical(Release::JIM_0_84))
+                .lexer_grammar
+                .var_syntax;
+        entry.lexer_grammar = Some(measured);
+        let measured_options = SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(expected),
+            ..SourceAnalysisOptions::default()
+        };
+        assert!(measured_options.logical_invocation_dialect().is_none());
+        assert_eq!(
+            measured_options.native_lexer_config(config),
+            config.with_grammar(measured)
+        );
+        let positioned = LexerConfig {
+            base_offset: 37,
+            ..config
+        };
+        assert_eq!(
+            BytecodeCompileService::native_entry_config(positioned, Some(&entry)),
+            positioned.with_grammar(measured)
+        );
+    }
+
+    #[test]
+    fn runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic() {
+        use tcl_runtime_api::native_compilation::{
+            NativeCommandImplementation, NativeCompilationBinding, NativeCompilationEntry,
+            NativeCompilationFrame, NativeCompilationNamespace, NativeInterpreterIdentity,
+        };
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let namespace = tcl_core_types::ByteNamespacePath::from_segments(["N"]);
+        let entry = NativeCompilationEntry {
+            interpreter: NativeInterpreterIdentity {
+                owner: 31,
+                interpreter: 0,
+            },
+            epoch: 4,
+            profile: profile.cache_key(),
+            invocation_policy: Some(profile.cache_key()),
+            execution_point: tcl_registry::InvocationDialect::of_profile(profile).core_point,
+            name_protocol: tcl_registry::InvocationDialect::of_profile(profile)
+                .core_point
+                .and_then(tcl_syntax::naming::NamePolicyProtocol::for_native_point),
+            compiled_variable_protocol: tcl_registry::InvocationDialect::of_profile(profile)
+                .native_compiled_variable_protocol(),
+            compiled_local_layout: None,
+            ensemble_target_objects: None,
+            source_string_protocol: tcl_registry::InvocationDialect::of_profile(profile)
+                .native_source_string_protocol(),
+            lexer_grammar: None,
+            inline_compilation_disabled: false,
+            authored_tmm_static: None,
+            namespace_variable_tables: None,
+            variable_observers:
+                tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
+            math_functions: None,
+            closed: true,
+            commands: vec![NativeCompilationBinding {
+                slot: tcl_core_types::NativeByteCommandSlot::new(namespace.clone(), "set".into()),
+                namespace_token: 1,
+                token: 19,
+                implementation_generation: 19,
+                implementation: NativeCommandImplementation::Opaque,
+                compiler_hook:
+                    tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Absent,
+                has_execution_trace: false,
+                compiler: None,
+                procedure_header: None,
+            }],
+            namespaces: vec![NativeCompilationNamespace {
+                path: namespace,
+                jim_namespace_object: None,
+                token: 1,
+                visible: true,
+                exports: Vec::new(),
+                command_path: Vec::new(),
+                unknown_handler: None,
+            }],
+            current_namespace: 1,
+            frame: NativeCompilationFrame::Namespace,
+        };
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let ir = lower_script_module_for_bytecode_with_options(
+            "set x 1",
+            "",
+            registry,
+            LexerConfig::from_grammar(profile.grammar),
+            Some(profile),
+            false,
+            Some(BytecodeCompileService::native_entry_options(
+                &entry,
+                Some(profile),
+            )),
+        );
+        assert_eq!(ir.top_level_namespace, "::N");
+        assert_eq!(ir.source_entry.native_entry.as_deref(), Some(&entry));
+        let service = BytecodeCompileService::for_profile(profile);
+        let compiled = service
+            .compile_script_with_entry(
+                ScriptCompileTarget {
+                    source: "set x 1",
+                    namespace: "",
+                },
+                profile,
+                &entry,
+            )
+            .unwrap();
+        assert!(
+            compiled
+                .top_level
+                .instructions
+                .iter()
+                .any(|instruction| matches!(
+                    instruction.op,
+                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                ))
+        );
+        assert_eq!(
+            compiled.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+        );
+    }
 
     fn registry_with_custom_list_expr_hook() -> CommandRegistry {
         let mut registry = CommandRegistry::build_default();
@@ -461,7 +1528,10 @@ mod tests {
         assert!(!fast.plain_command_dispatch);
         assert!(plain.plain_command_dispatch);
         assert!(plain.top_level.plain_command_dispatch);
-        assert!(plain.top_level.command_bindings.is_empty());
+        assert_eq!(
+            plain.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+        );
     }
 
     #[test]
@@ -566,6 +1636,222 @@ mod tests {
     }
 
     #[test]
+    fn runtime_targets_leave_unentered_procedure_bodies_in_original_source() {
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
+            let service = BytecodeCompileService::for_profile(profile);
+            let source = tcl_runtime_api::SourceImage::native(
+                &b"proc child {} {\"}; set marker ENTERED"[..],
+            );
+            let namespace = tcl_runtime_api::ByteNamespacePath::root();
+            for plain in [false, true] {
+                let target = ScriptCompileTargetBytes {
+                    source: &source,
+                    namespace: &namespace,
+                };
+                let script = if plain {
+                    service.compile_plain_script_bytes_for_profile(target, profile)
+                } else {
+                    service.compile_script_bytes_for_profile(target, profile)
+                }
+                .expect("unentered malformed child does not invalidate entered script");
+                assert!(script.procedures.is_empty(), "{environment}");
+                assert!(script.procedure_provenance.is_empty());
+                assert_eq!(script.source, source, "{environment} original image");
+                assert!(
+                    script.top_level.instructions.iter().any(|instruction| {
+                        instruction.source_cmd_text.bytes() == b"proc child {} {\"}"
+                    }),
+                    "{environment} original declaration invocation"
+                );
+                let procedure = service
+                    .compile_procedure_bytes_for_profile(
+                        ProcedureCompileTargetBytes {
+                            source: &source,
+                            parameters: &[],
+                            namespace: &namespace,
+                        },
+                        profile,
+                        if plain {
+                            ProcedureDispatch::Plain
+                        } else {
+                            ProcedureDispatch::Optimised
+                        },
+                    )
+                    .expect("entered procedure leaves nested body lazy");
+                assert!(procedure.procedures.is_empty(), "{environment}");
+                assert!(procedure.procedure_provenance.is_empty());
+                assert_eq!(procedure.source, source);
+            }
+            let unicode = service
+                .compile_script_for_profile(
+                    ScriptCompileTarget {
+                        source: "proc child {} {\"}; set marker ENTERED",
+                        namespace: "",
+                    },
+                    profile,
+                )
+                .expect("Unicode target uses the same entered-source policy");
+            assert!(unicode.procedures.is_empty());
+        }
+    }
+
+    #[test]
+    fn explicit_whole_module_artifact_keeps_procedure_inventory() {
+        let source = "proc child {} {return KEPT}; set marker ENTERED";
+        let module = BytecodeCompileService::default().compile(source).unwrap();
+        assert!(module.procedures.contains_key("::child"));
+        assert_eq!(module.procedure_provenance["::child"].body, "return KEPT");
+    }
+
+    #[test]
+    fn entered_source_scope_excludes_deferred_bodies_before_cfg_preparation() {
+        let source = "proc child {} {proc grand {} {puts NEVER}; return KEPT}; set marker ENTERED";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        for scope in [
+            ModuleEmissionScope::WholeModule,
+            ModuleEmissionScope::EnteredSource,
+        ] {
+            let options = BytecodeCompileService::source_analysis_options(
+                CompileSourcePolicy { entry: None, scope },
+                registry,
+                config,
+                Some(profile),
+            );
+            let ir = lower_script_module_for_bytecode_with_options(
+                source,
+                "",
+                registry,
+                config,
+                Some(profile),
+                false,
+                options,
+            );
+            assert_eq!(ir.source_entry.compilation_scope, scope);
+            let entered = scope == ModuleEmissionScope::EnteredSource;
+            assert_eq!(ir.procedures.is_empty(), entered);
+            assert!(ir.top_level.statements.iter().any(|statement| {
+                statement.tokens().is_some_and(|tokens| {
+                    tokens.argv_texts.first().is_some_and(|head| head == "proc")
+                        && tokens
+                            .argv_texts
+                            .last()
+                            .is_some_and(|body| body.contains("puts NEVER"))
+                })
+            }));
+            if entered {
+                assert!(ir.future_call_sites.is_empty());
+                assert!(ir.body_units.is_empty());
+                assert!(ir.methods.is_empty());
+            }
+            let prepared = prepare_cfg_context_bundle(&ir, registry);
+            let cfg = build_cfg_codegen_with_registry_and_context(
+                &ir, false, registry, &prepared, config,
+            );
+            assert_eq!(cfg.procedures.is_empty(), entered);
+        }
+    }
+
+    #[test]
+    fn entered_source_defers_generic_namespace_children_before_cfg_preparation() {
+        let source = "namespace eval ::outer {namespace eval ::inner {proc lazy {} {\"}; set child UNENTERED}}; set marker ENTERED";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::from_grammar(profile.grammar);
+        for scope in [
+            ModuleEmissionScope::WholeModule,
+            ModuleEmissionScope::EnteredSource,
+        ] {
+            let options = BytecodeCompileService::source_analysis_options(
+                CompileSourcePolicy { entry: None, scope },
+                registry,
+                config,
+                Some(profile),
+            );
+            let ir = lower_script_module_for_bytecode_with_options(
+                source,
+                "",
+                registry,
+                config,
+                Some(profile),
+                false,
+                options,
+            );
+            let entered = scope == ModuleEmissionScope::EnteredSource;
+            assert_eq!(ir.procedures.is_empty(), entered);
+            assert_eq!(ir.body_units.is_empty(), entered);
+            let namespace_call = ir.top_level.statements.iter().find_map(|statement| {
+                statement.tokens().filter(|tokens| {
+                    tokens
+                        .argv_texts
+                        .first()
+                        .is_some_and(|head| head == "namespace")
+                })
+            });
+            let tokens = namespace_call.expect("the original namespace invocation is retained");
+            assert_eq!(
+                tokens.argv_texts[3],
+                "namespace eval ::inner {proc lazy {} {\"}; set child UNENTERED}"
+            );
+            if entered {
+                assert!(tokens.evaluated_body().is_none());
+                assert!(ir.future_call_sites.is_empty());
+                assert!(ir.methods.is_empty());
+            }
+            let prepared = prepare_cfg_context_bundle(&ir, registry);
+            let cfg = build_cfg_codegen_with_registry_and_context(
+                &ir, false, registry, &prepared, config,
+            );
+            assert_eq!(cfg.procedures.is_empty(), entered);
+        }
+    }
+
+    #[test]
+    fn entered_source_keeps_native_structured_body_preflight() {
+        let source = tcl_lexer::SourceImage::native(b"if {1} {puts \"}".as_slice());
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
+            let entry = crate::environment_ingress::captured_native_entry(profile);
+            assert!(entry.closed, "{environment}: actual compilation entry");
+            let selected = entry
+                .lookup_command_bytes(entry.current_namespace, b"if")
+                .expect("actual original command lookup")
+                .expect("registered native if command");
+            assert_eq!(
+                selected.compiler_hook,
+                tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Present,
+                "{environment}: actual if compiler hook",
+            );
+            assert!(
+                selected.compiler.is_some(),
+                "{environment}: selected compiler"
+            );
+            let script = BytecodeCompileService::for_profile(profile)
+                .compile_script_bytes_with_entry(
+                    ScriptCompileTargetBytes {
+                        source: &source,
+                        namespace: &tcl_runtime_api::ByteNamespacePath::root(),
+                    },
+                    profile,
+                    &entry,
+                )
+                .expect("native syntax failure remains a presentable guest failure");
+            let failure = script
+                .top_level
+                .native_compilation_failure
+                .as_ref()
+                .expect("the selected compiler visits the literal if body");
+            assert_eq!(failure.message, "missing \"", "{environment}");
+        }
+    }
+
+    #[test]
     fn procedure_target_seeds_params_and_supports_both_dispatch_modes() {
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
@@ -593,7 +1879,10 @@ mod tests {
                 .any(|binding| binding.name == "append" && binding.identity == "append")
         );
         assert!(plain.top_level.plain_command_dispatch);
-        assert!(plain.top_level.command_bindings.is_empty());
+        assert_eq!(
+            plain.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+        );
 
         let static_proc = service
             .compile("proc p {} {mutate; if {1} {return yes}}")
@@ -602,10 +1891,77 @@ mod tests {
             static_proc.procedure_provenance["::p"],
             tcl_bytecode::ProcedureProvenance {
                 name: "::p".to_owned(),
+                namespace_context: None,
                 parameters: String::new(),
                 body: "mutate; if {1} {return yes}".to_owned(),
             }
         );
+    }
+
+    #[test]
+    fn same_name_projected_profiles_keep_cache_policies_and_artifact_handles() {
+        use tcl_dialect::model::{DialectPoint, Release};
+        let early = Box::leak(Box::new(DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_80),
+        )));
+        let late = Box::leak(Box::new(DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_84),
+        )));
+        for service in [
+            BytecodeCompileService::default(),
+            BytecodeCompileService::for_profile(early),
+        ] {
+            for profile in [early as &'static DialectProfile, late] {
+                let view = service.registry.registry_for_profile(profile);
+                assert_eq!(
+                    view.as_ref().profile().unwrap().cache_key(),
+                    profile.cache_key()
+                );
+                let fast = service.compile_for_profile("set x 1", profile).unwrap();
+                let plain = service
+                    .compile_plain_script_for_profile(
+                        ScriptCompileTarget {
+                            source: "set x 1",
+                            namespace: "",
+                        },
+                        profile,
+                    )
+                    .unwrap();
+                assert!(std::ptr::eq(fast.profile, profile));
+                assert!(std::ptr::eq(plain.profile, profile));
+                let parameters = Vec::new();
+                let target = ProcedureCompileTarget {
+                    source: "return 1",
+                    namespace: "",
+                    parameters: &parameters,
+                };
+                let procedure = service
+                    .compile_procedure_for_profile(target, profile, ProcedureDispatch::Optimised)
+                    .unwrap();
+                assert!(std::ptr::eq(procedure.profile, profile));
+            }
+        }
+    }
+
+    fn instructions_without_source_spans(
+        instructions: &[tcl_bytecode::Instruction],
+    ) -> Vec<tcl_bytecode::Instruction> {
+        // Direct procedure targets start at zero; enclosing modules use source
+        // coordinates. All other codegen facts must remain equivalent.
+        let mut instructions = instructions.to_vec();
+        for instruction in &mut instructions {
+            instruction.source_span = None;
+            for operation in &mut instruction.native_operation_selections {
+                operation.span = tcl_lexer::Span::new(0, operation.span.len());
+            }
+        }
+        instructions
     }
 
     #[test]
@@ -675,17 +2031,10 @@ mod tests {
                         direct_proc.literals.entries(),
                         "{environment:?} literal materialisation"
                     );
-                    let mut static_instructions = static_proc.instructions.clone();
-                    let mut direct_instructions = direct_proc.instructions.clone();
-                    // Static proc spans refer to the enclosing module while a
-                    // direct target starts at offset zero; every codegen fact
-                    // other than that coordinate system must agree.
-                    for instruction in static_instructions
-                        .iter_mut()
-                        .chain(direct_instructions.iter_mut())
-                    {
-                        instruction.source_span = None;
-                    }
+                    let static_instructions =
+                        instructions_without_source_spans(&static_proc.instructions);
+                    let direct_instructions =
+                        instructions_without_source_spans(&direct_proc.instructions);
                     assert_eq!(
                         static_instructions, direct_instructions,
                         "{environment:?} procedure instruction shape"
@@ -703,12 +2052,16 @@ mod tests {
                         "{environment:?} command bindings"
                     );
                     assert!(
-                        direct_module.procedures.contains_key("::matrix::child"),
-                        "{environment:?} lost materialised nested proc"
+                        direct_module.procedures.is_empty(),
+                        "{environment:?} runtime target compiled an unentered nested body"
                     );
+                    assert!(direct_module.procedure_provenance.is_empty());
                 } else {
                     assert!(direct_proc.plain_command_dispatch);
-                    assert!(direct_proc.command_bindings.is_empty());
+                    assert_eq!(
+                        direct_proc.command_bindings,
+                        [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+                    );
                 }
                 assert_eq!(
                     static_ir.namespace_imports, direct_ir.namespace_imports,
@@ -757,7 +2110,8 @@ mod tests {
             [(":::".to_owned(), "exposed".to_owned())]
         );
         assert!(direct_ir.procedures.contains_key(":::::child"));
-        assert!(direct_module.procedures.contains_key(":::::child"));
+        assert!(direct_module.procedures.is_empty());
+        assert!(direct_module.procedure_provenance.is_empty());
 
         let static_source = "namespace eval : {\
             proc p {} {\
@@ -772,7 +2126,35 @@ mod tests {
             config,
             Some(profile),
         );
-        assert_eq!(static_ir.namespace_exports, direct_ir.namespace_exports);
+        let namespace_proofs: Vec<_> = static_ir
+            .procedures
+            .get(":::::p")
+            .into_iter()
+            .flat_map(|procedure| &procedure.body.statements)
+            .filter_map(|statement| statement.tokens())
+            .map(|tokens| {
+                let binding = tokens.source_binding.as_ref();
+                (
+                    &tokens.argv_texts,
+                    binding.map(|binding| &binding.lookup_namespace),
+                    binding.and_then(|binding| binding.proved_handler_target()),
+                    binding.and_then(|binding| binding.proved_execution_target()),
+                    binding.map(|binding| &binding.evaluated_argument_values),
+                    crate::registry_invocation::namespace_directive_footprint(
+                        registry.as_ref(),
+                        None,
+                        tokens,
+                    ),
+                )
+            })
+            .collect();
+        assert_eq!(
+            static_ir.namespace_exports,
+            direct_ir.namespace_exports,
+            "literal-colon procedures: {:?}; body units: {:?}; namespace proofs: {namespace_proofs:?}",
+            static_ir.procedures.keys().collect::<Vec<_>>(),
+            static_ir.body_units.keys().collect::<Vec<_>>()
+        );
         assert!(static_ir.procedures.contains_key(":::::p"));
     }
 
@@ -806,7 +2188,10 @@ mod tests {
         );
         assert!(plain.plain_command_dispatch);
         assert!(plain.top_level.plain_command_dispatch);
-        assert!(plain.top_level.command_bindings.is_empty());
+        assert_eq!(
+            plain.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+        );
         assert!(
             plain
                 .top_level
@@ -817,45 +2202,84 @@ mod tests {
     }
 
     #[test]
-    fn lowering_provenance_is_exact_and_escaped_heads_stay_generic() {
+    fn retained_string_selection_captures_a_private_name_without_a_public_token() {
         let profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
-        let direct = service.compile_for_profile("set x OLD", profile).unwrap();
+        let module = service
+            .compile("string equal -nocase a A")
+            .expect("known native ensemble");
+        assert!(module.top_level.literals.entries().iter().any(|literal| {
+            literal
+                .unicode()
+                .is_ok_and(|text| text.strip_prefix("::").unwrap_or(text) == "tcl::string::equal")
+        }));
+        assert!(module.top_level.instructions.iter().any(|instruction| {
+            instruction.op == tcl_bytecode::Op::INVOKE_REPLACE
+                && instruction.operands
+                    == [tcl_bytecode::Operand::Imm(5), tcl_bytecode::Operand::Imm(2)]
+        }));
         assert!(
-            direct
-                .top_level
-                .command_bindings
-                .iter()
-                .any(|binding| binding.name == "set" && binding.identity == "set"),
-            "a consumed lowering hook must retain its exact registry binding: {:?}",
-            direct.top_level.command_bindings,
-        );
-
-        let escaped = service
-            .compile_for_profile(r"se\x74 x OLD", profile)
-            .unwrap();
-        assert!(
-            escaped.top_level.command_bindings.is_empty(),
-            "lowering must not forge a binding for a head it did not resolve: {:?}",
-            escaped.top_level.command_bindings,
-        );
-        assert!(
-            escaped
+            module
                 .top_level
                 .instructions
                 .iter()
-                .any(|instruction| matches!(
-                    instruction.op,
-                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
-                )),
-            "the escaped head must remain on live runtime dispatch: {:?}",
-            escaped.top_level.instructions,
+                .all(|instruction| instruction.entered_command.is_none())
         );
     }
 
     #[test]
-    fn fallback_lowering_shape_does_not_claim_a_binding() {
+    fn escaped_heads_retain_decoded_bindings_at_the_native_release_boundary() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let service = BytecodeCompileService::for_profile(profile);
+            let direct = service.compile_for_profile("set x OLD", profile).unwrap();
+            assert!(
+                direct
+                    .top_level
+                    .command_bindings
+                    .iter()
+                    .any(|binding| { binding.name == "set" && binding.identity == "set" }),
+                "{dialect} direct binding"
+            );
+            let escaped = service
+                .compile_for_profile(r"se\x74 x OLD", profile)
+                .unwrap();
+            if matches!(dialect, "tcl8.4" | "tcl8.5") {
+                assert!(escaped.top_level.command_bindings.is_empty(), "{dialect}");
+                assert!(
+                    escaped.top_level.instructions.iter().any(|instruction| {
+                        matches!(
+                            instruction.op,
+                            tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                        )
+                    }),
+                    "{dialect}"
+                );
+            } else {
+                assert!(
+                    escaped
+                        .top_level
+                        .command_bindings
+                        .iter()
+                        .any(|binding| { binding.name == "set" && binding.identity == "set" }),
+                    "{dialect}: {:?}",
+                    escaped.top_level.command_bindings
+                );
+                assert!(
+                    escaped
+                        .top_level
+                        .command_bindings
+                        .iter()
+                        .all(|binding| binding.name != r"se\x74")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn lowering_fallback_keeps_the_native_compiler_selection() {
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
@@ -874,12 +2298,12 @@ mod tests {
             .compile_for_profile("return -code ok value", profile)
             .unwrap();
         assert!(
-            !fallback
+            fallback
                 .top_level
                 .command_bindings
                 .iter()
                 .any(|binding| binding.name == "return"),
-            "a runtime-dispatched Barrier must not claim typed-lowering provenance: {:?}",
+            "a backend surrogate must retain the native compiled return token: {:?}",
             fallback.top_level.command_bindings,
         );
         assert!(
@@ -920,11 +2344,16 @@ mod tests {
             .unwrap();
 
         assert!(std::ptr::eq(module.profile, tcl90));
-        assert!(
-            module.top_level.command_bindings.iter().any(|binding| {
-                binding.name == "foreachLine" && binding.identity == "foreachLine"
-            })
+        assert_eq!(
+            module.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
         );
+        assert!(module.top_level.instructions.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+            ) && instruction.source_cmd_text == "foreachLine line file.txt {}"
+        }));
     }
 
     #[test]
@@ -934,7 +2363,9 @@ mod tests {
         let service = BytecodeCompileService::for_profile(tcl90);
         let source = "set side 1; {*}{set x 2}";
 
-        let old = service.script_command_plan_for_profile(source, tcl84);
+        let old = service
+            .script_command_plan_for_profile(source, tcl84)
+            .unwrap();
         assert_eq!(&source[..old.complete_prefix_len], "set side 1; ");
         assert_eq!(
             old.fatal_tail
@@ -943,7 +2374,9 @@ mod tests {
             "extra characters after close-brace"
         );
 
-        let current = service.script_command_plan_for_profile(source, tcl90);
+        let current = service
+            .script_command_plan_for_profile(source, tcl90)
+            .unwrap();
         assert_eq!(current.complete_prefix_len, source.len());
         assert!(current.fatal_tail.is_none());
     }
@@ -1021,38 +2454,37 @@ mod tests {
     }
 
     #[test]
-    fn entered_command_metadata_is_specialisation_scoped() {
+    fn native_operation_metadata_is_specialisation_scoped() {
         let service = BytecodeCompileService::default();
-        let eligible = service.compile("set result [llength [mutate]]").unwrap();
-        let generic = service.compile("set result [foo [mutate]]").unwrap();
-        let wrong_arity = service
-            .compile("set result [llength [mutate] extra]")
-            .unwrap();
+        let eligible = service.compile("set result [llength [pid]]").unwrap();
+        let generic = service.compile("set result [pid]").unwrap();
+        let wrong_arity = service.compile("set result [llength [pid] extra]").unwrap();
         let traced = service
-            .compile_traced("set result [llength [mutate]]")
+            .compile_traced("set result [llength [pid]]")
             .unwrap();
 
-        let entered_names = |module: &tcl_bytecode::ModuleAsm| {
+        let selected_lengths = |module: &tcl_bytecode::ModuleAsm| {
             module
                 .top_level
                 .instructions
                 .iter()
-                .filter_map(|instruction| {
-                    instruction
-                        .entered_command
-                        .as_ref()
-                        .map(|entered| entered.binding.name.clone())
+                .flat_map(|instruction| &instruction.native_operation_selections)
+                .filter(|operation| {
+                    operation
+                        .requirements
+                        .iter()
+                        .any(|binding| binding.name == "llength" && binding.identity == "llength")
                 })
-                .collect::<Vec<_>>()
+                .count()
         };
-        assert_eq!(entered_names(&eligible), ["llength".to_owned()]);
-        assert!(entered_names(&generic).is_empty());
-        assert!(entered_names(&wrong_arity).is_empty());
-        assert!(entered_names(&traced).is_empty());
+        assert_eq!(selected_lengths(&eligible), 1);
+        assert_eq!(selected_lengths(&generic), 0);
+        assert_eq!(selected_lengths(&wrong_arity), 0);
+        assert_eq!(selected_lengths(&traced), 0);
     }
 
     #[test]
-    fn every_applicable_typed_codegen_hook_uses_entered_binding_metadata() {
+    fn every_applicable_typed_codegen_hook_retains_operation_selection() {
         let cases = [
             ("lassign", "lassign {a b} a b"),
             // Keep const-foldable hooks dynamic: this test exercises the
@@ -1061,8 +2493,6 @@ mod tests {
             ("llength", "llength $value"),
             ("lset", "lset value 0 x"),
             ("dict", "dict set value key x"),
-            ("array", "array for {k v} value {}"),
-            ("namespace", "namespace eval N {}"),
             ("append", "append value x"),
             ("lappend", "lappend value x"),
             ("unset", "unset value"),
@@ -1078,16 +2508,24 @@ mod tests {
                     "proc target {{}} {{}}; proc p {{}} {{set result [{command}]}}"
                 ))
                 .unwrap();
-            let entered = module.procedures["::p"]
+            let operation = module.procedures["::p"]
                 .instructions
                 .iter()
-                .filter_map(|instruction| instruction.entered_command.as_ref())
-                .find(|entered| entered.binding.name == name);
-            assert_eq!(
-                entered.map(|entered| entered.binding.identity.as_str()),
-                Some(name),
-                "{name} lost the applicability-probed entered binding"
-            );
+                .flat_map(|instruction| &instruction.native_operation_selections)
+                .find(|operation| {
+                    operation
+                        .requirements
+                        .iter()
+                        .any(|binding| binding.name == name && binding.identity == name)
+                });
+            let operation = operation.unwrap_or_else(|| {
+                panic!(
+                    "{name}: proved inline hook retains its operation range; requirements={:?}",
+                    module.procedures["::p"].command_bindings
+                )
+            });
+            assert_eq!(operation.source, command);
+            assert!(module.procedures["::p"].labels.contains_key(&operation.end));
             assert!(
                 module.procedures["::p"]
                     .command_bindings
@@ -1162,7 +2600,8 @@ mod tests {
 
     #[test]
     fn cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites() {
-        let source = "if {[incr i] > 3} { proc continue {} {return -code break} }\ncontinue";
+        let source = "proc continue {} {return -code break}\n\
+                      if {[incr i] > 3} {set seen 1}\ncontinue";
         let module = BytecodeCompileService::default().compile(source).unwrap();
         let edge = module
             .top_level
@@ -1175,7 +2614,7 @@ mod tests {
                 ) && instruction.source_span.is_some()
             })
             .expect("the if body has a source-mapped CFG edge");
-        assert!(edge.source_cmd_text.is_empty());
+        assert_eq!(edge.source_cmd_text, "");
         assert!(module.top_level.instructions.iter().any(|instruction| {
             instruction.source_cmd_text == "continue"
                 && matches!(
@@ -1186,21 +2625,20 @@ mod tests {
     }
 
     #[test]
-    fn structured_heads_survive_cfg_consumption_as_binding_dependencies() {
+    fn generic_eval_keeps_its_body_for_runtime_compilation() {
         let module = BytecodeCompileService::default()
             .compile("eval {while {0} {}}")
             .unwrap();
-        for name in ["eval", "while"] {
-            assert!(
-                module
-                    .top_level
-                    .command_bindings
-                    .iter()
-                    .any(|binding| binding.name == name && binding.identity == name),
-                "missing {name:?} dependency: {:?}",
-                module.top_level.command_bindings,
-            );
-        }
+        assert_eq!(
+            module.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
+        );
+        assert!(module.top_level.instructions.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+            ) && instruction.source_cmd_text == "eval {while {0} {}}"
+        }));
     }
 
     #[test]
@@ -1212,11 +2650,17 @@ mod tests {
         let current = BytecodeCompileService::for_profile(tcl90)
             .compile(source)
             .unwrap();
-        assert!(
-            current.top_level.command_bindings.iter().any(|binding| {
-                binding.name == "foreachLine" && binding.identity == "foreachLine"
-            })
+        assert_eq!(
+            current.top_level.command_bindings,
+            [] as [tcl_runtime_api::CommandBindingIdentity; 0]
         );
+        assert!(std::ptr::eq(current.profile, tcl90));
+        assert!(current.top_level.instructions.iter().any(|instruction| {
+            matches!(
+                instruction.op,
+                tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+            ) && instruction.source_cmd_text == source
+        }));
 
         let legacy = BytecodeCompileService::for_profile(tcl86)
             .compile(source)
@@ -1280,7 +2724,12 @@ mod tests {
             .iter()
             .chain(module.procedures["::p"].instructions.iter())
             .filter(|instruction| instruction.op == tcl_bytecode::Op::START_CMD)
-            .map(|instruction| instruction.source_cmd_text.as_str())
+            .map(|instruction| {
+                instruction
+                    .source_cmd_text
+                    .try_text()
+                    .expect("Unicode fixture source")
+            })
             .collect();
 
         for expected in [
@@ -1299,7 +2748,7 @@ mod tests {
     #[test]
     fn final_constant_if_boundary_keeps_its_replay_continuation() {
         let module = BytecodeCompileService::default()
-            .compile("mutate; if {1} {set ::body_ran 1}")
+            .compile("pid; if {1} {set ::body_ran 1}")
             .unwrap();
         let boundary = module
             .top_level
@@ -1325,7 +2774,7 @@ mod tests {
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let service = BytecodeCompileService::for_profile(profile);
-        let body = "mutate; if {1} {set ::body_ran 1}";
+        let body = "pid; if {1} {set ::body_ran 1}";
         let if_source = "if {1} {set ::body_ran 1}";
         let static_module = service
             .compile_for_profile(&format!("proc p {{}} {{{body}}}"), profile)

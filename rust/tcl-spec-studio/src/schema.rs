@@ -473,6 +473,24 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list; wins over `arg_roles`.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -639,6 +657,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         SUBS,
         FieldKind::Bool,
         "Accept a subcommand word that is not declared, without a W001 warning.",
+    ),
+    f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
     ),
     f(
         "prefix_matching",
@@ -836,6 +861,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
         },
         "Mutable Tcl domains that must remain stable before specialisation.",
+    ),
+    f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
     ),
     f(
         "result_stability",
@@ -1048,6 +1082,42 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
             optional: false,
         },
         "Whether body arguments run in the caller's frame or a separate context.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "procedure_definition",
+        "Native procedure grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeProcedureDefinitionSpec::Core)",
+        },
+        "Native definition argv, result and static-storage protocol; requires live native implementation proof.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
     ),
     f(
         "body_interpreter",
@@ -1504,6 +1574,24 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback assigning roles from the actual argument list.",
     ),
     f(
+        "arg_role_count_resolver",
+        "Cardinality argument-role resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_count_resolver)",
+        },
+        "Callback assigning roles from exact evaluated argument count without reading values. Unknown expansion cardinality keeps roles incomplete.",
+    ),
+    f(
+        "arg_role_layout_resolver",
+        "Structured argument-layout resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_layout_resolver)",
+        },
+        "Callback assigning roles from structured argv and the selected available option table; unknown operand values remain unknown. Mutually exclusive with value/count callbacks.",
+    ),
+    f(
         "arg_role_resolver_roles",
         "Resolver role capabilities",
         ARGS,
@@ -1735,6 +1823,13 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
          when longer than uniqueness alone requires. Unset = uniqueness only.",
     ),
     f(
+        "option_prefix_words",
+        "Positional prefix words",
+        OPTS,
+        FieldKind::Count,
+        "Fixed positional words before the selected invocation's option run.",
+    ),
+    f(
         "prefix_matching",
         "Prefix matching",
         OPTS,
@@ -1869,6 +1964,33 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             optional: false,
         },
         "Whether body arguments run in the caller's frame or a separate context.",
+    ),
+    f(
+        "successful_handler",
+        "Native normal handler effects",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::VariableOperands)",
+        },
+        "Audited normal transfer after actual native handler identity converges; does not license compiler selection or body execution. Excluded from pack-authored strong analysis.",
+    ),
+    f(
+        "native_compilation",
+        "Native compiler grammar",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeCompilationSpec { .. })",
+        },
+        "Native compiler-hook syntax and script entry protocol; requires actual source compilation and implementation proofs.",
+    ),
+    f(
+        "body_execution",
+        "Body execution contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(BodyExecutionSpec::CapturedLifecycle(...))",
+        },
+        "Versioned evaluated-body grammar and completion contract; expansion also requires proved implementation and hook dependencies.",
     ),
     f(
         "body_interpreter",
@@ -2014,6 +2136,15 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(DispatchDependencyDescriptor::replace(DispatchDependencies::BASE))",
         },
         "Subcommand-specific live-dispatch stability requirements.",
+    ),
+    f(
+        "native_result",
+        "Native result contract",
+        BEHAVIOUR,
+        FieldKind::RustExpr {
+            hint: "Some(NativeResultContract::...)",
+        },
+        "Native selected-cell/argument result dependency; requires actual implementation, observer and completion proofs.",
     ),
     f(
         "result_stability",

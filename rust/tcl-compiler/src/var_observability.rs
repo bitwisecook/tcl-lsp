@@ -48,14 +48,13 @@
 use std::collections::HashMap;
 
 use bitflags::bitflags;
-use tcl_registry::{CallerFrameSelection, CommandRegistry, StateTransition, VariableAliasTarget};
+#[cfg(test)]
+use tcl_registry::StateTransition;
+use tcl_registry::{CallerFrameSelection, CommandRegistry, VariableAliasTarget};
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::ir::Statement;
-use crate::lowering::variable_trace_write_indices;
-use crate::naming::normalise_var_name;
-use crate::var_escape::helpers::invocation_facts;
-use crate::var_scoping::my_variable_declaration_indices;
+use crate::naming::normalise_var_name_braced;
 
 bitflags! {
     /// Why an access to a variable is not a private-local access.  A
@@ -104,26 +103,14 @@ impl EscapeFlag {
 /// `upvar` recognition logic).
 pub(crate) type State = HashMap<String, EscapeFlag>;
 
-/// Union `flag` into `state[name]` (after normalising `name`).
-fn mark(state: &mut State, args: &[String], idx: usize, flag: EscapeFlag) {
-    if let Some(a) = args.get(idx) {
-        let name = normalise_var_name(a);
-        if !name.is_empty() {
-            *state.entry(name.to_owned()).or_default() |= flag;
-        }
-    }
-}
-
 fn mark_name(state: &mut State, name: &str, flag: EscapeFlag) {
-    let name = normalise_var_name(name);
-    if !name.is_empty() {
-        *state.entry(name.to_owned()).or_default() |= flag;
-    }
+    let name = normalise_var_name_braced(name, true);
+    *state.entry(name.to_owned()).or_default() |= flag;
 }
 
 fn alias_flag(
     target: &VariableAliasTarget,
-    registry: &tcl_registry::CommandRegistry,
+    normal: &crate::registry_invocation::NormalTransferInvocation,
 ) -> EscapeFlag {
     match target {
         VariableAliasTarget::Global { .. } => EscapeFlag::GLOBAL,
@@ -132,8 +119,9 @@ fn alias_flag(
         }
         VariableAliasTarget::CallerSelectedFrame { frame, .. } => match frame {
             CallerFrameSelection::Explicit(level)
-                if level.literal().is_some_and(|level| {
-                    tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
+                if level.literal().is_some_and(|_| {
+                    normal
+                        .variable_alias_frame_level(frame)
                         .is_some_and(tcl_registry::frame_effect::FrameLevel::is_global_frame)
                 }) =>
             {
@@ -152,51 +140,52 @@ fn alias_flag(
 /// own flow-insensitive whole-body scan — the recognition logic for
 /// `global` / `variable` / `upvar` / `trace` lives here once.
 pub(crate) fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
-        return;
-    };
-    // Alias / trace declarations key off the canonical command name.
-    let canon = stmt.canonical_command_or_source();
-    // `my variable NAME …` (TclOO) binds each instance variable into the
-    // method's local scope — a namespace-style scope alias, exactly like a
-    // bare `variable`, but reached through the `my` dispatch so the base
-    // command word is `my` and the declared names follow a `variable`
-    // subcommand word. An instance variable's intrep is externally
-    // determined (the constructor / other methods can set it to anything),
-    // so a use-site / merge / loop-oscillation check must treat it as
-    // escaping — the same protection a bare `variable` gets. Whether the head
-    // *is* the self-dispatch keyword comes from
-    // the registry, not a name literal; `get` resolves the
-    // `::`-qualified spelling itself.
-    if registry.method_dispatch_keyword(canon)
-        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-    {
-        for i in my_variable_declaration_indices(args) {
-            mark(state, args, i, EscapeFlag::NAMESPACE);
-        }
-    }
-    if let Some(facts) = invocation_facts(stmt, registry)
-        && let Some(transitions) = facts.state_transitions.declared()
-    {
-        for fact in transitions.facts() {
-            let StateTransition::VariableCellAlias(alias) = &fact.transition else {
-                continue;
-            };
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    if let Some(normal) = stmt.tokens().and_then(|tokens| {
+        crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)
+    }) {
+        for alias in normal.variable_alias_transitions() {
             if let Some(local) = alias.local.literal() {
-                mark_name(state, local, alias_flag(&alias.target, registry));
+                mark_name(state, local, alias_flag(&alias.target, &normal));
             }
         }
     }
-
-    // Variable-trace targets, registry-driven: any subcommand carrying
-    // `Traits::ESTABLISHES_VARIABLE_TRACE` (`trace add|remove|variable|
-    // vdelete` — not the read-only `info`/`vinfo` forms) marks its
-    // `ArgRole::VarWrite` target(s) TRACED. Mirrors
-    // `crate::lowering::populate_variable_trace_facts`'s whole-module
-    // fact via the same shared query, so this carries no hardcoded
-    // knowledge of `trace`'s subcommand grammar.
-    for i in variable_trace_write_indices(registry, canon, args) {
-        mark(state, args, i, EscapeFlag::TRACED);
+    if let Some(possible) = stmt.tokens().and_then(|tokens| {
+        crate::registry_invocation::possible_variable_trace_transitions(registry, context, tokens)
+    }) {
+        for trace in possible.transitions() {
+            match trace {
+                tcl_registry::TraceTransition::Add { target, .. }
+                | tcl_registry::TraceTransition::Remove { target, .. } => {
+                    if let tcl_registry::TraceTarget::Variable(target) = target
+                        && let Some(name) = target.literal()
+                    {
+                        mark_name(state, name, EscapeFlag::TRACED);
+                    }
+                }
+            }
+        }
+    }
+    // A retained receiver candidate contributes alias hazards only. It does
+    // not prove an object namespace, native completion or a physical link.
+    if let Some(binding) = stmt
+        .tokens()
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        && let Some(candidates) = binding.receiver_self_builtin_candidates(registry)
+        && let Some(operation) = candidates.operation()
+    {
+        for name in binding
+            .evaluated_argument_words
+            .iter()
+            .skip(1)
+            .filter_map(|word| word.as_registry_word().literal())
+        {
+            if operation.accepts_variable_link_name(name) {
+                mark_name(state, name, EscapeFlag::NAMESPACE);
+            }
+        }
     }
 }
 
@@ -237,7 +226,7 @@ impl VarObservability<'_> {
     #[must_use]
     pub fn flag_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> EscapeFlag {
         self.state_at(block, stmt_idx)
-            .get(normalise_var_name(name))
+            .get(normalise_var_name_braced(name, true))
             .copied()
             .unwrap_or_default()
     }
@@ -246,6 +235,21 @@ impl VarObservability<'_> {
     #[must_use]
     pub fn is_escaping_at(&self, block: BlockId, stmt_idx: usize, name: &str) -> bool {
         !self.flag_at(block, stmt_idx, name).is_empty()
+    }
+
+    /// Original dependency names marked aliased or traced at this exact
+    /// point. Physical consumers must resolve these through their retained
+    /// source environment; display labels are not storage identities.
+    #[must_use]
+    pub fn escaping_var_names_at(
+        &self,
+        block: BlockId,
+        stmt_idx: usize,
+    ) -> std::collections::HashSet<String> {
+        self.state_at(block, stmt_idx)
+            .into_iter()
+            .filter_map(|(name, flags)| (!flags.is_empty()).then_some(name))
+            .collect()
     }
 
     /// True when `name` is under a `trace` at this point.
@@ -358,20 +362,22 @@ pub fn scan_module_global_names(
             let (Statement::Call { .. } | Statement::Barrier { .. }) = stmt else {
                 return;
             };
-            let Some(facts) = invocation_facts(stmt, registry) else {
+            let Some(possible) = stmt.tokens().and_then(|tokens| {
+                crate::registry_invocation::possible_variable_alias_transitions(
+                    registry,
+                    registry
+                        .profile()
+                        .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+                    tokens,
+                )
+            }) else {
                 return;
             };
-            let Some(transitions) = facts.state_transitions.declared() else {
-                return;
-            };
-            for fact in transitions.facts() {
-                let StateTransition::VariableCellAlias(alias) = &fact.transition else {
-                    continue;
-                };
+            for alias in possible.aliases() {
                 if matches!(alias.target, VariableAliasTarget::Global { .. })
                     && let Some(local) = alias.local.literal()
                 {
-                    let name = normalise_var_name(local);
+                    let name = normalise_var_name_braced(local, true);
                     if !name.is_empty() {
                         names.insert(name.to_owned());
                     }
@@ -462,12 +468,28 @@ mod tests {
     use crate::compilation_unit::CompilationUnit;
     use tcl_registry::CommandRegistry;
 
-    fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+    fn registry() -> std::sync::Arc<CommandRegistry> {
+        tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .clone()
     }
 
     fn cu(src: &str) -> CompilationUnit {
         CompilationUnit::build_for(src, &registry(), false)
+    }
+
+    #[test]
+    fn literal_dollar_alias_names_remain_distinct() {
+        let c = cu("proc p {} {global {$g}; set {$g} VALUE; set g LOCAL}");
+        let function = c.function("::p").unwrap();
+        let reg = registry();
+        let observations = analyse_var_observability(&function.cfg, &reg);
+        assert!(observations.escaping_var_names().contains("$g"));
+        assert!(!observations.escaping_var_names().contains("g"));
+        let mut flags = State::new();
+        mark_name(&mut flags, "$g", EscapeFlag::TRACED);
+        assert_eq!(flags.get("$g"), Some(&EscapeFlag::TRACED));
+        assert!(!flags.contains_key("g"));
     }
 
     #[test]
@@ -503,9 +525,10 @@ mod tests {
     #[test]
     fn my_variable_marks_namespace_alias() {
         // `my variable x` (TclOO) binds an instance variable into the method
-        // scope — a namespace-style escape, exactly like a bare `variable`.
-        let c = cu("proc ::p {} { my variable x\nset x 1 }");
-        let fu = c.function("::p").unwrap();
+        // scope. The generic receiver inventory supplies a May namespace
+        // hazard without certifying one instance's physical alias.
+        let c = cu("oo::class create C {method p {} {my variable x; set x 1}}");
+        let fu = &c.methods["::C::p"];
         let reg = registry();
         let obs = analyse_var_observability(&fu.cfg, &reg);
         assert!(
@@ -514,6 +537,69 @@ mod tests {
             "my variable x should mark x as a namespace alias"
         );
         assert!(obs.escaping_var_names().contains("x"));
+    }
+
+    #[test]
+    fn a_receiver_variable_override_does_not_inherit_builtin_alias_hazards() {
+        let unit = cu(
+            "oo::class create C {method variable args {return NOOP}; method p {} {my variable x; set x 1}}",
+        );
+        let method = &unit.methods["::C::p"];
+        let registry = registry();
+        let observability = analyse_var_observability(&method.cfg, &registry);
+        assert!(!observability.escaping_var_names().contains("x"));
+    }
+
+    #[test]
+    fn a_root_my_spelling_does_not_supply_a_receiver_alias_hazard() {
+        let unit = cu("proc p {} {my variable x; set x 1}");
+        let registry = registry();
+        let observability =
+            analyse_var_observability(&unit.function("::p").unwrap().cfg, &registry);
+        assert!(!observability.escaping_var_names().contains("x"));
+    }
+
+    #[test]
+    fn receiver_method_trace_is_a_may_hazard_without_normal_registration() {
+        let unit = cu("oo::class create C {method m {} {trace add variable v write cb}}");
+        let reg = registry();
+        let method = unit.ir_module.methods.values().next().unwrap();
+        let tokens = method
+            .body
+            .statements
+            .iter()
+            .find_map(Statement::tokens)
+            .unwrap();
+        let footprint =
+            crate::registry_invocation::possible_variable_trace_transitions(&reg, None, tokens)
+                .expect("retained stock trace candidate");
+        assert!(footprint.unknown_residual());
+        assert_eq!(footprint.transitions().count(), 1);
+        assert!(
+            crate::registry_invocation::normal_transfer_invocation(&reg, None, tokens).is_none()
+        );
+        assert!(unit.ir_module.traced_variables.contains("v"));
+    }
+
+    #[test]
+    fn replaced_absolute_trace_cannot_donate_method_observer_metadata() {
+        let unit = cu(
+            "proc ::trace args {}; oo::class create C {method m {} {::trace add variable v write cb}}",
+        );
+        let reg = registry();
+        let method = unit.ir_module.methods.values().next().unwrap();
+        let tokens = method
+            .body
+            .statements
+            .iter()
+            .find_map(Statement::tokens)
+            .unwrap();
+        let footprint =
+            crate::registry_invocation::possible_variable_trace_transitions(&reg, None, tokens)
+                .expect("document implementation remains an opaque candidate");
+        assert_eq!(footprint.transitions().count(), 0);
+        assert!(footprint.unknown_residual());
+        assert!(!unit.ir_module.traced_variables.contains("v"));
     }
 
     #[test]
@@ -528,27 +614,73 @@ mod tests {
     }
 
     #[test]
+    fn exception_edge_join_retains_proved_alias_and_trace_transitions() {
+        let unit = cu("proc p {} {trace add variable t write cb; global g; error boom}");
+        let mut graph = unit.function("::p").unwrap().cfg.clone();
+        let handler = graph.intern_block("observer_exception_handler");
+        let origins: Vec<_> = graph.blocks.keys().copied().collect();
+        graph.blocks.insert(
+            handler,
+            crate::cfg::Block::new("observer_exception_handler"),
+        );
+        graph
+            .exception_edges
+            .extend(origins.iter().map(|&origin| (origin, handler)));
+        let reg = registry();
+        let observations = analyse_var_observability(&graph, &reg);
+        assert!(
+            observations
+                .flag_at(handler, 0, "t")
+                .contains(EscapeFlag::TRACED)
+        );
+        assert!(
+            observations
+                .flag_at(handler, 0, "g")
+                .contains(EscapeFlag::GLOBAL)
+        );
+    }
+
+    #[test]
     fn try_handler_joins_trace_and_alias_state_from_exception_edge() {
         // The body may fail before or after either registry-described state
         // transition.  A handler access must therefore retain both hazards;
         // treating it as a private, untraced local could authorise an invalid
         // load/store elimination.
-        let c = cu(
-            "proc ::p {} {\n try {\n  trace add variable t write cb\n  global g\n } on error {} {\n  set t 1\n  set g 2\n }\n}",
-        );
+        let source = "proc ::p {} {\n try {\n  trace add variable t write cb\n  global g\n  error boom\n } on error {} {\n  set t 1\n  set g 2\n }\n}";
+        let c = cu(source);
         let fu = c.function("::p").unwrap();
         let handler = fu
             .cfg
             .blocks
             .iter()
-            .find_map(|(&id, block)| block.name.starts_with("try_handler").then_some(id))
-            .expect("try handler block");
+            .find_map(|(&id, block)| {
+                block
+                    .statements
+                    .iter()
+                    .any(|statement| {
+                        let span = statement.span();
+                        source
+                            .get(span.start() as usize..span.end() as usize)
+                            .is_some_and(|text| text.starts_with("set t 1"))
+                    })
+                    .then_some(id)
+            })
+            .expect("entered handler store retains its authored source");
+        let mut exceptional_path: Vec<_> = fu
+            .cfg
+            .exception_edges
+            .iter()
+            .map(|&(_, target)| target)
+            .collect();
+        let mut visited = std::collections::HashSet::new();
+        while let Some(block) = exceptional_path.pop() {
+            if visited.insert(block) {
+                exceptional_path.extend(fu.cfg.block_successors(block));
+            }
+        }
         assert!(
-            fu.cfg
-                .exception_edges
-                .iter()
-                .any(|&(_, target)| target == handler),
-            "the test must exercise an analysis-only exception edge"
+            visited.contains(&handler),
+            "the entered handler must be reachable from a captured exceptional edge"
         );
 
         let reg = registry();
@@ -681,21 +813,48 @@ mod tests {
     fn scan_module_global_names_finds_declaration_in_method_body() {
         let c = cu("oo::class create C {\n method m {} { global n\nset n 2 }\n}");
         let names = scan_module_global_names(&c.ir_module, &registry());
-        assert!(names.contains("n"), "{names:?}");
+        assert!(
+            names.contains("n"),
+            "{names:?}; methods: {:?}",
+            c.ir_module
+                .methods
+                .iter()
+                .map(|(name, method)| (
+                    name,
+                    method
+                        .body
+                        .statements
+                        .iter()
+                        .map(|statement| (
+                            statement.span(),
+                            statement.tokens().map(|tokens| (
+                                tokens.source_binding.as_ref().map(|binding| (
+                                    binding.variable_frame.clone(),
+                                    binding
+                                        .execution_targets()
+                                        .map(|target| target.command.clone())
+                                        .collect::<Vec<_>>(),
+                                    binding.execution_is_unknown(),
+                                )),
+                                tokens.argv_texts.clone(),
+                            ))
+                        ))
+                        .collect::<Vec<_>>()
+                ))
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]
-    fn scan_module_global_names_finds_declaration_inside_static_uplevel_body() {
-        // FN guard (P1, code review): a `global` declaration hidden inside a
-        // static-body `uplevel #0 { ... }` lowers to `Statement::UpFrame`,
-        // not a plain nested block — `for_each_statement` must still descend
-        // into it. Confirmed against tclsh 8.6: `set g 4; proc helper {}
-        // { uplevel #0 { global g; set g 17 } }; helper; puts $g` prints
-        // `17`, so missing this name here would let SCCP/O102 fold the
-        // final read to the stale literal `4`.
-        let c = cu("proc ::helper {} { uplevel #0 { global n\nset n 2 } }");
-        let names = scan_module_global_names(&c.ir_module, &registry());
-        assert!(names.contains("n"), "{names:?}");
+    fn global_frame_noop_declaration_does_not_invent_a_local_alias() {
+        let source = "set n 4; proc helper {} {uplevel #0 {global n; set n 17}}; helper; puts $n";
+        let unit = cu(source);
+        // Native global is inactive in the selected global frame. The actual
+        // outward store is tracked by the canonical cell owner independently.
+        assert!(scan_module_global_names(&unit.ir_module, &registry()).is_empty());
+        let folds =
+            crate::optimiser::optimise_raw_for_profile(source, &registry(), registry().profile());
+        assert!(!folds.iter().any(|edit| edit.replacement.contains("puts 4")));
     }
 
     // ---- registry-threading coverage (issue #1788) ----
@@ -726,6 +885,7 @@ mod tests {
         if let Some(variable) = tcl_registry::TransitionSubject::from_argument(arguments, 0) {
             transitions.push(StateTransition::VariableCellAlias(
                 tcl_registry::VariableCellAliasTransition {
+                    destination: tcl_registry::VariableAliasDestination::CurrentNamespaceOrLocal,
                     local: variable.clone(),
                     target: VariableAliasTarget::Global { variable },
                     writes_value: false,
@@ -743,9 +903,15 @@ mod tests {
             name: "bindglobal",
             surface: Some(surface),
             arity: tcl_registry::Arity::any(),
+            native_compilation: Some(tcl_registry::native_compilation::NativeCompilationSpec {
+                grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+                operation: tcl_registry::SemanticOperationId::Invoke,
+                body: tcl_registry::native_compilation::NativeBodyCompilation::Direct,
+            }),
             arg_roles: &[(0, tcl_registry::ArgRole::VarWrite)],
             assigns_variable_at: Some(0),
             state_transitions: Some(tcl_registry::StateTransitionDescriptor {
+                success_resolver: None,
                 resolver: Some(overlay_alias_transitions),
                 ..tcl_registry::StateTransitionDescriptor::EMPTY
             }),
@@ -770,7 +936,8 @@ mod tests {
     /// through the overlay command, then reassigns it. A scan that misses
     /// `n` tells the top-level SCCP build `n` never escapes, which licenses
     /// folding the final read to the stale literal `1`.
-    const OVERLAY_SOURCE: &str = "set g 4\nproc helper {} { bindglobal g\nset g 17 }\nputs $g\n";
+    const OVERLAY_SOURCE: &str =
+        "set g 4\nproc helper {} { bindglobal g\nset g 17 }\nhelper\nputs $g\n";
 
     #[test]
     fn scan_uses_the_callers_registry_not_a_default_one() {
@@ -865,25 +1032,37 @@ mod tests {
             tcl_dialect::model::SpecSurface::ALL_TCL,
         );
         let cu = CompilationUnit::build_for(OVERLAY_SOURCE, &reg, false);
-        let sym = cu
-            .top_level
-            .ssa
-            .var_symbol("g")
-            .expect("top-level `g` should be interned");
-        let lattice: Vec<_> = cu
-            .top_level
-            .sccp
-            .values
-            .iter()
-            .filter(|((s, _), _)| *s == sym)
-            .collect();
-        assert!(
-            lattice
+        let read = cu.top_level.ssa.blocks.iter().find_map(|(&block, body)| {
+            body.statements
                 .iter()
-                .all(|(_, lv)| !matches!(lv, crate::analyses::LatticeValue::Const(_))),
-            "`g` is aliased by a registry-declared transition, so no lattice \
-             entry may be Const: {lattice:?}",
-        );
+                .enumerate()
+                .find_map(|(index, statement)| {
+                    let Statement::Call {
+                        command,
+                        tokens: Some(tokens),
+                        ..
+                    } = &statement.statement
+                    else {
+                        return None;
+                    };
+                    if command.trim_start_matches(':') != "puts" {
+                        return None;
+                    }
+                    crate::ssa::SsaSourceView::at_statement(&cu.top_level.ssa, block, index)
+                        .read_word(tokens.words().get(1)?)
+                })
+        });
+        if let Some(reference) = read
+            && let Some(version) = reference.version
+        {
+            assert_ne!(
+                cu.top_level.sccp.values.get(&(reference.symbol, version)),
+                Some(&crate::analyses::LatticeValue::Const(
+                    crate::analyses::ConstValue::Int(4)
+                )),
+                "the actual callee mutation must withdraw the old global value",
+            );
+        }
     }
 
     /// Caller 2 — `optimiser::propagation::run`. Its own
@@ -916,13 +1095,13 @@ mod tests {
         // happening to be silent here.
         let baseline = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let baseline_folds: Vec<_> =
-            crate::optimiser::optimise_raw_for_profile(OVERLAY_SOURCE, baseline, Some(profile))
+            crate::optimiser::optimise_raw_for_profile("set g 4; puts $g", baseline, Some(profile))
                 .into_iter()
                 .filter(|o| matches!(o.code.as_str(), "O100" | "O102"))
                 .collect();
         assert!(
             !baseline_folds.is_empty(),
-            "control: a registry that cannot see `bindglobal` does fold",
+            "control: an unmodified global value remains eligible for forwarding",
         );
     }
 }

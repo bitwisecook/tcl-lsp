@@ -1,0 +1,12 @@
+{
+  "rows": 88,
+  "native_versions": [
+    "9.0.4",
+    "9.1.0"
+  ],
+  "source_proofs": [
+    "/workspace/.proofs/2286-array-default-retained-target-controls.json",
+    "/workspace/.proofs/2286-array-default-diagnostics-controls.json"
+  ],
+  "scope": "Native original-script result/diagnostic/callback order. No native allocator or internal cache identity claim."
+}

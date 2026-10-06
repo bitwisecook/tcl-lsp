@@ -253,7 +253,7 @@ fn warnings_report_unterminated_brace_with_offset() {
     // Non-strict mode tokenises best-effort and records the recoverable
     // problem as a warning rather than failing.
     let (toks, warns) = lex_with("set x {abc", LexerConfig::default());
-    assert!(!toks.is_empty());
+    assert_ne!(toks, [] as [tcl_lexer::Token; 0]);
     assert_eq!(warns.len(), 1);
     assert_eq!(warns[0].message, "missing close-brace");
     assert_eq!(warns[0].offset, 10); // at EOF, past `{abc`
@@ -399,7 +399,10 @@ fn empty_ghost_map_is_the_normal_path() {
 
 #[test]
 fn empty_source_yields_no_tokens() {
-    assert!(Lexer::new("").tokenise_all().unwrap().is_empty());
+    assert_eq!(
+        Lexer::new("").tokenise_all().unwrap(),
+        [] as [tcl_lexer::Token; 0]
+    );
     assert_eq!(all_kinds(""), Vec::<TokenType>::new());
 }
 
@@ -1007,8 +1010,14 @@ fn deeply_nested_expr_array_index_survives_lexing() {
 fn expr_unterminated_quote_and_command_do_not_panic() {
     // tclsh treats these as incomplete; the lexer must still produce
     // tokens best-effort without panicking.
-    assert!(!tokenise_expr("\"open string", None).is_empty());
-    assert!(!tokenise_expr("[open cmd", None).is_empty());
+    assert_ne!(
+        tokenise_expr("\"open string", None),
+        [] as [tcl_lexer::ExprToken; 0]
+    );
+    assert_ne!(
+        tokenise_expr("[open cmd", None),
+        [] as [tcl_lexer::ExprToken; 0]
+    );
     // A `$arr(` with an unterminated index runs to EOF as one VARIABLE.
     let v = tokenise_expr("$arr(idx", None);
     assert_eq!(v[0].kind, ExprTokenType::Variable);
@@ -1023,13 +1032,13 @@ fn bracket_index_records_structural_events_and_skips_inert() {
     // no inert spans. The verdict is balanced.
     let idx = BracketIndex::build("a [b] c");
     assert_eq!(idx.events(), &[(2, 1), (4, -1)]);
-    assert!(idx.inert_spans().is_empty());
+    assert_eq!(idx.inert_spans(), []);
     assert_eq!(idx.unterminated_count(), 0);
 
     // `{ [ }` — the `[` is inside a brace word, so it is literal: zero
     // structural events and one terminated inert span covering the word.
     let idx = BracketIndex::build("{ [ }");
-    assert!(idx.events().is_empty());
+    assert_eq!(idx.events(), []);
     assert_eq!(idx.inert_spans(), &[(0, 5, true)]);
     assert!(idx.is_inert(2)); // the `[` sits inside the inert span
     // `is_inert` is membership `start <= off < end`: offset 0 (the `{`) is
@@ -1043,7 +1052,7 @@ fn bracket_index_escape_pair_and_unterminated_brace_spans() {
     // A `\[` escape pair is a terminated inert span: the `[` is literal.
     let idx = BracketIndex::build(r"\[");
     assert_eq!(idx.inert_spans(), &[(0, 2, true)]);
-    assert!(idx.events().is_empty());
+    assert_eq!(idx.events(), []);
 
     // `[foo {bar` — the `[` is structural (+1 at 0), but the unterminated
     // brace word makes a `(5, EOF, false)` span that swallows the tail.
@@ -1058,7 +1067,7 @@ fn brace_index_records_events_and_unterminated_depth() {
     // `set x {a b}` — structural `{` (+1) at 6 and `}` (-1) at 10.
     let idx = BraceIndex::build("set x {a b}");
     assert_eq!(idx.events(), &[(6, 1), (10, -1)]);
-    assert!(idx.inert_spans().is_empty());
+    assert_eq!(idx.inert_spans(), []);
     assert_eq!(idx.unterminated_count(), 0);
 
     // `{a {b` — two opens, both unterminated: depth 2.

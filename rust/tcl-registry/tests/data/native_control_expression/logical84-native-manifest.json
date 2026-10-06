@@ -1,0 +1,30 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "controls": 8,
+  "compiler_command": [
+    "gcc",
+    "-I",
+    "tmp/tcl8.4.20/generic",
+    "-I",
+    "tmp/tcl8.4.20/unix",
+    "rust/tcl-registry/tests/data/native_control_expression/logical84.c",
+    "tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-o",
+    "/workspace/.proofs/2286-c84-logical-native"
+  ],
+  "source_sha256": "6ad756616dc91a409680bb24fc15358291a2421fbda864be4e33dae9421531ff",
+  "original_output_sha256": "4731286966d7fd7103d360a865bd400519c2b858acc3da4355d54f582ae79008",
+  "table_sha256": "97f06e66799e9c4dee90462fed8af955dfa0692df4fb97e8359b6ecf7073f6e7",
+  "binary_sha256": "0858e614f0c9e10631e9d1e9bfed024a52abb789737c4181b5dc854fca9c11ee",
+  "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "headers": {
+    "tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+    "tmp/tcl8.4.20/generic/tclCompile.h": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec"
+  },
+  "exit": 0,
+  "stderr_bytes": 0
+}

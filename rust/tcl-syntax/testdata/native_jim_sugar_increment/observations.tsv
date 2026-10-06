@@ -1,0 +1,18 @@
+BEFORE	0	1	dict	0	1	NULL	1
+AFTER	0	0	1	dict	1	1	int	2	0
+BEFORE	1	2	dict	0	1	NULL	1
+AFTER	1	0	0	dict	1	0	int	2	0
+OLD	1	1	int	1
+BEFORE	2	1	dict	0	1	NULL	1
+AFTER	2	1	1	dict	1	1	NULL	1	1
+BEFORE	3	2	dict	0	1	NULL	1
+AFTER	3	1	0	dict	1	1	NULL	2	1
+OLD	3	2	NULL	1
+BEFORE	4	1	dict	0	2	NULL	1
+AFTER	4	0	1	dict	1	0	int	2	0
+BEFORE	5	2	dict	0	1	NULL	1
+AFTER	5	0	0	dict	1	0	int	2	0
+OLD	5	2	NULL	1
+BEFORE	6	2	dict	0	1	NULL	1
+AFTER	6	1	1	dict	2	1	NULL	1	1
+OLD	6	1	NULL	1

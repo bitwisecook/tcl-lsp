@@ -49,6 +49,64 @@ fn has_code(src: &str, dialect: &str, code: &str) -> bool {
 }
 
 #[test]
+fn w307_selected_alias_slot_does_not_require_a_live_terminal_command() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        let declaration = if dialect == "jimtcl" {
+            "alias short missing"
+        } else {
+            "interp alias {} short {} missing"
+        };
+        let source = format!("{declaration}; set c short; $c arg");
+        let result = Analyser::new().analyse(&source, dialect);
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::W307),
+            "{dialect}: an actual alias slot is independently known: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn w307_absence_advice_does_not_override_custom_fallback_uncertainty() {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+        let dispatches = "set cmd definitely_missing; $cmd one; $cmd two";
+        assert!(
+            has_code(dispatches, dialect, "W307"),
+            "{dialect}: repeated use does not establish a present slot"
+        );
+        assert!(
+            !has_code(
+                &format!("proc unknown args {{return handled}}; {dispatches}"),
+                dialect,
+                "W307"
+            ),
+            "{dialect}: a custom fallback remains independent of slot absence"
+        );
+    }
+}
+
+#[test]
+fn w210_missing_physical_read_does_not_require_an_ssa_value_version() {
+    assert!(has_code(
+        "proc p {known} {set copy $known; set copy $missing}",
+        "tcl8.6",
+        "W210"
+    ));
+    assert!(!has_code(
+        "proc p {known} {set copy $known}",
+        "tcl8.6",
+        "W210"
+    ));
+    assert!(
+        !has_code("proc p {} {set a(k) 1; set copy $a}", "tcl8.6", "W210"),
+        "an existing array's scalar-read error is not an undefined-variable read"
+    );
+}
+
+#[test]
 fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
     // Tcl 9.0.4 rejects a formal specifier with three fields, a namespace
     // qualified name, and an array element.  Duplicate parameter names remain
@@ -66,6 +124,26 @@ fn e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles() {
         "set params {a::b}\nproc dynamic $params {}\n",
     ] {
         assert!(!has_code(src, "tcl9.0", "E006"), "must abstain for {src:?}");
+    }
+}
+
+#[test]
+fn e006_requires_unanimous_actual_formal_grammar_after_alias_mapping() {
+    assert!(has_code(
+        "interp alias {} declare {} proc p; declare {{a b c}} {}",
+        "tcl8.6",
+        "E006",
+    ));
+    for source in [
+        "rename proc original; original proc args {return ordinary}; proc p {{a b c}} {}",
+        "if {$unknown} {rename proc original; original proc args {return ordinary}}; proc p {{a b c}} {}",
+        "proc p {*}$unknown",
+        "external p {{a b c}} {}",
+    ] {
+        assert!(
+            !has_code(source, "tcl8.6", "E006"),
+            "opaque grammar: {source}"
+        );
     }
 }
 
@@ -93,7 +171,7 @@ fn e006_offers_only_the_structurally_unambiguous_parameter_repair() {
             .iter()
             .find(|diagnostic| diagnostic.code == DiagCode::E006)
             .expect("E006 is emitted");
-        assert!(diagnostic.fixes.is_empty(), "must abstain for {source:?}");
+        assert_eq!(diagnostic.fixes.len(), 0, "must abstain for {source:?}");
     }
 }
 
@@ -225,12 +303,12 @@ fn dotted_quad_scanner_matches_regex_behaviour() {
     assert_eq!(q("ip 192.168.1.1!", 3), vec![(3, ["192", "168", "1", "1"])]);
     // A 4-digit octet defeats the 3-digit cap (no leading boundary
     // realignment), exactly like `\b\d{1,3}`.
-    assert!(q("1234.1.1.1", 3).is_empty());
+    assert_eq!(q("1234.1.1.1", 3), [] as [(usize, [&str; 4]); 0]);
     // The 4-digit cap accepts `999` and a 4-digit octet.
     assert_eq!(q("192.168.1.999", 4), vec![(0, ["192", "168", "1", "999"])]);
     // Two quads, non-overlapping; an embedding word char blocks the
     // boundary (`a10.0.0.1` has no leading `\b`).
-    assert!(q("a10.0.0.1", 3).is_empty());
+    assert_eq!(q("a10.0.0.1", 3), [] as [(usize, [&str; 4]); 0]);
 }
 
 #[test]
@@ -239,7 +317,7 @@ fn ipv6_candidate_scanner_extracts_runs() {
     assert_eq!(c, vec!["fe80::1"]);
     // A bare hextet pair (only one colon → <2 groups) is not a
     // candidate; a full address is.
-    assert!(super::find_ipv6_candidates("ab:cd").is_empty());
+    assert_eq!(super::find_ipv6_candidates("ab:cd"), [] as [&str; 0]);
     assert_eq!(
         super::find_ipv6_candidates("2001:db8::8a2e:370:7334"),
         vec!["2001:db8::8a2e:370:7334"]
@@ -290,11 +368,11 @@ fn w108_flags_confusables_and_artifacts() {
 #[test]
 fn w108_confusables_mode_ignores_benign_unicode() {
     // `é` is not a confusable / artifact → silent in confusables mode.
-    assert!(w108("puts caf\u{e9}\n", "tcl8.6").is_empty());
+    assert_eq!(w108("puts caf\u{e9}\n", "tcl8.6"), [] as [(u32, usize); 0]);
     // Plain ASCII → silent.
-    assert!(w108("set x hello\n", "tcl8.6").is_empty());
+    assert_eq!(w108("set x hello\n", "tcl8.6"), [] as [(u32, usize); 0]);
     // The command word itself is not scanned.
-    assert!(w108("\u{440}uts x\n", "tcl8.6").is_empty());
+    assert_eq!(w108("\u{440}uts x\n", "tcl8.6"), [] as [(u32, usize); 0]);
 }
 
 #[test]
@@ -345,20 +423,20 @@ fn w108_comment_prose_is_not_flagged() {
     // FP fix: an em-dash (or any prose non-ASCII) inside a *comment* is
     // fine — comments are prose. Both a depth-1 body comment and a
     // depth-2 nested-body comment stay silent in confusables mode.
-    assert!(
+    assert_eq!(
         w108(
             "proc f {} {\n    # note \u{2014} dash\n    set y 1\n    puts $y\n}\nf\n",
             "tcl8.6"
         )
-        .is_empty(),
+        .len(),
+        0,
         "depth-1 body comment must not flag"
     );
-    assert!(
+    assert_eq!(
         w108(
             "proc f {c} {\n    if {$c} {\n        # nested \u{2014} dash\n        puts a\n    }\n}\n",
             "tcl8.6"
-        )
-        .is_empty(),
+        ).len(), 0,
         "depth-2 nested body comment must not flag"
     );
 }
@@ -376,7 +454,7 @@ fn w108_leaves_comment_bidi_controls_to_w305() {
         "proc f {} {\n    # ok \u{202e}live\n    set y 1\n    puts $y\n}\nf\n",
         "tcl8.6",
     );
-    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    assert_eq!(hits.len(), 0, "W305 owns the bidi set now: {hits:?}");
     assert!(crate::analyser::confusables_table::is_bidi_control(
         '\u{202e}'
     ));
@@ -417,7 +495,7 @@ fn w108_leaves_code_bidi_controls_to_w305() {
     // Same hand-off as in comments: the character is still
     // reported, just under the code that describes what it actually does.
     let hits = w108("set x a\u{202e}b\n", "tcl8.6");
-    assert!(hits.is_empty(), "W305 owns the bidi set now: {hits:?}");
+    assert_eq!(hits.len(), 0, "W305 owns the bidi set now: {hits:?}");
     // ...and the neighbouring invisible characters that are *not* bidi
     // controls stay with W108, which is the boundary that matters.
     assert!(!crate::analyser::confusables_table::is_bidi_control(
@@ -624,8 +702,9 @@ fn w146_abstains_when_a_modern_operation_list_is_not_safely_fixable() {
             .iter()
             .find(|diagnostic| diagnostic.code == tcl_core_types::DiagCode::W146)
             .expect("a complete empty/all-invalid list is still diagnosed");
-        assert!(
-            diagnostic.fixes.is_empty(),
+        assert_eq!(
+            diagnostic.fixes.len(),
+            0,
             "removing every member would leave Tcl's invalid empty operation list"
         );
     }
@@ -840,8 +919,9 @@ puts $result
         .filter(|d| d.code == DiagCode::W123)
         .map(|d| d.message.clone())
         .collect();
-    assert!(
-        unknown.is_empty(),
+    assert_eq!(
+        unknown.len(),
+        0,
         "the lambda's parameter list is not a command: {unknown:?}"
     );
 }
@@ -1123,9 +1203,15 @@ fn w218_fires_for_method_and_apply_params() {
 fn w108_off_mode_disables_entirely() {
     use crate::analyser::NonAsciiMode::Off;
     // Even smart quotes / NBSP are silent when W108 is off.
-    assert!(w108_mode("set x \u{201c}hi\u{201d}\u{a0}\n", "tcl8.6", Off).is_empty());
+    assert_eq!(
+        w108_mode("set x \u{201c}hi\u{201d}\u{a0}\n", "tcl8.6", Off),
+        [] as [u32; 0]
+    );
     // ...and off wins even for iRules (which would otherwise be strict).
-    assert!(w108_mode("puts caf\u{e9}\n", "f5-irules", Off).is_empty());
+    assert_eq!(
+        w108_mode("puts caf\u{e9}\n", "f5-irules", Off),
+        [] as [u32; 0]
+    );
 }
 
 #[test]
@@ -1139,9 +1225,18 @@ fn w108_strict_mode_explicit_flags_all_in_plain_tcl() {
 fn w108_common_mode_allows_intentional_unicode() {
     use crate::analyser::NonAsciiMode::Common;
     // Benign letters / symbols / punctuation in any script are allowed.
-    assert!(w108_mode("set x caf\u{e9}\n", "tcl8.6", Common).is_empty()); // é (Ll)
-    assert!(w108_mode("set x 90\u{b0}\n", "tcl8.6", Common).is_empty()); // ° (So)
-    assert!(w108_mode("set x \u{4e2d}\n", "tcl8.6", Common).is_empty()); // 中 (Lo)
+    assert_eq!(
+        w108_mode("set x caf\u{e9}\n", "tcl8.6", Common),
+        [] as [u32; 0]
+    ); // é (Ll)
+    assert_eq!(
+        w108_mode("set x 90\u{b0}\n", "tcl8.6", Common),
+        [] as [u32; 0]
+    ); // ° (So)
+    assert_eq!(
+        w108_mode("set x \u{4e2d}\n", "tcl8.6", Common),
+        [] as [u32; 0]
+    ); // 中 (Lo)
 }
 
 #[test]
@@ -1162,15 +1257,24 @@ fn w108_common_mode_flags_confusables_and_non_benign() {
     // U+202E RLO is *not* here: bidi controls moved to W305,
     // so `common` mode reports the zero-width and control characters it was
     // always meant to catch and leaves the direction-altering set alone.
-    assert!(w108_mode("set x a\u{202e}b\n", "tcl8.6", Common).is_empty());
+    assert_eq!(
+        w108_mode("set x a\u{202e}b\n", "tcl8.6", Common),
+        [] as [u32; 0]
+    );
 }
 
 #[test]
 fn w104_flags_space_padded_append() {
     assert_eq!(code_sevs("append x \" foo\"\n", "W104"), vec!["Hint"]);
     assert_eq!(code_sevs("append result \"item \"\n", "W104"), vec!["Hint"]);
-    assert!(code_sevs("append x foo\n", "W104").is_empty());
-    assert!(code_sevs("lappend x foo\n", "W104").is_empty());
+    assert_eq!(
+        code_sevs("append x foo\n", "W104"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        code_sevs("lappend x foo\n", "W104"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -1179,9 +1283,18 @@ fn w106_flags_unbraced_switch_body() {
     assert_eq!(code_sevs("switch $v a body\n", "W106"), vec!["Warning"]);
     assert_eq!(code_sevs("switch $v $pat $body\n", "W106"), vec!["Error"]);
     // Braced forms are fine.
-    assert!(code_sevs("switch $v {a {x} b {y}}\n", "W106").is_empty());
-    assert!(code_sevs("switch -regexp $v {a {x}}\n", "W106").is_empty());
-    assert!(code_sevs("switch $v { a body }\n", "W106").is_empty());
+    assert_eq!(
+        code_sevs("switch $v {a {x} b {y}}\n", "W106"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        code_sevs("switch -regexp $v {a {x}}\n", "W106"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        code_sevs("switch $v { a body }\n", "W106"),
+        [] as [std::string::String; 0]
+    );
 }
 
 fn w100_sev(src: &str) -> Vec<String> {
@@ -1206,11 +1319,17 @@ fn w100_flags_unbraced_expr_with_substitution() {
 
 #[test]
 fn w100_skips_braced_and_safe_literals() {
-    assert!(w100_sev("if {$x} {puts hi}\n").is_empty());
-    assert!(w100_sev("expr {$a + $b}\n").is_empty());
-    assert!(w100_sev("expr 1+2\n").is_empty());
-    assert!(w100_sev("if 1 {puts hi}\n").is_empty());
-    assert!(w100_sev("if {1} {puts hi}\n").is_empty());
+    assert_eq!(
+        w100_sev("if {$x} {puts hi}\n"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(w100_sev("expr {$a + $b}\n"), [] as [std::string::String; 0]);
+    assert_eq!(w100_sev("expr 1+2\n"), [] as [std::string::String; 0]);
+    assert_eq!(w100_sev("if 1 {puts hi}\n"), [] as [std::string::String; 0]);
+    assert_eq!(
+        w100_sev("if {1} {puts hi}\n"),
+        [] as [std::string::String; 0]
+    );
 }
 
 #[test]
@@ -1301,7 +1420,7 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 fn variable_name_positions_are_registry_driven() {
     let mut a = Analyser::new();
     a.registry = Some(std::sync::Arc::clone(
-        tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands(),
     ));
     let pos = |cmd: &str, args: &[&str]| {
         a.variable_name_positions(
@@ -1330,18 +1449,39 @@ fn variable_name_positions_are_registry_driven() {
 fn upvar_local_positions_parity() {
     // Only the local names are strict name positions; the paired remote names
     // (indices 1, 3, …) are excluded so a computed `$remote` is not flagged.
-    let registry = tcl_registry::CommandRegistry::build_default();
+    let registry = tcl_registry::CommandRegistry::build_default()
+        .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
     assert_eq!(
-        registry.arg_indices_for_role(
-            "upvar",
-            &["$lvl", "a", "b"],
-            tcl_registry::ArgRole::VarWrite,
-        ),
+        registry.arg_indices_for_role("upvar", &["1", "a", "b"], tcl_registry::ArgRole::VarWrite,),
         vec![2],
+    );
+    assert!(
+        registry
+            .arg_indices_for_role(
+                "upvar",
+                &["$lvl", "a", "b"],
+                tcl_registry::ArgRole::VarWrite
+            )
+            .is_empty(),
+        "literal argv does not stand for an evaluated selector; this level is invalid"
     );
     assert_eq!(
         registry.arg_indices_for_role("upvar", &["1", "b"], tcl_registry::ArgRole::VarWrite,),
         vec![1],
+    );
+    let legacy = tcl_registry::CommandRegistry::build_default()
+        .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.4").unwrap());
+    assert!(
+        legacy
+            .arg_indices_for_role("upvar", &["1", "b"], tcl_registry::ArgRole::VarWrite)
+            .is_empty(),
+        "8.4 consumes the digit-leading selector and rejects the remaining unpaired name",
+    );
+    assert!(
+        tcl_registry::CommandRegistry::build_default()
+            .arg_indices_for_role("upvar", &["1", "b"], tcl_registry::ArgRole::VarWrite)
+            .is_empty(),
+        "an unselected native grammar cannot donate the modern parity layout",
     );
 }
 
@@ -1612,8 +1752,9 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
     // 9.0.4, byte identical, `namespace ensemble exists -namespace` answers
     // `0` — reading the flag as the command name, not rejecting it as an
     // option.
-    assert!(
-        names("exists").is_empty(),
+    assert_eq!(
+        names("exists").len(),
+        0,
         "`exists` must not inherit the parent union: {:?}",
         names("exists")
     );
@@ -1804,7 +1945,7 @@ fn e003_not_emitted_for_leading_switches() {
             .iter()
             .filter(|d| d.code == DiagCode::E003)
             .collect();
-        assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        assert_eq!(e003.len(), 0, "unexpected E003 for {snippet:?}: {e003:?}");
     }
 }
 
@@ -1826,8 +1967,9 @@ fn e003_not_emitted_for_value_taking_leading_option() {
             .iter()
             .filter(|d| d.code == DiagCode::E003)
             .collect();
-        assert!(
-            e003.is_empty(),
+        assert_eq!(
+            e003.len(),
+            0,
             "unexpected E003 for value-taking option in {snippet:?}: {e003:?}"
         );
     }
@@ -1858,8 +2000,9 @@ fn interp_optional_path_subcommands_no_arity_error() {
             .iter()
             .filter(|d| d.code == DiagCode::E002 || d.code == DiagCode::E003)
             .collect();
-        assert!(
-            arity_err.is_empty(),
+        assert_eq!(
+            arity_err.len(),
+            0,
             "unexpected arity error for {snippet:?}: {arity_err:?}"
         );
     }
@@ -2097,7 +2240,7 @@ fn e003_silent_for_subcommand_leading_options() {
             .iter()
             .filter(|d| d.code == DiagCode::E003)
             .collect();
-        assert!(e003.is_empty(), "unexpected E003 for {snippet:?}: {e003:?}");
+        assert_eq!(e003.len(), 0, "unexpected E003 for {snippet:?}: {e003:?}");
     }
 }
 
@@ -2117,7 +2260,7 @@ fn w147_reports_registry_declared_mutually_exclusive_options() {
         result.diagnostics
     );
     assert!(conflicts[0].message.contains("-encoding, -nopkg"));
-    assert!(conflicts[0].fixes.is_empty(), "intent is ambiguous");
+    assert_eq!(conflicts[0].fixes.len(), 0, "intent is ambiguous");
     let mut legacy = Analyser::new();
     let legacy_result = legacy.analyse("source -encoding utf-8 -nopkg file.tcl\n", "tcl8.6");
     assert!(
@@ -2205,8 +2348,9 @@ fn w152_reports_a_requires_one_of_after_a_positional_word() {
         "package require http\n\
          ::http::geturl http://example.invalid/ -query a=1 -queryprogress cb\n",
     );
-    assert!(
-        paired.is_empty(),
+    assert_eq!(
+        paired.len(),
+        0,
         "the pair satisfies the relation: {paired:?}"
     );
 }
@@ -2248,7 +2392,7 @@ fn w147_reports_a_cross_option_value_relation_on_an_instance_method() {
         "$t walk root -order post v script\n",
     ] {
         let src = format!("package require struct::tree\nset t [::struct::tree]\n{legal}");
-        assert!(messages(&src).is_empty(), "{legal:?}: {:?}", messages(&src));
+        assert_eq!(messages(&src).len(), 0, "{legal:?}: {:?}", messages(&src));
     }
 }
 
@@ -4214,8 +4358,9 @@ fn w004_does_not_scan_a_reserved_trailing_operand() {
             .iter()
             .filter(|d| d.code == DiagCode::W004)
             .collect();
-        assert!(
-            w004.is_empty(),
+        assert_eq!(
+            w004.len(),
+            0,
             "{src}: the trailing operand is not an option: {:?}",
             result.diagnostics
         );
@@ -4477,13 +4622,16 @@ fn w003_fires_on_all_six_gated_operators_pre_availability() {
 #[test]
 fn w003_silent_on_ni_le_gt_ge_when_dialect_supports_them() {
     // `ni` only needs 8.5+; `le`/`gt`/`ge` need 9.0+.
-    assert!(w003_hits("if {$x ni {a b c}} { puts hi }", "tcl8.5").is_empty());
+    assert_eq!(
+        w003_hits("if {$x ni {a b c}} { puts hi }", "tcl8.5"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
     for src in [
         "if {$x le $y} { puts hi }",
         "if {$x gt $y} { puts hi }",
         "if {$x ge $y} { puts hi }",
     ] {
-        assert!(w003_hits(src, "tcl9.0").is_empty(), "{src}");
+        assert_eq!(w003_hits(src, "tcl9.0").len(), 0, "{src}");
         assert!(w003_hits(src, "tcl8.5").len() == 1, "{src}");
     }
 }
@@ -4498,7 +4646,7 @@ fn w003_fires_on_unbraced_multiword_expr_at_a_tight_span() {
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].0, "in");
     // No fix is offered for this shape (see doc comment on the emitter).
-    assert!(hits[0].1.fixes.is_empty());
+    assert_eq!(hits[0].1.fixes, [] as [crate::irules_checks::CodeFix; 0]);
 }
 
 #[test]
@@ -4554,15 +4702,15 @@ fn w003_no_fix_when_operator_nested_in_a_larger_expression() {
     // exactly the "nested" shape the fix deliberately declines.
     let hits = w003_hits("if {$a in $b && $c} { puts hi }", "tcl8.4");
     assert_eq!(hits.len(), 1, "{hits:?}");
-    assert!(hits[0].1.fixes.is_empty());
+    assert_eq!(hits[0].1.fixes, [] as [crate::irules_checks::CodeFix; 0]);
 }
 
 #[test]
 fn w003_no_fix_when_more_than_one_occurrence() {
     let hits = w003_hits("if {$a lt $b && $c in $d} { puts hi }", "tcl8.4");
     assert_eq!(hits.len(), 2);
-    assert!(hits[0].1.fixes.is_empty());
-    assert!(hits[1].1.fixes.is_empty());
+    assert_eq!(hits[0].1.fixes, [] as [crate::irules_checks::CodeFix; 0]);
+    assert_eq!(hits[1].1.fixes, [] as [crate::irules_checks::CodeFix; 0]);
 }
 
 #[test]
@@ -4574,7 +4722,7 @@ fn w003_no_fix_when_operand_is_a_call() {
     // top-level occurrence.
     let hits = w003_hits("expr {max($a, $b) in $list}", "tcl8.4");
     assert_eq!(hits.len(), 1, "{hits:?}");
-    assert!(hits[0].1.fixes.is_empty());
+    assert_eq!(hits[0].1.fixes, [] as [crate::irules_checks::CodeFix; 0]);
 }
 
 #[test]
@@ -4582,27 +4730,39 @@ fn w003_silent_on_variable_named_like_a_gated_operator() {
     // `$in` is a variable reference, not the `in` operator — the
     // lexical prefilter alone can't tell the two apart, but the real
     // expr parse must.
-    assert!(w003_hits("if {$in} { puts hi }", "tcl8.4").is_empty());
-    assert!(w003_hits("if {$ni && $lt} { puts hi }", "tcl8.4").is_empty());
+    assert_eq!(
+        w003_hits("if {$in} { puts hi }", "tcl8.4"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
+    assert_eq!(
+        w003_hits("if {$ni && $lt} { puts hi }", "tcl8.4"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
 }
 
 #[test]
 fn w003_silent_on_array_element_named_like_a_gated_operator() {
-    assert!(w003_hits("if {$arr(in)} { puts hi }", "tcl8.4").is_empty());
+    assert_eq!(
+        w003_hits("if {$arr(in)} { puts hi }", "tcl8.4"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
 }
 
 #[test]
 fn w003_silent_on_quoted_string_literal_operator_word() {
     // `"in"` is a quoted string literal, not the bareword operator.
     let hits = w003_hits(r#"if {"in" eq $x} { puts hi }"#, "tcl8.4");
-    assert!(hits.is_empty(), "{hits:?}");
+    assert_eq!(hits.len(), 0, "{hits:?}");
 }
 
 #[test]
 fn w003_silent_on_malformed_expression() {
     // `lt` with no right-hand operand doesn't parse — `parse_expr`
     // falls back to `Raw`, so W003 must stay silent rather than guess.
-    assert!(w003_hits("if {$x lt} { puts hi }", "tcl8.4").is_empty());
+    assert_eq!(
+        w003_hits("if {$x lt} { puts hi }", "tcl8.4"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
 }
 
 #[test]
@@ -4643,8 +4803,9 @@ fn w003_suppressed_by_an_earlier_proc_shadowing_if() {
     // now shared by the EXPR-role dispatch (W100/W110/W003/W114 all at
     // once, via `dispatch_expr_arguments`'s shadow guard).
     let src = "proc if {c b} { return 1 }\nif {$x in $y} { puts hi }\n";
-    assert!(
-        w003_hits(src, "tcl8.4").is_empty(),
+    assert_eq!(
+        w003_hits(src, "tcl8.4").len(),
+        0,
         "shadowed 'if' must suppress W003"
     );
 }
@@ -4676,8 +4837,9 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         "synopsys-eda-tcl",
         "expect",
     ] {
-        assert!(
-            w003_hits("expr {2 in {1 2 3}}", dialect).is_empty(),
+        assert_eq!(
+            w003_hits("expr {2 in {1 2 3}}", dialect).len(),
+            0,
             "{dialect} should support TIP 201 'in'"
         );
     }
@@ -4758,7 +4920,10 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
     // diagnostics).
     let mut a = Analyser::new();
     a.emit_cfg_ssa_diagnostics("");
-    assert!(a.result.diagnostics.is_empty());
+    assert_eq!(
+        a.result.diagnostics,
+        [] as [crate::analyser::types::Diagnostic; 0]
+    );
 }
 
 /// Slice 4: a memoised `CompilationUnit` (built via `build_for_memoized`
@@ -5228,8 +5393,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
         .iter()
         .filter(|d| d.code == DiagCode::W220)
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must skip ``::``-prefixed globals; got {w220s:?}",
     );
 }
@@ -5248,8 +5414,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
         .iter()
         .filter(|d| d.code == DiagCode::W220)
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must skip ``set x [cmd]`` side-effecting stores; got {w220s:?}",
     );
 }
@@ -5269,8 +5436,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
         .iter()
         .filter(|d| d.code == DiagCode::W220)
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must skip ``Statement::AssignExpr`` containing a command call; got {w220s:?}",
     );
 }
@@ -5298,8 +5466,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
         .iter()
         .filter(|d| d.code == DiagCode::W220 && d.message.contains("'x'"))
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must skip ``incr`` side-effecting writes; got {w220s:?}",
     );
 }
@@ -5342,8 +5511,9 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
         .iter()
         .filter(|d| d.code == DiagCode::W220)
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must suppress ``$dir`` in pkgIndex.tcl; got {w220s:?}",
     );
 }
@@ -5442,8 +5612,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
         .iter()
         .filter(|d| d.code == DiagCode::W220)
         .collect();
-    assert!(
-        w220s.is_empty(),
+    assert_eq!(
+        w220s.len(),
+        0,
         "W220 must skip dead stores in SCCP-unreachable blocks; got {w220s:?}",
     );
 }
@@ -5604,8 +5775,9 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
         .iter()
         .filter(|d| d.code == DiagCode::W211 && d.message.contains("'msg'"))
         .collect();
-    assert!(
-        w211s.is_empty(),
+    assert_eq!(
+        w211s.len(),
+        0,
         "W211 must not fire on var referenced via $-interpolation; got {:?}",
         a.result.diagnostics,
     );
@@ -5625,8 +5797,9 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased() {
         .iter()
         .filter(|d| d.code == DiagCode::W211 && d.message.contains("'config'"))
         .collect();
-    assert!(
-        w211s.is_empty(),
+    assert_eq!(
+        w211s.len(),
+        0,
         "W211 must not fire on global-aliased var; got {:?}",
         a.result.diagnostics,
     );
@@ -6136,8 +6309,9 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_real_param() {
         .iter()
         .filter(|d| d.code == DiagCode::W210 && d.message.contains("'x'"))
         .collect();
-    assert!(
-        w210s.is_empty(),
+    assert_eq!(
+        w210s.len(),
+        0,
         "W210 must not fire on real param ``x``; got {:?}",
         a.result.diagnostics,
     );
@@ -6726,8 +6900,16 @@ fn snit_method_implicits_and_declared_vars_do_not_false_positive_w210() {
     // FP guard — snit injects `self` / `selfns` / `type` / `options` into
     // every method body, and a type-level `variable` declaration is
     // auto-linked; none of those reads may flag.
-    let src = "snit::type Dog {\n    variable name\n    method describe {} { return \"$self $type $name $options(-color)\" }\n}\n";
-    let codes = codes_for(src);
+    let src = "snit::type Dog {\n    variable name Name\n    option -color white\n    method describe {} { return \"$self $type $name $options(-color)\" }\n}\n";
+    let codes = crate::provider_fixtures::analyse(
+        &format!("package require snit\n{src}"),
+        "tcl8.6",
+        &[crate::provider_fixtures::Provider::Snit],
+    )
+    .diagnostics
+    .into_iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect::<Vec<_>>();
     assert!(
         !codes.contains(&"W210".to_string()),
         "snit implicit / declared variable reads must not flag W210: {codes:?}"
@@ -6739,7 +6921,15 @@ fn snit_widget_win_and_hull_do_not_false_positive_w210() {
     // FP guard — the widget definers additionally inject `win` / `hull`
     // (registry data: SNIT_WIDGET_GRAMMAR's implicit_vars).
     let src = "snit::widget Bar {\n    method redraw {} { return \"$win $hull\" }\n}\n";
-    let codes = codes_for(src);
+    let codes = crate::provider_fixtures::analyse(
+        &format!("package require snit\n{src}"),
+        "tcl8.6",
+        &[crate::provider_fixtures::Provider::Snit],
+    )
+    .diagnostics
+    .into_iter()
+    .map(|diagnostic| diagnostic.code.to_string())
+    .collect::<Vec<_>>();
     assert!(
         !codes.contains(&"W210".to_string()),
         "widget `win`/`hull` reads must not flag W210: {codes:?}"
@@ -6847,6 +7037,7 @@ fn i230_message_quotes_bare_var_as_source_spells_it() {
         .iter()
         .filter(|d| d.code.to_string() == "I230")
         .collect();
+
     assert!(
         !i230.is_empty(),
         "expected I230: {:?}",
@@ -7022,12 +7213,26 @@ fn info_exists_element_fold_survives_an_unrelated_array() {
 
 #[test]
 fn info_exists_does_not_fold_unset_parameter() {
-    // A parameter that is `unset` before the check can't be assumed
-    // to exist.
-    let codes = codes_for("proc f {a} { unset a; if {[info exists a]} { puts hi } }");
+    // All six native engines return false after the successful unset. An
+    // incoming-formal fact must not override that later physical mutation.
+    let mut analyser = Analyser::new();
+    let result = analyser.analyse(
+        "proc f {a} { unset a; if {[info exists a]} { puts hi } }",
+        "tcl9.0",
+    );
+    let branches: Vec<_> = result
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code == DiagCode::I230)
+        .collect();
+    assert_eq!(
+        branches.len(),
+        1,
+        "the reached absent cell must retain its false existence fact"
+    );
     assert!(
-        !codes.contains(&"I230".to_string()),
-        "unset parameter must not fold true; got {codes:?}",
+        branches[0].message.contains("always false"),
+        "unset parameter must not fold true; got {branches:?}",
     );
 }
 
@@ -7673,8 +7878,9 @@ fn w308_tn_a_renamed_class_still_accepts_its_real_methods_1049() {
     let src = "oo::class create Dog { method bark {} { return woof } }\nrename Dog Cat\nset d [Cat new]\n$d bark\n";
     let mut a = Analyser::new();
     let r = a.analyse(src, "tcl");
-    assert!(
-        r.diagnostics.is_empty(),
+    assert_eq!(
+        r.diagnostics.len(),
+        0,
         "a valid method on a renamed class is silent; got {:?}",
         r.diagnostics,
     );
@@ -7894,7 +8100,7 @@ fn w308_transitive_alias_of_constructor_object() {
 fn w308_transitive_alias_known_method_silent() {
     let src = "oo::class create Dog { method bark {} {return woof} }\n\
                    set a [Dog new]\nset b $a\n$b bark";
-    assert!(w30x_codes(src).is_empty());
+    assert_eq!(w30x_codes(src), [] as [std::string::String; 0]);
 }
 
 #[test]
@@ -7930,8 +8136,9 @@ fn w307_suppressed_for_object_returning_proc_factory() {
     // answer hover / go-to-definition give for `o`.
     let known = "oo::class create Dog { method bark {} {return woof} }\n\
                  proc mk {} { return [Dog new] }\nset o [mk]\n$o bark";
-    assert!(
-        w30x_codes(known).is_empty(),
+    assert_eq!(
+        w30x_codes(known).len(),
+        0,
         "factory-return dispatch of a declared method must be silent; got {:?}",
         w30x_codes(known)
     );
@@ -7951,8 +8158,9 @@ fn w307_nested_command_sub_dispatch_counts_for_multidispatch() {
     // a var-command site too, so the multi-dispatch (≥2) suppression sees
     // both and stays silent (a single recorded dispatch would fire W307).
     let src = "set x [getCmd]\nputs [$x foo]\n$x foo\n";
-    assert!(
-        w30x_codes(src).is_empty(),
+    assert_eq!(
+        w30x_codes(src).len(),
+        0,
         "multi-dispatch (one nested in `[…]`) must suppress W307; got {:?}",
         w30x_codes(src)
     );
@@ -7966,7 +8174,7 @@ fn w308_double_colon_oo_class_constructor() {
     let unknown = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] fly";
     assert_eq!(w30x_codes(unknown), vec!["W308".to_string()]);
     let known = "::oo::class create ::Dog { method bark {} {return woof} }\n[::Dog new] bark";
-    assert!(w30x_codes(known).is_empty());
+    assert_eq!(w30x_codes(known), [] as [std::string::String; 0]);
 }
 
 // TclOO method / `forward` arity (generalises E002/E003 to object
@@ -8826,8 +9034,9 @@ fn fn_e001_cmd_head_factory_with_method_word_no_w307() {
     let src = "oo::class create Dog { method bark {} { return woof } }\n\
                proc make {} { return [Dog new] }\n\
                [make] bark\n";
-    assert!(
-        w30x_codes(src).is_empty(),
+    assert_eq!(
+        w30x_codes(src).len(),
+        0,
         "`[make] bark` resolves through the factory return type; got {:?}",
         w30x_codes(src)
     );
@@ -8940,8 +9149,9 @@ fn w307_suppressed_for_method_return_captured_handle() {
                set a [A new]\n\
                set b [$a make]\n\
                $b greet\n";
-    assert!(
-        w30x_codes(src).is_empty(),
+    assert_eq!(
+        w30x_codes(src).len(),
+        0,
         "the method-return-captured handle must suppress W307; got {:?}",
         w30x_codes(src)
     );
@@ -9013,8 +9223,9 @@ fn w307_suppressed_for_braced_namespace_var_proc_param() {
     let src = "proc Define {namespace class args} {\n  \
                    ${namespace}::dynamic_methods $class\n  \
                    ${namespace}::define::[lindex $args 0] {*}[lrange $args 1 end]\n}\n";
-    assert!(
-        w30x_codes(src).is_empty(),
+    assert_eq!(
+        w30x_codes(src).len(),
+        0,
         "braced-namespace-var proc-param dispatch must suppress W307; got {:?}",
         w30x_codes(src)
     );
@@ -9028,8 +9239,9 @@ fn w307_suppressed_for_snit_instance_var_in_helper_proc() {
     // `is_snit_member` suppresses W307.
     let src = "snit::type T {\n  variable mytree\n  \
                    proc Check {id} { upvar 1 mytree mytree; if {![$mytree exists $id]} { return } }\n}\n";
-    assert!(
-        w30x_codes(src).is_empty(),
+    assert_eq!(
+        w30x_codes(src).len(),
+        0,
         "snit instance-var dispatch in a helper proc must suppress W307; got {:?}",
         w30x_codes(src)
     );
@@ -9090,7 +9302,7 @@ fn irule2001_ambiguous_arity_matchclass_warns_without_fix() {
         .iter()
         .find(|d| d.code == DiagCode::Irule2001)
         .expect("IRULE2001");
-    assert!(d.fixes.is_empty(), "expected no fix, got {:?}", d.fixes);
+    assert_eq!(d.fixes.len(), 0, "expected no fix, got {:?}", d.fixes);
 }
 
 #[test]
@@ -9629,7 +9841,7 @@ fn analyse_genuinely_dynamic_rename_still_sets_has_dynamic_providers() {
         r.has_dynamic_providers,
         "a genuinely dynamic rename must still set has_dynamic_providers"
     );
-    assert!(r.renamed_commands.is_empty());
+    assert_eq!(r.renamed_commands.len(), 0);
 }
 
 #[test]
@@ -9714,7 +9926,7 @@ fn analyse_w123_no_suggestion_when_far_from_any_known_command() {
         "no suggestion expected for far-away command name; got: {}",
         w123.message,
     );
-    assert!(w123.fixes.is_empty());
+    assert_eq!(w123.fixes, [] as [crate::irules_checks::CodeFix; 0]);
 }
 
 #[test]
@@ -9891,8 +10103,12 @@ fn w304_split_switch_form_still_fires() {
 
 /// Helper: W210 codes for a snippet.
 fn w210_codes(src: &str) -> Vec<String> {
+    w210_codes_in_dialect(src, "tcl")
+}
+
+fn w210_codes_in_dialect(src: &str, dialect: &str) -> Vec<String> {
     let mut a = Analyser::new();
-    a.analyse(src, "tcl")
+    a.analyse(src, dialect)
         .diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::W210)
@@ -10019,8 +10235,9 @@ fn w210_interproc_dict_with_caller_literal() {
     // A caller passing a literal dict propagates to the callee's
     // `dict with $param` key check (interproc constant propagation).
     // Key present → silent.
-    assert!(
-        w210_codes("proc f {d} { dict with d { return $missing } }\nf {missing ok}\n").is_empty()
+    assert_eq!(
+        w210_codes("proc f {d} { dict with d { return $missing } }\nf {missing ok}\n").len(),
+        0
     );
     // Empty dict → no keys → the read fires.
     assert!(
@@ -10029,9 +10246,9 @@ fn w210_interproc_dict_with_caller_literal() {
             .any(|m| m.contains("'missing'"))
     );
     // Mixed callers → unknown shape → conservatively silent.
-    assert!(
-        w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n")
-            .is_empty()
+    assert_eq!(
+        w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\nf {missing X}\n").len(),
+        0
     );
 }
 
@@ -10060,7 +10277,10 @@ fn w210_provably_no_match_regexp_scan() {
 fn w210_regexp_expanded_whitespace_pattern_silent() {
     // `-expanded` ignores whitespace, so `{a b}` matches `ab` and writes
     // v — the no-match proof must bail (no false W210).
-    assert!(w210_codes("proc f {} { regexp -expanded {a b} ab v\n puts $v }").is_empty());
+    assert_eq!(
+        w210_codes("proc f {} { regexp -expanded {a b} ab v\n puts $v }"),
+        [] as [std::string::String; 0]
+    );
     // A whitespace-free literal under -expanded is still safe → fires.
     assert!(
         w210_codes("proc f {} { regexp -expanded {x} X v\n puts $v }")
@@ -10072,12 +10292,24 @@ fn w210_regexp_expanded_whitespace_pattern_silent() {
 #[test]
 fn w210_matchable_regexp_scan_silent() {
     // A matchable / nocase-matchable regexp output is set — no W210.
-    assert!(w210_codes("proc f {} { regexp -nocase {x} X v\n puts $v }").is_empty());
-    assert!(w210_codes("proc f {} { scan 42 %d n\n puts $n }").is_empty());
+    assert_eq!(
+        w210_codes("proc f {} { regexp -nocase {x} X v\n puts $v }"),
+        [] as [std::string::String; 0]
+    );
+    assert_eq!(
+        w210_codes("proc f {} { scan 42 %d n\n puts $n }"),
+        [] as [std::string::String; 0]
+    );
     // The success arm of a positive condition reads a set var.
-    assert!(w210_codes("proc f {} { if {[regexp {x} y -> v]} { puts $v } }").is_empty());
+    assert_eq!(
+        w210_codes("proc f {} { if {[regexp {x} y -> v]} { puts $v } }"),
+        [] as [std::string::String; 0]
+    );
     // An unknown / unsafe switch can't prove no-match → silent.
-    assert!(w210_codes("proc f {} { regexp -bogus {x} y v\n puts $v }").is_empty());
+    assert_eq!(
+        w210_codes("proc f {} { regexp -bogus {x} y v\n puts $v }"),
+        [] as [std::string::String; 0]
+    );
     // `-about` is not such a switch: it names no match variable at all, so
     // `v` is never written and the read is genuine. tclsh 8.4.20 / 8.6.18 /
     // 9.0.4 all fail this program with `can't read "v"` (#2135).
@@ -10091,7 +10323,10 @@ fn w210_matchable_regexp_scan_silent() {
 #[test]
 fn w210_incr_on_uninit_is_silent() {
     // `incr z` initialises z to 0 (Tcl 8.5+) — not read-before-set.
-    assert!(w210_codes("proc f {} { incr z\n return $z }").is_empty());
+    assert_eq!(
+        w210_codes("proc f {} { incr z\n return $z }"),
+        [] as [std::string::String; 0]
+    );
     // A genuine bare read of an unset local still fires.
     assert!(
         w210_codes("proc f {} { puts $z }")
@@ -10110,20 +10345,31 @@ fn w210_phi_undef_use_after_unset_return() {
 }
 
 #[test]
-fn w210_loop_body_accumulator_read_after_loop_silent() {
-    // FP-RBS-19: the reported pattern — a `lappend` accumulator
-    // built inside a dynamic `foreach`, returned after the loop. The body
-    // defines `r` on every iteration, so a read after the loop is defined
-    // whenever the loop ran. Matching C Tcl (which errors only when `$items` is
-    // actually empty at runtime), we assume a may-run loop runs.
-    let got = w210_codes("proc f {items} { foreach i $items { lappend r $i }\n return $r }");
+fn w210_loop_body_accumulator_requires_an_initial_value() {
+    // C8.6 has no custom list object callbacks. A possible ordinary iteration
+    // cannot establish a definite write on the zero-iteration path.
+    let got = w210_codes_in_dialect(
+        "proc f {items} { foreach i $items { lappend r $i }\n return $r }",
+        "tcl8.6",
+    );
     assert!(
-        got.is_empty(),
-        "after-loop return of a loop-body accumulator must be silent; got {got:?}"
+        got.iter().any(|message| message.contains("'r'")),
+        "a possibly empty loop leaves its accumulator undefined; got {got:?}"
+    );
+    assert!(
+        w210_codes_in_dialect(
+            "proc f {items} { set r {}; foreach i $items { lappend r $i }; return $r }",
+            "tcl8.6"
+        )
+        .is_empty(),
+        "initialisation must make the zero-iteration path safe"
     );
     // TP control: a *first-iteration* read of the accumulator, before its set,
     // is a genuine read-before-set inside the body and still fires.
-    let inbody = w210_codes("proc f {items} { foreach i $items { puts $r; lappend r $i } }");
+    let inbody = w210_codes_in_dialect(
+        "proc f {items} { foreach i $items { puts $r; lappend r $i } }",
+        "tcl8.6",
+    );
     assert!(
         inbody.iter().any(|m| m.contains("'r'")),
         "first-iteration in-body read before the set must still fire; got {inbody:?}"
@@ -10131,11 +10377,37 @@ fn w210_loop_body_accumulator_read_after_loop_silent() {
 }
 
 #[test]
+fn w210_c9_loop_accumulator_distinguishes_custom_inputs_from_ordinary_empty_lists() {
+    // A custom C9 list can write caller locals from its Length/Elements/Dup
+    // callbacks even when no body runs. Unknown formal values cannot prove
+    // the accumulator absent after that reached callback opportunity.
+    let unknown = w210_codes_in_dialect(
+        "proc f {items} { foreach i $items { lappend r $i }; return $r }",
+        "tcl9.0",
+    );
+    assert!(
+        unknown.iter().all(|message| !message.contains("'r'")),
+        "a custom input retains a callback residual; got {unknown:?}"
+    );
+    // A literal empty ordinary list has no such callback opportunity, so its
+    // zero-iteration path must retain the actual missing accumulator.
+    let empty = w210_codes_in_dialect(
+        "proc f {} { foreach i {} { lappend r $i }; return $r }",
+        "tcl9.0",
+    );
+    assert!(
+        empty.iter().any(|message| message.contains("'r'")),
+        "an ordinary empty list leaves the accumulator undefined; got {empty:?}"
+    );
+}
+
+#[test]
 fn w210_no_fire_when_both_merge_arms_define() {
     // Control: every merge predecessor defines `v` — not read-before-set.
     let got = w210_codes("proc f {x} { if {$x > 0} { set v 1 } else { set v 2 }\n return $v }");
-    assert!(
-        got.is_empty(),
+    assert_eq!(
+        got.len(),
+        0,
         "both-arms-defined merge must be silent; got {got:?}"
     );
 }
@@ -10150,14 +10422,16 @@ fn w210_empty_dict_with_return_fires_but_known_key_silent() {
     );
     // Known-key dict unpacks `missing` — silent.
     let known = w210_codes("proc f {} { set d {missing ok}\n dict with d {}\n return $missing }");
-    assert!(
-        known.is_empty(),
+    assert_eq!(
+        known.len(),
+        0,
         "known-key dict-with return must be silent; got {known:?}"
     );
     // Unknown-shape dict (param) — conservatively silent.
     let unknown = w210_codes("proc f {d} { dict with d {}\n return $missing }");
-    assert!(
-        unknown.is_empty(),
+    assert_eq!(
+        unknown.len(),
+        0,
         "unknown dict-with return must be silent; got {unknown:?}"
     );
 }
@@ -10168,8 +10442,9 @@ fn w210_qualified_variable_alias_tail_return_silent() {
     // `graphAttr`; the bare tail read is not read-before-set.
     let got =
         w210_codes("proc ::ns::get {name key} { variable ${name}::graphAttr\n return $graphAttr }");
-    assert!(
-        got.is_empty(),
+    assert_eq!(
+        got.len(),
+        0,
         "qualified variable-alias tail read must be silent; got {got:?}"
     );
 }
@@ -10181,8 +10456,9 @@ fn w210_no_false_fire_on_many_var_scan_return() {
     let src = "proc f {} { scan {0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19} \
 {%s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s %s} \
 a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19\n return $a19 }";
-    assert!(
-        w210_codes(src).is_empty(),
+    assert_eq!(
+        w210_codes(src).len(),
+        0,
         "20-var scan must not false-fire W210 on the tail var"
     );
 }
@@ -10191,8 +10467,9 @@ a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16 a17 a18 a19\n return $
 fn w210_no_false_fire_on_many_var_lassign_return() {
     let src = "proc f {l} { lassign $l a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 \
 a15 a16 a17 a18 a19 a20\n return $a20 }";
-    assert!(
-        w210_codes(src).is_empty(),
+    assert_eq!(
+        w210_codes(src).len(),
+        0,
         "21-var lassign must not false-fire W210 on the tail var"
     );
 }
@@ -10368,8 +10645,9 @@ fn analyse_no_w123_for_user_proc() {
         .iter()
         .filter(|d| d.code == DiagCode::W123)
         .collect();
-    assert!(
-        w123s.is_empty(),
+    assert_eq!(
+        w123s.len(),
+        0,
         "W123 must not fire on user-defined proc call; got {:?}",
         r.diagnostics,
     );
@@ -10377,14 +10655,52 @@ fn analyse_no_w123_for_user_proc() {
 
 #[test]
 fn analyse_no_w123_for_qualified_command_name() {
-    // Qualified names (``a::b``) skip W123 — defer to
-    // per-namespace logic.
     let mut a = Analyser::new();
-    let r = a.analyse("ns::cmd hello", "tcl");
+    let r = a.analyse(
+        "namespace eval ns {proc cmd {arg} {return $arg}}\nns::cmd hello",
+        "tcl8.6",
+    );
     assert!(
         !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
-        "W123 must not fire on qualified command name; got {:?}",
+        "the installed qualified command must resolve; got {:?}",
         r.diagnostics,
+    );
+    let unknown_source = "namespace eval ns {}\nns::missing hello";
+    let unknown = a.analyse(unknown_source, "tcl8.6");
+    let offset = u32::try_from(unknown_source.find("ns::missing").unwrap()).unwrap();
+    let binding = a
+        .head_identities
+        .invocation_at_source("ns::missing", offset);
+    assert!(
+        unknown.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+        "qualification alone does not establish an installed command: {:?}; point={:?}, namespaces={:?}, slot={:?}, advice={:?}, target_unknown={}, invocations={:?}, regions={:?}, unresolved_emitted={}",
+        unknown.diagnostics,
+        a.head_identities.diagnostic_slot_presence_at(offset),
+        binding.existing_namespace_cells,
+        binding.selected_slot_presence(),
+        binding.selected_slot_diagnostic_presence(),
+        binding.unknown,
+        unknown
+            .command_invocations
+            .iter()
+            .map(|invocation| (
+                &invocation.name,
+                invocation.range,
+                invocation.lookup,
+                invocation.existence_probe
+            ))
+            .collect::<Vec<_>>(),
+        unknown.scoped_command_regions,
+        a.unresolved_commands_emitted,
+    );
+    let external = a.analyse("external::operation hello", "tcl8.6");
+    assert!(
+        !external
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W123),
+        "an unknown external namespace supplies no closed absence proof: {:?}",
+        external.diagnostics,
     );
 }
 
@@ -10413,10 +10729,13 @@ fn analyse_w123_package_require_gate_suppresses_when_recorded() {
     a.result
         .command_invocations
         .push(crate::signature_scan::types::SignatureCommandInvocation {
+            lookup: crate::signature_scan::types::SignatureCommandLookup::InvocationHead,
             name: "random_cmd".to_string(),
             range: Span::new(25, 35),
             resolved_qualified_name: None,
             resolved_user_definition: false,
+            resolved_definition: None,
+            resolved_command_reference: None,
             resolution_candidates: Vec::new(),
             argc: Some(0),
             callback_arity: None,
@@ -10559,8 +10878,9 @@ fn analyse_no_w307_for_static_known_command() {
         .iter()
         .filter(|d| d.code == DiagCode::W307)
         .collect();
-    assert!(
-        w307s.is_empty(),
+    assert_eq!(
+        w307s.len(),
+        0,
         "W307 must be suppressed when var holds known command name; got {:?}",
         r.diagnostics,
     );
@@ -10614,8 +10934,9 @@ fn analyse_w307_suppressed_per_ssa_version_after_reassignment() {
         .iter()
         .filter(|d| d.code == DiagCode::W307)
         .collect();
-    assert!(
-        w307s.is_empty(),
+    assert_eq!(
+        w307s.len(),
+        0,
         "W307 must read the precise reaching version (\"puts\"); got {:?}",
         r.diagnostics,
     );
@@ -11347,14 +11668,25 @@ fn var_binding_binary_scan_defines_targets() {
         "tcl8.6",
     );
     assert!(
-        !r.diagnostics.iter().any(|d| d.code == DiagCode::W210),
-        "binary scan writes its capture variables; got {:?}",
+        r.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "binary scan can consume no fields; a possible target is not a definite write: {:?}",
         r.diagnostics
     );
     assert!(
         r.all_variables.contains_key("f::v"),
         "binary scan's target must be a recorded definition; got {:?}",
         r.all_variables.keys().collect::<Vec<_>>()
+    );
+    assert!(
+        !Analyser::new()
+            .analyse(
+                "proc f {d} {set v 0; binary scan $d c v; puts $v}",
+                "tcl8.6",
+            )
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::W210),
+        "an existing capture remains defined when binary scan consumes no fields"
     );
 }
 
@@ -11391,8 +11723,9 @@ fn var_binding_double_bind_with_set_is_idempotent() {
         .variables
         .get("x")
         .expect("set must define x");
-    assert!(
-        var.references.is_empty(),
+    assert_eq!(
+        var.references.len(),
+        0,
         "the definition site must not be double-recorded as a reference; got {:?}",
         var.references
     );
@@ -11813,6 +12146,17 @@ fn catch_body_is_walked_for_syntactic_checks() {
 
 #[test]
 fn tcltest_test_body_is_walked_when_imported() {
+    let count_loaded = |source: &str| {
+        crate::provider_fixtures::analyse(
+            source,
+            "tcl8.6",
+            &[crate::provider_fixtures::Provider::Tcltest],
+        )
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code.as_str() == "W100")
+        .count()
+    };
     // `tcltest::test` carries `Body` roles on its `-setup`/`-body`/`-cleanup`
     // option values and on the legacy positional body (penultimate arg), so
     // the analyser descends into the test script — both when the command is
@@ -11820,18 +12164,23 @@ fn tcltest_test_body_is_walked_when_imported() {
     // `namespace import ::tcltest::*` by its bare name.
     let qualified = "package require tcltest\n\
                      tcltest::test t1 {d} { expr $x+1 } {}\n";
-    assert_eq!(count_code(qualified, "W100"), 1);
+    assert_eq!(count_loaded(qualified), 1);
+    assert_eq!(
+        count_code(qualified, "W100"),
+        0,
+        "unattested require does not enter a test body"
+    );
 
     let imported = "package require tcltest\n\
                     namespace import -force ::tcltest::*\n\
                     test t1 {d} -body { expr $x+1 } -result {}\n";
-    assert_eq!(count_code(imported, "W100"), 1);
+    assert_eq!(count_loaded(imported), 1);
 
     // The expected-result field is data, not a script, and must not be walked.
     let result_field = "package require tcltest\n\
                         namespace import -force ::tcltest::*\n\
                         test t1 {d} -body { puts ok } -result {[expr $x]}\n";
-    assert_eq!(count_code(result_field, "W100"), 0);
+    assert_eq!(count_loaded(result_field), 0);
 
     // Without the import, a bare `test` is an unknown command whose braced
     // argument is an opaque string — do not recurse (matches Tcl: `test` is
@@ -11911,23 +12260,34 @@ fn catch_body_package_require_is_conditional() {
 
 #[test]
 fn tcltest_import_is_namespace_scoped() {
+    let count_loaded = |source: &str| {
+        crate::provider_fixtures::analyse(
+            source,
+            "tcl8.6",
+            &[crate::provider_fixtures::Provider::Tcltest],
+        )
+        .diagnostics
+        .iter()
+        .filter(|diagnostic| diagnostic.code.as_str() == "W100")
+        .count()
+    };
     // A `namespace import ::tcltest::*` made *inside* a namespace must not
     // resolve a bare `test` call in a sibling/parent namespace.
     let inside_ns_top_level_call = "package require tcltest\n\
         namespace eval ns { namespace import -force ::tcltest::* }\n\
         test t {d} { expr $x+1 } {}\n";
-    assert_eq!(count_code(inside_ns_top_level_call, "W100"), 0);
+    assert_eq!(count_loaded(inside_ns_top_level_call), 0);
 
     // Same-namespace call still resolves and recurses.
     let same_ns = "package require tcltest\n\
         namespace eval ns { namespace import -force ::tcltest::* ; test t {d} { expr $x+1 } {} }\n";
-    assert_eq!(count_code(same_ns, "W100"), 1);
+    assert_eq!(count_loaded(same_ns), 1);
 
     // A global-scope import still applies at top level (Tcl's `::` fallback).
     let top_level = "package require tcltest\n\
         namespace import -force ::tcltest::*\n\
         test t {d} { expr $x+1 } {}\n";
-    assert_eq!(count_code(top_level, "W100"), 1);
+    assert_eq!(count_loaded(top_level), 1);
 }
 
 /// tclpkg manifest whole-file scoped environment (`tcl_registry::scoped::
@@ -11965,8 +12325,9 @@ entry    main.tcl
     #[test]
     fn manifest_directives_resolve_cleanly() {
         let diags = diags_for(Some("/proj/tclpkg.tcl"));
-        assert!(
-            diags.is_empty(),
+        assert_eq!(
+            diags.len(),
+            0,
             "a valid manifest must produce no diagnostics: {diags:?}"
         );
     }
@@ -12042,7 +12403,7 @@ mod did_you_mean_variables {
         );
         // The suggestion is informational only — no fix (the analyser
         // cannot know which spelling was intended).
-        assert!(d.fixes.is_empty(), "{:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "{:?}", d.fixes);
     }
 
     #[test]
@@ -12190,8 +12551,9 @@ mod irule2002_drop_in_fix {
             "when HTTP_REQUEST {\n  use pool aol_pool\n}\n",
         ] {
             let d = irule2002_for(src);
-            assert!(
-                d.fixes.is_empty(),
+            assert_eq!(
+                d.fixes.len(),
+                0,
                 "no fix expected for {src:?}: {:?}",
                 d.fixes
             );
@@ -12306,7 +12668,7 @@ mod w104_lappend_fix {
         // `append msg "item "` puts the separator *after* the piece;
         // `lappend` would move it before — not equivalent.
         let d = w104_for("append msg \"item \"\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
     #[test]
@@ -12326,8 +12688,9 @@ mod w104_lappend_fix {
             "append out \" \"\n",
         ] {
             let d = w104_for(src);
-            assert!(
-                d.fixes.is_empty(),
+            assert_eq!(
+                d.fixes.len(),
+                0,
                 "no fix expected for {src:?}: {:?}",
                 d.fixes
             );
@@ -12392,7 +12755,7 @@ mod w114_unwrap_fix {
     fn unbraced_inner_body_gets_no_fix() {
         // Inlining an unbraced body re-exposes it to substitution.
         let d = w114_for("set x 1\nif {[expr $x + 1] > 0} {}\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
     #[test]
@@ -12400,7 +12763,7 @@ mod w114_unwrap_fix {
         // `if [expr {$x}] …` — the whole argument is the nested call;
         // unwrapping to `($x)` would change the substitution pipeline.
         let d = w114_for("set x 1\nif [expr {$x}] {}\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
     #[test]
@@ -12408,7 +12771,7 @@ mod w114_unwrap_fix {
         // `[expr {$s}]` normalises "007" to 7; `($s) eq "007"` would
         // not — the unwrap could flip the verdict, so no fix.
         let d = w114_for("set s 007\nif {[expr {$s}] eq \"007\"} {}\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
     /// TIP 461's `lt`/`le`/`gt`/`ge` share the exact same numeric-
@@ -12418,7 +12781,7 @@ mod w114_unwrap_fix {
     #[test]
     fn tip461_string_ordering_context_gets_no_fix() {
         let d = w114_for("set s 007\nif {[expr {$s}] lt \"010\"} {}\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 
     #[test]
@@ -12426,7 +12789,7 @@ mod w114_unwrap_fix {
         // `[expr {a} {b}]` concatenates its arguments — not one braced
         // group, so no textual inline.
         let d = w114_for("set a 1\nif {[expr {$a} {+ 1}] > 0} {}\n");
-        assert!(d.fixes.is_empty(), "no fix expected: {:?}", d.fixes);
+        assert_eq!(d.fixes.len(), 0, "no fix expected: {:?}", d.fixes);
     }
 }
 
@@ -12534,18 +12897,9 @@ fn colon_named_proc_resolves_from_bare_calls_not_written_runs() {
     );
 }
 
-// Command names carried in variables / dispatch tables.
-
-// The constant-`$cmd` dispatch settlement's `known` / `user_defined`
-// closures must not resolve through a proc/class/alias/rename target that was
-// renamed or deleted away with no later re-establishment: they reuse
-// `fact_live_for_call` (`pub(super)` so this sibling pass can call it) with
-// the dispatch site's own offset as the call site. Resolving a dead target
-// poisons the `resolved_qualified_name` these invocations carry for hover /
-// go-to-definition / find-references / rename-tracking (it cannot cause a
-// W123 false negative — the pass runs after W123 has fired). All cases
-// confirmed against tclsh 8.6.14 (deletion semantics are identical whether a
-// command is invoked literally or via a variable).
+// Positioned computed heads retain their original written syntax. Navigation
+// uses the separately retained current lookup slot, so deleted commands do not
+// acquire a target from historical declarations or value contributors.
 
 fn const_dispatch_target(src: &str) -> Option<(String, Option<String>)> {
     let mut a = Analyser::new();
@@ -12554,7 +12908,41 @@ fn const_dispatch_target(src: &str) -> Option<(String, Option<String>)> {
     r.command_invocations
         .into_iter()
         .find(|i| i.range.start() == dispatch && i.indirect)
-        .map(|i| (i.name, i.resolved_qualified_name))
+        .and_then(|i| {
+            let reference = i.resolved_command_reference.as_ref()?;
+            assert_eq!(i.name, "${cmd}", "preserve the authored variable head");
+            Some((
+                reference
+                    .slot()
+                    .strip_prefix("::")
+                    .unwrap_or(reference.slot())
+                    .to_owned(),
+                i.resolved_qualified_name,
+            ))
+        })
+}
+
+#[test]
+fn const_dispatch_evaluated_literal_command_names_preserve_navigation() {
+    for (name, body, slot) in [
+        (
+            "$target",
+            "proc {$target} {} {}; set cmd {$target}; $cmd",
+            "::$target",
+        ),
+        (
+            "has space",
+            "proc {has space} {} {}; set cmd {has space}; $cmd",
+            "::has space",
+        ),
+        ("", "proc {} {} {}; set cmd {}; $cmd", "::"),
+    ] {
+        assert_eq!(
+            const_dispatch_target(body),
+            Some((name.to_owned(), Some(slot.to_owned()))),
+            "{body}"
+        );
+    }
 }
 
 #[test]
@@ -12643,9 +13031,15 @@ fn const_cmd_head_records_a_reference_to_the_dispatched_proc_m7() {
     let inv = r
         .command_invocations
         .iter()
-        .find(|i| i.range.start() == dispatch && i.name == "target");
+        .find(|i| i.range.start() == dispatch && i.indirect);
     assert!(
-        inv.is_some_and(|i| i.resolved_qualified_name.as_deref() == Some("::target") && i.indirect),
+        inv.is_some_and(|i| i.resolved_qualified_name.as_deref() == Some("::target")
+            && i.resolved_command_reference
+                .as_ref()
+                .is_some_and(
+                    |reference| reference.slot() == "::target" && reference.definition().is_some()
+                )
+            && i.indirect),
         "const $cmd dispatch must reference ::target (indirect): {:?}",
         r.command_invocations
             .iter()
@@ -12675,25 +13069,57 @@ fn const_cmd_head_resolves_in_the_dispatch_namespace_m7() {
 
 #[test]
 fn const_cmd_head_abstains_on_unknown_or_dynamic_values_m7() {
-    // Unknown value: no invocation appears (and no W123 arises from it).
+    // Preserve the original indirect invocation without inventing a definition.
     let mut a = Analyser::new();
     let r = a.analyse("set cmd nosuchcmd\n$cmd\n", "tcl");
-    assert!(!r.command_invocations.iter().any(|i| i.name == "nosuchcmd"));
-    // Computed value (command substitution): the value oracle abstains.
+    assert!(
+        r.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .all(|i| { i.resolved_command_reference.is_none() })
+    );
     let mut a2 = Analyser::new();
     let r2 = a2.analyse("proc target {} {}\nset cmd [pick]\n$cmd\n", "tcl");
-    assert!(!r2.command_invocations.iter().any(|i| i.indirect));
-    // Interpolated value (`x$suffix`): not a written constant — abstain.
+    assert!(
+        r2.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .all(|i| { i.resolved_command_reference.is_none() })
+    );
+    // Frozen interpolation can resolve the real slot without making its
+    // contributing text an editable command literal.
     let mut a4 = Analyser::new();
     let r4 = a4.analyse(
         "proc target {} {}\nset suffix arget\nset cmd t$suffix\n$cmd\n",
         "tcl",
     );
-    assert!(!r4.command_invocations.iter().any(|i| i.indirect));
-    // A builtin value carries no navigable definition: abstain.
+    assert!(
+        r4.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .any(|i| {
+                i.resolved_command_reference
+                    .as_ref()
+                    .is_some_and(|reference| {
+                        reference.slot() == "::target" && reference.definition().is_some()
+                    })
+            })
+    );
+    // An actual builtin slot has no source-owned procedure definition.
     let mut a3 = Analyser::new();
     let r3 = a3.analyse("set cmd puts\n$cmd hi\n", "tcl");
-    assert!(!r3.command_invocations.iter().any(|i| i.indirect));
+    assert!(
+        r3.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .any(|i| {
+                i.resolved_command_reference
+                    .as_ref()
+                    .is_some_and(|reference| {
+                        reference.slot() == "::puts" && reference.definition().is_none()
+                    })
+            })
+    );
 }
 
 #[test]
@@ -12876,7 +13302,12 @@ fn unprovable_const_dispatch_shapes_abstain_945() {
     // A proc parameter: the value flows in from the caller — abstain.
     let mut a = Analyser::new();
     let r = a.analyse("proc run {cmd} {\n    $cmd\n}\n", "tcl");
-    assert!(!r.command_invocations.iter().any(|i| i.indirect));
+    assert!(
+        r.command_invocations
+            .iter()
+            .filter(|i| i.indirect)
+            .all(|i| { i.resolved_command_reference.is_none() })
+    );
     // A write reachable through `upvar`: the alias write is not a local
     // literal definition — abstain.
     let mut a2 = Analyser::new();
@@ -13091,6 +13522,334 @@ fn dict_set_table_value_becomes_a_reference_when_consumed_m7() {
             .map(|i| (&i.name, i.range.start()))
             .collect::<Vec<_>>(),
     );
+}
+
+#[test]
+fn dispatch_table_navigation_tracks_only_the_reaching_element_literal() {
+    let src = "proc old {} {}\nproc keep {} {}\nproc new {} {}\narray set ops {x old y keep}\nset ops(x) new\n$ops(x)\n$ops(y)\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    for (literal, target, expected) in [
+        ("x old", "old", false),
+        ("y keep", "keep", true),
+        ("ops(x) new", "new", true),
+    ] {
+        let start =
+            u32::try_from(src.find(literal).unwrap() + literal.len() - target.len()).unwrap();
+        assert_eq!(
+            result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start
+                    && reference.resolved_qualified_name.as_deref()
+                        == Some(format!("::{target}").as_str())),
+            expected,
+            "{target}: {:?}",
+            result.command_invocations,
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_navigation_uses_the_consuming_namespace() {
+    let src = "namespace eval ::left {proc handler {} {}; array set ::ops {key handler}}\nnamespace eval ::right {proc handler {} {}; $::ops(key)}\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    let start = u32::try_from(src.find("key handler").unwrap() + 4).unwrap();
+    assert!(
+        result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == start
+                && reference.resolved_qualified_name.as_deref() == Some("::right::handler")),
+        "{:?}",
+        result.command_invocations
+    );
+}
+
+#[test]
+fn dispatch_table_navigation_resolves_declarations_after_the_store() {
+    let src = "array set ops {key later}\nproc later {} {}\n$ops(key)\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    let start = u32::try_from(src.find("key later").unwrap() + 4).unwrap();
+    assert!(
+        result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == start
+                && reference.resolved_qualified_name.as_deref() == Some("::later")),
+        "{:?}",
+        result.command_invocations
+    );
+}
+
+#[test]
+fn dispatch_table_navigation_does_not_borrow_another_frames_store() {
+    let src = "proc old {} {}\nproc new {} {}\nproc producer {} {array set ops {key old}}\nproc consumer {} {array set ops {key new}; $ops(key)}\nconsumer\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    let old = u32::try_from(src.find("key old").unwrap() + 4).unwrap();
+    let new = u32::try_from(src.find("key new").unwrap() + 4).unwrap();
+    assert!(
+        !result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == old)
+    );
+    assert!(
+        result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == new
+                && reference.resolved_qualified_name.as_deref() == Some("::new")),
+        "{:?}",
+        result.command_invocations
+    );
+}
+
+#[test]
+fn dispatch_table_navigation_declines_opaque_stores_and_observed_reads() {
+    for suffix in [
+        "set ops(key) [read stdin]\n$ops(key)\n",
+        "proc watch args {uplevel 1 {set ops(key) replacement}}\ntrace add variable ops(key) read watch\n$ops(key)\n",
+        "rename target {}\n$ops(key)\n",
+    ] {
+        let src = format!("proc target {{}} {{}}\narray set ops {{key target}}\n{suffix}");
+        let result = Analyser::new().analyse(&src, "tcl8.6");
+        let start = u32::try_from(src.find("key target").unwrap() + 4).unwrap();
+        assert!(
+            !result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start),
+            "{suffix}: {:?}",
+            result.command_invocations
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_dictionary_updates_preserve_other_entries_and_original_spans() {
+    let src = "proc old {} {}\nproc keep {} {}\nproc new {} {}\nset ops [dict create x old nested {y keep}]\ndict set ops x new\n[dict get $ops x]\n[dict get $ops nested y]\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    for (literal, target, expected) in [
+        ("x old", "old", false),
+        ("y keep", "keep", true),
+        ("ops x new", "new", true),
+    ] {
+        let start =
+            u32::try_from(src.find(literal).unwrap() + literal.len() - target.len()).unwrap();
+        assert_eq!(
+            result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start
+                    && reference.resolved_qualified_name.as_deref()
+                        == Some(format!("::{target}").as_str())),
+            expected,
+            "{target}: {:?}",
+            result.command_invocations
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_dictionary_literal_maps_each_repeated_value_separately() {
+    let src =
+        "proc handler {} {}\nset ops {unused handler chosen {handler}}\n[dict get $ops chosen]\n";
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    let chosen = u32::try_from(src.find("chosen {handler}").unwrap() + 8).unwrap();
+    let unused = u32::try_from(src.find("unused handler").unwrap() + 7).unwrap();
+    assert!(
+        result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == chosen
+                && reference.range.end() == chosen + 7
+                && reference.resolved_qualified_name.as_deref() == Some("::handler")),
+        "{:?}",
+        result.command_invocations
+    );
+    assert!(
+        !result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == unused)
+    );
+}
+
+#[test]
+fn dispatch_table_navigation_uses_the_selected_native_list_grammar() {
+    // Pinned Jim 0.84 splits the adjacent braced key and bare value. C Tcl
+    // rejects that dictionary before the outer invocation can execute.
+    let src = "proc handler {} {}\nset ops {{key}handler}\n[dict get $ops key]\n";
+    let start = u32::try_from(src.find("{key}handler").unwrap() + 5).unwrap();
+    for (dialect, expected) in [("jim", true), ("tcl8.6", false)] {
+        let result = Analyser::new().analyse(src, dialect);
+        assert_eq!(
+            result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start
+                    && reference.resolved_qualified_name.as_deref() == Some("::handler")),
+            expected,
+            "{dialect}: {:?}",
+            result.command_invocations
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_dictionary_keeps_known_entries_beside_unknown_values() {
+    for update in [
+        "set ops [dict create chosen handler other $other]",
+        "set ops {chosen handler}; dict set ops other $other",
+    ] {
+        let src = format!(
+            "proc handler {{}} {{}}\nproc p {{other}} {{{update}; [dict get $ops chosen]}}\n"
+        );
+        let start = u32::try_from(src.find("chosen handler").unwrap() + 7).unwrap();
+        let result = Analyser::new().analyse(&src, "tcl8.6");
+        assert!(
+            result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start
+                    && reference.resolved_qualified_name.as_deref() == Some("::handler")),
+            "{update}: {:?}",
+            result.command_invocations
+        );
+    }
+    let src = "proc handler {} {}\nproc p {key value} {set ops {chosen handler}; dict set ops $key $value; [dict get $ops chosen]}\n";
+    let start = u32::try_from(src.find("chosen handler").unwrap() + 7).unwrap();
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    assert!(
+        !result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == start)
+    );
+}
+
+#[test]
+fn dispatch_table_navigation_never_confuses_equal_offsets_in_derived_source() {
+    let src = "set ops {key handler}\nproc handler {} {}\neval [list set ops {key handler}]\n[dict get $ops key]\n";
+    let stale = u32::try_from(src.find("key handler").unwrap() + 4).unwrap();
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    assert!(
+        !result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == stale),
+        "a derived store at offset zero cannot donate the overwritten authored literal: {:?}",
+        result.command_invocations
+    );
+}
+
+#[test]
+fn dispatch_table_literal_cannot_select_one_of_two_redefined_implementations() {
+    let src =
+        "proc handler {} {}\nset ops(key) handler\n$ops(key)\nproc handler {} {}\n$ops(key)\n";
+    let stored = u32::try_from(src.find("ops(key) handler").unwrap() + 9).unwrap();
+    let result = Analyser::new().analyse(src, "tcl8.6");
+    assert!(
+        !result
+            .command_invocations
+            .iter()
+            .any(|reference| reference.range.start() == stored && reference.rename_safe),
+        "one shared literal denotes two definition allocations: {:?}",
+        result.command_invocations
+    );
+    let calls = src
+        .match_indices("$ops(key)")
+        .map(|(offset, _)| u32::try_from(offset).unwrap())
+        .collect::<Vec<_>>();
+    let definitions = result
+        .command_invocations
+        .iter()
+        .filter(|reference| calls.contains(&reference.range.start()))
+        .filter_map(|reference| reference.resolved_definition.as_ref())
+        .collect::<Vec<_>>();
+    assert!(
+        definitions.len() >= 2,
+        "actual dispatch sites retain their definitions: {:?}",
+        result.command_invocations
+    );
+    assert_ne!(definitions[0], definitions[1]);
+}
+
+#[test]
+fn dispatch_table_expanded_prefix_maps_only_its_original_command_element() {
+    for setup in [
+        "array set ops {key {handler ARG}}\n{*}$ops(key)\n",
+        "set ops {key {handler ARG}}\n{*}[dict get $ops key]\n",
+    ] {
+        let src = format!("proc handler {{argument}} {{}}\n{setup}");
+        let start = u32::try_from(src.find("handler ARG").unwrap()).unwrap();
+        let result = Analyser::new().analyse(&src, "tcl8.6");
+        assert!(
+            result
+                .command_invocations
+                .iter()
+                .any(|reference| reference.range.start() == start
+                    && reference.range.end() == start + 7
+                    && reference.resolved_qualified_name.as_deref() == Some("::handler")),
+            "{setup}: {:?}",
+            result.command_invocations
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_constructed_list_preserves_each_original_head_operand() {
+    for (name, setup) in [
+        ("handler", "set ops(key) [list handler]\n$ops(key) ARG\n"),
+        ("handler", "set ops(key) [list handler ARG]\n{*}$ops(key)\n"),
+        (
+            "my handler",
+            "set ops [dict create key [list {my handler} ARG]]\n{*}[dict get $ops key]\n",
+        ),
+        (
+            "handler",
+            "set ops [list key [list handler ARG]]\n{*}[dict get $ops key]\n",
+        ),
+    ] {
+        let src = format!("proc {{{name}}} {{argument}} {{}}\n{setup}");
+        let start = u32::try_from(src.rfind(name).unwrap()).unwrap();
+        let result = Analyser::new().analyse(&src, "tcl8.6");
+        assert!(
+            result.command_invocations.iter().any(|reference| {
+                reference.range.start() == start
+                    && reference.range.end() == start + u32::try_from(name.len()).unwrap()
+                    && reference.resolved_qualified_name.as_deref()
+                        == Some(format!("::{name}").as_str())
+            }),
+            "{setup}: {:?}",
+            result.command_invocations
+        );
+    }
+}
+
+#[test]
+fn dispatch_table_constructed_list_cannot_borrow_a_later_argument_as_its_head() {
+    for (name, src) in [
+        (
+            "handler",
+            "proc handler {argument} {}\nproc dispatch {name} {set ops(key) [list $name handler]; {*}$ops(key)}\n",
+        ),
+        (
+            "my handler",
+            "proc {my handler} {} {}\nset ops(key) [list {my handler}]\n$ops(key)\n",
+        ),
+    ] {
+        let stored = u32::try_from(src.rfind(name).unwrap()).unwrap();
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result
+                .command_invocations
+                .iter()
+                .any(|reference| { reference.range.start() == stored && reference.rename_safe }),
+            "only an actual head with unchanged native encoding can donate its literal: {:?}",
+            result.command_invocations
+        );
+    }
 }
 
 // Source-site namespace propagation (seeded analysis).
@@ -13617,8 +14376,14 @@ fn w003_irules_alias_gates_like_the_canonical_profile() {
 fn w003_bpf_accepts_both_tips_on_its_tcl_9_runtime() {
     // bpf embeds Tcl 9.0 (D7): `in`/`ni` (TIP 201) and `lt`/`le`/`gt`/`ge`
     // (TIP 461) are all grammatical — no W003.
-    assert!(w003_hits("expr {2 in {1 2 3}}", "bpf").is_empty());
-    assert!(w003_hits("if {$x lt $y} { puts hi }", "bpf").is_empty());
+    assert_eq!(
+        w003_hits("expr {2 in {1 2 3}}", "bpf"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
+    assert_eq!(
+        w003_hits("if {$x lt $y} { puts hi }", "bpf"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
 }
 
 /// The 9 iRules word operators (`contains`, `and`, …) evaluate outside the
@@ -13655,7 +14420,7 @@ fn w003_fires_on_irules_word_operators_outside_irules() {
         );
         // No safe mechanical rewrite exists for these — unlike `in`/`lt`,
         // there is no portable Tcl expression these fold into.
-        assert!(hits[0].1.fixes.is_empty(), "{src}");
+        assert_eq!(hits[0].1.fixes.len(), 0, "{src}");
     }
 }
 
@@ -13672,7 +14437,7 @@ fn w003_silent_on_irules_word_operators_inside_irules() {
         "if {$a or $b} { puts hi }",
         "if {not $a} { puts hi }",
     ] {
-        assert!(w003_hits(src, "f5-irules").is_empty(), "{src}");
+        assert_eq!(w003_hits(src, "f5-irules").len(), 0, "{src}");
     }
 }
 
@@ -13684,7 +14449,10 @@ fn w003_fires_on_irules_word_operator_in_unbraced_multiword_expr() {
     let hits = w003_hits("expr $a contains $b", "tcl9.0");
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].0, "contains");
-    assert!(w003_hits("expr $a contains $b", "f5-irules").is_empty());
+    assert_eq!(
+        w003_hits("expr $a contains $b", "f5-irules"),
+        [] as [(std::string::String, crate::analyser::types::Diagnostic); 0]
+    );
 }
 
 // Option-gating semantics (dialect-profile-model.md §5.2):
@@ -14344,8 +15112,9 @@ fn analyse_w308_tp_1329_bareword_my_unknown_method() {
 fn analyse_w308_tn_1329_bareword_my_real_method_silent() {
     // TN — `my animTick` dispatches a method the enclosing class declares.
     let src = cls_1329("        my animTick\n");
-    assert!(
-        dispatch_codes(&src).is_empty(),
+    assert_eq!(
+        dispatch_codes(&src).len(),
+        0,
         "`my animTick` must be silent; got {:?}",
         dispatch_diags_both_paths(&src),
     );
@@ -14360,8 +15129,9 @@ fn analyse_w308_fp_1329_my_reaches_unexported_object_builtins() {
     let src = cls_1329(
         "        my variable v\n        set v [my varname v]\n        my eval {set q 1}\n",
     );
-    assert!(
-        dispatch_codes(&src).is_empty(),
+    assert_eq!(
+        dispatch_codes(&src).len(),
+        0,
         "`my` must reach oo::object's unexported members; got {:?}",
         dispatch_diags_both_paths(&src),
     );
@@ -14392,8 +15162,9 @@ fn analyse_w308_fp_1329_my_outside_any_class_body() {
         "proc p {} {\n    my nosuchmethod\n}\n",
         "namespace eval ns {\n    my nosuchmethod\n}\n",
     ] {
-        assert!(
-            dispatch_codes(src).is_empty(),
+        assert_eq!(
+            dispatch_codes(src).len(),
+            0,
             "`my` outside a class body must abstain; got {:?} for {src:?}",
             dispatch_diags_both_paths(src),
         );
@@ -14412,8 +15183,9 @@ fn analyse_w308_fp_1329_inherited_and_forwarded_and_unknown() {
     let unknown_handler = "oo::class create U1329 {\n    method unknown {args} {}\n    \
          method go {} {\n        my anything\n    }\n}\n";
     for src in [inherited, forwarded, unknown_handler] {
-        assert!(
-            dispatch_codes(src).is_empty(),
+        assert_eq!(
+            dispatch_codes(src).len(),
+            0,
             "a resolvable-by-other-means method must not draw W308; got {:?} for {src:?}",
             dispatch_diags_both_paths(src),
         );
@@ -14429,8 +15201,9 @@ fn analyse_w308_fp_1329_unprovable_method_set_abstains() {
     let superclass = "oo::class create S1329 {\n    superclass ::ext::Unindexed\n    \
          method go {} {\n        my whatever\n    }\n}\n";
     for src in [mixin, superclass] {
-        assert!(
-            dispatch_codes(src).is_empty(),
+        assert_eq!(
+            dispatch_codes(src).len(),
+            0,
             "an unprovable method set must abstain; got {:?} for {src:?}",
             dispatch_diags_both_paths(src),
         );
@@ -14442,8 +15215,9 @@ fn analyse_w308_fp_1329_computed_method_word_abstains() {
     // FP guard — the dispatched name is chosen at run time, so no static
     // method set can contradict it.
     let src = cls_1329("        set m animTick\n        my $m\n        my get$m\n");
-    assert!(
-        dispatch_codes(&src).is_empty(),
+    assert_eq!(
+        dispatch_codes(&src).len(),
+        0,
         "a computed method word must abstain; got {:?}",
         dispatch_diags_both_paths(&src),
     );
@@ -14465,8 +15239,9 @@ fn analyse_w308_fp_1329_disturbed_self_dispatch_keyword_abstains() {
         cls_1329("        my nosuchmethod\n")
     );
     for src in [shadowed, renamed, aliased] {
-        assert!(
-            dispatch_codes(&src).is_empty(),
+        assert_eq!(
+            dispatch_codes(&src).len(),
+            0,
             "a disturbed `my` must abstain; got {:?} for {src:?}",
             dispatch_diags_both_paths(&src),
         );
@@ -14480,8 +15255,9 @@ fn analyse_w308_1329_next_and_self_name_no_method() {
     // word of theirs is validated as a method name.
     let src = "oo::class create N1329 {\n    method go {} {\n        next\n        \
          self class\n        self namespace\n    }\n}\n";
-    assert!(
-        dispatch_codes(src).is_empty(),
+    assert_eq!(
+        dispatch_codes(src).len(),
+        0,
         "`next` / `self` name no method; got {:?}",
         dispatch_diags_both_paths(src),
     );

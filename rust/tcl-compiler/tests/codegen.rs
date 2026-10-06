@@ -50,7 +50,7 @@
 //!     path is still covered. (The list commands the emitter DOES specialise —
 //!     llength/lrange/linsert/lassign/lreplace — are asserted with their real
 //!     opcodes.)
-//!  2. `LiteralTable.entries()` returns `&[String]` (ordered, deduped) and
+//!  2. `LiteralTable.entries()` returns exact native byte entries (ordered, deduped) and
 //!     `LocalVarTable` likewise.
 //!  3. `esc` escaping. `format::esc` matches C-Tcl's disassembler BYTE-WISE
 //!     over UTF-8: a non-ASCII codepoint renders as the `\uXXXX` of each raw
@@ -148,6 +148,8 @@ fn toplevel_cfg(statements: Vec<Statement>) -> CfgFunction {
     let blk = cfg.blocks.get_mut(&entry).unwrap();
     blk.statements = statements;
     blk.terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -683,6 +685,8 @@ fn literal_with_embedded_stx_appears_escaped_in_disassembly() {
             value_span: None,
         });
     cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+        expr_base: None,
+        tokens: None,
         value: None,
         value_word: None,
         span: None,
@@ -1672,10 +1676,10 @@ fn complex_value_interpolation_in_proc() {
     let ops = opcodes(&fa);
     assert!(ops.contains(&Op::STORE_SCALAR1));
     assert!(
-        fa.literals
-            .entries()
-            .iter()
-            .any(|l| l.contains("Hello, ") && l.contains("{name}")),
+        fa.literals.entries().iter().any(|l| {
+            l.unicode()
+                .is_ok_and(|text| text.contains("Hello, ") && text.contains("{name}"))
+        }),
         "interpolated literal interned verbatim, got {:?}",
         fa.literals.entries()
     );
@@ -1955,7 +1959,12 @@ fn codegen_module_empty_has_top() {
 
 /// The literal pool of `source`'s top-level function.
 fn top_lits(source: &str) -> Vec<String> {
-    top_asm(source).literals.entries().to_vec()
+    top_asm(source)
+        .literals
+        .entries()
+        .iter()
+        .map(|literal| literal.unicode().expect("Unicode test source").to_owned())
+        .collect()
 }
 
 #[test]
@@ -2082,7 +2091,14 @@ fn the_trust_gate_is_per_name_not_whole_module() {
 /// keeps the second route honest.
 #[test]
 fn the_fold_gate_holds_through_the_simplified_value_emitter() {
-    let lits = |src: &str| proc_asm(src, "::p").literals.entries().to_vec();
+    let lits = |src: &str| {
+        proc_asm(src, "::p")
+            .literals
+            .entries()
+            .iter()
+            .map(|literal| literal.unicode().expect("Unicode test source").to_owned())
+            .collect::<Vec<_>>()
+    };
 
     let list_body = "proc p {} {set l {x}\nlset l 0 [list a b c]\nreturn $l}\n";
     assert!(lits(list_body).contains(&"a b c".to_owned()));

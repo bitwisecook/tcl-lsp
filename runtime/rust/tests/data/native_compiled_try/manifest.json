@@ -1,0 +1,155 @@
+{
+  "observations": 200,
+  "runs": [
+    {
+      "version": "8.4.20",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/.proofs/2286-root-each-try-native3/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-each-try-native3/8.4.20"
+      ],
+      "compile_exit": 0,
+      "original_budget": 60,
+      "source_sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "protocol_sha256": {
+        "generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a",
+        "generic/tclCompile.h": "3d7d3b604522a9c5e673076fab8df53316951da1406892d03fe52dd678e2d0ec",
+        "generic/tclCompCmds.c": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214"
+      },
+      "exit": 0,
+      "seconds": 0.0033787720021791756,
+      "binary_sha256": "a1ddd2764f42b4995ff0bcfe4c0696ff902d138b2abac5c0ffc07d462330898c",
+      "stdout_sha256": "f36ba33c70fb4b121e481a0009ee28fc2d78037e367b9730a5fbaaa723475b87",
+      "observations": 40
+    },
+    {
+      "version": "8.5.19",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/.proofs/2286-root-each-try-native3/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-each-try-native3/8.5.19"
+      ],
+      "compile_exit": 0,
+      "original_budget": 60,
+      "source_sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "protocol_sha256": {
+        "generic/tclInt.h": "72078ca207924e61b4fbf637eff263d280a0dbc78e6a5fbb39e2cd980d08a8aa",
+        "generic/tclCompile.h": "9ef1b2690de80b9c193d866d8ef8eb3271e57802c91a96f0f0a01f87c1d1a645",
+        "generic/tclCompCmds.c": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414"
+      },
+      "exit": 0,
+      "seconds": 0.007944462005980313,
+      "binary_sha256": "bdbe07c4fcd31ff063c0ce538355d0bdfe9f325013388c4fb03ff45efcb45744",
+      "stdout_sha256": "a7bbc99f12ddb619fae32195cc6989aa1e781d9c653c6f15c2750cad25d0ce3e",
+      "observations": 40
+    },
+    {
+      "version": "8.6.18",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/.proofs/2286-root-each-try-native3/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-each-try-native3/8.6.18"
+      ],
+      "compile_exit": 0,
+      "original_budget": 60,
+      "source_sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "protocol_sha256": {
+        "generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+        "generic/tclCompile.h": "be854eab265b25091f3e5a9b8d268d3aeca520d12382f135e3b3ddede49e6ed9",
+        "generic/tclCompCmds.c": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e"
+      },
+      "exit": 0,
+      "seconds": 0.01540506596211344,
+      "binary_sha256": "6dd6dd0b9f284741eb3a35baacf6d7360b4c76613fb95424779a5a6712efaabf",
+      "stdout_sha256": "7986af9bc523b824a08d4e02555e7a2e9e9fbf3a201a96c520528b4a95e5f336",
+      "observations": 40
+    },
+    {
+      "version": "9.0.4",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/.proofs/2286-root-each-try-native3/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-each-try-native3/9.0.4"
+      ],
+      "compile_exit": 0,
+      "original_budget": 60,
+      "source_sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "protocol_sha256": {
+        "generic/tclInt.h": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+        "generic/tclCompile.h": "22f512199d2e57370496d8a6713921d9ac57538497a3a64966fa1dee7a6a5dc5",
+        "generic/tclCompCmds.c": "9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a"
+      },
+      "exit": 0,
+      "seconds": 0.01759673800552264,
+      "binary_sha256": "4468ea72e86fbadc1fcd1fda4407e3ce953f6850a0bd74463579fd55d5d2897d",
+      "stdout_sha256": "7986af9bc523b824a08d4e02555e7a2e9e9fbf3a201a96c520528b4a95e5f336",
+      "observations": 40
+    },
+    {
+      "version": "9.1.0",
+      "compile_command": [
+        "cc",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/.proofs/2286-root-each-try-native3/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-root-each-try-native3/9.1.0"
+      ],
+      "compile_exit": 0,
+      "original_budget": 60,
+      "source_sha256": "d94eb349ae2638672110fd183d15ca719c7b98d4d3039cd939a5158209902edf",
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "protocol_sha256": {
+        "generic/tclInt.h": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+        "generic/tclCompile.h": "70203ece61377d4cf22a1eae4348d6216bf77372fd7f8a49274f05d8c546d44e",
+        "generic/tclCompCmds.c": "66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e"
+      },
+      "exit": 0,
+      "seconds": 0.0177055670064874,
+      "binary_sha256": "feced532ab4437f6f95d1d35e14741901e0dd0f722c30f7ba2f637ab3ddf4be8",
+      "stdout_sha256": "44de70afa64cece3a9779342667b1317de08c3936ddffb7fcf4270525528afc4",
+      "observations": 40
+    }
+  ]
+}

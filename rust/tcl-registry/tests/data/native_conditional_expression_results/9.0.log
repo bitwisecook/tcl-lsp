@@ -1,0 +1,3 @@
+f 0 3.5 {value is a double with a refcount of 2, object pointer at 0x562280889530, internal representation 3.5, no string representation}
+g 0 14 {value is a int with a refcount of 3, object pointer at 0x5622808890b0, internal representation 0xe:0x0, no string representation}
+h 0 14 {value is a int with a refcount of 3, object pointer at 0x5622808890e0, internal representation 0xe:0x562280889320, no string representation}

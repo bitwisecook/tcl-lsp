@@ -41,11 +41,9 @@
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
-use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::expr_ast::{BinOp, ExprNode};
+use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
 use crate::naming::normalise_var_name;
-use crate::types::{TclType, TypeKind, TypeLattice};
 
 use super::helpers::literals::{is_safe_word, is_static_var_word};
 use super::helpers::spans::{full_rewrite_span, statement_delete_rewrite_range};
@@ -57,14 +55,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // computed variable name (`set $name …`) abstains from packing —
     // the shared value-motion barrier. O114 (`set`/`expr`
     // → `incr`) rewrites a statement in place and stays on.
-    let top_ints = int_var_names(&cu.top_level);
     let top_pack = !cu.top_level.dynamic_barrier_blocks_value_motion();
-    walk_script(ctx, &cu.ir_module.top_level, &top_ints, top_pack, 0);
+    walk_script(ctx, &cu.ir_module.top_level, top_pack, 0);
     for (qname, proc) in &cu.ir_module.procedures {
         let fu = cu.procedures.get(qname);
-        let ints = fu.map(int_var_names).unwrap_or_default();
         let pack = fu.is_some_and(|f| !f.dynamic_barrier_blocks_value_motion());
-        walk_script(ctx, &proc.body, &ints, pack, 0);
+        walk_script(ctx, &proc.body, pack, 0);
     }
     // O128 — end-offset index rewrites (its own segment-level walk over
     // the same source).
@@ -74,52 +70,19 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     super::chain_fold::run(ctx, cu);
 }
 
-/// Names whose **every** SSA version is a known `TclType::Int`. A name absent
-/// here is treated as not provably integer, so the `set/expr → incr` rewrite
-/// (O114) is suppressed — the loop variable must be proven
-/// `INT` (not `DOUBLE` / `NUMERIC` / `BOOLEAN`) at the use point before
-/// rewriting. `expr {$x + 1}` silently promotes a float operand, whereas
-/// `incr` errors, so the function-level join (all versions must be `INT`) is a
-/// sound over-approximation of the per-use check.
-fn int_var_names(fu: &FunctionUnit) -> HashSet<String> {
-    use std::collections::HashMap;
-    let mut acc: HashMap<crate::ssa::Symbol, bool> = HashMap::new();
-    for ((sym, _ver), lattice) in fu.types.iter() {
-        let is_int = lattice_is_int(lattice);
-        acc.entry(*sym)
-            .and_modify(|v| *v = *v && is_int)
-            .or_insert(is_int);
-    }
-    acc.into_iter()
-        .filter(|(_, ok)| *ok)
-        .map(|(sym, _)| fu.ssa.var_name(sym).to_owned())
-        .collect()
-}
-
-/// Whether a type-lattice element is a known `TclType::Int`.
-fn lattice_is_int(t: &TypeLattice) -> bool {
-    t.kind() == TypeKind::Known && t.tcl_type() == Some(TclType::Int)
-}
-
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`]. `pack` gates the O119 multi-`set`
 /// packing (off for a function whose dynamic-name barrier blocks value
 /// motion — see [`run`]).
-fn walk_script(
-    ctx: &mut PassContext<'_>,
-    script: &Script,
-    int_vars: &HashSet<String>,
-    pack: bool,
-    depth: u32,
-) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+fn walk_script(ctx: &mut PassContext<'_>, script: &Script, pack: bool, depth: u32) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     if pack {
         detect_multi_set_packing(ctx, script);
     }
     for stmt in &script.statements {
-        walk_statement(ctx, stmt, int_vars, pack, depth);
+        walk_statement(ctx, script, stmt, pack, depth);
     }
 }
 
@@ -128,19 +91,11 @@ const SET_PACK_MIN_GROUP: usize = 3;
 
 /// O119 — pack three or more consecutive `set VAR LITERAL` statements
 /// (distinct variables, safe literal values) into one `lassign` (Tcl
-/// 8.5 / 8.6) or `foreach {…} {…} {break}` (8.4), emitting the applied
-/// rewrite plus paired deletions. Skipped on Tcl 9.0, where individual
+/// 8.5 / 8.6) or `foreach {…} {…} {break}` (8.4), retaining hints and paired suggestions until the
+/// shared grouped-store proof closes completion, effects and object sharing. Skipped on Tcl 9.0, where individual
 /// `set`s are faster. Handles only the strictly-consecutive case;
 /// interspersed candidates are not reordered.
 fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
-    // Tcl 9.0 prefers individual `set`s; 8.5 / 8.6 get `lassign`; older
-    // (and dialect-unset) fall back to the universally-valid `foreach`.
-    if ctx.dialect.is_some_and(|profile| profile.name == "tcl9.0") {
-        return;
-    }
-    let use_lassign = ctx
-        .dialect
-        .is_some_and(|profile| matches!(profile.name, "tcl8.5" | "tcl8.6"));
     let stmts = &script.statements;
 
     let mut i = 0;
@@ -160,8 +115,11 @@ fn detect_multi_set_packing(ctx: &mut PassContext<'_>, script: &Script) {
             run.push((j, var_word, value));
             j += 1;
         }
-        if run.len() >= SET_PACK_MIN_GROUP {
-            emit_set_pack(ctx, stmts, &run, use_lassign);
+        if run.len() >= SET_PACK_MIN_GROUP
+            && let Some(assessment) =
+                super::store_packing::assess_grouped_store_rewrite(script, i, run.last().unwrap().0)
+        {
+            emit_set_pack(ctx, stmts, &run, assessment);
         }
         i = if j > i { j } else { i + 1 };
     }
@@ -211,7 +169,7 @@ fn emit_set_pack(
     ctx: &mut PassContext<'_>,
     stmts: &[Statement],
     run: &[(usize, String, String)],
-    use_lassign: bool,
+    assessment: super::store_packing::StorePackingAssessment,
 ) {
     let source = ctx.source;
     let group = ctx.alloc_group();
@@ -225,19 +183,20 @@ fn emit_set_pack(
         .map(|(_, _, v)| v.as_str())
         .collect::<Vec<_>>()
         .join(" ");
-    let (replacement, pack_msg, del_msg) = if use_lassign {
-        (
-            format!("lassign {{{value_words}}} {var_words}"),
-            "Pack set statements into lassign",
-            "Remove packed set (moved to lassign)",
-        )
-    } else {
-        (
-            format!("foreach {{{var_words}}} {{{value_words}}} {{break}}"),
-            "Pack set statements into foreach",
-            "Remove packed set (moved to foreach)",
-        )
-    };
+    let (replacement, pack_msg, del_msg) =
+        if assessment.target == super::store_packing::StorePackingTarget::Lassign {
+            (
+                format!("lassign {{{value_words}}} {var_words}"),
+                "Pack set statements into lassign",
+                "Remove packed set (moved to lassign)",
+            )
+        } else {
+            (
+                format!("foreach {{{var_words}}} {{{value_words}}} {{break}}"),
+                "Pack set statements into foreach",
+                "Remove packed set (moved to foreach)",
+            )
+        };
 
     let last_idx = run.last().unwrap().0;
     let mut pack = Optimisation::new(
@@ -247,6 +206,18 @@ fn emit_set_pack(
         replacement,
     );
     pack.group = Some(group);
+    pack.hint_only = true;
+    pack.message.push_str(match assessment.decline {
+        super::store_packing::StorePackingDecline::EnclosingResult => {
+            "; final command result would change"
+        }
+        super::store_packing::StorePackingDecline::UnknownResultUse => {
+            "; enclosing result use is unproved"
+        }
+        super::store_packing::StorePackingDecline::UnprovedOutputSchedule => {
+            "; native store schedule equivalence is unproved"
+        }
+    });
     ctx.report(pack);
 
     for (idx, _, _) in &run[..run.len() - 1] {
@@ -259,22 +230,26 @@ fn emit_set_pack(
             "",
         );
         del.group = Some(group);
+        del.hint_only = true;
         ctx.report(del);
     }
 }
 
 fn walk_statement(
     ctx: &mut PassContext<'_>,
+    script: &Script,
     stmt: &Statement,
-    int_vars: &HashSet<String>,
     pack: bool,
     depth: u32,
 ) {
     match stmt {
-        Statement::AssignExpr {
-            span, name, expr, ..
-        } => {
-            if let Some(replacement) = try_incr_idiom(name, expr, int_vars) {
+        Statement::AssignExpr { span, .. }
+        | Statement::AssignValue { span, .. }
+        | Statement::Call { span, .. } => {
+            if let Some(proof) = ctx.registry.and_then(|registry| {
+                crate::increment_rewrite::assess_increment_rewrite(script, stmt, registry)
+            }) {
+                let replacement = proof.replacement();
                 ctx.report(Optimisation::new(
                     DiagCode::O114,
                     "Use incr instead of set/expr",
@@ -287,34 +262,34 @@ fn walk_statement(
             clauses, else_body, ..
         } => {
             for c in clauses {
-                walk_script(ctx, &c.body, int_vars, pack, depth + 1);
+                walk_script(ctx, &c.body, pack, depth + 1);
             }
             if let Some(b) = else_body {
-                walk_script(ctx, b, int_vars, pack, depth + 1);
+                walk_script(ctx, b, pack, depth + 1);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(ctx, init, int_vars, pack, depth + 1);
-            walk_script(ctx, next, int_vars, pack, depth + 1);
-            walk_script(ctx, body, int_vars, pack, depth + 1);
+            walk_script(ctx, init, pack, depth + 1);
+            walk_script(ctx, next, pack, depth + 1);
+            walk_script(ctx, body, pack, depth + 1);
         }
         Statement::While { body, .. }
         | Statement::Catch { body, .. }
-        | Statement::Foreach { body, .. } => walk_script(ctx, body, int_vars, pack, depth + 1),
+        | Statement::Foreach { body, .. } => walk_script(ctx, body, pack, depth + 1),
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            walk_script(ctx, body, int_vars, pack, depth + 1);
+            walk_script(ctx, body, pack, depth + 1);
             for h in handlers {
-                walk_script(ctx, &h.body, int_vars, pack, depth + 1);
+                walk_script(ctx, &h.body, pack, depth + 1);
             }
             if let Some(fb) = finally_body {
-                walk_script(ctx, fb, int_vars, pack, depth + 1);
+                walk_script(ctx, fb, pack, depth + 1);
             }
         }
         Statement::Switch {
@@ -322,100 +297,23 @@ fn walk_statement(
         } => {
             for a in arms {
                 if let Some(b) = &a.body {
-                    walk_script(ctx, b, int_vars, pack, depth + 1);
+                    walk_script(ctx, b, pack, depth + 1);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(ctx, b, int_vars, pack, depth + 1);
+                walk_script(ctx, b, pack, depth + 1);
             }
         }
         _ => {}
     }
 }
 
-/// If `expr` is of the shape `$var ± literal` (where `var`
-/// normalises to `target_name`), return the equivalent `incr`
-/// command text.
-///
-/// Rewrites:
-///
-/// - `$x + 1`  → `incr x`
-/// - `$x + N`  → `incr x N`        (`N` any non-zero integer)
-/// - `$x - 1`  → `incr x -1`       (equivalent to `incr x -1`)
-/// - `$x - N`  → `incr x -N`       (`N` a non-zero integer)
-///
-/// Returns `None` for anything that does not match the form.
-///
-/// D5-O114 soundness gate: `target_name` must be provably `TclType::Int`
-/// (present in `int_vars`). `expr {$x + 1}` silently promotes a float
-/// operand (`1.5` → `2.5`), whereas `incr x` errors with *expected integer
-/// but got "1.5"* — so without an integer proof the rewrite is unsound.
-fn try_incr_idiom(
-    target_name: &str,
-    expr: &ExprNode,
-    int_vars: &HashSet<String>,
-) -> Option<String> {
-    if !int_vars.contains(target_name) {
-        return None;
-    }
-    let ExprNode::Binary { op, left, right } = expr else {
-        return None;
-    };
-    match op {
-        BinOp::Add => {
-            let (var, lit) = extract_var_and_literal(left, right)?;
-            if !var_matches(target_name, var) {
-                return None;
-            }
-            let n = parse_int_literal(lit)?;
-            Some(format_incr(target_name, n))
-        }
-        BinOp::Sub => {
-            // Subtraction is not commutative — demand $x - N.
-            let ExprNode::Var { name: var, .. } = left.as_ref() else {
-                return None;
-            };
-            if !var_matches(target_name, var) {
-                return None;
-            }
-            let n = parse_int_literal(right)?;
-            if n == 0 {
-                return None;
-            }
-            // `$x - N` → `incr x -N`. Use checked_neg to guard
-            // against i64::MIN (whose negation overflows).
-            let negated = n.checked_neg()?;
-            Some(format_incr(target_name, negated))
-        }
-        _ => None,
-    }
-}
-
-fn extract_var_and_literal<'a>(
-    a: &'a ExprNode,
-    b: &'a ExprNode,
-) -> Option<(&'a str, &'a ExprNode)> {
-    // Commutative Add: accept $var on either side.
-    if let ExprNode::Var { name, .. } = a {
-        return Some((name.as_str(), b));
-    }
-    if let ExprNode::Var { name, .. } = b {
-        return Some((name.as_str(), a));
-    }
-    None
-}
-
+#[cfg(test)]
 fn var_matches(target: &str, candidate: &str) -> bool {
-    normalise_var_name(&format!("${candidate}")) == target
+    crate::naming::normalise_var_name(&format!("${candidate}")) == target
 }
 
-fn parse_int_literal(node: &ExprNode) -> Option<i64> {
-    let ExprNode::Literal { text, .. } = node else {
-        return None;
-    };
-    text.trim().parse::<i64>().ok()
-}
-
+#[cfg(test)]
 fn format_incr(name: &str, amount: i64) -> String {
     if amount == 1 {
         format!("incr {name}")
@@ -433,11 +331,14 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&registry);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -485,36 +386,103 @@ mod tests {
 
     #[test]
     fn set_expr_plus_one_rewrites_to_incr() {
-        // The seeding `set x 0` makes `x` provably INT, satisfying the
-        // O114 soundness gate.
-        let opts = run_pass("set x 0\nset x [expr {$x + 1}]");
-        let got = opts.iter().find(|o| o.code == DiagCode::O114);
-        assert!(got.is_some(), "expected O114, got {opts:?}");
-        assert_eq!(got.unwrap().replacement, "incr x");
+        for (normalise, expected) in [
+            ("llength $x\n", "expr {+$x}; incr x"),
+            ("incr x 0\n", "incr x"),
+        ] {
+            let opts = run_pass(&format!("set x 0\n{normalise}set x [expr {{$x + 1}}]"));
+            let edit = opts
+                .iter()
+                .find(|edit| edit.code == DiagCode::O114)
+                .expect("the closed source update still supplies an edit");
+            assert!(!edit.hint_only);
+            assert_eq!(edit.replacement, expected);
+        }
     }
 
     #[test]
     fn set_expr_plus_n_carries_the_amount() {
-        let opts = run_pass("set x 0\nset x [expr {$x + 5}]");
-        assert_eq!(
-            opts.iter()
-                .find(|o| o.code == DiagCode::O114)
-                .unwrap()
-                .replacement,
-            "incr x 5",
-        );
+        for (normalise, expected) in [
+            ("llength $x\n", "expr {+$x}; incr x [expr {5}]"),
+            ("incr x 0\n", "incr x [expr {5}]"),
+        ] {
+            let opts = run_pass(&format!("set x 0\n{normalise}set x [expr {{$x + 5}}]"));
+            let edit = opts
+                .iter()
+                .find(|edit| edit.code == DiagCode::O114)
+                .expect("the original amount conversion remains executed");
+            assert!(!edit.hint_only);
+            assert_eq!(edit.replacement, expected);
+        }
+    }
+
+    #[test]
+    fn increment_rewrite_retains_original_nonunit_literal_conversion() {
+        for (normalise, expected) in [
+            ("llength $x\n", "expr {+$x}; incr x [expr {- [expr {5}]}]"),
+            ("incr x 0\n", "incr x [expr {- [expr {5}]}]"),
+        ] {
+            let opts = run_pass(&format!(
+                "set held 5\nset x 9\n{normalise}set x [expr {{$x - 5}}]"
+            ));
+            let edit = opts
+                .iter()
+                .find(|edit| edit.code == DiagCode::O114)
+                .expect("closed integer update still supplies an applied edit");
+            assert!(!edit.hint_only);
+            assert_eq!(edit.replacement, expected);
+        }
+    }
+
+    #[test]
+    fn unknown_stock_cache_cannot_authorise_increment_conversion() {
+        for source in [
+            "set x 0; set x [expr {$x+1}]",
+            "set x 0; set x [expr {$x+5}]",
+            "set x 9; set x [expr {$x-5}]",
+            "set x 5; set x [expr {$x-1}]",
+            "set x 0; set x [expr {1+$x}]",
+        ] {
+            let edits = run_pass(source);
+            assert!(
+                edits.iter().all(|edit| edit.code != DiagCode::O114),
+                "{source}: {edits:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn increment_rewrite_requires_original_handlers_and_unobserved_physical_schedule() {
+        for source in [
+            "proc observer {args} {}; set x 0; trace add variable x read observer; set x [expr {$x+1}]",
+            "proc observer {args} {}; set x 0; trace add variable x write observer; set x [expr {$x+1}]",
+            "proc observer {args} {}; set x 0; trace add execution expr enter observer; set x [expr {$x+1}]",
+            "proc incr {args} {return WRONG}; set x 0; set x [expr {$x+1}]",
+            "rename incr original_incr; interp alias {} incr {} original_incr other; set x 0; set x [expr {$x+1}]",
+            "set a(k) 0; set a(j) [expr {$a(k)+1}]",
+        ] {
+            let edits = run_pass(source);
+            assert!(
+                edits.iter().all(|edit| edit.code != DiagCode::O114),
+                "{source}: {edits:?}"
+            );
+        }
     }
 
     #[test]
     fn set_expr_minus_one_becomes_incr_negative_one() {
-        let opts = run_pass("set x 5\nset x [expr {$x - 1}]");
-        assert_eq!(
-            opts.iter()
-                .find(|o| o.code == DiagCode::O114)
-                .unwrap()
-                .replacement,
-            "incr x -1",
-        );
+        for (normalise, expected) in [
+            ("llength $x\n", "expr {+$x}; incr x -1"),
+            ("incr x 0\n", "incr x -1"),
+        ] {
+            let opts = run_pass(&format!("set x 5\n{normalise}set x [expr {{$x - 1}}]"));
+            let edit = opts
+                .iter()
+                .find(|edit| edit.code == DiagCode::O114)
+                .expect("the closed subtraction still supplies an edit");
+            assert!(!edit.hint_only);
+            assert_eq!(edit.replacement, expected);
+        }
     }
 
     #[test]
@@ -559,30 +527,35 @@ mod tests {
 
     #[test]
     fn commutative_add_accepts_literal_on_left() {
-        // Tcl allows `$x + 1` and `1 + $x` — both should be
-        // recognised as an incr idiom.
-        let opts = run_pass("set x 0\nset x [expr {1 + $x}]");
-        assert_eq!(
-            opts.iter()
-                .find(|o| o.code == DiagCode::O114)
-                .unwrap()
-                .replacement,
-            "incr x",
-        );
+        for (normalise, expected) in [
+            ("llength $x\n", "expr {+$x}; incr x"),
+            ("incr x 0\n", "incr x"),
+        ] {
+            let opts = run_pass(&format!("set x 0\n{normalise}set x [expr {{1 + $x}}]"));
+            let edit = opts
+                .iter()
+                .find(|edit| edit.code == DiagCode::O114)
+                .expect("commutative addition retains its single physical read");
+            assert!(!edit.hint_only);
+            assert_eq!(edit.replacement, expected);
+        }
     }
 
     #[test]
-    fn multi_set_packing_applies_pack_rewrite() {
-        // No dialect set → universally-valid `foreach` packing, applied.
+    fn multi_set_packing_keeps_unproved_final_result_as_a_hint() {
+        // Actual C8.6 selects lassign, whose empty result differs from final set3.
         let opts = run_pass("set a 1\nset b 2\nset c 3");
         let pack = opts
             .iter()
             .find(|o| o.code == DiagCode::O119 && !o.replacement.is_empty())
-            .expect("expected an applied O119 pack");
-        assert_eq!(pack.replacement, "foreach {a b c} {1 2 3} {break}");
+            .expect("expected an O119 candidate");
+        assert_eq!(pack.replacement, "lassign {1 2 3} a b c");
+        assert!(pack.hint_only);
+        assert!(pack.message.contains("final command result would change"));
         // One pack + two deletions, one group.
         let o119: Vec<_> = opts.iter().filter(|o| o.code == DiagCode::O119).collect();
         assert_eq!(o119.len(), 3);
+        assert!(o119.iter().all(|suggestion| suggestion.hint_only));
     }
 
     #[test]
@@ -605,11 +578,18 @@ mod tests {
 
     #[test]
     fn multi_set_packing_skipped_on_tcl9() {
-        let cu = CompilationUnit::build_for("set a 1\nset b 2\nset c 3", &registry(), false);
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let selected = CommandRegistry::build_default().project_for_profile(profile);
+        let cu = CompilationUnit::build_for_profile(
+            "set a 1\nset b 2\nset c 3",
+            &selected,
+            false,
+            profile,
+        );
         let mut ctx = super::super::PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
+            Some(profile),
         );
         run(&mut ctx, &cu);
         assert!(
@@ -617,6 +597,27 @@ mod tests {
             "Tcl 9.0 must not pack sets, got {:?}",
             ctx.optimisations,
         );
+    }
+
+    #[test]
+    fn discarded_result_does_not_prove_grouped_store_schedule() {
+        let opts = run_pass("set a 1\nset b 2\nset c 3\nputs $c");
+        let candidate = opts
+            .iter()
+            .find(|item| item.code == DiagCode::O119 && !item.replacement.is_empty())
+            .expect("native candidate");
+        assert!(candidate.hint_only);
+        assert!(
+            candidate
+                .message
+                .contains("store schedule equivalence is unproved")
+        );
+    }
+
+    #[test]
+    fn replaced_packing_handler_cannot_donate_a_native_candidate() {
+        let opts = run_pass("proc lassign {args} {return CUSTOM}; set a 1; set b 2; set c 3");
+        assert!(opts.iter().all(|item| item.code != DiagCode::O119));
     }
 
     #[test]
@@ -644,8 +645,10 @@ mod tests {
 
     #[test]
     fn run_passes_dispatches_pattern_recognition() {
-        let cu = CompilationUnit::build_for("set x 0\nset x [expr {$x + 1}]", &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for("set x 0\nset x [expr {$x + 1}]", &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.registry = Some(&registry);
         super::super::run_passes(&mut ctx, &cu, &[super::super::PassId::PatternRecognition]);
         assert!(
             ctx.optimisations.iter().any(|o| o.code == DiagCode::O114),

@@ -74,6 +74,28 @@ use tcl_dialect::model::SpecSurface;
 // `-encoding encodingName`, unchanged in wording through 9.1 — only its
 // omitted-default behaviour shifts (see the `-encoding` `OptionSpec`
 // below).
+const COMMAND_FORMS: &[CommandForm] = &[
+    CommandForm {
+        name: "filename",
+        arity: Arity::exact(1),
+        ..CommandForm::DEFAULT
+    },
+    CommandForm {
+        name: "encoding",
+        arity: Arity::exact(3),
+        literal_argument_prefix: Some(crate::forms::LiteralArgumentPrefix::exact(&["-encoding"])),
+        surface: Some(SpecSurface::TCL85_PLUS),
+        ..CommandForm::DEFAULT
+    },
+    CommandForm {
+        name: "no-package",
+        arity: Arity::exact(2),
+        literal_argument_prefix: Some(crate::forms::LiteralArgumentPrefix::exact(&["-nopkg"])),
+        surface: Some(SpecSurface::TCL90_PLUS),
+        ..CommandForm::DEFAULT
+    },
+];
+
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "source fileName",
@@ -131,6 +153,14 @@ const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            // Tcl's file evaluator enters commands directly; even C8.4
+            // observes a set replacement performed earlier in the same file.
+            body: crate::native_compilation::NativeBodyCompilation::Direct,
+        }),
         // Core Tcl 8.4-9.1 (present in every fetched manpage, only its
         // SYNOPSIS/option set shifts — see the module doc comment and FORMS
         // above). Unavailable under `f5-irules` because its surface is
@@ -183,27 +213,11 @@ pub fn spec() -> CommandSpec {
             // may-escape classification `eval`/`uplevel` already get
             // from this same trait.
             | Traits::CREATES_BARRIER,
-        // Positional-only count: always exactly 1 (fileName). Tcl 9's
-        // `-nopkg fileName` and `-encoding encodingName fileName` are
-        // separate forms; combining the options is rejected by the Tcl 9
-        // parser. Every accepted modern shape still has exactly
-        // one fileName positional word; this project's bytecode-VM
-        // `cmd_source` (`tcl-vm/src/command.rs`) implements that contract and
-        // rejects a second file name, so
-        // `source somefile.tcl otherfile.tcl` is just as invalid as
-        // `source -encoding` alone. The registry's arity checker skips a
-        // recognised *leading* options (`-encoding` and Tcl 9's `-nopkg`,
-        // declared below) together with any value word before
-        // counting positionals, so both accepted shapes reduce to this
-        // same single positional. Tcl 8.4's SYNOPSIS additionally allows
-        // an *optional* trailing fileName after `-rsrc`/`-rsrcid`
-        // (classic Mac OS resource-fork sourcing, not modelled as an
-        // `OptionSpec` — see FORMS above); this `exact(1)` does not
-        // capture that 0-or-1 shape for the 8.4-only Mac forms, a known,
-        // deliberate gap given how obscure and platform-locked that
-        // syntax is (and that this project's own VM never implements
-        // it).
-        arity: Arity::exact(1),
+        // Exact selected forms own argv counts. The shared file selector
+        // validates native option grammar before any file is read.
+        arity: Arity::new(1, 3),
+        command_forms: COMMAND_FORMS,
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::SourceFile),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         options: const {
@@ -250,6 +264,32 @@ pub fn spec() -> CommandSpec {
         analyser_hook: Some(crate::hooks::AnalyserHookId::Source),
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Current Jim reads one filename; native encoding and -nopkg options are absent.
+pub fn jim_spec() -> CommandSpec {
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.arity = Arity::exact(1);
+    command.command_forms = &COMMAND_FORMS[..1];
+    command.forms = &[FormSpec {
+        synopsis: "source fileName",
+        ..FormSpec::DEFAULT
+    }];
+    command.options = &[];
+    command.option_relations = &[];
+    command.hover = Some(HoverSnippet {
+        summary: "Evaluate a file in the current frame",
+        synopsis: &["source fileName"],
+        snippet: "Reads and evaluates the selected file in the caller's variable frame. A return ends file evaluation; errors and other native completion codes propagate. Encoding and -nopkg options are not accepted.",
+        source: "Jim 0.84 Jim_SourceCoreCommand / Jim_EvalFile",
+        examples: "source library.tcl",
+        return_value: "Native command result",
+    });
+    command
 }
 
 #[cfg(test)]

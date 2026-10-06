@@ -97,18 +97,22 @@ pub struct CatchRegionInfo {
     pub result_var: Option<String>,
     /// `catch`'s options-dict variable, if the source named one.
     pub options_var: Option<String>,
+    /// Original invocation proof used to select its compiler output protocol.
+    pub tokens: Option<crate::ir::CommandTokens>,
 }
 
 /// Detect `catch` regions in the CFG.
 ///
 /// The builder emits `catch_body_N → catch_end_N` ([`crate::cfg_builder`]'s
-/// `lower_catch`). Unlike try/finally the end block is *not* consumed: it is
+/// `lower_catch`). The explicit continuation also retains a body ending in
+/// a caught error, which has no normal Goto edge. Unlike try/finally the end block is *not* consumed: it is
 /// the continuation, carrying the result/options variable defs and whatever
 /// follows the `catch`. Only the scaffolding is spliced in at the body block.
 #[must_use]
 pub fn detect_catch_regions(
     cfg: &CfgFunction,
     block_order: &[String],
+    registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<String, CatchRegionInfo> {
     let mut result: HashMap<String, CatchRegionInfo> = HashMap::new();
 
@@ -116,60 +120,69 @@ pub fn detect_catch_regions(
         if !bname.starts_with("catch_body_") {
             continue;
         }
-        let Some(catch_end) = follow_until_prefix(cfg, bname, "catch_end_") else {
+        let Some(catch_end) = cfg
+            .block_id(bname)
+            .and_then(|entry| cfg.command_boundary_continuations.get(&entry))
+            .map(|end| cfg.block_name(*end).to_owned())
+            .or_else(|| follow_until_prefix(cfg, bname, "catch_end_"))
+        else {
             continue;
         };
         // `lower_catch` parks the result/options variables on a defs-only
         // `catch` call in the end block, so SSA sees them defined however the
         // body ended. Codegen stores them itself, from C's stack order.
-        let (result_var, options_var) = catch_result_vars(cfg, &catch_end);
-        result.insert(
-            bname.clone(),
-            CatchRegionInfo {
-                catch_end,
-                result_var,
-                options_var,
-            },
-        );
+        let Some(info) = catch_region_outputs(cfg, &catch_end, registry) else {
+            continue;
+        };
+        result.insert(bname.clone(), info);
     }
 
     result
 }
 
-/// The result and options variables recorded on a `catch_end` block's
-/// defs-only statement, in that order.
-///
-/// Returns `(None, None)` when the source named neither.
-fn catch_result_vars(cfg: &CfgFunction, catch_end: &str) -> (Option<String>, Option<String>) {
-    let Some(blk) = cfg.block_by_name(catch_end) else {
-        return (None, None);
+/// Select original output argument positions independently of projected SSA defs.
+fn catch_region_outputs(
+    cfg: &CfgFunction,
+    catch_end: &str,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<CatchRegionInfo> {
+    let block = cfg.block_by_name(catch_end)?;
+    let tokens = block.statements.iter().find_map(|statement| {
+        is_catch_defs_marker(statement)
+            .then(|| statement.tokens())
+            .flatten()
+    })?;
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    let normal = crate::registry_invocation::normal_transfer_invocation(registry, context, tokens)?;
+    normal.variable_output_arguments()?;
+    let result = if normal.argument_count() > 1 {
+        Some(normal.argument_literal(1)?)
+    } else {
+        None
     };
-    for stmt in &blk.statements {
-        if let crate::ir::Statement::Call {
-            command,
-            args,
-            defs,
-            ..
-        } = stmt
-            && command == "catch"
-            && args.is_empty()
-        {
-            return (defs.first().cloned(), defs.get(1).cloned());
-        }
-    }
-    (None, None)
+    let options = if normal.argument_count() > 2 {
+        Some(normal.argument_literal(2)?)
+    } else {
+        None
+    };
+    let mut original = tokens.clone();
+    original.synthetic = None;
+    Some(CatchRegionInfo {
+        catch_end: catch_end.to_owned(),
+        result_var: result,
+        options_var: options,
+        tokens: Some(original),
+    })
 }
 
-/// Whether `stmt` is the defs-only marker `lower_catch` leaves on a
-/// `catch_end` block. It exists for SSA, not for emission — the stores it
-/// stands for are emitted with the catch scaffolding.
+/// Whether this boundary stores captured catch outputs without invoking again.
 #[must_use]
-pub fn is_catch_defs_marker(stmt: &crate::ir::Statement) -> bool {
-    matches!(
-        stmt,
-        crate::ir::Statement::Call { command, args, .. }
-            if command == "catch" && args.is_empty()
-    )
+pub fn is_catch_defs_marker(statement: &crate::ir::Statement) -> bool {
+    statement.tokens().is_some_and(|tokens| {
+        tokens.synthetic == Some(crate::ir::SyntheticMarker::CapturedCatchOutputs)
+    })
 }
 
 /// Follow a chain of `Goto` terminators until reaching a block whose
@@ -200,5 +213,50 @@ fn direct_goto(cfg: &CfgFunction, name: &str) -> Option<String> {
     match &blk.terminator {
         Some(Terminator::Goto { target, .. }) => Some(cfg.block_name(*target).to_owned()),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn captured_outputs_retain_argument_positions_when_a_definition_is_withdrawn() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {} {catch {set x 1} result options; list $result $options}",
+            registry,
+            false,
+        );
+        let mut cfg = unit.function("::p").unwrap().cfg.clone();
+        let marker = cfg
+            .blocks
+            .values_mut()
+            .flat_map(|block| &mut block.statements)
+            .find(|statement| is_catch_defs_marker(statement))
+            .expect("captured output boundary");
+        assert!(marker.source_edit_span().is_none());
+        let tokens = marker.tokens().unwrap();
+        assert!(!tokens.evaluates_words());
+        assert_eq!(tokens.argv_texts.len(), 4);
+        if let crate::ir::Statement::Call { defs, .. } = marker {
+            *defs = vec!["options".to_owned()];
+        }
+        let order: Vec<_> = cfg
+            .blocks
+            .keys()
+            .map(|&block| cfg.block_name(block).to_owned())
+            .collect();
+        let regions = detect_catch_regions(&cfg, &order, registry);
+        assert_eq!(regions.len(), 1);
+        let region = regions.values().next().unwrap();
+        assert_eq!(region.result_var.as_deref(), Some("result"));
+        assert_eq!(region.options_var.as_deref(), Some("options"));
+        assert!(
+            region
+                .tokens
+                .as_ref()
+                .is_some_and(|tokens| tokens.synthetic.is_none())
+        );
     }
 }

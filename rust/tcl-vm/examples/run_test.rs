@@ -103,7 +103,7 @@ fn run() -> i32 {
     let asm = match compiler.compile(&src) {
         Ok(module) => module,
         Err(error) => {
-            eprintln!("compile error: {}", error.0);
+            eprintln!("compile error: {error}");
             return 1;
         }
     };

@@ -1,0 +1,10 @@
+constructor	code=0	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null
+fresh-read	code=1	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null
+clear-flag-read	code=0	read="475545535420494e464f"	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=1	errorInfo_defined=1	errorInfo_value="475545535420494e464f"	errorCode_present=1	errorCode_defined=1	errorCode_value="475545535420434f4445"
+set-flag-read	code=0	read="475545535420494e464f"	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=1	errorInfo_defined=1	errorInfo_value="475545535420494e464f"	errorCode_present=1	errorCode_defined=1	errorCode_value="475545535420434f4445"
+unset-defined	code=0	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=1	errorCode_defined=1	errorCode_value="475545535420434f4445"
+read-after-unset	code=1	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=1	errorCode_defined=1	errorCode_value="475545535420434f4445"
+unset-code-defined	code=0	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null
+unset-code-undefined	code=1	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null
+null-private-read	code=1	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null
+reset-legacy	code=0	read=null	legacy=-1	privateinfo=null	privatecode=null	errorInfo_present=0	errorInfo_defined=0	errorInfo_value=null	errorCode_present=0	errorCode_defined=0	errorCode_value=null

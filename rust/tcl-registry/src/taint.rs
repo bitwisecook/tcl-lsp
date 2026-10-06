@@ -654,7 +654,82 @@ pub enum TaintTransformCondition {
     MappingDeletesCrlf,
 }
 
+/// Selected authored transform and its optional frozen-operand proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SelectedTaintTransform {
+    /// Colour guaranteed by the successful selected handler.
+    pub colour: TaintColour,
+    /// Additional argument-value proof required for that colour.
+    pub condition: Option<TaintTransformCondition>,
+}
+
+impl SelectedTaintTransform {
+    pub(crate) fn for_descriptors(
+        command: &crate::CommandSpec,
+        subcommand: Option<&crate::SubCommand>,
+        inherit_command: bool,
+    ) -> Option<Self> {
+        if let Some(subcommand) = subcommand
+            && let Some(colour) = subcommand.taint_transform
+        {
+            return Some(Self {
+                colour,
+                condition: subcommand.taint_transform_when,
+            });
+        }
+        if !inherit_command {
+            return None;
+        }
+        Some(Self {
+            colour: command.taint_transform?,
+            condition: command.taint_transform_when,
+        })
+    }
+
+    /// Assess evaluated operands without parsing source spellings as values.
+    #[must_use]
+    pub fn resolve(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        offset: usize,
+        options: crate::InvocationOptions<'_>,
+    ) -> Option<TaintColour> {
+        self.condition
+            .is_none_or(|condition| condition.holds_arguments(arguments, offset, options))
+            .then_some(self.colour)
+    }
+}
+
 impl TaintTransformCondition {
+    /// Validate the selected condition against frozen typed values and native
+    /// list rules. Unknown mapping bytes never receive a sanitising property.
+    #[must_use]
+    pub fn holds_arguments(
+        self,
+        arguments: crate::InvocationArguments<'_>,
+        offset: usize,
+        options: crate::InvocationOptions<'_>,
+    ) -> bool {
+        match self {
+            Self::MappingDeletesCrlf => {
+                let operands = arguments.slice_from(offset);
+                let Some(boundary) = options.leading_word_count(operands) else {
+                    return false;
+                };
+                if operands.exact_argv_len() != boundary.checked_add(2) {
+                    return false;
+                }
+                let Some(mapping) = operands.literal_at(boundary) else {
+                    return false;
+                };
+                let Some(dialect) = arguments.dialect() else {
+                    return false;
+                };
+                mapping_value_deletes_crlf(mapping, dialect.word_values)
+            }
+        }
+    }
+
     /// Every condition, in declaration order — the closed vocabulary a pack
     /// may name (by variant spelling, as every catalogued enum is named) and
     /// the studio may offer.
@@ -717,7 +792,16 @@ pub fn mapping_deletes_crlf(args: &[&str]) -> bool {
     else {
         return false;
     };
-    let Ok(elements) = tcl_syntax::list::split_list(inner) else {
+    mapping_value_deletes_crlf(inner, tcl_syntax::word_rules::WordValueRules::TCL)
+}
+
+/// Prove CR/LF removal from the actual evaluated mapping list value.
+#[must_use]
+pub fn mapping_value_deletes_crlf(
+    mapping: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
+    let Ok(elements) = rules.split_list(mapping) else {
         return false;
     };
     if elements.len() < 2 || elements.len() % 2 != 0 {

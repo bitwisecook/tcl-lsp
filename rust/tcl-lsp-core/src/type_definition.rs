@@ -21,11 +21,9 @@
 //!
 //! Two receiver shapes:
 //!
-//! - **Variable receiver** (`$obj`) — when the analyser has inferred the
-//!   variable's class (`AnalysisResult::instance_classes`, or the
-//!   object-type lattice's scope-keyed singleton via
-//!   [`crate::definition::receiver_instance_class_at`]),
-//!   jump to that `ClassDef`'s name span.
+//! - **Variable receiver** (`$obj`) — an actual retained object read identifies
+//!   its original class allocation. Nominal type candidates cannot supply a
+//!   local declaration; foreign source requires its own navigation target.
 //! - **Method receiver** — when the cursor sits inside a class body on a
 //!   word that names one of that class's methods, jump to the enclosing
 //!   class's definition (the method's owning *type*).
@@ -49,19 +47,13 @@ pub fn type_definition(
 ) -> Vec<LspRange> {
     let line_index = LineIndex::new(source);
 
-    // 1. Variable receiver: `$obj` with a known instance class —
-    //    `instance_classes` first, then the object-type lattice's
-    //    scope-keyed singleton at the cursor, the same accessor precedence
-    //    every dispatch consumer uses.
-    if let Some(var_name) = find_var_at_position(source, line, character) {
+    // The actual object read retains its original class allocation. A
+    // singleton candidate type cannot supply a type-navigation declaration.
+    if find_var_at_position(source, line, character).is_some() {
         let cursor = byte_offset_at(&line_index, source, line, character);
-        if let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &var_name, true, cursor)
-            && let Some(cd) = find_class(analysis, class_q)
-        {
-            return vec![span_to_range(source, &line_index, cd.name_span)];
-        }
-        return Vec::new();
+        return crate::receiver_identity::class_at_read(analysis, source, cursor)
+            .map(|class| vec![span_to_range(source, &line_index, class.name_span)])
+            .unwrap_or_default();
     }
 
     // 2. Method receiver: a bare word inside a class body that names a
@@ -76,26 +68,6 @@ pub fn type_definition(
         return vec![span_to_range(source, &line_index, cd.name_span)];
     }
     Vec::new()
-}
-
-/// Resolve an already-qualified class `name` (an `instance_classes` value,
-/// which the analyser stored namespace-aware) to its `ClassDef`.
-fn find_class<'a>(analysis: &'a AnalysisResult, name: &str) -> Option<&'a ClassDef> {
-    // `instance_classes` stores the qualified name, which is the `all_classes`
-    // key, so the exact lookup is the resolving path; the `::`-prefixed spelling
-    // covers a caller that passes the unprefixed qualified form.  A
-    // namespace-blind simple-name scan is intentionally *not* used — it could
-    // jump to a same-named class in an unrelated namespace, the exact wrong
-    // target that `instance_classes`' namespace-aware inference already avoids.
-    if let Some(cd) = analysis.all_classes.get(name) {
-        return Some(cd);
-    }
-    let prefixed = if name.starts_with("::") {
-        name.to_owned()
-    } else {
-        format!("::{name}")
-    };
-    analysis.all_classes.get(&prefixed)
 }
 
 /// The innermost class whose body (including any separate `oo::define`

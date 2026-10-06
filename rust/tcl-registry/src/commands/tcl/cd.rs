@@ -26,10 +26,28 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+fn discovery_changed(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if arguments.len() <= 1 {
+        transitions.push(StateTransition::Package(
+            crate::model::binding::PackageTransition::DiscoveryDependencyChanged {
+                dependency: crate::model::binding::PackageResolverDependency::WorkingDirectory,
+            },
+        ));
+    }
+    transitions
+}
+
 /// Command spec for `cd`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Universal core Tcl 8.4-9.1 (identical `cd ?dirName?` synopsis and
         // behaviour on every fetched manpage). Excluded from `f5-irules` (no
         // real per-request filesystem there) by this explicit
@@ -51,6 +69,11 @@ pub fn spec() -> CommandSpec {
         // this mirrors directly.
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN | Traits::TAINT_SINK,
         arity: Arity::new(0, 1),
+        state_transitions: Some(StateTransitionDescriptor {
+            success_resolver: None,
+            resolver: Some(discovery_changed),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         return_type: Some(TclType::String),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,

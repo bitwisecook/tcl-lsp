@@ -1,0 +1,20 @@
+8.4.20|converted|array search|0|1
+8.4.20|duplicate|array search|0|1
+8.4.20|missing|array search|0|1
+8.4.20|duplicate-missing|array search|0|1
+8.5.19|converted|array search|0|1
+8.5.19|duplicate|array search|0|1
+8.5.19|missing|none|0|1
+8.5.19|duplicate-missing|none|0|1
+8.6.18|converted|array search|0|1
+8.6.18|duplicate|array search|0|1
+8.6.18|missing|none|0|1
+8.6.18|duplicate-missing|none|0|1
+9.0.4|converted|string|1|1
+9.0.4|duplicate|none|0|1
+9.0.4|missing|string|1|1
+9.0.4|duplicate-missing|none|0|1
+9.1.0|converted|string|1|1
+9.1.0|duplicate|none|0|1
+9.1.0|missing|string|1|1
+9.1.0|duplicate-missing|none|0|1

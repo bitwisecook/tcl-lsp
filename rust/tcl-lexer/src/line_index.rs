@@ -129,11 +129,20 @@ impl LineIndex {
     /// checked conversion between `usize` and `u32`.
     #[must_use]
     pub fn new(source: &str) -> Self {
+        Self::from_bytes(source.as_bytes())
+    }
+
+    /// Index LF positions in original script bytes without decoding names.
+    ///
+    /// # Panics
+    /// Panics when the buffer is larger than the shared u32 source limit.
+    #[must_use]
+    pub fn from_bytes(source: &[u8]) -> Self {
         assert!(
             u32::try_from(source.len()).is_ok(),
             "source longer than 4 GiB cannot be indexed",
         );
-        let bytes = source.as_bytes();
+        let bytes = source;
         let mut starts = Vec::with_capacity(bytes.len() / 32 + 1);
         starts.push(0_u32);
         for (i, &b) in bytes.iter().enumerate() {

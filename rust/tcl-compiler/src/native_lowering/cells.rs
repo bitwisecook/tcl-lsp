@@ -39,17 +39,14 @@
 
 use std::collections::BTreeMap;
 
-use tcl_lexer::Span;
-
 use super::ir::NativeValueId;
-use crate::codegen::values::is_bare_var_name;
 use crate::executable_ir::CellReference;
 use crate::ir::{Provenance, SourceSite};
 
 /// One Tcl variable cell addressed by name.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CellPlace {
-    /// A scalar variable (or a whole array, when written as one).
+    /// A whole variable name, resolved by the selected native lookup policy.
     Named {
         /// The exact variable name.
         name: String,
@@ -88,8 +85,7 @@ pub(crate) enum VariableWordDecline {
     /// The word is not one whole static reference, or its element key
     /// substitutes.
     Dynamic,
-    /// `$a(b)` and `${a(b)}` share a compatibility spelling and the recorded
-    /// lexical extent cannot tell the two apart.
+    /// Original spelling, source extent or provenance does not attest the read.
     Ambiguous,
 }
 
@@ -98,30 +94,23 @@ pub(crate) fn has_substitution(text: &str) -> bool {
     text.bytes().any(|byte| matches!(byte, b'$' | b'[' | b'\\'))
 }
 
-/// The exact Tcl variable name `spelling` refers to, when the **whole** word is
-/// one simple variable reference — otherwise `None`.
-///
-/// The two spellings are **not** validated alike, and that asymmetry is the
-/// point: braces are Tcl's own escape for a name the bare charset cannot
-/// express, so `${…}` accepts any non-empty name verbatim, while a bare
-/// `$name` must be a whole [`is_bare_var_name`] run — otherwise the word is
-/// `$name` *followed by literal text* (`$item-suffix`) and loading
-/// `item-suffix` would be wrong. Routing the braced form through the charset
-/// check as well would change behaviour, not just deduplicate.
-///
-/// Note the braced form here is decided by the *last* `}` in the word, so it
-/// only ever sees a word the caller already knows is one variable reference.
-/// The release-aware `${…}` close rule lives with the decoders in
-/// `codegen::values::parse_simple_var_ref`.
-pub(crate) fn whole_reference(spelling: &str) -> Option<&str> {
-    if let Some(name) = spelling
-        .strip_prefix("${")
-        .and_then(|rest| rest.strip_suffix('}'))
-    {
-        return (!name.is_empty()).then_some(name);
+/// Validate the whole original reference with the selected native word grammar.
+/// A compatibility spelling or trailing word component cannot supply its syntax.
+fn variable_reference(
+    spelling: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<tcl_lexer::word_parts::RawVarRef<'_>> {
+    tcl_lexer::word_parts::whole_var_ref(spelling.as_bytes(), config).ok()?
+}
+
+/// The exact name input of one whole reference, before physical native lookup.
+pub(crate) fn whole_reference(spelling: &str, config: tcl_lexer::LexerConfig) -> Option<&str> {
+    let reference = variable_reference(spelling, config)?;
+    if reference.index.is_some() {
+        spelling.get(1..)
+    } else {
+        std::str::from_utf8(reference.name).ok()
     }
-    let name = spelling.strip_prefix('$')?;
-    is_bare_var_name(name).then_some(name)
 }
 
 /// The cell a statically spelled variable **name** denotes, or `None` when the
@@ -154,41 +143,51 @@ pub(crate) fn cell_place(name: &str, braced: bool) -> Option<CellPlace> {
 
 /// The cell a `$…` / `${…}` variable **word** reads.
 ///
-/// The compatibility spelling normalises both `$a(b)` and `${a(b)}` to
-/// `${a(b)}`, so the recorded lexical extent is what tells them apart: a
-/// `${…}` reference is exactly two bytes longer than its name, a `$…` exactly
-/// one. Only the latter is an array-element access; `${a(b)}` names a scalar
-/// whose name happens to contain parentheses.
+/// Bare indices retain their substitution grammar; braced names use literal
+/// element keys. Both literal spellings select the same symbolic element, so
+/// native shadows cannot keep two incompatible aliases for that lookup.
+/// This is a syntax projection, not a physical-cell or successful-read proof.
 pub(crate) fn variable_word_place(
     spelling: &str,
     source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<CellPlace, VariableWordDecline> {
-    let name = whole_reference(spelling).ok_or(VariableWordDecline::Dynamic)?;
-    let Some((base, key)) = tcl_syntax::naming::split_element_ref(name) else {
-        return Ok(CellPlace::Named {
-            name: name.to_owned(),
-        });
-    };
-    if source.provenance != Provenance::Source {
+    let reference = variable_reference(spelling, config).ok_or(VariableWordDecline::Dynamic)?;
+    if source.provenance != Provenance::Source
+        || reference.source_span(spelling.as_bytes(), 0, source.span.start()) != Some(source.span)
+    {
         return Err(VariableWordDecline::Ambiguous);
     }
-    match extent(source.span).checked_sub(name.len()) {
-        // `${name}` — the whole thing is one scalar name.
-        Some(2) => Ok(CellPlace::Named {
-            name: name.to_owned(),
-        }),
-        // `$name(key)` — a genuine array element access.
-        Some(1) if has_substitution(key) => Err(VariableWordDecline::Dynamic),
-        Some(1) => Ok(CellPlace::Element {
-            name: base.to_owned(),
-            key: key.to_owned(),
-        }),
-        _ => Err(VariableWordDecline::Ambiguous),
-    }
+    variable_reference_place(spelling, config)
 }
 
-fn extent(span: Span) -> usize {
-    span.end().saturating_sub(span.start()) as usize
+/// Symbolic lookup syntax shared by original word and expression operands.
+/// This accepts no physical identity, successful-read or execution proof.
+pub(crate) fn variable_reference_place(
+    spelling: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Result<CellPlace, VariableWordDecline> {
+    let reference = variable_reference(spelling, config).ok_or(VariableWordDecline::Dynamic)?;
+    let name = std::str::from_utf8(reference.name).map_err(|_| VariableWordDecline::Dynamic)?;
+    if let Some(index) = reference.index {
+        let key = std::str::from_utf8(index).map_err(|_| VariableWordDecline::Dynamic)?;
+        if has_substitution(key) {
+            return Err(VariableWordDecline::Dynamic);
+        }
+        return Ok(CellPlace::Element {
+            name: name.to_owned(),
+            key: key.to_owned(),
+        });
+    }
+    Ok(tcl_syntax::naming::split_element_ref(name).map_or_else(
+        || CellPlace::Named {
+            name: name.to_owned(),
+        },
+        |(base, key)| CellPlace::Element {
+            name: base.to_owned(),
+            key: key.to_owned(),
+        },
+    ))
 }
 
 /// Where a cell lives — the cell-storage lattice element decided for a
@@ -313,90 +312,125 @@ mod tests {
         assert!(state.is_empty());
     }
 
-    /// The braced and bare spellings are validated **differently**, and the
-    /// asymmetry is load-bearing: braces are Tcl's own escape for a name the
-    /// bare charset cannot express. Hoisting the braced arm through
-    /// `is_bare_var_name` — the obvious "deduplication" — would change
-    /// behaviour, so it is pinned here.
-    #[test]
-    fn whole_reference_accepts_any_non_empty_braced_name() {
-        assert_eq!(whole_reference("${a-b}"), Some("a-b"));
-        assert_eq!(whole_reference("${a.b}"), Some("a.b"));
-        assert_eq!(whole_reference("${a(b)}"), Some("a(b)"));
-        assert_eq!(whole_reference("${x}"), Some("x"));
-        // …but not an empty one.
-        assert_eq!(whole_reference("${}"), None);
+    fn config() -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_profile(
+            tcl_registry::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .profile(),
+        )
     }
 
     #[test]
-    fn whole_reference_charset_checks_only_the_bare_form() {
-        assert_eq!(whole_reference("$x"), Some("x"));
-        assert_eq!(whole_reference("$::ns::x"), Some("::ns::x"));
-        assert_eq!(whole_reference("$x_1"), Some("x_1"));
-        // `$item-suffix` is `$item` followed by literal text, not a whole
-        // reference — so the *word* is not a simple variable load.
-        assert_eq!(whole_reference("$item-suffix"), None);
-        assert_eq!(whole_reference("$a(b)"), None);
-        assert_eq!(whole_reference("$"), None);
+    fn whole_reference_uses_native_braced_and_bare_grammar() {
+        for (word, expected) in [
+            ("${a-b}", Some("a-b")),
+            ("${a.b}", Some("a.b")),
+            ("${a(b)}", Some("a(b)")),
+            ("${x}", Some("x")),
+            ("${}", Some("")),
+            ("$x", Some("x")),
+            ("$::ns::x", Some("::ns::x")),
+            ("$x_1", Some("x_1")),
+            ("$a(b)", Some("a(b)")),
+            ("$item-suffix", None),
+            ("$a(b)(c)", None),
+            ("$", None),
+            ("x", None),
+            ("", None),
+            ("[f]", None),
+            ("a$b", None),
+        ] {
+            assert_eq!(whole_reference(word, config()), expected, "{word}");
+        }
     }
 
     #[test]
-    fn whole_reference_rejects_a_word_that_is_not_a_reference() {
-        assert_eq!(whole_reference("x"), None);
-        assert_eq!(whole_reference(""), None);
-        assert_eq!(whole_reference("[f]"), None);
-        assert_eq!(whole_reference("a$b"), None);
-    }
-
-    /// One owner decides the element split, and the lexical extent — not the
-    /// compatibility text — is what separates `$a(b)` from `${a(b)}`.
-    #[test]
-    fn variable_words_tell_element_and_odd_scalar_spellings_apart() {
-        let site = |start: u32, end: u32| SourceSite::source(Span::new(start, end));
-        // `$a(b)`: five source bytes for a four-byte name.
+    fn variable_words_share_literal_element_identity_and_retain_index_evaluation() {
+        let site = |end| SourceSite::source(tcl_lexer::Span::new(0, end));
+        let element = CellPlace::Element {
+            name: "a".into(),
+            key: "b".into(),
+        };
         assert_eq!(
-            variable_word_place("${a(b)}", &site(0, 5)),
+            variable_word_place("$a(b)", &site(5), config()),
+            Ok(element.clone())
+        );
+        assert_eq!(
+            variable_word_place("${a(b)}", &site(6), config()),
+            Ok(element)
+        );
+        assert_eq!(
+            variable_word_place("$x", &site(2), config()),
+            Ok(CellPlace::Named { name: "x".into() })
+        );
+        assert_eq!(
+            variable_word_place("${}", &site(3), config()),
+            Ok(CellPlace::Named { name: "".into() })
+        );
+        assert_eq!(
+            variable_word_place("$a($i)", &site(6), config()),
+            Err(VariableWordDecline::Dynamic)
+        );
+        assert_eq!(
+            variable_word_place("${a($i)}", &site(7), config()),
             Ok(CellPlace::Element {
-                name: "a".to_owned(),
-                key: "b".to_owned(),
+                name: "a".into(),
+                key: "$i".into()
             })
         );
-        // `${a(b)}`: six, because the braces are part of the word.
         assert_eq!(
-            variable_word_place("${a(b)}", &site(0, 6)),
-            Ok(CellPlace::Named {
-                name: "a(b)".to_owned(),
-            })
-        );
-        // A name with no element suffix never consults the extent.
-        assert_eq!(
-            variable_word_place("$x", &site(0, 2)),
-            Ok(CellPlace::Named {
-                name: "x".to_owned(),
-            })
-        );
-        // A substituted key is not a static cell: `$a($i)` is six source
-        // bytes for a five-byte name, so the extent reads it as an element.
-        assert_eq!(
-            variable_word_place("${a($i)}", &site(0, 6)),
+            variable_word_place("a$b", &site(3), config()),
             Err(VariableWordDecline::Dynamic)
         );
-        // Neither is a word that is not one whole reference.
+        // Compatibility text cannot borrow the extent of its bare original.
         assert_eq!(
-            variable_word_place("a$b", &site(0, 3)),
-            Err(VariableWordDecline::Dynamic)
+            variable_word_place("${a(b)}", &site(5), config()),
+            Err(VariableWordDecline::Ambiguous)
         );
-        // A rewritten word has no lexical extent to read.
+        assert_eq!(
+            variable_word_place("$x", &site(3), config()),
+            Err(VariableWordDecline::Ambiguous)
+        );
         assert_eq!(
             variable_word_place(
-                "${a(b)}",
-                &SourceSite {
-                    span: Span::new(0, 5),
-                    provenance: Provenance::Opaque,
-                }
+                "$a(b)",
+                &SourceSite::opaque(tcl_lexer::Span::new(0, 5)),
+                config()
             ),
             Err(VariableWordDecline::Ambiguous)
         );
+    }
+
+    #[test]
+    fn variable_reference_close_uses_the_actual_release() {
+        let old = tcl_lexer::LexerConfig::for_profile(
+            tcl_registry::model::ingress::static_context_for("tcl8.4")
+                .commands()
+                .profile(),
+        );
+        assert_eq!(whole_reference("${a{b}c}", old), None);
+        assert_eq!(whole_reference("${a{b}c}", config()), Some("a{b}c"));
+    }
+
+    #[test]
+    fn bare_and_braced_literal_reads_share_one_native_shadow() {
+        let bare = variable_word_place(
+            "$a(k)",
+            &SourceSite::source(tcl_lexer::Span::new(0, 5)),
+            config(),
+        )
+        .unwrap();
+        let braced = variable_word_place(
+            "${a(k)}",
+            &SourceSite::source(tcl_lexer::Span::new(0, 6)),
+            config(),
+        )
+        .unwrap();
+        let mut state = ShadowState::default();
+        state.write(bare.clone(), NativeValueId(1));
+        assert_eq!(state.read(&braced), Some(NativeValueId(1)));
+        state.write(braced, NativeValueId(2));
+        assert_eq!(state.read(&bare), Some(NativeValueId(2)));
     }
 
     /// A braced name word is a literal, so `{a(b)}` is the element `a(b)` and

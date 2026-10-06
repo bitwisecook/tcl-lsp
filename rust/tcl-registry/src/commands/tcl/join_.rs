@@ -27,6 +27,12 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is deliberate, not an
         // oversight: `join` is a pure list-manipulation command — none of the
         // filesystem/process/interp surface (`open`, `exec`, `file`, `glob`,

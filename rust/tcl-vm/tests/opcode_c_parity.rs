@@ -90,6 +90,11 @@ impl Asm {
             labels: resolved,
             loop_targets: HashMap::new(),
             body_base_line: 0,
+            native_compilation_failure: None,
+            native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+            native_math_table_prerequisite: None,
+            native_compiler_prerequisites: Vec::new(),
+            required_compiled_local_layout: None,
             proc_body_src: None,
             error_regions: Vec::new(),
             plain_command_dispatch: false,
@@ -361,6 +366,190 @@ fn lappend_list_array_forms() {
         .op(Op::LAPPEND_LIST_ARRAY_STK, &[]);
     let (_, c) = run_fresh(a);
     assert_eq!(ok_str(&c), "a b c d");
+}
+
+fn record_lappend_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let op = args.last().unwrap().to_str();
+    let op = match op.as_ref() {
+        "r" => "read",
+        "w" => "write",
+        op => op,
+    };
+    let seen = vm.get_var("seen").unwrap().to_str();
+    vm.set_var("seen", Value::string(format!("{seen}{op} ")))
+        .unwrap();
+    if op == "read" {
+        let action = vm.get_var("action").unwrap().to_str();
+        let name = if args[1].to_str().is_empty() {
+            "x"
+        } else {
+            "a"
+        };
+        if action.as_ref() == "error" {
+            return Completion::new(Code::Error, Value::string("READ_FAILURE"), Value::empty());
+        }
+        if action.as_ref() == "retarget" {
+            let result = vm.invoke_command(
+                "upvar",
+                &[Value::string("0"), Value::string("new"), Value::string("x")],
+            );
+            assert!(result.code.is_ok(), "{result:?}");
+        }
+        if action.as_ref() == "unset" || action.as_ref() == "recreate" {
+            vm.unset_var(name);
+        }
+        if action.as_ref() == "recreate" {
+            let name = if name == "a" { "a(k)" } else { "x" };
+            vm.set_var(name, Value::string("REPLACED")).unwrap();
+        }
+    }
+    Completion::new(Code::Ok, Value::empty(), Value::empty())
+}
+
+#[test]
+fn lappend_list_retains_the_original_cell_when_read_trace_retargets_alias() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    vm.register("record", record_lappend_trace);
+    for (name, value) in [
+        ("old", "OLD"),
+        ("new", "NEW"),
+        ("seen", ""),
+        ("action", "retarget"),
+    ] {
+        vm.set_var(name, Value::string(value)).unwrap();
+    }
+    let link = vm.invoke_command(
+        "upvar",
+        &[Value::string("0"), Value::string("old"), Value::string("x")],
+    );
+    assert!(link.code.is_ok(), "{link:?}");
+    let trace = vm.invoke_command(
+        "trace",
+        &[
+            Value::string("add"),
+            Value::string("variable"),
+            Value::string("old"),
+            Value::string("read write"),
+            Value::string("record"),
+        ],
+    );
+    assert!(trace.code.is_ok(), "{trace:?}");
+    let mut asm = Asm::new();
+    asm.push("x").push("Z").op(Op::LAPPEND_LIST_STK, &[]);
+    assert_eq!(ok_str(&run(&mut vm, asm)), "OLD Z");
+    assert_eq!(vm.get_var("old").unwrap().to_str().as_ref(), "OLD Z");
+    assert_eq!(vm.get_var("x").unwrap().to_str().as_ref(), "NEW");
+    assert_eq!(vm.get_var("seen").unwrap().to_str().as_ref(), "read write ");
+}
+
+fn empty_lappend_asm(op: Op) -> Asm {
+    let mut asm = Asm::new();
+    let slot = asm.slot(
+        if matches!(op, Op::LAPPEND_LIST_ARRAY | Op::LAPPEND_LIST_ARRAY_STK) {
+            "a"
+        } else {
+            "x"
+        },
+    );
+    match op {
+        Op::LAPPEND_LIST => {
+            asm.push("").op(op, &[slot]);
+        }
+        Op::LAPPEND_LIST_STK => {
+            asm.push("x").push("").op(op, &[]);
+        }
+        Op::LAPPEND_LIST_ARRAY => {
+            asm.push("k").push("").op(op, &[slot]);
+        }
+        Op::LAPPEND_LIST_ARRAY_STK => {
+            asm.push("a").push("k").push("").op(op, &[]);
+        }
+        _ => unreachable!(),
+    }
+    asm
+}
+
+#[test]
+fn empty_lappend_list_forms_preserve_read_only_values_and_captured_cells() {
+    let profiles = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
+    let ops = [
+        Op::LAPPEND_LIST,
+        Op::LAPPEND_LIST_STK,
+        Op::LAPPEND_LIST_ARRAY,
+        Op::LAPPEND_LIST_ARRAY_STK,
+    ];
+    for profile in profiles {
+        for op in ops {
+            for initial in [None, Some(" A  B "), Some("{")] {
+                for action in ["", "unset", "recreate", "error"] {
+                    check_empty_lappend(profile, op, initial, action);
+                }
+            }
+        }
+    }
+}
+
+fn check_empty_lappend(profile: &str, op: Op, initial: Option<&str>, action: &str) {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(compiler::svc()));
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::find(profile).unwrap());
+    vm.register("record", record_lappend_trace);
+    vm.set_var("seen", Value::empty()).unwrap();
+    vm.set_var("action", Value::string(action)).unwrap();
+    let array = matches!(op, Op::LAPPEND_LIST_ARRAY | Op::LAPPEND_LIST_ARRAY_STK);
+    let name = if array { "a(k)" } else { "x" };
+    if let Some(initial) = initial {
+        vm.set_var(name, Value::string(initial)).unwrap();
+    }
+    let words = if profile == "tcl8.4" {
+        vec!["variable", name, "rw", "record"]
+    } else {
+        vec!["add", "variable", name, "read write", "record"]
+    };
+    let trace = vm.invoke_command(
+        "trace",
+        &words.into_iter().map(Value::string).collect::<Vec<_>>(),
+    );
+    assert!(trace.code.is_ok(), "{profile} {op:?}: {trace:?}");
+    let module = tcl_bytecode::ModuleAsm {
+        profile: vm.dialect_profile(),
+        source: tcl_lexer::SourceImage::default(),
+        source_namespace: tcl_runtime_api::ByteNamespacePath::root(),
+        plain_command_dispatch: false,
+        top_level: empty_lappend_asm(op).build(),
+        top_level_body: FunctionAsm::default(),
+        procedures: HashMap::new(),
+        procedure_provenance: HashMap::new(),
+    };
+    let result = vm.run_module(&module);
+    if array && matches!(action, "unset" | "recreate") {
+        assert_eq!(
+            err_str(&result),
+            "can't set \"a(k)\": upvar refers to element in deleted array"
+        );
+    } else if initial == Some("{") && action.is_empty() {
+        assert_eq!(err_str(&result), "unmatched open brace in list");
+    } else {
+        let expected = if action == "recreate" {
+            "REPLACED"
+        } else if matches!(action, "unset" | "error") {
+            ""
+        } else {
+            initial.unwrap_or("")
+        };
+        assert_eq!(ok_str(&result), expected, "{profile} {op:?} {action}");
+    }
+    let expected = if (initial.is_none() && action.is_empty()) || action == "error" {
+        "read write "
+    } else {
+        "read "
+    };
+    assert_eq!(
+        vm.get_var("seen").unwrap().to_str().as_ref(),
+        expected,
+        "{profile} {op:?} {initial:?} {action}"
+    );
 }
 
 // `existArray` / `existArrayStk`.
@@ -1232,7 +1421,7 @@ fn yield_opcodes_outside_a_coroutine_match_c() {
     assert_eq!(err_str(&c), "yield can only be called in a coroutine");
 
     let mut a = Asm::new();
-    a.push("list a").op(Op::YIELD_TO_INVOKE, &[]);
+    a.push(":: list a").op(Op::YIELD_TO_INVOKE, &[]);
     let c = run(&mut vm, a);
     assert_eq!(err_str(&c), "yieldto can only be called in a coroutine");
 
@@ -1278,7 +1467,7 @@ fn yield_opcode_still_rejects_a_yield_across_a_host_re_entry() {
 #[test]
 fn yield_to_invoke_runs_the_command_list_in_the_resumer() {
     let mut body = Asm::new();
-    body.push("list a b").op(Op::YIELD_TO_INVOKE, &[]);
+    body.push(":: list a b").op(Op::YIELD_TO_INVOKE, &[]);
     let mut vm = vm_with_seeded_proc(body);
     assert_eq!(ok_str(&eval(&mut vm, "coroutine c p")), "a b");
     assert_eq!(ok_str(&eval(&mut vm, "c x y")), "x y");
@@ -1381,10 +1570,10 @@ fn tcloo_self_pushes_the_current_object() {
     let mut body = Asm::new();
     body.op(Op::TCLOO_SELF, &[]);
     let mut vm = vm_with_seeded_proc(body);
-    // `m` reaches the opcode (through the seeded proc); `n` asks the command.
+    // `m` compiles the stream in its own method frame; `n` asks the command.
     eval(
         &mut vm,
-        "oo::class create C {\nmethod m {} {p}\nmethod n {} {self object}\n}\nC create o",
+        "oo::class create C {\nmethod m {} {string length native_opcode_body}\nmethod n {} {self object}\n}\nC create o",
     );
     let via_opcode = ok_str(&eval(&mut vm, "o m"));
     assert_eq!(via_opcode, "::o");
@@ -1398,7 +1587,7 @@ fn tcloo_self_pushes_the_current_object() {
 #[test]
 fn tcloo_next_and_next_class_invoke_the_chain() {
     let classes = "oo::class create B {method m {} {return base}}\n\
-                   oo::class create D {superclass B\nmethod m {} {p}}\n\
+                   oo::class create D {superclass B\nmethod m {} {string length native_opcode_body}}\n\
                    D create o";
     let mut body = Asm::new();
     body.push("next").op(Op::TCLOO_NEXT, &[1]);
@@ -1422,7 +1611,10 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
     let mut body = Asm::new();
     body.push("next").op(Op::TCLOO_NEXT, &[1]);
     let mut vm = vm_with_seeded_proc(body);
-    eval(&mut vm, "oo::class create B {method m {} {p}}\nB create o");
+    eval(
+        &mut vm,
+        "oo::class create B {method m {} {string length native_opcode_body}}\nB create o",
+    );
     assert_eq!(
         err_str(&eval(&mut vm, "o m")),
         "no next method implementation"
@@ -1432,6 +1624,43 @@ fn tcloo_next_at_the_end_of_the_chain_and_underflow() {
     a.op(Op::TCLOO_NEXT, &[0]);
     let (_, c) = run_fresh(a);
     assert_eq!(err_str(&c), "tclooNext: stack underflow");
+}
+
+#[test]
+fn tcloo_opcodes_reject_a_nested_ordinary_procedure() {
+    for (opcode, words, message) in [
+        (
+            Op::TCLOO_SELF,
+            vec![],
+            "self may only be called from inside a method",
+        ),
+        (
+            Op::TCLOO_NEXT,
+            vec!["next"],
+            "next may only be called from inside a method",
+        ),
+        (
+            Op::TCLOO_NEXT_CLASS,
+            vec!["nextto", "B"],
+            "nextto may only be called from inside a method",
+        ),
+    ] {
+        let mut body = Asm::new();
+        for word in &words {
+            body.push(word);
+        }
+        if opcode == Op::TCLOO_SELF {
+            body.op(opcode, &[]);
+        } else {
+            body.op(opcode, &[i32::try_from(words.len()).unwrap()]);
+        }
+        let mut vm = vm_with_seeded_proc(body);
+        eval(
+            &mut vm,
+            "oo::class create B {method m {} {return BASE}}; oo::class create D {superclass B; method m {} {p}}; D create o",
+        );
+        assert_eq!(err_str(&eval(&mut vm, "o m")), message);
+    }
 }
 
 // `unsetArray` (LVT slot form).
@@ -2109,6 +2338,8 @@ mod compiler {
         CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch,
     };
 
+    pub const SEEDED_METHOD_BODY: &str = "string length native_opcode_body";
+
     pub const SEEDED_PROC_DEF: &str = "proc p {} {this body is replaced by the seeded one}";
 
     /// Test compiler that replaces exactly one compiler-produced procedure
@@ -2122,8 +2353,8 @@ mod compiler {
     }
 
     impl SeededProcCompileService {
-        fn inject(&self, src: &str, mut module: ModuleAsm) -> ModuleAsm {
-            if src == SEEDED_PROC_DEF {
+        fn inject(&self, src: &[u8], mut module: ModuleAsm) -> ModuleAsm {
+            if src == SEEDED_PROC_DEF.as_bytes() {
                 module
                     .procedures
                     .get("::p")
@@ -2136,17 +2367,122 @@ mod compiler {
                 body.command_bindings.clear();
                 module.procedures.insert("::p".to_string(), body);
             }
+            if src == SEEDED_METHOD_BODY.as_bytes() {
+                let mut body = self.body.clone();
+                body.plain_command_dispatch = module.plain_command_dispatch;
+                body.command_bindings.clear();
+                module.top_level = body;
+            }
             module
         }
     }
 
     impl CompileService for SeededProcCompileService {
         type Module = ModuleAsm;
+        fn compile_script_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_script_bytes_for_profile(target, profile)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_script_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_script_bytes_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_plain_script_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_plain_script_bytes_for_profile(target, profile)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_plain_script_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_plain_script_bytes_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_procedure_bytes_for_profile(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_procedure_bytes_for_profile(target, profile, dispatch)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn compile_procedure_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.inner
+                .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+                .map(|module| self.inject(target.source.bytes(), module))
+        }
+        fn script_command_plan_bytes_for_profile(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            profile: &'static tcl_dialect::DialectProfile,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            self.inner
+                .script_command_plan_bytes_for_profile(source, profile)
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            self.inner
+                .script_command_plan_bytes_with_entry(source, profile, entry)
+        }
+
+        fn compile_script_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_vm::CompileError> {
+            self.inner
+                .compile_script_with_entry(target, profile, entry)
+                .map(|module| self.inject(target.source.as_bytes(), module))
+        }
+
+        fn compile_procedure_with_entry(
+            &self,
+            target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+            dispatch: tcl_runtime_api::ProcedureDispatch,
+        ) -> Result<Self::Module, tcl_vm::CompileError> {
+            self.inner
+                .compile_procedure_with_entry(target, profile, entry, dispatch)
+                .map(|module| self.inject(target.source.as_bytes(), module))
+        }
 
         fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile(src)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_for_profile(
@@ -2156,13 +2492,13 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_traced(&self, src: &str) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_traced(src)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_traced_for_profile(
@@ -2172,7 +2508,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_traced_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_plain_dispatch_for_profile(
@@ -2182,7 +2518,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_plain_dispatch_for_profile(src, profile)
-                .map(|module| self.inject(src, module))
+                .map(|module| self.inject(src.as_bytes(), module))
         }
 
         fn compile_procedure_for_profile(
@@ -2193,6 +2529,7 @@ mod compiler {
         ) -> Result<Self::Module, CompileError> {
             self.inner
                 .compile_procedure_for_profile(target, profile, dispatch)
+                .map(|module| self.inject(target.source.as_bytes(), module))
         }
     }
 

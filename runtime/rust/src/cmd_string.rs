@@ -37,17 +37,23 @@ use crate::obj::{self, TclObj};
 /// Register `append` + the `string` ensemble.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"append", append);
-    // `::tcl::string::insert`/`::tcl::string::reverse` are the real commands the
-    // `string insert`/`string reverse` ensemble entries map to; some tests (and
-    // the byte-compiler) invoke them directly.
-    interp.register_builtin(b"::tcl::string::insert", tcl_string_insert);
-    interp.register_builtin(b"::tcl::string::reverse", tcl_string_reverse);
-    // `tcl::prefix` — prefix matching against a table (`tclIndexObj.c`).
+    // Prefix is a separate command, with its own installed token.
     interp.register_builtin(b"::tcl::prefix", tcl_prefix);
-    let registry = tcl_registry::CommandRegistry::build_default();
-    interp.register_spec_builtin(
-        registry.get("string").expect("core string spec"),
+    install_ensemble(interp);
+}
+
+pub(crate) fn install_ensemble(interp: &mut Interp) {
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "string",
+        STRING_SUBCOMMANDS,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::String,
+        b"string",
         string_cmd,
+        STOCK_MEMBERS,
+        admitted,
     );
 }
 
@@ -60,14 +66,15 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"append varName ?value ...?");
     }
-    let name = obj_bytes(argv[1]);
+    let name = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[1]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     let values = &argv[2..];
-    // Split an `arr(idx)` reference up front and drive the element/scalar store
-    // helpers, exactly like `set`/`lappend`. `var_set` does *not* itself parse
-    // `(...)`, so passing the raw `x(0)` created a scalar literally named `x(0)`
-    // (and left the real variable in a corrupt half-state) instead of erroring
-    // `variable isn't array` — an `append x(0)` on a scalar `x`.
-    let (base, elem) = crate::frame::split_array_ref(&name);
+    let (base, elem) = match interp.variable_name_parts(&name) {
+        Ok(parts) => parts,
+        Err(error) => return crate::builtins::var_error(interp, &name, error),
+    };
     let read_cur = |interp: &mut Interp| match &elem {
         Some(k) => interp.var_get_elem(&base, k),
         None => interp.var_get(&base),
@@ -97,29 +104,132 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return c;
     }
 
-    // Byte-exact concatenation, shared with the VM via `append_bytes`: it grows
-    // the current value in place when it's an unshared plain string (returning
-    // that same object) else builds a fresh copy/new value.
-    let cur = read_cur(interp);
-    let result = tcl_cmd_core::var::append_bytes(interp, cur, values);
-
-    // Always store back: rebinds the variable to `result` — a refcount-neutral
-    // re-set when it was grown in place — and fires the write trace exactly once
-    // (an in-place path that skipped the store would fire no trace, diverging
-    // from C). `store_var_result` holds a protective reference
-    // across the store so a write trace that unsets the variable can't free a
-    // fresh `result` before it becomes the result (a use-after-free).
-    match interp.store_var_result(&base, elem.as_deref(), result) {
-        Ok(()) => Code::Ok,
-        Err(e) => crate::builtins::var_error(interp, &name, e),
-    }
+    interp.append_native_operands(&name, &base, elem.as_deref(), values)
 }
 
 // string ensemble
 
+const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"cat", stock_cat),
+    (b"compare", stock_compare),
+    (b"equal", stock_equal),
+    (b"first", stock_first),
+    (b"index", stock_index),
+    (b"insert", stock_insert),
+    (b"is", stock_is),
+    (b"last", stock_last),
+    (b"length", stock_length),
+    (b"map", stock_map),
+    (b"match", stock_match),
+    (b"range", stock_range),
+    (b"repeat", stock_repeat),
+    (b"replace", stock_replace),
+    (b"reverse", stock_reverse),
+    (b"tolower", stock_tolower),
+    (b"totitle", stock_totitle),
+    (b"toupper", stock_toupper),
+    (b"trim", stock_trim),
+    (b"trimleft", stock_trimleft),
+    (b"trimright", stock_trimright),
+    (b"wordend", stock_wordend),
+    (b"wordstart", stock_wordstart),
+];
+
+fn stock_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"cat"], string_cmd)
+}
+
+fn stock_compare(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"compare"], string_cmd)
+}
+
+fn stock_equal(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"equal"], string_cmd)
+}
+
+fn stock_first(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"first"], string_cmd)
+}
+
+fn stock_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"index"], string_cmd)
+}
+
+fn stock_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"insert"], string_cmd)
+}
+
+fn stock_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"is"], string_cmd)
+}
+
+fn stock_last(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"last"], string_cmd)
+}
+
+fn stock_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"length"], string_cmd)
+}
+
+fn stock_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"map"], string_cmd)
+}
+
+fn stock_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"match"], string_cmd)
+}
+
+fn stock_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"range"], string_cmd)
+}
+
+fn stock_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"repeat"], string_cmd)
+}
+
+fn stock_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"replace"], string_cmd)
+}
+
+fn stock_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"reverse"], string_cmd)
+}
+
+fn stock_tolower(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"tolower"], string_cmd)
+}
+
+fn stock_totitle(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"totitle"], string_cmd)
+}
+
+fn stock_toupper(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"toupper"], string_cmd)
+}
+
+fn stock_trim(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"trim"], string_cmd)
+}
+
+fn stock_trimleft(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"trimleft"], string_cmd)
+}
+
+fn stock_trimright(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"trimright"], string_cmd)
+}
+
+fn stock_wordend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"wordend"], string_cmd)
+}
+
+fn stock_wordstart(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"string", b"wordstart"], string_cmd)
+}
+
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"string subcommand ?arg ...?");
+        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
     // The `string` ensemble resolves its subcommand by unambiguous prefix
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
@@ -215,7 +325,7 @@ const STRING_SUBCOMMANDS: &[&[u8]] = &[
 
 fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"string length string");
+        return interp.wrong_args_for_prefix(argv, 2, b"string");
     }
     let n = char_count(&obj_bytes(argv[2]));
     interp.set_result(obj::new_wide_int_obj(n as i64));
@@ -224,11 +334,11 @@ fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return interp.wrong_args(b"string index string charIndex");
+        return interp.wrong_args_for_prefix(argv, 2, b"string charIndex");
     }
     let s = obj_bytes(argv[2]);
     let n = char_count(&s);
-    let idx = match index_spec(&obj_bytes(argv[3]), n) {
+    let idx = match index_spec(interp, &obj_bytes(argv[3]), n) {
         Some(i) => i,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
@@ -244,15 +354,15 @@ fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return interp.wrong_args(b"string range string first last");
+        return interp.wrong_args_for_prefix(argv, 2, b"string first last");
     }
     let s = obj_bytes(argv[2]);
     let n = char_count(&s);
-    let first = match index_spec(&obj_bytes(argv[3]), n) {
+    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
         Some(i) => i.max(0) as usize,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
-    let last = match index_spec(&obj_bytes(argv[4]), n) {
+    let last = match index_spec(interp, &obj_bytes(argv[4]), n) {
         Some(i) => i,
         None => return bad_index(interp, &obj_bytes(argv[4])),
     };
@@ -272,17 +382,17 @@ fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// returns the string unchanged (`StringRplcCmd`).
 fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 && argv.len() != 6 {
-        return interp.wrong_args(b"string replace string first last ?string?");
+        return interp.wrong_args_for_prefix(argv, 2, b"string first last ?string?");
     }
     let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
         .chars()
         .collect();
     let n = chars.len();
-    let first = match index_spec(&obj_bytes(argv[3]), n) {
+    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
         Some(i) => i,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
-    let last = match index_spec(&obj_bytes(argv[4]), n) {
+    let last = match index_spec(interp, &obj_bytes(argv[4]), n) {
         Some(i) => i,
         None => return bad_index(interp, &obj_bytes(argv[4])),
     };
@@ -307,14 +417,14 @@ fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// (`index == end`/`>= length` appends). `StringInsertCmd`.
 fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return interp.wrong_args(b"string insert string index insertString");
+        return interp.wrong_args_for_prefix(argv, 2, b"string index insertString");
     }
     let chars: Vec<char> = String::from_utf8_lossy(&obj_bytes(argv[2]))
         .chars()
         .collect();
     let n = chars.len();
     // `string insert` uses `end == length` (append), unlike most index commands.
-    let idx = match index_spec(&obj_bytes(argv[3]), n + 1) {
+    let idx = match index_spec(interp, &obj_bytes(argv[3]), n + 1) {
         Some(i) => i.max(0).min(n as isize) as usize,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
@@ -323,27 +433,6 @@ fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     out.extend(&chars[idx..]);
     interp.set_result_bytes(out.as_bytes());
     Code::Ok
-}
-
-/// `::tcl::string::insert string index insertString` — the command the `string
-/// insert` ensemble maps to (called directly by some tests). Reuses `str_insert`
-/// by re-aligning argv to the `string insert …` shape.
-fn tcl_string_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 4 {
-        return interp.wrong_args(b"tcl::string::insert string index insertString");
-    }
-    let shifted = [argv[0], argv[0], argv[1], argv[2], argv[3]];
-    str_insert(interp, &shifted)
-}
-
-/// `::tcl::string::reverse string` — the command behind the `string reverse`
-/// ensemble entry. Re-aligns argv to the `string reverse …` shape.
-fn tcl_string_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if argv.len() != 2 {
-        return interp.wrong_args(b"tcl::string::reverse string");
-    }
-    let shifted = [argv[0], argv[0], argv[1]];
-    str_reverse(interp, &shifted)
 }
 
 /// `tcl::prefix match|all|longest …` — prefix matching against a table
@@ -412,8 +501,12 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let opt_end = argv.len() - 2;
     let mut i = 2;
     while i < opt_end {
-        let opt = obj_bytes(argv[i]);
-        match PREFIX_MATCH_OPTIONS.index_of(&opt) {
+        match interp.native_static_option_index(
+            argv[i],
+            PREFIX_MATCH_OPTIONS.names(),
+            false,
+            "option",
+        ) {
             Ok(1) => {
                 exact = true;
                 i += 1;
@@ -440,7 +533,7 @@ fn tcl_prefix_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 error_opts = Some(val);
                 i += 2;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
     }
     let table = match split_list_or_error(interp, &obj_bytes(argv[argv.len() - 2])) {
@@ -495,7 +588,7 @@ fn tcl_prefix_all(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         .filter(|e| e.starts_with(&s))
         .map(|e| new_string(e))
         .collect();
-    interp.set_result(crate::list::new_list_obj(&objs));
+    interp.set_result(interp.new_list_object(&objs));
     for &o in &objs {
         drop_fresh(o);
     }
@@ -546,7 +639,7 @@ fn str_cat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return interp.wrong_args(b"string repeat string count");
+        return interp.wrong_args_for_prefix(argv, 2, b"string count");
     }
     let s = obj_bytes(argv[2]);
     let count = match parse_isize(&obj_bytes(argv[3])) {
@@ -567,7 +660,7 @@ fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn str_reverse(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"string reverse string");
+        return interp.wrong_args_for_prefix(argv, 2, b"string");
     }
     let s = obj_bytes(argv[2]);
     let out = if s.is_ascii() {
@@ -615,7 +708,11 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
         CaseMode::Title => b"string totitle string ?first? ?last?",
     };
     if argv.len() < 3 || argv.len() > 5 {
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
     let s = obj_bytes(argv[2]);
 
@@ -629,13 +726,13 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
     let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
     let n = chars.len();
     // The index `end`/`end±N` resolves against `n-1` (`TclGetIntForIndexM`).
-    let first = match index_spec(&obj_bytes(argv[3]), n) {
+    let first = match index_spec(interp, &obj_bytes(argv[3]), n) {
         Some(i) => i.max(0) as usize,
         None => return bad_index(interp, &obj_bytes(argv[3])),
     };
     // A lone index maps just that character (`last = first`).
     let last = match argv.get(4) {
-        Some(&a) => match index_spec(&obj_bytes(a), n) {
+        Some(&a) => match index_spec(interp, &obj_bytes(a), n) {
             Some(i) => i,
             None => return bad_index(interp, &obj_bytes(a)),
         },
@@ -737,7 +834,11 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
             (true, false) => b"string trimleft string ?chars?",
             _ => b"string trimright string ?chars?",
         };
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
     let s = obj_bytes(argv[2]);
     let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
@@ -780,7 +881,7 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
     // Optional bound index (char-based, `end`/`end±N` aware).
     let bound = if argv.len() == 5 {
         let spec = obj_bytes(argv[4]);
-        match index_spec(&spec, n) {
+        match index_spec(interp, &spec, n) {
             Some(i) => Some(i),
             None => return bad_index(interp, &spec),
         }
@@ -827,7 +928,7 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
 /// `switch -glob` / `lsearch -glob`).
 fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return interp.wrong_args(b"string match ?-nocase? pattern string");
+        return interp.wrong_args_for_prefix(argv, 2, b"?-nocase? pattern string");
     }
     let mut nocase = false;
     if argv.len() == 5 {
@@ -854,7 +955,7 @@ fn str_match(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// then skip past the replacement), per `tclCmdMZ.c` `StringMapCmd`.
 fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return interp.wrong_args(b"string map ?-nocase? charMap string");
+        return interp.wrong_args_for_prefix(argv, 2, b"?-nocase? charMap string");
     }
     let mut nocase = false;
     if argv.len() == 5 {
@@ -951,11 +1052,11 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 7 {
         return interp.wrong_args(USAGE);
     }
-    let class_arg = obj_bytes(argv[2]);
-    let class: &[u8] = match IS_CLASSES.index_of(&class_arg) {
-        Ok(i) => IS_CLASSES.names()[i],
-        Err(m) => return interp.set_error(&m),
-    };
+    let class: &[u8] =
+        match interp.native_static_option_index(argv[2], IS_CLASSES.names(), false, "class") {
+            Ok(i) => IS_CLASSES.names()[i],
+            Err(m) => return interp.report_cmd_error(m),
+        };
 
     // The last argument is always the string under test; the args between the
     // class and it are options (`Tcl_GetIndexFromObj` over IS_OPTIONS).
@@ -964,8 +1065,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut failvar: Option<Vec<u8>> = None;
     let mut k = 3;
     while k < last {
-        let opt = obj_bytes(argv[k]);
-        match IS_OPTIONS.index_of(&opt) {
+        match interp.native_static_option_index(argv[k], IS_OPTIONS.names(), false, "option") {
             Ok(0) => {
                 strict = true;
                 k += 1;
@@ -982,7 +1082,7 @@ fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 failvar = Some(obj_bytes(argv[k + 1]));
                 k += 2;
             }
-            Err(m) => return interp.set_error(&m),
+            Err(m) => return interp.report_cmd_error(m),
         }
     }
 
@@ -1129,6 +1229,52 @@ fn drop_fresh(obj: *mut TclObj) {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn selected_jim_string_ownership_and_byte_protocols_match_native() {
+        let Some(reference) = tcl_test_support::locate_jimsh().expect("Jim oracle discovery")
+        else {
+            return;
+        };
+        let scripts = tcl_test_support::jim_strings::JIM_COMPARISON_AND_CASE_SCRIPTS
+            .iter()
+            .chain(tcl_test_support::jim_strings::JIM_SEARCH_AND_REPEAT_SCRIPTS)
+            .chain(tcl_test_support::jim_strings::JIM_GLOB_SCRIPTS)
+            .chain(tcl_test_support::jim_strings::JIM_TRIM_SCRIPTS);
+        for script in scripts {
+            let expected = tcl_test_support::run_script(
+                &reference.path,
+                format!("set c [catch {{{script}}} r]; puts [list $c $r]\n").as_bytes(),
+            )
+            .expect("native Jim execution");
+            assert!(
+                expected.success() && expected.stderr.is_empty(),
+                "{script}: {expected:?}"
+            );
+            let expected = expected
+                .stdout
+                .strip_suffix(b"\n")
+                .unwrap_or(&expected.stdout);
+            counters::reset();
+            {
+                let mut interp = Interp::new();
+                interp.set_dialect_profile(crate::environment::profile_for_dialect("jim"));
+                let code = interp.eval_str(script.as_bytes());
+                let mut observed = Vec::new();
+                crate::list::append_list_element(
+                    &mut observed,
+                    code.as_int().to_string().as_bytes(),
+                    true,
+                );
+                observed.push(b' ');
+                crate::list::append_list_element(&mut observed, &interp.result_bytes(), false);
+                assert_eq!(observed, expected, "{script}");
+                assert!(!interp.host_refusal_pending(), "{script}");
+            }
+            assert_eq!(counters::finalize(), 0, "{script}");
+            assert_eq!(counters::double_free_count(), 0, "{script}");
+        }
+    }
 
     fn run(src: &[u8]) -> (Code, Vec<u8>) {
         counters::reset();
@@ -1457,3 +1603,7 @@ mod tests {
         assert_eq!(ok(b"set l {a b}; append l c; set l"), b"a bc");
     }
 }
+
+#[cfg(test)]
+#[path = "native_append_tests.rs"]
+mod native_append_tests;

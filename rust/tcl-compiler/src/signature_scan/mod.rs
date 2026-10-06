@@ -64,6 +64,7 @@ mod ctx;
 mod factory;
 mod handlers;
 pub mod params;
+pub mod scope;
 pub mod types;
 mod walker;
 
@@ -106,7 +107,8 @@ pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> Signature
                 .map(|h| (*h).to_owned()),
         )
         .collect();
-    walker::scan(source, None, "", false, &known_commands, &mut ctx);
+    let root = scope::SignatureNamespaceScope::root(ctx.name_policy());
+    walker::scan_in_context(source, None, &root, false, &known_commands, &mut ctx);
     factory::resolve_factory_defs(&mut ctx);
     ctx.result
 }
@@ -121,10 +123,237 @@ mod tests {
     }
 
     #[test]
+    fn signatures_keep_literal_colon_names_and_namespace_components() {
+        let result = run(
+            "namespace eval : {proc p {} {}; proc : {} {}; namespace eval x {proc q {} {}}}; namespace eval a {proc : {} {}}",
+        );
+        assert_eq!(result.procs[":::::p"].name, "p");
+        assert_eq!(result.procs["::::::"].name, ":");
+        assert_eq!(result.procs["::a:::"].name, ":");
+        assert_eq!(result.procs[":::::x::q"].name, "q");
+        assert!(!result.procs.contains_key("::p"));
+    }
+
+    #[test]
+    fn signature_publication_keys_match_six_native_namespace_controls() {
+        let source = "namespace eval : {proc p {} {}; puts [namespace which -command p]}\nnamespace eval a:::b {proc q {} {}; puts [namespace which -command q]}";
+        let mut engines: Vec<_> = tcl_test_support::required_tclshs(&tcl_dialect::TclVersion::ALL)
+            .unwrap()
+            .into_iter()
+            .map(|interpreter| {
+                (
+                    format!("tcl{}", interpreter.version.version_string()),
+                    interpreter.path,
+                )
+            })
+            .collect();
+        if let Some(jim) = tcl_test_support::locate_jimsh().unwrap() {
+            engines.push(("jim".to_owned(), jim.path));
+        }
+        for (engine, path) in engines {
+            let profile =
+                crate::environment_ingress::resolve_environment(&engine).analyser_profile();
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            let result = extract_signatures(source, &registry);
+            let outcome = tcl_test_support::run_script(&path, source.as_bytes()).unwrap();
+            let actual = outcome.strict_text().unwrap();
+            let keys: Vec<_> = actual.lines().collect();
+            assert_eq!(keys.len(), 2, "{engine}");
+            assert_eq!(result.procs.len(), 2, "{engine}");
+            for key in keys {
+                assert!(
+                    result.procs.contains_key(key),
+                    "{engine}: {key}, {:?}",
+                    result.procs
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn signature_names_keep_jim_flat_keys_and_old_c_creation_rejections() {
+        let source = "namespace eval a:::b {proc p {} {}; rename p q:::r; alias alias:::name q:::r}; namespace eval : {proc : {} {}}";
+        let jim = CommandRegistry::build_default().project_for_profile(
+            crate::environment_ingress::resolve_environment("jim").analyser_profile(),
+        );
+        let result = extract_signatures(source, &jim);
+        assert!(result.procs.contains_key("::a:::b::p"));
+        assert!(result.renames.contains_key("::a:::b::q:::r"));
+        assert!(result.command_aliases.contains_key("::alias:::name"));
+        for version in ["tcl8.4", "tcl8.5"] {
+            let registry = CommandRegistry::build_default()
+                .project_for_profile(tcl_dialect::DialectProfile::find(version).unwrap());
+            let result = extract_signatures(source, &registry);
+            assert!(result.procs.contains_key("::a::b::p"));
+            assert!(!result.procs.contains_key("::::::"));
+        }
+    }
+
+    fn for_engine(engine: &str, source: &str) -> SignatureScanResult {
+        let profile = crate::environment_ingress::resolve_environment(engine).analyser_profile();
+        extract_signatures(
+            source,
+            &CommandRegistry::build_default().project_for_profile(profile),
+        )
+    }
+
+    #[test]
+    fn reported_colon_tail_preserves_selected_slot_and_body_scope() {
+        use scope::SignatureNamespaceScope;
+        use tcl_core_types::ByteNamespacePath;
+        let source = "namespace eval N {proc :f {} {return [namespace current]}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, source);
+            let declaration = &result.procs["::N:::f"];
+            let namespace = SignatureNamespaceScope::C(ByteNamespacePath::from_segments(["N"]));
+            assert_eq!(declaration.body_namespace, namespace, "{engine}");
+            assert_eq!(declaration.name, ":f", "{engine}");
+            assert_eq!(declaration.source_spelling(), None, "{engine}");
+            let policy = declaration.source_name.as_ref().unwrap().policy();
+            assert_eq!(
+                result.procedures_for_written_name(&namespace, ":f", Some(policy)),
+                [declaration]
+            );
+            assert!(
+                result
+                    .procedures_for_written_name(&namespace, "::N:::f", Some(policy))
+                    .is_empty()
+            );
+        }
+        for engine in ["tcl8.4", "tcl8.5"] {
+            assert!(
+                for_engine(engine, source).procedure_declarations.is_empty(),
+                "{engine}"
+            );
+        }
+        let jim = for_engine("jim", source);
+        let declaration = &jim.procs["::N:::f"];
+        assert_eq!(
+            declaration.body_namespace,
+            SignatureNamespaceScope::Jim(b"N:".as_slice().into())
+        );
+    }
+
+    #[test]
+    fn equal_reports_keep_distinct_original_declaration_slots() {
+        use scope::SignatureNamespaceScope;
+        use tcl_core_types::ByteNamespacePath;
+        let source = "namespace eval a: {namespace eval b {proc p {} {return FIRST}}}; namespace eval a {namespace eval :b {proc p {} {return SECOND}}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, source);
+            assert_eq!(result.procedure_declarations.len(), 2, "{engine}");
+            assert!(!result.procs.contains_key("::a:::b::p"), "{engine}");
+            assert_ne!(
+                result.procedure_declarations[0].source_name,
+                result.procedure_declarations[1].source_name
+            );
+            for (index, components) in [["a:", "b"], ["a", ":b"]].into_iter().enumerate() {
+                let scope =
+                    SignatureNamespaceScope::C(ByteNamespacePath::from_segments(components));
+                let declaration = &result.procedure_declarations[index];
+                assert_eq!(declaration.body_namespace, scope);
+                let policy = declaration.source_name.as_ref().unwrap().policy();
+                assert_eq!(
+                    result.procedures_for_written_name(&scope, "p", Some(policy)),
+                    [declaration]
+                );
+                assert_eq!(declaration.source_spelling(), None);
+            }
+        }
+        let jim = for_engine("jim", source);
+        assert_eq!(jim.procedure_declarations.len(), 2);
+        assert_eq!(
+            jim.procedure_declarations[0].source_name,
+            jim.procedure_declarations[1].source_name
+        );
+        assert_eq!(
+            jim.procs["::a:::b::p"].body_range,
+            jim.procedure_declarations[1].body_range
+        );
+    }
+
+    #[test]
+    fn alias_target_report_keeps_original_slot_without_global_spelling() {
+        use types::SignatureCommandAliasTarget;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = for_engine(engine, "interp alias {} A {} :target");
+            let target = &result.command_aliases["::A"].target;
+            let policy = result.command_aliases["::A"]
+                .source_name
+                .as_ref()
+                .unwrap()
+                .policy();
+            let selected = target.selected_global_name(Some(policy)).unwrap();
+            assert!(selected.slot().namespace.is_root(), "{engine}");
+            assert_eq!(selected.slot().simple.as_bytes(), b":target", "{engine}");
+            assert_eq!(
+                target.reported_global_key(Some(policy)).as_deref(),
+                Some(":::target"),
+                "{engine}"
+            );
+            assert_eq!(target.checked_global_key(Some(policy)), None, "{engine}");
+            let absolute = SignatureCommandAliasTarget::WrittenGlobal(":::target".to_owned());
+            assert_ne!(
+                absolute.selected_global_name(Some(policy)),
+                Some(selected),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn jim_alias_keeps_caller_lookup_without_global_target_projection() {
+        let result = for_engine("jim", "namespace eval N {alias alias:::name target baked}");
+        let alias = &result.command_aliases["::alias:::name"];
+        assert_eq!(
+            alias.target,
+            types::SignatureCommandAliasTarget::WrittenCaller("target".to_owned())
+        );
+        assert_eq!(alias.extras, ["baked"]);
+        assert_eq!(
+            alias.target.selected_global_name(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert_eq!(
+            alias.target.reported_global_key(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert_eq!(
+            alias.target.checked_global_key(
+                alias
+                    .source_name
+                    .as_ref()
+                    .map(scope::SignatureSourceCommand::policy)
+            ),
+            None
+        );
+        assert!(
+            for_engine("jim", "interp alias {} alias:::name {} target")
+                .command_aliases
+                .is_empty()
+        );
+        assert!(
+            for_engine("jim", "alias a $target")
+                .command_aliases
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn proc_only() {
         let r = run("proc foo {} {}");
         assert!(r.procs.contains_key("::foo"));
-        assert!(r.classes.is_empty());
+        assert_eq!(r.classes.len(), 0);
         assert_eq!(r.command_invocations.len(), 1);
     }
 
@@ -155,7 +384,7 @@ mod tests {
     fn class_only() {
         let r = run("oo::class create MyCls { method foo {} {} }");
         assert!(r.classes.contains_key("::MyCls"));
-        assert!(r.procs.is_empty());
+        assert_eq!(r.procs.len(), 0);
     }
 
     #[test]
@@ -190,7 +419,7 @@ mod tests {
     #[test]
     fn rename_to_empty_deletes_not_recorded() {
         let r = run("rename puts {}");
-        assert!(r.renames.is_empty());
+        assert_eq!(r.renames.len(), 0);
     }
 
     #[test]
@@ -213,6 +442,9 @@ mod tests {
         assert!(r.procs.contains_key("::ChildB"));
         // Synthetic procs have empty params (per-call arg map is
         // not statically known).
-        assert!(r.procs["::ChildA"].params.is_empty());
+        assert_eq!(
+            r.procs["::ChildA"].params,
+            [] as [crate::signature_scan::types::ParamDef; 0]
+        );
     }
 }

@@ -39,7 +39,6 @@
 
 use tcl_dialect::TclVersion;
 use tcl_syntax::expr::errors::{IOVERFLOW_CODE, IOVERFLOW_MESSAGE};
-use tcl_syntax::glob::string_case_match;
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 use tcl_syntax::value::{ValueError, ValueOps};
 
@@ -88,9 +87,11 @@ pub struct Options<V> {
 }
 
 // The option tables mirror C's `options[]`, whose order is the "bad option"
-// enumeration. Tcl 9.1 inserts `-integer` (TIP 730), which also makes `-i`/`-in`
+// enumeration. Tcl 8.4 has no TIP #75 capture targets or -nocase. Tcl 9.1
+// inserts `-integer` (TIP 730), which also makes `-i`/`-in`
 // ambiguous where 9.0 resolved them to `-indexvar`.
-const OPT_NAMES: [&str; 7] = [
+static OPT_NAMES_8_4: [&str; 4] = ["-exact", "-glob", "-regexp", "--"];
+static OPT_NAMES: [&str; 7] = [
     "-exact",
     "-glob",
     "-indexvar",
@@ -99,7 +100,7 @@ const OPT_NAMES: [&str; 7] = [
     "-regexp",
     "--",
 ];
-const OPT_NAMES_9_1: [&str; 8] = [
+static OPT_NAMES_9_1: [&str; 8] = [
     "-exact",
     "-glob",
     "-indexvar",
@@ -111,27 +112,44 @@ const OPT_NAMES_9_1: [&str; 8] = [
 ];
 // C resolves switch options with abbreviations allowed (flags 0), so `-gl`,
 // `-noc`, … work like tclsh.
-const OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
-const OPTIONS_9_1: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES_9_1);
+static OPTIONS_8_4: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES_8_4);
+static OPTIONS: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES);
+static OPTIONS_9_1: OptionTable<'static> = OptionTable::abbreviating("option", &OPT_NAMES_9_1);
 
 /// The `switch` option table for `version`.
 fn options(version: TclVersion) -> &'static OptionTable<'static> {
-    if version >= TclVersion::V9_1 {
-        &OPTIONS_9_1
-    } else {
-        &OPTIONS
+    match version {
+        TclVersion::V8_4 => &OPTIONS_8_4,
+        TclVersion::V9_1 => &OPTIONS_9_1,
+        _ => &OPTIONS,
     }
 }
 
-const USAGE_INLINE: &str = "switch ?-option ...? string ?pattern body ...? ?default body?";
+/// The native `switch` usage for the inline or single-list argument form.
+/// Tcl 8.4 and 8.5 use `?switches?` wording and require explicit pairs.
+#[must_use]
+pub const fn usage(version: TclVersion, single_list: bool) -> &'static str {
+    match (version, single_list) {
+        (TclVersion::V8_4 | TclVersion::V8_5, false) => {
+            "switch ?switches? string pattern body ... ?default body?"
+        }
+        (TclVersion::V8_4 | TclVersion::V8_5, true) => {
+            "switch ?switches? string {pattern body ... ?default body?}"
+        }
+        (_, false) => "switch ?-option ...? string ?pattern body ...? ?default body?",
+        (_, true) => "switch ?-option ...? string {?pattern body ...? ?default body?}",
+    }
+}
 
 /// Parse the leading options of `args` (the name-stripped argv: any options, then
 /// the `string`, then the pattern/body pairs or the single brace-list). Returns
 /// the option state and the index of the `string` argument. Mirrors C's option
-/// scan, whose bound leaves the string plus at least one pattern/body word.
+/// scan. Tcl 8.4 scans every leading option and lets the last mode win;
+/// Tcl 8.5+ leaves the string plus at least one pattern/body word unparsed
+/// and rejects repeated mode options.
 ///
 /// # Errors
-/// A bad/ambiguous option, a repeated mode option, a missing `-matchvar`/
+/// A bad/ambiguous option, a repeated mode option in Tcl 8.5+, a missing `-matchvar`/
 /// `-indexvar` argument, `-matchvar`/`-indexvar` without `-regexp`, `-nocase`
 /// with `-integer`, or too few arguments after the options.
 pub fn parse_options<O, V>(
@@ -152,13 +170,13 @@ where
     let mut index_var: Option<V> = None;
 
     let mut i = 0;
-    // Leave the string plus at least one pattern/body word unparsed; `--` ends it.
-    while i + 2 < objc {
-        let arg = ops.as_str(&args[i]);
-        if !arg.starts_with('-') {
+    // Tcl 8.4 has no remaining-argument bound on its option scan.
+    while i < objc && (version == TclVersion::V8_4 || i + 2 < objc) {
+        let arg = ops.native_string_bytes(&args[i])?;
+        if arg.first() != Some(&b'-') {
             break;
         }
-        let name = table.names()[table.index_of_str(&arg)?];
+        let name = table.names()[table.index_of_original(ops, &args[i])?];
         let picked = match name {
             "--" => {
                 i += 1;
@@ -189,7 +207,7 @@ where
             _ => Some(Mode::Exact),
         };
         if let Some(m) = picked {
-            if found_mode {
+            if found_mode && version != TclVersion::V8_4 {
                 return Err(double_option(&arg, mode.option_name()));
             }
             found_mode = true;
@@ -199,7 +217,7 @@ where
     }
 
     if i + 2 > objc {
-        return Err(CmdError::wrong_args(USAGE_INLINE));
+        return Err(CmdError::wrong_args(usage(version, false)));
     }
     if index_var.is_some() && mode != Mode::Regexp {
         return Err(mode_restriction("-indexvar option requires -regexp option"));
@@ -270,32 +288,27 @@ where
     if npairs == 0 {
         return Ok(Selection::NoMatch);
     }
-    let val_str = ops.as_str(value);
     let val_int = if opts.mode == Mode::Integer {
-        Some(wide_int(&val_str, version)?)
+        Some(wide_int(&ops.try_as_str(value)?, version)?)
     } else {
         None
     };
     for (p, pat_val) in patterns.iter().enumerate() {
-        let pat = ops.as_str(pat_val);
+        let pattern_bytes = ops.native_string_bytes(pat_val)?;
         // `default` matches anything, but only as the final pattern.
-        if p == npairs - 1 && &*pat == "default" {
+        if p == npairs - 1 && tcl_core_types::c_string_extent(&pattern_bytes) == b"default" {
             let writes = default_writes(ops, opts);
             return Ok(Selection::Matched { index: p, writes });
         }
         match opts.mode {
             Mode::Exact => {
-                // C's `-exact -nocase` arm is `TclUtfCasecmp` (`tclCmdMZ.c`'s
-                // `Tcl_SwitchObjCmd`), a full-range `Tcl_UniCharToLower` fold —
-                // not an ASCII one. tclsh 8.5.19/8.6.18/9.0.4/9.1b0 all select
-                // the arm for `switch -nocase -- \u00e9 {\u00c9 {…}}`, and for
-                // `İ` against `i`; an ASCII fold matches neither (#2125).
-                let hit = if opts.nocase {
-                    crate::string::fold_lower_bytes(pat.as_bytes())
-                        == crate::string::fold_lower_bytes(val_str.as_bytes())
-                } else {
-                    *pat == *val_str
-                };
+                let subject = ops.native_string_bytes(value)?;
+                let hit = tcl_syntax::native_glob::equal_c_strings(
+                    version,
+                    &pattern_bytes,
+                    &subject,
+                    opts.nocase,
+                );
                 if hit {
                     return Ok(Selection::Matched {
                         index: p,
@@ -304,7 +317,13 @@ where
                 }
             }
             Mode::Glob => {
-                if string_case_match(&pat, &val_str, opts.nocase) {
+                let subject = ops.native_string_bytes(value)?;
+                if tcl_syntax::native_glob::match_c_string_glob(
+                    version,
+                    &pattern_bytes,
+                    &subject,
+                    opts.nocase,
+                ) {
                     return Ok(Selection::Matched {
                         index: p,
                         writes: Vec::new(),
@@ -317,8 +336,8 @@ where
                     ..RegexFlags::for_release(version)
                 };
                 let mut re =
-                    E::compile(pat.as_bytes(), flags).map_err(|d| compile_error(version, &d))?;
-                let value_bytes = ops.as_bytes(value);
+                    E::compile(&pattern_bytes, flags).map_err(|d| compile_error(version, &d))?;
+                let value_bytes = ops.native_string_bytes(value)?;
                 let (cps, byteoff) = decode_utf8(&value_bytes);
                 if let Some(m) = E::exec(&mut re, &cps, 0, false) {
                     let writes = regexp_writes(ops, opts, &m, &value_bytes, &byteoff);
@@ -326,7 +345,7 @@ where
                 }
             }
             Mode::Integer => {
-                if val_int == Some(wide_int(&pat, version)?) {
+                if val_int == Some(wide_int(&ops.try_as_str(pat_val)?, version)?) {
                     return Ok(Selection::Matched {
                         index: p,
                         writes: Vec::new(),
@@ -336,6 +355,184 @@ where
         }
     }
     Ok(Selection::NoMatch)
+}
+
+/// Inspect the original body through its native string getter and the switch
+/// handler's `CString` continuation discriminator.
+///
+/// # Errors
+/// An unavailable original string representation remains a typed refusal.
+pub fn body_is_fallthrough<O: ValueOps>(ops: &mut O, body: &O::Value) -> Result<bool, CmdError> {
+    let bytes = ops.native_string_bytes(body)?;
+    Ok(tcl_core_types::c_string_extent(&bytes) == b"-")
+}
+
+/// Original Jim regexp comparisons invoke the real command before body selection.
+pub fn select_original_with_jim<O, E, V, Err>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    version: TclVersion,
+    mut invoke: impl FnMut(&mut O, &V, &V, bool) -> Result<bool, Err>,
+) -> Result<Selection<V>, crate::regex::OriginalRegexConsumerError<Err>>
+where
+    O: crate::regex::NativeRegexObjects<E, Value = V>,
+    E: RegexEngine,
+    V: Clone,
+{
+    let jim = ops
+        .jim_regex_recipe()
+        .map_err(|error| crate::regex::OriginalRegexConsumerError::Command(error.into()))?
+        .is_some();
+    if !jim || opts.mode != Mode::Regexp {
+        return select_original::<O, E, V>(ops, opts, value, patterns, version)
+            .map_err(crate::regex::OriginalRegexConsumerError::Command);
+    }
+    if opts.match_var.is_some() || opts.index_var.is_some() {
+        return Err(crate::regex::OriginalRegexConsumerError::Command(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("Jim switch capture options")
+                .into(),
+        ));
+    }
+    for (index, pattern) in patterns.iter().enumerate() {
+        let bytes = ops
+            .native_string_bytes(pattern)
+            .map_err(|error| crate::regex::OriginalRegexConsumerError::Command(error.into()))?;
+        if index + 1 == patterns.len() && tcl_core_types::c_string_extent(&bytes) == b"default" {
+            return Ok(Selection::Matched {
+                index,
+                writes: Vec::new(),
+            });
+        }
+        if invoke(ops, pattern, value, opts.nocase)
+            .map_err(crate::regex::OriginalRegexConsumerError::Callback)?
+        {
+            return Ok(Selection::Matched {
+                index,
+                writes: Vec::new(),
+            });
+        }
+    }
+    Ok(Selection::NoMatch)
+}
+
+/// Original native regexp selection. Non-regexp modes retain their existing
+/// comparison owner; C regexp uses the original compiled pattern and subject.
+pub fn select_original<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    patterns: &[V],
+    version: TclVersion,
+) -> Result<Selection<V>, CmdError>
+where
+    O: crate::regex::NativeRegexObjects<E, Value = V>,
+    E: RegexEngine,
+    V: Clone,
+{
+    if opts.mode != Mode::Regexp {
+        return select::<O, E, V>(ops, opts, value, patterns, version);
+    }
+    for (index, pattern) in patterns.iter().enumerate() {
+        // The actual switch parser obtains this counted string for its
+        // CString default discriminator before reaching RegExp compilation.
+        let bytes = ops.native_string_bytes(pattern)?;
+        if index + 1 == patterns.len() && tcl_core_types::c_string_extent(&bytes) == b"default" {
+            return Ok(Selection::Matched {
+                index,
+                writes: default_writes(ops, opts),
+            });
+        }
+        let flags = RegexFlags {
+            nocase: opts.nocase,
+            ..RegexFlags::for_release(version)
+        };
+        let mut compiled =
+            crate::regex::prepare_pattern_original::<O, E>(ops, pattern, flags, version)
+                .map_err(super::regex::RegexError::into_cmd_error)?;
+        if opts.match_var.is_none() && opts.index_var.is_none() {
+            if crate::regex::match_pattern_original::<O, E>(ops, &mut compiled, value)
+                .map_err(super::regex::RegexError::into_cmd_error)?
+            {
+                return Ok(Selection::Matched {
+                    index,
+                    writes: Vec::new(),
+                });
+            }
+            continue;
+        }
+        let Some(matches) =
+            crate::regex::execute_pattern_original::<O, E>(ops, &mut compiled, value, 0, false)
+                .map_err(super::regex::RegexError::into_cmd_error)?
+        else {
+            continue;
+        };
+        let writes = if let Some(recipe) = compiled.native_recipe() {
+            native_regexp_writes::<O, E, V>(ops, opts, value, recipe, &matches)?
+        } else {
+            let bytes = ops.native_string_bytes(value)?;
+            let (_, offsets) = decode_utf8(&bytes);
+            regexp_writes(ops, opts, &matches, &bytes, &offsets)
+        };
+        return Ok(Selection::Matched { index, writes });
+    }
+    Ok(Selection::NoMatch)
+}
+
+fn native_regexp_writes<O, E, V>(
+    ops: &mut O,
+    opts: &Options<V>,
+    value: &V,
+    recipe: tcl_syntax::native_regex::NativeRegexpRecipe,
+    matches: &[RegMatch],
+) -> Result<Vec<(V, V)>, CmdError>
+where
+    O: crate::regex::NativeRegexObjects<E, Value = V>,
+    E: RegexEngine,
+    V: Clone,
+{
+    let mut writes = Vec::new();
+    if let Some(name) = &opts.index_var {
+        let mut pairs = Vec::with_capacity(matches.len());
+        for span in matches {
+            let (start, end) = if span.so != NO_MATCH && span.eo > 0 {
+                (
+                    i64::try_from(span.so).map_err(|_| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native switch index width",
+                        )
+                    })?,
+                    i64::try_from(span.eo).map_err(|_| {
+                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "native switch index width",
+                        )
+                    })? - 1,
+                )
+            } else {
+                (-1, -1)
+            };
+            let start = ops.new_int(start);
+            let end = ops.new_int(end);
+            pairs.push(ops.new_list(vec![start, end]));
+        }
+        writes.push((name.clone(), ops.new_list(pairs)));
+    }
+    if let Some(name) = &opts.match_var {
+        let units = ops.native_unicode_units(value)?;
+        let snapshot = ops.native_object_snapshot(value)?;
+        let mut parts = Vec::with_capacity(matches.len());
+        for span in matches {
+            let range = if span.so != NO_MATCH && span.eo > 0 {
+                recipe.range(&snapshot, &units, span.so, span.eo)?
+            } else {
+                tcl_syntax::native_regex::NativeRegexpRange::Empty
+            };
+            parts.push(ops.regex_range_value(range)?);
+        }
+        writes.push((name.clone(), ops.new_list(parts)));
+    }
+    Ok(writes)
 }
 
 /// `extra switch pattern with no body` — an odd number of pattern/body words.
@@ -356,8 +553,11 @@ pub fn extra_pattern_error(comment_hint: bool) -> CmdError {
 /// `no body specified for pattern "P"` — a trailing `-` fall-through body has no
 /// real body to fall through to.
 #[must_use]
-pub fn no_body_error(pattern: &str) -> CmdError {
-    CmdError::new(format!("no body specified for pattern \"{pattern}\""))
+pub fn no_body_error(pattern: impl AsRef<[u8]>) -> CmdError {
+    let mut message = b"no body specified for pattern \"".to_vec();
+    message.extend_from_slice(pattern.as_ref());
+    message.push(b'"');
+    CmdError::new_bytes(message)
 }
 
 /// The `-matchvar`/`-indexvar` writes for the `default` arm (TIP #75: the targets
@@ -434,11 +634,13 @@ where
 // `crate::prefix` wrapper over `crate::prefix`, so `switch` cannot
 // drift from the other option tables)
 
-fn double_option(arg: &str, found_name: &str) -> CmdError {
-    CmdError::with_error_code(
-        format!("bad option \"{arg}\": {found_name} option already found"),
-        "TCL OPERATION SWITCH DOUBLEOPT",
-    )
+fn double_option(arg: &[u8], found_name: &str) -> CmdError {
+    let mut message = b"bad option \"".to_vec();
+    message.extend_from_slice(arg);
+    message.extend_from_slice(b"\": ");
+    message.extend_from_slice(found_name.as_bytes());
+    message.extend_from_slice(b" option already found");
+    CmdError::with_error_code_bytes(message, b"TCL OPERATION SWITCH DOUBLEOPT")
 }
 
 fn mode_restriction(message: &str) -> CmdError {
@@ -478,6 +680,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn usage_matches_native_release_and_argument_form() {
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert_eq!(
+                usage(version, false),
+                "switch ?switches? string pattern body ... ?default body?"
+            );
+            assert_eq!(
+                usage(version, true),
+                "switch ?switches? string {pattern body ... ?default body?}"
+            );
+        }
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                usage(version, false),
+                "switch ?-option ...? string ?pattern body ...? ?default body?"
+            );
+            assert_eq!(
+                usage(version, true),
+                "switch ?-option ...? string {?pattern body ...? ?default body?}"
+            );
+        }
+    }
+
+    #[test]
     fn option_table_matches_exact_and_unique_prefix() {
         // Tcl unambiguous-prefix option matching over the shared matcher.
         // OPT_NAMES = -exact -glob -indexvar -matchvar -nocase -regexp --.
@@ -496,7 +722,7 @@ mod tests {
             panic!("-badopt must not resolve");
         };
         assert_eq!(
-            e.message(),
+            e.message().unwrap(),
             "bad option \"-badopt\": must be -exact, -glob, -indexvar, \
              -matchvar, -nocase, -regexp, or --"
         );
@@ -505,16 +731,17 @@ mod tests {
     #[test]
     fn switch_error_message_formats() {
         assert_eq!(
-            extra_pattern_error(false).message(),
+            extra_pattern_error(false).message().unwrap(),
             "extra switch pattern with no body"
         );
         assert!(
             extra_pattern_error(true)
                 .message()
+                .unwrap()
                 .contains("comment incorrectly placed")
         );
         assert_eq!(
-            no_body_error("foo").message(),
+            no_body_error("foo").message().unwrap(),
             r#"no body specified for pattern "foo""#
         );
     }
@@ -543,9 +770,13 @@ mod tests {
         fn new_list(&mut self, items: Vec<String>) -> String {
             items.join(" ")
         }
-        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
-            std::rc::Rc::from(v.as_str())
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
         }
+        fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value {
+            self.new_str(std::str::from_utf8(bytes).expect("Unicode-only fixture input"))
+        }
+
         fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
             v.parse()
                 .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
@@ -632,7 +863,7 @@ mod tests {
                 panic!("{version:?}: a bad pattern must not compile")
             };
             assert_eq!(
-                e.message(),
+                e.message().unwrap(),
                 format!(r"{verb} compile regular expression pattern: invalid escape \ sequence"),
                 "{version:?}"
             );
@@ -683,6 +914,42 @@ mod tests {
             Selection::Matched { index, .. } => assert_eq!(index, 2),
             Selection::NoMatch => panic!("expected default to match"),
         }
+    }
+
+    #[test]
+    fn selection_and_continuations_use_original_c_string_extents() {
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let value = String::from("X\0subject");
+            for (opts, pattern) in [
+                (exact_opts(), "default\0tail"),
+                (exact_opts(), "X\0pattern"),
+                (
+                    Options {
+                        mode: Mode::Glob,
+                        ..exact_opts()
+                    },
+                    "?\0pattern",
+                ),
+            ] {
+                let selected = select::<_, NoEngine, _>(
+                    &mut StrOps,
+                    &opts,
+                    &value,
+                    &[pattern.to_owned()],
+                    version,
+                )
+                .unwrap();
+                assert!(matches!(selected, Selection::Matched { index: 0, .. }));
+            }
+        }
+        assert!(body_is_fallthrough(&mut StrOps, &String::from("-\0tail")).unwrap());
+        assert!(!body_is_fallthrough(&mut StrOps, &String::from("--\0tail")).unwrap());
     }
 
     #[test]
@@ -761,13 +1028,13 @@ mod tests {
                 panic!("-integer must be refused on {v:?}");
             };
             assert_eq!(
-                e.message(),
+                e.message().unwrap(),
                 "bad option \"-integer\": must be -exact, -glob, -indexvar, \
                  -matchvar, -nocase, -regexp, or --"
             );
             // Before 9.1 `-i` is a unique prefix of `-indexvar`.
             assert_eq!(
-                e.error_code(),
+                e.error_code().unwrap(),
                 Some("TCL LOOKUP INDEX option -integer"),
                 "{v:?}"
             );
@@ -790,13 +1057,16 @@ mod tests {
         let Err(e) = parse_at(TclVersion::V9_1, &["-bad", "1", "{1 {}}"]) else {
             panic!("-bad must not resolve");
         };
-        assert_eq!(e.message(), format!("bad option \"-bad\": {choices}"));
+        assert_eq!(
+            e.message().unwrap(),
+            format!("bad option \"-bad\": {choices}")
+        );
         for word in ["-i", "-in"] {
             let Err(e) = parse_at(TclVersion::V9_1, &[word, "1", "{1 {}}"]) else {
                 panic!("{word} must be ambiguous on 9.1");
             };
             assert_eq!(
-                e.message(),
+                e.message().unwrap(),
                 format!("ambiguous option \"{word}\": {choices}")
             );
         }
@@ -822,31 +1092,40 @@ mod tests {
                 panic!("{args:?} must be refused");
             };
             assert_eq!(
-                e.message(),
+                e.message().unwrap(),
                 "-nocase option cannot be used with -integer option"
             );
-            assert_eq!(e.error_code(), Some("TCL OPERATION SWITCH MODERESTRICTION"));
+            assert_eq!(
+                e.error_code().unwrap(),
+                Some("TCL OPERATION SWITCH MODERESTRICTION")
+            );
         }
         let Err(e) = parse_at(v, &["-glob", "-integer", "1", "{1 {}}"]) else {
             panic!("double mode must be refused");
         };
         assert_eq!(
-            e.message(),
+            e.message().unwrap(),
             "bad option \"-integer\": -glob option already found"
         );
-        assert_eq!(e.error_code(), Some("TCL OPERATION SWITCH DOUBLEOPT"));
+        assert_eq!(
+            e.error_code().unwrap(),
+            Some("TCL OPERATION SWITCH DOUBLEOPT")
+        );
         let Err(e) = parse_at(v, &["-integer", "-glob", "1", "{1 {}}"]) else {
             panic!("double mode must be refused");
         };
         assert_eq!(
-            e.message(),
+            e.message().unwrap(),
             "bad option \"-glob\": -integer option already found"
         );
         // `-matchvar` is checked before the `-nocase` conflict.
         let Err(e) = parse_at(v, &["-integer", "-nocase", "-matchvar", "x", "1", "{1 {}}"]) else {
             panic!("-matchvar without -regexp must be refused");
         };
-        assert_eq!(e.message(), "-matchvar option requires -regexp option");
+        assert_eq!(
+            e.message().unwrap(),
+            "-matchvar option requires -regexp option"
+        );
     }
 
     #[test]
@@ -885,8 +1164,11 @@ mod tests {
             let Err(e) = select_int(value, pats) else {
                 panic!("{value} {pats:?} must be refused");
             };
-            assert_eq!(e.message(), format!("expected integer but got \"{bad}\""));
-            assert_eq!(e.error_code(), Some("TCL VALUE NUMBER"));
+            assert_eq!(
+                e.message().unwrap(),
+                format!("expected integer but got \"{bad}\"")
+            );
+            assert_eq!(e.error_code().unwrap(), Some("TCL VALUE NUMBER"));
         };
         not_int("abc", &["1"], "abc");
         not_int("abc", &["default"], "abc");
@@ -903,11 +1185,169 @@ mod tests {
             let Err(e) = select_int(value, pats) else {
                 panic!("{value} {pats:?} must overflow");
             };
-            assert_eq!(e.message(), "integer value too large to represent");
+            assert_eq!(e.message().unwrap(), "integer value too large to represent");
             assert_eq!(
-                e.error_code(),
+                e.error_code().unwrap(),
                 Some("ARITH IOVERFLOW {integer value too large to represent}")
             );
         }
     }
+}
+
+/// The compiler's `STR_MATCH` primitive reaches original objects independently of
+/// the public switch handler and its option parser.
+pub trait NativeCompiledSwitchObjects: ValueOps {
+    /// Reach `Tcl_GetByteArrayFromObj` on the original selected C8 operand.
+    fn compiled_binary_bytes(
+        &mut self,
+        value: &Self::Value,
+        version: TclVersion,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError>;
+}
+
+pub fn compiled_glob<O: NativeCompiledSwitchObjects>(
+    ops: &mut O,
+    pattern: &O::Value,
+    subject: &O::Value,
+    version: TclVersion,
+    nocase: bool,
+) -> Result<bool, CmdError> {
+    use tcl_syntax::native_glob::{NativeGlobObject as Object, NativeGlobProtocol};
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+    let snapshot = ops.native_object_snapshot(subject)?;
+    let pattern_snapshot = ops.native_object_snapshot(pattern)?;
+    if matches!(snapshot.cache, Cache::String { .. })
+        || matches!(pattern_snapshot.cache, Cache::String { .. })
+    {
+        let subject = ops.native_unicode_units(subject)?;
+        let pattern = ops.native_unicode_units(pattern)?;
+        return NativeGlobProtocol::authored_tcl(version)
+            .match_objects(
+                Object::CachedUnicode {
+                    units: &pattern,
+                    resident_bytes: None,
+                },
+                Object::CachedUnicode {
+                    units: &subject,
+                    resident_bytes: None,
+                },
+                nocase,
+            )
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("native compiled glob units").into()
+            });
+    }
+    if let Cache::ByteArray { bytes, proper } = &snapshot.cache {
+        let pure = if version >= TclVersion::V9_0 {
+            *proper
+        } else {
+            snapshot.resident.is_none()
+        };
+        if version >= TclVersion::V8_5 && pure && !nocase {
+            let pattern_bytes = if version < TclVersion::V9_0 {
+                Some(ops.compiled_binary_bytes(pattern, version)?)
+            } else {
+                match &pattern_snapshot.cache {
+                    Cache::ByteArray {
+                        bytes,
+                        proper: true,
+                    } => Some(bytes.clone()),
+                    _ => None,
+                }
+            };
+            if let Some(pattern_bytes) = pattern_bytes {
+                return NativeGlobProtocol::authored_tcl(version)
+                    .match_objects(
+                        Object::PureByteArray(&pattern_bytes),
+                        Object::PureByteArray(bytes),
+                        false,
+                    )
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("native compiled glob binary").into()
+                    });
+            }
+        }
+    }
+    let subject = ops.native_string_bytes(subject)?;
+    let pattern = ops.native_string_bytes(pattern)?;
+    NativeGlobProtocol::authored_tcl(version)
+        .match_objects(
+            Object::OtherString(&pattern),
+            Object::OtherString(&subject),
+            nocase,
+        )
+        .map_err(|_| ValueError::CommandProtocolUnavailable("native compiled glob strings").into())
+}
+
+/// Reach the selected `STR_EQ` primitive on the same original two operands.
+pub fn compiled_equal<O: ValueOps>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    version: TclVersion,
+) -> Result<bool, CmdError> {
+    use tcl_syntax::native_object::{
+        NativeObjectCacheSnapshot as Cache, NativeObjectStringEmptiness as Empty,
+        native_c_string_emptiness,
+    };
+    if ops.same_object(left, right) == Some(true) {
+        return Ok(true);
+    }
+    if version <= TclVersion::V8_5 {
+        let left = ops.native_string_bytes(left)?;
+        let right = ops.native_string_bytes(right)?;
+        return Ok(left.len() == right.len()
+            && tcl_core_types::c_string_extent(&left) == tcl_core_types::c_string_extent(&right));
+    }
+    let a = ops.native_object_snapshot(left)?;
+    let b = ops.native_object_snapshot(right)?;
+    if let (
+        Cache::ByteArray {
+            bytes: a_bytes,
+            proper: a_proper,
+        },
+        Cache::ByteArray {
+            bytes: b_bytes,
+            proper: b_proper,
+        },
+    ) = (&a.cache, &b.cache)
+    {
+        let pure = if version >= TclVersion::V9_0 {
+            *a_proper && *b_proper
+        } else {
+            a.resident.is_none() && b.resident.is_none()
+        };
+        if pure {
+            return Ok(a_bytes == b_bytes);
+        }
+    }
+    if matches!(a.cache, Cache::String { .. }) && matches!(b.cache, Cache::String { .. }) {
+        let a_length = ops.native_char_len(left)?;
+        let b_length = ops.native_char_len(right)?;
+        if let (Some(a), Some(b)) = (&a.resident, &b.resident)
+            && a_length == a.len()
+            && b_length == b.len()
+        {
+            return Ok(a == b);
+        }
+        let a = ops.native_unicode_units(left)?;
+        let b = ops.native_unicode_units(right)?;
+        return Ok(a == b);
+    }
+    let a_empty = native_c_string_emptiness(version, &a)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
+    let b_empty = native_c_string_emptiness(version, &b)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
+    if a_empty == Empty::Empty || b_empty == Empty::Empty {
+        return match (a_empty, b_empty) {
+            (Empty::Empty, Empty::Empty) => Ok(true),
+            (Empty::Empty, Empty::Nonempty) | (Empty::Nonempty, Empty::Empty) => Ok(false),
+            (Empty::Empty, Empty::Unknown) => Ok(ops.native_string_bytes(right)?.is_empty()),
+            (Empty::Unknown, Empty::Empty) => Ok(ops.native_string_bytes(left)?.is_empty()),
+            _ => unreachable!("at least one empty operand"),
+        };
+    }
+    let a = ops.native_string_bytes(left)?;
+    let b = ops.native_string_bytes(right)?;
+    Ok(a == b)
 }

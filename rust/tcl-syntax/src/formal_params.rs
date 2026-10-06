@@ -8,7 +8,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Strict, interpreter-independent parsing of Tcl formal parameter lists.
+//! Native formal parameter parsing and argument activation plans.
 //!
 //! A `proc`, method, or `apply` parameter list has two list levels.  The outer
 //! list contains parameter specifiers; each specifier is itself a zero-, one-,
@@ -19,10 +19,17 @@
 
 use crate::list::{ListError, join_list, split_list};
 
+mod bytes;
+pub use bytes::{
+    ByteFormalParameter, ByteFormalParameterError, FormalByteArgumentBinding,
+    FormalParameterValueError, bind_formal_argument_bytes, formal_parameter_usage_bytes,
+    parse_formal_parameter_values,
+};
+
 /// One decoded formal parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormalParameter {
-    /// The scalar, non-namespace-qualified parameter name.
+    /// Native decoded formal name; C Tcl requires scalar simple names.
     pub name: String,
     /// The decoded default value, when the specifier has two fields.
     pub default: Option<String>,
@@ -51,6 +58,8 @@ pub enum FormalParameterError {
     },
     /// A parameter specifier contained zero fields.
     NoFields,
+    /// Jim permits only one variadic args parameter, wherever it appears.
+    DuplicateArgs,
     /// A one- or two-field specifier supplied an empty first field.
     EmptyName,
     /// A parameter specifier contained more than two fields.
@@ -71,6 +80,46 @@ pub enum FormalParameterError {
 }
 
 impl FormalParameterError {
+    /// Render definition-time diagnostics under the selected C release. Tcl
+    /// 8.4 includes the procedure name in three formal-name errors.
+    #[must_use]
+    pub fn message_for_definition(
+        &self,
+        procedure: &str,
+        version: Option<tcl_dialect::TclVersion>,
+    ) -> String {
+        String::from_utf8(self.message_for_definition_bytes(procedure.as_bytes(), version))
+            .expect("Unicode procedure and parameter names retain Unicode diagnostics")
+    }
+
+    /// Render the same selected definition failure with an exact byte-valued
+    /// procedure name. This preserves invalid UTF-8 names without replacement.
+    #[must_use]
+    pub fn message_for_definition_bytes(
+        &self,
+        procedure: &[u8],
+        version: Option<tcl_dialect::TclVersion>,
+    ) -> Vec<u8> {
+        if version == Some(tcl_dialect::TclVersion::V8_4) {
+            let detail = match self {
+                Self::NoFields | Self::EmptyName => " has argument with no name".to_owned(),
+                Self::ArrayElement { name } => {
+                    format!(" has formal parameter \"{name}\" that is an array element")
+                }
+                Self::NotSimpleName { name } => {
+                    format!(" has formal parameter \"{name}\" that is not a simple name")
+                }
+                _ => return self.message().into_bytes(),
+            };
+            let mut message = b"procedure \"".to_vec();
+            message.extend_from_slice(procedure);
+            message.push(b'"');
+            message.extend_from_slice(detail.as_bytes());
+            return message;
+        }
+        self.message().into_bytes()
+    }
+
     /// Render the reference Tcl diagnostic as UTF-8 text.
     ///
     /// Byte-oriented runtimes can convert this result at their API boundary;
@@ -80,6 +129,7 @@ impl FormalParameterError {
     pub fn message(&self) -> String {
         match self {
             Self::InvalidList { input, error, .. } => error.full_message(input),
+            Self::DuplicateArgs => "'args' specified more than once".to_owned(),
             Self::NoFields | Self::EmptyName => "argument with no name".to_string(),
             Self::TooManyFields { specifier } => {
                 format!("too many fields in argument specifier \"{specifier}\"")
@@ -109,35 +159,204 @@ impl std::error::Error for FormalParameterError {}
 /// parser.  `args` is not a distinct parameter kind because it is variadic only
 /// when it is the final name; use [`has_trailing_args`] on the finished list.
 pub fn parse_formal_parameters(source: &str) -> Result<Vec<FormalParameter>, FormalParameterError> {
-    let specs = split_list(source).map_err(|error| FormalParameterError::InvalidList {
-        level: ParameterListLevel::Parameters,
-        input: source.to_string(),
-        error,
-    })?;
+    parse_formal_parameters_in(source, tcl_dialect::ParameterGrammar::Tcl)
+}
+
+/// Parse the selected engine's native formals. Jim's one-field form retains
+/// the outer element spelling, and its lenient list grammar owns both levels.
+pub fn parse_formal_parameters_in(
+    source: &str,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<FormalParameter>, FormalParameterError> {
+    let split = |input: &str, level| {
+        let values = match grammar {
+            tcl_dialect::ParameterGrammar::Tcl => split_list(input),
+            tcl_dialect::ParameterGrammar::Jim => Ok(crate::list::split_list_jim(input)),
+        };
+        values
+            .map(|values| {
+                values
+                    .into_iter()
+                    .map(std::borrow::Cow::into_owned)
+                    .collect::<Vec<_>>()
+            })
+            .map_err(|error| FormalParameterError::InvalidList {
+                level,
+                input: input.to_owned(),
+                error,
+            })
+    };
+    let specs = split(source, ParameterListLevel::Parameters)?;
     let mut parameters = Vec::with_capacity(specs.len());
+    let mut jim_args_seen = false;
     for spec in specs {
-        let fields = split_list(&spec).map_err(|error| FormalParameterError::InvalidList {
-            level: ParameterListLevel::Specifier,
-            input: spec.to_string(),
-            error,
-        })?;
+        let fields = split(&spec, ParameterListLevel::Specifier)?;
         let (name, default) = match fields.as_slice() {
             [] => return Err(FormalParameterError::NoFields),
-            [name] => (name.as_ref(), None),
-            [name, default] => (name.as_ref(), Some(default.as_ref())),
-            _ => {
-                return Err(FormalParameterError::TooManyFields {
-                    specifier: spec.to_string(),
-                });
-            }
+            [name] => (
+                if grammar == tcl_dialect::ParameterGrammar::Jim {
+                    spec.as_str()
+                } else {
+                    name.as_str()
+                },
+                None,
+            ),
+            [name, default] => (name.as_str(), Some(default.as_str())),
+            _ => return Err(FormalParameterError::TooManyFields { specifier: spec }),
         };
-        validate_name(name)?;
+        if grammar == tcl_dialect::ParameterGrammar::Tcl {
+            validate_name(name)?;
+        } else if name == "args" {
+            if jim_args_seen {
+                return Err(FormalParameterError::DuplicateArgs);
+            }
+            jim_args_seen = true;
+        }
         parameters.push(FormalParameter {
-            name: name.to_string(),
-            default: default.map(str::to_string),
+            name: name.to_owned(),
+            default: default.map(str::to_owned),
         });
     }
     Ok(parameters)
+}
+
+/// One native assignment at procedure activation, before executing its body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FormalArgumentBinding {
+    /// Assign one supplied argument to the formal's native name.
+    Value {
+        /// Index in the parsed parameter list.
+        parameter: usize,
+        /// Index in the supplied post-head argv.
+        argument: usize,
+    },
+    /// Assign the formal's literal default; reference spelling is inert here.
+    Default {
+        /// Index in the parsed parameter list.
+        parameter: usize,
+    },
+    /// Assign a list of surplus argv entries to the selected rest name.
+    Rest {
+        /// Index of the variadic formal.
+        parameter: usize,
+        /// Native target name, including Jim's renamed args form.
+        name: String,
+        /// First surplus argv position.
+        start: usize,
+        /// Number of surplus argv entries.
+        len: usize,
+    },
+    /// Link the local name to the caller variable named by this argument.
+    CallerLink {
+        /// Index of the reference formal.
+        parameter: usize,
+        /// Local alias spelling without the reference marker.
+        name: String,
+        /// Argument whose value names the existing caller variable.
+        argument: usize,
+    },
+}
+
+/// Argument count cannot satisfy the native parameter activation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FormalArityError;
+
+/// Select native bindings from argv positions without evaluating values or
+/// performing variable operations. Consumers apply these assignments through
+/// their shared frame/cell owner; caller links preserve caller identity.
+pub fn bind_formal_arguments(
+    parameters: &[FormalParameter],
+    argument_count: usize,
+    grammar: tcl_dialect::ParameterGrammar,
+) -> Result<Vec<FormalArgumentBinding>, FormalArityError> {
+    let parameters = parameters
+        .iter()
+        .map(|parameter| ByteFormalParameter {
+            name: parameter.name.as_bytes().to_vec(),
+            default: parameter
+                .default
+                .as_ref()
+                .map(|value| value.as_bytes().to_vec()),
+        })
+        .collect::<Vec<_>>();
+    bind_formal_argument_bytes(&parameters, argument_count, grammar).map(|bindings| {
+        bindings
+            .into_iter()
+            .map(|binding| match binding {
+                FormalByteArgumentBinding::Value {
+                    parameter,
+                    argument,
+                } => FormalArgumentBinding::Value {
+                    parameter,
+                    argument,
+                },
+                FormalByteArgumentBinding::Default { parameter } => {
+                    FormalArgumentBinding::Default { parameter }
+                }
+                FormalByteArgumentBinding::Rest {
+                    parameter,
+                    name,
+                    start,
+                    len,
+                } => FormalArgumentBinding::Rest {
+                    parameter,
+                    name: String::from_utf8(name).expect("Unicode formal name"),
+                    start,
+                    len,
+                },
+                FormalByteArgumentBinding::CallerLink {
+                    parameter,
+                    name,
+                    argument,
+                } => FormalArgumentBinding::CallerLink {
+                    parameter,
+                    name: String::from_utf8(name).expect("Unicode formal name"),
+                    argument,
+                },
+            })
+            .collect()
+    })
+}
+
+/// Native usage suffix for a parsed formal list, without the command prefix.
+/// Diagnostic rendering shares variadic position/name selection with activation.
+#[must_use]
+pub fn formal_parameter_usage(
+    parameters: &[FormalParameter],
+    grammar: tcl_dialect::ParameterGrammar,
+) -> String {
+    parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| {
+            let rest = parameter.name == "args"
+                && (grammar == tcl_dialect::ParameterGrammar::Jim || index + 1 == parameters.len());
+            if rest {
+                let name = if grammar == tcl_dialect::ParameterGrammar::Jim {
+                    parameter.default.as_deref().unwrap_or("arg")
+                } else {
+                    "arg"
+                };
+                format!("?{name} ...?")
+            } else if parameter.default.is_some() {
+                let name = format!("?{}?", parameter.name);
+                if grammar == tcl_dialect::ParameterGrammar::Tcl {
+                    join_list([name])
+                } else {
+                    name
+                }
+            } else if grammar == tcl_dialect::ParameterGrammar::Jim {
+                parameter
+                    .name
+                    .strip_prefix('&')
+                    .unwrap_or(&parameter.name)
+                    .to_owned()
+            } else {
+                join_list([&parameter.name])
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Repair an accidentally grouped, overlong parameter specifier by splitting
@@ -205,6 +424,128 @@ mod tests {
     use super::*;
 
     #[test]
+    fn definition_error_preserves_the_actual_byte_name_and_release() {
+        let error = FormalParameterError::ArrayElement {
+            name: "arr(k)".to_owned(),
+        };
+        assert_eq!(
+            error.message_for_definition_bytes(b"bad\xff", Some(tcl_dialect::TclVersion::V8_4)),
+            b"procedure \"bad\xff\" has formal parameter \"arr(k)\" that is an array element"
+        );
+        assert_eq!(
+            error.message_for_definition_bytes(b"bad\xff", Some(tcl_dialect::TclVersion::V8_5)),
+            b"formal parameter \"arr(k)\" is an array element"
+        );
+    }
+
+    #[test]
+    fn native_activation_plan_reserves_jim_required_arguments() {
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        let parameters = parse_formal_parameters_in("a {b B} c", Jim).unwrap();
+        assert_eq!(
+            bind_formal_arguments(&parameters, 2, Jim).unwrap(),
+            vec![
+                FormalArgumentBinding::Value {
+                    parameter: 0,
+                    argument: 0
+                },
+                FormalArgumentBinding::Default { parameter: 1 },
+                FormalArgumentBinding::Value {
+                    parameter: 2,
+                    argument: 1
+                },
+            ]
+        );
+        assert_eq!(
+            bind_formal_arguments(&parameters, 2, Tcl),
+            Err(FormalArityError)
+        );
+        let parameters = parse_formal_parameters_in("a args b", Jim).unwrap();
+        assert_eq!(
+            bind_formal_arguments(&parameters, 4, Jim).unwrap(),
+            vec![
+                FormalArgumentBinding::Value {
+                    parameter: 0,
+                    argument: 0
+                },
+                FormalArgumentBinding::Rest {
+                    parameter: 1,
+                    name: "args".into(),
+                    start: 1,
+                    len: 2
+                },
+                FormalArgumentBinding::Value {
+                    parameter: 2,
+                    argument: 3
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn native_activation_plan_keeps_reference_and_default_distinct() {
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        let parameters = parse_formal_parameters_in("{&x DEFAULT}", Jim).unwrap();
+        assert_eq!(
+            bind_formal_arguments(&parameters, 0, Jim).unwrap(),
+            vec![FormalArgumentBinding::Default { parameter: 0 }]
+        );
+        assert_eq!(
+            bind_formal_arguments(&parameters, 1, Jim).unwrap(),
+            vec![FormalArgumentBinding::CallerLink {
+                parameter: 0,
+                name: "x".into(),
+                argument: 0
+            }]
+        );
+        let parameters = parse_formal_parameters_in("{args rest}", Jim).unwrap();
+        assert_eq!(
+            bind_formal_arguments(&parameters, 2, Jim).unwrap(),
+            vec![FormalArgumentBinding::Rest {
+                parameter: 0,
+                name: "rest".into(),
+                start: 0,
+                len: 2
+            }]
+        );
+        assert_eq!(
+            bind_formal_arguments(&parameters, 2, Tcl).unwrap(),
+            vec![FormalArgumentBinding::Rest {
+                parameter: 0,
+                name: "args".into(),
+                start: 0,
+                len: 2
+            }]
+        );
+    }
+
+    #[test]
+    fn native_parameter_grammar_and_usage_preserve_engine_differences() {
+        use tcl_dialect::ParameterGrammar::{Jim, Tcl};
+        assert_eq!(
+            parse_formal_parameters_in("args args", Jim),
+            Err(FormalParameterError::DuplicateArgs)
+        );
+        assert!(parse_formal_parameters_in("n::x a(k)", Jim).is_ok());
+        assert!(parse_formal_parameters_in("n::x a(k)", Tcl).is_err());
+        assert_eq!(
+            parse_formal_parameters_in("{\"x\"}", Jim).unwrap()[0].name,
+            "\"x\""
+        );
+        let parameters =
+            parse_formal_parameters_in("{\"a b\"} {\"c d\" DEFAULT} args", Tcl).unwrap();
+        assert_eq!(
+            formal_parameter_usage(&parameters, Tcl),
+            "{a b} {?c d?} ?arg ...?"
+        );
+        let parameters = parse_formal_parameters_in("&v {args rest} required", Jim).unwrap();
+        assert_eq!(
+            formal_parameter_usage(&parameters, Jim),
+            "v ?rest ...? required"
+        );
+    }
+
+    #[test]
     fn parses_names_defaults_and_trailing_args() {
         let parameters = parse_formal_parameters("a {b {hello world}} args").unwrap();
         assert_eq!(
@@ -235,7 +576,10 @@ mod tests {
 
     #[test]
     fn distinguishes_zero_empty_and_too_many_fields() {
-        assert!(parse_formal_parameters("").unwrap().is_empty());
+        assert_eq!(
+            parse_formal_parameters("").unwrap(),
+            [] as [crate::formal_params::FormalParameter; 0]
+        );
 
         let no_fields = parse_formal_parameters("{}").unwrap_err();
         assert_eq!(no_fields, FormalParameterError::NoFields);

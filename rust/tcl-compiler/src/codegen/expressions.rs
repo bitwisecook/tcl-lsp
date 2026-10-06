@@ -22,14 +22,12 @@
 //! [`ExprNode`] tree and produces the corresponding bytecode
 //! instructions.
 
-use tcl_lexer::backslash_subst_in;
 use tcl_registry::expr_surface::{MathFunctionCallTarget, RuntimeExprSurface};
 
-use super::values::parse_simple_var_ref;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
-use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_math_bindings};
 
 /// Operators whose constant integer value `eval_tcl_expr` computes soundly and
 /// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
@@ -121,11 +119,21 @@ impl CodegenCtx<'_> {
     /// 494 for a 9.0 target while the bare `puts [expr {0755 + 1}]` gave the
     /// correct 756, because only one of the two paths reached a profile-built
     /// registry.
-    fn fold_policy(&self) -> FoldPolicy {
+    pub(super) fn fold_policy(&self) -> FoldPolicy {
+        let selected = self.dialect.map_or_else(
+            || FoldPolicy::from_registry(self.registry),
+            |profile| {
+                FoldPolicy::for_profile(Some(self.numbers.leading_zero_is_octal()), Some(profile))
+                    .with_invocation_dialect(tcl_registry::InvocationDialect::of_profile(profile))
+            },
+        );
+        let selected = self
+            .invocation_dialect
+            .map_or(selected, |native| selected.with_invocation_dialect(native));
         FoldPolicy {
             octal: Some(self.numbers.leading_zero_is_octal()),
             numbers: Some(self.numbers),
-            ..FoldPolicy::from_registry(self.registry)
+            ..selected
         }
     }
 
@@ -165,6 +173,31 @@ impl CodegenCtx<'_> {
         // answer, a different literal pool and one instruction fewer.
         let trimmed = text.trim();
         if tcl_syntax::number::is_whole_number(trimmed, self.numbers) {
+            let policy = self.fold_policy();
+            let evaluates_literal_separately = policy
+                .arithmetic
+                .is_some_and(|policy| !policy.normalizes_expression_result());
+            let fixed_width_overflow = policy.arithmetic
+                == Some(tcl_dialect::NativeArithmetic::Tcl84Wide)
+                && tcl_syntax::number::parse_whole_with(
+                    trimmed,
+                    tcl_syntax::number::ParseFlags::for_syntax(self.numbers),
+                )
+                .is_some_and(|number| {
+                    tcl_syntax::expr::wide::parsed_literal(
+                        tcl_dialect::NativeArithmetic::Tcl84Wide,
+                        &number,
+                    ) == Err(tcl_syntax::expr::wide::WideError::LiteralOverflow)
+                });
+            if evaluates_literal_separately || fixed_width_overflow {
+                // Native literal conversion and final string normalization are
+                // separate operations. Re-enter the shared expression evaluator
+                // for this exact literal; no command lookup or substitution is
+                // introduced by its already-proved numeral spelling.
+                self.push_lit(trimmed);
+                self.emit(Op::EXPR_STK, vec![]);
+                return true;
+            }
             self.push_lit(trimmed);
             // Not canonical: the caller emits `tryCvtToNumeric`, which converts
             // under the runtime's grammar (`1e3` → `1000.0`, `0xFF` → `255`).
@@ -230,20 +263,19 @@ impl CodegenCtx<'_> {
                 // must not be read back as source: `expr {"{abc}"}` answered
                 // `abc` because the value `{abc}` was pushed substituting and
                 // the VM took it for a braced literal.
-                self.push_word_value(&backslash_subst_in(inner, self.escapes));
+                self.push_decoded_literal(inner);
                 return false;
             }
-            match super::helpers::parse_subst_template(inner, self.escapes, self.braced_var) {
+            match super::helpers::parse_subst_template(inner, self.lexer_config()) {
                 Some(parts) => self.emit_subst_parts(&parts),
                 // Unparseable template (e.g. a bare `$` with no name): literal.
-                None => self.push_lit(&backslash_subst_in(inner, self.escapes)),
+                None => self.push_decoded_literal(inner),
             }
             return false;
         }
         // Bare text (no delimiters): a literal, backslash-decoded.
         if text.contains('\\') {
-            let processed = backslash_subst_in(text, self.escapes);
-            self.push_lit(&processed);
+            self.push_decoded_literal(text);
         } else {
             self.push_lit(text);
         }
@@ -265,7 +297,10 @@ impl CodegenCtx<'_> {
                 // A decoded fragment is finished text, never source — see
                 // `push_word_value`, whose fragment rule this is.
                 SubstPart::Lit(t) => self.push_lit_exact(t),
+                SubstPart::ByteLit(bytes) => self.push_lit_bytes_exact(bytes),
                 SubstPart::Var(name) => self.load_var(name),
+                SubstPart::LiteralElement { base, key } => self.load_literal_element(base, key),
+                SubstPart::Expression(expression) => self.emit_expression_substitution(expression),
                 SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
             }
         }
@@ -382,7 +417,77 @@ impl CodegenCtx<'_> {
             self.emit(Op::EXPR_STK, vec![]);
             return false;
         }
+        self.emit_prepared_expr(node)
+    }
+
+    fn emit_prepared_expr(&mut self, node: &ExprNode) -> bool {
+        let bindings = crate::math_function_binding::ExpressionMathBindings::for_origin(
+            &self.math_invocations,
+            self.math_source.as_deref(),
+            self.math_expression_base,
+        )
+        .with_preparations(&self.expression_preparations);
+        let preparation = bindings.preparation().cloned();
+        if bindings.is_positioned() {
+            let Some(preparation) = preparation else {
+                // Keep the original expression intact so native entry validation
+                // happens before substitutions, including runtime-lazy branches.
+                self.refuse_native_dependency();
+                self.push_lit_verbatim(&render_expr(node));
+                self.emit(Op::EXPR_STK, vec![]);
+                return false;
+            };
+            let Some(mut context) = self.fold_policy().preparation_context() else {
+                self.push_lit_verbatim(preparation.witness.source());
+                self.emit(Op::EXPR_STK, vec![]);
+                return false;
+            };
+            context.lexer_grammar = self.lexer_config().grammar_over(context.lexer_grammar);
+            if bindings.preparation_for_context(&context).is_none()
+                || !self.retain_expression_preparations(std::slice::from_ref(&preparation))
+            {
+                self.push_lit_verbatim(preparation.witness.source());
+                self.emit(Op::EXPR_STK, vec![]);
+                return false;
+            }
+            let previous = self
+                .active_expression_preparation
+                .replace(preparation.witness);
+            let tree = self
+                .active_expression_preparation
+                .as_ref()
+                .unwrap()
+                .tree()
+                .clone();
+            let numeric = self.emit_prepared_native_tree(&tree);
+            self.active_expression_preparation = previous;
+            return numeric;
+        }
         self.emit_expr_at(node, 0)
+    }
+
+    fn emit_prepared_native_tree(&mut self, tree: &ExprNode) -> bool {
+        let native_fixed = self.fold_policy().invocation_dialect.is_some_and(|native| {
+            tcl_registry::mathfunc::native_function_dispatch(native)
+                == Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable)
+        });
+        if native_fixed {
+            // Fixed-table preparation proves entry validation, not permission
+            // to replace executed numeric operations or selected literal
+            // objects with a compiler-pooled canonical string. Retain the
+            // native result recipe as well as its mathematical contents.
+            let source = self
+                .active_expression_preparation
+                .as_ref()
+                .unwrap()
+                .source()
+                .to_owned();
+            self.push_lit_verbatim(&source);
+            self.emit(Op::EXPR_STK, vec![]);
+            false
+        } else {
+            self.emit_expr_at(tree, 0)
+        }
     }
 
     /// Emit an `expr` math-function call, or defer the whole call to
@@ -412,12 +517,17 @@ impl CodegenCtx<'_> {
         args: &[ExprNode],
         depth: u32,
     ) -> bool {
-        if self.expr_surface().is_some_and(|surface| {
-            !matches!(
-                surface.math_function_call_target(function),
-                MathFunctionCallTarget::CommandTable
-            )
-        }) {
+        if self.invocation_dialect.is_some_and(|native| {
+            tcl_registry::mathfunc::native_function_dispatch(native)
+                != Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable)
+        }) || self.invocation_dialect.is_none()
+            && self.expr_surface().is_some_and(|surface| {
+                !matches!(
+                    surface.math_function_call_target(function),
+                    MathFunctionCallTarget::CommandTable
+                )
+            })
+        {
             self.push_lit(&render_expr(node));
             self.emit(Op::EXPR_STK, vec![]);
             return false;
@@ -440,6 +550,58 @@ impl CodegenCtx<'_> {
 
     /// Depth-carrying core of [`Self::emit_expr`] — see that method's
     /// contract. `depth` is this node's `ExprNode` nesting level.
+    /// Record only implicit call proofs reached by a successful integer fold.
+    /// Querying a skipped lazy branch must not install an artifact dependency.
+    fn fold_integer_expression(&mut self, node: &ExprNode) -> Option<TclValue> {
+        if self.math_source.is_some()
+            && self.math_expression_base.is_some()
+            && self.active_expression_preparation.is_none()
+        {
+            return None;
+        }
+        let bindings = crate::math_function_binding::ExpressionMathBindings::for_origin(
+            &self.math_invocations,
+            self.math_source.as_deref(),
+            self.math_expression_base,
+        );
+        let consumed = std::cell::RefCell::new(Vec::new());
+        let query = |function: &str, start: u32| {
+            let Some(proof) = bindings.proved_invocation(function, start) else {
+                return false;
+            };
+            if let Some(required) = proof.fixed_prerequisite()
+                && self
+                    .math_table_prerequisite
+                    .as_ref()
+                    .is_some_and(|existing| existing != required)
+            {
+                return false;
+            }
+            if let Some(required) = proof.fixed_prerequisite()
+                && consumed.borrow().iter().any(
+                    |previous: &crate::command_binding::SourceMathInvocation| {
+                        previous
+                            .fixed_prerequisite()
+                            .is_some_and(|existing| existing != required)
+                    },
+                )
+            {
+                return false;
+            }
+            consumed.borrow_mut().push(proof.clone());
+            true
+        };
+        let value =
+            eval_tcl_expr_with_math_bindings(node, &Env::new(), self.fold_policy(), &query)?;
+        if !matches!(value, TclValue::Int(_)) {
+            return None;
+        }
+        if !self.retain_math_invocations(&consumed.into_inner()) {
+            return None;
+        }
+        Some(value)
+    }
+
     fn emit_expr_at(&mut self, node: &ExprNode, depth: u32) -> bool {
         // Native-stack safety net. Past the cap, stop recursing
         // (and stop the const-folding walk below, which itself descends the
@@ -468,9 +630,18 @@ impl CodegenCtx<'_> {
             ExprNode::Unary { op, .. } => unaryop_folds(*op),
             _ => false,
         };
+        let compiler_pools_constants =
+            self.fold_policy()
+                .preparation_context()
+                .and_then(|context| {
+                    tcl_registry::runtime_expr_validation::native_expression_constant_pooling(
+                        context.native_syntax,
+                    )
+                })
+                == Some(true);
         if foldable
-            && let Some(TclValue::Int(i)) =
-                eval_tcl_expr_with_policy(node, &Env::new(), self.fold_policy())
+            && compiler_pools_constants
+            && let Some(TclValue::Int(i)) = self.fold_integer_expression(node)
         {
             self.push_lit(&i.to_string());
             return true;
@@ -503,13 +674,11 @@ impl CodegenCtx<'_> {
                 false
             }
 
-            ExprNode::Var { text, name, .. } => {
-                let var_ref = if text.contains('(') {
-                    text.trim_start_matches('$')
-                } else {
-                    name.as_str()
-                };
-                self.load_var(var_ref);
+            ExprNode::Var { text, .. } => {
+                if !self.emit_variable_reference(text) {
+                    self.push_lit_verbatim(text);
+                    self.emit(Op::EXPR_STK, vec![]);
+                }
                 false
             }
 
@@ -547,9 +716,7 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Raw { text } => {
-                if let Some(var_name) = parse_simple_var_ref(text, self.braced_var) {
-                    self.load_var(var_name);
-                } else {
+                if !self.emit_variable_reference(text) {
                     self.push_lit(text);
                     self.emit(Op::EXPR_STK, vec![]);
                     return false;
@@ -884,9 +1051,12 @@ mod tests {
 
     #[test]
     fn emit_binary_const_folds() {
-        // `1 + 2` collapses to a single push of "3" (C-Tcl compile-time fold).
+        // The selected modern C compiler pools the compound constant result.
         let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let mut ctx = ctx_for(
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        );
         let node = ExprNode::Binary {
             op: BinOp::Add,
             left: Box::new(lit("1")),
@@ -1008,7 +1178,10 @@ mod tests {
     fn emit_unary_const_folds() {
         // `-5` and `~0` are constant → fold to a push.
         let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let mut ctx = ctx_for(
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        );
         let node = ExprNode::Unary {
             op: UnaryOp::Neg,
             operand: Box::new(lit("5")),
@@ -1317,7 +1490,10 @@ mod tests {
     fn emit_nested_const_folds() {
         // `(1 + 2) * 3` is fully constant → folds to push "9".
         let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(false, &[], &registry);
+        let mut ctx = ctx_for(
+            &registry,
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+        );
         let node = ExprNode::Binary {
             op: BinOp::Mul,
             left: Box::new(ExprNode::Binary {
@@ -1330,6 +1506,32 @@ mod tests {
         ctx.emit_expr(&node);
         assert_eq!(opcodes(&ctx), vec![Op::PUSH1]);
         assert_eq!(ctx.literals.entries()[0], "9");
+    }
+
+    #[test]
+    fn constant_pooling_requires_the_selected_native_compiler_recipe() {
+        let registry = CommandRegistry::build_default();
+        let node = ExprNode::Binary {
+            op: BinOp::Add,
+            left: Box::new(lit("2")),
+            right: Box::new(lit("2")),
+        };
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let mut ctx = ctx_for(&registry, profile);
+            ctx.emit_expr(&node);
+            if ["tcl8.4", "jim"].contains(&dialect) {
+                assert!(opcodes(&ctx).contains(&Op::ADD), "{dialect}");
+                assert!(ctx.literals.entries().iter().all(|literal| literal != "4"));
+            } else {
+                assert_eq!(opcodes(&ctx), vec![Op::PUSH1], "{dialect}");
+                assert_eq!(ctx.literals.entries()[0], "4", "{dialect}");
+            }
+        }
+        let mut unknown = CodegenCtx::new(false, &[], &registry);
+        unknown.emit_expr(&node);
+        assert!(opcodes(&unknown).contains(&Op::ADD));
     }
 
     // The versioned `expr` operator surface.

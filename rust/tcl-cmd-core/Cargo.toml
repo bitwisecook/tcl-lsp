@@ -45,6 +45,7 @@ authors.workspace = true
 description = "Portable Tcl command logic (string/list/dict/… + platform helpers) generic over ValueOps"
 
 [dependencies]
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-platform = { path = "../tcl-platform" }
@@ -52,3 +53,6 @@ tcl-runtime-api = { path = "../tcl-runtime-api" }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tcl-host-c-abi = { path = "../tcl-host-c-abi" }

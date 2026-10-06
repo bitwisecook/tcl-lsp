@@ -1,0 +1,41 @@
+{
+  "source": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle.tcl",
+  "source_sha256": "8c734c315610bf1f6535d57ee9c00d992466a18c0147e0371e6c47dfc91caa2e",
+  "observations": [
+    {
+      "version": "8.4",
+      "exit": 0,
+      "stdout_file": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle-8.4.txt",
+      "stdout_sha256": "d26b494bc20e5dd3f7efd78004e84fa070cc125aad168759161a9c8faa547a96",
+      "stderr": ""
+    },
+    {
+      "version": "8.5",
+      "exit": 0,
+      "stdout_file": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle-8.5.txt",
+      "stdout_sha256": "d26b494bc20e5dd3f7efd78004e84fa070cc125aad168759161a9c8faa547a96",
+      "stderr": ""
+    },
+    {
+      "version": "8.6",
+      "exit": 0,
+      "stdout_file": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle-8.6.txt",
+      "stdout_sha256": "d26b494bc20e5dd3f7efd78004e84fa070cc125aad168759161a9c8faa547a96",
+      "stderr": ""
+    },
+    {
+      "version": "9.0",
+      "exit": 0,
+      "stdout_file": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle-9.0.txt",
+      "stdout_sha256": "50c88cbc3d458bec4c8001bfbc643e6d0fd3f2ef3008521c49a45609ae5c4c34",
+      "stderr": ""
+    },
+    {
+      "version": "9.1",
+      "exit": 0,
+      "stdout_file": "/workspace/.proofs/2286-packages-dialects/variable-table-order/search-lifecycle-9.1.txt",
+      "stdout_sha256": "50c88cbc3d458bec4c8001bfbc643e6d0fd3f2ef3008521c49a45609ae5c4c34",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "source": "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_conditional_expression_results/normalisation.tcl",
+  "source_sha256": "a03361c917d57f420c603d10b0456bb1844e477be6bed133422a893b49aade07",
+  "timeout_seconds": 60,
+  "slot": "global2/0",
+  "rows": [
+    {
+      "engine": "8.4",
+      "path": "/tmp/2286-oracles/bin/tclsh8.4",
+      "sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {can't use non-numeric string as operand of \"*\"} 1 {can't use non-numeric string as operand of \"*\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "2c3cce3c64aaf1f65cc4434fd98217386a1252c81492fb4acc622c685a29ba4f"
+    },
+    {
+      "engine": "8.5",
+      "path": "/tmp/2286-oracles/bin/tclsh8.5",
+      "sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {can't use non-numeric string as operand of \"*\"} 1 {can't use non-numeric string as operand of \"*\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "2c3cce3c64aaf1f65cc4434fd98217386a1252c81492fb4acc622c685a29ba4f"
+    },
+    {
+      "engine": "8.6",
+      "path": "/tmp/2286-oracles/bin/tclsh8.6",
+      "sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {can't use non-numeric string as operand of \"*\"} 1 {can't use non-numeric string as operand of \"*\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "2c3cce3c64aaf1f65cc4434fd98217386a1252c81492fb4acc622c685a29ba4f"
+    },
+    {
+      "engine": "9.0",
+      "path": "/tmp/2286-oracles/bin/tclsh9.0",
+      "sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {cannot use non-numeric string \"notANumber\" as left operand of \"*\"} 1 {cannot use non-numeric string \"notANumber\" as left operand of \"*\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "cb5a8ec03f78b0f04fe90bd3d65956cc80c941f5977511f5eeed2b3dad076808"
+    },
+    {
+      "engine": "9.1",
+      "path": "/tmp/2286-oracles/bin/tclsh9.1",
+      "sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {cannot use non-numeric string \"notANumber\" as left operand of \"*\"} 1 {cannot use non-numeric string \"notANumber\" as left operand of \"*\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "cb5a8ec03f78b0f04fe90bd3d65956cc80c941f5977511f5eeed2b3dad076808"
+    },
+    {
+      "engine": "jim",
+      "path": "/tmp/2286-oracles/jimtcl/jimsh",
+      "sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "exit": 0,
+      "output": "normal 3 0 6 0 6\nnormal 2.5 0 5.0 0 5.0\nnormal notANumber 1 {expected floating-point number but got \"notANumber\"} 1 {expected floating-point number but got \"notANumber\"}\nnormal 0x10 0 32 0 32\ncustom-original 0 6 2\ncustom-rewritten 0 6 1\n",
+      "output_sha256": "05a4699ddf1b0156fd2d87e63b52be2a03fecf98f8736ec402366b6b3d18ed51"
+    }
+  ]
+}

@@ -23,6 +23,140 @@ use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
 
+use crate::model::binding::PackageTransition;
+
+const PACKAGE_DOMAINS: &[StateTransitionDomain] = &[StateTransitionDomain::Packages];
+
+const fn package_descriptor(resolver: StateTransitionResolver) -> StateTransitionDescriptor {
+    StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        success_resolver: None,
+        resolver: Some(resolver),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::EveryArgument,
+            domains: PACKAGE_DOMAINS,
+        }],
+        effect_coverage: &[],
+        commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    }
+}
+
+fn package_transition(transition: PackageTransition) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    transitions.push(StateTransition::Package(transition));
+    transitions
+}
+
+fn provide_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() != 3 {
+        return StateTransitions::default();
+    }
+    let (Some(package), Some(version)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+    ) else {
+        return StateTransitions::default();
+    };
+    if let (Some(version), Some(release)) = (
+        arguments.literal_at(2),
+        arguments.dialect().and_then(|dialect| dialect.tcl_version),
+    ) && !tcl_dialect::validate_version_for(version, release)
+    {
+        return StateTransitions::default();
+    }
+    package_transition(PackageTransition::Provide {
+        package,
+        version: Some(version),
+    })
+}
+
+fn require_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let exact = arguments.literal_at(1) == Some("-exact");
+    let package_index = if exact { 2 } else { 1 };
+    if arguments.len() <= package_index
+        || (exact && arguments.len() != package_index + 2)
+        || arguments
+            .dialect()
+            .and_then(|dialect| dialect.tcl_version)
+            .is_some_and(|version| {
+                !version.has_package_requirements() && arguments.len() > package_index + 2
+            })
+    {
+        return StateTransitions::default();
+    }
+    if let Some(release) = arguments.dialect().and_then(|dialect| dialect.tcl_version) {
+        for index in package_index + 1..arguments.len() {
+            if let Some(requirement) = arguments.literal_at(index)
+                && ((exact && !tcl_dialect::validate_version_for(requirement, release))
+                    || (!exact
+                        && tcl_dialect::validate_requirement_for(requirement, release).is_err()))
+            {
+                return StateTransitions::default();
+            }
+        }
+    }
+    let Some(package) = TransitionSubject::from_argument(arguments, package_index) else {
+        return StateTransitions::default();
+    };
+    let requirements = (package_index + 1..arguments.len())
+        .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+        .collect();
+    package_transition(PackageTransition::Require {
+        package,
+        requirements,
+        exact,
+    })
+}
+
+fn ifneeded_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() != 4 {
+        return StateTransitions::default();
+    }
+    let (Some(package), Some(version), Some(script)) = (
+        TransitionSubject::from_argument(arguments, 1),
+        TransitionSubject::from_argument(arguments, 2),
+        TransitionSubject::from_argument(arguments, 3),
+    ) else {
+        return StateTransitions::default();
+    };
+    package_transition(PackageTransition::Ifneeded {
+        package,
+        version,
+        script_provided: true,
+        script: Some(script),
+    })
+}
+
+fn forget_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() < 2 {
+        return StateTransitions::default();
+    }
+    package_transition(PackageTransition::Forget {
+        packages: (1..arguments.len())
+            .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+            .collect(),
+    })
+}
+
+fn unknown_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() != 2 {
+        return StateTransitions::default();
+    }
+    package_transition(PackageTransition::UnknownHandler {
+        handler: TransitionSubject::from_argument(arguments, 1),
+    })
+}
+
+fn prefer_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if arguments.len() != 2 {
+        return StateTransitions::default();
+    }
+    package_transition(PackageTransition::Prefer {
+        mode: TransitionSubject::from_argument(arguments, 1),
+    })
+}
+
 /// `package unknown prefix` stores the fallback for a later unsatisfied
 /// `package require`; the zero-argument form is only a query.
 fn package_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
@@ -114,6 +248,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "forget",
+        state_transitions: Some(package_descriptor(forget_transitions)),
         arity: Arity::any(),
         detail: "Removes all information about each specified package from this interpreter, clearing both its package ifneeded script(s) and its package provide record.",
         synopsis: "package forget ?package package ...?",
@@ -132,6 +267,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "ifneeded",
+        state_transitions: Some(package_descriptor(ifneeded_transitions)),
         arity: Arity::new(2, 3),
         detail: "Registers script to be evaluated (in the global namespace) the next time package require needs this version and it is not yet provided; replaces any script already registered for the same package/version pair. With script omitted, returns the currently registered script, or an empty string if none is registered.",
         synopsis: "package ifneeded package version ?script?",
@@ -168,6 +304,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "prefer",
+        state_transitions: Some(package_descriptor(prefer_transitions)),
         arity: Arity::new(0, 1),
         detail: "Returns or sets the current mode of selection logic used by package require/present: \"stable\" (the default) or \"latest\". Once set to latest, an attempt to set it back to stable is silently ineffective.",
         synopsis: "package prefer ?latest|stable?",
@@ -211,6 +348,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "provide",
+        state_transitions: Some(package_descriptor(provide_transitions)),
         arity: Arity::new(1, 2),
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
         synopsis: "package provide package ?version?",
@@ -224,6 +362,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "require",
+        state_transitions: Some(package_descriptor(require_transitions)),
         arity: Arity::at_least(1),
         detail: "Ensures a version of package satisfying the given requirements is loaded: if not already provided, evaluates the highest-acceptable package ifneeded script (in the global namespace), falling back to package unknown as a last resort. Returns the loaded version; raises an error if no acceptable version becomes available. The highest acceptable version is selected; from Tcl 8.5, this is subject to the package prefer mode (stable by default, preferring a stable version over an unstable one) — Tcl 8.4 has no package prefer and no stable/unstable distinction, so it always simply picks the highest acceptable version.",
         synopsis: "package require ?-exact? package ?requirement...?",
@@ -248,6 +387,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
+        state_transitions: Some(package_descriptor(unknown_transitions)),
         surface: None,
         arity: Arity::new(0, 1),
         detail: "Sets the last-resort command invoked by package require when no suitable version is found in the ifneeded database. With command omitted, returns the current handler, or an empty string if none is set; an empty-string command clears it.",
@@ -318,10 +458,107 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
 ];
 
+fn jim_provide_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if !(2..=3).contains(&arguments.len()) {
+        return StateTransitions::default();
+    }
+    let Some(package) = TransitionSubject::from_argument(arguments, 1) else {
+        return StateTransitions::default();
+    };
+    package_transition(PackageTransition::Provide {
+        package,
+        version: Some(TransitionSubject::Literal("1.0".to_owned())),
+    })
+}
+
+fn jim_require_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
+    if !(2..=3).contains(&arguments.len()) {
+        return StateTransitions::default();
+    }
+    let Some(package) = TransitionSubject::from_argument(arguments, 1) else {
+        return StateTransitions::default();
+    };
+    package_transition(PackageTransition::Require {
+        package,
+        requirements: Vec::new(),
+        exact: false,
+    })
+}
+
+const JIM_SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "forget",
+        arity: Arity::at_least(1),
+        state_transitions: Some(package_descriptor(forget_transitions)),
+        synopsis: "package forget package ?package ...?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "provide",
+        arity: Arity::new(1, 2),
+        state_transitions: Some(package_descriptor(jim_provide_transitions)),
+        synopsis: "package provide name ?version?",
+        detail: "Provides the package at version 1.0; the optional version word is ignored. Repeated provide is an error.",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "require",
+        arity: Arity::new(1, 2),
+        state_transitions: Some(package_descriptor(jim_require_transitions)),
+        traits: Traits::LOADS_EXTERNAL_UNIT,
+        synopsis: "package require name ?version?",
+        detail: "Loads a package by file lookup; the optional version word is ignored.",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "names",
+        arity: Arity::exact(0),
+        pure: true,
+        return_type: Some(TclType::List),
+        synopsis: "package names",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "list",
+        arity: Arity::exact(0),
+        pure: true,
+        return_type: Some(TclType::List),
+        synopsis: "package list",
+        ..SubCommand::DEFAULT
+    },
+];
+
+/// Jim's package surface and protocol, measured on the current 0.84 core.
+pub fn jim_spec() -> CommandSpec {
+    CommandSpec {
+        name: "package",
+        // Jim's package handler always uses direct command dispatch.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Jim,
+            &[("0.84", None)]
+        )]),
+        arity: Arity::at_least(1),
+        subcommands: JIM_SUBCOMMANDS,
+        ..CommandSpec::DEFAULT
+    }
+}
+
 /// Command spec for `package`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
+        // Every pinned C Tcl registration has a NULL compileProc. Package
+        // loading protocols retain their independent execution contracts.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Universal core Tcl 8.4-9.1 (present, with the shape detailed on each
         // subcommand above, on every fetched manpage). F5 iRules drops it
         // (K36322151 — the TMM data-plane sandbox has no real package-loading
@@ -386,6 +623,107 @@ mod tests {
     use tcl_dialect::model::{Family, SurfaceQuery};
 
     use crate::CommandRegistry;
+
+    #[test]
+    fn package_registration_has_no_native_compiler_hook() {
+        let native = super::spec()
+            .native_compilation
+            .expect("authored registration");
+        for version in tcl_dialect::TclVersion::ALL {
+            assert_eq!(
+                native.compiler_hook_presence(crate::InvocationDialect::for_version(version)),
+                Some(false)
+            );
+        }
+        let jim = crate::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+            tcl_dialect::model::Release::JIM_0_84,
+        ));
+        assert_eq!(
+            super::jim_spec()
+                .native_compilation
+                .unwrap()
+                .compiler_hook_presence(jim),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn package_transition_grammar_is_contextual_and_queries_do_not_mutate() {
+        use crate::model::binding::PackageTransition;
+        use crate::{InvocationDialect, InvocationWords, StateTransition, TransitionSubject};
+        let registry = CommandRegistry::build_default();
+        for release in tcl_dialect::TclVersion::ALL {
+            let require = registry
+                .resolve_structured_invocation(
+                    InvocationWords::literals("package", &["require", "p", "1", "2"])
+                        .with_dialect(InvocationDialect::for_version(release)),
+                    Some(SurfaceQuery::core(Family::Tcl, release.version_string())),
+                )
+                .invocation
+                .expect("package require resolves")
+                .facts();
+            let loads = require
+                .state_transitions
+                .declared()
+                .expect("declared package transitions")
+                .facts()
+                .iter()
+                .map(|fact| &fact.transition)
+                .any(|transition| {
+                    matches!(
+                        transition,
+                        StateTransition::Package(PackageTransition::Require { .. })
+                    )
+                });
+            assert_eq!(loads, release >= tcl_dialect::TclVersion::V8_5);
+        }
+        for words in [
+            &["provide", "p"][..],
+            &["ifneeded", "p", "1"][..],
+            &["unknown"][..],
+        ] {
+            let facts = registry
+                .resolve_invocation("package", words, None)
+                .expect("query resolves")
+                .facts();
+            assert!(
+                facts
+                    .state_transitions
+                    .declared()
+                    .expect("declared package transitions")
+                    .facts()
+                    .is_empty()
+            );
+        }
+        let facts = registry
+            .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
+            .expect("registration resolves")
+            .facts();
+        assert!(facts.state_transitions.declared().expect("declared package transitions").facts().iter().map(|fact| &fact.transition).any(|transition| matches!(transition, StateTransition::Package(PackageTransition::Ifneeded { script: Some(TransitionSubject::Literal(script)), .. }) if script == "set ::loaded 1")));
+        let jim = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        )));
+        let registry = registry.project_for_profile(jim);
+        assert!(
+            registry
+                .get("package")
+                .expect("Jim package")
+                .subcommand("ifneeded")
+                .is_none()
+        );
+        assert!(
+            registry
+                .get("package")
+                .expect("Jim package")
+                .subcommand("require")
+                .expect("require")
+                .arity
+                .accepts(2)
+        );
+    }
 
     #[test]
     fn vsatisfies_arity_is_dialect_aware() {

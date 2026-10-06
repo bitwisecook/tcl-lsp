@@ -91,6 +91,8 @@ js-sys = { version = "0.3", optional = true }
 # fails loudly if anything reintroduces an import.
 default = ["js-clock"]
 js-clock = ["dep:js-sys"]
+# Conformance drivers over actual closed VM object capabilities.
+test-support = []
 
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the

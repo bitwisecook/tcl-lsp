@@ -1,0 +1,10 @@
+0 {k OLD}
+0 NEW 0
+0 NEW 1
+0 {k OLD} 1
+0 NEW 0
+1 1 0
+0
+0 {} 0 OLD
+0 NEW 1 0 OTHER
+0 NEW 0

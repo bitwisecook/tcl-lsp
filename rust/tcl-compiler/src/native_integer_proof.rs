@@ -23,10 +23,10 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::BlockId;
 use crate::common_aot_plan::{CommonAotProofPlan, DirectCallSiteId, DirectProcDecision};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
-use crate::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
+use crate::intervals::{Interval, compute_intervals_with};
 use crate::ir::Statement;
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
-use crate::ssa::{SsaStatement, ValueKey};
+use crate::ssa::{SsaSourceView, SsaStatement, ValueKey};
 use crate::tcl_expr_eval::{FoldPolicy, TclValue, parse_integer_operand_with_policy};
 use crate::types::{TypeLattice, TypeShape};
 use crate::var_observability::analyse_var_observability;
@@ -116,16 +116,28 @@ pub enum NativeRangeSource {
     SsaInterval,
 }
 
-/// Evidence for one operand SSA value.
+/// Selected operand identity, independent of its mathematical contents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NativeOperandIdentity {
+    /// One physically represented SSA value at the actual read.
+    Ssa(ValueKey),
+    /// A bounded ordinary formal input across distinct actual activations.
+    /// This cannot supply an SSA value or a native object representation.
+    IncomingSlot(crate::ssa::SsaIncomingSlotRead),
+}
+
+/// Evidence for one operand, retaining its physical or incoming-slot proof.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeValueEvidence {
-    /// Operand SSA value.
-    pub value: ValueKey,
+    /// Actual operand identity; incoming slots cannot be treated as SSA values.
+    pub identity: NativeOperandIdentity,
     /// Proven finite range.
     pub range: Interval,
     /// Analysis that supplied `range`.
     pub source: NativeRangeSource,
-    /// Existing type-lattice fact at this SSA value.
+    /// Existing type-lattice fact when the operand has represented SSA storage;
+    /// logical incoming slots retain unknown type. Neither proves the physical
+    /// object's internal representation or permits skipping coercion.
     pub type_lattice: TypeLattice,
 }
 
@@ -138,7 +150,9 @@ pub enum NativeAddExecution {
     CheckedWithBoxedFallback,
 }
 
-/// Proof that one Tcl integer addition can start in a native representation.
+/// Bounded integer arithmetic, with independent execution prerequisites.
+/// Numeric ranges and type facts do not establish actual operand representation;
+/// consumers must preserve native boxed coercions or prove their effects unobservable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeAddEvidence {
     /// Operation site and result SSA value.
@@ -237,6 +251,9 @@ pub enum NativeIntegerProof {
     FunctionUnavailable,
     /// The compiler's shared complexity guard disabled deep analysis.
     ComplexityGuarded,
+    /// Consumed analysis constants require actual math dispatch prerequisites
+    /// which this target-neutral fast-path proof does not validate.
+    MathBindingPrerequisiteRequired,
     /// Candidate decisions in deterministic CFG order.
     Analysed(Vec<NativeAddDecision>),
 }
@@ -264,17 +281,15 @@ pub fn prove_native_integer_adds(
     if function_unit.complexity_guarded {
         return NativeIntegerProof::ComplexityGuarded;
     }
+    if function_unit.requires_native_math_binding_validation() {
+        return NativeIntegerProof::MathBindingPrerequisiteRequired;
+    }
 
     // The numeral grammar of the release this unit was lowered for: a literal
     // operand's value depends on it (`0755` is 493 up to 8.6, 755 from 9.0), and
     // this proof turns a range into a native-width decision, so it must be the
     // target's grammar rather than whatever is ambient.
-    let numbers = numbers_for_dialect(
-        unit.ir_module
-            .dialect
-            .as_deref()
-            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
-    );
+    let numbers = unit.ir_module.number_syntax();
     let intervals = compute_intervals_with(
         &function_unit.cfg,
         &function_unit.ssa,
@@ -324,19 +339,33 @@ fn prove_statement_candidates(
             continue;
         };
         for (statement_index, statement) in ssa_block.statements.iter().enumerate() {
-            let (expr, result) = match &statement.statement {
-                Statement::AssignExpr { name, expr, .. } => {
-                    let Some(result_symbol) = function_unit.ssa.var_symbol(name) else {
+            let (expr, expr_base, result) = match &statement.statement {
+                Statement::AssignExpr {
+                    name,
+                    expr,
+                    expr_base,
+                    ..
+                } => {
+                    let Some(result_symbol) =
+                        SsaSourceView::at_statement(&function_unit.ssa, block, statement_index)
+                            .symbol(name)
+                    else {
                         continue;
                     };
                     let Some(&result_version) = statement.defs.get(&result_symbol) else {
                         continue;
                     };
-                    (expr, NativeAddResult::Ssa((result_symbol, result_version)))
+                    (
+                        expr,
+                        *expr_base,
+                        NativeAddResult::Ssa((result_symbol, result_version)),
+                    )
                 }
                 Statement::Return {
-                    expr: Some(expr), ..
-                } => (expr, NativeAddResult::FunctionReturn),
+                    expr: Some(expr),
+                    expr_base,
+                    ..
+                } => (expr, *expr_base, NativeAddResult::FunctionReturn),
                 _ => continue,
             };
             let ExprNode::Binary {
@@ -347,17 +376,12 @@ fn prove_statement_candidates(
             else {
                 continue;
             };
-            let (
-                ExprNode::Var {
-                    name: left_name, ..
-                },
-                ExprNode::Var {
-                    name: right_name, ..
-                },
-            ) = (&**left, &**right)
-            else {
+            if !matches!(
+                (&**left, &**right),
+                (ExprNode::Var { .. }, ExprNode::Var { .. })
+            ) {
                 continue;
-            };
+            }
             let site = NativeAddSite {
                 function: function.to_owned(),
                 block,
@@ -366,13 +390,7 @@ fn prove_statement_candidates(
             };
             context.block = block;
             context.statement_index = Some(statement_index);
-            decisions.push(prove_add(
-                context,
-                site,
-                Some(statement),
-                left_name,
-                right_name,
-            ));
+            decisions.push(prove_add(context, site, left, right, expr_base));
         }
     }
     decisions
@@ -395,22 +413,18 @@ fn prove_return_candidates(
                     left,
                     right,
                 }),
+            expr_base,
             ..
         }) = &cfg_block.terminator
         else {
             continue;
         };
-        let (
-            ExprNode::Var {
-                name: left_name, ..
-            },
-            ExprNode::Var {
-                name: right_name, ..
-            },
-        ) = (&**left, &**right)
-        else {
+        if !matches!(
+            (&**left, &**right),
+            (ExprNode::Var { .. }, ExprNode::Var { .. })
+        ) {
             continue;
-        };
+        }
         let site = NativeAddSite {
             function: function.to_owned(),
             block,
@@ -419,7 +433,7 @@ fn prove_return_candidates(
         };
         context.block = block;
         context.statement_index = None;
-        decisions.push(prove_add(context, site, None, left_name, right_name));
+        decisions.push(prove_add(context, site, left, right, *expr_base));
     }
     decisions
 }
@@ -454,15 +468,15 @@ fn collect_caller_ranges(
     params: &[String],
 ) -> Result<CallerRangeEvidence, NativeIntegerDeclineReason> {
     if let Some(call_facts) = unit.caller_scope.call_sites.get(function)
-        && (call_facts.arg_counts.contains(&0)
+        && (call_facts.opaque_caller
             || call_facts
                 .arg_counts
                 .iter()
                 .any(|count| *count != params.len()))
     {
-        // `record_unenumerable_caller` contributes arity zero for this fixed-
-        // arity procedure. It poisons a mixed direct+dynamic caller set even
-        // when the common plan can separately select one direct site.
+        // An opaque caller poisons a mixed direct+dynamic set even when the
+        // common plan can separately select one direct site. A native zero-
+        // argument call is a different, explicitly retained layout.
         return Err(NativeIntegerDeclineReason::DynamicCallerInput);
     }
 
@@ -476,6 +490,15 @@ fn collect_caller_ranges(
         return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
     }
 
+    let profile = unit.ir_module.resolved_profile();
+    let mut numeric_policy = FoldPolicy::for_profile(
+        profile.and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+        profile,
+    );
+    numeric_policy.numbers = Some(unit.ir_module.number_syntax());
+    if let Some(dialect) = unit.ir_module.source_entry.invocation_dialect {
+        numeric_policy = numeric_policy.with_invocation_dialect(dialect);
+    }
     let mut ranges = std::collections::HashMap::<String, Interval>::new();
     let mut call_sites = Vec::new();
     let mut dependencies = DispatchDependencies::BASE;
@@ -486,12 +509,8 @@ fn collect_caller_ranges(
         if direct.callee.qualified_name != function {
             continue;
         }
-        let (caller, statement, args) = direct_actuals(
-            unit,
-            id,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        )
-        .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
+        let (caller, _, args) = direct_actuals(unit, id, unit.ir_module.lexer_config)
+            .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
         if args.len() != params.len() {
             return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
         }
@@ -499,12 +518,10 @@ fn collect_caller_ranges(
             &caller.cfg,
             &caller.ssa,
             &caller.sccp.values,
-            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
-                crate::environment_ingress::resolve_environment(name).analyser_profile()
-            })),
+            unit.ir_module.number_syntax(),
         );
         let caller_observability = analyse_var_observability(&caller.cfg, registry);
-        for (param, argument) in params.iter().zip(args.iter()) {
+        for (index, (param, argument)) in params.iter().zip(args.iter()).enumerate() {
             let range =
                 if let Some(name) = crate::value_shapes::whole_word_scalar_var_name(argument) {
                     if unit.ir_module.has_dynamic_variable_trace
@@ -517,14 +534,11 @@ fn collect_caller_ranges(
                     {
                         return Err(NativeIntegerDeclineReason::ObservableVariable);
                     }
-                    let symbol = caller
-                        .ssa
-                        .var_symbol(name)
+                    let read = crate::common_aot_plan::direct_call_argument_read(unit, id, index)
                         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
-                    let version = statement
-                        .uses
-                        .get(&symbol)
-                        .copied()
+                    let symbol = read.symbol;
+                    let version = read
+                        .version
                         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
                     let key = (symbol, version);
                     if let Some(range) = range_from_sccp(caller.sccp.values.get(&key)) {
@@ -537,21 +551,12 @@ fn collect_caller_ranges(
                             .ok_or(NativeIntegerDeclineReason::UnboundedOperand)?
                     }
                 } else {
-                    // Flattened call argument text is accepted as a literal only
-                    // when the existing caller-scope seed retained the same value;
-                    // that seed already checked word provenance, binding, and every
-                    // known caller. Templates/substitutions never reach this path.
-                    let seeded = unit
-                        .caller_scope
-                        .param_constants_by_proc
-                        .get(function)
-                        .and_then(|seeds| {
-                            seeds.iter().find(|(name, version, value)| {
-                                name == param && *version == 0 && value == argument
-                            })
-                        })
+                    // Each call contributes its own captured bytes. A uniform
+                    // whole-callee seed is unnecessary for a range join and
+                    // cannot supply missing evaluation-time argument evidence.
+                    let value = crate::common_aot_plan::direct_call_argument_value(unit, id, index)
                         .ok_or(NativeIntegerDeclineReason::DynamicCallerInput)?;
-                    crate::intervals::constant(parse_caller_integer(&seeded.2, registry)?)
+                    crate::intervals::constant(parse_caller_integer(&value, numeric_policy)?)
                 };
             ranges
                 .entry(param.clone())
@@ -620,7 +625,10 @@ fn collect_candidate_declines(
         for (statement_index, statement) in ssa_block.statements.iter().enumerate() {
             let (expr, result) = match &statement.statement {
                 Statement::AssignExpr { name, expr, .. } => {
-                    let Some(symbol) = function_unit.ssa.var_symbol(name) else {
+                    let Some(symbol) =
+                        SsaSourceView::at_statement(&function_unit.ssa, block, statement_index)
+                            .symbol(name)
+                    else {
                         continue;
                     };
                     let Some(version) = statement.defs.get(&symbol) else {
@@ -686,14 +694,14 @@ fn collect_candidate_declines(
 fn prove_add(
     context: &ProofContext<'_, '_>,
     site: NativeAddSite,
-    statement: Option<&SsaStatement>,
-    left_name: &str,
-    right_name: &str,
+    left_node: &ExprNode,
+    right_node: &ExprNode,
+    expr_base: Option<u32>,
 ) -> NativeAddDecision {
     let result = (|| {
         require_result_def_use(context, &site)?;
-        let left = prove_operand(context, statement, left_name)?;
-        let right = prove_operand(context, statement, right_name)?;
+        let left = prove_operand(context, left_node, expr_base)?;
+        let right = prove_operand(context, right_node, expr_base)?;
         let (sum_min, sum_max) = add_bounds(left.range, right.range)
             .ok_or(NativeIntegerDeclineReason::UnboundedOperand)?;
         let execution = if bounds_fit(sum_min, sum_max, context.policy.width) {
@@ -731,57 +739,41 @@ fn require_result_def_use(
     let NativeAddResult::Ssa(result) = site.result else {
         return Ok(());
     };
-    let name = context.function_unit.ssa.var_name(result.0);
+    let cell = context.function_unit.ssa.cell_key(result.0);
     context
         .function_unit
         .def_use
-        .chain_for(name, result.1)
+        .chain_for(cell, result.1)
         .map(|_| ())
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)
 }
 
 fn prove_operand(
     context: &ProofContext<'_, '_>,
-    statement: Option<&SsaStatement>,
-    name: &str,
+    node: &ExprNode,
+    expr_base: Option<u32>,
 ) -> Result<NativeValueEvidence, NativeIntegerDeclineReason> {
-    if context.unit.ir_module.has_dynamic_variable_trace {
-        return Err(NativeIntegerDeclineReason::DynamicVariableTrace);
-    }
-    if context.unit.ir_module.traced_variables.contains(name)
-        || context.observability.is_escaping_at(
-            context.block,
-            context.statement_index.unwrap_or_else(|| {
-                context
-                    .function_unit
-                    .ssa
-                    .blocks
-                    .get(&context.block)
-                    .map_or(0, |block| block.statements.len())
-            }),
-            name,
-        )
+    let ExprNode::Var { name, .. } = node else {
+        return Err(NativeIntegerDeclineReason::MissingDefUseEvidence);
+    };
+    let source = context.statement_index.map_or_else(
+        || SsaSourceView::at_terminator(&context.function_unit.ssa, context.block),
+        |index| SsaSourceView::at_statement(&context.function_unit.ssa, context.block, index),
+    );
+    require_unobserved_expression_operand(context, source, node, expr_base)?;
+    let read = source.read_expression_variable(node, expr_base);
+    if read.is_none_or(|read| read.version.is_none())
+        && let Some(incoming) = incoming_operand(context, &source, node, expr_base, name)
     {
-        return Err(NativeIntegerDeclineReason::ObservableVariable);
+        return incoming;
     }
-
-    let symbol = context
-        .function_unit
-        .ssa
-        .var_symbol(name)
+    let read = read.ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
+    let symbol = read.symbol;
+    let version = read
+        .version
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
-    let version = match statement {
-        Some(statement) => statement.uses.get(&symbol).copied(),
-        None => context
-            .function_unit
-            .ssa
-            .blocks
-            .get(&context.block)
-            .map(|block| block.exit_versions.get(&symbol).copied().unwrap_or(0)),
-    }
-    .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     let value = (symbol, version);
-    require_operand_use(context, name, version)?;
+    require_operand_use(context, context.function_unit.ssa.cell_key(symbol), version)?;
 
     let type_lattice = context
         .function_unit
@@ -789,7 +781,14 @@ fn prove_operand(
         .get(&value)
         .cloned()
         .unwrap_or_else(TypeLattice::unknown);
-    let is_parameter = version == 0 && context.params.iter().any(|param| param == name);
+    let is_parameter = version == 0
+        && context.params.iter().any(|param| param == name)
+        && source.read_expression_is_current_activation_slot(
+            node,
+            expr_base,
+            name,
+            context.unit.ir_module.resolved_registry(),
+        );
     let (range, source) = if is_parameter {
         let range = context
             .caller
@@ -811,23 +810,106 @@ fn prove_operand(
         (range, NativeRangeSource::SsaInterval)
     };
 
-    let (Some(min), Some(max)) = (range.lo, range.hi) else {
-        return Err(NativeIntegerDeclineReason::UnboundedOperand);
-    };
-    if !bounds_fit(i128::from(min), i128::from(max), context.policy.width) {
-        return Err(NativeIntegerDeclineReason::OperandOutsideNativeWidth);
-    }
+    validate_operand_bounds(range, context.policy)?;
     Ok(NativeValueEvidence {
-        value,
+        identity: NativeOperandIdentity::Ssa(value),
         range,
         source,
         type_lattice,
     })
 }
 
+fn require_unobserved_expression_operand(
+    context: &ProofContext<'_, '_>,
+    source: SsaSourceView<'_>,
+    node: &ExprNode,
+    base: Option<u32>,
+) -> Result<(), NativeIntegerDeclineReason> {
+    if context.unit.ir_module.has_dynamic_variable_trace {
+        return Err(NativeIntegerDeclineReason::DynamicVariableTrace);
+    }
+    let registry = context.unit.ir_module.resolved_registry();
+    let place = source
+        .read_expression_variable_place(node, base, registry)
+        .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
+    if place.cell.is_none() {
+        return Err(NativeIntegerDeclineReason::MissingDefUseEvidence);
+    }
+    if place.dynamic || place.observed {
+        return Err(NativeIntegerDeclineReason::ObservableVariable);
+    }
+    let Some(read) = source.read_expression_variable(node, base) else {
+        // Incoming-slot proofs independently require an unobserved current
+        // activation scalar. They do not acquire an SSA cell from a label.
+        return Ok(());
+    };
+    let index = context.statement_index.unwrap_or_else(|| {
+        context
+            .function_unit
+            .ssa
+            .blocks
+            .get(&context.block)
+            .map_or(0, |block| block.statements.len())
+    });
+    let mut names = context
+        .observability
+        .escaping_var_names_at(context.block, index);
+    names.extend(context.unit.ir_module.traced_variables.iter().cloned());
+    if source.externally_mutable_by(read.symbol, &names, false, registry) != Some(false) {
+        return Err(NativeIntegerDeclineReason::ObservableVariable);
+    }
+    Ok(())
+}
+
+fn incoming_operand(
+    context: &ProofContext<'_, '_>,
+    source: &SsaSourceView<'_>,
+    node: &ExprNode,
+    expr_base: Option<u32>,
+    name: &str,
+) -> Option<Result<NativeValueEvidence, NativeIntegerDeclineReason>> {
+    if !context.params.iter().any(|parameter| parameter == name) {
+        return None;
+    }
+    let incoming = source.read_expression_incoming_slot(
+        node,
+        expr_base,
+        name,
+        context.unit.ir_module.resolved_registry(),
+    )?;
+    Some((|| {
+        let range = context
+            .caller
+            .ranges
+            .get(name)
+            .copied()
+            .ok_or(NativeIntegerDeclineReason::DynamicCallerInput)?;
+        validate_operand_bounds(range, context.policy)?;
+        Ok(NativeValueEvidence {
+            identity: NativeOperandIdentity::IncomingSlot(incoming),
+            range,
+            source: NativeRangeSource::BindingSafeDirectCaller,
+            type_lattice: TypeLattice::unknown(),
+        })
+    })())
+}
+
+fn validate_operand_bounds(
+    range: Interval,
+    policy: NativeIntegerPolicy,
+) -> Result<(), NativeIntegerDeclineReason> {
+    let (Some(min), Some(max)) = (range.lo, range.hi) else {
+        return Err(NativeIntegerDeclineReason::UnboundedOperand);
+    };
+    if !bounds_fit(i128::from(min), i128::from(max), policy.width) {
+        return Err(NativeIntegerDeclineReason::OperandOutsideNativeWidth);
+    }
+    Ok(())
+}
+
 fn require_operand_use(
     context: &ProofContext<'_, '_>,
-    name: &str,
+    cell: &crate::var_resolve::VariableCellKey,
     version: u32,
 ) -> Result<(), NativeIntegerDeclineReason> {
     let block_name = context.function_unit.ssa.block_name(context.block);
@@ -840,7 +922,7 @@ fn require_operand_use(
     let chain = context
         .function_unit
         .def_use
-        .chain_for(name, version)
+        .chain_for(cell, version)
         .ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     chain
         .uses
@@ -934,9 +1016,9 @@ fn ensure_integral_type(lattice: &TypeLattice) -> Result<(), NativeIntegerDeclin
 
 fn parse_caller_integer(
     literal: &str,
-    registry: &CommandRegistry,
+    policy: FoldPolicy,
 ) -> Result<i64, NativeIntegerDeclineReason> {
-    match parse_integer_operand_with_policy(literal, FoldPolicy::from_registry(registry)) {
+    match parse_integer_operand_with_policy(literal, policy) {
         Some(TclValue::Int(value)) => Ok(value),
         Some(TclValue::Big(_)) => Err(NativeIntegerDeclineReason::BignumOperand),
         Some(TclValue::Float(_)) | None => Err(NativeIntegerDeclineReason::NonIntegerOperand),
@@ -991,6 +1073,50 @@ mod tests {
     const ADD_BODY: &str = "proc add {b c} { return [expr {$b + $c}] }\n";
 
     #[test]
+    fn native_integer_consumer_retains_implicit_math_validation_obligation() {
+        let dialect = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
+        let mut unit = CompilationUnit::build_for_profile(
+            "expr {abs(-3)}\nproc add {b c} {return [expr {$b+$c}]}\nadd 2 4",
+            registry,
+            false,
+            dialect,
+        );
+        let proof = unit
+            .ir_module
+            .top_level
+            .implicit_math_invocations
+            .first()
+            .unwrap()
+            .clone();
+        unit.procedures
+            .get_mut("::add")
+            .unwrap()
+            .cfg
+            .required_math_invocations
+            .push(proof);
+        let plan = CommonAotProofPlan::build(
+            &unit,
+            registry,
+            Some(SemanticContext::for_profile(dialect)),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        assert_eq!(
+            prove_native_integer_adds(&unit, "::add", registry, enabled(), checked_i64(), &plan),
+            NativeIntegerProof::MathBindingPrerequisiteRequired,
+        );
+        let direct = plan.direct_calls().collect::<Vec<_>>();
+        assert_eq!(direct.len(), 1);
+        assert!(direct.into_iter().all(|(_, decision)| matches!(
+            decision,
+            DirectProcDecision::Declined(
+                crate::common_aot_plan::DirectProcDecline::MathBindingPrerequisiteRequired
+            )
+        )));
+    }
+
+    #[test]
     fn proof_is_default_off() {
         let proof = prove(
             &format!("{ADD_BODY}set d 20\nset e 22\nadd $d $e\n"),
@@ -1024,7 +1150,10 @@ mod tests {
             NativeRangeSource::BindingSafeDirectCaller
         );
         assert_eq!(evidence.site.result, NativeAddResult::FunctionReturn);
-        assert!(!evidence.composition.direct_calls.is_empty());
+        assert_ne!(
+            evidence.composition.direct_calls,
+            [] as [crate::common_aot_plan::DirectCallSiteId; 0]
+        );
         assert!(evidence.composition.requires_frame_plan);
         assert!(
             evidence
@@ -1064,6 +1193,47 @@ mod tests {
         ));
         let NativeAddDecision::Proven(evidence) = decision else {
             panic!("expected joined proof, got {decision:?}");
+        };
+        assert_eq!(
+            evidence.left.range,
+            Interval {
+                lo: Some(1),
+                hi: Some(3)
+            }
+        );
+        assert_eq!(
+            evidence.right.range,
+            Interval {
+                lo: Some(2),
+                hi: Some(4)
+            }
+        );
+        assert_eq!(
+            evidence.result_interval,
+            Some(Interval {
+                lo: Some(3),
+                hi: Some(7)
+            })
+        );
+        for operand in [&evidence.left, &evidence.right] {
+            let NativeOperandIdentity::IncomingSlot(incoming) = &operand.identity else {
+                panic!("distinct activations must retain a logical input proof: {operand:?}");
+            };
+            assert!(incoming.cells.len() >= 2);
+        }
+    }
+
+    #[test]
+    fn different_literal_callers_join_their_captured_ranges_without_uniform_seeds() {
+        let source = format!("{ADD_BODY}add 1 2; add 3 4");
+        let decision = one_decision(prove(
+            &source,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            enabled(),
+            checked_i64(),
+        ));
+        let NativeAddDecision::Proven(evidence) = decision else {
+            panic!("expected captured caller range join, got {decision:?}");
         };
         assert_eq!(
             evidence.left.range,
@@ -1172,19 +1342,62 @@ mod tests {
 
     #[test]
     fn dynamic_caller_declines_parameter_range() {
+        let proof = prove(
+            &format!("{ADD_BODY}set target [lindex $argv 0]\n$target 20 22\n"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            enabled(),
+            checked_i64(),
+        );
+        let NativeIntegerProof::Analysed(decisions) = proof else {
+            panic!("expected analysed owner projection, got {proof:?}");
+        };
+        // An unknown dispatch cannot license either a native operation or a
+        // reconstructed arithmetic candidate in a body with unknown entry.
+        assert!(
+            decisions
+                .iter()
+                .all(|decision| !matches!(decision, NativeAddDecision::Proven(_)))
+        );
+    }
+
+    #[test]
+    fn a_formal_spelling_retargeted_to_a_global_cannot_inherit_its_caller_range() {
+        let proof = prove(
+            "set ::b 100; proc add {b c} {unset b; global b; return [expr {$b + $c}]}; add 5 7",
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            enabled(),
+            checked_i64(),
+        );
+        let NativeIntegerProof::Analysed(decisions) = proof else {
+            panic!("expected analysed owner projection, got {proof:?}");
+        };
+        for decision in decisions {
+            if let NativeAddDecision::Proven(evidence) = decision {
+                assert_ne!(
+                    evidence.left.source,
+                    NativeRangeSource::BindingSafeDirectCaller
+                );
+                assert_eq!(evidence.left.range, crate::intervals::constant(100));
+                assert_eq!(
+                    evidence.result_interval,
+                    Some(crate::intervals::constant(107))
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn resolved_computed_caller_retains_exact_captured_range_evidence() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set target add\n$target 20 22\n"),
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
-        assert!(matches!(
-            decision,
-            NativeAddDecision::Declined {
-                reason: NativeIntegerDeclineReason::DynamicCallerInput,
-                ..
-            }
-        ));
+        assert!(
+            matches!(decision, NativeAddDecision::Proven(_)),
+            "{decision:?}"
+        );
     }
 
     #[test]
@@ -1193,18 +1406,33 @@ mod tests {
                       proc add {a b} { trace add variable a read cb; \
                       set result [expr {$a + $b}]; return $result }\n\
                       add 20 22\n";
-        let decision = one_decision(prove(
+        let proof = prove(
             source,
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
-        ));
+        );
+        // A traced native operand may remain a generic invocation before
+        // candidate extraction. Neither absence nor an explicit refusal may
+        // donate a native addition proof.
+        let NativeIntegerProof::Analysed(decisions) = &proof else {
+            panic!("expected analysed refusal, got {proof:?}");
+        };
+        assert!(
+            decisions
+                .iter()
+                .all(|decision| matches!(decision, NativeAddDecision::Declined { .. })),
+            "{proof:?}"
+        );
+        let untraced = source.replace("trace add variable a read cb;", "");
         assert!(matches!(
-            decision,
-            NativeAddDecision::Declined {
-                reason: NativeIntegerDeclineReason::ObservableVariable,
-                ..
-            }
+            one_decision(prove(
+                &untraced,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                enabled(),
+                checked_i64(),
+            )),
+            NativeAddDecision::Proven(_)
         ));
     }
 
@@ -1231,5 +1459,27 @@ mod tests {
         };
         assert_eq!(tcl8.result_interval, Some(crate::intervals::constant(9)));
         assert_eq!(tcl9.result_interval, Some(crate::intervals::constant(11)));
+    }
+
+    #[test]
+    fn literal_sigil_formals_use_their_actual_physical_observer_projection() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let untraced =
+            "proc add {{$b} other} {set result [expr {${$b} + $other}]; return $result}; add 20 22";
+        assert!(matches!(
+            one_decision(prove(untraced, profile, enabled(), checked_i64())),
+            NativeAddDecision::Proven(_)
+        ));
+        let traced = "proc cb args {}; proc add {{$b} other} {trace add variable {$b} read cb; set result [expr {${$b} + $other}]; return $result}; add 20 22";
+        let NativeIntegerProof::Analysed(decisions) =
+            prove(traced, profile, enabled(), checked_i64())
+        else {
+            panic!("expected analysed native observer refusal");
+        };
+        assert!(
+            decisions
+                .iter()
+                .all(|decision| matches!(decision, NativeAddDecision::Declined { .. }))
+        );
     }
 }

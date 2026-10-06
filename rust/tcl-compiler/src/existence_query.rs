@@ -58,6 +58,185 @@ pub(crate) fn in_expr(
     }
 }
 
+/// Recognise an existence query at its exact retained nested dispatch point.
+/// Explicit unknown or absent implementations never recover facts from spelling.
+#[must_use]
+pub(crate) fn in_expr_at(
+    node: &ExprNode,
+    expression_base: u32,
+    parent: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => {
+            let (mut query, context) =
+                in_expr_at(operand, expression_base, parent, registry, config)?;
+            query.negated = !query.negated;
+            Some((query, context))
+        }
+        ExprNode::Command { text, start, end } => {
+            let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+                expression_base.checked_add(*start)?,
+                expression_base.checked_add(*end)?,
+            ));
+            let mut nested = crate::word_subst::nested_command_words(text, &source, config).ok()?;
+            nested.inherit_nested_bindings(parent);
+            in_tokens(&nested, registry)
+        }
+        _ => None,
+    }
+}
+
+/// Registry operation and its selected relative variable-name operand.
+/// Name existence contributes a dependency, never a required contents read.
+pub(crate) fn operand(facts: &tcl_registry::InvocationFacts) -> Option<(ExistenceKind, usize)> {
+    let kind = match facts.operation {
+        tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::InfoExists) => {
+            ExistenceKind::AnyVariable
+        }
+        tcl_registry::SemanticOperationId::Intrinsic(tcl_registry::IntrinsicId::ArrayExists) => {
+            ExistenceKind::Array
+        }
+        _ => return None,
+    };
+    Some((kind, facts.argument_offset))
+}
+
+fn in_tokens(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    let invocation = crate::registry_invocation::resolved_tokens_invocation(
+        registry,
+        registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    )?;
+    let (kind, argument) = operand(&invocation.facts)?;
+    if invocation.facts.arity_accepts_frozen_arguments() != Some(true) {
+        return None;
+    }
+    Some((
+        ExistenceQuery {
+            var: invocation.argument_literal(argument)?,
+            negated: false,
+            kind,
+        },
+        std::sync::Arc::clone(&tokens.source_binding.as_ref()?.variable_context),
+    ))
+}
+
+/// Diagnostic-only selection under the exact original declaration lookup.
+/// Its context cannot establish actual contents presence or permit erasure.
+pub(crate) fn in_tokens_for_diagnostics(
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    if let Some(actual) = in_tokens(tokens, registry) {
+        return Some(actual);
+    }
+    let binding = tokens.source_binding.as_ref()?;
+    let advice = binding.declaration_operand_layout_advice(tokens)?;
+    if !advice.closed_lookup() || advice.has_opaque_handler_alternatives() {
+        return None;
+    }
+    let dialect = advice.dialect();
+    let mut agreed = None;
+    for target in advice.targets() {
+        if !target.registry_backed {
+            return None;
+        }
+        let effective = crate::registry_invocation::effective_words_for_target(tokens, target)?;
+        let values =
+            crate::registry_invocation::declared_argument_words(tokens, &effective, dialect);
+        let mut words = vec![tcl_registry::InvocationWord::Literal(&target.command)];
+        words.extend(
+            values
+                .iter()
+                .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word),
+        );
+        let crate::registry_invocation::RegistryInvocationResolution::Resolved(facts) =
+            crate::registry_invocation::resolve_registry_words_in_realm(
+                registry,
+                None,
+                &words,
+                Some(dialect),
+                advice.realm(),
+            )
+            .ok()?
+        else {
+            return None;
+        };
+        let (kind, argument) = operand(&facts)?;
+        if facts.arity_accepts_frozen_arguments() != Some(true) {
+            return None;
+        }
+        let var = words.get(argument.checked_add(1)?)?.literal()?.to_owned();
+        let query = ExistenceQuery {
+            var,
+            negated: false,
+            kind,
+        };
+        if agreed.as_ref().is_some_and(|previous| previous != &query) {
+            return None;
+        }
+        agreed = Some(query);
+    }
+    Some((
+        agreed?,
+        std::sync::Arc::clone(advice.original_variable_context()),
+    ))
+}
+
+/// Conditional branch guard selection for diagnostics. Actual SCCP presence
+/// and edit queries use `in_expr_at` and cannot consume this declaration door.
+pub(crate) fn in_expr_for_diagnostics_at(
+    node: &ExprNode,
+    expression_base: u32,
+    parent: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(
+    ExistenceQuery,
+    std::sync::Arc<crate::var_resolve::ResolveContext>,
+)> {
+    match node {
+        ExprNode::Unary {
+            op: UnaryOp::Not,
+            operand,
+        } => {
+            let (mut query, context) =
+                in_expr_for_diagnostics_at(operand, expression_base, parent, registry, config)?;
+            query.negated = !query.negated;
+            Some((query, context))
+        }
+        ExprNode::Command { text, start, end } => {
+            let source = crate::ir::SourceSite::source(tcl_lexer::Span::new(
+                expression_base.checked_add(*start)?,
+                expression_base.checked_add(*end)?,
+            ));
+            let mut nested = crate::word_subst::nested_command_words(text, &source, config).ok()?;
+            nested.inherit_nested_bindings(parent);
+            in_tokens_for_diagnostics(&nested, registry)
+        }
+        _ => None,
+    }
+}
+
 /// Recognise one bracketed command substitution as an existence query.
 #[must_use]
 pub(crate) fn in_text(
@@ -97,6 +276,198 @@ pub(crate) fn in_text(
 #[cfg(test)]
 mod tests {
     use super::{ExistenceKind, in_text};
+
+    fn original_query_tokens(
+        engine: &str,
+        prefix: &str,
+        command: &str,
+    ) -> (
+        crate::ir::CommandTokens,
+        std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) {
+        let registry = tcl_registry::model::ingress::static_context_for(engine)
+            .commands()
+            .clone();
+        let dialect = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::of_dialect_name(Some(engine)).unwrap(),
+        );
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let source = format!("{prefix}proc f {{}} {{{command}}}");
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            &source,
+            config,
+            &registry,
+            crate::command_binding::SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        );
+        let offset = u32::try_from(source.rfind(command).unwrap()).unwrap();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(command, offset, config)
+                .remove(0);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(&source),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        (tokens, registry)
+    }
+
+    #[test]
+    fn original_existence_advice_is_a_name_dependency_without_actual_presence() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            for command in ["info exists u", "array exists u"] {
+                let (tokens, registry) = original_query_tokens(engine, "", command);
+                let (query, context) = super::in_tokens_for_diagnostics(&tokens, &registry)
+                    .unwrap_or_else(|| panic!("{engine}: {command}"));
+                assert_eq!(query.var, "u");
+                let binding = tokens.source_binding.as_ref().unwrap();
+                assert_eq!(
+                    context.frame_kind,
+                    crate::var_resolve::VariableFrameKind::Local
+                );
+                assert!(super::in_tokens(&tokens, &registry).is_none());
+                assert!(binding.proved_execution_target().is_none());
+                let advice = binding.declaration_operand_layout_advice(&tokens).unwrap();
+                let flow = crate::registry_invocation::declaration_invocation_flow(
+                    &registry, &tokens, &advice,
+                )
+                .unwrap();
+                assert!(flow.reads.is_empty(), "{engine}: {command}");
+                assert_eq!(flow.name_queries, ["u"]);
+            }
+        }
+    }
+
+    #[test]
+    fn original_existence_advice_tracks_selected_alias_and_imported_handlers() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for (prefix, command) in [
+                ("interp alias {} query {} info exists; ", "query u"),
+                (
+                    "namespace eval Q {interp alias {} ::Q::query {} info exists; namespace export query}; namespace import Q::query; ",
+                    "query u",
+                ),
+            ] {
+                let (tokens, registry) = original_query_tokens(engine, prefix, command);
+                assert_eq!(
+                    super::in_tokens_for_diagnostics(&tokens, &registry)
+                        .unwrap()
+                        .0
+                        .var,
+                    "u"
+                );
+            }
+            for prefix in [
+                "rename info stock_info; proc info args {return 1}; ",
+                "proc query {name} {return 1}; ",
+                "unknown_mutation; ",
+            ] {
+                let command = if prefix.starts_with("proc query") {
+                    "query u"
+                } else {
+                    "info exists u"
+                };
+                let (tokens, registry) = original_query_tokens(engine, prefix, command);
+                assert!(
+                    super::in_tokens_for_diagnostics(&tokens, &registry).is_none(),
+                    "{engine}: {prefix}"
+                );
+            }
+            let (mut tokens, registry) = original_query_tokens(engine, "", "info exists u");
+            tokens.word_exprs.pop();
+            assert!(super::in_tokens_for_diagnostics(&tokens, &registry).is_none());
+        }
+    }
+
+    fn diagnostic_query_summary(source: &str, engine: &str) -> Vec<String> {
+        let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for(engine).commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source, registry, false, profile,
+        );
+        let Some(function) = unit.function("::f") else {
+            return vec!["no function".into()];
+        };
+        let mut rows = Vec::new();
+        for (&block, data) in &function.cfg.blocks {
+            for (index, statement) in data.statements.iter().enumerate() {
+                let Some(tokens) = statement.tokens() else {
+                    continue;
+                };
+                let query = super::in_tokens_for_diagnostics(tokens, registry);
+                let query_cell = query.as_ref().and_then(|(query, context)| {
+                    crate::var_resolve::canonical_place_key(
+                        &crate::var_resolve::resolve_literal_place(
+                            &query.var, context, false, registry,
+                        ),
+                    )
+                });
+                let symbol = function.ssa.var_symbol_at(block, index, "u");
+                rows.push(format!("statement={index} synthetic={:?} query={} actual={} query-cell={query_cell:?} ssa-cell={:?} accesses={}",
+                    tokens.synthetic, query.is_some(), super::in_tokens(tokens, registry).is_some(),
+                    symbol.map(|symbol| function.ssa.cell_key(symbol)), tokens.variable_accesses.len(),
+                ));
+            }
+        }
+        rows
+    }
+
+    #[test]
+    fn diagnostic_existence_guards_are_conditional_and_handler_specific() {
+        use tcl_core_types::DiagCode;
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "proc f {} {info exists u}",
+                "proc f {} {array exists u}",
+                "proc f {} {set answer [info exists u]; puts $answer}",
+                "interp alias {} query {} info exists; proc f {} {query u}",
+                "proc f {} {if {[info exists u]} {puts $u}}",
+                "proc f {} {if {![info exists u]} {puts absent} else {puts $u}}",
+                "interp alias {} query {} info exists; proc f {} {if {[query u]} {puts $u}}",
+                "namespace eval Q {interp alias {} ::Q::query {} info exists; namespace export query}; namespace import Q::query; proc f {} {if {[query u]} {puts $u}}",
+            ] {
+                let result = crate::analyser::Analyser::new().analyse(source, engine);
+                assert!(
+                    !result
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == DiagCode::W210),
+                    "{engine}: {source}: {:?}: {:?}",
+                    diagnostic_query_summary(source, engine),
+                    result
+                        .diagnostics
+                        .iter()
+                        .map(|diagnostic| (
+                            diagnostic.code,
+                            diagnostic.span,
+                            diagnostic.message.as_str()
+                        ))
+                        .collect::<Vec<_>>()
+                );
+            }
+            for source in [
+                "proc f {} {info exists $u}",
+                "proc f {} {set answer [info exists u]$u}",
+                "proc f {} {set answer [info exists u]; puts $u}",
+                "proc f {} {if {[info exists u]} {puts present}; puts $u}",
+                "rename info stock_info; proc info args {return 1}; proc f {} {if {[info exists u]} {puts $u}}",
+                "proc query {name} {return 1}; proc f {} {if {[query u]} {puts $u}}",
+            ] {
+                let result = crate::analyser::Analyser::new().analyse(source, engine);
+                assert!(
+                    result
+                        .diagnostics
+                        .iter()
+                        .any(|diagnostic| diagnostic.code == DiagCode::W210),
+                    "{engine}: {source}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn rooted_core_existence_queries_resolve_by_operation() {

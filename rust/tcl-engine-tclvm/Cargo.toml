@@ -36,10 +36,16 @@ authors.workspace = true
 name = "tcl_engine_tclvm"
 
 [dependencies]
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-dialect = { path = "../tcl-dialect" }
+
+[dev-dependencies]
+tcl-vm = { path = "../tcl-vm", features = ["test-support"] }
 
 [lints]
 workspace = true

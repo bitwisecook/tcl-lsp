@@ -1,0 +1,10 @@
+{
+  "literal_narrow": "catch {array default get a EXTRA} r;set r",
+  "dynamic_narrow": "set cmd array;catch {$cmd default get a EXTRA} r;set r",
+  "private_narrow": "catch {::tcl::array::default get a EXTRA} r;set r",
+  "dynamic_array_trace": "set cmd array;array default set a OLD;proc watch {n k op} {};trace add variable a array watch;catch {$cmd default get a EXTRA} r;set r",
+  "literal_array_trace": "array default set a OLD;proc watch {n k op} {};trace add variable a array watch;catch {array default get a EXTRA} r;set r",
+  "dynamic_broad": "set cmd array;catch {$cmd default get} r;set r",
+  "literal_broad": "catch {array default get} r;set r",
+  "callback_isolation": "set cmd array;array default set a OLD;proc watch {n k op} {catch {set} ::inside};trace add variable a array watch;catch {$cmd default get a EXTRA} r;list $inside $r"
+}

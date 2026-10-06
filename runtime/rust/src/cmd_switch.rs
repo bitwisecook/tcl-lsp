@@ -30,12 +30,13 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+mod native_jim;
+
 use tcl_cmd_core::switch::{self as core_switch, Options, Selection};
 use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
 use crate::cmd_regex::AreEngine;
-use crate::frame::split_array_ref;
-use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
+use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// Register `switch`.
@@ -43,12 +44,19 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"switch", switch_cmd);
 }
 
-const USAGE_LIST: &[u8] = b"switch ?-option ...? string {?pattern body ...? ?default body?}";
-
 fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_jim_switch_protocol()
+    {
+        return native_jim::invoke(interp, &argv[1..], protocol);
+    }
     // Option parsing + the `string` index are the shared core (`argv[1..]` strips
     // the command name to the name-stripped slice the core expects).
-    let version = interp.runtime_version();
+    let version = interp
+        .native_invocation_dialect()
+        .tcl_version
+        .unwrap_or_else(|| interp.runtime_version());
     let opts = match core_switch::parse_options(interp, &argv[1..], version) {
         Ok(o) => o,
         Err(e) => return interp.report_cmd_error(e),
@@ -60,9 +68,9 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A single trailing argument is the `{pattern body ...}` list form; anything
     // else is inline pattern/body words.
     if rest.len() == 1 {
-        switch_list_form(interp, &opts, value, rest[0])
+        switch_list_form(interp, &opts, value, rest[0], version)
     } else {
-        switch_inline_form(interp, &opts, value, rest)
+        switch_inline_form(interp, &opts, value, rest, version)
     }
 }
 
@@ -72,7 +80,8 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// failed write); the name objects are borrowed argv objects.
 fn apply_writes(interp: &mut Interp, writes: Vec<(*mut TclObj, *mut TclObj)>) -> bool {
     for (name, val) in writes {
-        if write_var(interp, &obj_bytes(name), val).is_err() {
+        if interp.assign_original_named_variable(name, val).is_err() {
+            drop_fresh(val);
             return false;
         }
     }
@@ -87,44 +96,59 @@ fn switch_inline_form(
     opts: &Options<*mut TclObj>,
     value: *mut TclObj,
     words: &[*mut TclObj],
+    version: tcl_dialect::TclVersion,
 ) -> Code {
     let objc = words.len();
     if objc % 2 != 0 {
-        return interp.set_error(core_switch::extra_pattern_error(false).message().as_bytes());
+        return interp.report_cmd_error(core_switch::extra_pattern_error(false));
     }
     let npairs = objc / 2;
     // C rejects a trailing `-` body up front, citing the last *pattern*.
-    if obj_bytes(words[objc - 1]).as_slice() == b"-" {
-        let pat = obj_bytes(words[objc - 2]);
-        return interp.set_error(
-            core_switch::no_body_error(&String::from_utf8_lossy(&pat))
-                .message()
-                .as_bytes(),
-        );
+    let trailing = match core_switch::body_is_fallthrough(interp, &words[objc - 1]) {
+        Ok(trailing) => trailing,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    if trailing {
+        let pat = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &words[objc - 2]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        return interp.report_cmd_error(core_switch::no_body_error(&pat));
     }
     // The pattern objects are the inline body args at even indices (borrowed argv).
     let patterns: Vec<*mut TclObj> = (0..npairs).map(|p| words[p * 2]).collect();
-    let version = interp.runtime_version();
     interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
-    let matched =
-        match core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &patterns, version)
-        {
-            Ok(Selection::Matched { index, writes }) => {
-                if !apply_writes(interp, writes) {
-                    return Code::Error;
-                }
-                index
+    let matched = match core_switch::select_original_with_jim::<Interp, AreEngine, _, Code>(
+        interp,
+        opts,
+        &value,
+        &patterns,
+        version,
+        crate::cmd_regex::invoke_jim_regexp,
+    ) {
+        Ok(Selection::Matched { index, writes }) => {
+            if !apply_writes(interp, writes) {
+                return Code::Error;
             }
-            Ok(Selection::NoMatch) => {
-                interp.set_result_bytes(b"");
-                return Code::Ok;
-            }
-            Err(e) => return interp.report_cmd_error(e),
-        };
+            index
+        }
+        Ok(Selection::NoMatch) => {
+            interp.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Command(error)) => {
+            return interp.report_cmd_error(error)
+        }
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Callback(code)) => return code,
+    };
     // Resolve a `-` fall-through to the next non-`-` body (guaranteed to exist).
     let mut b = matched;
-    while obj_bytes(words[b * 2 + 1]).as_slice() == b"-" {
-        b += 1;
+    loop {
+        match core_switch::body_is_fallthrough(interp, &words[b * 2 + 1]) {
+            Ok(true) => b += 1,
+            Ok(false) => break,
+            Err(error) => return interp.report_cmd_error(error),
+        }
     }
     let code = interp.eval_control_body(words[b * 2 + 1]);
     if code == Code::Error {
@@ -133,63 +157,77 @@ fn switch_inline_form(
     code
 }
 
-/// The list form: `switch ?opts? str {pat body ...}`. The body is a sub-element
-/// of the single list literal `list_obj`, so it has no `Tcl_Obj` of its own; its
-/// `info frame` line is the list word's line plus the newlines preceding the
-/// element (C's `TclListLines`). A `default` pattern (last) matches anything; a
-/// `-` body falls through.
+/// The list form retains actual original List members. Located literal
+/// elements use the original list extent for line tracking; pattern and body
+/// execution always consumes the original member objects.
 fn switch_list_form(
     interp: &mut Interp,
     opts: &Options<*mut TclObj>,
     value: *mut TclObj,
     list_obj: *mut TclObj,
+    version: tcl_dialect::TclVersion,
 ) -> Code {
-    let list_str = obj_bytes(list_obj);
-    let elems = match scan_elements(&list_str) {
-        Ok(e) => e,
-        Err(e) => return interp.set_error(e),
+    use tcl_syntax::value::ValueOps;
+    let members = match interp.list_elements(&list_obj) {
+        Ok(members) => members,
+        Err(error) => return interp.report_cmd_error(error.into()),
     };
-    if elems.is_empty() {
-        return interp.wrong_args(USAGE_LIST);
+    if members.is_empty() {
+        return interp.wrong_args(core_switch::usage(version, true).as_bytes());
     }
-    if elems.len() % 2 != 0 {
-        // The infamous "comment in switch" heuristic: a pattern beginning with
-        // `#` in a braced body is almost certainly a misplaced comment.
-        let has_comment = (0..elems.len())
-            .step_by(2)
-            .any(|p| list_str.get(elems[p].start()) == Some(&b'#'));
-        return interp.set_error(
-            core_switch::extra_pattern_error(has_comment)
-                .message()
-                .as_bytes(),
-        );
+    if members.len() % 2 != 0 {
+        let mut has_comment = false;
+        for pattern in members.iter().step_by(2) {
+            match interp.native_string_bytes(pattern) {
+                Ok(bytes) => has_comment |= bytes.first() == Some(&b'#'),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        }
+        return interp.report_cmd_error(core_switch::extra_pattern_error(has_comment));
     }
-    let last = elems.len() - 1;
-    if element_value(&list_str, &elems[last]).as_slice() == b"-" {
-        let pat = element_value(&list_str, &elems[last - 1]);
-        return interp.set_error(
-            core_switch::no_body_error(&String::from_utf8_lossy(&pat))
-                .message()
-                .as_bytes(),
-        );
+    let last = members.len() - 1;
+    let last_body = match interp.native_string_bytes(&members[last]) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if tcl_core_types::c_string_extent(&last_body) == b"-" {
+        let pattern = match interp.native_string_bytes(&members[last - 1]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        return interp.report_cmd_error(core_switch::no_body_error(&pattern));
     }
-    let npairs = elems.len() / 2;
-    let pat_bytes: Vec<Vec<u8>> = (0..npairs)
-        .map(|p| element_value(&list_str, &elems[p * 2]))
-        .collect();
     let loc = interp.arg_location(list_obj);
-
-    // The list-form patterns are sub-strings of the literal (no `Tcl_Obj` of their
-    // own), so mint temporary objects for the shared `select`, then free them — it
-    // only reads them, and the result never references a pattern.
-    let pat_objs: Vec<*mut TclObj> = pat_bytes.iter().map(|b| new_string(b)).collect();
-    let version = interp.runtime_version();
+    let locations = if loc.is_some() {
+        let bytes = match interp.native_string_bytes(&list_obj) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        match scan_elements(&bytes) {
+            Ok(elems) if elems.len() == members.len() => Some((bytes, elems)),
+            Ok(_) => {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "switch original list source geometry",
+                    )
+                    .into(),
+                )
+            }
+            Err(error) => return interp.set_error(error),
+        }
+    } else {
+        None
+    };
+    let pat_objs = members.iter().step_by(2).copied().collect::<Vec<_>>();
     interp.begin_control_options(ControlOptionPolicy::FRESH_FORWARDED);
-    let outcome =
-        core_switch::select::<Interp, AreEngine, _>(interp, opts, &value, &pat_objs, version);
-    for &o in &pat_objs {
-        drop_fresh(o);
-    }
+    let outcome = core_switch::select_original_with_jim::<Interp, AreEngine, _, Code>(
+        interp,
+        opts,
+        &value,
+        &pat_objs,
+        version,
+        crate::cmd_regex::invoke_jim_regexp,
+    );
     let matched = match outcome {
         Ok(Selection::Matched { index, writes }) => {
             if !apply_writes(interp, writes) {
@@ -201,26 +239,32 @@ fn switch_list_form(
             interp.set_result_bytes(b"");
             return Code::Ok;
         }
-        Err(e) => return interp.report_cmd_error(e),
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Command(error)) => {
+            return interp.report_cmd_error(error)
+        }
+        Err(tcl_cmd_core::regex::OriginalRegexConsumerError::Callback(code)) => return code,
     };
     let mut b = matched;
-    while element_value(&list_str, &elems[b * 2 + 1]).as_slice() == b"-" {
+    while match interp.native_string_bytes(&members[b * 2 + 1]) {
+        Ok(bytes) => tcl_core_types::c_string_extent(&bytes) == b"-",
+        Err(error) => return interp.report_cmd_error(error.into()),
+    } {
         b += 1;
     }
-    let body_elem = &elems[b * 2 + 1];
-    let body = element_value(&list_str, body_elem);
-    // Source-track only a literal body in a located list (a body with backslash
-    // collapse, or a dynamic list, reverts to body-relative — C sets such lines
-    // to -1).
-    let code = match (&loc, body_elem.literal) {
-        (Some((file, bline)), true) => {
-            let line = bline + count_newlines(&list_str[..body_elem.start()]);
-            interp.eval_located_body(file.clone(), line, &body)
-        }
-        _ => interp.eval_unlocated_body(&body),
+    let location = match (loc, locations.as_ref()) {
+        (Some((file, line)), Some((bytes, elems))) if elems[b * 2 + 1].literal => Some((
+            file,
+            line + count_newlines(&bytes[..elems[b * 2 + 1].start()]),
+        )),
+        _ => None,
     };
+    let code = interp.eval_original_control_body_location(members[b * 2 + 1], location);
     if code == Code::Error {
-        arm_error_info(interp, &pat_bytes[matched]);
+        let pattern = match interp.native_string_bytes(&pat_objs[matched]) {
+            Ok(bytes) => bytes,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        arm_error_info(interp, &pattern);
     }
     code
 }
@@ -240,26 +284,6 @@ fn arm_error_info(interp: &mut Interp, pattern: &[u8]) {
     inner.extend_from_slice(b"\" arm");
     interp.append_frame_line(&inner);
     interp.clear_error_logged();
-}
-
-/// Set the variable named by the (possibly `arr(idx)`) `name` to `obj`,
-/// producing the C `can't set "name": ...` message on failure (and freeing the
-/// unstored `obj`). Drives the TIP #75 `-matchvar`/`-indexvar` writes the shared
-/// `select` produces (the name objects are borrowed; the value objects are fresh).
-fn write_var(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result<(), ()> {
-    let (base, elem) = split_array_ref(name);
-    let stored = match &elem {
-        Some(key) => interp.var_set_elem(&base, key, obj),
-        None => interp.var_set(&base, obj),
-    };
-    match stored {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            drop_fresh(obj);
-            crate::builtins::var_error(interp, name, e);
-            Err(())
-        }
-    }
 }
 
 // list-element scanning (located bodies)
@@ -282,11 +306,10 @@ impl Elem {
 /// Scan `src` into its located list elements (the offset-aware complement to
 /// `split_list`, sharing `tcl_syntax`'s element scanner).
 fn scan_elements(src: &[u8]) -> Result<Vec<Elem>, &'static [u8]> {
-    let s = core::str::from_utf8(src).map_err(|_| b"unmatched open brace in list".as_slice())?;
     let mut elems = Vec::new();
     let mut pos = 0;
     loop {
-        match tcl_syntax::list::find_element(s, pos) {
+        match tcl_syntax::list::find_element_bytes(src, pos) {
             Ok(Some(e)) => {
                 pos = e.next;
                 elems.push(Elem {
@@ -299,16 +322,6 @@ fn scan_elements(src: &[u8]) -> Result<Vec<Elem>, &'static [u8]> {
         }
     }
     Ok(elems)
-}
-
-/// The element's value bytes: verbatim for a literal (`{braced}`) element, else
-/// backslash-collapsed (matching `split_list`).
-fn element_value(src: &[u8], e: &Elem) -> Vec<u8> {
-    if e.literal {
-        src[e.value.clone()].to_vec()
-    } else {
-        tcl_syntax::backslash::decode_bytes(&src[e.value.clone()]).into_owned()
-    }
 }
 
 /// Count the newlines in `s` (line delta between two offsets).

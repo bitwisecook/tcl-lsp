@@ -80,9 +80,9 @@ enum Job {
 }
 
 /// The outcome of a synchronous `thread::send`, carried back to the sender.
-struct JobResult {
-    ok: bool,
-    result: String,
+enum JobResult {
+    Guest { ok: bool, result: Vec<u8> },
+    Host(tcl_runtime_api::NativeExecutionError),
 }
 
 /// One registered worker: the channel that feeds it jobs, and its join handle
@@ -200,32 +200,32 @@ impl Vm {
 }
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("thread::id", cmd_thread_id);
-    vm.register("thread::create", cmd_thread_create);
-    vm.register("thread::send", cmd_thread_send);
-    vm.register("thread::wait", cmd_thread_wait);
-    vm.register("thread::release", cmd_thread_release);
-    vm.register("thread::exists", cmd_thread_exists);
-    vm.register("thread::names", cmd_thread_names);
-    vm.register("thread::errorproc", cmd_thread_errorproc);
-    vm.register("thread::mutex", cmd_thread_mutex);
-    vm.register("thread::cond", cmd_thread_cond);
-    vm.register("thread::rwmutex", cmd_thread_rwmutex);
-    vm.register("tpool::create", cmd_tpool_create);
-    vm.register("tpool::post", cmd_tpool_post);
-    vm.register("tpool::wait", cmd_tpool_wait);
-    vm.register("tpool::get", cmd_tpool_get);
-    vm.register("tpool::release", cmd_tpool_release);
-    vm.register("tpool::names", cmd_tpool_names);
-    vm.register("tsv::set", cmd_tsv_set);
-    vm.register("tsv::get", cmd_tsv_get);
-    vm.register("tsv::exists", cmd_tsv_exists);
-    vm.register("tsv::unset", cmd_tsv_unset);
-    vm.register("tsv::incr", cmd_tsv_incr);
-    vm.register("tsv::append", cmd_tsv_append);
-    vm.register("tsv::lappend", cmd_tsv_lappend);
-    vm.register("tsv::keys", cmd_tsv_keys);
-    vm.register("tsv::names", cmd_tsv_names);
+    vm.register_stock_builtin("thread::id", cmd_thread_id);
+    vm.register_stock_builtin("thread::create", cmd_thread_create);
+    vm.register_stock_builtin("thread::send", cmd_thread_send);
+    vm.register_stock_builtin("thread::wait", cmd_thread_wait);
+    vm.register_stock_builtin("thread::release", cmd_thread_release);
+    vm.register_stock_builtin("thread::exists", cmd_thread_exists);
+    vm.register_stock_builtin("thread::names", cmd_thread_names);
+    vm.register_stock_builtin("thread::errorproc", cmd_thread_errorproc);
+    vm.register_stock_builtin("thread::mutex", cmd_thread_mutex);
+    vm.register_stock_builtin("thread::cond", cmd_thread_cond);
+    vm.register_stock_builtin("thread::rwmutex", cmd_thread_rwmutex);
+    vm.register_stock_builtin("tpool::create", cmd_tpool_create);
+    vm.register_stock_builtin("tpool::post", cmd_tpool_post);
+    vm.register_stock_builtin("tpool::wait", cmd_tpool_wait);
+    vm.register_stock_builtin("tpool::get", cmd_tpool_get);
+    vm.register_stock_builtin("tpool::release", cmd_tpool_release);
+    vm.register_stock_builtin("tpool::names", cmd_tpool_names);
+    vm.register_stock_builtin("tsv::set", cmd_tsv_set);
+    vm.register_stock_builtin("tsv::get", cmd_tsv_get);
+    vm.register_stock_builtin("tsv::exists", cmd_tsv_exists);
+    vm.register_stock_builtin("tsv::unset", cmd_tsv_unset);
+    vm.register_stock_builtin("tsv::incr", cmd_tsv_incr);
+    vm.register_stock_builtin("tsv::append", cmd_tsv_append);
+    vm.register_stock_builtin("tsv::lappend", cmd_tsv_lappend);
+    vm.register_stock_builtin("tsv::keys", cmd_tsv_keys);
+    vm.register_stock_builtin("tsv::names", cmd_tsv_names);
 }
 
 /// Fetch the shared block, or the standard "not available" error.
@@ -241,7 +241,10 @@ fn shared(vm: &Vm) -> Result<Arc<Shared>, Completion<Value>> {
 /// `thread::id` — this interpreter's thread id.
 fn cmd_thread_id(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !args.is_empty() {
-        return err("wrong # args: should be \"thread::id\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::id\"",
+        );
     }
     ok(Value::string(vm.thread.this_id.to_string()))
 }
@@ -259,7 +262,12 @@ fn cmd_thread_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         [s] => s.to_str().to_string(),
         // C also accepts option flags (`-joinable`, `-preserved`); the minimal
         // package treats a lone script argument as the body.
-        _ => return err("wrong # args: should be \"thread::create ?script?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"thread::create ?script?\"",
+            );
+        }
     };
     let id = shared.next_id.fetch_add(1, Ordering::SeqCst);
     let (tx, rx) = channel::<Job>();
@@ -327,7 +335,12 @@ fn cmd_thread_send(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (id_arg, script, resultvar) = match rest {
         [id, script] => (id, script, None),
         [id, script, var] => (id, script, Some(var)),
-        _ => return err("wrong # args: should be \"thread::send ?-async? id script ?varName?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"thread::send ?-async? id script ?varName?\"",
+            );
+        }
     };
     let Some(id) = parse_id(&id_arg.to_str()) else {
         return err(format!("invalid thread id \"{}\"", id_arg.to_str()));
@@ -364,16 +377,7 @@ fn cmd_thread_send(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Ok(res) = reply_rx.recv() else {
         return err(format!("thread \"{id}\" exited before replying"));
     };
-    if let Some(var) = resultvar
-        && let Err(e) = vm.set_var(&var.to_str(), Value::string(res.result.clone()))
-    {
-        return e;
-    }
-    if res.ok {
-        ok(Value::string(res.result))
-    } else {
-        err(res.result)
-    }
+    finish_job_result(vm, res, resultvar)
 }
 
 /// `thread::wait` — the worker message loop: service `thread::send` jobs until
@@ -381,7 +385,10 @@ fn cmd_thread_send(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// worker body), which then winds the thread down.
 fn cmd_thread_wait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if !args.is_empty() {
-        return err("wrong # args: should be \"thread::wait\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::wait\"",
+        );
     }
     if !vm.thread.is_enabled() || vm.thread.inbox.is_none() {
         return err("thread::wait can only be called in a worker thread");
@@ -399,7 +406,7 @@ fn cmd_thread_wait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Ok(Job::Eval { script, reply }) => {
                 let comp = vm.eval_source(&script);
                 if let Some(reply) = reply {
-                    let _ = reply.send(job_result(comp));
+                    let _ = reply.send(job_result(vm, comp));
                 }
             }
             Ok(Job::Release) | Err(_) => break,
@@ -421,7 +428,12 @@ fn cmd_thread_release(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Some(id) => id,
             None => return err(format!("invalid thread id \"{}\"", id.to_str())),
         },
-        _ => return err("wrong # args: should be \"thread::release ?id?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"thread::release ?id?\"",
+            );
+        }
     };
     // Take the worker out of the registry, send Release, then join outside the
     // lock (joining under the lock would deadlock a worker that is itself
@@ -448,7 +460,10 @@ fn cmd_thread_exists(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     let [id_arg] = args else {
-        return err("wrong # args: should be \"thread::exists id\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::exists id\"",
+        );
     };
     let Some(id) = parse_id(&id_arg.to_str()) else {
         return ok(Value::string("0"));
@@ -470,7 +485,10 @@ fn cmd_thread_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     if !args.is_empty() {
-        return err("wrong # args: should be \"thread::names\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::names\"",
+        );
     }
     let mut ids: Vec<u64> = shared
         .workers
@@ -495,20 +513,50 @@ fn cmd_thread_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 fn cmd_thread_errorproc(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     match args {
         [] | [_] => ok(Value::empty()),
-        _ => err("wrong # args: should be \"thread::errorproc ?cmdName?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            _vm,
+            "wrong # args: should be \"thread::errorproc ?cmdName?\"",
+        ),
     }
 }
 
-fn job_result(comp: Result<Completion<Value>, TclError>) -> JobResult {
-    match comp {
-        Ok(c) => JobResult {
-            ok: c.code.is_ok(),
-            result: c.result.to_str().to_string(),
+fn job_result(vm: &mut Vm, comp: Result<Completion<Value>, TclError>) -> JobResult {
+    let completion = match comp {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_tcl_error(vm, error),
+    };
+    match vm.execution_refusal.take() {
+        Some(refusal) => JobResult::Host(refusal),
+        None => JobResult::Guest {
+            ok: completion.code.is_ok(),
+            result: completion.result.string_bytes().to_vec(),
         },
-        Err(e) => JobResult {
-            ok: false,
-            result: e.message,
-        },
+    }
+}
+
+fn finish_job_result(
+    vm: &mut Vm,
+    result: JobResult,
+    resultvar: Option<&Value>,
+) -> Completion<Value> {
+    let (succeeded, result) = match result {
+        JobResult::Guest { ok, result } => (ok, result),
+        JobResult::Host(refusal) => {
+            if vm.execution_refusal.is_none() {
+                vm.execution_refusal = Some(refusal);
+            }
+            return vm.refused_completion().expect("retained worker refusal");
+        }
+    };
+    if let Some(var) = resultvar
+        && let Err(completion) = vm.set_var(&var.to_str(), Value::from_string_bytes(result.clone()))
+    {
+        return completion;
+    }
+    if succeeded {
+        ok(Value::from_string_bytes(result))
+    } else {
+        err(result)
     }
 }
 
@@ -661,7 +709,12 @@ fn cmd_thread_mutex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             let recursive = match rest {
                 [] => false,
                 [opt] if &*opt.to_str() == "-recursive" => true,
-                _ => return err("wrong # args: should be \"thread::mutex create ?-recursive?\""),
+                _ => {
+                    return crate::command::native_wrong_arguments_message(
+                        vm,
+                        "wrong # args: should be \"thread::mutex create ?-recursive?\"",
+                    );
+                }
             };
             let handle = shared.next_handle("mutex");
             shared.mutexes.lock().expect("mutexes").insert(
@@ -693,7 +746,10 @@ fn cmd_thread_mutex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             shared.mutexes.lock().expect("mutexes").remove(&*h.to_str());
             ok(Value::empty())
         }
-        _ => err("wrong # args: should be \"thread::mutex option ?arg ...?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::mutex option ?arg ...?\"",
+        ),
     }
 }
 
@@ -746,7 +802,10 @@ fn cmd_thread_cond(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             shared.conds.lock().expect("conds").remove(&*h.to_str());
             ok(Value::empty())
         }
-        _ => err("wrong # args: should be \"thread::cond option ?arg ...?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::cond option ?arg ...?\"",
+        ),
     }
 }
 
@@ -790,7 +849,10 @@ fn cmd_thread_rwmutex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .remove(&*h.to_str());
             ok(Value::empty())
         }
-        _ => err("wrong # args: should be \"thread::rwmutex option ?arg ...?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"thread::rwmutex option ?arg ...?\"",
+        ),
     }
 }
 
@@ -858,7 +920,7 @@ fn run_pool_worker(shared: &Arc<Shared>, queue: &Arc<PoolQueue>, initcmd: Option
         let (result_id, script) = job;
         let comp = vm.eval_source(&script);
         if let Some(jid) = result_id {
-            let res = job_result(comp);
+            let res = job_result(&mut vm, comp);
             queue
                 .inner
                 .lock()
@@ -950,7 +1012,10 @@ fn cmd_tpool_post(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         rest = &rest[1..];
     }
     let [pool_h, script] = rest else {
-        return err("wrong # args: should be \"tpool::post ?-detached? ?-nowait? tpool script\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tpool::post ?-detached? ?-nowait? tpool script\"",
+        );
     };
     let pool = match pool_of(&shared, &pool_h.to_str()) {
         Ok(p) => p,
@@ -980,7 +1045,12 @@ fn cmd_tpool_wait(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (pool_h, joblist, var) = match args {
         [p, j] => (p, j, None),
         [p, j, v] => (p, j, Some(v)),
-        _ => return err("wrong # args: should be \"tpool::wait tpool joblist ?varName?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tpool::wait tpool joblist ?varName?\"",
+            );
+        }
     };
     let pool = match pool_of(&shared, &pool_h.to_str()) {
         Ok(p) => p,
@@ -1033,7 +1103,10 @@ fn cmd_tpool_get(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     let [pool_h, job_h] = args else {
-        return err("wrong # args: should be \"tpool::get tpool job\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tpool::get tpool job\"",
+        );
     };
     let pool = match pool_of(&shared, &pool_h.to_str()) {
         Ok(p) => p,
@@ -1053,11 +1126,7 @@ fn cmd_tpool_get(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         inner = pool.queue.done.wait(inner).expect("pool wait");
     };
     drop(inner);
-    if res.ok {
-        ok(Value::string(res.result))
-    } else {
-        err(res.result)
-    }
+    finish_job_result(vm, res, None)
 }
 
 /// `tpool::release pool` — shut the pool down: signal every worker, join them,
@@ -1068,7 +1137,10 @@ fn cmd_tpool_release(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     let [pool_h] = args else {
-        return err("wrong # args: should be \"tpool::release tpool\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tpool::release tpool\"",
+        );
     };
     let pool = shared
         .pools
@@ -1094,7 +1166,10 @@ fn cmd_tpool_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(e) => return e,
     };
     if !args.is_empty() {
-        return err("wrong # args: should be \"tpool::names\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tpool::names\"",
+        );
     }
     let mut names: Vec<String> = shared
         .pools
@@ -1157,7 +1232,10 @@ fn cmd_tsv_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 Err(e) => e,
             }
         }
-        _ => err("wrong # args: should be \"tsv::set array key ?value?\""),
+        _ => crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::set array key ?value?\"",
+        ),
     }
 }
 
@@ -1167,7 +1245,12 @@ fn cmd_tsv_get(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (arr, key, var) = match args {
         [arr, key] => (arr, key, None),
         [arr, key, var] => (arr, key, Some(var)),
-        _ => return err("wrong # args: should be \"tsv::get array key ?varName?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::get array key ?varName?\"",
+            );
+        }
     };
     let got = match with_tsv(vm, |t| {
         t.get(&*arr.to_str())
@@ -1202,7 +1285,12 @@ fn cmd_tsv_exists(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             t.get(&*arr.to_str())
                 .is_some_and(|m| m.contains_key(&*key.to_str()))
         }),
-        _ => return err("wrong # args: should be \"tsv::exists array ?key?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::exists array ?key?\"",
+            );
+        }
     };
     match present {
         Ok(p) => ok(Value::string(if p { "1" } else { "0" })),
@@ -1221,7 +1309,12 @@ fn cmd_tsv_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 m.remove(&*key.to_str());
             }
         }),
-        _ => return err("wrong # args: should be \"tsv::unset array ?key?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::unset array ?key?\"",
+            );
+        }
     };
     match res {
         Ok(()) => ok(Value::empty()),
@@ -1240,7 +1333,12 @@ fn cmd_tsv_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 return err(format!("expected integer but got \"{}\"", by.to_str()));
             }
         },
-        _ => return err("wrong # args: should be \"tsv::incr array key ?count?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::incr array key ?count?\"",
+            );
+        }
     };
     let outcome = with_tsv(vm, |t| {
         let cell = t
@@ -1268,10 +1366,16 @@ fn cmd_tsv_incr(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// element as a plain string.
 fn cmd_tsv_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [arr, key, values @ ..] = args else {
-        return err("wrong # args: should be \"tsv::append array key value ?value ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::append array key value ?value ...?\"",
+        );
     };
     if values.is_empty() {
-        return err("wrong # args: should be \"tsv::append array key value ?value ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::append array key value ?value ...?\"",
+        );
     }
     let suffix: String = values.iter().map(|v| v.to_str().to_string()).collect();
     let out = with_tsv(vm, |t| {
@@ -1293,10 +1397,16 @@ fn cmd_tsv_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// element.
 fn cmd_tsv_lappend(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [arr, key, values @ ..] = args else {
-        return err("wrong # args: should be \"tsv::lappend array key value ?value ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::lappend array key value ?value ...?\"",
+        );
     };
     if values.is_empty() {
-        return err("wrong # args: should be \"tsv::lappend array key value ?value ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tsv::lappend array key value ?value ...?\"",
+        );
     }
     let added = tcl_syntax::list::join_list(values.iter().map(Value::to_str));
     let out = with_tsv(vm, |t| {
@@ -1325,7 +1435,12 @@ fn cmd_tsv_keys(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let (arr, pattern) = match args {
         [arr] => (arr, None),
         [arr, pat] => (arr, Some(pat.to_str())),
-        _ => return err("wrong # args: should be \"tsv::keys array ?pattern?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::keys array ?pattern?\"",
+            );
+        }
     };
     let keys = with_tsv(vm, |t| {
         t.get(&*arr.to_str())
@@ -1343,7 +1458,12 @@ fn cmd_tsv_names(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let pattern = match args {
         [] => None,
         [pat] => Some(pat.to_str()),
-        _ => return err("wrong # args: should be \"tsv::names ?pattern?\""),
+        _ => {
+            return crate::command::native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"tsv::names ?pattern?\"",
+            );
+        }
     };
     let names = with_tsv(vm, |t| t.keys().cloned().collect::<Vec<_>>());
     match names {

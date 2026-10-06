@@ -40,9 +40,8 @@ use tcl_dialect::model::SpecSurface;
 // bytecode compiler keep emitting inline `tailcall` bytecode even when an
 // argument uses `{*}` expansion, rather than falling back to a generic
 // invoke. That is a compiler-internal instruction-selection detail with no
-// user-visible effect (script behaviour, arity, errors, and the return
-// value are identical either way), so it is not reflected as a spec field
-// here.
+// ordinary command synopsis. The separately authored native compilation
+// descriptor below retains the expansion and namespace-capture protocol.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tailcall command ?arg ...?",
     ..FormSpec::DEFAULT
@@ -52,6 +51,13 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tailcall",
+        // Native compileProc registration: C8.6+ tclBasic.c, with procedure
+        // frame/count/expansion guards in TclCompileTailcallCmd.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Tailcall,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `TCL86_PLUS` also, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`
         // apply, already resolves availability correctly for every non-core
@@ -90,6 +96,7 @@ pub fn spec() -> CommandSpec {
         // trees, not just one).
         arity: Arity::any(),
         return_type: Some(TclType::String),
+        completion: Some(crate::completion::CompletionDescriptor::tailcall()),
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
             // Scheduling (or clearing) the frame's deferred replacement

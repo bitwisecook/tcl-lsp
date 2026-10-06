@@ -1,0 +1,37 @@
+[
+  {
+    "release": "8.4.20",
+    "rows": 18,
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "output_sha256": "b5b7a67079a66678e952dc4f31facbb2e1c45bc1c9f6bee014075ff934467835"
+  },
+  {
+    "release": "8.5.19",
+    "rows": 18,
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "output_sha256": "d8d193480f3c3763898958cafc80d4d3d208a0a4d872e7f4ef5bb2c837188b8b"
+  },
+  {
+    "release": "8.6.18",
+    "rows": 18,
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "output_sha256": "ec1be4791eb560e0f7a5c9267b8f4191ce8bf5f61929645d9d01dfb9d1c6cb36"
+  },
+  {
+    "release": "9.0.4",
+    "rows": 18,
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "output_sha256": "afef4104c313d2d67a680d0eef5dacbdd8ff26b38617f3f5062d95986eecc229"
+  },
+  {
+    "release": "9.1.0",
+    "rows": 18,
+    "source_sha256": "4d5a47a092dbfec1a2b810bad562757885de86f36510c839ed7b3500b416b4f4",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "output_sha256": "afef4104c313d2d67a680d0eef5dacbdd8ff26b38617f3f5062d95986eecc229"
+  }
+]

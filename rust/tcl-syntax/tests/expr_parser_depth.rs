@@ -521,8 +521,8 @@ impl ExprOps for Tower {
         }
     }
 
-    fn compare_string(&mut self, left: &Val, right: &Val) -> Ordering {
-        left.text().cmp(&right.text())
+    fn compare_string(&mut self, left: &Val, right: &Val) -> Result<Ordering, EvalError> {
+        Ok(left.text().cmp(&right.text()))
     }
 
     fn in_list(&mut self, needle: &Val, list: &Val) -> Result<bool, EvalError> {
@@ -792,7 +792,7 @@ fn eval_binary_other_override_is_reached() {
 #[test]
 fn eval_errors_propagate_from_seams() {
     // A `Raw` (unparseable) node surfaces `unsupported`.
-    let node = ExprNode::Raw { text: "@#%".into() };
+    let node: ExprNode = ExprNode::Raw { text: "@#%".into() };
     let mut ops = Tower::default();
     assert_eq!(
         eval(&node, &mut ops).unwrap_err(),

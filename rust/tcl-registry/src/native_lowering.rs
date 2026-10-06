@@ -22,7 +22,7 @@
 //! [`crate::CommandSpec::codegen_hook`], and
 //! [`crate::CommandSpec::inline_codegen_hook`]: it says which *shape* of
 //! native code a registry-resolved invocation lowers to once the common
-//! executable IR has been built (`docs/design/compiler/wasm-native-lowering-plan.md`
+//! executable IR has been built (`docs/design/compiler/wasm-native-lowering.md`
 //! §3.3). The compiler keeps the implementations; the registry keeps the
 //! catalogue, so no emitter ever selects a native shape by command name.
 //!

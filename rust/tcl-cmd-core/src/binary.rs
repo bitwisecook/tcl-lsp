@@ -158,15 +158,77 @@ pub fn uu_encode(data: &[u8], maxlen: usize, wrap: &[u8]) -> Vec<u8> {
 
 // decode
 
+/// Native decoder operand layout after the selected codec command head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodeArguments {
+    /// Reject characters outside the codec's strict input grammar.
+    pub strict: bool,
+    /// Position of the data object in the original evaluated operands.
+    pub data: usize,
+}
+
+/// Decoder option admission, before the data object is converted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DecodeArgumentsError {
+    /// The selected codec accepts exactly one or two operands.
+    WrongArity,
+    /// The optional operand is not the exact native `-strict` switch.
+    UnknownOption(Vec<u8>),
+    /// A two-operand query omitted the actual first operand's value.
+    UnresolvedOption,
+}
+
+impl DecodeArgumentsError {
+    /// Exact native bad-option presentation; arity uses the invocation's
+    /// separately retained public/private usage rewrite.
+    #[must_use]
+    pub fn option_message(&self) -> Option<Vec<u8>> {
+        let Self::UnknownOption(option) = self else {
+            return None;
+        };
+        let mut message = b"bad option \"".to_vec();
+        message.extend_from_slice(option);
+        message.extend_from_slice(b"\": must be -strict");
+        Some(message)
+    }
+}
+
+/// Select the measured C8.6+ hex/base64/uuencode decoder layout. This parser
+/// neither establishes codec availability nor evaluates/converts the data.
+pub fn decode_argument_layout(
+    argument_count: usize,
+    option: Option<&[u8]>,
+) -> Result<DecodeArguments, DecodeArgumentsError> {
+    match (argument_count, option) {
+        (1, _) => Ok(DecodeArguments {
+            strict: false,
+            data: 0,
+        }),
+        (2, Some(b"-strict")) => Ok(DecodeArguments {
+            strict: true,
+            data: 1,
+        }),
+        (2, Some(option)) => Err(DecodeArgumentsError::UnknownOption(option.to_vec())),
+        (2, None) => Err(DecodeArgumentsError::UnresolvedOption),
+        _ => Err(DecodeArgumentsError::WrongArity),
+    }
+}
+
 /// `binary decode hex` — pairs of hex digits to bytes; ASCII whitespace is
 /// skipped, any other non-hex byte is a [`DecodeError`].
 pub fn hex_decode(s: &[u8]) -> Result<Vec<u8>, DecodeError> {
+    hex_decode_with_strict(s, false)
+}
+
+/// Native hex decoder with exact `-strict` whitespace rejection. Nonstrict
+/// calls retain the existing odd trailing-nibble and whitespace behavior.
+pub fn hex_decode_with_strict(s: &[u8], strict: bool) -> Result<Vec<u8>, DecodeError> {
     let mut out = Vec::with_capacity(s.len() / 2);
     let mut hi: Option<u8> = None;
     for (pos, &c) in s.iter().enumerate() {
         let v = match hex_nib(c) {
             Some(v) => v,
-            None if c.is_ascii_whitespace() => continue,
+            None if !strict && c.is_ascii_whitespace() => continue,
             None => return Err(DecodeError { byte: c, pos }),
         };
         match hi.take() {
@@ -177,87 +239,169 @@ pub fn hex_decode(s: &[u8]) -> Result<Vec<u8>, DecodeError> {
     Ok(out)
 }
 
-/// `binary decode base64` — `strict` rejects whitespace other than CR/LF, any
-/// character after padding, and any non-base64 byte; non-strict skips them.
-#[allow(clippy::cast_possible_truncation)] // each `>> k` extracts one byte of the 24-bit group
+/// Native base64 decoding, including implicit final padding and exact strict
+/// rejection at the last consumed input byte.
 pub fn base64_decode(s: &[u8], strict: bool) -> Result<Vec<u8>, DecodeError> {
     let mut out = Vec::new();
-    let mut quad = [0u8; 4];
-    let mut q = 0usize;
-    let mut pads = 0usize;
-    for (pos, &c) in s.iter().enumerate() {
-        if c == b'=' {
-            pads += 1;
-            quad[q] = 0;
-            q += 1;
-        } else if let Some(v) = b64_val(c) {
-            if pads > 0 && strict {
-                return Err(DecodeError { byte: c, pos });
+    let mut cursor = 0;
+    let mut cut = 0;
+    let mut last = 0;
+    while cursor < s.len() {
+        let mut value = 0u32;
+        let mut index = 0;
+        while index < 4 {
+            let byte = if cursor < s.len() {
+                last = s[cursor];
+                cursor += 1;
+                last
+            } else if index > 1 {
+                b'='
+            } else {
+                if strict {
+                    return Err(DecodeError {
+                        byte: last,
+                        pos: cursor.saturating_sub(1),
+                    });
+                }
+                cut += 3;
+                break;
+            };
+            if cut > 0 {
+                if byte == b'=' && index > 1 {
+                    value <<= 6;
+                    cut += 1;
+                } else if strict {
+                    return Err(DecodeError {
+                        byte: last,
+                        pos: cursor.saturating_sub(1),
+                    });
+                } else {
+                    continue;
+                }
+            } else if let Some(digit) = b64_val(byte) {
+                value = (value << 6) | u32::from(digit);
+            } else if byte == b'=' && (!strict || index > 1) {
+                value <<= 6;
+                cut += usize::from(index != 0);
+            } else if strict {
+                return Err(DecodeError {
+                    byte: last,
+                    pos: cursor.saturating_sub(1),
+                });
+            } else {
+                continue;
             }
-            quad[q] = v;
-            q += 1;
-        } else if c.is_ascii_whitespace() {
-            if strict && c != b'\n' && c != b'\r' {
-                return Err(DecodeError { byte: c, pos });
-            }
-            continue;
-        } else if strict {
-            return Err(DecodeError { byte: c, pos });
-        } else {
-            continue;
+            index += 1;
         }
-        if q == 4 {
-            let n = (u32::from(quad[0]) << 18)
-                | (u32::from(quad[1]) << 12)
-                | (u32::from(quad[2]) << 6)
-                | u32::from(quad[3]);
-            out.push((n >> 16) as u8);
-            if pads < 2 {
-                out.push((n >> 8) as u8);
-            }
-            if pads < 1 {
-                out.push(n as u8);
-            }
-            q = 0;
-            pads = 0;
+        let bytes = value.to_be_bytes();
+        out.extend_from_slice(&bytes[1..]);
+        if cut > 0 && cursor < s.len() && strict {
+            return Err(DecodeError {
+                byte: last,
+                pos: cursor - 1,
+            });
         }
     }
+    out.truncate(out.len().saturating_sub(cut));
     Ok(out)
 }
 
-/// `binary decode uuencode` — each line's leading length byte gives the data
-/// byte count; groups of 4 chars decode to 3 bytes. Lenient (no error).
-#[must_use]
-#[allow(clippy::cast_possible_truncation)] // each `>> k` extracts one byte of the 24-bit group
-pub fn uu_decode(s: &[u8]) -> Vec<u8> {
-    let dc = |c: u8| -> u8 { c.wrapping_sub(0x20) & 63 };
+/// Native uuencode decoder failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UuDecodeError {
+    /// An invalid input byte, retaining its original source offset.
+    Invalid(DecodeError),
+    /// A strict input line ended before its declared payload was complete.
+    Short,
+}
+
+/// Native uuencode decoding. Line headers are validated even without strict
+/// mode; strict mode additionally validates body bytes and declared lengths.
+pub fn uu_decode_with_strict(s: &[u8], strict: bool) -> Result<Vec<u8>, UuDecodeError> {
     let mut out = Vec::new();
-    for line in s.split(|&c| c == b'\n') {
-        let line: &[u8] = line.strip_suffix(b"\r").unwrap_or(line);
-        if line.is_empty() {
-            continue;
-        }
-        let count = dc(line[0]) as usize;
-        let body = &line[1..];
-        let mut produced = 0usize;
-        for chunk in body.chunks(4) {
-            if produced >= count {
-                break;
+    let mut cursor = 0;
+    let mut remaining = None;
+    while cursor < s.len() {
+        if remaining.is_none() {
+            let byte = s[cursor];
+            cursor += 1;
+            if !(32..=96).contains(&byte) {
+                if strict || !byte.is_ascii_whitespace() {
+                    return Err(UuDecodeError::Invalid(DecodeError {
+                        byte,
+                        pos: cursor - 1,
+                    }));
+                }
+                continue;
             }
-            let v: Vec<u8> = chunk.iter().map(|&c| dc(c)).collect();
-            let n = (u32::from(v[0]) << 18)
-                | (u32::from(*v.get(1).unwrap_or(&0)) << 12)
-                | (u32::from(*v.get(2).unwrap_or(&0)) << 6)
-                | u32::from(*v.get(3).unwrap_or(&0));
-            for shift in [16, 8, 0] {
-                if produced < count {
-                    out.push((n >> shift) as u8);
-                    produced += 1;
+            remaining = Some(usize::from(byte.wrapping_sub(32) & 63));
+        }
+        let mut group = [0u8; 4];
+        let mut index = 0;
+        while index < 4 {
+            if cursor < s.len() {
+                let byte = s[cursor];
+                cursor += 1;
+                if !(32..=96).contains(&byte) {
+                    if strict {
+                        if !byte.is_ascii_whitespace() {
+                            return Err(UuDecodeError::Invalid(DecodeError {
+                                byte,
+                                pos: cursor - 1,
+                            }));
+                        }
+                        if byte == b'\n' {
+                            return Err(UuDecodeError::Short);
+                        }
+                    }
+                    continue;
+                }
+                group[index] = byte;
+            }
+            index += 1;
+        }
+        let digits = group.map(|byte| byte.wrapping_sub(32) & 63);
+        let value = (u32::from(digits[0]) << 18)
+            | (u32::from(digits[1]) << 12)
+            | (u32::from(digits[2]) << 6)
+            | u32::from(digits[3]);
+        let bytes = value.to_be_bytes();
+        let count = remaining.expect("line header selected").min(3);
+        out.extend_from_slice(&bytes[1..=count]);
+        remaining = remaining.map(|length| length - count);
+        if remaining == Some(0) && cursor < s.len() {
+            remaining = None;
+            while cursor < s.len() {
+                let byte = s[cursor];
+                cursor += 1;
+                if byte == b'\n' {
+                    break;
+                }
+                if (32..=96).contains(&byte) {
+                    cursor -= 1;
+                    break;
+                }
+                if strict || !byte.is_ascii_whitespace() {
+                    return Err(UuDecodeError::Invalid(DecodeError {
+                        byte,
+                        pos: cursor - 1,
+                    }));
                 }
             }
         }
     }
-    out
+    if strict && remaining.is_some_and(|length| length > 0) {
+        Err(UuDecodeError::Short)
+    } else {
+        Ok(out)
+    }
+}
+
+/// Compatibility nonstrict decoder. Runtime adapters that need native errors
+/// consume [`uu_decode_with_strict`] directly.
+#[must_use]
+pub fn uu_decode(s: &[u8]) -> Vec<u8> {
+    uu_decode_with_strict(s, false).unwrap_or_default()
 }
 
 // format (the pack grammar)
@@ -574,8 +718,8 @@ fn expected_string(kind: &str, arg: &[u8]) -> CmdError {
 
 /// Take the next argument (each `args` element is one argument's byte rep),
 /// erroring when the format string demands more than were supplied.
-fn next_arg<'a>(args: &[&'a [u8]], ai: &mut usize) -> Result<&'a [u8], CmdError> {
-    let a = args.get(*ai).copied().ok_or_else(|| {
+fn next_arg<'a, V>(args: &'a [V], ai: &mut usize) -> Result<&'a V, CmdError> {
+    let a = args.get(*ai).ok_or_else(|| {
         CmdError::new("not enough arguments for all format specifiers".to_string())
     })?;
     *ai += 1;
@@ -594,12 +738,83 @@ fn alloc_field(n: usize, fill: u8) -> Result<Vec<u8>, CmdError> {
     Ok(v)
 }
 
+/// Runtime value coercions used by the shared binary field grammar.
+/// Numeric reads must retain numeric representations instead of formatting them.
+pub trait FormatValueOps {
+    /// One runtime-owned value.
+    type Value;
+    /// Convert a byte/string field through the native byte encoding policy.
+    fn binary_format_bytes(&mut self, value: &Self::Value) -> Result<Vec<u8>, CmdError>;
+    /// Convert an integer field through the native integer coercion policy.
+    fn binary_format_integer(&mut self, value: &Self::Value) -> Result<i64, CmdError>;
+    /// Read a numeric double without materialising its string representation.
+    fn binary_format_double(&mut self, value: &Self::Value) -> Result<f64, CmdError>;
+    /// Read counted numeric fields as a native list of retained values.
+    fn binary_format_elements(&mut self, value: &Self::Value)
+    -> Result<Vec<Self::Value>, CmdError>;
+}
+
+/// Coerce a binary integer through the shared native integer-width owner.
+/// Bignum-capable Tcl engines reduce the magnitude modulo 2^64.
+pub fn integer_value<O: tcl_syntax::value::ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<i64, CmdError> {
+    crate::format::fixed_integer_value(ops, value, syntax)
+}
+
+struct ByteFormatOps;
+
+impl FormatValueOps for ByteFormatOps {
+    type Value = Vec<u8>;
+
+    fn binary_format_bytes(&mut self, value: &Self::Value) -> Result<Vec<u8>, CmdError> {
+        Ok(value.clone())
+    }
+
+    fn binary_format_integer(&mut self, value: &Self::Value) -> Result<i64, CmdError> {
+        parse_wide(value).ok_or_else(|| int_value_error(value))
+    }
+
+    fn binary_format_double(&mut self, value: &Self::Value) -> Result<f64, CmdError> {
+        let text = String::from_utf8_lossy(value);
+        text.trim().parse().map_err(|_| {
+            CmdError::new(format!("expected floating-point number but got \"{text}\""))
+        })
+    }
+
+    fn binary_format_elements(
+        &mut self,
+        value: &Self::Value,
+    ) -> Result<Vec<Self::Value>, CmdError> {
+        Ok(split_field(value)?
+            .into_iter()
+            .map(|value| value.as_bytes().to_vec())
+            .collect())
+    }
+}
+
+/// Compatibility packing for values whose byte representation is already known.
+/// Runtime adapters should use [`format_values`] to retain native numeric values.
+pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
+    format_values(
+        &mut ByteFormatOps,
+        fmt,
+        &args.iter().map(|value| value.to_vec()).collect::<Vec<_>>(),
+    )
+}
+
 /// `binary format formatString ?arg ...?` — pack the arguments (each given as
 /// its byte representation) per the format string, returning the packed bytes.
 /// The cursor model (`@`/`x`/`X`) and every type code are handled here; the
 /// runtime adapter only converts its argument values to/from bytes.
 #[allow(clippy::too_many_lines)] // one match arm per Tcl field type — a flat dispatch reads best
-pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
+pub fn format_values<O: FormatValueOps>(
+    ops: &mut O,
+    fmt: &[u8],
+    args: &[O::Value],
+) -> Result<Vec<u8>, CmdError> {
     let mut ai = 0usize;
     let mut out: Vec<u8> = Vec::new();
     let mut cur = 0usize;
@@ -615,7 +830,7 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
         let count = parse_count(fmt, &mut i);
         match ty {
             b'a' | b'A' => {
-                let s = next_arg(args, &mut ai)?;
+                let s = ops.binary_format_bytes(next_arg(args, &mut ai)?)?;
                 let n = match count {
                     Count::Star => s.len(),
                     Count::Num(n) => n,
@@ -628,22 +843,22 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                 put(&mut out, &mut cur, &field);
             }
             b'b' | b'B' => {
-                let s = next_arg(args, &mut ai)?;
+                let s = ops.binary_format_bytes(next_arg(args, &mut ai)?)?;
                 let n = match count {
                     Count::Star => s.len(),
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                put(&mut out, &mut cur, &pack_bits(s, n, ty == b'B')?);
+                put(&mut out, &mut cur, &pack_bits(&s, n, ty == b'B')?);
             }
             b'h' | b'H' => {
-                let s = next_arg(args, &mut ai)?;
+                let s = ops.binary_format_bytes(next_arg(args, &mut ai)?)?;
                 let n = match count {
                     Count::Star => s.len(),
                     Count::Num(n) => n,
                     Count::None => 1,
                 };
-                put(&mut out, &mut cur, &pack_hex(s, n, ty == b'H')?);
+                put(&mut out, &mut cur, &pack_hex(&s, n, ty == b'H')?);
             }
             b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
                 let (size, end) = int_kind(ty);
@@ -651,15 +866,13 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
                 if matches!(count, Count::None) {
                     // No count: the value is a *single* integer, not a list whose
                     // first element is taken (C: `binary format c {1 2}` errors).
-                    let v = parse_wide(arg).ok_or_else(|| int_value_error(arg))?;
+                    let v = ops.binary_format_integer(arg)?;
                     put(&mut out, &mut cur, &int_bytes(v, size, end));
                 } else {
-                    let elems = split_field(arg)?;
+                    let elems = ops.binary_format_elements(arg)?;
                     let n = field_count(&count, elems.len())?;
                     for e in &elems[..n] {
-                        let v = parse_wide(e.as_bytes()).ok_or_else(|| {
-                            CmdError::new(format!("expected integer but got \"{e}\""))
-                        })?;
+                        let v = ops.binary_format_integer(e)?;
                         put(&mut out, &mut cur, &int_bytes(v, size, end));
                     }
                 }
@@ -667,13 +880,16 @@ pub fn format(fmt: &[u8], args: &[&[u8]]) -> Result<Vec<u8>, CmdError> {
             b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {
                 let (size, end) = float_kind(ty);
                 let arg = next_arg(args, &mut ai)?;
-                let elems = split_field(arg)?;
-                let n = field_count(&count, elems.len())?;
-                for e in &elems[..n] {
-                    let v = e.trim().parse::<f64>().map_err(|_| {
-                        CmdError::new(format!("expected floating-point number but got \"{e}\""))
-                    })?;
+                if matches!(count, Count::None) {
+                    let v = ops.binary_format_double(arg)?;
                     put(&mut out, &mut cur, &float_bytes(v, size, end));
+                } else {
+                    let elems = ops.binary_format_elements(arg)?;
+                    let n = field_count(&count, elems.len())?;
+                    for value in &elems[..n] {
+                        let v = ops.binary_format_double(value)?;
+                        put(&mut out, &mut cur, &float_bytes(v, size, end));
+                    }
                 }
             }
             b'x' => {
@@ -819,15 +1035,45 @@ fn join_list(vals: &[Vec<u8>]) -> Vec<u8> {
     out
 }
 
+/// One binary scan field, retaining floating representations until the
+/// adapter creates native lazy numeric objects.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScanValue {
+    /// A byte or already encoded integer/list field.
+    Bytes(Vec<u8>),
+    /// One unmaterialised floating value.
+    Double(f64),
+    /// A counted floating field whose elements remain unmaterialised.
+    Doubles(Vec<f64>),
+}
+
+/// Compatibility byte projection using Tcl 9 shortest floating strings.
+/// Native adapters must use [`scan_values`] to preserve lazy conversion.
+pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
+    scan_values(data, fmt).map(|values| {
+        values
+            .into_iter()
+            .map(|value| match value {
+                ScanValue::Bytes(bytes) => bytes,
+                ScanValue::Double(value) => tcl_syntax::number::format_double(value).into_bytes(),
+                ScanValue::Doubles(values) => tcl_syntax::list::join_list(
+                    values.into_iter().map(tcl_syntax::number::format_double),
+                )
+                .into_bytes(),
+            })
+            .collect()
+    })
+}
+
 /// `binary scan string formatString` — unpack `data` per the format string,
-/// returning the values (each a byte string) to assign to the successive
+/// returning typed values to assign to the successive
 /// `varName`s, in order. Scanning stops when `data` is exhausted; the caller
 /// assigns the values (erroring if it runs out of variables) and returns the
 /// conversion count.
 #[allow(clippy::cast_sign_loss)] // the unsigned-mask path reinterprets the value's bits
 #[allow(clippy::too_many_lines)] // one match arm per Tcl field type — a flat dispatch reads best
-pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
-    let mut out: Vec<Vec<u8>> = Vec::new();
+pub fn scan_values(data: &[u8], fmt: &[u8]) -> Result<Vec<ScanValue>, CmdError> {
+    let mut out: Vec<ScanValue> = Vec::new();
     let mut cur = 0usize;
     let mut i = 0usize;
     while i < fmt.len() {
@@ -868,7 +1114,7 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                     }
                 }
                 cur = end;
-                out.push(s);
+                out.push(ScanValue::Bytes(s));
             }
             b'b' | b'B' => {
                 let n = match count {
@@ -879,7 +1125,7 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                 if cur + n.div_ceil(8) > data.len() {
                     break;
                 }
-                out.push(unpack_bits(&data[cur..], n, ty == b'B'));
+                out.push(ScanValue::Bytes(unpack_bits(&data[cur..], n, ty == b'B')));
                 cur += n.div_ceil(8);
             }
             b'h' | b'H' => {
@@ -891,7 +1137,7 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                 if cur + n.div_ceil(2) > data.len() {
                     break;
                 }
-                out.push(unpack_hex(&data[cur..], n, ty == b'H'));
+                out.push(ScanValue::Bytes(unpack_hex(&data[cur..], n, ty == b'H')));
                 cur += n.div_ceil(2);
             }
             b'c' | b's' | b'S' | b't' | b'i' | b'I' | b'n' | b'w' | b'W' | b'm' => {
@@ -931,7 +1177,7 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                     }
                 }
                 cur += n * size;
-                out.push(scan_field_result(&count, vals));
+                out.push(ScanValue::Bytes(scan_field_result(&count, vals)));
             }
             b'f' | b'r' | b'R' | b'd' | b'q' | b'Q' => {
                 let (size, end) = float_kind(ty);
@@ -950,14 +1196,18 @@ pub fn scan(data: &[u8], fmt: &[u8]) -> Result<Vec<Vec<u8>>, CmdError> {
                 if !fits {
                     break;
                 }
-                let mut vals: Vec<Vec<u8>> = Vec::with_capacity(n);
-                for k in 0..n {
-                    let off = cur + k * size;
-                    let v = read_float(&data[off..off + size], size, end);
-                    vals.push(tcl_syntax::number::format_double(v).into_bytes());
-                }
+                let vals: Vec<f64> = (0..n)
+                    .map(|k| {
+                        let off = cur + k * size;
+                        read_float(&data[off..off + size], size, end)
+                    })
+                    .collect();
                 cur += n * size;
-                out.push(scan_field_result(&count, vals));
+                out.push(if matches!(count, Count::None) {
+                    ScanValue::Double(vals[0])
+                } else {
+                    ScanValue::Doubles(vals)
+                });
             }
             b'x' => {
                 let n = match count {
@@ -1005,6 +1255,98 @@ fn scan_field_result(count: &Count, vals: Vec<Vec<u8>>) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn native_decoder_options_and_strict_final_groups() {
+        assert_eq!(decode_argument_layout(1, None).unwrap().data, 0);
+        assert!(decode_argument_layout(2, Some(b"-strict")).unwrap().strict);
+        assert_eq!(
+            decode_argument_layout(2, Some(b"-str")),
+            Err(DecodeArgumentsError::UnknownOption(b"-str".to_vec()))
+        );
+        assert_eq!(
+            decode_argument_layout(3, Some(b"-strict")),
+            Err(DecodeArgumentsError::WrongArity)
+        );
+        assert_eq!(
+            hex_decode_with_strict(b"61 62", true),
+            Err(DecodeError { byte: b' ', pos: 2 })
+        );
+        assert_eq!(base64_decode(b"YQ", true).unwrap(), b"a");
+        assert_eq!(
+            base64_decode(b"Y", true),
+            Err(DecodeError { byte: b'Y', pos: 0 })
+        );
+        assert_eq!(
+            base64_decode(b"YQ==\n", true),
+            Err(DecodeError { byte: b'=', pos: 3 })
+        );
+        assert_eq!(base64_decode(b"YQ==junk", false).unwrap(), b"a");
+        assert_eq!(uu_decode_with_strict(b"!", true).unwrap(), [0x82]);
+        assert_eq!(
+            uu_decode_with_strict(b"!8\n", true),
+            Err(UuDecodeError::Short)
+        );
+        assert_eq!(uu_decode_with_strict(b"!8\n", false).unwrap(), b"b");
+        assert_eq!(
+            uu_decode_with_strict(b"z", false),
+            Err(UuDecodeError::Invalid(DecodeError { byte: b'z', pos: 0 }))
+        );
+    }
+
+    struct NumericValues;
+
+    impl super::FormatValueOps for NumericValues {
+        type Value = f64;
+
+        fn binary_format_bytes(&mut self, _: &f64) -> Result<Vec<u8>, crate::CmdError> {
+            panic!("numeric binary fields must not request a string representation")
+        }
+
+        fn binary_format_integer(&mut self, _: &f64) -> Result<i64, crate::CmdError> {
+            panic!("floating fields must not request an integer representation")
+        }
+
+        fn binary_format_double(&mut self, value: &f64) -> Result<f64, crate::CmdError> {
+            Ok(*value)
+        }
+
+        fn binary_format_elements(&mut self, value: &f64) -> Result<Vec<f64>, crate::CmdError> {
+            Ok(vec![*value])
+        }
+    }
+
+    #[test]
+    fn packing_scalar_and_counted_doubles_never_formats_numeric_values() {
+        let values = [1.0 / 3.0, -0.0];
+        let packed = super::format_values(&mut NumericValues, b"dd*", &values).unwrap();
+        let expected: Vec<_> = values
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect();
+        assert_eq!(packed, expected);
+    }
+
+    #[test]
+    fn scan_retains_single_and_counted_floating_representations() {
+        let values = [1.0 / 3.0, -0.0];
+        let data: Vec<u8> = values
+            .iter()
+            .flat_map(|value: &f64| value.to_ne_bytes())
+            .collect();
+        assert_eq!(
+            super::scan_values(&data, b"dd").unwrap(),
+            vec![
+                super::ScanValue::Double(values[0]),
+                super::ScanValue::Double(values[1])
+            ]
+        );
+        assert_eq!(
+            super::scan_values(&data, b"d*").unwrap(),
+            vec![super::ScanValue::Doubles(values.to_vec())]
+        );
+    }
 
     // Measured on tclsh 8.4.20 and 8.5.19: these seven are `bad field
     // specifier` on 8.4 and accepted from 8.5, for both `binary format` and
@@ -1032,7 +1374,6 @@ mod tests {
             assert!(is_specifier(*letter), "{}", char::from(*letter));
         }
     }
-    use super::*;
 
     #[test]
     fn shared_specifier_table_covers_q_and_q_and_release_gate() {
@@ -1188,9 +1529,12 @@ mod tests {
         // like the normal out-of-data path.
         // Both an integer field (`w`, size 8) and a float field (`d`, size 8):
         let huge = b"w99999999999999999999"; // count saturates to usize::MAX
-        assert!(scan(b"only-eight-bytes", huge).unwrap().is_empty());
+        assert_eq!(scan(b"only-eight-bytes", huge).unwrap(), [] as [Vec<u8>; 0]);
         let huge_f = b"d99999999999999999999";
-        assert!(scan(b"only-eight-bytes", huge_f).unwrap().is_empty());
+        assert_eq!(
+            scan(b"only-eight-bytes", huge_f).unwrap(),
+            [] as [Vec<u8>; 0]
+        );
         // A field that *does* fit still scans (regression guard).
         assert_eq!(scan(&[0x01, 0x02], b"s1").unwrap(), vec![b"513".to_vec()]);
     }

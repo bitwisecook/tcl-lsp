@@ -68,70 +68,28 @@ use super::types::{
     RenamedMember, Scope, ScopeKind, UnknownProcInfo,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use crate::ir::{Module, Statement, SwitchMode};
+use crate::ir::{Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
 
-/// The names by which a user handler conventionally keeps the original
-/// `unknown` it displaced (`rename unknown _original_unknown`).
-///
-/// The saved name is *chosen by the script author*, so no registry can know
-/// it — only
-/// the convention can be recognised.  The handler's own spellings are **not**
-/// here; they come from [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`]
-/// via [`chains_original_unknown`], which is how `analyser::handlers` and
-/// `unit_scope` already answer the same question.
-const SAVED_ORIGINAL_HANDLER_NAMES: &[&str] =
-    &["_original_unknown", "_orig_unknown", "original_unknown"];
-
-/// Whether a call to `command` from inside a user `unknown` body chains to
-/// the interpreter's original unresolved-command handler.
-///
-/// True for a saved-handler name ([`SAVED_ORIGINAL_HANDLER_NAMES`]) and for
-/// every spelling of the registry's own handler — bare, `::`-rooted, and the
-/// Tcl library's `tcl::` form, the same three-way match
-/// `Analyser::defines_global_unresolved_handler` uses.  The old list named
-/// the `tcl::` pair by hand and omitted `unknown` / `::unknown` entirely, so
-/// a handler that chained through the plain spelling read as self-contained
-/// and every unresolved command in the file collected a spurious W123.
-fn chains_original_unknown(registry: &CommandRegistry, command: &str) -> bool {
-    let bare = command.strip_prefix("::").unwrap_or(command);
-    if SAVED_ORIGINAL_HANDLER_NAMES.contains(&bare) {
-        return true;
-    }
-    let mut carriers = registry.commands_with_trait(Traits::UNRESOLVED_COMMAND_HANDLER);
-    carriers.sort_unstable();
-    carriers
-        .iter()
-        .any(|name| bare == *name || bare.strip_prefix("tcl::") == Some(*name))
+/// Original-handler chaining follows the retained implementation identity.
+/// A saved name chosen by the author is not evidence without a proved rename.
+fn chains_original_unknown(facts: &tcl_registry::InvocationFacts) -> bool {
+    facts.traits.contains(Traits::UNRESOLVED_COMMAND_HANDLER)
 }
 
-/// Whether a call to `command` shells out to an external process — the
-/// registry's [`Traits::UNSAFE`] paired with a
-/// [`SideEffectTarget::Process`] effect, as `exec` declares them.
-///
-/// Replaces `command == "exec"`, which missed the `::exec` spelling and every
-/// other process-spawning command a dialect might declare.
-fn spawns_process(registry: &CommandRegistry, command: &str) -> bool {
-    registry.get(command).is_some_and(|spec| {
-        spec.traits.contains(Traits::UNSAFE)
-            && spec
-                .side_effects
-                .iter()
-                .any(|effect| effect.target == SideEffectTarget::Process)
-    })
+/// Effective registry effects, including alias prefixes and subcommand forms.
+fn spawns_process(facts: &tcl_registry::InvocationFacts) -> bool {
+    facts.traits.contains(Traits::UNSAFE)
+        && facts
+            .effects
+            .legacy()
+            .side_effects
+            .iter()
+            .any(|effect| effect.target == SideEffectTarget::Process)
 }
 
-/// Whether a call to `command` pulls further script into the interpreter —
-/// the registry's [`Traits::LOADS_EXTERNAL_UNIT`].
-///
-/// `auto_load` carries it, and so do `source`, `load`, `package require`, and
-/// `auto_import`: each can define the very command the handler was invoked
-/// for, so each makes the handler's resolvable set unknowable in exactly the
-/// same way the hardcoded `command == "auto_load"` recognised for one of them.
-fn loads_external_unit(registry: &CommandRegistry, command: &str) -> bool {
-    registry
-        .get(command)
-        .is_some_and(|spec| spec.traits.contains(Traits::LOADS_EXTERNAL_UNIT))
+fn loads_external_unit(facts: &tcl_registry::InvocationFacts) -> bool {
+    facts.traits.contains(Traits::LOADS_EXTERNAL_UNIT)
 }
 
 /// Implicit variable snit injects into `typemethod` / `typeconstructor` bodies.
@@ -587,15 +545,10 @@ impl Analyser {
             // given, so its `Body` index is only knowable from the words).
             return self.registry.as_ref().is_some_and(|registry| {
                 registry.get(keyword).is_none_or(|spec| {
-                    let args: Vec<&str> = texts.iter().skip(1).map(String::as_str).collect();
-                    let resolved = spec
-                        .arg_role_resolver
-                        .map(|resolve| resolve(&args))
-                        .unwrap_or_default();
-                    spec.arg_roles
-                        .iter()
-                        .chain(resolved.iter())
-                        .any(|(_, role)| *role == ArgRole::Body)
+                    // This is a possible declaration effect, not an execution
+                    // query. Closed resolver capabilities cover dynamic values
+                    // and both cardinality/value input contracts.
+                    registry.may_have_arg_role(spec.name, ArgRole::Body)
                 })
             });
         };
@@ -1308,6 +1261,7 @@ impl Analyser {
             let namespace = self.command_resolution_namespace(scope_path);
             let safe_interp_ctx = self.safe_interp_ctx_snapshot();
             self.deferred_bodies.push(super::per_item::DeferredBody {
+                resolved_input: Some(self.resolved_analysis_input()),
                 body_text: std::sync::Arc::from(mb.body_text.as_str()),
                 body_tok: mb.body_tok,
                 scope_path: method_path,
@@ -1400,7 +1354,8 @@ impl Analyser {
         self.result
             .class_body_spans
             .push((qualified.clone(), class.body_span));
-        self.result.all_classes.insert(qualified, class.clone());
+        self.result
+            .retain_class_declaration(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
             scope.classes.insert(simple, class);
@@ -1792,7 +1747,8 @@ impl Analyser {
         self.result
             .class_body_spans
             .push((qualified.clone(), class.body_span));
-        self.result.all_classes.insert(qualified, class.clone());
+        self.result
+            .retain_class_declaration(qualified, class.clone());
         let path = scope_path.to_vec();
         if let Some(scope) = scope_at_mut(&mut self.result.global_scope, &path) {
             scope.classes.insert(simple, class);
@@ -2247,6 +2203,17 @@ impl Analyser {
         body: &str,
         params: &[ParamDef],
     ) -> UnknownProcInfo {
+        self.extract_unknown_proc_info_at(body, params, None)
+    }
+
+    /// Secondary body analysis uses the actual document source execution
+    /// points when called by the procedure handler.
+    pub(crate) fn extract_unknown_proc_info_at(
+        &mut self,
+        body: &str,
+        params: &[ParamDef],
+        base: Option<u32>,
+    ) -> UnknownProcInfo {
         if body.trim().is_empty() {
             return UnknownProcInfo {
                 empty_stub: true,
@@ -2263,37 +2230,38 @@ impl Analyser {
         // every dynamic flag set so the W123 emitter suppresses
         // unresolved-command warnings file-wide (the safe
         // direction when we couldn't analyse the handler body).
-        let module: Module = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let registry = tcl_registry::CommandRegistry::build_default();
-            crate::lowering::lower_to_ir_with_config(
-                body,
-                &registry,
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
-            )
-        })) {
-            Ok(module) => module,
-            Err(_) => {
-                return UnknownProcInfo {
-                    chains_original: true,
-                    case_insensitive: true,
-                    has_pattern_dispatch: true,
-                    has_exec: true,
-                    has_auto_load: true,
-                    ..Default::default()
-                };
-            }
-        };
-
-        let mut info = UnknownProcInfo::default();
-        // The registry answers which call chains the original handler, which
-        // shells out, and which loads more script; fall back to the cached
-        // dialect registry when the analyser was built without one (direct
-        // handler calls in unit tests).
         let registry: &CommandRegistry = self.registry.as_deref().unwrap_or_else(|| {
             tcl_registry::model::ingress::static_context_for(self.dialect()).commands()
         });
+        let Ok(script) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut lowerer = crate::lowering::Lowerer::with_config(registry, self.lexer_config())
+                .with_dialect(Some(self.profile));
+            if let Some(entry) = &self.source_analysis_entry {
+                lowerer.set_source_analysis_options(entry.options());
+            }
+            if let Some(base) = base {
+                lowerer.lower_into_script_with_bindings(
+                    body,
+                    base,
+                    "::",
+                    self.head_identities.source_bindings(),
+                )
+            } else {
+                lowerer.lower(body).top_level.clone()
+            }
+        })) else {
+            return UnknownProcInfo {
+                chains_original: true,
+                case_insensitive: true,
+                has_pattern_dispatch: true,
+                has_exec: true,
+                has_auto_load: true,
+                ..Default::default()
+            };
+        };
 
-        for stmt in &module.top_level.statements {
+        let mut info = UnknownProcInfo::default();
+        for stmt in &script.statements {
             walk_unknown_stmt(stmt, registry, &first_param, &mut info, 0);
         }
 
@@ -2422,16 +2390,13 @@ fn walk_unknown_stmt(
                 }
             }
         }
-        Statement::Call { .. } | Statement::Barrier { .. } => {
-            let command = stmt.canonical_command_or_source();
-            if chains_original_unknown(registry, command) {
-                info.chains_original = true;
-            }
-            if spawns_process(registry, command) {
-                info.has_exec = true;
-            }
-            if loads_external_unit(registry, command) {
-                info.has_auto_load = true;
+        Statement::Call { .. } | Statement::Barrier { .. } | Statement::NativeCall { .. } => {
+            if let Some(invocation) =
+                crate::registry_invocation::resolved_statement_invocation(registry, None, stmt)
+            {
+                info.chains_original |= chains_original_unknown(&invocation.facts);
+                info.has_exec |= spawns_process(&invocation.facts);
+                info.has_auto_load |= loads_external_unit(&invocation.facts);
             }
         }
         Statement::If {
@@ -3889,7 +3854,7 @@ mod tests {
         apply_words(&mut cd, &[&["filter", "a", "b"], &["filter", "-set", "x"]]);
         assert_eq!(cd.filters, vec!["x"]);
         apply_words(&mut cd, &[&["filter", "-clear"]]);
-        assert!(cd.filters.is_empty());
+        assert_eq!(cd.filters, [] as [std::string::String; 0]);
         apply_words(&mut cd, &[&["filter", "a"], &["filter", "-prepend", "b"]]);
         assert_eq!(cd.filters, vec!["b", "a"]);
         apply_words(&mut cd, &[&["filter", "-remove", "b"]]);
@@ -3989,7 +3954,7 @@ mod tests {
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert_eq!(c.class_filters, vec!["a", "b"]);
-        assert!(c.filters.is_empty());
+        assert_eq!(c.filters, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4217,8 +4182,8 @@ mod tests {
             .collect();
         let argv = [tok((0, 4)), str_tok((5, 42))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
-        assert!(cd.class_methods.is_empty());
-        assert!(cd.methods.is_empty());
+        assert_eq!(cd.class_methods.len(), 0);
+        assert_eq!(cd.methods.len(), 0);
     }
 
     #[test]
@@ -4228,9 +4193,9 @@ mod tests {
         let argv = [tok((0, 8)), tok((9, 10))];
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         // No fields populated; no panic.
-        assert!(cd.methods.is_empty());
-        assert!(cd.superclasses.is_empty());
-        assert!(cd.mixins.is_empty());
+        assert_eq!(cd.methods.len(), 0);
+        assert_eq!(cd.superclasses, [] as [std::string::String; 0]);
+        assert_eq!(cd.mixins, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -4284,7 +4249,7 @@ mod tests {
         apply_oo_subcommand(tcloo(), &texts, &argv, &mut cd);
         assert_eq!(cd.filters, vec!["log", "trace"]);
         // …and only the instance slot: the class object stays unfiltered.
-        assert!(cd.class_filters.is_empty(), "{:?}", cd.class_filters);
+        assert_eq!(cd.class_filters.len(), 0, "{:?}", cd.class_filters);
     }
 
     #[test]
@@ -4681,7 +4646,7 @@ mod tests {
         let mut a = Analyser::new();
         let info = a.extract_unknown_proc_info("", &[param("cmd"), param("args")]);
         assert!(info.empty_stub);
-        assert!(info.dispatch_targets.is_empty());
+        assert_eq!(info.dispatch_targets.len(), 0);
     }
 
     #[test]
@@ -4716,15 +4681,54 @@ mod tests {
         }";
         let info = a.extract_unknown_proc_info(body, &[param("cmd"), param("args")]);
         assert!(info.has_pattern_dispatch);
-        assert!(info.dispatch_targets.is_empty());
+        assert_eq!(info.dispatch_targets.len(), 0);
     }
 
     #[test]
     fn extract_unknown_proc_info_chains_original_via_known_target() {
         let mut a = Analyser::new();
-        let body = r"_original_unknown $cmd $args";
+        let body = r"rename unknown _original_unknown
+_original_unknown $cmd $args";
         let info = a.extract_unknown_proc_info(body, &[param("cmd"), param("args")]);
         assert!(info.chains_original);
+    }
+
+    #[test]
+    fn unknown_handler_effects_require_the_live_implementation() {
+        for (body, flag) in [
+            ("proc exec args {}; exec $cmd", "exec"),
+            ("proc auto_load args {}; auto_load $cmd", "load"),
+            ("_original_unknown $cmd", "chain"),
+            ("if {$condition} {rename exec {}}; exec $cmd", "exec"),
+        ] {
+            let mut analyser = Analyser::new();
+            let info = analyser.extract_unknown_proc_info(body, &[param("cmd")]);
+            let claimed = match flag {
+                "exec" => info.has_exec,
+                "load" => info.has_auto_load,
+                _ => info.chains_original,
+            };
+            assert!(
+                !claimed,
+                "unproved implementation acquired builtin effects: {body}"
+            );
+        }
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(
+            "proc exec args {}; proc unknown {cmd args} {exec $cmd}",
+            "tcl8.6",
+        );
+        assert!(!result.unknown_proc_info.as_ref().unwrap().has_exec);
+    }
+
+    #[test]
+    fn unknown_handler_effects_follow_resolved_alias_arguments() {
+        let mut analyser = Analyser::new();
+        let info = analyser.extract_unknown_proc_info(
+            "interp alias {} ensure {} package require; ensure Tcl",
+            &[param("cmd")],
+        );
+        assert!(info.has_auto_load);
     }
 
     #[test]
@@ -5038,7 +5042,7 @@ mod tests {
         let r = a.analyse(src, "tcl9.0");
         let c = r.all_classes.get("::W").expect("::W recorded");
         assert!(c.methods.contains_key("whoami"));
-        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+        assert_eq!(c.class_methods.len(), 0, "{:?}", c.class_methods);
     }
 
     #[test]
@@ -5053,8 +5057,8 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl9.0");
         let c = r.all_classes.get("::Dyn").expect("::Dyn recorded");
-        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
-        assert!(c.methods.is_empty(), "{:?}", c.methods);
+        assert_eq!(c.class_methods.len(), 0, "{:?}", c.class_methods);
+        assert_eq!(c.methods.len(), 0, "{:?}", c.methods);
     }
 
     #[test]
@@ -5104,8 +5108,9 @@ mod tests {
         assert!(
             src[md.body_span.start() as usize..md.body_span.end() as usize].contains("return o"),
         );
-        assert!(
-            c.methods.is_empty(),
+        assert_eq!(
+            c.methods.len(),
+            0,
             "instance side untouched: {:?}",
             c.methods
         );
@@ -5140,7 +5145,7 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl9.0");
         let c = r.all_classes.get("::C").expect("::C recorded");
-        assert!(c.class_methods.is_empty(), "{:?}", c.class_methods);
+        assert_eq!(c.class_methods.len(), 0, "{:?}", c.class_methods);
     }
 
     #[test]
@@ -5315,12 +5320,12 @@ mod tests {
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert!(c.class_unexports.contains("cm"), "{:?}", c.class_unexports);
-        assert!(c.class_exports.is_empty(), "{:?}", c.class_exports);
+        assert_eq!(c.class_exports.len(), 0, "{:?}", c.class_exports);
         assert_eq!(c.class_methods["cm"].visibility, "unexported");
         // …and the instance-side pair — the one every existing consumer reads
         // as the instance record — stays untouched in both directions.
-        assert!(c.exports.is_empty(), "{:?}", c.exports);
-        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+        assert_eq!(c.exports.len(), 0, "{:?}", c.exports);
+        assert_eq!(c.unexports.len(), 0, "{:?}", c.unexports);
     }
 
     #[test]
@@ -5401,8 +5406,8 @@ mod tests {
             "tcl9.0",
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
-        assert!(c.class_exports.is_empty(), "{:?}", c.class_exports);
-        assert!(c.class_unexports.is_empty(), "{:?}", c.class_unexports);
+        assert_eq!(c.class_exports.len(), 0, "{:?}", c.class_exports);
+        assert_eq!(c.class_unexports.len(), 0, "{:?}", c.class_unexports);
         assert_eq!(c.class_methods["m"].visibility, "public");
         // The unwrapped word still records its own (instance-side) intent.
         assert!(c.unexports.contains("m"));
@@ -5437,10 +5442,10 @@ mod tests {
         );
         let a_cls = r.all_classes.get("::A").expect("::A recorded");
         assert_eq!(a_cls.filters, vec!["logit"]);
-        assert!(a_cls.class_filters.is_empty(), "{:?}", a_cls.class_filters);
+        assert_eq!(a_cls.class_filters.len(), 0, "{:?}", a_cls.class_filters);
         let b_cls = r.all_classes.get("::B").expect("::B recorded");
         assert_eq!(b_cls.class_filters, vec!["logit"]);
-        assert!(b_cls.filters.is_empty(), "{:?}", b_cls.filters);
+        assert_eq!(b_cls.filters.len(), 0, "{:?}", b_cls.filters);
     }
 
     #[test]
@@ -5460,7 +5465,7 @@ mod tests {
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert_eq!(c.filters, vec!["s"]);
-        assert!(c.class_filters.is_empty(), "{:?}", c.class_filters);
+        assert_eq!(c.class_filters.len(), 0, "{:?}", c.class_filters);
     }
 
     #[test]
@@ -5482,7 +5487,7 @@ mod tests {
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert_eq!(c.methods["m"].visibility, "public");
-        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+        assert_eq!(c.unexports.len(), 0, "{:?}", c.unexports);
         assert!(!r.all_classes.contains_key("::@objdefine@::o"));
         let states = r
             .object_member_state
@@ -5490,7 +5495,7 @@ mod tests {
             .expect("the receiver binding has member state");
         assert_eq!(states.len(), 1, "{states:?}");
         assert!(states[0].unexports.contains("m"), "{states:?}");
-        assert!(states[0].exports.is_empty(), "{states:?}");
+        assert_eq!(states[0].exports.len(), 0, "{states:?}");
     }
 
     #[test]
@@ -5527,11 +5532,12 @@ mod tests {
              oo::objdefine $o { deletemethod im }",
             "tcl9.0",
         );
-        assert!(w315_messages(&r).is_empty(), "{:?}", r.diagnostics);
+        assert_eq!(w315_messages(&r).len(), 0, "{:?}", r.diagnostics);
         let states = r.object_member_state.get("o").expect("state recorded");
         assert_eq!(states.len(), 1, "{states:?}");
-        assert!(
-            states[0].methods.is_empty(),
+        assert_eq!(
+            states[0].methods.len(),
+            0,
             "the retraction must fold: {states:?}"
         );
     }
@@ -5550,7 +5556,7 @@ mod tests {
         );
         let c = r.all_classes.get("::C").expect("::C recorded");
         assert!(!c.methods.contains_key("gone"));
-        assert!(c.retracted_members.is_empty(), "{:?}", c.retracted_members);
+        assert_eq!(c.retracted_members.len(), 0, "{:?}", c.retracted_members);
     }
 
     // W315, "this class definition cannot run".
@@ -5810,8 +5816,9 @@ mod tests {
                 r.all_classes["::C"].methods.contains_key("m"),
                 "body: {body}: a dynamic retraction must not remove a member",
             );
-            assert!(
-                r.all_classes["::C"].retracted_members.is_empty(),
+            assert_eq!(
+                r.all_classes["::C"].retracted_members.len(),
+                0,
                 "body: {body}: {:?}",
                 r.all_classes["::C"].retracted_members,
             );
@@ -5887,8 +5894,9 @@ mod tests {
         assert!(!r.all_classes["::C"].via_define);
         // No tombstone: the two readings are mutually exclusive and the class
         // handler kept the one its knowledge supports.
-        assert!(
-            r.all_classes["::C"].retracted_members.is_empty(),
+        assert_eq!(
+            r.all_classes["::C"].retracted_members.len(),
+            0,
             "{:?}",
             r.all_classes["::C"].retracted_members,
         );
@@ -5969,7 +5977,7 @@ mod tests {
             "tcl9.0",
         );
         let moved = &r.all_classes["::C"].renamed_members[0];
-        assert!(moved.blocked.is_empty(), "{:?}", moved.blocked);
+        assert_eq!(moved.blocked.len(), 0, "{:?}", moved.blocked);
         assert_eq!(moved.abort_if_renamed_to("sib"), None);
     }
 
@@ -6019,8 +6027,9 @@ mod tests {
         ] {
             let mut a = Analyser::new();
             let r = a.analyse(&format!("oo::class create ::C {{ {body} }}"), "tcl9.0");
-            assert!(
-                r.all_classes["::C"].renamed_members.is_empty(),
+            assert_eq!(
+                r.all_classes["::C"].renamed_members.len(),
+                0,
                 "body: {body}: {:?}",
                 r.all_classes["::C"].renamed_members,
             );
@@ -6209,8 +6218,8 @@ mod tests {
         let mut a = Analyser::new();
         let r = a.analyse(src, "tcl9.0");
         let c = r.all_classes.get("::C").expect("::C recorded");
-        assert!(c.exports.is_empty(), "{:?}", c.exports);
-        assert!(c.unexports.is_empty(), "{:?}", c.unexports);
+        assert_eq!(c.exports.len(), 0, "{:?}", c.exports);
+        assert_eq!(c.unexports.len(), 0, "{:?}", c.unexports);
         assert_eq!(c.methods["m"].visibility, "public");
         assert_eq!(c.class_methods["m"].visibility, "public");
     }
@@ -6340,8 +6349,11 @@ mod tests {
                        return $win\n\
                    }\n\
                    }";
-        let mut a = Analyser::new();
-        let r = a.analyse(src, "tcl8.6");
+        let r = crate::provider_fixtures::analyse(
+            &format!("package require snit\n{src}"),
+            "tcl8.6",
+            &[crate::provider_fixtures::Provider::Snit],
+        );
         for code in ["W210", "W211", "W214", "W307", "W308"] {
             assert!(
                 !r.diagnostics.iter().any(|d| d.code.as_str() == code),
@@ -6365,7 +6377,7 @@ mod tests {
         // A plain command that merely starts with `snit` is not a definer.
         let mut a = Analyser::new();
         let r = a.analyse("snitch foo { bar }", "tcl8.6");
-        assert!(r.all_classes.is_empty());
+        assert_eq!(r.all_classes.len(), 0);
     }
 
     // [incr Tcl] `itcl::class` — recorded as a `ClassDef` with method scopes,
@@ -6447,7 +6459,7 @@ mod tests {
         // A command that merely starts with `itcl` is not a definer.
         let mut a = Analyser::new();
         let r = a.analyse("itclish foo { bar }", "tcl8.6");
-        assert!(r.all_classes.is_empty());
+        assert_eq!(r.all_classes.len(), 0);
     }
 
     // OO body-walks: `initialise` body, `property -get/-set` accessor bodies,

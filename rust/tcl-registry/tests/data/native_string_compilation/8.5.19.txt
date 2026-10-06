@@ -1,0 +1,25 @@
+result|0|0|int|0|2|0|1
+code|0|push1|loadScalar1|strmatch|done
+result|1|0|int|1|2|0|1
+code|1|push1|loadScalar1|streq|done
+result|2|0|int|0|2|0|0
+code|2|push1|loadScalar1|streq|done
+result|3|0|int|1|2|0|1
+code|3|push1|loadScalar1|strmatch|done
+result|4|1|string|1|1|0|bad option "-": must be -nocase
+code|4|push1|push1|push1|push1|loadScalar1|invokeStk1|done
+result|5|1|string|1|1|0|bad option "-nocaseX": must be -nocase
+code|5|push1|push1|push1|push1|loadScalar1|invokeStk1|done
+result|6|0|int|0|1|0|1
+code|6|push1|push1|loadScalar1|push1|loadScalar1|invokeStk1|done
+result|7|0|int|1|2|0|1
+code|7|loadScalar1|loadScalar1|strmatch|done
+result|8|0|int|0|1|0|1
+code|8|push1|push1|push1|push1|loadScalar1|invokeStk1|done
+result|9|0|int|1|2|0|1
+code|9|push1|loadScalar1|streq|done
+result|10|0|int|1|2|0|1
+code|10|push1|push1|strmatch|done
+result|11|1|string|1|1|0|wrong # args: should be "string match ?-nocase? pattern string"
+code|11|push1|push1|push1|invokeStk1|done
+fresh|0|int|1|2|0|1

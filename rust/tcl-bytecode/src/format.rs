@@ -32,14 +32,20 @@ use crate::{FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand, str_cla
 /// codepoints are escaped; backslashes are NOT doubled.
 #[must_use]
 pub fn esc(text: &str, limit: usize) -> String {
-    let mut parts = String::with_capacity(text.len());
+    esc_bytes(text.as_bytes(), limit)
+}
+
+/// Escape exact native bytes for disassembly without interpreting them as Unicode.
+#[must_use]
+pub fn esc_bytes(bytes: &[u8], limit: usize) -> String {
+    let mut parts = String::with_capacity(bytes.len());
     // C Tcl's disassembler escapes the literal *byte-wise*: only the named
     // forms `\t \n \r \v \f` (and `"`) are used; every other control byte
     // and every non-ASCII byte renders as `\uXXXX` of the raw byte. So the
     // two UTF-8 bytes of `e-acute` become `\u00c3\u00a9`, an astral char is
     // its four `\u00XX` bytes, and a 0x01 control byte is `\u0001`. Iterating
     // bytes (not chars) reproduces that exactly.
-    for &b in text.as_bytes() {
+    for &b in bytes {
         match b {
             b'"' => parts.push_str("\\\""),
             b'\n' => parts.push_str("\\n"),
@@ -224,14 +230,21 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
     if !asm.literals.is_empty() {
         lines.push("  Literals:".into());
         for (i, lit) in asm.literals.entries().iter().enumerate() {
-            lines.push(format!("    {i}: \"{}\"", esc(lit, 40)));
+            if let Some(bytes) = lit.byte_payload() {
+                lines.push(format!("    {i}: \"{}\"", esc_bytes(bytes, 40)));
+            } else {
+                lines.push(format!(
+                    "    {i}: <private original {:?}>",
+                    lit.allocation()
+                ));
+            }
         }
     }
 
     if !asm.lvt.is_empty() {
         lines.push("  Local variables:".into());
         for (i, var) in asm.lvt.entries().iter().enumerate() {
-            lines.push(format!("    %v{i}: \"{var}\""));
+            lines.push(format!("    %v{i}: \"{}\"", esc_bytes(var.as_bytes(), 40)));
         }
     }
 
@@ -280,25 +293,53 @@ pub fn format_function_asm(asm: &FunctionAsm) -> String {
             instr.op.mnemonic()
         ));
 
-        if instr.op == Op::JUMP_TABLE
-            && let Some(ref jt) = instr.jump_table
-        {
-            // `jump_table` is a `HashMap`, so sort by pattern for deterministic
-            // output (the table is order-independent at run time).
-            let mut sorted: Vec<(&String, &String)> = jt.iter().collect();
-            sorted.sort_unstable_by(|a, b| a.0.cmp(b.0));
-            let entries: Vec<String> = sorted
-                .into_iter()
-                .map(|(pattern, label)| {
-                    let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
-                    format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
-                })
-                .collect();
-            lines.push(format!("\t\t[{}]", entries.join(", ")));
-        }
+        format_instruction_tables(asm, instr, &mut lines);
     }
 
     lines.join("\n")
+}
+
+fn format_instruction_tables(asm: &FunctionAsm, instr: &Instruction, lines: &mut Vec<String>) {
+    if let Some(table) = &instr.native_switch_bytes {
+        let mut entries = table.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        let entries = entries
+            .into_iter()
+            .map(|(pattern, label)| {
+                let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("\"{}\"->pc {target}", esc_bytes(pattern, 40))
+            })
+            .collect::<Vec<_>>();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
+    if let Some(table) = &instr.native_switch_integers {
+        let mut entries = table.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by_key(|(integer, _)| **integer);
+        let entries = entries
+            .into_iter()
+            .map(|(integer, label)| {
+                let target = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("{integer}->pc {target}")
+            })
+            .collect::<Vec<_>>();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
+    if instr.op == Op::JUMP_TABLE
+        && let Some(ref jt) = instr.jump_table
+    {
+        // `jump_table` is a `HashMap`, so sort by pattern for deterministic
+        // output (the table is order-independent at run time).
+        let mut sorted: Vec<(&String, &String)> = jt.iter().collect();
+        sorted.sort_unstable_by(|a, b| a.0.cmp(b.0));
+        let entries: Vec<String> = sorted
+            .into_iter()
+            .map(|(pattern, label)| {
+                let target_pc = asm.labels.get(label.as_str()).copied().unwrap_or(0);
+                format!("\"{}\"->pc {target_pc}", esc(pattern, 40))
+            })
+            .collect();
+        lines.push(format!("\t\t[{}]", entries.join(", ")));
+    }
 }
 
 /// Format an entire [`ModuleAsm`] for display.
@@ -387,6 +428,11 @@ mod tests {
 
         let asm = FunctionAsm {
             name: "test".into(),
+            native_compilation_failure: None,
+            native_compilation_preflight: tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+            native_math_table_prerequisite: None,
+            native_compiler_prerequisites: Vec::new(),
+            required_compiled_local_layout: None,
             literals: lit,
             lvt: LocalVarTable::new(&[]),
             instructions: instrs,

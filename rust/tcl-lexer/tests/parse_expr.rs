@@ -82,7 +82,7 @@ fn t1_3_large_number() {
 
 #[test]
 fn t1_4_empty_expression() {
-    assert!(toks("").is_empty());
+    assert_eq!(toks(""), [] as [tcl_lexer::ExprToken; 0]);
 }
 
 // Group 2: Ternary (parseExpr-2.x)
@@ -273,8 +273,8 @@ fn t15_8_to_10_variables() {
 
 #[test]
 fn t15_12_14_quoted_with_var_and_command() {
-    assert!(!toks("\"hello $x\"").is_empty());
-    assert!(!toks("\"[cmd] and $var\"").is_empty());
+    assert_ne!(toks("\"hello $x\""), [] as [tcl_lexer::ExprToken; 0]);
+    assert_ne!(toks("\"[cmd] and $var\""), [] as [tcl_lexer::ExprToken; 0]);
 }
 
 #[test]
@@ -442,9 +442,9 @@ fn t22_word_and_power_operators() {
 
 #[test]
 fn t21_unterminated_delimiters_do_not_crash() {
-    assert!(!toks("\"hello").is_empty());
-    assert!(!toks("{hello").is_empty());
-    assert!(!toks("[cmd").is_empty());
+    assert_ne!(toks("\"hello"), [] as [tcl_lexer::ExprToken; 0]);
+    assert_ne!(toks("{hello"), [] as [tcl_lexer::ExprToken; 0]);
+    assert_ne!(toks("[cmd"), [] as [tcl_lexer::ExprToken; 0]);
 }
 
 #[test]
@@ -456,9 +456,9 @@ fn t21_16_empty_parens() {
 
 #[test]
 fn t21_19_empty_and_invalid_char() {
-    assert!(toks("").is_empty());
+    assert_eq!(toks(""), [] as [tcl_lexer::ExprToken; 0]);
     // An unknown character is skipped (no token), without panicking.
-    assert!(toks("@").is_empty());
+    assert_eq!(toks("@"), [] as [tcl_lexer::ExprToken; 0]);
 }
 
 // Boolean literals (case-insensitive per Tcl_GetBoolean)
@@ -547,6 +547,6 @@ fn complex_expressions() {
 
 #[test]
 fn empty_and_whitespace_only() {
-    assert!(toks("").is_empty());
-    assert!(toks("   \t  \n  ").is_empty());
+    assert_eq!(toks(""), [] as [tcl_lexer::ExprToken; 0]);
+    assert_eq!(toks("   \t  \n  "), [] as [tcl_lexer::ExprToken; 0]);
 }

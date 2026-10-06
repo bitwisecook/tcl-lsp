@@ -264,7 +264,9 @@ pub fn definition(
 /// boundaries the document's grammar draws — `}{` breaks a word under the
 /// iRules grammar and does not under plain Tcl.
 pub(crate) fn dialect_config(analysis: &AnalysisResult) -> tcl_lexer::LexerConfig {
-    tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(&analysis.dialect)))
+    analysis.body_lexer_config.unwrap_or_else(|| {
+        tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_analysis(analysis)))
+    })
 }
 
 /// [`definition`] with the caller's whole-program export view attached.
@@ -343,7 +345,7 @@ pub fn definition_with(
                 "::",
                 target,
                 decl_byte_offset,
-                view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
+                view.with_registry(crate::registry_for_analysis(analysis)),
             )
         {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -365,12 +367,8 @@ pub fn definition_with(
     // silently jumping to its own successor — `all_procs` only ever keeps the
     // winner's span.
     let cursor_offset = byte_offset_at(&line_index, source, line, character);
-    if let Some((_, span)) = analysis
-        .proc_declaration_sites
-        .iter()
-        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset < span.end())
-    {
-        return vec![span_to_range(source, &line_index, *span)];
+    if let Some(span) = procedure_name_at_cursor(analysis, cursor_offset) {
+        return vec![span_to_range(source, &line_index, span)];
     }
     // An **already-resolved indirect head** the analyser settled — a
     // `${ns}::setdef` whose `$ns` is a constant, a constant `$cmd` dispatch —
@@ -379,6 +377,10 @@ pub fn definition_with(
     // with a coincidentally same-named decoy.
     if let Some(span) = resolved_indirect_head_target(analysis, cursor_offset) {
         return vec![span_to_range(source, &line_index, span)];
+    }
+    if let Some(target) = positioned_definition_target(analysis, source, &line_index, cursor_offset)
+    {
+        return target;
     }
     // Otherwise it is a CALL — resolve namespace-aware, following C Tcl's
     // command resolution (`Tcl_FindCommand`, `tclNamesp.c`): the caller's
@@ -432,7 +434,7 @@ pub fn definition_with(
             &namespace,
             &word,
             cursor_offset,
-            view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
+            view.with_registry(crate::registry_for_analysis(analysis)),
         )
     {
         // A proc redefined later in the document is two definitions sharing
@@ -464,20 +466,9 @@ fn list_built_self_method_definition(
     word: &str,
     cursor_offset: u32,
 ) -> Option<Vec<LspRange>> {
-    let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
-        source,
-        crate::profile_for_dialect(&analysis.dialect),
-        analysis,
-        word,
-        cursor_offset,
-    )?;
-    let class_def = analysis.all_classes.get(&provider)?;
-    let method = if is_classmethod {
-        class_def.class_methods.get(word)
-    } else {
-        class_def.methods.get(word)
-    }?;
-    Some(vec![span_to_range(source, line_index, method.name_span)])
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
+    (selected.method.name == word)
+        .then(|| vec![span_to_range(source, line_index, selected.method.name_span)])
 }
 
 fn next_dispatch_definition(
@@ -488,7 +479,7 @@ fn next_dispatch_definition(
     character: u32,
     word: &str,
 ) -> Option<Vec<LspRange>> {
-    is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), word)
+    is_next_chain_keyword_in(crate::profile_for_analysis(analysis), word)
         .then(|| next_dispatch_target(analysis, source, line_index, line, character, word))
         .flatten()
         .map(|span| vec![span_to_range(source, line_index, span)])
@@ -521,13 +512,29 @@ fn indirect_definition_target(
     cursor_off: u32,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
+    if let Some(reference) = invocation_reference_at(analysis, cursor_off)
+        .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+    {
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())?;
+        return analysis
+            .proc_for_definition(definition, source)
+            .map(|declaration| declaration.name_span)
+            .or_else(|| {
+                analysis
+                    .class_for_definition(definition, source)
+                    .map(|declaration| declaration.name_span)
+            });
+    }
     let hop = command_indirection(analysis, word, cursor_off)?;
-    let registry = crate::registry_for_dialect(&analysis.dialect);
+    let lookup = hop.lookup_spelling()?;
+    let registry = crate::registry_for_analysis(analysis);
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
         "::",
-        &hop.target,
+        &lookup,
         cursor_off,
         ctx.with_registry(registry),
     ) {
@@ -537,6 +544,48 @@ fn indirect_definition_target(
         return Some(captured.name_span);
     }
     class_declaration_at(analysis, &hop.target, cursor_off)
+}
+
+/// Original written procedure header, including displaced declarations.
+fn procedure_name_at_cursor(
+    analysis: &AnalysisResult,
+    cursor_offset: u32,
+) -> Option<tcl_lexer::Span> {
+    analysis
+        .proc_declaration_sites
+        .iter()
+        .find(|(_, span)| span.start() <= cursor_offset && cursor_offset < span.end())
+        .map(|(_, span)| *span)
+}
+
+/// A known called slot settles local navigation even when it has no source
+/// definition. `Some([])` preserves that refusal against name assistance.
+fn positioned_definition_target(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    cursor_offset: u32,
+) -> Option<Vec<LspRange>> {
+    let reference = invocation_reference_at(analysis, cursor_offset)?
+        .resolved_command_reference
+        .as_ref()?;
+    let span = reference
+        .linked_definition()
+        .or_else(|| reference.definition())
+        .and_then(|definition| {
+            analysis
+                .proc_for_definition(definition, source)
+                .map(|declaration| declaration.name_span)
+                .or_else(|| {
+                    analysis
+                        .class_for_definition(definition, source)
+                        .map(|declaration| declaration.name_span)
+                })
+        });
+    Some(
+        span.map(|span| vec![span_to_range(source, line_index, span)])
+            .unwrap_or_default(),
+    )
 }
 
 /// The cursor context [`position_definition`] needs beyond the offset.
@@ -585,6 +634,15 @@ fn position_definition(
     cursor_off: u32,
     ctx: DefCtx<'_>,
 ) -> Option<Vec<LspRange>> {
+    if crate::receiver_identity::definition_reference_at_cursor(ctx.analysis, source, cursor_off)
+        .is_some()
+    {
+        return Some(
+            crate::receiver_identity::method_at_cursor(ctx.analysis, source, cursor_off)
+                .map(|selected| vec![span_to_range(source, line_index, selected.method.name_span)])
+                .unwrap_or_default(),
+        );
+    }
     let DefCtx {
         line,
         character,
@@ -597,7 +655,7 @@ fn position_definition(
     // so it answers the *literal* cell.
     if let Some(var_name) = substituting_var_at_position(
         source,
-        crate::profile_for_dialect(""),
+        crate::profile_for_analysis(analysis),
         line,
         character,
         cursor_off,
@@ -605,7 +663,7 @@ fn position_definition(
         if let Some(var_def) = lookup_var_read_at(
             &analysis.global_scope,
             source,
-            crate::profile_for_dialect(""),
+            crate::profile_for_analysis(analysis),
             cursor_off,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -692,8 +750,12 @@ fn caller_frame_definition(
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
-        crate::profile_for_dialect(""),
-        resolution.with_registry(crate::registry_for_dialect("")),
+        crate::profile_for_analysis(analysis),
+        resolution.with_registry(
+            resolution
+                .registry
+                .unwrap_or_else(|| crate::registry_for_analysis(analysis)),
+        ),
         cursor_off,
         name,
     );
@@ -718,106 +780,15 @@ fn instance_method_definition(
     line: u32,
     character: u32,
 ) -> Option<Vec<LspRange>> {
-    let (inst, method, is_dollar) =
-        instance_method_at_cursor(source, line, character, dialect_config(analysis))?;
-    // The folded per-object member state for this receiver binding, when
-    // `oo::objdefine` gave it one — it carries the per-object visibility
-    // flips.
-    let object_state = object_member_state_at(analysis, source, &inst, line, character);
-    // A per-object method (`oo::objdefine $obj { method m … }`) is layered
-    // ahead of the object's class methods, so resolve it first — `$obj m`
-    // must reach the per-object override, not a same-named class method.
-    // Binding-identity keyed: the lookup honours the
-    // receiver's scope, not just its textual tail.
-    if let Some(span) = lookup_object_method(analysis, source, &inst, &method, line, character) {
-        // An unexported per-object member masks the name for an external
-        // dispatch outright — oracle, tclsh 9.0.4 / 8.6.14: after
-        // `oo::objdefine $o { method M {} {…} }` (name-rule unexported) or
-        // `… { method m {} {…}; unexport m }`, `$o M` / `$o m` answer
-        // `unknown method`, the class chain notwithstanding.
-        if let Some(st) = object_state
-            && let Some(md) = st.methods.get(&method)
-            && md.visibility != "public"
-        {
-            return Some(Vec::new());
-        }
-        return Some(vec![span_to_range(source, line_index, span)]);
-    }
-    // `my m` / `[self] m` / `[self object] m` — an internal call: dispatch
-    // starts at the *enclosing* class and reaches unexported methods too
-    // (including the `[self]` spellings).
-    if is_self_dispatch_keyword(&inst)
-        || is_self_receiver_call(
-            &inst,
-            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
-                &analysis.dialect,
-            ))),
-        )
-    {
-        let cursor = byte_offset_at(line_index, source, line, character);
-        if let Some(class_q) = enclosing_class_at(analysis, cursor) {
-            return Some(method_dispatch_definition(
-                analysis,
-                source,
-                line_index,
-                class_q,
-                &method,
-                false,
-                MethodBucket::Instance,
-            ));
-        }
-    }
     let cursor = byte_offset_at(line_index, source, line, character);
-    let class_q = receiver_instance_class_at(analysis, &inst, is_dollar, cursor)?;
-    let bucket = receiver_method_bucket(analysis, &inst, is_dollar);
-    let class_q = class_q.clone();
-    // Per-object visibility flips on a *class*-provided member:
-    // `oo::objdefine $o { unexport m }` masks the member for this
-    // object's external dispatch even though the class exports it (`$o m` →
-    // `unknown method`, tclsh 9.0.4 / 8.6.14), and `… { export m }` revives
-    // an unexported one — the dispatch then enters the first implementation
-    // regardless of the class-side export state, which is what an internal
-    // walk resolves.
-    if bucket == MethodBucket::Instance
-        && let Some(st) = object_state
-    {
-        if st.unexports.contains(&method) {
-            return Some(Vec::new());
-        }
-        if st.exports.contains(&method) {
-            return Some(method_dispatch_definition(
-                analysis,
-                source,
-                line_index,
-                &class_q,
-                &method,
-                false,
-                MethodBucket::Instance,
-            ));
-        }
+    if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor) {
+        return Some(vec![span_to_range(
+            source,
+            line_index,
+            selected.method.name_span,
+        )]);
     }
-    // External `$obj m` / `CLASS m`: the C-faithful dispatch entry — the
-    // first exported implementation on the receiver's linearisation
-    // (mixins before the class, subclasses before bases).  A resolved
-    // receiver is a definitive answer either
-    // way: an unexported/undefined method yields *nothing* rather than
-    // falling through to a same-named proc.
-    let dispatch = method_dispatch_definition(
-        analysis, source, line_index, &class_q, &method, true, bucket,
-    );
-    if !dispatch.is_empty() {
-        return Some(dispatch);
-    }
-    // `configure` / `cget` accessors and properties have no method entry;
-    // keep the property fallback before giving up.
-    if let Some(p) = analysis
-        .all_classes
-        .get(&class_q)
-        .and_then(|cd| cd.properties.get(method.as_str()))
-    {
-        return Some(vec![span_to_range(source, line_index, p.name_span)]);
-    }
-    Some(Vec::new())
+    None
 }
 
 /// Walk every class whose `body_span` contains the cursor
@@ -879,49 +850,10 @@ fn lookup_class_member(
     None
 }
 
-/// Look up `method` among the per-object methods added by `oo::objdefine`
-/// to the object the receiver variable at the *call site* denotes — the
-/// per-object override `TclOO` layers ahead of the object's class methods.
-/// Returns the declaration's `name_span`.
-///
-/// Keyed by **binding identity**, not the receiver's textual tail: two
-/// unrelated locals both named `o` in different procs
-/// are different objects with different per-object methods, so the
-/// candidate set is scoped to the `oo::objdefine` sites whose receiver
-/// resolves to the *same variable binding* as the call site's receiver —
-/// the innermost scope (proc / method body, else the top level) declaring
-/// the name that encloses both.  A dispatch whose binding cannot be
-/// matched to exactly one `objdefine` receiver abstains.
-fn lookup_object_method(
-    analysis: &AnalysisResult,
-    source: &str,
-    receiver: &str,
-    method: &str,
-    line: u32,
-    character: u32,
-) -> Option<tcl_lexer::Span> {
-    let records = analysis.object_methods.get(receiver)?;
-    let line_index = LineIndex::new(source);
-    let call_offset = byte_offset_at(&line_index, source, line, character);
-    let call_scope = variable_scope_extent(analysis, receiver, call_offset);
-    let matched: Vec<&tcl_compiler::analyser::ObjectMethodDef> = records
-        .iter()
-        .filter(|m| variable_scope_extent(analysis, receiver, m.objdefine_offset) == call_scope)
-        .filter(|m| m.def.name == method)
-        .collect();
-    // Exactly one binding-compatible override may answer; several distinct
-    // same-scope objects (reassignment) or none at all abstain to the
-    // class chain.
-    match matched.as_slice() {
-        [only] => Some(only.def.name_span),
-        _ => None,
-    }
-}
-
 /// The folded per-object member state for the receiver binding at the call
 /// site: the [`tcl_compiler::analyser::ObjectMemberState`]
 /// whose anchor resolves to the same variable binding as the call — the
-/// same binding-identity rule [`lookup_object_method`] applies.  `None`
+/// same lexical variable-scope extent used by the object-state summary. `None`
 /// when no `oo::objdefine` touched the receiver, or when the binding is
 /// ambiguous (several same-scope states — abstain rather than guess).
 pub(crate) fn object_member_state_at<'a>(
@@ -1084,32 +1016,6 @@ pub(crate) enum MethodBucket {
     /// provider matching the receiver class itself is always accepted
     /// regardless (it's not "inherited" there, it's the direct owner).
     Class,
-}
-
-/// Go-to-definition for a method call dispatched on an instance of
-/// `class_q`: the **first applicable implementation** on the class's
-/// `TclOO` linearisation (the entry `$obj m` / `my m` actually runs),
-/// visibility-filtered:
-/// `external` keeps exported implementations only; an internal (`my`)
-/// dispatch reaches unexported ones, and `private` ones only in the
-/// receiver's own class.  Empty when no implementation is callable in
-/// this context — a definitive "unknown method" answer, mirroring C.
-fn method_dispatch_definition(
-    analysis: &AnalysisResult,
-    source: &str,
-    line_index: &LineIndex,
-    class_q: &str,
-    method: &str,
-    external: bool,
-    bucket: MethodBucket,
-) -> Vec<LspRange> {
-    // The walk itself lives in `crate::oo_dispatch` so hover and
-    // find-references answer from the same linearisation; a direct-only
-    // lookup on the receiver's own class silently disagrees with this
-    // function.
-    crate::oo_dispatch::method_dispatch_provider(analysis, class_q, method, external, bucket)
-        .map(|(_, md)| vec![span_to_range(source, line_index, md.name_span)])
-        .unwrap_or_default()
 }
 
 /// The `TclOO` method-context keyword `word` is under `dialect`, or `None`.
@@ -1488,39 +1394,23 @@ pub(crate) fn receiver_instance_class<'a>(
         .map(|cd| &cd.qualified_name)
 }
 
-/// [`receiver_instance_class`] plus the compiler's object-type lattice as the
-/// fallback for a `$var` receiver.
-///
-/// `instance_classes` answers first.  When it has no
-/// binding, a **singleton** class in the lattice's scope-keyed map
-/// ([`ObjectHandleFacts::by_scope`], read through `classes_in_scope` at the
-/// dispatch site's own `offset`) resolves the receiver — the same sound map
-/// the compiler's W307 / W308 / E001 emitters consult, so definition,
-/// references, rename, hover, completion, and the code lens cannot disagree
-/// with the diagnostics (or with each other) about one document.
-/// A multi-class binding abstains: every consumer of this accessor edits or
-/// navigates, and a guess there is a wrong edit, not a missed one.
-///
-/// [`ObjectHandleFacts::by_scope`]: tcl_compiler::object_types::ObjectHandleFacts
+/// Resolve a variable receiver through its original read and reaching SSA
+/// contents. Whole-file candidate bindings never override a missing positioned
+/// proof. Named command receivers retain the separate command-binding path.
 pub(crate) fn receiver_instance_class_at<'a>(
     analysis: &'a AnalysisResult,
     receiver: &str,
     is_dollar: bool,
     offset: u32,
 ) -> Option<&'a String> {
-    if let Some(class) = receiver_instance_class(analysis, receiver, is_dollar) {
-        return Some(class);
+    if is_dollar {
+        return lattice_singleton_class(analysis, receiver, offset);
     }
-    if !is_dollar {
-        return None;
-    }
-    lattice_singleton_class(analysis, receiver, offset)
+    receiver_instance_class(analysis, receiver, false)
 }
 
-/// The one class the object-type lattice's scope-keyed map binds `receiver`
-/// to in the scope containing `offset`, or `None` when there is no binding or
-/// the binding is ambiguous (multi-class).  The lattice's "no evidence is not
-/// proof of absence" contract carries over verbatim.
+/// The unique class of the original variable read containing `offset`, or
+/// `None` when its reaching contents are unknown or admit multiple classes.
 pub(crate) fn lattice_singleton_class<'a>(
     analysis: &'a AnalysisResult,
     receiver: &str,
@@ -1565,225 +1455,6 @@ pub(crate) fn receiver_method_bucket(
     }
 }
 
-/// Resolve a bare `ClassName method` call-site receiver directly to the
-/// class whose `classmethod` provides `method` — the reverse of
-/// [`crate::references::find_obj_method_call_sites`]'s forward "given the
-/// class, which bare names dispatch it" fold, needed to resolve
-/// Find-References / Rename / go-to-definition triggered *from* the call
-/// site itself rather than from the declaration or a code lens.
-///
-/// `receiver` must name a class (simple or fully-qualified) that declares
-/// or *inherits* (does not override) `method` as a `classmethod` — `None`
-/// for an instance-command receiver (that's [`receiver_instance_class`]'s
-/// job) or a class with no such classmethod.  Doesn't itself exclude
-/// [incr Tcl] classes (whose class-scoped `proc` dispatches as
-/// `Factory::method`, not this bare two-word shape): every downstream
-/// consumer of the `(class, method, is_classmethod)` triple this feeds —
-/// `find_obj_method_call_sites` and friends — already re-checks the
-/// definer's family before treating any site as a dispatch, so a
-/// same-named itcl class-proc resolves here but then correctly yields no
-/// call sites rather than a false one.
-#[must_use]
-pub(crate) fn classmethod_dispatch_class(
-    analysis: &AnalysisResult,
-    receiver: &str,
-    method: &str,
-) -> Option<String> {
-    classmethod_dispatch_class_in_workspace(analysis, receiver, method, None)
-}
-
-/// [`classmethod_dispatch_class`] with the **workspace tier** available.
-///
-/// The local analysis answers whenever this document declares or extends the
-/// class. When it does not — an ordinary *pure consumer* file, holding nothing
-/// but `C cm` — the class's member tables live in another document, and the
-/// server's workspace-class oracle reanalysis does not help: it supplies class
-/// **names** only (`Analyser::with_workspace_classes`, which exists to let
-/// instance inference resolve `[Cls new]`), never their `class_methods`. So
-/// without a workspace tier, classification falls through both receiver
-/// branches and definition / references / rename from a consumer answers
-/// nothing, even though the workspace index holds the fact.
-///
-/// `index` closes that gap by consulting the same class-side dispatch chain
-/// the cross-file resolvers use — [`WorkspaceIndex::class_method_dispatch_chain`],
-/// not a second walk of its own, so the tier that classifies a call and the
-/// tier that resolves it can never disagree about which members exist.
-///
-/// [`MethodAccess::Internal`] is deliberate here: this asks *"is there a
-/// class-side member of this name at all"*, which is a question about the
-/// tables, not about the caller's access. An unexported class-side member must
-/// still classify as class-side — the caller's own access is applied afterwards
-/// by the resolver, which is what makes a `self unexport`ed member classify
-/// here and then correctly resolve to nothing.
-#[must_use]
-pub(crate) fn classmethod_dispatch_class_in_workspace(
-    analysis: &AnalysisResult,
-    receiver: &str,
-    method: &str,
-    workspace: Option<WorkspaceReceiver<'_>>,
-) -> Option<String> {
-    let Some(named) = analysis
-        .all_classes
-        .values()
-        .find(|cd| cd.name == receiver || cd.qualified_name == receiver)
-    else {
-        // No local record for the receiver at all — the pure-consumer shape.
-        return workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method));
-    };
-    if named.class_methods.contains_key(method) {
-        return Some(named.qualified_name.clone());
-    }
-    let local = local_inherited_classmethod(analysis, &named.qualified_name, method);
-    if local.is_some() {
-        return local;
-    }
-    // A local record that does not itself declare the member is no proof there
-    // is none: this document may hold only an `oo::define C { … }` extension
-    // while the `self method` lives in the class's own file. Same workspace
-    // tier as the no-local-record case above.
-    workspace.and_then(|w| workspace_classmethod_class(&w, receiver, method))
-}
-
-/// The class an *inherited* `classmethod` resolves to, using this document's
-/// own hierarchy — the local half of
-/// [`classmethod_dispatch_class_in_workspace`].
-fn local_inherited_classmethod(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-) -> Option<String> {
-    let hierarchy = analysis.class_hierarchy();
-    let provider_q = hierarchy.method_target(class_q, method)?;
-    analysis
-        .all_classes
-        .get(provider_q)
-        .and_then(|cd| cd.class_methods.get(method))
-        // A stock `TclOO` `self method` is **not** inherited: it lives on the
-        // class object that declared it, and a subclass's own command never
-        // reaches it — `Gadget make` against a parent's `self method make`
-        // errors `unknown method "make": must be create, destroy or new` under
-        // tclsh 8.6 and 9.0.4 alike. An `ooutil`-style `classmethod` shares the
-        // receiver bucket but does propagate, which is what
-        // [`MethodDef::is_self_method`] distinguishes. Same rule
-        // [`crate::oo_dispatch::method_dispatch_provider`] applies for the
-        // in-document answer; without it here an inherited `self method` is
-        // reported as the receiver's dispatch target.
-        .filter(|md| !md.is_self_method)
-        .map(|_| provider_q.to_string())
-}
-
-/// Where a bare receiver word was written, with the workspace tier to resolve
-/// it against — everything the cross-file classmethod arm needs to reach a
-/// class this document never mentions.
-#[derive(Clone, Copy)]
-pub(crate) struct WorkspaceReceiver<'a> {
-    /// The workspace index.
-    pub index: &'a crate::workspace_index::WorkspaceIndex,
-    /// The `::`-prefixed namespace in effect at the cursor
-    /// ([`namespace_context_at`]).
-    pub namespace: &'a str,
-    /// The call's own site — its offset and enclosing body span — so
-    /// import resolution is gated the way the interpreter orders it.
-    pub call: crate::workspace_index::CallSite<'a>,
-}
-
-/// The qualified class a bare `receiver method` names, decided from the
-/// **workspace index** — the tier that knows a class this document never
-/// mentions.
-///
-/// The receiver is resolved the way Tcl resolves any command word, not by a
-/// bare-name match: [`tcl_syntax::naming::bareword_resolution_candidates`] is
-/// the canonical encoding of `Tcl_FindCommand`'s order (current namespace
-/// first, then the global one), so `namespace eval ::a { C cm }` reaches
-/// `::a::C` and — when only a global `::C` exists — falls through to it. A
-/// literal `C`/`::C` check would miss the relative spelling entirely, which is
-/// the shape a namespaced class is normally *called* in.
-///
-/// Two tiers, in Tcl's own order:
-///
-/// 1. **Lexical.** The first candidate naming an indexed class that carries the
-///    member wins, so an inner `::a::C` shadows a global `::C` rather than
-///    racing it.
-/// 2. **Import-mediated.** `namespace import` makes a class reachable under a
-///    name no candidate spells. Both spellings are asked through the machinery
-///    that already models them — an exact import is a `WorkspaceCommandLink`
-///    ([`WorkspaceIndex::resolve_command_target`]) and a glob one is resolved
-///    per call ([`WorkspaceIndex::resolve_wildcard_import`]) — so the import
-///    lifecycle and ordering rules come for free rather than being restated
-///    here. That includes the invariant that an import which has not run at
-///    this call's site does not resolve.
-///
-/// The two-classes-one-name abstention applies at each tier: guessing between
-/// them is a namespace-blind match.
-fn workspace_classmethod_class(
-    workspace: &WorkspaceReceiver<'_>,
-    receiver: &str,
-    method: &str,
-) -> Option<String> {
-    let index = workspace.index;
-    let candidates =
-        tcl_syntax::naming::bareword_resolution_candidates(workspace.namespace, receiver);
-    // Tier 1 — lexical, in Tcl's resolution order.
-    for cand in &candidates {
-        if let Some(hit) = class_side_member_owner(index, cand, method) {
-            return Some(hit);
-        }
-    }
-    // Tier 2 — import-mediated. An exact `namespace import ::a::C` records a
-    // fixed link, a glob one is decided per call; ask each through its own
-    // existing resolver.
-    for cand in &candidates {
-        let linked = index.resolve_command_target(cand);
-        if linked != *cand
-            && let Some(hit) = class_side_member_owner(index, &linked, method)
-        {
-            return Some(hit);
-        }
-    }
-    let imported = index.resolve_wildcard_import(receiver, &candidates, workspace.call)?;
-    class_side_member_owner(index, &imported, method)
-}
-
-/// The qualified name of the class `candidate` names, when the workspace has
-/// exactly one such class and its **class-object side** carries `method`.
-///
-/// Membership goes through [`WorkspaceIndex::class_method_dispatch_chain`]
-/// rather than reading `WorkspaceClass::class_method` here, so the
-/// `self method`-is-not-inherited rule, the class-side export union and the
-/// class-side retraction tombstones are applied exactly once, in the walk this
-/// and the resolver share. [`MethodAccess::Internal`] is deliberate: this asks
-/// *"is there a class-side member of this name at all"*, a question about the
-/// tables, not about the caller's access — which is applied afterwards by the
-/// resolver, and is what lets a `self unexport`ed member classify here and then
-/// correctly resolve to nothing.
-fn class_side_member_owner(
-    index: &crate::workspace_index::WorkspaceIndex,
-    candidate: &str,
-    method: &str,
-) -> Option<String> {
-    let mut named = index
-        .classes_named(candidate)
-        .into_iter()
-        .map(|c| c.qualified_name.clone())
-        .collect::<std::collections::BTreeSet<_>>()
-        .into_iter();
-    // Exactly one indexed class may answer: two same-named classes leave the
-    // receiver genuinely ambiguous, and guessing one is a namespace-blind
-    // match.
-    let class_q = named.next()?;
-    if named.next().is_some() {
-        return None;
-    }
-    (!index
-        .class_method_dispatch_chain(
-            &class_q,
-            method,
-            crate::workspace_index::MethodAccess::Internal,
-        )
-        .is_empty())
-    .then_some(class_q)
-}
-
 /// The command name a word written at `cursor_off` actually reaches once the
 /// document's `rename` / `interp alias` statements are taken into account, or
 /// `None` when the command table leaves the word alone there.
@@ -1825,7 +1496,9 @@ pub(crate) fn command_indirection_target(
     word: &str,
     cursor_off: u32,
 ) -> Option<String> {
-    command_indirection(analysis, word, cursor_off).map(|hop| hop.target)
+    let hop = command_indirection(analysis, word, cursor_off)?;
+    hop.lookup_spelling()?;
+    Some(hop.target)
 }
 
 /// Whether `qualified` is a name **this document** only gains through a
@@ -1928,6 +1601,24 @@ pub(crate) fn invocation_head_at(
     analysis
         .command_invocations
         .iter()
+        .filter(|inv| {
+            inv.lookup.is_execution_site()
+                && inv.range.start() <= cursor_off
+                && cursor_off < inv.range.end()
+        })
+        .min_by_key(|inv| inv.range.end() - inv.range.start())
+}
+
+/// A positioned name reference, including names consumed by another command.
+/// Its lookup point is retained independently of the editable name span.
+#[must_use]
+pub(crate) fn invocation_reference_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
+    analysis
+        .command_invocations
+        .iter()
         .filter(|inv| inv.range.start() <= cursor_off && cursor_off < inv.range.end())
         .min_by_key(|inv| inv.range.end() - inv.range.start())
 }
@@ -1983,6 +1674,26 @@ fn resolved_indirect_head_target(
     if let Some(proc_def) = resolved_indirect_head_proc(analysis, cursor_off) {
         return Some(proc_def.name_span);
     }
+    let invocation = indirect_invocation_head_at(analysis, cursor_off)?;
+    let definition = if let Some(reference) = &invocation.resolved_command_reference {
+        Some(
+            reference
+                .linked_definition()
+                .or_else(|| reference.definition())?,
+        )
+    } else {
+        invocation.resolved_definition.as_ref()
+    };
+    if let Some(definition) = definition {
+        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+            definition.allocation().site.source.kind()
+        else {
+            return None;
+        };
+        return analysis
+            .class_for_definition(definition, source.try_text().ok()?)
+            .map(|declaration| declaration.name_span);
+    }
     let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
     analysis
         .all_classes
@@ -1994,15 +1705,25 @@ fn resolved_indirect_head_target(
 /// settled on — the shared first half of [`resolved_indirect_head_target`]
 /// and [`resolved_indirect_head_proc`].
 fn resolved_indirect_head_name(analysis: &AnalysisResult, cursor_off: u32) -> Option<&str> {
+    indirect_invocation_head_at(analysis, cursor_off)?
+        .resolved_qualified_name
+        .as_deref()
+}
+
+fn indirect_invocation_head_at(
+    analysis: &AnalysisResult,
+    cursor_off: u32,
+) -> Option<&tcl_compiler::signature_scan::types::SignatureCommandInvocation> {
     analysis
         .command_invocations
         .iter()
         .filter(|inv| {
-            inv.indirect && inv.range.start() <= cursor_off && cursor_off < inv.range.end()
+            inv.lookup.is_execution_site()
+                && inv.indirect
+                && inv.range.start() <= cursor_off
+                && cursor_off < inv.range.end()
         })
-        .min_by_key(|inv| inv.range.end() - inv.range.start())?
-        .resolved_qualified_name
-        .as_deref()
+        .min_by_key(|inv| inv.range.end() - inv.range.start())
 }
 
 /// The `ProcDef` an already-resolved indirect head at `cursor_off` reaches —
@@ -2013,6 +1734,24 @@ pub(crate) fn resolved_indirect_head_proc(
     analysis: &AnalysisResult,
     cursor_off: u32,
 ) -> Option<&tcl_compiler::analyser::ProcDef> {
+    let invocation = indirect_invocation_head_at(analysis, cursor_off)?;
+    let definition = if let Some(reference) = &invocation.resolved_command_reference {
+        Some(
+            reference
+                .linked_definition()
+                .or_else(|| reference.definition())?,
+        )
+    } else {
+        invocation.resolved_definition.as_ref()
+    };
+    if let Some(definition) = definition {
+        let tcl_compiler::command_binding::SourceOriginKind::Authored(source) =
+            definition.allocation().site.source.kind()
+        else {
+            return None;
+        };
+        return analysis.proc_for_definition(definition, source.try_text().ok()?);
+    }
     let resolved = resolved_indirect_head_name(analysis, cursor_off)?;
     let proc_def = analysis.all_procs.get(resolved)?;
     Some(
@@ -3698,9 +3437,11 @@ fn slot_events<'a>(
         if query == ImportQuery::ForcedShadow && !imp.forced {
             continue;
         }
-        let Some((source_ns, export_tail)) = imp.pattern.rsplit_once("::") else {
+        let Some(source) = &imp.source else {
             continue;
         };
+        let source_ns = source.namespace.as_str();
+        let export_tail = source.tail_pattern.as_str();
         // A pattern rooted at the global namespace (`namespace import ::p`,
         // `namespace import ::*`) splits to an *empty* source namespace, which
         // is easy to read as "no source" and skip — the one import shape that
@@ -3875,6 +3616,21 @@ pub(crate) fn resolve_called_proc<'a>(
     call_off: u32,
     ctx: CallResolution<'_>,
 ) -> Option<&'a tcl_compiler::analyser::ProcDef> {
+    if let Some(reference) = invocation_head_at(analysis, call_off)
+        .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+    {
+        return reference
+            .linked_definition()
+            .or_else(|| reference.definition())
+            .and_then(|definition| analysis.proc_for_definition(definition, source));
+    }
+    if let Some(invocation) = invocation_head_at(analysis, call_off)
+        && let Some(definition) = &invocation.resolved_definition
+    {
+        // A retained actual implementation outranks all document-final name
+        // assistance, including definitions installed later in a reached body.
+        return analysis.proc_for_definition(definition, source);
+    }
     let has_builtin = ctx.registry.is_some_and(|r| r.get(word).is_some());
     // A `namespace import -force` *replaces* a same-named command the
     // importing namespace already holds, so from its own position onward the
@@ -4010,9 +3766,9 @@ fn only_route_is_a_dead_import(
             .collect();
     let covered = analysis.namespace_imports.iter().any(|imp| {
         in_scope.contains(&imp.ns)
-            && imp.pattern.rsplit_once("::").is_some_and(|(src, pat)| {
-                let src = if src.is_empty() { "::" } else { src };
-                same_namespace(src, target_ns) && tcl_syntax::glob::string_match(pat, word)
+            && imp.source.as_ref().is_some_and(|source| {
+                same_namespace(&source.namespace, target_ns)
+                    && tcl_syntax::glob::string_match(&source.tail_pattern, word)
             })
     });
     covered
@@ -4023,7 +3779,8 @@ fn only_route_is_a_dead_import(
 /// Namespace-name equality, ignoring the leading `::` one spelling carries and
 /// the other does not.
 fn same_namespace(a: &str, b: &str) -> bool {
-    a.trim_start_matches("::") == b.trim_start_matches("::")
+    tcl_syntax::naming::unroot_rooted_key(a).unwrap_or(a)
+        == tcl_syntax::naming::unroot_rooted_key(b).unwrap_or(b)
 }
 
 /// Resolve the `(all_procs key, ProcDef)` that a proc-oriented editor
@@ -6386,9 +6143,8 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `Greeter` on line 1.
         let locs = definition(src, 1, 2, &analysis);
-        if !locs.is_empty() {
-            assert_eq!(locs[0].start_line, 0);
-        }
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 0);
     }
 
     // alias resolution
@@ -6400,6 +6156,15 @@ mod tests {
         // resolve to `greet`'s definition.
         let src = "proc greet {} {}\ninterp alias {} mycmd {} greet\nmycmd\n";
         let analysis = analyse(src);
+        let call_offset = u32::try_from(src.rfind("mycmd").unwrap()).unwrap();
+        let reference = invocation_head_at(&analysis, call_offset)
+            .and_then(|invocation| invocation.resolved_command_reference.as_ref())
+            .expect("actual alias slot reference");
+        assert!(reference.definition().is_none());
+        assert_eq!(
+            reference.linked_definition().unwrap().kind(),
+            tcl_compiler::command_binding::SourceCommandDefinitionKind::Procedure
+        );
         // Cursor on `mycmd` invocation on line 2.
         let locs = definition(src, 2, 2, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
@@ -7121,12 +6886,9 @@ mod tests {
 
     #[test]
     fn classmethod_call_on_its_own_class_resolves() {
-        // TP — the finding's own `ActiveRecord find` shape: a classmethod
-        // called directly on the class that declares it (Part 2 alone;
-        // ooutil's `classmethod` keyword was already correctly extracted
-        // into `class_methods` by the existing class-body walker).
+        // Native C9 classmethod on its original declaring class.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 3, 14, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1);
@@ -7135,12 +6897,9 @@ mod tests {
 
     #[test]
     fn classmethod_call_on_an_inheriting_subclass_resolves() {
-        // TP — the finding's second repro shape: `Table find`, where
-        // `Table` inherits `find` from `ActiveRecord` via the ordinary
-        // superclass MRO walk (ooutil's `classmethod` propagates to a
-        // subclass's own bound command — confirmed against tclsh).
+        // Native C9 delegates inherit the original declaring-class method.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 6, 7, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 1);
@@ -7175,17 +6934,24 @@ mod tests {
 
     #[test]
     fn instance_calling_a_classmethod_does_not_resolve() {
-        // TN — a real instance can never dispatch a classmethod (real
-        // tclsh: `unknown method "find": must be <cloned>, create, ...`).
-        // This is the companion tightening bundled with Part 2 (the two
-        // pre-existing instance-dispatch call sites now pass
-        // `MethodBucket::Instance`, which excludes `class_methods`
-        // entirely) — `completion.rs`'s `method_items` already documented
-        // and implemented this same exclusion for its own suggestions.
+        // C8.6 provides no native classmethod worker or package extension.
+        // C9's instance-side delegate is a distinct native forwarding protocol.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord create rec1\nrec1 find foo bar\n";
         let analysis = analyse(src);
         let locs = definition(src, 4, 5, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn native_classmethod_requires_the_selected_engine_or_a_provider() {
+        let source = "oo::class create C {classmethod find {} {return OK}}\nC find\n";
+        let unavailable = Analyser::new().analyse(source, "tcl8.6").clone();
+        assert!(definition(source, 1, 2, &unavailable).is_empty());
+        let provided = Analyser::new().analyse(source, "tcl9.1").clone();
+        let locations = definition(source, 1, 2, &provided);
+        assert_eq!(locations.len(), 1, "{locations:?}");
+        assert_eq!(locations[0].start_line, 0);
+        assert_eq!(locations[0].start_character, 32);
     }
 
     #[test]
@@ -7196,7 +6962,7 @@ mod tests {
         // neither the instance-command branch nor the
         // class-command branch may fire for it.
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} {}\n}\nset d [ActiveRecord new]\nd find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         let locs = definition(src, 4, 2, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
     }
@@ -7332,6 +7098,138 @@ mod tests {
     }
 
     #[test]
+    fn consumed_command_names_navigate_without_becoming_execution_heads() {
+        let source = "proc target {} {return OK}\ninfo args target\nrename target moved\nmoved\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        for (written, prefix, line, column) in [
+            ("info args target", "info args ", 1, 10),
+            ("rename target moved", "rename ", 2, 7),
+        ] {
+            let offset = u32::try_from(source.find(written).unwrap() + prefix.len()).unwrap();
+            let invocation = invocation_reference_at(&analysis, offset).expect("consumed name");
+            assert!(!invocation.lookup.is_execution_site());
+            assert!(invocation.resolved_command_reference.is_some());
+            assert!(invocation_head_at(&analysis, offset).is_none());
+            assert!(!offset_is_command_head(&analysis, offset));
+            let locations = definition(source, line, column, &analysis);
+            assert_eq!(locations.len(), 1, "{written}: {locations:?}");
+            assert_eq!(locations[0].start_line, 0);
+        }
+        let offset = u32::try_from(source.rfind("moved").unwrap()).unwrap();
+        assert!(invocation_head_at(&analysis, offset).is_some());
+        assert!(offset_is_command_head(&analysis, offset));
+        let locations = definition(source, 3, 1, &analysis);
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].start_line, 0);
+    }
+
+    #[test]
+    fn retained_loaded_indirect_definition_does_not_use_a_local_qname_decoy() {
+        use std::sync::Arc;
+        use tcl_compiler::command_binding::{
+            SourceAnalysisEntry, SourceOriginKind, TrustedSourceModuleLoader,
+        };
+        let source = "proc greet {} { return local }\nsource provider.tcl\nset cmd greet\n$cmd\n";
+        let entry = Arc::new(SourceAnalysisEntry {
+            trusted_source_modules: vec![TrustedSourceModuleLoader::new(
+                tcl_dialect::model::Family::Tcl,
+                "provider.tcl".to_owned(),
+                None,
+                "loaded-provider".to_owned(),
+                &Arc::from("proc greet {} {return loaded}"),
+            )],
+            invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(
+                tcl_dialect::TclVersion::V8_6,
+            )),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let analysis = Analyser::new()
+            .with_source_analysis_entry(entry)
+            .analyse(source, "tcl8.6")
+            .clone();
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.indirect)
+            .expect("positioned indirect call");
+        let offset = invocation.range.start();
+        let definition = invocation
+            .resolved_definition
+            .as_ref()
+            .expect("actual loaded definition receipt");
+        assert!(matches!(
+            definition.allocation().site.source.kind(),
+            SourceOriginKind::Loaded { .. }
+        ));
+        let reference = invocation
+            .resolved_command_reference
+            .as_ref()
+            .expect("full actual loaded reference");
+        assert_eq!(reference.definition(), Some(definition));
+        if let Some(linked) = reference.linked_definition() {
+            assert!(
+                matches!(
+                    linked.allocation().site.source.kind(),
+                    SourceOriginKind::Loaded { .. }
+                ),
+                "linked current definition must retain its foreign implementation: {linked:?}"
+            );
+        }
+        assert!(resolved_indirect_head_proc(&analysis, offset).is_none());
+    }
+
+    #[test]
+    fn indirect_alias_wrapper_does_not_borrow_a_displaced_class_definition() {
+        let source = "oo::class create C {}\nrename C savedClass\ninterp alias {} C {} list ALIAS\nset ns ::\n${ns}C\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.indirect)
+            .expect("retained indirect alias lookup");
+        let reference = invocation
+            .resolved_command_reference
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!(
+                    "actual alias slot reference: {:?}",
+                    analysis
+                        .command_invocations
+                        .iter()
+                        .map(|call| (
+                            call.range,
+                            call.name.as_str(),
+                            call.resolved_qualified_name.as_deref(),
+                            call.resolved_command_reference
+                                .as_ref()
+                                .map(|reference| reference.slot()),
+                        ))
+                        .collect::<Vec<_>>()
+                )
+            });
+        assert!(reference.definition().is_none());
+        assert!(reference.linked_definition().is_none());
+        assert!(matches!(
+            reference.binding(),
+            tcl_compiler::command_binding::SourceCommandReferenceBinding::Direct {
+                kind: tcl_compiler::command_binding::BindingKind::Alias,
+                ..
+            }
+        ));
+        assert!(invocation.resolved_definition.is_none());
+        assert!(!invocation.resolved_user_definition);
+        assert!(
+            resolved_indirect_head_target(&analysis, invocation.range.start()).is_none(),
+            "the alias slot has no current class definition"
+        );
+        assert!(definition(source, 4, 5, &analysis).is_empty());
+    }
+
+    #[test]
     fn tn_a_bare_dollar_cmd_head_still_answers_the_variable_it_reads() {
         // TN / documented limit — a whole-word `$cmd` head *is* a variable
         // read, and the position tier answers that first (it is asked long
@@ -7403,5 +7301,13 @@ mod tests {
         let locs = definition(src, 2, 20, &analysis);
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0, "{locs:?}");
+    }
+    #[test]
+    fn variable_receiver_never_promotes_a_filewide_candidate_to_runtime_proof() {
+        let mut analysis = analyse("");
+        analysis
+            .instance_classes
+            .insert("receiver".to_owned(), "::Stale".to_owned());
+        assert!(receiver_instance_class_at(&analysis, "receiver", true, 0).is_none());
     }
 }

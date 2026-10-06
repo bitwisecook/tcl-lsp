@@ -39,6 +39,17 @@
 //! the impls are `#[cfg]`-selected per target, so a browser build need carry no
 //! process-spawn code at all.
 
+pub mod integer_formatter;
+pub mod numeric_environment;
+pub use integer_formatter::{
+    NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
+    NativeIntegerKind,
+};
+pub use numeric_environment::{
+    DoubleNumericConversion, NumericEnvironment, NumericEnvironmentUnavailable, NumericErrorState,
+    UnsignedNumericConversion,
+};
+
 /// What a host environment can do. A uniform query over the [`Host`] regardless
 /// of build; the conditional accessors ([`Host::filesystem`] etc.) still gate
 /// actual use.
@@ -223,6 +234,12 @@ pub trait Filesystem {
     }
     /// Read an entire file.
     fn read(&self, path: &str) -> Result<Vec<u8>, HostError>;
+    /// Read exact native path bytes. Hosts without a native byte-path door
+    /// accept a checked Unicode path or report `Unsupported` without repair.
+    fn read_bytes(&self, path: &[u8]) -> Result<Vec<u8>, HostError> {
+        let path = core::str::from_utf8(path).map_err(|_| HostError::Unsupported)?;
+        self.read(path)
+    }
     /// Write (creating/truncating) an entire file.
     fn write(&self, path: &str, data: &[u8]) -> Result<(), HostError>;
     /// The entry names (not full paths) directly under `path`.
@@ -356,6 +373,17 @@ pub trait Host {
     fn stdio(&self) -> &dyn StdIo;
     /// Environment + working directory (always present).
     fn env(&self) -> &dyn Env;
+
+    /// Independently supplied C thread numeric state and conversion effects.
+    /// Restricted hosts can omit it; absence is not a range-free baseline.
+    fn numeric_environment(&self) -> Option<&dyn NumericEnvironment> {
+        None
+    }
+
+    /// Explicitly installed, independently verified native integer updater.
+    fn native_integer_formatter(&self) -> Option<&dyn NativeIntegerFormatter> {
+        None
+    }
 
     /// Locale/platform encoding used for standard and newly-opened channels.
     /// Restricted hosts have no process locale and therefore keep UTF-8.

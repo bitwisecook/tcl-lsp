@@ -1,0 +1,5 @@
+{"case":"prefix","code":0,"index":0,"type":"index","resident":1,"hex":"61"}
+{"case":"cached-exact","code":0,"index":0,"type":"index","resident":1,"hex":"61"}
+{"case":"different-table-exact","code":1,"index":-9,"type":"index","resident":1,"hex":"61"}
+{"case":"resident-from-retained-table","code":0,"index":0,"type":"index","resident":1,"hex":"6368616e676564"}
+{"case":"duplicate-retains-table","code":0,"index":0,"type":"index","resident":1,"hex":"616761696e"}

@@ -54,6 +54,7 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 |---|---|
 | Rust channel | `rust-toolchain.toml`; `Cargo.toml` `rust-version` |
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
+| Current upstream Jim oracle revision | `rust/tcl-test-support/jim-reference.txt`; build with `bash scripts/dev/ensure-jim-oracle.sh` |
 | Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
 | Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
@@ -83,6 +84,18 @@ in the vulnerable `braces` chain (GHSA-vfj7-8cjw-p6xm).
 Changing a minimum version touches all of: `rust-toolchain.toml`, `ci.yml`,
 the Makefile's Prerequisites comment block, `README.md` § *Building and
 contributing*, and this file.
+
+## Resolution interpreter matrix
+
+`bash scripts/dev/run-resolution-oracles.sh` requires every manifest-pinned C
+Tcl release and the current Jim reference. It also checks compiler source rewrites against standalone file execution,
+preserving expected success/error outcomes and dialect divergences. Set `TCL_LSP_TCLSH84` through
+`TCL_LSP_TCLSH91` and `TCL_LSP_JIMSH`, or install their validated PATH names.
+Build C references with `make ensure-tcl-deps` and Jim with
+`bash scripts/dev/ensure-jim-oracle.sh`. The Jim manifest pins the inspected
+upstream revision and capabilities, with explicit divergent vector expectations.
+Missing interpreters never count as passed comparisons. Feature absence is an
+explicit asserted vector outcome.
 
 ## Build isolation for parallel agents
 

@@ -1775,11 +1775,10 @@ fn insert_param_list_overrides(
 /// the registry already models it more precisely: its
 /// [`tcl_registry::FrameEffectSpec`] declares
 /// [`FrameArgLayout::AliasPairs`] (other/local pairs) with
-/// [`FrameLevelWord::ArityParity`] (C Tcl reads the optional level word off
-/// the *argument count parity*, never off the word's text — `Tcl_UpvarObjCmd`
-/// tests `objc`; tclsh 9.0.4 / 8.6.14 agree).  This reads those two facts, so
-/// the explicitly global `::upvar` behaves like the bare form and a
-/// same-named user proc does not.
+/// [`FrameLevelWord::Upvar`], which selects the release-specific optional-level
+/// grammar. Tcl 8.4/8.5 probe the first word; Tcl 8.6 and newer, and Jim,
+/// use argument parity. The registry resolves these facts in the selected
+/// invocation context, including explicitly qualified command spellings.
 ///
 /// Highlighting only: the analyser already scopes these locals.  A `$`-computed
 /// / array / quoted name is skipped.
@@ -1789,23 +1788,16 @@ fn insert_ref_var_overrides(
     head: &str,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
-    use tcl_registry::{FrameArgLayout, FrameLevelWord};
+    use tcl_registry::FrameArgLayout;
     let Some(effect) = registry.get(head).and_then(|s| s.frame_effect) else {
         return;
     };
-    if effect.layout != FrameArgLayout::AliasPairs
-        || effect.level_word != FrameLevelWord::ArityParity
-    {
+    if effect.layout != FrameArgLayout::AliasPairs {
         return;
     }
-    let n = seg.texts.len() - 1; // argument count
-    if n < 2 {
-        return;
-    }
-    // The level word is present exactly when the argument count is odd, and
-    // shifts the first local from texts[2] to texts[3].
-    let start = if n % 2 == 1 { 3 } else { 2 };
-    for pos in (start..seg.texts.len()).step_by(2) {
+    let arguments: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
+    for index in registry.arg_indices_for_role(head, &arguments, tcl_registry::ArgRole::VarWrite) {
+        let pos = index + 1;
         if let Some(tok) = seg.argv.get(pos)
             && matches!(tok.kind, TokenType::Esc)
             && !tok.in_quote

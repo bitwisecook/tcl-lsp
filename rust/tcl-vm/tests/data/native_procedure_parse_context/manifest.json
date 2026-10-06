@@ -1,0 +1,33 @@
+{
+  "actual_rows": 7,
+  "rust_comparisons": 0,
+  "observer_contract": "Capture result before global metadata reads; no script executes between command completion and metadata reads. Original invocation/name/body are counted C objects.",
+  "columns": [
+    "case",
+    "definition_code",
+    "call_code",
+    "name_hex",
+    "body_hex",
+    "result_hex",
+    "error_info_hex",
+    "error_code_hex"
+  ],
+  "source_sha256": "ebc8fe1b6c27e5244e30fc89e4aa3cff9354bc15c02a15d376dfa70a47bac014",
+  "binary_sha256": "3d545e3f98fd336f8545b219d6df996131dc562e4ee1c827a88157dc6675427a",
+  "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+  "output_sha256": "180b9330842af42f44e9a12e29f38f34eaed7022301876ef6678df7b86ef1100",
+  "compile_command": [
+    "cc",
+    "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+    "/workspace/.proofs/2286-c84-procedure-parse-context/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-c84-procedure-parse-context/probe"
+  ],
+  "exit": 0,
+  "stderr": ""
+}

@@ -197,8 +197,112 @@ pub fn method_rename_hazard(
 ) -> Option<RenameRefusal> {
     unlocatable_member_reference(source, dialect, analysis, target, line_index)
         .or_else(|| renamed_member_would_abort(source, analysis, target, line_index))
+        .or_else(|| {
+            unproved_definition_member_reference(source, dialect, analysis, target, line_index)
+        })
+        .or_else(|| {
+            unproved_callback_method_selector(source, dialect, analysis, target, line_index)
+        })
+        .or_else(|| computed_method_selector(source, analysis, target, line_index))
         .or_else(|| dispatch_hazard(source, dialect, analysis, target, line_index))
         .or_else(|| ambiguous_object_command(source, analysis, target, line_index))
+}
+
+/// Definition metadata syntax locates a possible hazard, never an edit.
+/// The selected private-worker/class-allocation receipt must close this site.
+fn unproved_definition_member_reference(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    target: MethodRenameTarget<'_>,
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    let span = target
+        .family
+        .iter()
+        .filter_map(|name| analysis.all_classes.get(name))
+        .find_map(|class| {
+            crate::references::member_reference_spans(source, dialect, class, target.method)
+                .into_iter()
+                .find(|span| {
+                    crate::receiver_identity::definition_reference_at_cursor(
+                        analysis,
+                        source,
+                        span.start(),
+                    )
+                    .is_none()
+                })
+        })?;
+    Some(RenameRefusal::new(
+        format!(
+            "cannot rename `{}`: a definition metadata reference lacks its original selected worker and class allocation receipt.",
+            target.method
+        ),
+        source,
+        line_index,
+        Some(span),
+    ))
+}
+
+fn unproved_callback_method_selector(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    target: MethodRenameTarget<'_>,
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    let span = crate::references::unproved_callback_method_selector(
+        source,
+        dialect,
+        analysis,
+        target.method,
+    )?;
+    Some(RenameRefusal::new(
+        format!(
+            "cannot rename `{}`: a captured callback method lacks its original receiver allocation receipt.",
+            target.method
+        ),
+        source,
+        line_index,
+        Some(span),
+    ))
+}
+
+/// A temporal dispatch can be known while its substituted selector cannot be
+/// edited. Omitting that operand would leave a stale method name after rename.
+fn computed_method_selector(
+    source: &str,
+    analysis: &AnalysisResult,
+    target: MethodRenameTarget<'_>,
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    let selector =
+        crate::receiver_identity::uneditable_method_selector(analysis, source, |selected| {
+            selected.method.name == target.method
+                && (selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class)
+                    == target.is_classmethod
+                && target.family.iter().any(|class| {
+                    analysis.all_classes.get(class).is_some_and(|class| {
+                        let members = if target.is_classmethod {
+                            &class.class_methods
+                        } else {
+                            &class.methods
+                        };
+                        members
+                            .get(target.method)
+                            .is_some_and(|method| method.name_span == selected.method.name_span)
+                    })
+                })
+        })?;
+    Some(RenameRefusal::new(
+        format!(
+            "cannot rename `{}`: a selected dispatch uses a computed method name without exact editable contributor proof.",
+            target.method,
+        ),
+        source,
+        line_index,
+        Some(selector),
+    ))
 }
 
 /// The requested new name would turn a `renamemethod` in this document into one

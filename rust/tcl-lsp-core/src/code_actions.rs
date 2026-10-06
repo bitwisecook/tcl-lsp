@@ -419,7 +419,7 @@ pub fn code_actions_in_program(
     actions.extend(continuation_comment_actions(
         source,
         range,
-        crate::profile_for_dialect(&analysis.dialect),
+        crate::profile_for_analysis(analysis),
     ));
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));

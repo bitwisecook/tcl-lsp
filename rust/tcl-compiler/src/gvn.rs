@@ -945,7 +945,7 @@ pub fn statement_writes_state(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> bool {
     match stmt {
-        Statement::Barrier { .. } => true,
+        Statement::Barrier { .. } | Statement::NativeCall { .. } => true,
         Statement::Call { command, args, .. } => {
             let effect = classify_side_effects(registry, command, args, dialect, None);
             let (_reads, writes) = effect.to_effect_regions();
@@ -970,7 +970,7 @@ fn statement_writes_state_for_gvn(
     match legality {
         GvnLegalitySource::Legacy => statement_writes_state(registry, stmt, dialect),
         GvnLegalitySource::Common(semantic) => match stmt {
-            Statement::Barrier { .. } => true,
+            Statement::Barrier { .. } | Statement::NativeCall { .. } => true,
             Statement::Call { span, .. } => {
                 match semantic.map_or(GvnSemanticLookup::Unmapped, |facts| facts.lookup(*span)) {
                     GvnSemanticLookup::Eligible { .. } => false,
@@ -2171,9 +2171,10 @@ mod tests {
         let function = &cu.top_level;
         let legacy = find_redundancies(&registry, &function.cfg, &function.ssa, None);
         let sidecar = find_redundancies_for_function(&registry, function, None);
-        assert!(!legacy.is_empty());
-        assert!(
-            sidecar.is_empty(),
+        assert_ne!(legacy, [] as [crate::gvn::RedundantComputation; 0]);
+        assert_eq!(
+            sidecar.len(),
+            0,
             "production GVN must not fall back to command strings when semantic facts are unavailable"
         );
     }
@@ -2351,11 +2352,15 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
 
-        assert!(matches!(
-            cu.top_level.semantic_facts.executable(),
-            ExecutableAnalysisAvailability::Available(_)
-        ));
+        // Traced calls need no reusable-value graph, but retain executable IR.
         assert!(
+            cu.top_level
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some()
+        );
+        assert_eq!(
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
@@ -2363,7 +2368,8 @@ mod tests {
                     tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
                 )
             )
-            .is_empty(),
+            .len(),
+            0,
             "an execution-traced command is observably invoked twice"
         );
 
@@ -2406,7 +2412,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
 
-        assert!(
+        assert_eq!(
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
@@ -2414,7 +2420,8 @@ mod tests {
                     tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
                 )
             )
-            .is_empty(),
+            .len(),
+            0,
             "read-only volatile results must not become common subexpressions"
         );
     }
@@ -2432,7 +2439,7 @@ mod tests {
                 false,
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
-            assert!(
+            assert_eq!(
                 find_redundancies_for_function(
                     &registry,
                     &cu.top_level,
@@ -2441,7 +2448,8 @@ mod tests {
                             .analyser_profile()
                     )
                 )
-                .is_empty(),
+                .len(),
+                0,
                 "clock result dependencies must make production GVN abstain: {source}"
             );
         }
@@ -2817,6 +2825,24 @@ mod tests {
     }
 
     #[test]
+    fn opaque_native_call_kills_common_value_numbering_without_text_classification() {
+        let registry = CommandRegistry::build_default();
+        let native = crate::ir::native_call_for_test(b"opaque \xff");
+        assert!(statement_writes_state_for_gvn(
+            &registry,
+            &native,
+            registry.profile(),
+            GvnLegalitySource::Common(None),
+        ));
+        let mut ssa = SsaFunction::trivial("::f", BlockId(0), vec!["entry".into()]);
+        let statement = ssa_stmt_for(&mut ssa, native, None);
+        assert!(
+            statement_occurrences(&registry, &statement, "entry", 0, registry.profile(), &ssa)
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn statement_writes_state_true_for_barrier() {
         let registry = CommandRegistry::build_default();
         let barrier = Statement::Barrier {
@@ -2862,12 +2888,13 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
         let occurrences =
             statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa());
-        assert!(occurrences.is_empty());
+        assert_eq!(occurrences, [] as [crate::gvn::ExprOccurrence; 0]);
     }
 
     #[test]
@@ -2884,11 +2911,13 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
-        assert!(
-            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).is_empty()
+        assert_eq!(
+            statement_occurrences(&registry, &stmt_ssa, "entry", 0, None, &bare_ssa()).len(),
+            0
         );
     }
 
@@ -2942,6 +2971,7 @@ mod tests {
             uses,
             defs: Map::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -2973,6 +3003,8 @@ mod tests {
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3005,6 +3037,8 @@ mod tests {
         entry_blk.statements.push(llength_call());
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3026,7 +3060,7 @@ mod tests {
         ssa.blocks.insert(cfg.entry, ssa_entry);
 
         let results = find_redundancies(&registry, &cfg, &ssa, None);
-        assert!(results.is_empty());
+        assert_eq!(results, [] as [crate::gvn::RedundantComputation; 0]);
     }
 
     #[test]
@@ -3050,6 +3084,8 @@ mod tests {
         });
         entry_blk.statements.push(llength_call());
         entry_blk.terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3075,7 +3111,7 @@ mod tests {
 
         // The global write should invalidate — no redundancy reported.
         let results = find_redundancies(&registry, &cfg, &ssa, None);
-        assert!(results.is_empty());
+        assert_eq!(results, [] as [crate::gvn::RedundantComputation; 0]);
     }
 
     #[test]
@@ -3102,6 +3138,8 @@ mod tests {
             .statements
             .push(llength_call());
         cfg.blocks.get_mut(&child).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3147,14 +3185,20 @@ mod tests {
     #[test]
     fn scan_bracketed_commands_skips_braced_regions() {
         let out = scan_bracketed_commands("{[not a command]}");
-        assert!(out.is_empty());
+        assert_eq!(
+            out,
+            [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
+        );
     }
 
     #[test]
     fn scan_bracketed_commands_handles_backslash_escape() {
         // `\[` shouldn't start a region.
         let out = scan_bracketed_commands("hello \\[world]");
-        assert!(out.is_empty());
+        assert_eq!(
+            out,
+            [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
+        );
     }
 
     #[test]
@@ -3189,6 +3233,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -3212,6 +3257,7 @@ mod tests {
             uses: HashMap::new(),
             defs: HashMap::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -3229,7 +3275,7 @@ mod tests {
         let nonexistent = cfg.intern_block("nonexistent");
         let ssa = SsaFunction::trivial(cfg.name.clone(), nonexistent, cfg.block_names().to_vec());
         let results = find_redundancies(&registry, &cfg, &ssa, None);
-        assert!(results.is_empty());
+        assert_eq!(results, [] as [crate::gvn::RedundantComputation; 0]);
     }
 
     // Loop-invariant detection.
@@ -3266,6 +3312,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3352,6 +3400,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3384,8 +3434,9 @@ mod tests {
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
-        assert!(
-            results.is_empty(),
+        assert_eq!(
+            results.len(),
+            0,
             "invariant behind an in-loop branch must not be hoisted, got {results:?}",
         );
     }
@@ -3434,6 +3485,8 @@ mod tests {
             span: None,
         });
         cfg.blocks.get_mut(&exit).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3462,6 +3515,7 @@ mod tests {
             uses: Map::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -3473,6 +3527,7 @@ mod tests {
             uses: uses_i,
             defs: Map::new(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -3481,7 +3536,7 @@ mod tests {
         ssa.blocks.insert(exit, empty_ssa_block("exit"));
 
         let results = find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None);
-        assert!(results.is_empty());
+        assert_eq!(results, [] as [crate::gvn::RedundantComputation; 0]);
     }
 
     #[test]
@@ -3489,6 +3544,8 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let mut cfg = Function::new("::top", "entry");
         cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3498,7 +3555,10 @@ mod tests {
         let mut ssa = SsaFunction::trivial(cfg.name.clone(), cfg.entry, cfg.block_names().to_vec());
         ssa.idom.insert(cfg.entry, None);
         ssa.blocks.insert(cfg.entry, empty_ssa_block("entry"));
-        assert!(find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None).is_empty());
+        assert_eq!(
+            find_loop_invariants(&registry, &cfg, &ssa, &all_blocks(&cfg), None),
+            [] as [crate::gvn::RedundantComputation; 0]
+        );
     }
 
     // Partial-redundancy detection.
@@ -3552,6 +3612,8 @@ mod tests {
             .statements
             .push(llength_call_at(200, 210));
         cfg.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3601,6 +3663,8 @@ mod tests {
             .statements
             .push(llength_call());
         cfg.blocks.get_mut(&cfg.entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3616,8 +3680,9 @@ mod tests {
             .push(ssa_stmt_for(&mut ssa, llength_call(), Some(1)));
         ssa.blocks.insert(cfg.entry, entry_b);
 
-        assert!(
-            find_partial_redundancies(&registry, &cfg, &ssa, &all_blocks(&cfg), None).is_empty()
+        assert_eq!(
+            find_partial_redundancies(&registry, &cfg, &ssa, &all_blocks(&cfg), None).len(),
+            0
         );
     }
 
@@ -3651,6 +3716,8 @@ mod tests {
                 cfg.blocks.get_mut(&entry).unwrap().statements.push(s);
             }
             cfg.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+                expr_base: None,
+                tokens: None,
                 value: None,
                 value_word: None,
                 span: None,
@@ -3684,6 +3751,8 @@ mod tests {
                     value_span: None,
                 },
                 Statement::Return {
+                    expr_base: None,
+                    tokens: None,
                     span: Span::new(0, 0),
                     value: Some("$x".into()),
                     value_word: None,
@@ -3955,9 +4024,9 @@ mod tests {
     #[test]
     fn mutating_ensemble_subcommand_is_not_cse() {
         // `dict set` mutates — never a redundant-computation candidate.
-        assert!(
-            legacy_redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }")
-                .is_empty()
+        assert_eq!(
+            legacy_redundancies("proc f {d} { dict set d k 1\n dict set d k 1\n return $d }").len(),
+            0
         );
     }
 
@@ -3969,11 +4038,10 @@ mod tests {
         // never-popped root scope and the else-arm's identical computation is
         // falsely reported redundant. The two arms are mutually exclusive
         // paths — nothing is redundant.
-        assert!(
+        assert_eq!(
             legacy_redundancies(
                 "proc f {c lst} { if {$c} { set ::g 1\n set a [llength $lst] } else { set b [llength $lst] }\n return 1 }"
-            )
-            .is_empty(),
+            ).len(), 0,
             "llength on mutually-exclusive branches must not be flagged redundant",
         );
     }
@@ -4003,17 +4071,30 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(
-            matches!(
-                cu.top_level.semantic_facts.executable(),
-                ExecutableAnalysisAvailability::Available(_)
-            ),
-            "executable semantic facts must be available for: {source}"
+            cu.top_level
+                .semantic_facts
+                .executable()
+                .function()
+                .is_some(),
+            "executable semantic source must be retained for {source}: {:?}",
+            cu.top_level.semantic_facts.executable(),
         );
-        find_redundancies_for_function(
+        let findings = find_redundancies_for_function(
             registry,
             &cu.top_level,
             Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
-        )
+        );
+        if !findings.is_empty() {
+            assert!(
+                cu.top_level
+                    .semantic_facts
+                    .executable()
+                    .world_state_ssa()
+                    .is_some(),
+                "reuse requires world-state SSA for {source}",
+            );
+        }
+        findings
     }
 
     /// How many stable-call reuse findings one top-level script produces.
@@ -4063,7 +4144,9 @@ mod tests {
         assert_eq!(
             stable_call_reports(
                 &registry,
-                "set h observe\n\
+                "proc observe args {incr ::seen}\n\
+                 set ::seen 0\n\
+                 set h [info nameofexecutable]\n\
                  trace add execution llength enter observe\n\
                  trace remove execution llength enter $h\n\
                  llength {a b}\n\
@@ -4075,14 +4158,16 @@ mod tests {
         assert_eq!(
             stable_call_reports(
                 &registry,
-                "set h observe\n\
+                "proc observe args {incr ::seen}\n\
+                 set ::seen 0\n\
+                 set h observe\n\
                  trace add execution llength enter observe\n\
-                 trace remove execution llength enter observe\n\
+                 trace remove execution llength enter $h\n\
                  llength {a b}\n\
                  llength {a b}",
             ),
             1,
-            "control: the identical script with a literal removal prefix proves retirement"
+            "control: the frozen variable prefix exactly matches the live registration"
         );
     }
 
@@ -4132,12 +4217,26 @@ mod tests {
         assert_eq!(
             stable_call_reports(
                 &registry,
-                "trace add execution observe enter observe\n\
+                "proc observe {args} {}\n\
+                 trace add execution observe enter observe\n\
                  llength {a b}\n\
                  llength {a b}",
             ),
             1,
             "an enter trace only observes its own target, so the candidate stays stable"
+        );
+    }
+
+    #[test]
+    fn failed_execution_trace_installation_does_not_reach_later_calls() {
+        let registry = CommandRegistry::build_default();
+        assert_eq!(
+            stable_call_reports(
+                &registry,
+                "trace add execution absent enter absent\nllength {a b}\nllength {a b}",
+            ),
+            0,
+            "a missing traced command raises before either candidate executes"
         );
     }
 
@@ -4455,7 +4554,7 @@ mod tests {
             .is_empty(),
             "the legacy classifier still recognises the repeated pure call"
         );
-        assert!(
+        assert_eq!(
             find_redundancies_for_function(
                 &registry,
                 procedure,
@@ -4463,7 +4562,8 @@ mod tests {
                     tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
                 )
             )
-            .is_empty(),
+            .len(),
+            0,
             "a proc body runs after arbitrary interposed history, so every site proof fails closed"
         );
     }

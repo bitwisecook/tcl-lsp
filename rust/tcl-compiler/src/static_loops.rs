@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use crate::expr_ast::ExprNode;
 use crate::ir::{IfClause, Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
+use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue};
 use crate::value_shapes::is_static_var_word;
 
 /// Default cap on iteration count — beyond this we give up and
@@ -51,7 +51,8 @@ pub enum StaticValue {
 }
 
 impl StaticValue {
-    fn to_env_value(&self) -> EnvValue {
+    /// Project mathematical contents, without proving a fresh native object.
+    pub(crate) fn to_env_value(&self) -> EnvValue {
         match self {
             Self::Int(i) => EnvValue::Int(*i),
             Self::Float(f) => EnvValue::Float(*f),
@@ -98,26 +99,33 @@ pub fn evaluate_expr_with_constants(
     env: &StaticEnv,
     policy: FoldPolicy,
 ) -> Option<i64> {
-    let tcl_env = env_as_tcl_env(env);
-    let v = eval_tcl_expr_with_policy(expr, &tcl_env, policy)?;
-    match v {
-        TclValue::Int(i) => Some(i),
-        // A beyond-wide loop bound is pathological — decline static
-        // unrolling rather than saturate.
-        TclValue::Big(_) => None,
-        TclValue::Float(f) => {
-            if !f.is_finite() {
-                return None;
-            }
-            if f.fract() == 0.0 {
-                // Finite integral float: saturate to the `i64` range, an
-                // acceptable cap for loop-bound evaluation.
-                Some(saturating_f64_to_i64(f))
-            } else {
-                None
-            }
-        }
+    evaluate_expr_with_constants_and_math_bindings(expr, env, policy, None)
+}
+
+/// Evaluate with exact retained reached-call evidence. A missing query is an
+/// unknown execution binding, including in the compatibility entry above.
+#[must_use]
+pub fn evaluate_expr_with_constants_and_math_bindings(
+    expr: &ExprNode,
+    env: &StaticEnv,
+    policy: FoldPolicy,
+    bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+) -> Option<i64> {
+    let dependencies = std::cell::RefCell::new(Vec::new());
+    let preparations = std::cell::RefCell::new(Vec::new());
+    let observations = std::cell::RefCell::new(Vec::new());
+    let increments = std::cell::RefCell::new(Vec::new());
+    let evaluation_order = std::cell::Cell::new(0);
+    StaticSimulation {
+        purpose: SimulationPurpose::Execution,
+        observations: &observations,
+        increments: &increments,
+        evaluation_order: &evaluation_order,
+        policy,
+        dependencies: &dependencies,
+        preparations: &preparations,
     }
+    .evaluate(expr, env, bindings)
 }
 
 /// Convert a finite, integer-valued `f64` to `i64`, saturating to
@@ -174,14 +182,16 @@ fn strip_word_delimiters(text: &str) -> String {
     stripped.to_owned()
 }
 
-fn resolve_switch_subject(text: &str, env: &StaticEnv) -> Option<String> {
+fn resolve_switch_subject(text: &str, env: &StaticEnv, policy: FoldPolicy) -> Option<String> {
     let stripped = text.trim();
     if stripped.contains('$') || stripped.contains('[') {
         let name = simple_var_ref(stripped)?;
         let v = env.get(&name)?;
         return Some(match v {
             StaticValue::Int(i) => i.to_string(),
-            StaticValue::Float(f) => f.to_string(),
+            StaticValue::Float(f) => {
+                crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)?
+            }
             StaticValue::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
             StaticValue::Str(s) => s.clone(),
         });
@@ -195,21 +205,286 @@ fn resolve_switch_pattern(pattern: &str) -> String {
 
 // Simulator
 
+/// A successful loop simulation and every implicit call it consumed.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaticLoopSummary {
+    /// Values established at the loop exit.
+    pub values: StaticEnv,
+    /// Guard obligations survive removal of the original expression.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Whole-expression entry validation survives removal of its evaluation.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+}
+
+/// A reached expression whose native object effects remain represented.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaticExpressionObligation {
+    /// Evaluation order across all iterations, including repeated source sites.
+    pub evaluation_order: usize,
+    /// Reached conversions; these never become fresh-object evidence.
+    pub coercions: Vec<crate::tcl_expr_eval::NativeCoercionObligation>,
+    /// Existing native object or bytes preserved by expression completion.
+    pub result_dependency: Option<crate::tcl_expr_eval::NativeExpressionResultDependency>,
+    /// Exact native expression preparation, when positioned evidence exists.
+    pub preparation: Option<crate::command_binding::SourceExpressionPreparation>,
+}
+
+/// A native increment whose retained operand conversion must still execute.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaticIncrementObligation {
+    /// Order shared with reached expression evaluations.
+    pub evaluation_order: usize,
+    /// Original increment statement, including its operand syntax and extent.
+    pub statement: Statement,
+}
+
+/// Semantic loop values without a licence to erase native evaluation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StaticLoopAnalysis {
+    /// Native storage contents tracked by the same bounded simulator.
+    pub values: StaticEnv,
+    /// Reached implicit dispatch requirements.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Whole-expression native entry requirements.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+    /// Effects and result preservation at each reached evaluation.
+    pub expression_obligations: Vec<StaticExpressionObligation>,
+    /// Reached increment operations without native-object conversion evidence.
+    pub increment_obligations: Vec<StaticIncrementObligation>,
+}
+
+#[derive(Clone, Copy)]
+enum SimulationPurpose {
+    Execution,
+    Analysis,
+}
+
+#[derive(Clone, Copy)]
+struct StaticSimulation<'a> {
+    policy: FoldPolicy,
+    purpose: SimulationPurpose,
+    observations: &'a std::cell::RefCell<Vec<StaticExpressionObligation>>,
+    increments: &'a std::cell::RefCell<Vec<StaticIncrementObligation>>,
+    evaluation_order: &'a std::cell::Cell<usize>,
+    dependencies: &'a std::cell::RefCell<Vec<crate::command_binding::SourceMathInvocation>>,
+    preparations: &'a std::cell::RefCell<Vec<crate::command_binding::SourceExpressionPreparation>>,
+}
+
+impl StaticSimulation<'_> {
+    fn evaluate(
+        self,
+        expression: &ExprNode,
+        environment: &StaticEnv,
+        bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+    ) -> Option<i64> {
+        self.evaluate_contents(expression, environment, bindings)?.1
+    }
+
+    fn resolve_math_call(
+        self,
+        bindings: crate::math_function_binding::ExpressionMathBindings<'_>,
+        preparation: Option<&crate::command_binding::SourceExpressionPreparation>,
+        consumed: &std::cell::RefCell<Vec<crate::command_binding::SourceMathInvocation>>,
+        function: &str,
+        start: u32,
+    ) -> Option<crate::tcl_expr_eval::NativeMathFunctionTarget> {
+        let call = bindings.resolved_call(function, start)?;
+        crate::math_function_binding::native_fold_dependency(call.invocation)?;
+        let required = call.invocation.fixed_prerequisite();
+        if self
+            .dependencies
+            .borrow()
+            .iter()
+            .chain(consumed.borrow().iter())
+            .any(|previous: &crate::command_binding::SourceMathInvocation| {
+                !crate::math_function_binding::native_math_prerequisites_compatible(
+                    previous.fixed_prerequisite(),
+                    required,
+                )
+            })
+            || self.preparations.borrow().iter().any(|previous| {
+                !crate::math_function_binding::native_math_prerequisites_compatible(
+                    previous.witness.fixed_functions(),
+                    required,
+                )
+            })
+            || preparation.is_some_and(|preparation| {
+                !crate::math_function_binding::native_math_prerequisites_compatible(
+                    preparation.witness.fixed_functions(),
+                    required,
+                )
+            })
+        {
+            return None;
+        }
+        consumed.borrow_mut().push(call.invocation.clone());
+        Some(call.target())
+    }
+
+    fn evaluate_contents(
+        self,
+        expression: &ExprNode,
+        environment: &StaticEnv,
+        bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+    ) -> Option<(StaticValue, Option<i64>)> {
+        let preparation = bindings.and_then(|bindings| bindings.preparation());
+        if bindings.is_some_and(|bindings| bindings.is_positioned()) && preparation.is_none() {
+            return None;
+        }
+        if let Some(preparation) = preparation
+            && (self.policy.preparation_context().as_ref() != Some(preparation.witness.context())
+                || self.preparations.borrow().iter().any(|previous| {
+                    !crate::math_function_binding::native_math_prerequisites_compatible(
+                        previous.witness.fixed_functions(),
+                        preparation.witness.fixed_functions(),
+                    )
+                })
+                || self.dependencies.borrow().iter().any(|previous| {
+                    !crate::math_function_binding::native_math_prerequisites_compatible(
+                        previous.fixed_prerequisite(),
+                        preparation.witness.fixed_functions(),
+                    )
+                }))
+        {
+            return None;
+        }
+        let expression = preparation.map_or(expression, |preparation| preparation.witness.tree());
+        let consumed = std::cell::RefCell::new(Vec::new());
+        let evaluation = crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
+            expression,
+            &env_as_tcl_env(environment),
+            self.policy,
+            &|function, start| {
+                self.resolve_math_call(bindings?, preparation, &consumed, function, start)
+            },
+            None,
+        )?;
+        if matches!(self.purpose, SimulationPurpose::Execution)
+            && !evaluation.native_value_effects_are_proved()
+        {
+            return None;
+        }
+        let numeric = match evaluation.value {
+            TclValue::Int(value) => Some(value),
+            TclValue::Float(value) if value.is_finite() && value.fract() == 0.0 => {
+                Some(saturating_f64_to_i64(value))
+            }
+            _ => None,
+        };
+        let value = static_expression_contents(&evaluation, environment)?;
+        let order = self.evaluation_order.get();
+        self.evaluation_order.set(order.checked_add(1)?);
+        if !evaluation.native_value_effects_are_proved() {
+            self.observations
+                .borrow_mut()
+                .push(StaticExpressionObligation {
+                    evaluation_order: order,
+                    coercions: evaluation.coercions,
+                    result_dependency: evaluation.result_dependency,
+                    preparation: preparation.cloned(),
+                });
+        }
+        let mut ledger = self.dependencies.borrow_mut();
+        for proof in consumed.into_inner() {
+            if !ledger.contains(&proof) {
+                ledger.push(proof);
+            }
+        }
+        if let Some(preparation) = preparation {
+            let mut ledger = self.preparations.borrow_mut();
+            if !ledger.contains(preparation) {
+                ledger.push(preparation.clone());
+            }
+        }
+        Some((value, numeric))
+    }
+}
+
+fn static_integer(value: &StaticValue, policy: FoldPolicy) -> Option<i64> {
+    match value {
+        StaticValue::Int(value) => Some(*value),
+        StaticValue::Bool(value) => Some(i64::from(*value)),
+        StaticValue::Str(value) => {
+            let parse = |syntax| {
+                tcl_syntax::number::parse_whole_with(
+                    value,
+                    tcl_syntax::number::ParseFlags {
+                        integer_only: true,
+                        ..tcl_syntax::number::ParseFlags::for_syntax(syntax)
+                    },
+                )
+            };
+            let number = match policy.numbers {
+                Some(syntax) => parse(syntax)?,
+                None => tcl_dialect::NumberSyntax::unanimous(parse).flatten()?,
+            };
+            match policy.arithmetic {
+                Some(
+                    tcl_dialect::NativeArithmetic::Tcl84Wide
+                    | tcl_dialect::NativeArithmetic::JimWide,
+                ) => tcl_syntax::expr::wide::parsed_literal(policy.arithmetic?, &number).ok(),
+                _ => match number {
+                    tcl_syntax::number::Number::Int(value) => Some(value),
+                    _ => None,
+                },
+            }
+        }
+        StaticValue::Float(_) => None,
+    }
+}
+
+fn static_expression_contents(
+    evaluation: &crate::tcl_expr_eval::FoldEvaluation,
+    environment: &StaticEnv,
+) -> Option<StaticValue> {
+    use crate::tcl_expr_eval::NativeExpressionResultDependency as Dependency;
+    match &evaluation.result_dependency {
+        Some(Dependency::StringResult { bytes }) => Some(StaticValue::Str(bytes.clone())),
+        Some(Dependency::SelectedOperand {
+            reference,
+            existing_bytes,
+            ..
+        }) => {
+            if let Some(bytes) = existing_bytes {
+                return Some(StaticValue::Str(bytes.clone()));
+            }
+            environment.get(&simple_var_ref(reference)?).cloned()
+        }
+        None => match evaluation.value {
+            TclValue::Int(value) => Some(StaticValue::Int(value)),
+            TclValue::Float(value) if value.is_finite() => Some(StaticValue::Float(value)),
+            _ => None,
+        },
+    }
+}
+
 /// Execute one IR statement in the simulator, updating `env`.
 ///
 /// Returns `true` when the statement is in the supported subset;
 /// `false` when it should abort the whole summarisation (call,
 /// barrier, unhandled structured form, etc.).
-fn exec_statement(stmt: &Statement, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
+fn exec_statement(
+    stmt: &Statement,
+    source: &Script,
+    env: &mut StaticEnv,
+    simulation: StaticSimulation<'_>,
+) -> bool {
     match stmt {
         Statement::AssignConst { name, value, .. } => {
-            env.insert(name.clone(), parse_literal_value(value));
+            env.insert(name.clone(), StaticValue::Str(value.clone()));
             true
         }
-        Statement::AssignExpr { name, expr, .. } => {
-            match evaluate_expr_with_constants(expr, env, policy) {
-                Some(v) => {
-                    env.insert(name.clone(), StaticValue::Int(v));
+        Statement::AssignExpr {
+            name,
+            expr,
+            expr_base,
+            ..
+        } => {
+            let bindings =
+                crate::math_function_binding::ExpressionMathBindings::new(source, *expr_base);
+            match simulation.evaluate_contents(expr, env, Some(bindings)) {
+                Some((value, _)) => {
+                    env.insert(name.clone(), value);
                     true
                 }
                 None => false,
@@ -226,56 +501,77 @@ fn exec_statement(stmt: &Statement, env: &mut StaticEnv, policy: FoldPolicy) -> 
                 env.insert(name.clone(), existing);
                 return true;
             }
-            env.insert(name.clone(), parse_literal_value(value));
+            env.insert(name.clone(), StaticValue::Str(value.clone()));
             true
         }
         Statement::Incr { name, amount, .. } => {
-            let base = env.get(name).cloned();
-            let Some(StaticValue::Int(b)) = base else {
+            let Some(b) = env
+                .get(name)
+                .and_then(|value| static_integer(value, simulation.policy))
+            else {
                 return false;
             };
-            let amt: i64 = match amount.as_deref() {
+            let amt = match amount.as_deref() {
                 None => 1,
                 Some(text) => {
-                    let t = text.trim();
-                    if let Ok(i) = t.parse::<i64>() {
-                        i
-                    } else if let Some(var) = simple_var_ref(t) {
-                        match env.get(&var) {
-                            Some(StaticValue::Int(i)) => *i,
-                            Some(StaticValue::Bool(b)) => i64::from(*b),
-                            _ => return false,
-                        }
-                    } else {
+                    let operand = simple_var_ref(text)
+                        .and_then(|name| env.get(&name).cloned())
+                        .unwrap_or_else(|| StaticValue::Str(text.to_owned()));
+                    let Some(amount) = static_integer(&operand, simulation.policy) else {
                         return false;
-                    }
+                    };
+                    amount
                 }
             };
-            let Some(sum) = b.checked_add(amt) else {
+            let sum = match simulation.policy.arithmetic {
+                Some(
+                    policy @ (tcl_dialect::NativeArithmetic::Tcl84Wide
+                    | tcl_dialect::NativeArithmetic::JimWide),
+                ) => {
+                    tcl_syntax::expr::wide::binary(policy, crate::expr_ast::BinOp::Add, b, amt).ok()
+                }
+                _ => b.checked_add(amt),
+            };
+            let Some(sum) = sum else {
                 return false;
             };
+            if matches!(simulation.purpose, SimulationPurpose::Execution) {
+                return false;
+            }
+            let order = simulation.evaluation_order.get();
+            let Some(next_order) = order.checked_add(1) else {
+                return false;
+            };
+            simulation.evaluation_order.set(next_order);
+            simulation
+                .increments
+                .borrow_mut()
+                .push(StaticIncrementObligation {
+                    evaluation_order: order,
+                    statement: stmt.clone(),
+                });
             env.insert(name.clone(), StaticValue::Int(sum));
             true
         }
         Statement::If {
             clauses, else_body, ..
-        } => exec_if(clauses, else_body.as_ref(), env, policy),
+        } => exec_if(source, clauses, else_body.as_ref(), env, simulation),
         Statement::Switch {
             subject,
             arms,
             default_body,
             mode,
             ..
-        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, policy),
+        } => exec_switch(subject, arms, default_body.as_ref(), *mode, env, simulation),
         // Calls, barriers, returns, loops (other than the
         // top-level summarised `for`) — out of supported subset.
         _ => false,
     }
 }
 
-fn exec_script(script: &Script, env: &mut StaticEnv, policy: FoldPolicy) -> bool {
+fn exec_script(script: &Script, env: &mut StaticEnv, simulation: StaticSimulation<'_>) -> bool {
     for stmt in &script.statements {
-        if !exec_statement(stmt, env, policy) {
+        if !exec_statement(stmt, script, env, simulation) {
             return false;
         }
     }
@@ -283,22 +579,27 @@ fn exec_script(script: &Script, env: &mut StaticEnv, policy: FoldPolicy) -> bool
 }
 
 fn exec_if(
+    source: &Script,
     clauses: &[IfClause],
     else_body: Option<&Script>,
     env: &mut StaticEnv,
-    policy: FoldPolicy,
+    simulation: StaticSimulation<'_>,
 ) -> bool {
     for clause in clauses {
-        let Some(cond) = evaluate_expr_with_constants(&clause.condition, env, policy) else {
+        let bindings = crate::math_function_binding::ExpressionMathBindings::new(
+            source,
+            clause.condition_base,
+        );
+        let Some(cond) = simulation.evaluate(&clause.condition, env, Some(bindings)) else {
             return false;
         };
         if cond != 0 {
-            return exec_script(&clause.body, env, policy);
+            return exec_script(&clause.body, env, simulation);
         }
     }
     match else_body {
         None => true,
-        Some(body) => exec_script(body, env, policy),
+        Some(body) => exec_script(body, env, simulation),
     }
 }
 
@@ -308,9 +609,9 @@ fn exec_switch(
     default_body: Option<&Script>,
     _mode: SwitchMode,
     env: &mut StaticEnv,
-    policy: FoldPolicy,
+    simulation: StaticSimulation<'_>,
 ) -> bool {
-    let Some(subject_value) = resolve_switch_subject(subject, env) else {
+    let Some(subject_value) = resolve_switch_subject(subject, env, simulation.policy) else {
         return false;
     };
     let mut pending_fallthrough = false;
@@ -330,7 +631,7 @@ fn exec_switch(
     let body = selected_body.or(default_body);
     match body {
         None => true,
-        Some(b) => exec_script(b, env, policy),
+        Some(b) => exec_script(b, env, simulation),
     }
 }
 
@@ -350,14 +651,60 @@ pub fn summarise_static_for(
     max_iterations: u64,
     policy: FoldPolicy,
 ) -> Option<StaticEnv> {
-    let mut env: StaticEnv = initial_constants.clone();
+    summarise_static_for_selected(
+        init,
+        StaticForCondition {
+            purpose: SimulationPurpose::Execution,
+            expression: condition,
+            bindings: None,
+        },
+        next_script,
+        body,
+        initial_constants,
+        max_iterations,
+        policy,
+    )
+    .map(|summary| summary.values)
+}
 
-    if !exec_script(init, &mut env, policy) {
+#[derive(Clone, Copy)]
+struct StaticForCondition<'a> {
+    purpose: SimulationPurpose,
+    expression: &'a ExprNode,
+    bindings: Option<crate::math_function_binding::ExpressionMathBindings<'a>>,
+}
+
+fn summarise_static_for_selected(
+    init: &Script,
+    condition: StaticForCondition<'_>,
+    next_script: &Script,
+    body: &Script,
+    initial_constants: &StaticEnv,
+    max_iterations: u64,
+    policy: FoldPolicy,
+) -> Option<StaticLoopAnalysis> {
+    let mut env: StaticEnv = initial_constants.clone();
+    let dependencies = std::cell::RefCell::new(Vec::new());
+    let preparations = std::cell::RefCell::new(Vec::new());
+    let observations = std::cell::RefCell::new(Vec::new());
+    let increments = std::cell::RefCell::new(Vec::new());
+    let evaluation_order = std::cell::Cell::new(0);
+    let simulation = StaticSimulation {
+        policy,
+        purpose: condition.purpose,
+        observations: &observations,
+        increments: &increments,
+        evaluation_order: &evaluation_order,
+        dependencies: &dependencies,
+        preparations: &preparations,
+    };
+
+    if !exec_script(init, &mut env, simulation) {
         return None;
     }
     let mut iterations: u64 = 0;
     loop {
-        let cond = evaluate_expr_with_constants(condition, &env, policy)?;
+        let cond = simulation.evaluate(condition.expression, &env, condition.bindings)?;
         if cond == 0 {
             break;
         }
@@ -365,14 +712,20 @@ pub fn summarise_static_for(
         if iterations > max_iterations {
             return None;
         }
-        if !exec_script(body, &mut env, policy) {
+        if !exec_script(body, &mut env, simulation) {
             return None;
         }
-        if !exec_script(next_script, &mut env, policy) {
+        if !exec_script(next_script, &mut env, simulation) {
             return None;
         }
     }
-    Some(env)
+    Some(StaticLoopAnalysis {
+        expression_obligations: observations.into_inner(),
+        increment_obligations: increments.into_inner(),
+        values: env,
+        required_math_invocations: dependencies.into_inner(),
+        required_expression_preparations: preparations.into_inner(),
+    })
 }
 
 /// Convenience entry point that extracts the init/condition/next/
@@ -385,6 +738,45 @@ pub fn summarise_for_statement(
     max_iterations: u64,
     policy: FoldPolicy,
 ) -> Option<StaticEnv> {
+    summarise_for_statement_with_math_bindings(
+        stmt,
+        initial_constants,
+        max_iterations,
+        policy,
+        None,
+    )
+}
+
+/// Summarise under an exact original condition query; body expressions carry
+/// their own Script source inventories. Never reparse rendered conditions to
+/// reuse an AST offset from another expression.
+#[must_use]
+pub fn summarise_for_statement_with_math_bindings(
+    stmt: &Statement,
+    initial_constants: &StaticEnv,
+    max_iterations: u64,
+    policy: FoldPolicy,
+    condition_bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+) -> Option<StaticEnv> {
+    summarise_for_statement_with_dependencies(
+        stmt,
+        initial_constants,
+        max_iterations,
+        policy,
+        condition_bindings,
+    )
+    .map(|summary| summary.values)
+}
+
+/// Preserve dependencies consumed by successful loop simulation for artifacts.
+#[must_use]
+pub fn summarise_for_statement_with_dependencies(
+    stmt: &Statement,
+    initial_constants: &StaticEnv,
+    max_iterations: u64,
+    policy: FoldPolicy,
+    condition_bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+) -> Option<StaticLoopSummary> {
     let Statement::For {
         init,
         condition,
@@ -395,9 +787,53 @@ pub fn summarise_for_statement(
     else {
         return None;
     };
-    summarise_static_for(
+    summarise_static_for_selected(
+        init,
+        StaticForCondition {
+            purpose: SimulationPurpose::Execution,
+            expression: condition,
+            bindings: condition_bindings,
+        },
+        next,
+        body,
+        initial_constants,
+        max_iterations,
+        policy,
+    )
+    .map(|analysis| StaticLoopSummary {
+        values: analysis.values,
+        required_math_invocations: analysis.required_math_invocations,
+        required_expression_preparations: analysis.required_expression_preparations,
+    })
+}
+
+/// Analyse reached native loop values while retaining conversion obligations.
+/// This distinct result cannot be used as an executable static-loop summary.
+#[must_use]
+pub fn analyse_for_statement_with_dependencies(
+    statement: &Statement,
+    initial_constants: &StaticEnv,
+    max_iterations: u64,
+    policy: FoldPolicy,
+    condition_bindings: Option<crate::math_function_binding::ExpressionMathBindings<'_>>,
+) -> Option<StaticLoopAnalysis> {
+    let Statement::For {
         init,
         condition,
+        next,
+        body,
+        ..
+    } = statement
+    else {
+        return None;
+    };
+    summarise_static_for_selected(
+        init,
+        StaticForCondition {
+            purpose: SimulationPurpose::Analysis,
+            expression: condition,
+            bindings: condition_bindings,
+        },
         next,
         body,
         initial_constants,
@@ -410,6 +846,17 @@ pub fn summarise_for_statement(
 mod tests {
     use super::*;
     use crate::expr_parser::parse_expr;
+
+    fn selected_analysis_policy() -> FoldPolicy {
+        let supplied = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = supplied.commands();
+        let profile = registry.profile().unwrap();
+        FoldPolicy::for_retained_entry(
+            registry,
+            Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            &tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        )
+    }
     use tcl_lexer::Span;
 
     fn sp() -> Span {
@@ -446,6 +893,213 @@ mod tests {
             amount: amount.map(String::from),
             safe_on_uninit: false,
         }
+    }
+
+    fn analyse_static_for(
+        init: &Script,
+        condition: &ExprNode,
+        next: &Script,
+        body: &Script,
+        initial: &StaticEnv,
+        max_iterations: u64,
+        policy: FoldPolicy,
+    ) -> Option<StaticEnv> {
+        summarise_static_for_selected(
+            init,
+            StaticForCondition {
+                purpose: SimulationPurpose::Analysis,
+                expression: condition,
+                bindings: None,
+            },
+            next,
+            body,
+            initial,
+            max_iterations,
+            policy,
+        )
+        .map(|analysis| analysis.values)
+    }
+
+    #[test]
+    fn positioned_simulation_requires_matching_whole_expression_preparation() {
+        use crate::command_binding::{
+            CommandAllocationSite, ExecutedScriptSource, SourceExpressionPreparation,
+            SourceOriginId,
+        };
+        use crate::math_function_binding::ExpressionMathBindings;
+        use std::sync::Arc;
+        use tcl_registry::runtime_expr_validation::{
+            ExpressionPreparationProof, prepare_expression_witness,
+        };
+        let origin = Arc::new(SourceOriginId::authored(&Arc::from("0")));
+        let source = ExecutedScriptSource::contiguous(Arc::clone(&origin), "0", 0).unwrap();
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+        );
+        let ExpressionPreparationProof::Prepared(witness) =
+            prepare_expression_witness("0", &policy.preparation_context().unwrap(), None)
+        else {
+            panic!("literal preparation succeeds")
+        };
+        let preparation = SourceExpressionPreparation {
+            namespace_key: crate::command_binding::SourceNamespaceKey::authored("::"),
+            invocation: CommandAllocationSite {
+                source: origin,
+                offset: 0,
+            },
+            source: Arc::new(source.clone()),
+            witness: Arc::from(witness),
+            script_compilation: None,
+            executed_expression: None,
+        };
+        let expression = parse_expr("0", None);
+        let positioned = ExpressionMathBindings::for_origin(&[], Some(&source), Some(0));
+        assert_eq!(
+            evaluate_expr_with_constants_and_math_bindings(
+                &expression,
+                &StaticEnv::new(),
+                policy,
+                Some(positioned),
+            ),
+            None
+        );
+        let inventory = [preparation.clone()];
+        let positioned = positioned.with_preparations(&inventory);
+        let summary = summarise_static_for_selected(
+            &empty_script(),
+            StaticForCondition {
+                purpose: SimulationPurpose::Execution,
+                expression: &expression,
+                bindings: Some(positioned),
+            },
+            &empty_script(),
+            &empty_script(),
+            &StaticEnv::new(),
+            10,
+            policy,
+        )
+        .unwrap();
+        assert_eq!(summary.required_expression_preparations, vec![preparation]);
+        assert_eq!(
+            summary.required_math_invocations,
+            [] as [crate::command_binding::SourceMathInvocation; 0]
+        );
+        let other_engine = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+        );
+        assert_eq!(
+            evaluate_expr_with_constants_and_math_bindings(
+                &expression,
+                &StaticEnv::new(),
+                other_engine,
+                Some(positioned),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn semantic_loop_values_retain_each_native_conversion() {
+        let condition = parse_expr("$i < 10", None);
+        let statement = Statement::For {
+            span: sp(),
+            init: script_of(vec![assign_const("i", "0"), assign_const("j", "0")]),
+            init_span: sp(),
+            condition,
+            condition_span: sp(),
+            next: script_of(vec![incr("i", None)]),
+            next_span: sp(),
+            body: script_of(vec![Statement::If {
+                span: sp(),
+                clauses: vec![IfClause {
+                    condition: parse_expr("$i < 5", None),
+                    condition_span: sp(),
+                    condition_base: None,
+                    body: script_of(vec![incr("j", None)]),
+                    body_span: sp(),
+                }],
+                else_body: None,
+                else_span: None,
+            }]),
+            body_span: sp(),
+            raw_args: Vec::new(),
+            raw_tokens: None,
+            condition_base: None,
+        };
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_1),
+        );
+        assert!(
+            summarise_for_statement_with_dependencies(
+                &statement,
+                &StaticEnv::new(),
+                20,
+                policy,
+                None,
+            )
+            .is_none()
+        );
+        let analysis = analyse_for_statement_with_dependencies(
+            &statement,
+            &StaticEnv::new(),
+            20,
+            policy,
+            None,
+        )
+        .expect("semantic values retain native evaluation");
+        assert_eq!(analysis.values.get("i"), Some(&StaticValue::Int(10)));
+        assert_eq!(analysis.values.get("j"), Some(&StaticValue::Int(5)));
+        assert_eq!(analysis.increment_obligations.len(), 15);
+        assert_eq!(analysis.expression_obligations.len(), 21);
+        assert!(
+            analysis
+                .expression_obligations
+                .iter()
+                .all(|obligation| !obligation.coercions.is_empty())
+        );
+        let mut orders: Vec<_> = analysis
+            .expression_obligations
+            .iter()
+            .map(|obligation| obligation.evaluation_order)
+            .chain(
+                analysis
+                    .increment_obligations
+                    .iter()
+                    .map(|obligation| obligation.evaluation_order),
+            )
+            .collect();
+        orders.sort_unstable();
+        assert_eq!(orders, (0..36).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn semantic_selected_result_preserves_native_bytes() {
+        let policy = FoldPolicy::default().with_invocation_dialect(
+            tcl_registry::InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
+                tcl_dialect::model::Release::JIM_0_84,
+            )),
+        );
+        let observations = std::cell::RefCell::new(Vec::new());
+        let increments = std::cell::RefCell::new(Vec::new());
+        let preparations = std::cell::RefCell::new(Vec::new());
+        let dependencies = std::cell::RefCell::new(Vec::new());
+        let evaluation_order = std::cell::Cell::new(0);
+        let simulation = StaticSimulation {
+            policy,
+            purpose: SimulationPurpose::Analysis,
+            observations: &observations,
+            increments: &increments,
+            preparations: &preparations,
+            dependencies: &dependencies,
+            evaluation_order: &evaluation_order,
+        };
+        let environment = StaticEnv::from([("x".to_owned(), StaticValue::Str("003".to_owned()))]);
+        let result = simulation
+            .evaluate_contents(&parse_expr("$x", None), &environment, None)
+            .expect("native selected result is known");
+        assert_eq!(result.0, StaticValue::Str("003".to_owned()));
+        assert_eq!(result.1, Some(3));
+        assert!(observations.borrow()[0].result_dependency.is_some());
     }
 
     // saturating_f64_to_i64
@@ -497,40 +1151,40 @@ mod tests {
     // summarise_static_for
 
     #[test]
-    fn summarise_counts_iterations_to_five() {
+    fn analyse_counts_iterations_to_five() {
         // for {set i 0} {$i < 5} {incr i} { /* nothing */ }
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 5", None);
         let next_script = script_of(vec![incr("i", None)]);
         let body = empty_script();
-        let env = summarise_static_for(
+        let env = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(5)));
     }
 
     #[test]
-    fn summarise_body_accumulates_counter() {
+    fn analyse_body_accumulates_counter() {
         // for {set i 0; set total 0} {$i < 3} {incr i} { incr total }
         let init = script_of(vec![assign_const("i", "0"), assign_const("total", "0")]);
         let cond = parse_expr("$i < 3", None);
         let next_script = script_of(vec![incr("i", None)]);
         let body = script_of(vec![incr("total", None)]);
-        let env = summarise_static_for(
+        let env = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         )
         .expect("summarised");
         assert_eq!(env.get("total"), Some(&StaticValue::Int(3)));
@@ -538,25 +1192,25 @@ mod tests {
     }
 
     #[test]
-    fn summarise_respects_iteration_cap() {
+    fn analyse_respects_iteration_cap() {
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 10000", None);
         let next_script = script_of(vec![incr("i", None)]);
         let body = empty_script();
-        let result = summarise_static_for(
+        let result = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             100,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         );
         assert!(result.is_none(), "should exceed the 100-iter cap");
     }
 
     #[test]
-    fn summarise_unsupported_statement_returns_none() {
+    fn analyse_unsupported_statement_returns_none() {
         // Body contains a `Call` → out of the supported subset.
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 3", None);
@@ -574,14 +1228,14 @@ mod tests {
             foreach_groups: None,
         }]);
         assert!(
-            summarise_static_for(
+            analyse_static_for(
                 &init,
                 &cond,
                 &next_script,
                 &body,
                 &StaticEnv::new(),
                 1000,
-                FoldPolicy::default()
+                selected_analysis_policy()
             )
             .is_none()
         );
@@ -614,7 +1268,7 @@ mod tests {
     }
 
     #[test]
-    fn summarise_resolves_if_else_branch_in_body() {
+    fn analyse_resolves_if_else_branch_in_body() {
         // for {set i 0} {$i < 3} {incr i} {
         //     if {$i == 1} {set x 10} else {set x 20}
         // }  →  i ends at 3; the last iteration (i = 2) takes the else.
@@ -633,61 +1287,61 @@ mod tests {
             else_body: Some(script_of(vec![assign_const("x", "20")])),
             else_span: None,
         }]);
-        let env = summarise_static_for(
+        let env = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         )
         .expect("summarised");
         assert_eq!(env.get("i"), Some(&StaticValue::Int(3)));
-        assert_eq!(env.get("x"), Some(&StaticValue::Int(20)));
+        assert_eq!(env.get("x"), Some(&StaticValue::Str("20".to_owned())));
     }
 
     #[test]
-    fn summarise_resolves_switch_dispatch_in_body() {
+    fn analyse_resolves_switch_dispatch_in_body() {
         // for {set i 0; set mode a} {$i < 1} {incr i} { switch … } → v = 1.
         let init = script_of(vec![assign_const("i", "0"), assign_const("mode", "a")]);
         let cond = parse_expr("$i < 1", None);
         let next_script = script_of(vec![incr("i", None)]);
         let body = script_of(vec![mode_switch()]);
-        let env = summarise_static_for(
+        let env = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         )
         .expect("summarised");
-        assert_eq!(env.get("v"), Some(&StaticValue::Int(1)));
+        assert_eq!(env.get("v"), Some(&StaticValue::Str("1".to_owned())));
     }
 
     #[test]
-    fn summarise_bails_on_unresolvable_switch_subject() {
+    fn analyse_bails_on_unresolvable_switch_subject() {
         // `$mode` is never set, so the subject can't resolve → summary bails.
         let init = script_of(vec![assign_const("i", "0")]);
         let cond = parse_expr("$i < 1", None);
         let next_script = script_of(vec![incr("i", None)]);
         let body = script_of(vec![mode_switch()]);
-        let result = summarise_static_for(
+        let result = analyse_static_for(
             &init,
             &cond,
             &next_script,
             &body,
             &StaticEnv::new(),
             1000,
-            FoldPolicy::default(),
+            selected_analysis_policy(),
         );
         assert!(result.is_none(), "unresolvable switch subject should bail");
     }
 
     #[test]
-    fn summarise_forwards_for_statement_helper() {
+    fn analyse_forwards_for_statement_helper() {
         let for_stmt = Statement::For {
             span: sp(),
             init: script_of(vec![assign_const("i", "0")]),
@@ -702,8 +1356,15 @@ mod tests {
             raw_tokens: None,
             condition_base: None,
         };
-        let env = summarise_for_statement(&for_stmt, &StaticEnv::new(), 100, FoldPolicy::default())
-            .expect("summarised");
+        let env = analyse_for_statement_with_dependencies(
+            &for_stmt,
+            &StaticEnv::new(),
+            100,
+            selected_analysis_policy(),
+            None,
+        )
+        .expect("analysed")
+        .values;
         assert_eq!(env.get("i"), Some(&StaticValue::Int(2)));
     }
 
@@ -715,7 +1376,20 @@ mod tests {
         env.insert("x".into(), StaticValue::Int(5));
         assert_eq!(
             evaluate_expr_with_constants(&parse_expr("$x + 3", None), &env, FoldPolicy::default()),
-            Some(8)
+            None
+        );
+        let evaluation = crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
+            &parse_expr("$x + 3", None),
+            &env_as_tcl_env(&env),
+            selected_analysis_policy(),
+            &|_, _| None,
+            None,
+        )
+        .expect("analysis retains numeric conversion");
+        assert_eq!(evaluation.value, TclValue::Int(8));
+        assert_ne!(
+            evaluation.coercions,
+            [] as [crate::tcl_expr_eval::NativeCoercionObligation; 0]
         );
     }
 

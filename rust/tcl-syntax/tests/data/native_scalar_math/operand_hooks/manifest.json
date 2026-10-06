@@ -1,0 +1,42 @@
+[
+  {
+    "version": "8.4.20",
+    "exit": 0,
+    "output": "route=compiled hook=update code=0 result=4 UPDATED CHANGED\nroute=compiled hook=free code=0 result=4 FREED CHANGED\nroute=generic hook=update code=0 result=4 UPDATED CHANGED\nroute=generic hook=free code=0 result=4 FREED CHANGED\n",
+    "source_sha": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "library_sha": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "binary_sha": "e36064383a58baa19ba0055aa47d109335b98574d8500d85b945b2bc4c843ce8"
+  },
+  {
+    "version": "8.5.19",
+    "exit": 0,
+    "output": "route=compiled hook=update code=0 result=4 UPDATED CHANGED\nroute=compiled hook=free code=0 result=4 FREED CHANGED\nroute=generic hook=update code=0 result=4 UPDATED CHANGED\nroute=generic hook=free code=0 result=4 FREED CHANGED\n",
+    "source_sha": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "library_sha": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "binary_sha": "3edd69a9e4adde0f3f5356933a072289d35355c30891301ef79f635df304c607"
+  },
+  {
+    "version": "8.6.18",
+    "exit": 0,
+    "output": "route=compiled hook=update code=0 result=4 UPDATED CHANGED\nroute=compiled hook=free code=0 result=4 FREED CHANGED\nroute=generic hook=update code=0 result=4 UPDATED CHANGED\nroute=generic hook=free code=0 result=4 FREED CHANGED\n",
+    "source_sha": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "library_sha": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "binary_sha": "bd7fe83c1f9dbe2ce0c309fefe8b783e9f787621e13eab423340e575af6a9326"
+  },
+  {
+    "version": "9.0.4",
+    "exit": 0,
+    "output": "route=compiled hook=update code=0 result=4 UPDATED CHANGED\nroute=compiled hook=free code=0 result=4 FREED CHANGED\nroute=generic hook=update code=0 result=4 UPDATED CHANGED\nroute=generic hook=free code=0 result=4 FREED CHANGED\n",
+    "source_sha": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "library_sha": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "binary_sha": "57b66be307f6510b03798f2f48cd5235f506a5651ee241120d535f3334bd7ca1"
+  },
+  {
+    "version": "9.1.0",
+    "exit": 0,
+    "output": "route=compiled hook=update code=0 result=4 UPDATED CHANGED\nroute=compiled hook=free code=0 result=4 FREED CHANGED\nroute=generic hook=update code=0 result=4 UPDATED CHANGED\nroute=generic hook=free code=0 result=4 FREED CHANGED\n",
+    "source_sha": "7a4c78f826d78fc4a7f229311edd5971bf3129965b6e1dd1d932446a3cbd4548",
+    "library_sha": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "binary_sha": "c0181a077aafd3b8e39275321b2079bd9aaf5f88d4a9e43223a85a7a1b592a5b"
+  }
+]

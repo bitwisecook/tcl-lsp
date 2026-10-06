@@ -159,6 +159,9 @@ impl PerItemFallback {
 /// the result back.
 #[derive(Debug, Clone)]
 pub struct DeferredBody {
+    /// Actual editing generation and grammar, independent of the temporal
+    /// command proofs restored by the document shell.
+    pub resolved_input: Option<super::ResolvedAnalysisInput>,
     /// Body text (braces stripped), as `analyse_body` expects.
     ///
     /// Shared behind an `Arc` so the LSP query database can intern it into its
@@ -474,6 +477,8 @@ impl Analyser {
         self.source = source.to_string();
         let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
+        self.result.body_lexer_config = Some(self.lexer_config());
+        self.result.resolved_input = Some(self.resolved_analysis_input());
         self.result.library_versions = self.library_versions.clone();
         self.tk_ambient = tk_ambient;
         // The per-item path deliberately accumulates **no** Tk state, unlike
@@ -511,23 +516,12 @@ impl Analyser {
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        // The per-item walk deliberately reads the **un-overlaid**
-        // generation's store here, as it always has
-        // (`registry_handle_for_profile`, not `profile_registry`);
-        // [`super::state::Analyser::analysis_context`] keeps carrying the
-        // pack overlay for the queries that thread it.
-        self.registry = Some(std::sync::Arc::clone(
-            self.environment
-                .as_ref()
-                .expect("resolved at the top of per_item_setup")
-                .context_registry(
-                    &crate::environment_ingress::DocumentEnvironment::keyed_versions(
-                        &self.library_versions,
-                    ),
-                    0,
-                )
-                .commands(),
-        ));
+        // Full and isolated walks read the same retained generation.
+        self.registry = Some(self.profile_registry());
+        // The shell owns the complete document's temporal command proofs.
+        // Isolated fragments cannot reconstruct this world from their bytes.
+        self.head_identities = self.document_command_realm(source);
+        self.result.command_realm = Some(std::sync::Arc::new(self.head_identities.clone()));
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
         // `recovery_known_commands` — so per-item analysis matches the
@@ -925,7 +919,16 @@ impl Analyser {
                 .or_default()
                 .extend(defs);
         }
-        self.result.all_classes.extend(r.all_classes);
+        for (qualified, definitions) in r.superseded_classes {
+            self.result
+                .superseded_classes
+                .entry(qualified)
+                .or_default()
+                .extend(definitions);
+        }
+        for (qualified, class) in r.all_classes {
+            self.result.retain_class_declaration(qualified, class);
+        }
         self.merge_body_variables(r.all_variables, shell_var_keys);
         self.result.command_aliases.extend(r.command_aliases);
         self.result.alias_offsets.extend(r.alias_offsets);
@@ -1374,7 +1377,12 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     let mut a = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(non_ascii)
         .with_workspace_class_factories(workspace_class_factories);
-    a.profile = crate::environment_ingress::resolve_environment(dialect).analyser_profile();
+    if let Some(input) = &db.resolved_input {
+        a = a.with_resolved_input(input.clone());
+    }
+    a.resolve_walk_environment(dialect);
+    a.result.body_lexer_config = Some(a.lexer_config());
+    a.result.resolved_input = Some(a.resolved_analysis_input());
     a.declared_commands = declared_commands;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
@@ -1392,9 +1400,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
     let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
-    a.registry = Some(std::sync::Arc::clone(
-        tcl_registry::model::ingress::static_context_for_profile(a.profile).commands(),
-    ));
+    a.registry = Some(a.profile_registry());
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.
@@ -1650,6 +1656,26 @@ fn rebase_scope(s: &mut super::types::Scope, d: u32) {
     }
 }
 
+/// Relocate every retained declaration together, including displaced records.
+/// Keeping final records and navigation history on one path prevents fragment
+/// reuse from assigning an old declaration the coordinates of a new one.
+fn rebase_result_declarations(r: &mut AnalysisResult, d: u32) {
+    for procedure in r
+        .all_procs
+        .values_mut()
+        .chain(r.superseded_procs.values_mut().flatten())
+    {
+        rebase_proc(procedure, d);
+    }
+    for class in r
+        .all_classes
+        .values_mut()
+        .chain(r.superseded_classes.values_mut().flatten())
+    {
+        rebase_class(class, d);
+    }
+}
+
 /// Shift every span in an offset-0 body fragment to the body's real position
 /// (`d` bytes; suppressed-line keys by `line_delta` lines).  E2 (offset-shift
 /// invariance) guarantees this reproduces an in-place walk exactly.
@@ -1657,17 +1683,7 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     rebase_fragment_synthetic_names(frag, d);
     rebase_scope(&mut frag.proc_scope, d);
     let r = &mut frag.result;
-    for p in r.all_procs.values_mut() {
-        rebase_proc(p, d);
-    }
-    for defs in r.superseded_procs.values_mut() {
-        for p in defs.iter_mut() {
-            rebase_proc(p, d);
-        }
-    }
-    for c in r.all_classes.values_mut() {
-        rebase_class(c, d);
-    }
+    rebase_result_declarations(r, d);
     for v in r.all_variables.values_mut() {
         rebase_vardef(v, d);
     }
@@ -1676,6 +1692,7 @@ fn rebase_fragment(frag: &mut BodyFragment, d: u32, line_delta: i32) {
     }
     for inv in &mut r.command_invocations {
         inv.range = shift(inv.range, d);
+        inv.lookup = inv.lookup.rebased(d);
     }
     for x in &mut r.package_requires {
         x.range = shift(x.range, d);
@@ -1889,6 +1906,12 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     for c in r.all_classes.values_mut() {
         fix_class_names(c, fix);
     }
+    fix_string_keys(&mut r.superseded_classes, fix);
+    for definitions in r.superseded_classes.values_mut() {
+        for class in definitions {
+            fix_class_names(class, fix);
+        }
+    }
     fix_string_keys(&mut r.all_variables, fix);
     for v in r.all_variables.values_mut() {
         fix_var_names(v, fix);
@@ -1914,7 +1937,7 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     fix_string_keys(&mut r.command_aliases, fix);
     for a in r.command_aliases.values_mut() {
         fix(&mut a.qualified_name);
-        fix(&mut a.target);
+        a.target.rebase(fix);
     }
     fix_string_keys(&mut r.alias_offsets, fix);
     fix_string_keys(&mut r.renamed_commands, fix);
@@ -1932,7 +1955,10 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     }
     for imp in &mut r.namespace_imports {
         fix(&mut imp.ns);
-        fix(&mut imp.pattern);
+        if let Some(source) = &mut imp.source {
+            fix(&mut source.namespace);
+            imp.pattern = source.constructed_pattern();
+        }
     }
     for exp in &mut r.namespace_exports {
         fix(&mut exp.ns);

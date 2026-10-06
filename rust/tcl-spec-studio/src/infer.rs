@@ -249,6 +249,7 @@ fn draft_for_proc(
             "max": if unbounded { Value::Null } else { json!(arity.max) },
             "step": 0,
             "also_exact": null,
+            "count": "arguments",
         }),
     );
     notes.push(if unbounded {

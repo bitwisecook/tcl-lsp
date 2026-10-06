@@ -1297,8 +1297,8 @@ mod tests {
     fn w241_constant_true_no_exit() {
         assert_eq!(codes("while 1 {puts hi}\n"), vec!["W241"]);
         // A `break` in the body suppresses W241.
-        assert!(codes("while 1 {break}\n").is_empty());
-        assert!(codes("while 1 {return}\n").is_empty());
+        assert_eq!(codes("while 1 {break}\n"), [] as [std::string::String; 0]);
+        assert_eq!(codes("while 1 {return}\n"), [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1307,18 +1307,23 @@ mod tests {
         // iteration (verified against tclsh 9.0.4), so a `while 1` body
         // containing either is NOT provably infinite. `throw` resolves via the
         // registry's TERMINATES_BLOCK trait; `tailcall` is named explicitly.
-        assert!(
-            codes("while 1 {throw MYERR boom}\n").is_empty(),
+        assert_eq!(
+            codes("while 1 {throw MYERR boom}\n").len(),
+            0,
             "throw must suppress W241",
         );
-        assert!(
-            codes("while 1 {tailcall foo}\n").is_empty(),
+        assert_eq!(
+            codes("while 1 {tailcall foo}\n").len(),
+            0,
             "tailcall must suppress W241",
         );
         // TP controls: the other block-terminators still suppress, and a body
         // with no exit at all still fires.
-        assert!(codes("while 1 {error boom}\n").is_empty());
-        assert!(codes("while 1 {exit 1}\n").is_empty());
+        assert_eq!(
+            codes("while 1 {error boom}\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(codes("while 1 {exit 1}\n"), [] as [std::string::String; 0]);
         assert_eq!(codes("while 1 {incr n}\n"), vec!["W241"]);
         // `continue` is NOT an exit — it keeps looping — so W241 still fires.
         assert_eq!(codes("while 1 {continue}\n"), vec!["W241"]);
@@ -1375,23 +1380,38 @@ mod tests {
         let registry = registry_with_a_declared_loop();
         assert_eq!(loop_codes("spin 0 {puts hi}", &registry), [DiagCode::W240]);
         assert_eq!(loop_codes("spin 1 {puts hi}", &registry), [DiagCode::W241]);
-        assert!(loop_codes("spin 1 {break}", &registry).is_empty());
+        assert_eq!(
+            loop_codes("spin 1 {break}", &registry),
+            [] as [tcl_core_types::DiagCode; 0]
+        );
         // The control that makes the trait load-bearing: the same argument
         // shape without it runs its body once and is not a loop.
-        assert!(loop_codes("peek 1 {puts hi}", &registry).is_empty());
+        assert_eq!(
+            loop_codes("peek 1 {puts hi}", &registry),
+            [] as [tcl_core_types::DiagCode; 0]
+        );
     }
 
     #[test]
     fn w241_for_loop_throw_tailcall_suppress() {
         // Same coverage on the `for` provably-infinite counter shape: a body
         // that throws / tailcalls is not an infinite loop.
-        assert!(codes("for {set i 0} {$i < 10} {incr i 0} {throw E x}\n").is_empty());
-        assert!(codes("for {set i 5} {$i > 0} {incr i} {tailcall done}\n").is_empty());
+        assert_eq!(
+            codes("for {set i 0} {$i < 10} {incr i 0} {throw E x}\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            codes("for {set i 5} {$i > 0} {incr i} {tailcall done}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn dynamic_condition_is_silent() {
-        assert!(codes("while {$x < 10} {incr x}\n").is_empty());
+        assert_eq!(
+            codes("while {$x < 10} {incr x}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1411,7 +1431,10 @@ mod tests {
             vec!["W241"]
         );
         // A correct counting loop is silent.
-        assert!(codes("for {set i 0} {$i < 10} {incr i} {}\n").is_empty());
+        assert_eq!(
+            codes("for {set i 0} {$i < 10} {incr i} {}\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1560,9 +1583,15 @@ mod tests {
         assert_eq!(idx_codes("lindex {a b c} -1\n"), vec!["W230"]);
         assert_eq!(idx_codes("lindex {a b c} end-5\n"), vec!["W230"]);
         // In range and dynamic list → none.
-        assert!(idx_codes("lindex {a b c} 1\n").is_empty());
-        assert!(idx_codes("lindex {a b c} end\n").is_empty());
-        assert!(idx_codes("lindex $x 5\n").is_empty());
+        assert_eq!(
+            idx_codes("lindex {a b c} 1\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            idx_codes("lindex {a b c} end\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(idx_codes("lindex $x 5\n"), [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1573,15 +1602,24 @@ mod tests {
         // double brace-strip would wrongly count three words and miss it.
         assert_eq!(idx_codes("lindex {{a b c}} 2\n"), vec!["W230"]);
         // Index 0 is the lone element → in range.
-        assert!(idx_codes("lindex {{a b c}} 0\n").is_empty());
+        assert_eq!(
+            idx_codes("lindex {{a b c}} 0\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn w232_string_index_out_of_range() {
         assert_eq!(idx_codes("string index abc 10\n"), vec!["W232"]);
         assert_eq!(idx_codes("string index abc -1\n"), vec!["W232"]);
-        assert!(idx_codes("string index abc 1\n").is_empty());
-        assert!(idx_codes("string index abc end\n").is_empty());
+        assert_eq!(
+            idx_codes("string index abc 1\n"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            idx_codes("string index abc end\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1590,7 +1628,10 @@ mod tests {
         // 7-char string `{hello}` (the segmenter strips only the outer
         // braces).  Index 6 is the last char — in range.  A double
         // brace-strip would count five chars and flag it spuriously.
-        assert!(idx_codes("string index {{hello}} 6\n").is_empty());
+        assert_eq!(
+            idx_codes("string index {{hello}} 6\n"),
+            [] as [std::string::String; 0]
+        );
         // One past the end is still out of range.
         assert_eq!(idx_codes("string index {{hello}} 7\n"), vec!["W232"]);
     }
@@ -1601,7 +1642,10 @@ mod tests {
         assert_eq!(idx_codes("lrange {a b c} -3 -1\n"), vec!["W230"]);
         assert_eq!(idx_codes("lrange {a b c} 2 0\n"), vec!["W230"]); // clamped first>last
         assert_eq!(idx_codes("lreplace {a b c} 5 7 X\n"), vec!["W230"]);
-        assert!(idx_codes("lrange {a b c} 0 1\n").is_empty());
+        assert_eq!(
+            idx_codes("lrange {a b c} 0 1\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1609,7 +1653,10 @@ mod tests {
         assert_eq!(idx_codes("string range abc 5 7\n"), vec!["W232"]);
         assert_eq!(idx_codes("string range abc -3 -1\n"), vec!["W232"]);
         assert_eq!(idx_codes("string replace abc 5 7 X\n"), vec!["W232"]);
-        assert!(idx_codes("string range abc 0 1\n").is_empty());
+        assert_eq!(
+            idx_codes("string range abc 0 1\n"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
@@ -1644,8 +1691,8 @@ mod tests {
         // decimal 10 (out of range). Mutation: replacing the threaded
         // profile syntax with the ambient parser makes these pairs agree.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            assert!(idx_codes_for(list, dialect).is_empty(), "{dialect}");
-            assert!(idx_codes_for(string, dialect).is_empty(), "{dialect}");
+            assert_eq!(idx_codes_for(list, dialect).len(), 0, "{dialect}");
+            assert_eq!(idx_codes_for(string, dialect).len(), 0, "{dialect}");
         }
         for dialect in ["tcl9.0", "tcl9.1"] {
             assert_eq!(idx_codes_for(list, dialect), vec!["W230"], "{dialect}");
@@ -1696,17 +1743,27 @@ mod tests {
             "{m:?}"
         );
         // The append slot (index == length) and valid indices are fine.
-        assert!(code_msgs("set L {a b c}\nlset L 3 x\n", "W231").is_empty());
-        assert!(code_msgs("set L {a b c}\nlset L end+1 x\n", "W231").is_empty());
-        assert!(code_msgs("set L {a b c}\nlset L 2 x\n", "W231").is_empty());
+        assert_eq!(
+            code_msgs("set L {a b c}\nlset L 3 x\n", "W231"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            code_msgs("set L {a b c}\nlset L end+1 x\n", "W231"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            code_msgs("set L {a b c}\nlset L 2 x\n", "W231"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]
     fn w231_uses_the_document_number_syntax() {
         let src = "set L {a b c d e f g h i}\nlset L 010 x\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            assert!(
-                code_msgs_for(src, dialect, "W231").is_empty(),
+            assert_eq!(
+                code_msgs_for(src, dialect, "W231").len(),
+                0,
                 "{dialect} reads 010 as in-range octal 8"
             );
         }
@@ -1737,8 +1794,9 @@ mod tests {
             // `append` is the same class of unmeasurable write.
             "set xs {}\nappend xs \"a b c\"\nlset xs 2 X\n",
         ] {
-            assert!(
-                code_msgs(src, "W231").is_empty(),
+            assert_eq!(
+                code_msgs(src, "W231").len(),
+                0,
                 "an unmeasurable write must invalidate the earlier length: {src:?}",
             );
         }
@@ -1757,10 +1815,14 @@ mod tests {
     #[test]
     fn w231_silent_without_recoverable_length() {
         // No prior literal `set` → only negative literals would fire.
-        assert!(code_msgs("lset L 5 x\n", "W231").is_empty());
+        assert_eq!(
+            code_msgs("lset L 5 x\n", "W231"),
+            [] as [std::string::String; 0]
+        );
         // A `set` in a deeper scope must not be trusted.
-        assert!(
-            code_msgs("proc p {} { set L {a b c} }\nlset L 5 x\n", "W231").is_empty(),
+        assert_eq!(
+            code_msgs("proc p {} { set L {a b c} }\nlset L 5 x\n", "W231").len(),
+            0,
             "deeper-scope set should not leak its length"
         );
     }
@@ -1783,10 +1845,19 @@ mod tests {
     #[test]
     fn w242_silent_when_counter_modified() {
         // Body writes the counter via incr / set / lappend → no W242.
-        assert!(code_msgs("while {$x < 10} {incr x}\n", "W242").is_empty());
-        assert!(code_msgs("while {$x < 10} {set x 5}\n", "W242").is_empty());
+        assert_eq!(
+            code_msgs("while {$x < 10} {incr x}\n", "W242"),
+            [] as [std::string::String; 0]
+        );
+        assert_eq!(
+            code_msgs("while {$x < 10} {set x 5}\n", "W242"),
+            [] as [std::string::String; 0]
+        );
         // A normal `for` whose step advances the counter is silent.
-        assert!(code_msgs("for {set i 0} {$i < 10} {incr i} {puts hi}\n", "W242").is_empty());
+        assert_eq!(
+            code_msgs("for {set i 0} {$i < 10} {incr i} {puts hi}\n", "W242"),
+            [] as [std::string::String; 0]
+        );
     }
 
     // Corpus shape (`tcltest.tcl`'s option-usage word-wrapper): a `[cmd $var]`
@@ -1801,14 +1872,15 @@ mod tests {
         // *bare* variable is `rest` (a fixed threshold the loop never
         // touches), which a first-`Variable`-token scan would pick instead.
         // Exact corpus shape.
-        assert!(
+        assert_eq!(
             code_msgs(
                 "while {[string length $u] > $rest} {\
                      set u [string trim [string range $u 1 end]]\
                  }\n",
                 "W242"
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 
@@ -1819,7 +1891,10 @@ mod tests {
         // argument to know whether `l` (or anything else) changes, so it
         // must not guess at a bare variable elsewhere in the condition
         // (there is none here) or fabricate a counter name.
-        assert!(code_msgs("while {[llength $l] > 0} {puts hi}\n", "W242").is_empty());
+        assert_eq!(
+            code_msgs("while {[llength $l] > 0} {puts hi}\n", "W242"),
+            [] as [std::string::String; 0]
+        );
     }
 
     #[test]

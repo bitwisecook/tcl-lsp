@@ -57,7 +57,7 @@ use crate::expr_ast::{BinOp, ExprNode, ExprOffset, render_expr};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::naming::normalise_var_name;
 use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
+    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value_with_policy, leading_zero_is_octal,
 };
 use crate::types::{TclType, TypeKind, TypeLattice};
 
@@ -78,6 +78,7 @@ use crate::types::{TclType, TypeKind, TypeLattice};
 pub struct OperandTypes {
     numeric: HashSet<String>,
     integer: HashSet<String>,
+    original_advice: std::collections::HashMap<tcl_lexer::Span, (HashSet<String>, HashSet<String>)>,
 }
 
 #[cfg(test)]
@@ -85,17 +86,19 @@ impl OperandTypes {
     /// A context proving `names` numeric but *not* integer (Double-typed).
     fn numeric_only(names: &[&str]) -> Self {
         Self {
-            numeric: names.iter().map(|s| (*s).to_owned()).collect(),
+            numeric: names.iter().map(|s| format!("${s}")).collect(),
             integer: HashSet::new(),
+            ..Self::default()
         }
     }
 
     /// A context proving `names` integer (and hence numeric).
     fn integer(names: &[&str]) -> Self {
-        let set: HashSet<String> = names.iter().map(|s| (*s).to_owned()).collect();
+        let set: HashSet<String> = names.iter().map(|s| format!("${s}")).collect();
         Self {
             numeric: set.clone(),
             integer: set,
+            ..Self::default()
         }
     }
 }
@@ -107,37 +110,174 @@ impl OperandTypes {
 /// lattice.
 pub type NumericCtx<'a> = Option<&'a OperandTypes>;
 
-/// Build the [`OperandTypes`] for `fu`: a name is numeric (resp. integer) when
-/// **every** SSA version of it is a known numeric (resp. integer) type. A name
-/// absent from a set is treated as not provably that type, so the corresponding
-/// identity is kept. Using the function-level join (all versions must agree) is
-/// a sound over-approximation of the proper per-use check.
+/// Build conditional type consensus for original expression operands. Every
+/// occurrence with the same written reference must have an exact retained read
+/// and agree on the required type. These facts only select rewrite candidates;
+/// the native execution-equivalence gate independently licenses an edit.
 #[must_use]
 pub fn operand_types(fu: &FunctionUnit) -> OperandTypes {
     use std::collections::HashMap;
-    // symbol → (all-versions-numeric, all-versions-integer).
-    let mut acc: HashMap<crate::ssa::Symbol, (bool, bool)> = HashMap::new();
-    for ((sym, _ver), lattice) in fu.types.iter() {
-        let is_num = lattice_is_numeric(lattice);
-        let is_int = lattice_is_integer(lattice);
-        acc.entry(*sym)
-            .and_modify(|v| {
-                v.0 = v.0 && is_num;
-                v.1 = v.1 && is_int;
-            })
-            .or_insert((is_num, is_int));
+    let mut operands: HashMap<String, (bool, bool)> = HashMap::new();
+    for (&block, body) in &fu.cfg.blocks {
+        for (index, statement) in body.statements.iter().enumerate() {
+            let (expression, base) = match statement {
+                crate::ir::Statement::AssignExpr {
+                    expr, expr_base, ..
+                }
+                | crate::ir::Statement::ExprEval {
+                    expr, expr_base, ..
+                }
+                | crate::ir::Statement::Return {
+                    expr: Some(expr),
+                    expr_base,
+                    ..
+                } => (expr, *expr_base),
+                _ => continue,
+            };
+            record_operand_types(
+                expression,
+                base,
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index),
+                fu,
+                &mut operands,
+            );
+        }
+        let (expression, base) = match body.terminator.as_ref() {
+            Some(crate::cfg::Terminator::Branch {
+                condition,
+                condition_base,
+                ..
+            }) => (condition, *condition_base),
+            Some(crate::cfg::Terminator::Return {
+                expr: Some(expr),
+                expr_base,
+                ..
+            }) => (expr, *expr_base),
+            _ => continue,
+        };
+        record_operand_types(
+            expression,
+            base,
+            crate::ssa::SsaSourceView::at_terminator(&fu.ssa, block),
+            fu,
+            &mut operands,
+        );
     }
     let mut out = OperandTypes::default();
-    for (sym, (is_num, is_int)) in acc {
-        let name = fu.ssa.var_name(sym).to_owned();
-        if is_num {
-            out.numeric.insert(name.clone());
+    for (text, (numeric, integer)) in operands {
+        if numeric {
+            out.numeric.insert(text.clone());
         }
-        if is_int {
-            out.integer.insert(name);
+        if integer {
+            out.integer.insert(text);
         }
     }
     out
+}
+
+fn record_operand_types(
+    expression: &ExprNode,
+    base: Option<u32>,
+    view: crate::ssa::SsaSourceView<'_>,
+    fu: &FunctionUnit,
+    operands: &mut std::collections::HashMap<String, (bool, bool)>,
+) {
+    for node in expression.variable_nodes() {
+        let ExprNode::Var { text, .. } = node else {
+            continue;
+        };
+        let lattice = view
+            .read_expression_variable(node, base)
+            .and_then(|read| fu.types.get(&(read.symbol, read.version?)));
+        let numeric = lattice.is_some_and(lattice_is_numeric);
+        let integer = lattice.is_some_and(lattice_is_integer);
+        operands
+            .entry(text.clone())
+            .and_modify(|value| {
+                value.0 &= numeric;
+                value.1 &= integer;
+            })
+            .or_insert((numeric, integer));
+    }
+}
+
+/// Retain separately scoped candidate types for original expression children.
+/// The exact site map is consumed only by no-edit advice; normal rewriters keep
+/// the represented-read type sets from `operand_types`.
+pub fn operand_types_with_original_advice(
+    fu: &FunctionUnit,
+    registry: &tcl_registry::CommandRegistry,
+) -> OperandTypes {
+    let mut out = operand_types(fu);
+    for (&block, body) in &fu.ssa.blocks {
+        for index in 0..body.statements.len() {
+            let Some(tokens) =
+                crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).source_tokens()
+            else {
+                continue;
+            };
+            let Some(binding) = tokens.source_binding.as_ref() else {
+                continue;
+            };
+            let Some(reads) = binding.declaration_expression_reads(registry, tokens) else {
+                continue;
+            };
+            let Some(dialect) = binding
+                .declaration_operand_layout_advice(tokens)
+                .map(|advice| advice.dialect())
+            else {
+                continue;
+            };
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+            let mut calls = crate::word_subst::lifted_calls(Some(tokens), config);
+            let Some(child) = calls.pop().and_then(|call| call.tokens) else {
+                continue;
+            };
+            let Some(advice) =
+                crate::registry_invocation::original_expression_operand_advice(registry, &child)
+            else {
+                continue;
+            };
+            let mut typed = std::collections::HashMap::<String, (bool, bool)>::new();
+            for read in reads {
+                let lattice = read
+                    .diagnostic_version(&fu.ssa, block, index, registry)
+                    .and_then(|key| fu.types.get(&key));
+                let numeric = lattice.is_some_and(lattice_is_numeric);
+                let integer = lattice.is_some_and(lattice_is_integer);
+                typed
+                    .entry(read.spelling().to_owned())
+                    .and_modify(|facts| {
+                        facts.0 &= numeric;
+                        facts.1 &= integer;
+                    })
+                    .or_insert((numeric, integer));
+            }
+            let mut numeric = HashSet::new();
+            let mut integer = HashSet::new();
+            for (spelling, facts) in typed {
+                if facts.0 {
+                    numeric.insert(spelling.clone());
+                }
+                if facts.1 {
+                    integer.insert(spelling);
+                }
+            }
+            out.original_advice.insert(advice.span, (numeric, integer));
+        }
+    }
+    out
+}
+
+impl OperandTypes {
+    pub(crate) fn original_candidate_context(&self, site: tcl_lexer::Span) -> Option<Self> {
+        let (numeric, integer) = self.original_advice.get(&site)?;
+        Some(Self {
+            numeric: numeric.clone(),
+            integer: integer.clone(),
+            ..Self::default()
+        })
+    }
 }
 
 /// Whether a type-lattice element is a known numeric Tcl type.
@@ -169,7 +309,7 @@ fn node_provably_numeric(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
         ExprNode::String { text, .. } => {
             fixed_operand_text(text).is_some_and(is_numeric_string_in_every_release)
         }
-        ExprNode::Var { name, .. } => ctx.numeric.contains(name.as_str()),
+        ExprNode::Var { text, .. } => ctx.numeric.contains(text.as_str()),
         _ => false,
     }
 }
@@ -185,7 +325,7 @@ fn node_provably_integer(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
     match node {
         ExprNode::Literal { text, .. } => is_integer_string(text),
         ExprNode::String { text, .. } => fixed_operand_text(text).is_some_and(is_integer_string),
-        ExprNode::Var { name, .. } => ctx.integer.contains(name.as_str()),
+        ExprNode::Var { text, .. } => ctx.integer.contains(text.as_str()),
         _ => false,
     }
 }
@@ -219,8 +359,8 @@ fn node_cannot_be_nan(node: &ExprNode, numeric: NumericCtx<'_>) -> bool {
         ExprNode::String { text, .. } => {
             fixed_operand_text(text).is_some_and(|value| !is_nan_string_in_any_release(value))
         }
-        ExprNode::Var { name, .. } => {
-            numeric.is_some_and(|ctx| ctx.integer.contains(name.as_str()))
+        ExprNode::Var { text, .. } => {
+            numeric.is_some_and(|ctx| ctx.integer.contains(text.as_str()))
         }
         _ => false,
     }
@@ -353,7 +493,13 @@ pub fn try_fold_expr(
         dialect.and_then(leading_zero_is_octal),
         dialect,
     )?;
-    let rendered = format_tcl_value(&value);
+    let rendered = format_tcl_value_with_policy(
+        &value,
+        crate::tcl_expr_eval::FoldPolicy::for_profile(
+            dialect.and_then(leading_zero_is_octal),
+            dialect,
+        ),
+    )?;
     if rendered == trimmed {
         return None;
     }
@@ -413,7 +559,13 @@ pub fn try_fold_expr_with_constants<S: std::hash::BuildHasher>(
         dialect.and_then(leading_zero_is_octal),
         dialect,
     )?;
-    let rendered = format_tcl_value(&value);
+    let rendered = format_tcl_value_with_policy(
+        &value,
+        crate::tcl_expr_eval::FoldPolicy::for_profile(
+            dialect.and_then(leading_zero_is_octal),
+            dialect,
+        ),
+    )?;
     if rendered == trimmed {
         return None;
     }
@@ -535,6 +687,66 @@ pub fn substitute_expr_constants<S: std::hash::BuildHasher>(
         changed,
         substituted,
     }
+}
+
+/// Substitute constants only with actual retained-operand execution evidence.
+/// The mathematical helper above has no native-object provenance: its newly
+/// parsed literals must never be used to erase conversions of the original
+/// retained references. Missing evidence leaves those references unchanged.
+#[must_use]
+pub fn substitute_expr_constants_for_execution<S: std::hash::BuildHasher>(
+    expr: &str,
+    constants: &std::collections::HashMap<String, String, S>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    operands: &crate::tcl_expr_eval::NativeOperandProofs,
+) -> SubstitutionResult {
+    let selected = dialect.map(tcl_registry::InvocationDialect::of_profile);
+    let proved = constants
+        .iter()
+        .filter(|(name, _)| {
+            operands
+                .get(*name)
+                .is_some_and(|proof| Some(proof.dialect) == selected)
+        })
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect::<std::collections::HashMap<_, _>>();
+    if proved.is_empty() {
+        return SubstitutionResult {
+            text: expr.to_owned(),
+            changed: false,
+            substituted: HashSet::new(),
+        };
+    }
+    let original = parse_expr_for_profile(expr, dialect);
+    let env = constants
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.clone(),
+                crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+            )
+        })
+        .collect();
+    let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
+        dialect.and_then(leading_zero_is_octal),
+        dialect,
+    );
+    if crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
+        &original,
+        &env,
+        policy,
+        &|_, _| None,
+        operands,
+    )
+    .is_none()
+    {
+        return SubstitutionResult {
+            text: expr.to_owned(),
+            changed: false,
+            substituted: HashSet::new(),
+        };
+    }
+    substitute_expr_constants(expr, &proved, dialect)
 }
 
 /// Whether `text` is safe to inline as a bare (unquoted) token when
@@ -1172,7 +1384,7 @@ fn reduce_self_comparison(
     right: &ExprNode,
     numeric: NumericCtx<'_>,
 ) -> Option<ExprNode> {
-    let (ExprNode::Var { name: l, .. }, ExprNode::Var { name: r, .. }) = (left, right) else {
+    let (ExprNode::Var { text: l, .. }, ExprNode::Var { text: r, .. }) = (left, right) else {
         return None;
     };
     if l != r {
@@ -1635,75 +1847,6 @@ fn expr_has_command_subst_at(node: &ExprNode, depth: u32) -> bool {
     }
 }
 
-/// Return `true` when `node` invokes a Tcl math function (`abs(...)`,
-/// `max(...)`, …) whose name is shadowed by a user-defined
-/// `::tcl::mathfunc::<name>` proc anywhere in the module.
-///
-/// Math functions are not `CommandSpec`s — they live in the shared
-/// `tcl_syntax::expr::mathfunc` dispatch table the const-folder and the
-/// runtime both consume — so there is no registry purity/redefinition fact
-/// to consult the way [`crate::command_binding::ModuleCommandMutations`]
-/// covers ordinary commands. The module's own `proc` definitions are the
-/// only source of truth: real Tcl compiles `abs(x)` to a `tcl::mathfunc::abs`
-/// command invocation and only falls back to the C builtin when nothing
-/// shadows it, so folding `abs(-5)` to `5` is unsound whenever
-/// `::tcl::mathfunc::abs` has been (re)defined.
-#[must_use]
-pub fn expr_uses_shadowed_mathfunc<S: std::hash::BuildHasher>(
-    node: &ExprNode,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
-) -> bool {
-    // Public entry: the top of an expression tree is nesting depth 0; the
-    // recursion cap lives in [`expr_uses_shadowed_mathfunc_at`].
-    expr_uses_shadowed_mathfunc_at(node, procedures, 0)
-}
-
-fn expr_uses_shadowed_mathfunc_at<S: std::hash::BuildHasher>(
-    node: &ExprNode,
-    procedures: &std::collections::HashMap<String, crate::ir::Procedure, S>,
-    depth: u32,
-) -> bool {
-    // Native-stack safety net: past the cap, assume "yes, uses a
-    // shadowed mathfunc" — the conservative direction, since callers use this
-    // to *suppress* constant folding when a mathfunc may be shadowed, so a
-    // false `true` only forgoes a fold, never performs an unsound one.
-    if MAX_EXPR_NODE_DEPTH.exceeded(depth) {
-        return true;
-    }
-    match node {
-        ExprNode::Call { function, args, .. } => {
-            let key = format!("::tcl::mathfunc::{}", function.to_ascii_lowercase());
-            procedures.contains_key(&key)
-                || args
-                    .iter()
-                    .any(|a| expr_uses_shadowed_mathfunc_at(a, procedures, depth + 1))
-        }
-        ExprNode::Binary { left, right, .. } => {
-            expr_uses_shadowed_mathfunc_at(left, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(right, procedures, depth + 1)
-        }
-        ExprNode::Unary { operand, .. } => {
-            expr_uses_shadowed_mathfunc_at(operand, procedures, depth + 1)
-        }
-        ExprNode::Ternary {
-            condition,
-            true_branch,
-            false_branch,
-        } => {
-            expr_uses_shadowed_mathfunc_at(condition, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(true_branch, procedures, depth + 1)
-                || expr_uses_shadowed_mathfunc_at(false_branch, procedures, depth + 1)
-        }
-        ExprNode::Literal { .. }
-        | ExprNode::Var { .. }
-        | ExprNode::Raw { .. }
-        | ExprNode::String { .. }
-        // A word, not an expression: it can hold no math-function call.
-        | ExprNode::CompiledWord { .. }
-        | ExprNode::Command { .. } => false,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1743,8 +1886,8 @@ mod tests {
     }
 
     /// `simplify_node_once`,
-    /// `collect_add_terms`, `collect_mul_terms`, `expr_has_command_subst` and
-    /// `expr_uses_shadowed_mathfunc` each recurse once per `ExprNode` level
+    /// `collect_add_terms`, `collect_mul_terms` and `expr_has_command_subst`
+    /// each recurse once per `ExprNode` level
     /// with no depth cap before this fix. The Pratt parser caps *its* output
     /// at 256 levels, but a tree built directly is unbounded and empirically
     /// overflowed the native stack (SIGABRT) in the low thousands of levels
@@ -1785,9 +1928,6 @@ mod tests {
         // fully (capped) and answer `false` for realistic input; the point is
         // they do not overflow.
         let _ = expr_has_command_subst(&unary);
-        let procs: std::collections::HashMap<String, crate::ir::Procedure> =
-            std::collections::HashMap::new();
-        let _ = expr_uses_shadowed_mathfunc(&unary, &procs);
 
         // A 3000-deep left-nested `+` chain drives `collect_add_terms`.
         let mut add = var_x();

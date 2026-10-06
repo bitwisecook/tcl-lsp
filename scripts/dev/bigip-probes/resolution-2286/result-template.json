@@ -1,0 +1,9 @@
+{
+  "run": "REPLACE_WITH_UNIQUE_RUN",
+  "appliance": {"version_build": null, "platform": null, "active_device": null, "active_tmm_roster": [], "cmp_requested": null, "cmp_observed": null},
+  "sources": {"branch": null, "commit": null, "manifest_sha256": null, "appliance_hashes_match": null},
+  "cases": [],
+  "case_record_schema": {"case": "case-id", "event": "exact event", "context": "TMM_iRule", "load_exit": null, "load_verdict": "UNMEASURED", "load_log": "raw path", "source_sha256": null, "actual_units": [], "traffic_file": "raw JSONL path", "ltm_log": "raw path", "result": "UNMEASURED", "limits": []},
+  "cleanup": {"runtime_cleanup_units": [], "exact_objects_absent": null, "errors": []},
+  "unmeasured": []
+}

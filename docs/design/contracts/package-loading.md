@@ -48,6 +48,69 @@ while its registration remains available for a later retry. This is owned by
 `tcl-vm/src/cmd_package.rs`; coroutine suspension is a separate execution
 state and must not be treated as a completed loader result.
 
+## Runtime package operands
+
+The runtime package command selects `InvocationDialect::native_package_protocol`
+from the actual engine object protocol. Source grammar, numerical representation,
+and assistance profiles do not supply that authority. Materialise an original
+operand through the native string owner before selecting its consumed extent.
+Resident strings retain their bytes; pure byte arrays use their selected native
+string updater. C package names, option words and version converter inputs use
+C-string extents. Arbitrary native bytes never pass through Unicode replacement.
+
+The byte APIs in `tcl-dialect::version` own version validation, requirement
+validation, comparison and provider selection. Unicode conveniences delegate to
+those APIs. Tcl 9 permits arbitrary bytes in a `+` suffix; keep the original
+spelling even though comparison consumes only the version prefix. Diagnostic
+metadata comes from the package protocol, independently of the message bytes.
+
+Both engines store package keys and version spellings as native bytes. The
+package STRING_KEYS ledger owns birth, growth, removal and enumeration order;
+loader versions retain their independent registration order. Registering a
+numerically equivalent version updates its copied script buffer and keeps the
+first version spelling. `package versions` reports loader entries; providing a
+package alone contributes no loader version. C scripts and the unknown prefix
+are copied character buffers, with CString query and evaluation extents.
+
+C Tcl 8.6 and later lazily create the package record's original version header
+on its first query. `provide`, `require` and `present` return that same header,
+including numeric or other primary conversions performed by an earlier caller.
+`forget` releases the record role while guest-retained headers remain live.
+C8.4/C8.5 and Jim create fresh query strings.
+
+C9 source inventories own one actual private List header per package. The
+ifneeded source origin and each reached source file append to that header in
+native order, including repeated filenames. `package files` returns that
+original header. Nested loaders use separate inventory scopes; `source -nopkg`
+detaches the outer scope while permitting nested package loads to create their
+own scope. Forgetting an active package releases its record without discarding
+the active source scope. Tcl_Init's inventory uses its selected initialization
+purpose. Attempting to append while a guest retains the private file List
+produces the typed native fatal boundary before mutation; guest catch cannot
+turn that condition into a Tcl result.
+
+Original C option arguments use the reusable native Index owner. Its matching
+table/stride cache hit precedes string materialization and ignores a newly
+supplied EXACT flag. Success installs the Index primary on the same header and
+preserves resident storage. A failed match preserves the existing primary;
+a foreign C origin refuses before invoking the object's updater. Static table
+receipts retain the supported backend's immutable declarations and actual C
+pointer stride; canonical bytes never donate table identity. Package options,
+package preference, update options and seek origins use this same owner.
+
+Jim uses its direct-file package protocol and counted subcommand lookup. Its
+bounded C prefix comparison is distinct from C Tcl's index table. Byte filesystem
+paths go through the host filesystem capability; an unavailable path or source
+representation produces a typed host refusal. Loader evaluation retains a native
+`SourceImage` and uses the byte compilation service. A remaining native compiler
+obligation requires its actual provider before any loader-body effects.
+
+Implementers should retain both stored spelling and consumed operand when a
+native operation uses different extents. Query or update the selected package
+entry through the shared byte APIs, and keep its captured version recipe through
+loader callbacks. Do not re-sort loader entries, key them by Unicode display,
+infer an engine from a lexer grammar, or derive an error code from message text.
+
 ## Decision rules / contracts
 
 ### Analyser extraction

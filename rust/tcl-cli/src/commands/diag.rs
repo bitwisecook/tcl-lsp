@@ -209,8 +209,9 @@ fn document_proc_names(
         &document.analysis_source(),
         &registry_for_dialect(dialect.name),
     )
-    .procs
-    .into_keys()
+    .procedure_declarations
+    .into_iter()
+    .filter_map(|declaration| declaration.source_spelling())
     .collect()
 }
 

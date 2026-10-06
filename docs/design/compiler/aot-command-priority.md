@@ -212,7 +212,7 @@ lowering receives no analysis facts: `try_emit_typed_statement` returns
 `false` and every resolved call goes through `emit_command`. The direct
 forms below need the `LegacyAnalysisSpecialisation` pass enabled
 (`--codegen-passes`), the opt-in analysis tier that
-[wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) describes. With
+[wasm-native-lowering.md](wasm-native-lowering.md) describes. With
 it on, `try_emit_typed_statement` handles:
 
 - **`set NAME LITERAL`** (`Statement::AssignConst` whose span is in the
@@ -247,12 +247,12 @@ bounded by the host, not by compiler work (the WASI-versus-browser matrix is
 in [wasm-target-surfaces.md](wasm-target-surfaces.md); the registry↔runtime
 dispatch backing is [`docs/generated/wasm-command-backing.md`](../../generated/wasm-command-backing.md)):
 
-| Reason | Forms | Fixable by more compiler work? |
+| Current backend limitation | Forms | Required host capability |
 |---|---|---|
-| Needs a real channel or filesystem (WASI-only; `BrowserHost` has none today) | `puts` (non-default channel), `open`/`close`/`read`/`gets`/`eof`/`flush`/`fconfigure`/`seek`, `file exists`/`delete`/`mkdir`/`copy`/`rename`, `glob`, `cd`, `pwd` | Yes, once targeting WASI; no, for a bare browser until host wiring lands |
-| Needs the package/library system and the `MemFs` stdlib seed | `source`, `package require`/`provide`/`ifneeded` | Partially — `WasiHost` already seeds `MemFs`; `BrowserHost` does not yet (wasm-target-surfaces.md §3) |
-| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No — no sandboxed meaning, not a missing feature |
-| Compiles but is not functionally correct on the browser target | `after`/`vwait`/event loop (no real sleep primitive), `clock` (epoch-0 stub on both hosts) | No — needs a JS-side host import (clock, and an async/shared-memory sleep primitive), not compiler work |
+| Needs a real channel or filesystem (WASI-only; `BrowserHost` has none) | `puts` (non-default channel), `open`/`close`/`read`/`gets`/`eof`/`flush`/`fconfigure`/`seek`, `file exists`/`delete`/`mkdir`/`copy`/`rename`, `glob`, `cd`, `pwd` | WASI channel/filesystem capability; a bare BrowserHost supplies neither |
+| Needs the package/library system and the `MemFs` stdlib seed | `source`, `package require`/`provide`/`ifneeded` | `WasiHost` seeds `MemFs`; `BrowserHost` does not (wasm-target-surfaces.md §3) |
+| Explicit "not supported under the WASM runtime" stub on both hosts | `exec`, `socket`, `load`/`unload`, `fileevent`, `fcopy` | No sandboxed implementation is supplied |
+| Compiles but is not functionally correct on the browser target | `after`/`vwait`/event loop (no real sleep primitive), `clock` (epoch-0 stub on both hosts) | JS-side clock and async/shared-memory sleep imports |
 
 ## Related
 

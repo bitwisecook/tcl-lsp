@@ -199,6 +199,138 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+// Phase ordering and implementation prerequisites are authored together.
+const BODY_EXECUTION: crate::body_execution::BodyExecutionSpec =
+    crate::body_execution::BodyExecutionSpec::CapturedLifecycle(
+        &crate::body_execution::CapturedLifecycleSpec {
+            provider: crate::body_execution::TCLTEST_STOCK_PROVIDER,
+            phase_compilation: crate::native_compilation::NativeBodyCompilation::Uplevel,
+            repetition_versions: &[
+                ("2.2.11", crate::body_execution::BodyRepetition::Once),
+                ("2.3.8", crate::body_execution::BodyRepetition::Once),
+                ("2.5.9", crate::body_execution::BodyRepetition::Once),
+                ("2.5.11", crate::body_execution::BodyRepetition::Once),
+                ("2.6.0", crate::body_execution::BodyRepetition::MayRepeat),
+            ],
+            leading_arguments: 2,
+            setup_option: "-setup",
+            body_option: "-body",
+            cleanup_option: "-cleanup",
+            valid_options: &[
+                "-setup",
+                "-body",
+                "-cleanup",
+                "-constraints",
+                "-result",
+                "-output",
+                "-errorOutput",
+                "-returnCodes",
+                "-errorCode",
+                "-match",
+            ],
+            pre_phase_effect_options: &["-constraints", "-output", "-errorOutput", "-match"],
+            list_valued_options: &["-returnCodes"],
+            option_versions: &[
+                (
+                    "2.2.11",
+                    &[
+                        "-setup",
+                        "-body",
+                        "-cleanup",
+                        "-constraints",
+                        "-result",
+                        "-output",
+                        "-errorOutput",
+                        "-returnCodes",
+                        "-match",
+                    ],
+                ),
+                (
+                    "2.3.8",
+                    &[
+                        "-setup",
+                        "-body",
+                        "-cleanup",
+                        "-constraints",
+                        "-result",
+                        "-output",
+                        "-errorOutput",
+                        "-returnCodes",
+                        "-match",
+                    ],
+                ),
+                (
+                    "2.5.9",
+                    &[
+                        "-setup",
+                        "-body",
+                        "-cleanup",
+                        "-constraints",
+                        "-result",
+                        "-output",
+                        "-errorOutput",
+                        "-returnCodes",
+                        "-match",
+                        "-errorCode",
+                    ],
+                ),
+                (
+                    "2.5.11",
+                    &[
+                        "-setup",
+                        "-body",
+                        "-cleanup",
+                        "-constraints",
+                        "-result",
+                        "-output",
+                        "-errorOutput",
+                        "-returnCodes",
+                        "-match",
+                        "-errorCode",
+                    ],
+                ),
+                (
+                    "2.6.0",
+                    &[
+                        "-setup",
+                        "-body",
+                        "-cleanup",
+                        "-constraints",
+                        "-result",
+                        "-output",
+                        "-errorOutput",
+                        "-returnCodes",
+                        "-match",
+                        "-errorCode",
+                    ],
+                ),
+            ],
+            option_list: true,
+            legacy_positional: true,
+            hook_commands: &[
+                "::tcltest::SetupTest",
+                "::tcltest::EvalTest",
+                "::tcltest::CleanupTest",
+            ],
+            hook_versions: &[
+                ("2.2.11", crate::body_execution::BodyHookPolicy::Disabled),
+                ("2.3.8", crate::body_execution::BodyHookPolicy::Disabled),
+                (
+                    "2.5.9",
+                    crate::body_execution::BodyHookPolicy::OptionalOverride,
+                ),
+                (
+                    "2.5.11",
+                    crate::body_execution::BodyHookPolicy::OptionalOverride,
+                ),
+                (
+                    "2.6.0",
+                    crate::body_execution::BodyHookPolicy::OptionalOverride,
+                ),
+            ],
+        },
+    );
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::test",
@@ -224,6 +356,14 @@ pub fn spec() -> CommandSpec {
         // `cmd == "test"` check in the analyser / signature scanner.
         defines_symbol: Some(SymbolDef::new(0, DefinedSymbolKind::Test).with_detail(1)),
         body_kind: BodyKind::Structural,
+        body_execution: Some(BODY_EXECUTION),
+        // Audited providers define this command with Tcl proc, which has no
+        // native compileProc. Provider provenance is still required at entry.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Uplevel,
+        }),
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,

@@ -61,6 +61,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+const CURRENT_PROCESS_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    name: "current-process",
+    arity: Arity::exact(0),
+    successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+    world_effects: Some(crate::WorldEffectDescriptor::EMPTY),
+    completion: Some(crate::completion::CompletionDescriptor::exact(&[
+        crate::completion::CompletionCode::Ok,
+    ])),
+    ..crate::forms::CommandForm::DEFAULT
+}];
+
 /// Command spec for `pid`.
 ///
 /// `pid` is a plain core builtin, textually identical across Tcl 8.4
@@ -93,6 +104,16 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pid",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        // The niladic handler reads the process identifier and builds its result without
+        // channel lookup or interpreter callbacks (tclUnixPipe.c, all audited C
+        // releases). It remains context-dependent and has no native opcode.
+        command_forms: CURRENT_PROCESS_FORMS,
         surface: Some(SpecSurface::ALL_TCL),
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own

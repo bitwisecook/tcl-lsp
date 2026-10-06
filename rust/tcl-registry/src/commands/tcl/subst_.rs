@@ -54,7 +54,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // was available locally to empirically re-confirm the positive family
 // parses the same way, but the manpage describes both families through the
 // same switch-table convention.
-const OPTIONS: &[OptionSpec] = &[
+pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-nobackslashes",
         value: OptionValue::flag(),
@@ -132,13 +132,34 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
+fn bare_template_effects(arguments: crate::InvocationArguments<'_>) -> crate::EffectFootprint {
+    if arguments.exact_argv_len() != Some(1) {
+        return crate::EffectFootprint::conservative_unknown_invocation();
+    }
+    crate::substitution::literal_template_effects(
+        arguments,
+        0,
+        crate::substitution::SubstitutionKinds::ALL,
+    )
+}
+
+const NATIVE_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    name: "template",
+    arity: Arity::exact(1),
+    side_effects: Some(&[]),
+    world_effects: Some(crate::WorldEffectDescriptor {
+        resolver: Some(bare_template_effects),
+        ..crate::WorldEffectDescriptor::EMPTY
+    }),
+    ..crate::forms::CommandForm::DEFAULT
+}];
+
 /// Fold a literal `subst string`.
 ///
 /// `subst` performs variable, command, and backslash substitution on
 /// its string argument — even inside braces (`subst {$x}` substitutes
-/// `$x`).  The Rust O129 path hands this the *raw* literal argument (it
-/// has no upstream `$var` resolution — that is the deferred B2 work), so
-/// to stay sound we fold only the bare `subst string` form whose string
+/// `$x`). The fold receives the evaluated template, so it accepts only
+/// the bare `subst string` form whose string
 /// carries **no** substitution: no `$`, `[`, or `\`.  Such a string is
 /// its own `subst` result.  Anything with a substitution bails
 /// (a stricter subset of what a fold with upstream resolution +
@@ -175,6 +196,13 @@ fn subst_evaluates_commands(args: &[&str]) -> bool {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "subst",
+        body_execution: Some(crate::body_execution::BodyExecutionSpec::SubstitutionTemplate),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::SubstitutionTemplate,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted: its `dialects` group carries the
         // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
         // under the bare `IRULES` availability mask; every dialect hosting
@@ -223,6 +251,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The fully-substituted string: break truncates it at the point of the exception, continue/return substitute their value for just that one embedded command or variable index, and any other error becomes subst's own error.",
         }),
         forms: FORMS,
+        command_forms: NATIVE_FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
         taint_sink_gate: Some(subst_evaluates_commands),
@@ -233,6 +262,41 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::{fold_subst, subst_evaluates_commands};
+
+    #[test]
+    fn subst_literal_effects_preserve_enabled_substitutions() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let context = crate::model::ingress::static_context_for(profile);
+            let dialect =
+                crate::InvocationDialect::of_profile(context.commands().profile().unwrap());
+            for (word, closed) in [
+                (crate::InvocationWord::Literal("hello"), true),
+                (crate::InvocationWord::Literal("a\\nb"), true),
+                (crate::InvocationWord::Literal("$value"), false),
+                (crate::InvocationWord::Literal("[operation]"), false),
+                (crate::InvocationWord::Literal("$array([operation])"), false),
+                (crate::InvocationWord::Dynamic, false),
+                (crate::InvocationWord::Expanded, false),
+            ] {
+                let words = [word];
+                let invocation = crate::InvocationWords::structured(
+                    crate::InvocationWord::Literal("subst"),
+                    &words,
+                )
+                .with_dialect(dialect);
+                let resolved = context
+                    .commands()
+                    .resolve_structured_invocation(invocation, dialect.authoring_query())
+                    .resolved()
+                    .unwrap();
+                assert_eq!(
+                    !resolved.effect_footprint().requires_world_barrier(),
+                    closed,
+                    "{profile}: {word:?}",
+                );
+            }
+        }
+    }
 
     #[test]
     fn subst_evaluates_commands_default_is_true() {

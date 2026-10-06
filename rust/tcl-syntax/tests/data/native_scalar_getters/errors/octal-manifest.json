@@ -1,0 +1,42 @@
+[
+  {
+    "version": "8.4.20",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "binary_sha256": "7e033c9a994d416b57e1aae546ffe1ab88c74e4c88f45ed6a9c49f2c3fcf62b4",
+    "rows": 36,
+    "exit": 0
+  },
+  {
+    "version": "8.5.19",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "binary_sha256": "603b69848f9e3d2277cc2b5e6d2807f8771f50cedff2367343ec4a789ce52143",
+    "rows": 36,
+    "exit": 0
+  },
+  {
+    "version": "8.6.18",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "binary_sha256": "aaab696bbf656aa36dce337a775fcadff6a923634f205c38a6692d2079ca3a5e",
+    "rows": 36,
+    "exit": 0
+  },
+  {
+    "version": "9.0.4",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "binary_sha256": "51f2f2d017a1be8cf7264a91559be37e9e274d5af87246e15ba57c6919097011",
+    "rows": 36,
+    "exit": 0
+  },
+  {
+    "version": "9.1.0",
+    "source_sha256": "a56ade349a9bdf1ae4ed4003a107529c81a6df114f13badefc78db89d24b2c6d",
+    "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "binary_sha256": "ed465d42724dafce812e55a7da3490e3ed9cb0abfc5f9c3f54edfa0551aca3d6",
+    "rows": 36,
+    "exit": 0
+  }
+]

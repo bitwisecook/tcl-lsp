@@ -1,0 +1,5 @@
+literal 1 {variable "v" already exists} BEFORE
+dynamic 1 {variable "v" already exists} GLOBAL
+arrayDefine 1 {can't define "arr(k)": name refers to an element in an array} 1 0
+prefix 0 {} 1
+normal 0 Y Y

@@ -63,9 +63,6 @@ struct PhiCtx<'a> {
     /// Destructure-foreach blocks excluded from in-loop def anchoring —
     /// see [`destructure_foreach_blocks`].
     destructure: &'a HashSet<String>,
-    /// Array-base symbols excluded from shimmer reporting (FP-SH-13) — a
-    /// conflated `arr(a)`/`arr(b)` phi merges independent elements.
-    array_syms: &'a HashSet<Symbol>,
 }
 
 /// The per-predecessor type evidence of one phi's incomings, split by
@@ -113,10 +110,9 @@ fn classify_incoming_types(ctx: &PhiCtx<'_>, phi: &Phi) -> IncomingTypes {
 /// Decide whether one phi node is a genuine merge-point shimmer, returning
 /// the warning when it is (the per-phi body of [`find_phi_shimmers`]).
 fn classify_phi_shimmer(ctx: &PhiCtx<'_>, phi: &Phi, in_loop: bool) -> Option<ShimmerWarning> {
-    // Skip an array base (FP-SH-13): the `(key)` suffix is stripped before
-    // interning, so a phi over `arr` merges whatever different elements were
-    // last written — not one variable's own two intreps.
-    if ctx.array_syms.contains(&phi.name) {
+    // Aggregate root-refresh phis merge independent element writes. The
+    // physical SSA owner distinguishes them from later scalar lifetimes.
+    if ctx.ssa.is_array_root_refresh_version(phi.name, phi.version) {
         return None;
     }
     let lattice = ctx.types.get(&(phi.name, phi.version))?;
@@ -246,7 +242,6 @@ pub(crate) fn find_phi_shimmers(
     // per-loop S102 thunking pass), built from the whole loop-block set.
     let loop_body_types =
         per_loop_body_types("", loop_blocks, &destructure, ssa, types, &empty_by_name);
-    let array_syms = super::thunking::array_element_symbols(cfg, ssa);
     let ctx = PhiCtx {
         cfg,
         ssa,
@@ -256,7 +251,6 @@ pub(crate) fn find_phi_shimmers(
         loop_body_types: &loop_body_types,
         def_map: &def_map,
         destructure: &destructure,
-        array_syms: &array_syms,
     };
     let mut out = Vec::new();
 

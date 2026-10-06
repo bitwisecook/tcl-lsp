@@ -196,6 +196,7 @@ pub(crate) fn find_shimmer_warnings(
     let commit_ctx = commit::CommitCtx {
         registry,
         ssa,
+        source: crate::ssa::SsaSourceView::unpositioned(ssa),
         types,
         values,
     };
@@ -289,6 +290,7 @@ pub fn first_use_commitments_for_cu(
         let ctx = commit::CommitCtx {
             registry,
             ssa: &fu.ssa,
+            source: crate::ssa::SsaSourceView::unpositioned(&fu.ssa),
             types: &fu.types,
             values: &fu.sccp.values,
         };
@@ -487,7 +489,7 @@ mod tests {
             },
         );
         let types: HashMap<ValueKey, TypeLattice> = HashMap::new();
-        assert!(
+        assert_eq!(
             find_shimmer_warnings(
                 &f,
                 &ssa,
@@ -497,9 +499,10 @@ mod tests {
                 &sccp.values,
                 &sccp.executable_edges,
             )
-            .is_empty()
+            .len(),
+            0
         );
-        assert!(
+        assert_eq!(
             find_thunking_warnings(
                 &f,
                 &ssa,
@@ -508,7 +511,8 @@ mod tests {
                 &registry(),
                 None::<&HashSet<String>>
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 }

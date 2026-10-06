@@ -24,6 +24,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
+
+[[package]]
 name = "cfg-if"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -173,9 +179,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bytecode"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -191,12 +208,23 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-core-types",
+]
+
+[[package]]
+name = "tcl-host-c-abi"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "sha2",
+ "tcl-platform",
 ]
 
 [[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
+ "tcl-host-c-abi",
  "tcl-platform",
 ]
 
@@ -204,6 +232,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
@@ -219,6 +248,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -234,6 +264,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-regex",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -242,6 +273,7 @@ name = "tcl-runtime"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "tcl-bytecode",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
@@ -261,6 +293,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -269,6 +303,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "libm",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
 ]
@@ -277,7 +312,10 @@ dependencies = [
 name = "tcl-test-support"
 version = "0.1.0"
 dependencies = [
+ "sha2",
  "tcl-dialect",
+ "tcl-host-c-abi",
+ "tcl-platform",
 ]
 
 [[package]]

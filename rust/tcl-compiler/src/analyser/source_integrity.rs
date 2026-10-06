@@ -102,13 +102,14 @@ mod tests {
     fn nested_switch_arm_noqa_suppresses_the_following_source_diagnostic() {
         let source = "set result [switch $kind {\n    alpha {\n        # noqa: W305\n        puts \"\u{202e}\"\n    }\n}]\n";
         assert_eq!(bidi_control_diagnostics(source).len(), 1);
-        assert!(
+        assert_eq!(
             filtered_bidi_control_diagnostics(
                 source,
                 &HashSet::new(),
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
-            .is_empty(),
+            .len(),
+            0,
             "the case-list arm's noqa must reach the next physical line"
         );
     }
@@ -116,13 +117,14 @@ mod tests {
     #[test]
     fn alias_declared_proc_body_noqa_suppresses_the_following_source_diagnostic() {
         let source = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
-        assert!(
+        assert_eq!(
             filtered_bidi_control_diagnostics(
                 source,
                 &HashSet::new(),
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
-            .is_empty()
+            .len(),
+            0
         );
     }
 }

@@ -103,6 +103,12 @@ fn case_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "case",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Tcl 8.x only; removed in Tcl 9.0 (no `doc/case.n`, no command) —
         // see the module comment. iRules embeds Tcl 8.4.6 and keeps it.
         surface: Some(surface![

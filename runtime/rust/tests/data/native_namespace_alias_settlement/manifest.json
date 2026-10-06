@@ -1,0 +1,37 @@
+[
+  {
+    "version": "8.4.20",
+    "exit": 0,
+    "stdout": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED\n",
+    "stderr": "",
+    "source_sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a"
+  },
+  {
+    "version": "8.5.19",
+    "exit": 0,
+    "stdout": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED\n",
+    "stderr": "",
+    "source_sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a"
+  },
+  {
+    "version": "8.6.18",
+    "exit": 0,
+    "stdout": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED\n",
+    "stderr": "",
+    "source_sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a"
+  },
+  {
+    "version": "9.0.4",
+    "exit": 0,
+    "stdout": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED\n",
+    "stderr": "",
+    "source_sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a"
+  },
+  {
+    "version": "9.1.0",
+    "exit": 0,
+    "stdout": "traced 1 {variable \"v\" has traces: can't use for upvar} X\nscalarArray 1 {can't define \"arr(k)\": name refers to an element in an array} 0 0 SCALAR\nrebound 0 REPLACED REPLACED\n",
+    "stderr": "",
+    "source_sha256": "e0bf753afe5e94ebb1a96da5d515278b17dc2b6538619c521f877354ad09b65a"
+  }
+]

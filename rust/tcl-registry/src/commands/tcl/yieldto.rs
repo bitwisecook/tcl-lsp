@@ -51,9 +51,9 @@ use tcl_dialect::model::SpecSurface;
 // new `CMD_COMPILES_EXPANDED` flag, absent from both 8.6 and 9.0 — a
 // compiler-internal instruction-selection detail (inline bytecode stays
 // valid across a `{*}`-expanded argument) with no user-visible effect on
-// script behaviour, arity, errors, or the return value, so — exactly as
-// `tailcall_.rs` treats the identical flag on `tailcall` — it is not
-// reflected as a spec field here. `yieldto`'s `CmdInfo` row also carries
+// script behaviour, arity, errors, or the return value. The independent
+// `CoroutineRelay` native compiler descriptor retains this expansion policy
+// without changing the command's ordinary runtime arity contract. `yieldto`'s `CmdInfo` row also carries
 // `CMD_IS_SAFE` in all three trees, so it is not hidden inside a safe
 // interpreter.
 //
@@ -96,6 +96,13 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yieldto",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::CoroutineRelay,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        inline_codegen_hook: Some(crate::hooks::InlineCodegenHookId::YieldTo),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Deliberately no `TAINT_SINK`: `command` is looked up and invoked
         // by name with already-substituted argument words — ordinary

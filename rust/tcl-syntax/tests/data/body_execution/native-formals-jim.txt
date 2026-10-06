@@ -1,0 +1,14 @@
+middle 0 0 {A {B C} D}
+renamed 0 0 {A B}
+trailing_default 0 0 VALUE
+optional_before_required 0 0 {ONE B TWO}
+qualified 0 0 VALUE
+array 0 0 VALUE
+empty 0 1 {can't read "": no such variable}
+duplicate 1 - {'args' specified more than once}
+quoted 0 0 {{"x"}}
+ref 0 1 {can't read "target": no such variable}
+target BEFORE
+ref_default 0 0 &x
+missing_ref 0 1 {can't read "missing": no such variable}
+middle_short 0 0 {A {} B}

@@ -18,6 +18,11 @@
 
 //! `tcltest::configure` command.
 use crate::prelude::*;
+use crate::world_effect::{
+    CallbackEffect, EffectAccessMode, EffectFootprint, StaticEffectAccess, StaticEffectFootprint,
+    StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope, WorldEffectDescriptor,
+    WorldEffectDynamicFallback, WorldStateDomain,
+};
 use tcl_dialect::model::SpecSurface;
 
 /// Levels accepted by `-verbose`.  A combination is given as a list (or a
@@ -233,6 +238,28 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+const CONFIGURATION_WRITES: StaticEffectFootprint = StaticEffectFootprint {
+    accesses: &[StaticEffectAccess::new(
+        WorldStateDomain::VariableStore,
+        EffectAccessMode::Write,
+        StaticInterpreterScope::Current,
+        StaticNamespaceScope::Named("::tcltest"),
+        StaticSubjectScope::Wildcard,
+    )],
+    callback: CallbackEffect::NONE,
+};
+
+fn configuration_effects(arguments: crate::InvocationArguments<'_>) -> EffectFootprint {
+    if arguments.len() < 2 {
+        return EffectFootprint::default();
+    }
+    WorldEffectDescriptor {
+        static_footprint: CONFIGURATION_WRITES,
+        ..WorldEffectDescriptor::EMPTY
+    }
+    .resolve(arguments)
+}
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::configure",
@@ -248,6 +275,11 @@ pub fn spec() -> CommandSpec {
         }),
         required_package: Some("tcltest"),
         options: OPTIONS,
+        world_effects: Some(WorldEffectDescriptor {
+            resolver: Some(configuration_effects),
+            dynamic_fallback: WorldEffectDynamicFallback::Declared(CONFIGURATION_WRITES),
+            ..WorldEffectDescriptor::EMPTY
+        }),
         ..CommandSpec::DEFAULT
     }
 }

@@ -213,6 +213,15 @@ How the command reshapes the container inside the variable it writes, in place: 
 
 Tcl values carry both a string form and a cached internal form (list, dict, integer …), and some commands convert or copy between them — the "shimmering" a Tcl developer knows from performance work. This field records such an effect (for example copy-on-write on a shared list) so the performance lints can see it. Rarely needed; safe to leave unset.
 
+Indexed list recipes keep the input and index objects separate:
+`representation_effect {CoerceOrdinaryListIndices 0 1}` names the original list
+and the start of its index operands; `{CoerceOrdinaryListRange 0 1 2}` names the
+list and both range indices. The selected native dialect supplies index parsing
+and possible input preservation. A proved numeric index excludes only its
+ordinary-container sharing footprint; it does not supply an index value or
+preserve a numeric cache. These declarations provide conversion metadata, not
+handler identity, native compilation or a result representation.
+
 ### `arg_types` — Argument type hints
 
 *command and subcommand* — Expected intrep, shimmer risk, and transparent source types per argument index.
@@ -342,6 +351,10 @@ What this command's options and arguments require of one another. Four relations
 *command and subcommand* — Where this invocation's declared options may appear: a leading run that stops at the first non-option word (every core Tcl command), or anywhere between the positional words up to an explicit `--` (`http::geturl`).
 
 Where this command's declared options may be found. `Leading` — the default, and what every core Tcl command does — stops option parsing at the first word that is not a declared option, so a later `-`-looking word is a positional. `Anywhere` keeps recognising options between the positional words up to an explicit `--`, which is the shape of a script-level parser that loops `foreach {flag value} $args` after taking its fixed arguments (`http::geturl`). Getting this wrong invents option relations the interpreter never applies.
+
+### `option_prefix_words` — Positional words before options
+
+*command and subcommand* — A fixed positional prefix before the option run, counted after the head or selected subcommand. `clock format` declares one time value before `-format` and other switches. Its value can be unknown while later literal switches still select their value roles. An unknown word in the option run retains unresolved layout. This metadata does not validate the prefix value or establish an executable handler.
 
 ### `reserved_trailing_words` — Reserved trailing words
 

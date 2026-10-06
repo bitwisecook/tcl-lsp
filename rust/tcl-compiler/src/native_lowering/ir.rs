@@ -18,7 +18,7 @@
 
 //! The native lowered IR (NLIR): a small typed vocabulary over SSA values
 //! with explicit framing operations
-//! (`docs/design/compiler/wasm-native-lowering-plan.md` §3.3).
+//! (`docs/design/compiler/wasm-native-lowering.md` §3.3).
 //!
 //! An NLIR function mirrors the executable semantic function block for block:
 //! every executable block becomes one [`NativeBlock`] with the same index and
@@ -99,6 +99,9 @@ pub struct NativeValue {
 /// A whole lowered function.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeFunction {
+    /// Exact admission contract inherited from executable IR.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     /// Values indexed by [`NativeValueId`].
     pub values: Vec<NativeValue>,
     /// Blocks in executable block order.

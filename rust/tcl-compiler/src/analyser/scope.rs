@@ -398,7 +398,9 @@ fn attach_qualified_var_refs_to_scope(
     if matches!(node.kind, ScopeKind::Namespace | ScopeKind::Global) {
         for var in node.variables.values_mut() {
             let qualified = crate::naming::qualify(ns, &var.name);
-            let Some(spans) = by_cell.get(qualified.trim_start_matches("::")) else {
+            let Some(spans) = by_cell
+                .get(tcl_syntax::naming::unroot_rooted_key(&qualified).unwrap_or(&qualified))
+            else {
                 continue;
             };
             for &span in spans {
@@ -598,7 +600,7 @@ impl<A> KnownPredicateCtx<'_, A> {
     /// visits statements in source order — is always the most recent one.
     ///
     /// Call-site and conditional-body aware the same way
-    /// [`Analyser::fact_live_for_call`] is (the W123 pass's answer to the
+    /// [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] is (the W123 pass's answer to the
     /// identical question) — a namespaced local candidate must not lose to
     /// the global one just because *some later* deletion exists, when this
     /// specific call runs before it: `proc bar
@@ -644,7 +646,9 @@ impl<A> KnownPredicateCtx<'_, A> {
                     .rename_offsets
                     .get(qualified)
                     .is_none_or(|&off| self.live_for_call(qualified, off, call_off)))
-            || (self.builtins.contains(qualified.trim_start_matches(':'))
+            || (self
+                .builtins
+                .contains(tcl_syntax::naming::unroot_rooted_key(qualified).unwrap_or(qualified))
                 && !self.renamed_away.contains(qualified))
     }
 
@@ -993,7 +997,7 @@ impl Analyser {
     /// recursing forever.
     ///
     /// Read by [`Self::finalise_invocation_resolutions`]'s `live_for_call`
-    /// and by [`Self::fact_live_for_call`] as the "was this call's enclosing
+    /// and by [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] as the "was this call's enclosing
     /// definition itself reached before the deletion" escape hatch.
     ///
     /// # A body edge may raise a callee's offset but never lower a base one
@@ -1095,6 +1099,41 @@ impl Analyser {
                 implicit_command_namespace_path_at(&self.result.global_scope, inv.range.start())
             })
             .collect()
+    }
+
+    /// Preserve actual implementation origins independently of name assistance.
+    /// A document-final declaration or lexical deletion gate cannot prove which
+    /// implementation a reached call selected after evaluating its arguments.
+    pub(super) fn retain_positioned_command_definitions(&mut self) {
+        for invocation in &mut self.result.command_invocations {
+            if invocation.is_mathfunc_call
+                || invocation.ensemble_dispatch.is_some()
+                || invocation.callback_arity.is_some()
+            {
+                continue;
+            }
+            let Some(offset) = invocation.lookup.offset(invocation.range) else {
+                continue;
+            };
+            let point = self.head_identities.invocation_at_source("", offset);
+            let reference = match invocation.lookup {
+                crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
+                | crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                    ..
+                } => point
+                    .lookup_command_word(&invocation.name)
+                    .command_reference(&invocation.name),
+                crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
+                    point.evaluated_command_reference()
+                }
+                crate::signature_scan::types::SignatureCommandLookup::DeferredReference => None,
+            };
+            let Some(reference) = reference else {
+                invocation.clear_positioned_reference();
+                continue;
+            };
+            invocation.retain_reference(&reference);
+        }
     }
 
     pub(super) fn finalise_invocation_resolutions(&mut self) {
@@ -1814,7 +1853,10 @@ impl Analyser {
         let mut by_cell: HashMap<&str, Vec<Span>> = HashMap::new();
         for vref in &self.result.qualified_var_refs {
             by_cell
-                .entry(vref.qualified_name.trim_start_matches("::"))
+                .entry(
+                    tcl_syntax::naming::unroot_rooted_key(&vref.qualified_name)
+                        .unwrap_or(&vref.qualified_name),
+                )
                 .or_default()
                 .push(vref.span);
         }
@@ -2950,7 +2992,7 @@ mod tests {
         }
         a.result.global_scope.children.push(leaf);
         let paths = a.walk_scopes_from(&[]);
-        assert!(!paths.is_empty());
+        assert_ne!(paths, [] as [std::vec::Vec<usize>; 0]);
     }
 
     fn var(name: &str, def_span: Span) -> VarDef {
@@ -3443,5 +3485,93 @@ mod tests {
         // TN
         let root = Scope::new(ScopeKind::Global, "::");
         assert!(lookup_var_by_qualified_name(&root, "::Nope::v").is_none());
+    }
+    #[test]
+    fn navigation_uses_reached_body_definition_before_later_redefinition() {
+        let source = "proc p {} {return FIRST}; proc run {} {p}; run; proc p {x} {return SECOND}";
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let result = Analyser::new().analyse(source, dialect);
+            let call = result
+                .command_invocations
+                .iter()
+                .find(|invocation| invocation.name == "p")
+                .unwrap();
+            let definition = call.resolved_definition.as_ref().expect(dialect);
+            let allocation = definition.allocation();
+            assert_eq!(allocation.site.offset, 0, "{dialect}");
+            let declaration = result
+                .proc_for_definition(definition, source)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{dialect}: retained definition {definition:?} has no authored declaration"
+                    )
+                });
+            assert!(declaration.params.is_empty(), "{dialect}");
+            assert_eq!(
+                result
+                    .proc_def_in_effect_at("::p", call.range.start())
+                    .unwrap()
+                    .name_span,
+                declaration.name_span,
+                "{dialect}"
+            );
+            assert!(
+                result
+                    .proc_for_definition(definition, "proc p {x} {return WRONG}")
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn definition_navigation_uses_retained_grammar_instead_of_display_dialect() {
+        let source = "proc p {} {return FIRST}; p";
+        let mut result = Analyser::new().analyse(source, "tcl8.4");
+        let definition = result
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.name == "p")
+            .unwrap()
+            .resolved_definition
+            .clone()
+            .unwrap();
+        assert!(!result.body_lexer_config.unwrap().expand_syntax);
+        result.dialect = "custom-display-name".to_owned();
+        assert!(result.proc_for_definition(&definition, source).is_some());
+        result.body_lexer_config = None;
+        assert!(result.proc_for_definition(&definition, source).is_none());
+    }
+
+    #[test]
+    fn class_navigation_retains_selected_declaration_after_name_reuse() {
+        let source = "oo::class create C {}; C create nav_before; rename C {}; oo::class create C {}; C create nav_after";
+        let call_offsets = ["C create nav_before", "C create nav_after"]
+            .map(|call| u32::try_from(source.find(call).unwrap()).unwrap());
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let result = Analyser::new().analyse(source, dialect);
+            let calls = result
+                .command_invocations
+                .iter()
+                .filter(|invocation| {
+                    invocation.name == "C" && call_offsets.contains(&invocation.range.start())
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(calls.len(), 2, "{dialect}");
+            let declarations = calls
+                .iter()
+                .map(|invocation| {
+                    result
+                        .class_for_definition(
+                            invocation.resolved_definition.as_ref().unwrap(),
+                            source,
+                        )
+                        .unwrap()
+                        .name_span
+                })
+                .collect::<Vec<_>>();
+            assert_ne!(declarations[0], declarations[1], "{dialect}");
+            assert_eq!(result.superseded_classes["::C"].len(), 1);
+            assert_eq!(result.all_classes["::C"].name_span, declarations[1]);
+        }
     }
 }

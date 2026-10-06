@@ -970,7 +970,62 @@ pub struct EventRegistry {
     descriptions: FxHashMap<&'static str, &'static str>,
 }
 
+/// The variable frame an event supplies to its executable body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventVariableFrame {
+    /// Rule initialisation has an interpreter namespace frame, no connection.
+    InitialisationNamespace,
+    /// A traffic event executes in the current flow's persistent frame.
+    Connection,
+    /// The registry does not establish the variable frame.
+    Unknown,
+}
+
+/// Invocation multiplicity selected by the host event contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventExecutionMultiplicity {
+    /// Successful initialisation executes once in each worker's reload epoch.
+    OncePerWorkerEpoch,
+    /// Each connection may enter the handler once; other connections can repeat it.
+    OncePerConnection,
+    /// Reactive invocations may repeat, including within a connection.
+    MayRepeat,
+    /// No supported event contract establishes the invocation envelope.
+    Unknown,
+}
+
+/// Lifecycle knowledge between two handlers, without assuming event dominance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EventLifecycleRelation {
+    /// Successful initialisation precedes traffic on the same worker/epoch.
+    /// This establishes no value equality across workers or transfer across reloads.
+    InitialisationBeforeTraffic,
+    /// Multiple handlers of one event require priority and source ordering.
+    SameEvent,
+    /// A permitted lifecycle path exists; execution is not guaranteed.
+    MayPrecede,
+    /// The canonical lifecycle places the reader earlier than the writer.
+    ReaderPrecedesWriter,
+    /// No registry proof relates these events.
+    Unknown,
+}
+
 impl EventRegistry {
+    /// Host invocation envelope for executable source-body entry analysis.
+    /// Interpreter namespace and command effects persist across connections,
+    /// including handlers which execute only once for each connection.
+    #[must_use]
+    pub fn execution_multiplicity(&self, event: &str) -> EventExecutionMultiplicity {
+        if self.get_props(event).is_none() {
+            EventExecutionMultiplicity::Unknown
+        } else if self.variable_frame(event) == EventVariableFrame::InitialisationNamespace {
+            EventExecutionMultiplicity::OncePerWorkerEpoch
+        } else if self.is_once_per_connection(event) {
+            EventExecutionMultiplicity::OncePerConnection
+        } else {
+            EventExecutionMultiplicity::MayRepeat
+        }
+    }
     /// The lifecycle of `event` on the BIG-IP release axis, with an absent
     /// introducing release inheriting the axis baseline (declared present
     /// since BIG-IP 15.0). `None` for an unknown event.
@@ -1175,6 +1230,43 @@ impl EventRegistry {
         self.order_events(&scan_when_events(source))
     }
 
+    /// Variable-frame declaration shared by analysis and runtime adapters.
+    #[must_use]
+    pub fn variable_frame(&self, event: &str) -> EventVariableFrame {
+        if event == "RULE_INIT" {
+            EventVariableFrame::InitialisationNamespace
+        } else if self.get_props(event).is_some_and(|props| props.flow) {
+            EventVariableFrame::Connection
+        } else {
+            EventVariableFrame::Unknown
+        }
+    }
+
+    /// A lifecycle relation is possibility knowledge, never a reaching-def proof.
+    #[must_use]
+    pub fn lifecycle_relation(&self, writer: &str, reader: &str) -> EventLifecycleRelation {
+        if self.get_props(writer).is_none() || self.get_props(reader).is_none() {
+            return EventLifecycleRelation::Unknown;
+        }
+        if writer == reader {
+            return EventLifecycleRelation::SameEvent;
+        }
+        if writer == "RULE_INIT" && self.variable_frame(reader) == EventVariableFrame::Connection {
+            return EventLifecycleRelation::InitialisationBeforeTraffic;
+        }
+        let (Some(writer_index), Some(reader_index)) = (
+            self.master_order_index(writer),
+            self.master_order_index(reader),
+        ) else {
+            return EventLifecycleRelation::Unknown;
+        };
+        if reader_index < writer_index {
+            EventLifecycleRelation::ReaderPrecedesWriter
+        } else {
+            EventLifecycleRelation::MayPrecede
+        }
+    }
+
     /// Return a note when a variable set in `set_event` has
     /// scoping concerns when read in `read_event`.
     ///
@@ -1188,11 +1280,15 @@ impl EventRegistry {
         if set_event == "RULE_INIT" {
             return None;
         }
-        let set_idx = self.master_order_index(set_event)?;
-        let read_idx = self.master_order_index(read_event)?;
+        let (Some(set_idx), Some(read_idx)) = (
+            self.master_order_index(set_event),
+            self.master_order_index(read_event),
+        ) else {
+            return Some("event lifecycle is not established by the registry".to_owned());
+        };
         if read_idx < set_idx {
             return Some(format!(
-                "variable set in {set_event} is not yet available in {read_event} (fires earlier)"
+                "variable set in {set_event} may not yet be available in {read_event} (fires earlier)"
             ));
         }
         if self.per_request.contains(set_event) && self.once_per_connection.contains(read_event) {
@@ -4651,5 +4747,65 @@ mod tests {
                 .expect("parallel argument facts");
             assert_eq!(facts.last().copied(), Some(expected), "{source:?}");
         }
+    }
+    #[test]
+    fn variable_frames_and_lifecycle_relations_do_not_invent_event_dominance() {
+        let registry = EventRegistry::build();
+        assert_eq!(
+            registry.variable_frame("RULE_INIT"),
+            EventVariableFrame::InitialisationNamespace
+        );
+        assert_eq!(
+            registry.variable_frame("HTTP_REQUEST"),
+            EventVariableFrame::Connection
+        );
+        assert_eq!(
+            registry.variable_frame("NOT_AN_EVENT"),
+            EventVariableFrame::Unknown
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "HTTP_REQUEST"),
+            EventLifecycleRelation::InitialisationBeforeTraffic
+        );
+        assert_eq!(
+            registry.lifecycle_relation("CLIENT_ACCEPTED", "HTTP_REQUEST"),
+            EventLifecycleRelation::MayPrecede
+        );
+        assert_eq!(
+            registry.lifecycle_relation("HTTP_REQUEST", "CLIENT_ACCEPTED"),
+            EventLifecycleRelation::ReaderPrecedesWriter
+        );
+        assert_eq!(
+            registry.lifecycle_relation("NOT_AN_EVENT", "HTTP_REQUEST"),
+            EventLifecycleRelation::Unknown
+        );
+    }
+    #[test]
+    fn event_invocation_envelopes_keep_worker_and_connection_lifetimes_distinct() {
+        let registry = EventRegistry::build();
+        assert_eq!(
+            registry.execution_multiplicity("RULE_INIT"),
+            EventExecutionMultiplicity::OncePerWorkerEpoch,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("CLIENT_ACCEPTED"),
+            EventExecutionMultiplicity::OncePerConnection,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("HTTP_REQUEST"),
+            EventExecutionMultiplicity::MayRepeat,
+        );
+        assert_eq!(
+            registry.execution_multiplicity("NOT_AN_EVENT"),
+            EventExecutionMultiplicity::Unknown,
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "RULE_INIT"),
+            EventLifecycleRelation::SameEvent,
+        );
+        assert_eq!(
+            registry.lifecycle_relation("RULE_INIT", "NOT_AN_EVENT"),
+            EventLifecycleRelation::Unknown,
+        );
     }
 }

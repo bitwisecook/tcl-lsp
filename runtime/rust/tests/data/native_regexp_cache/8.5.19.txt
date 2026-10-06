@@ -1,0 +1,77 @@
+case	0	exit	0
+pattern	regexp	1	1
+compile	1
+cache	1
+after	regexp	0	1
+match	1
+subject	string	1	1
+range	string	1	1
+rangebytes	61
+case	1	exit	0
+pattern	regexp	1	1
+compile	1
+cache	0
+after	regexp	1	1
+case	2	exit	0
+pattern	none	1	1
+compile	0
+case	3	exit	0
+pattern	regexp	1	1
+compile	1
+match	1
+subject	string	1	1
+range	string	1	1
+rangebytes	ff
+case	4	exit	0
+pattern	regexp	1	1
+compile	1
+match	1
+subject	string	1	1
+range	string	0	1
+rangebytes	c080
+case	5	exit	0
+pattern	regexp	1	1
+compile	1
+match	1
+subject	string	1	1
+range	string	1	1
+rangebytes	f09f9880
+case	6	exit	0
+pattern	regexp	1	1
+compile	1
+command	0	0
+commandpattern	regexp	1	1
+commandsubject	string	1	1
+commandspec	string	1	1
+commandresult	string	1	1
+commandbytes	615862
+case	7	exit	0
+pattern	regexp	1	1
+compile	1
+command	0	0
+commandpattern	string	1	1
+commandsubject	string	1	1
+commandspec	string	1	1
+commandresult	string	1	1
+commandbytes	5862
+case	8	exit	0
+pattern	regexp	1	1
+compile	1
+command	0	1
+commandpattern	string	1	1
+commandsubject	string	1	2
+commandspec	string	1	1
+commandresult	string	1	2
+commandbytes	6162
+case	9	exit	0
+pattern	regexp	1	1
+compile	1
+duplicate	regexp	1	1
+cache	1
+after	regexp	0	1
+match	1
+subject	string	1	1
+range	string	1	1
+rangebytes	61
+case	10	exit	-6
+stderr	UpdateStringProc should not be invoked for type regexp

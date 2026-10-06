@@ -181,9 +181,7 @@ fn plan_inline(
     // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
     // `Analyser::analyse`; an empty (default-constructed) one resolves to the
     // permissive `plain_tcl` profile, i.e. modern rules.
-    let numbers: NumberSyntax = crate::profile_for_dialect(&analysis.dialect)
-        .grammar
-        .numbers;
+    let numbers: NumberSyntax = crate::profile_for_analysis(analysis).grammar.numbers;
     // …and its `${…}` close rule, for the same reason: which bytes are the
     // variable's name is release-dependent, and this transform rewrites the
     // reference's own span.

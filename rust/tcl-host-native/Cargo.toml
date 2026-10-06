@@ -38,6 +38,7 @@ description = "Std-backed NativeHost (full-capability Host impl) shared across T
 
 [dependencies]
 tcl-platform = { path = "../tcl-platform" }
+tcl-host-c-abi = { path = "../tcl-host-c-abi" }
 
 [lints]
 workspace = true

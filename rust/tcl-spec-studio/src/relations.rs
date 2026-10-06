@@ -38,6 +38,17 @@
 /// them.
 pub const CLUSTERS: &[Cluster] = &[
     Cluster {
+        name: "Native implementation contracts",
+        why: "Actual implementation and entry proofs distinguish compiler selection, normal transfer, native results, and executed script phases.",
+        members: &[
+            "successful_handler",
+            "native_compilation",
+            "native_result",
+            "procedure_definition",
+            "body_execution",
+        ],
+    },
+    Cluster {
         name: "Argument roles",
         why: "What each argument word *is* — the roles, the resolver that \
               overrides them, and the layouts that repeat them.",

@@ -32,6 +32,7 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-core-types = { path = "../tcl-core-types" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 bitflags = "2"
@@ -40,6 +41,7 @@ smallvec = "1"
 rustc-hash = { workspace = true }
 
 [dev-dependencies]
+tcl-test-support = { path = "../tcl-test-support" }
 # A dev-dependency cycle (`tcl-spectcl` depends on this crate), which Cargo
 # permits: the EDA vendor libraries are bundled `.tclspec` loadables, so the
 # tests load them through the pack loader like everything else does.

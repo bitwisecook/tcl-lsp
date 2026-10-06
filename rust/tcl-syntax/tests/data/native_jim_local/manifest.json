@@ -1,0 +1,27 @@
+{
+  "engine": "pinned Jim 0.84",
+  "compile_exit": 0,
+  "run_exit": 0,
+  "scenarios": 6,
+  "rows": 63,
+  "captures": [
+    "original command/cache identity",
+    "procedure epoch",
+    "live previous node lineage",
+    "upcall counters",
+    "original local cleanup name ownership"
+  ],
+  "does_not_attest": [
+    "return options",
+    "error globals"
+  ],
+  "hashes": {
+    "/workspace/.proofs/2286-packages-dialects/jim-local-upcall/probe.c": "2e35a6697e2f6d7075c1475814a75c614231f4fe3dd1807e4d7ffcd0fcbc574c",
+    "/workspace/.proofs/2286-packages-dialects/jim-local-upcall/observations.tsv": "eed98085bfe690e8fdb3262a0bfd4a599ee5d63c9f6060d6b85b902445545db4",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/workspace/.proofs/2286-packages-dialects/jim-local-upcall/behaviour.tsv": "25b705ad35d11ebcb3402538bbb7155519caa0b9db1595d5bf106c0155f308e6"
+  },
+  "behaviour_rows": 5
+}

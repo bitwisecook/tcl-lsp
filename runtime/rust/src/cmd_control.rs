@@ -30,6 +30,7 @@
 
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
+use tcl_syntax::value::ValueOps;
 
 /// Register the control-flow commands.
 pub fn install(interp: &mut Interp) {
@@ -91,7 +92,7 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let mut m = b"expected integer but got \"".to_vec();
                 m.extend_from_slice(&bytes);
                 m.push(b'"');
-                return interp.set_error(&m);
+                return interp.wrong_arguments_message(&m);
             }
         }
     } else {
@@ -175,7 +176,7 @@ fn timerate_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                         let mut m = b"expected floating-point number but got \"".to_vec();
                         m.extend_from_slice(&b);
                         m.push(b'"');
-                        return interp.set_error(&m);
+                        return interp.wrong_arguments_message(&m);
                     }
                 }
             }
@@ -257,7 +258,7 @@ fn expected_integer(interp: &mut Interp, got: &[u8]) -> Code {
     let mut m = b"expected integer but got \"".to_vec();
     m.extend_from_slice(got);
     m.push(b'"');
-    interp.set_error(&m)
+    interp.wrong_arguments_message(&m)
 }
 
 /// The measurement loop: evaluate `script` until `max_ms` elapses or `max_cnt`
@@ -419,25 +420,11 @@ fn timerate_calibrate_cycle(interp: &mut Interp, script: &[u8]) -> Code {
 
 /// `tailcall command ?arg ...?` — arrange for `command args` to run and its
 /// result to become the enclosing proc's result. Must be called from a proc /
-/// lambda / method. This mirrors the bytecode VM's pragmatic form: `command
-/// args` is dispatched now and a `TCL_RETURN` carries its result out of the
-/// proc (rather than being deferred to run in the caller's frame after unwind —
-/// the observable proc result is the same for the common case).
+/// lambda / method. The actual selected native pending code retains the
+/// replacement on that frame. Dispatch occurs in the caller's variable frame
+/// after issuer teardown and execution-leave callbacks.
 fn tailcall_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    if !interp.in_proc() {
-        return interp.set_error(b"tailcall can only be called from a proc, lambda or method");
-    }
-    if argv.len() < 2 {
-        // `tailcall` with no command is a plain return of "".
-        interp.set_result_bytes(b"");
-        return Code::Return;
-    }
-    let code = interp.dispatch(&argv[1..]);
-    if code == Code::Ok {
-        Code::Return
-    } else {
-        code
-    }
+    interp.schedule_tailcall(&argv[1..])
 }
 
 // if
@@ -460,7 +447,7 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut m = b"wrong # args: no expression after \"".to_vec();
             m.extend_from_slice(clause);
             m.extend_from_slice(b"\" argument");
-            return interp.set_error(&m);
+            return interp.wrong_arguments_message(&m);
         }
         let cond_obj = argv[i];
         i += 1;
@@ -499,8 +486,9 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
     }
     if i < objc.saturating_sub(1) {
-        return interp
-            .set_error(b"wrong # args: extra words after \"else\" clause in \"if\" command");
+        return interp.wrong_arguments_message(
+            b"wrong # args: extra words after \"else\" clause in \"if\" command",
+        );
     }
 
     match then_body {
@@ -520,7 +508,7 @@ fn no_script_following(interp: &mut Interp, token: &[u8]) -> Code {
     let mut m = b"wrong # args: no script following \"".to_vec();
     m.extend_from_slice(token);
     m.extend_from_slice(b"\" argument");
-    interp.set_error(&m)
+    interp.wrong_arguments_message(&m)
 }
 
 // while
@@ -642,117 +630,323 @@ fn lmap(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     each_loop(interp, argv, true)
 }
 
-/// Shared `foreach`/`lmap` engine. With `collect`, each successful body result
-/// is appended to a result list (the `lmap` return value); without, the result
-/// is the empty string (`foreach`). The two differ only in result collection
-/// and the body-frame command name — exactly as C factors them through one
-/// `EachloopCmd`.
+/// Execute the authenticated original-object generic loop schedule.
 fn each_loop(interp: &mut Interp, argv: &[*mut TclObj], collect: bool) -> Code {
+    use tcl_cmd_core::native_each_loop::{BodyDecision, EachLoopAction};
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
-
-    let name: &[u8] = if collect { b"lmap" } else { b"foreach" };
-    // [cmd] + N×(varlist, list) pairs + body ⇒ an even arg count ≥ 4.
+    use tcl_runtime_api::native_each_loop::NativeEachLoopKind;
+    let kind = if collect {
+        NativeEachLoopKind::Lmap
+    } else {
+        NativeEachLoopKind::Foreach
+    };
     if argv.len() < 4 || argv.len() % 2 != 0 {
-        let usage: &[u8] = if collect {
+        return interp.wrong_args(if collect {
             b"lmap varList list ?varList list ...? command"
         } else {
             b"foreach varList list ?varList list ...? command"
-        };
-        return interp.wrong_args(usage);
+        });
     }
-    let body = argv[argv.len() - 1];
-
-    // Parse each group's variable names + values; track the iteration count.
-    // A group is `(variable names, values)`.
-    type Group = (Vec<Vec<u8>>, Vec<Vec<u8>>);
-    let mut groups: Vec<Group> = Vec::new();
-    let mut iterations = 0usize;
-    let pairs = &argv[1..argv.len() - 1];
-    for pair in pairs.chunks_exact(2) {
-        let vars = match crate::parse::split_list(&obj_bytes(pair[0])) {
-            Ok(v) => v,
-            Err(e) => return interp.set_error(e.message()),
+    let dialect = interp.native_invocation_dialect();
+    let Some(protocol) = dialect.native_each_loop_protocol(kind) else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("native generic each-loop")
+                .into(),
+        );
+    };
+    let Some(strings) = dialect.native_string_protocol() else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native each-loop List storage",
+            )
+            .into(),
+        );
+    };
+    let recipe = protocol.recipe();
+    struct Group {
+        variables: *mut TclObj,
+        values: *mut TclObj,
+        _variable_owner: Option<crate::obj::Owned>,
+        _value_owner: Option<crate::obj::Owned>,
+        _variable_lifetime: crate::obj::NativeObjectLifetime,
+        _value_lifetime: crate::obj::NativeObjectLifetime,
+        variable_items: Option<crate::list::NativeListBacking>,
+        value_items: Option<crate::list::NativeListBacking>,
+        abstract_values: Option<crate::native_arithseries::NativeEachLoopAbstractValues>,
+    }
+    fn members(
+        root: *mut TclObj,
+        strings: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<crate::list::NativeListBacking, tcl_syntax::value::ValueError> {
+        drop(crate::list::list_elements_native_checked(root, strings)?);
+        crate::list::native_list_backing(root).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native each-loop concrete List backing",
+            ),
+        )
+    }
+    if let Err(error) = interp.associate_native_jim_arguments(argv) {
+        return interp.report_cmd_error(error.into());
+    }
+    let mut groups = Vec::new();
+    let mut lengths = Vec::new();
+    let mut empty = false;
+    for pair in argv[1..argv.len() - 1].chunks_exact(2) {
+        let variable_owner = if recipe.copies_headers() {
+            match crate::list::native_list_copy(pair[0], strings) {
+                Ok(owner) => Some(owner),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        } else {
+            None
         };
-        if vars.is_empty() {
-            let mut m = name.to_vec();
-            m.extend_from_slice(b" varlist is empty");
-            return interp.set_error(&m);
+        let variables = variable_owner
+            .as_ref()
+            .map_or(pair[0], crate::obj::Owned::as_ptr);
+        let variable_items = match members(variables, strings) {
+            Ok(items) => items,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        let variable_count = variable_items.len();
+        empty |= variable_count == 0;
+        if empty && !recipe.live_iterators() {
+            return interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+                recipe, kind,
+            ));
         }
-        let vals = match crate::parse::split_list(&obj_bytes(pair[1])) {
-            Ok(v) => v,
-            Err(e) => return interp.set_error(e.message()),
+        let abstract_values =
+            match crate::native_arithseries::capture_native_each_loop_abstract(pair[1], strings) {
+                Ok(values) => values,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+        let value_owner = if abstract_values.is_some() {
+            None
+        } else if recipe.copies_headers() {
+            match crate::list::native_list_copy(pair[1], strings) {
+                Ok(owner) => Some(owner),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        } else {
+            None
         };
-        iterations = iterations.max(vals.len().div_ceil(vars.len()));
-        groups.push((vars, vals));
+        let values = value_owner
+            .as_ref()
+            .map_or(pair[1], crate::obj::Owned::as_ptr);
+        let value_items = if abstract_values.is_some() || recipe.live_iterators() {
+            None
+        } else {
+            match members(values, strings) {
+                Ok(items) => Some(items),
+                Err(error) => return interp.report_cmd_error(error.into()),
+            }
+        };
+        lengths.push((
+            variable_count,
+            abstract_values.as_ref().map_or_else(
+                || value_items.as_ref().map_or(0, |items| items.len()),
+                crate::native_arithseries::NativeEachLoopAbstractValues::length,
+            ),
+        ));
+        groups.push(Group {
+            variables,
+            values,
+            _variable_owner: variable_owner,
+            _value_owner: value_owner,
+            _variable_lifetime: crate::obj::NativeObjectLifetime::retain(variables),
+            _value_lifetime: crate::obj::NativeObjectLifetime::retain(values),
+            variable_items: Some(variable_items),
+            value_items,
+            abstract_values,
+        });
     }
-
-    // Collected body results (bytes; rematerialised into the result list at the
-    // end). Only populated for `lmap`.
+    if empty {
+        return interp.report_cmd_error(tcl_cmd_core::native_each_loop::empty_variables(
+            recipe, kind,
+        ));
+    }
+    let jim_empty = if recipe.live_iterators() {
+        match interp.native_jim_object_context() {
+            Ok(context) => {
+                // Jim retains resultObj, which is emptyObj only for foreach.
+                // lmap borrows emptyObj for padding and owns a separate List.
+                let result_owner =
+                    (!collect).then(|| crate::obj::Owned::retain(context.empty_object().as_ptr()));
+                Some((context, result_owner))
+            }
+            Err(error) => return interp.report_cmd_error(error.into()),
+        }
+    } else {
+        None
+    };
     let policy = if collect {
         ControlOptionPolicy::FRESH_FORWARDED
     } else {
         ControlOptionPolicy::FRESH_SETTLED
     };
-    // Even a zero-iteration each-loop is a fresh command completion. Every
-    // iteration body is a fresh activation too; `lmap` forwards the final
-    // body's options, while `foreach` settles its own empty result/options.
     interp.begin_control_options(policy);
-    let mut collected: Vec<Vec<u8>> = Vec::new();
-    for it in 0..iterations {
-        interp.begin_control_options(policy);
-        for (vars, vals) in &groups {
-            for (k, var) in vars.iter().enumerate() {
-                let val = vals.get(it * vars.len() + k).cloned().unwrap_or_default();
-                let o = new_string(&val);
-                // `arr(a)` writes the array *element*, not a literal scalar
-                // named `arr(a)` — the same `split_array_ref` +
-                // `var_set`/`var_set_elem` routing `set` uses (shared by
-                // `foreach` and `lmap`, this loop's two callers), so this
-                // doesn't hand-roll a second name parser.
-                let (base, elem) = crate::frame::split_array_ref(var);
-                let stored = match &elem {
-                    Some(key) => interp.var_set_elem(&base, key, o),
-                    None => interp.var_set(&base, o),
+    let mut cursor = tcl_cmd_core::native_each_loop::EachLoopState::new(recipe, kind, lengths);
+    let mut collected = Vec::<crate::obj::Owned>::new();
+    loop {
+        match cursor.advance() {
+            EachLoopAction::Check(index) => {
+                let group = &mut groups[index];
+                group.value_items = None;
+                let items = match members(group.values, strings) {
+                    Ok(items) => items,
+                    Err(error) => return interp.report_cmd_error(error.into()),
                 };
-                if let Err(e) = stored {
-                    drop_fresh(o);
-                    return crate::builtins::var_error(interp, var, e);
+                cursor.set_value_length(index, items.len());
+                group.value_items = Some(items);
+            }
+            EachLoopAction::Refresh(index) => {
+                let group = &mut groups[index];
+                group.variable_items = None;
+                let variables = match members(group.variables, strings) {
+                    Ok(items) => items,
+                    Err(_) if recipe.refetches_groups() => {
+                        return interp.report_cmd_error(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "native Tcl 8.4 each-loop variable-list refetch fatal boundary",
+                            )
+                            .into(),
+                        );
+                    }
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                let count = variables.len();
+                group.variable_items = Some(variables);
+                if !recipe.live_iterators() || cursor.variable_cursor() < count {
+                    group.value_items = None;
+                    let values =
+                        match members(group.values, strings) {
+                            Ok(items) => items,
+                            Err(_) if recipe.refetches_groups() => return interp.report_cmd_error(
+                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                    "native Tcl 8.4 each-loop value-list refetch fatal boundary",
+                                )
+                                .into(),
+                            ),
+                            Err(error) => return interp.report_cmd_error(error.into()),
+                        };
+                    cursor.set_lengths(index, count, values.len());
+                    group.value_items = Some(values);
+                } else {
+                    cursor.set_lengths(
+                        index,
+                        count,
+                        group.value_items.as_ref().map_or(0, |items| items.len()),
+                    );
                 }
+            }
+            EachLoopAction::Assign {
+                group,
+                variable,
+                value,
+            } => {
+                let group = &groups[group];
+                let name = match group
+                    .variable_items
+                    .as_ref()
+                    .expect("native variable header")
+                    .elements()
+                {
+                    Ok(elements) => elements[variable],
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                let fresh_value = (value.is_none() && jim_empty.is_none())
+                    || (value.is_some() && group.abstract_values.is_some());
+                let assigned = match value {
+                    Some(index) if group.abstract_values.is_some() => {
+                        match group.abstract_values.as_ref().unwrap().element(index) {
+                            Ok(value) => value,
+                            Err(error) => return interp.report_cmd_error(error.into()),
+                        }
+                    }
+                    Some(index) => match group
+                        .value_items
+                        .as_ref()
+                        .expect("native value header")
+                        .elements()
+                    {
+                        Ok(elements) => elements[index],
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    },
+                    None => jim_empty.as_ref().map_or_else(
+                        || new_string(b""),
+                        |(context, _)| context.empty_object().as_ptr(),
+                    ),
+                };
+                let fresh_lifetime =
+                    fresh_value.then(|| crate::obj::NativeObjectLifetime::retain(assigned));
+                let transient = recipe
+                    .pins_assignment_value()
+                    .then(|| crate::obj::Owned::retain(assigned));
+                let stored = interp.assign_original_named_variable(name, assigned);
+                drop(transient);
+                if fresh_value && crate::obj::allocation_is_live(assigned) {
+                    // SAFETY: the allocation-only lease keeps the header valid.
+                    // A trace can withdraw the native reference while the
+                    // original setter is running; such a retired header must
+                    // never be promoted again during caller cleanup.
+                    if unsafe { (*assigned).ref_count == 0 } {
+                        drop_fresh(assigned);
+                    }
+                }
+                drop(fresh_lifetime);
+                if let Err(code) = stored {
+                    let original = match interp.native_string_bytes(&name) {
+                        Ok(bytes) => bytes,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    match tcl_cmd_core::native_each_loop::setter_failure(recipe, kind, &original) {
+                        tcl_cmd_core::native_each_loop::SetterFailure::Preserve => return code,
+                        tcl_cmd_core::native_each_loop::SetterFailure::Replace(error) => {
+                            return interp.report_cmd_error(error);
+                        }
+                        tcl_cmd_core::native_each_loop::SetterFailure::Context(context) => {
+                            interp.append_error_info_context(&context);
+                            return code;
+                        }
+                    }
+                }
+            }
+            EachLoopAction::Body => {
+                interp.begin_control_options(policy);
+                let code = interp.eval_generic_control_body(argv[argv.len() - 1]);
+                match cursor.body_completion(tcl_core_types::Code::from_int(
+                    i32::try_from(code.as_int()).expect("runtime completion code is a C int"),
+                )) {
+                    BodyDecision::Collect => {
+                        collected.push(crate::obj::Owned::retain(interp.get_obj_result()))
+                    }
+                    BodyDecision::Continue | BodyDecision::Finish => {}
+                    BodyDecision::Propagate => {
+                        if code == Code::Error {
+                            interp.append_body_frame(kind.name().as_bytes());
+                        }
+                        return code;
+                    }
+                }
+            }
+            EachLoopAction::Finish => {
+                if collect && (cursor.entered_body() || recipe.empty_lmap_publishes_list()) {
+                    let values = collected
+                        .iter()
+                        .map(crate::obj::Owned::as_ptr)
+                        .collect::<Vec<_>>();
+                    let list = interp.new_list_object(&values);
+                    drop(collected);
+                    interp.set_result(list);
+                } else if let Some((context, _result_owner)) = jim_empty {
+                    interp.set_result(context.empty_object().as_ptr());
+                } else {
+                    interp.set_result_bytes(b"");
+                }
+                interp.settle_control_options(policy, Code::Ok);
+                return Code::Ok;
             }
         }
-        match interp.eval_control_body(body) {
-            Code::Ok => {
-                if collect {
-                    collected.push(obj_bytes(interp.get_obj_result()));
-                }
-            }
-            Code::Continue => {} // skip collection, keep looping
-            Code::Break => break,
-            Code::Error => {
-                // `("<cmd>" body line N)` — only at top level. Tcl inlines
-                // `foreach`/`lmap` when it compiles the enclosing script (a proc
-                // body), so no body-frame appears there; an uncompiled top-level
-                // form runs its command form, which does add the frame. A
-                // tree-walker has no bytecode, so `!in_proc()` approximates the
-                // compilation boundary — matches tclsh 9.0 for both cases.
-                if !interp.in_proc() {
-                    interp.append_body_frame(name);
-                }
-                return Code::Error;
-            }
-            other => return other,
-        }
     }
-    if collect {
-        // Rematerialise into a list; `new_list_obj` takes a +1 on each fresh
-        // (rc-0) element, so the list owns them — no `drop_fresh` here.
-        let objs: Vec<*mut TclObj> = collected.iter().map(|b| new_string(b)).collect();
-        interp.set_result(crate::list::new_list_obj(&objs));
-    } else {
-        interp.set_result_bytes(b"");
-    }
-    interp.settle_control_options(policy, Code::Ok);
-    Code::Ok
 }
 
 #[cfg(test)]
@@ -870,6 +1064,40 @@ mod tests {
             assert_eq!(i.eval_str(b"timerate"), Code::Error);
             assert!(i.result_bytes().starts_with(b"wrong # args"));
         });
+    }
+
+    #[test]
+    fn tailcall_resolves_after_issuer_leave_in_the_callers_variable_frame() {
+        let cases = [
+            "proc target {} {return OLD}; proc leave {cmd code result op} {set ::leave [list $code $result]; rename target old; proc target {} {return NEW}}; proc P {} {tailcall target}; trace add execution P leave leave; list [P] $::leave",
+            "proc target {} {set x NEW}; proc issuer {} {set x WRONG; tailcall target}; proc caller {} {set x OLD; issuer; set x}; caller",
+        ];
+        for reference in tcl_test_support::available_tclshs()
+            .into_iter()
+            .filter(|reference| reference.version >= tcl_dialect::TclVersion::V8_6)
+        {
+            let profile = tcl_registry::model::ingress::resolve_environment(
+                reference.version.dialect_profile_name(),
+            )
+            .unit_profile();
+            for script in cases {
+                let source = format!("puts [eval {{{script}}}]\n");
+                let expected = tcl_test_support::run_script(&reference.path, source.as_bytes())
+                    .expect("native tailcall observation")
+                    .strict_text()
+                    .expect("native result");
+                leak_free(|interp| {
+                    interp.set_dialect_profile(profile);
+                    assert_eq!(interp.eval_str(script.as_bytes()), Code::Ok);
+                    assert_eq!(
+                        interp.result_bytes(),
+                        expected.as_bytes(),
+                        "{:?}: {script}",
+                        reference.version
+                    );
+                });
+            }
+        }
     }
 
     #[test]
@@ -998,3 +1226,6 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+mod native_each_loop_tests;

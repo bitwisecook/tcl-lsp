@@ -1,0 +1,73 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "rows": [
+    {
+      "version": "8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_sha256": "fe5add47c840abb0c368caf295aca90e3f76976cab85440c7a2e71b14c0e6fb3",
+      "code": 0,
+      "stdout": "::errorInfo ::errorInfo result\n",
+      "stderr": "",
+      "source": "set events {}\nproc record {name element operation} {lappend ::events $name}\nproc p {} {\n    trace variable ::errorInfo w record\n    trace variable result w record\n    set ::events {}\n    catch {expr {1/0}} result\n    trace vdelete ::errorInfo w record\n    trace vdelete result w record\n    return $::events\n}\nputs [p]\n"
+    },
+    {
+      "version": "8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_sha256": "e238b8c92f740a7a84003339a78c068dc6213b12ff2b3e5bee48dd94bfd4a6f9",
+      "code": 0,
+      "stdout": "::errorInfo ::errorInfo result options\n",
+      "stderr": "",
+      "source": "set events {}\nproc record {name element operation} {lappend ::events $name}\nproc p {} {\n    trace variable ::errorInfo w record\n    trace variable result w record\n    trace variable options w record\n    set ::events {}\n    catch {expr {1/0}} result options\n    trace vdelete ::errorInfo w record\n    trace vdelete result w record\n    trace vdelete options w record\n    return $::events\n}\nputs [p]\n"
+    },
+    {
+      "version": "8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_sha256": "e238b8c92f740a7a84003339a78c068dc6213b12ff2b3e5bee48dd94bfd4a6f9",
+      "code": 0,
+      "stdout": "::errorInfo ::errorInfo options result\n",
+      "stderr": "",
+      "source": "set events {}\nproc record {name element operation} {lappend ::events $name}\nproc p {} {\n    trace variable ::errorInfo w record\n    trace variable result w record\n    trace variable options w record\n    set ::events {}\n    catch {expr {1/0}} result options\n    trace vdelete ::errorInfo w record\n    trace vdelete result w record\n    trace vdelete options w record\n    return $::events\n}\nputs [p]\n"
+    },
+    {
+      "version": "9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+      "source_sha256": "d77f7089eb2dddabf19c8a7254c3292fb7c2af5ac0b906ebd02dcc59d81b36c6",
+      "code": 0,
+      "stdout": "::errorInfo ::errorInfo options result\n",
+      "stderr": "",
+      "source": "set events {}\nproc record {name element operation} {lappend ::events $name}\nproc p {} {\n    trace add variable ::errorInfo write record\n    trace add variable result write record\n    trace add variable options write record\n    set ::events {}\n    catch {expr {1/0}} result options\n    trace remove variable ::errorInfo write record\n    trace remove variable result write record\n    trace remove variable options write record\n    return $::events\n}\nputs [p]\n"
+    },
+    {
+      "version": "9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+      "source_sha256": "d77f7089eb2dddabf19c8a7254c3292fb7c2af5ac0b906ebd02dcc59d81b36c6",
+      "code": 0,
+      "stdout": "::errorInfo ::errorInfo options result\n",
+      "stderr": "",
+      "source": "set events {}\nproc record {name element operation} {lappend ::events $name}\nproc p {} {\n    trace add variable ::errorInfo write record\n    trace add variable result write record\n    trace add variable options write record\n    set ::events {}\n    catch {expr {1/0}} result options\n    trace remove variable ::errorInfo write record\n    trace remove variable result write record\n    trace remove variable options write record\n    return $::events\n}\nputs [p]\n"
+    },
+    {
+      "version": "jim",
+      "binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "source_sha256": "37a93cd4033bc2dae35f3e9890be94e3f4546f78c5614e5530ebe3910311e115",
+      "code": 0,
+      "stdout": "{Division by zero} 1\n",
+      "stderr": "",
+      "trace_absence": {
+        "code": 1,
+        "stderr": "/workspace/.proofs/2286-catch-end-publication/jim.tcl:4: Error: invalid command name \"trace\"\nTraceback (most recent call last):\n  File \"/workspace/.proofs/2286-catch-end-publication/jim.tcl\", line 14\n    p\n  File \"/workspace/.proofs/2286-catch-end-publication/jim.tcl\", line 4, in p\n"
+      },
+      "source": "proc p {} {\n    catch {expr {1/0}} result options\n    list $result [dict get $options -code]\n}\nputs [p]\n"
+    }
+  ],
+  "purpose": "Native errorInfo publication/store order for all five C engines; Jim ordinary Catch completion without a C variable-trace capability. Jim trace absence is retained separately.",
+  "fixture_sha256": "5d4422ff5d20653805aa7e89ea792ad121f528fee787141c3c8081975d9f9fb5",
+  "comparison_entry": "The fixture retains each native source unchanged except puts [p] is replaced with p, so Rust observes the same command result without CLI output."
+}

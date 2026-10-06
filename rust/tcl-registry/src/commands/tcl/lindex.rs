@@ -27,7 +27,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
         name: "lindex",
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryListIndices {
+            operand: 0,
+            indices_from: 1,
+        }),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ListIndex,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListIndex),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lindex),
         traits: Traits::FRAMELESS_RUNTIME

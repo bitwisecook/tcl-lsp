@@ -32,7 +32,7 @@
 //!   fall-through chains) or the default / empty.
 //!
 //! All rewrites emit diagnostic code `O112`. Conditions are
-//! evaluated via [`eval_tcl_expr_with_octal_and_dialect`] against
+//! evaluated via [`eval_tcl_expr_with_math_bindings`] against
 //! an [`Env`] seeded with the per-function SCCP lattice
 //! projection: every variable whose lattice entries all agree on
 //! the same `Const` value becomes an [`EnvValue`] binding.
@@ -49,9 +49,7 @@ use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Script, Statement, SwitchArm, SwitchMode};
 use crate::naming::normalise_var_name;
-use crate::tcl_expr_eval::{
-    Env, EnvValue, eval_tcl_expr_with_octal_and_dialect, leading_zero_is_octal,
-};
+use crate::tcl_expr_eval::{Env, EnvValue, eval_tcl_expr_with_math_bindings};
 
 use super::helpers::literals::is_plain_literal;
 use super::helpers::spans::full_rewrite_span;
@@ -70,6 +68,9 @@ use super::{Optimisation, PassContext};
 /// still needs its own check, since it runs an independent def-use-chain
 /// scan that never consults `fu.sccp` at all.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
+    // The unit owns the ingress word grammar. Even a standalone pass caller
+    // must decode body words under that exact grammar rather than a default.
+    ctx.source_lexer_config = Some(cu.ir_module.lexer_config);
     // Top-level script.
     let top_env = sccp_env_for(&cu.top_level);
     walk_script(ctx, &cu.ir_module.top_level, &top_env, 0);
@@ -124,20 +125,30 @@ fn sccp_env_for(fu: &FunctionUnit) -> Env {
 /// `depth` is the nesting level of `script` — see
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`].
 fn walk_script(ctx: &mut PassContext<'_>, script: &Script, env: &Env, depth: u32) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
-    for stmt in &script.statements {
-        walk_statement(ctx, stmt, env, depth);
+    for (index, stmt) in script.statements.iter().enumerate() {
+        // The enclosing evaluator may observe the final completion value.
+        // Without a result-use proof, deletion must preserve that value.
+        let result_observed = index + 1 == script.statements.len();
+        walk_statement(ctx, stmt, script, env, depth, result_observed);
     }
 }
 
-fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
+fn walk_statement(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    env: &Env,
+    depth: u32,
+    result_observed: bool,
+) {
     match stmt {
-        Statement::If { .. } => visit_if(ctx, stmt, env, depth),
-        Statement::While { .. } => visit_while(ctx, stmt, env, depth),
-        Statement::For { .. } => visit_for(ctx, stmt, env, depth),
-        Statement::Switch { .. } => visit_switch(ctx, stmt, env, depth),
+        Statement::If { .. } => visit_if(ctx, stmt, source, env, depth, result_observed),
+        Statement::While { .. } => visit_while(ctx, stmt, source, env, depth, result_observed),
+        Statement::For { .. } => visit_for(ctx, stmt, source, env, depth, result_observed),
+        Statement::Switch { .. } => visit_switch(ctx, stmt, env, depth, result_observed),
         Statement::Catch { body, .. } | Statement::Foreach { body, .. } => {
             walk_script(ctx, body, env, depth + 1);
         }
@@ -159,17 +170,21 @@ fn walk_statement(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth:
     }
 }
 
-fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
+fn visit_if(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    env: &Env,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::If {
-        span,
-        clauses,
-        else_body,
-        else_span,
+        clauses, else_body, ..
     } = stmt
     else {
         return;
     };
-    try_eliminate_if(ctx, *span, clauses, else_body.as_ref(), *else_span, env);
+    try_eliminate_if(ctx, stmt, source, env, result_observed);
     for clause in clauses {
         walk_script(ctx, &clause.body, env, depth + 1);
     }
@@ -178,22 +193,32 @@ fn visit_if(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) 
     }
 }
 
-fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
+fn visit_while(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    env: &Env,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::While {
         span,
         condition,
+        condition_base,
         body,
         ..
     } = stmt
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
-        condition,
-        env,
-        ctx.dialect.and_then(leading_zero_is_octal),
-        ctx.dialect,
-    ) && !val.is_truthy()
+    let bindings =
+        crate::math_function_binding::ExpressionMathBindings::new(source, *condition_base);
+    if let Some(val) =
+        eval_tcl_expr_with_math_bindings(condition, env, ctx.fold_policy(), &|function, start| {
+            bindings.proves_intrinsic_for_erasure(function, start)
+        })
+        && !val.is_truthy()
+        && !result_observed
     {
         ctx.report(Optimisation::new(
             DiagCode::O112,
@@ -205,12 +230,20 @@ fn visit_while(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u3
     walk_script(ctx, body, env, depth + 1);
 }
 
-fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
+fn visit_for(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    source: &Script,
+    env: &Env,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::For {
         span,
         init,
         init_span,
         condition,
+        condition_base,
         next,
         body,
         ..
@@ -218,12 +251,14 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32)
     else {
         return;
     };
-    if let Some(val) = eval_tcl_expr_with_octal_and_dialect(
-        condition,
-        env,
-        ctx.dialect.and_then(leading_zero_is_octal),
-        ctx.dialect,
-    ) && !val.is_truthy()
+    let bindings =
+        crate::math_function_binding::ExpressionMathBindings::new(source, *condition_base);
+    if let Some(val) =
+        eval_tcl_expr_with_math_bindings(condition, env, ctx.fold_policy(), &|function, start| {
+            bindings.proves_intrinsic_for_erasure(function, start)
+        })
+        && !val.is_truthy()
+        && !result_observed
     {
         if init.statements.is_empty() {
             ctx.report(Optimisation::new(
@@ -233,7 +268,10 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32)
                 "",
             ));
         } else {
-            let replacement = extract_body_text(ctx.source, *init_span, *span);
+            let Some(replacement) = extract_body_text(ctx.source, *init_span, ctx.lexer_config())
+            else {
+                return;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate dead for loop (condition is always false); keep init",
@@ -247,7 +285,13 @@ fn visit_for(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32)
     walk_script(ctx, next, env, depth + 1);
 }
 
-fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u32) {
+fn visit_switch(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    env: &Env,
+    depth: u32,
+    result_observed: bool,
+) {
     let Statement::Switch {
         span,
         subject,
@@ -273,6 +317,7 @@ fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u
             nocase: *nocase,
         },
         env,
+        result_observed,
     );
     for arm in arms {
         if let Some(body) = &arm.body {
@@ -286,21 +331,42 @@ fn visit_switch(ctx: &mut PassContext<'_>, stmt: &Statement, env: &Env, depth: u
 
 fn try_eliminate_if(
     ctx: &mut PassContext<'_>,
-    stmt_span: tcl_lexer::Span,
-    clauses: &[crate::ir::IfClause],
-    else_body: Option<&Script>,
-    else_span: Option<tcl_lexer::Span>,
+    statement: &Statement,
+    source: &Script,
     env: &Env,
+    result_observed: bool,
 ) {
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
+    let Statement::If {
+        span: stmt_span,
+        clauses,
+        else_body,
+        else_span,
+    } = statement
+    else {
+        return;
+    };
+    let stmt_span = *stmt_span;
+    let else_body = else_body.as_ref();
+    let else_span = *else_span;
     for clause in clauses {
-        let Some(val) =
-            eval_tcl_expr_with_octal_and_dialect(&clause.condition, env, octal, ctx.dialect)
-        else {
+        let bindings = crate::math_function_binding::ExpressionMathBindings::new(
+            source,
+            clause.condition_base,
+        );
+        let Some(val) = eval_tcl_expr_with_math_bindings(
+            &clause.condition,
+            env,
+            ctx.fold_policy(),
+            &|function, start| bindings.proves_intrinsic_for_erasure(function, start),
+        ) else {
             return;
         };
         if val.is_truthy() {
-            let replacement = extract_body_text(ctx.source, clause.body_span, stmt_span);
+            let Some(replacement) =
+                extract_body_text(ctx.source, clause.body_span, ctx.lexer_config())
+            else {
+                return;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 "Eliminate constant if (condition is always true)",
@@ -313,14 +379,16 @@ fn try_eliminate_if(
     // Every clause folded to false.
     if let (Some(body), Some(span)) = (else_body, else_span) {
         let _ = body;
-        let replacement = extract_body_text(ctx.source, span, stmt_span);
+        let Some(replacement) = extract_body_text(ctx.source, span, ctx.lexer_config()) else {
+            return;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate constant if (all conditions false); keep else",
             full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
-    } else {
+    } else if !result_observed {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             "Eliminate dead if (all conditions are always false)",
@@ -345,12 +413,13 @@ fn try_eliminate_switch(
     stmt_span: tcl_lexer::Span,
     info: &SwitchInfo<'_>,
     env: &Env,
+    result_observed: bool,
 ) {
     // regexp mode is too complex to evaluate statically.
     if matches!(info.mode, SwitchMode::Regexp) {
         return;
     }
-    let Some(subject) = resolve_subject(info.subject_raw, env) else {
+    let Some(subject) = resolve_subject(info.subject_raw, env, ctx.fold_policy()) else {
         return;
     };
 
@@ -378,7 +447,9 @@ fn try_eliminate_switch(
             }
         }
         if let (Some(_body), Some(span)) = (chosen_body, chosen_span) {
-            let replacement = extract_body_text(ctx.source, span, stmt_span);
+            let Some(replacement) = extract_body_text(ctx.source, span, ctx.lexer_config()) else {
+                return;
+            };
             ctx.report(Optimisation::new(
                 DiagCode::O112,
                 format!(
@@ -393,14 +464,16 @@ fn try_eliminate_switch(
     }
     // No arm matched.
     if let (Some(_body), Some(span)) = (info.default_body, info.default_span) {
-        let replacement = extract_body_text(ctx.source, span, stmt_span);
+        let Some(replacement) = extract_body_text(ctx.source, span, ctx.lexer_config()) else {
+            return;
+        };
         ctx.report(Optimisation::new(
             DiagCode::O112,
             format!("Eliminate switch (subject '{subject}' matches no pattern); keep default"),
             full_rewrite_span(ctx.source, stmt_span),
             replacement,
         ));
-    } else {
+    } else if !result_observed {
         ctx.report(Optimisation::new(
             DiagCode::O112,
             format!("Eliminate dead switch (subject '{subject}' matches no pattern)"),
@@ -412,7 +485,11 @@ fn try_eliminate_switch(
 
 /// Resolve a switch subject to a literal string. Returns `None`
 /// when the subject contains substitutions we cannot fold.
-fn resolve_subject(subject_raw: &str, env: &Env) -> Option<String> {
+fn resolve_subject(
+    subject_raw: &str,
+    env: &Env,
+    policy: crate::tcl_expr_eval::FoldPolicy,
+) -> Option<String> {
     if is_plain_literal(subject_raw) {
         return Some(subject_raw.to_owned());
     }
@@ -431,7 +508,10 @@ fn resolve_subject(subject_raw: &str, env: &Env) -> Option<String> {
     let value = env.get(&name).or_else(|| env.get(&normalised))?;
     match value {
         EnvValue::Int(i) => Some(i.to_string()),
-        EnvValue::Float(f) => Some(f.to_string()),
+        EnvValue::Float(f) => crate::tcl_expr_eval::format_tcl_value_with_policy(
+            &crate::tcl_expr_eval::TclValue::Float(*f),
+            policy,
+        ),
         EnvValue::Str(s) => Some(s.clone()),
     }
 }
@@ -488,20 +568,66 @@ mod tests {
     #[test]
     fn resolve_subject_plain_literal_passes_through() {
         let env = Env::new();
-        assert_eq!(resolve_subject("abc", &env).as_deref(), Some("abc"));
+        assert_eq!(
+            resolve_subject("abc", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("abc")
+        );
     }
 
     #[test]
     fn resolve_subject_dollar_var_looks_up_env() {
         let mut env = Env::new();
         env.insert("x".into(), EnvValue::Str("hi".into()));
-        assert_eq!(resolve_subject("$x", &env).as_deref(), Some("hi"));
-        assert_eq!(resolve_subject("${x}", &env).as_deref(), Some("hi"));
+        assert_eq!(
+            resolve_subject("$x", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("hi")
+        );
+        assert_eq!(
+            resolve_subject("${x}", &env, crate::tcl_expr_eval::FoldPolicy::default()).as_deref(),
+            Some("hi")
+        );
         // Missing binding → None.
-        assert!(resolve_subject("$missing", &env).is_none());
+        assert!(
+            resolve_subject(
+                "$missing",
+                &env,
+                crate::tcl_expr_eval::FoldPolicy::default()
+            )
+            .is_none()
+        );
     }
 
     // end-to-end tests
+
+    #[test]
+    fn final_empty_completion_is_not_replaced_by_preceding_result() {
+        for tail in [
+            "if 0 {puts never}",
+            "if 1 {}",
+            "if 1 {# comment only}",
+            "while 0 {}",
+            "for {set i 7} 0 {} {}",
+            "switch missing {match {puts never}}",
+        ] {
+            let source = format!("set previous 42\n{tail}");
+            let opts = run_pass(&source);
+            assert!(
+                opts.iter().all(|opt| opt.code != DiagCode::O112),
+                "final empty result must be retained: {source}, {opts:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_body_rewrite_preserves_child_closing_delimiter() {
+        let opts = run_pass("if 1 {proc set {args} {return CUSTOM}}");
+        let replacement = &opts
+            .iter()
+            .find(|opt| opt.code == DiagCode::O112)
+            .expect("constant selected body")
+            .replacement;
+        assert_eq!(replacement, "proc set {args} {return CUSTOM}\n");
+    }
 
     #[test]
     fn constant_true_if_replaces_with_body() {
@@ -527,7 +653,7 @@ mod tests {
 
     #[test]
     fn constant_false_if_without_else_is_deleted() {
-        let opts = run_pass("if {0} { puts hi }");
+        let opts = run_pass("if {0} { puts hi }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -538,7 +664,7 @@ mod tests {
 
     #[test]
     fn while_false_is_dead_loop() {
-        let opts = run_pass("while {0} { puts never }");
+        let opts = run_pass("while {0} { puts never }\nputs done");
         assert!(
             opts.iter()
                 .any(|o| o.code == DiagCode::O112 && o.message.contains("dead while loop")),
@@ -548,7 +674,7 @@ mod tests {
 
     #[test]
     fn for_false_with_init_keeps_init() {
-        let opts = run_pass("for {set i 0} {0} {incr i} { puts $i }");
+        let opts = run_pass("for {set i 0} {0} {incr i} { puts $i }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -559,7 +685,7 @@ mod tests {
 
     #[test]
     fn for_false_without_init_is_dead() {
-        let opts = run_pass("for {} {0} {} { puts $i }");
+        let opts = run_pass("for {} {0} {} { puts $i }\nputs done");
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O112)
@@ -593,7 +719,7 @@ mod tests {
 
     #[test]
     fn switch_no_match_no_default_emits_empty() {
-        let opts = run_pass("switch baz { foo { puts one } bar { puts two } }");
+        let opts = run_pass("switch baz { foo { puts one } bar { puts two } }\nputs done");
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O112
                 && o.message.contains("matches no pattern")

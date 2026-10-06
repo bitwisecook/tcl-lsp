@@ -134,14 +134,14 @@ pub fn resolve_alias(
     }
 
     if namespace != "::" {
-        let candidate = normalise_qualified_name(&format!("{namespace}::{cmd_name}"));
+        let candidate = crate::naming::qualify(namespace, cmd_name);
         if let Some(entry) = aliases.get(&candidate) {
             return Some(entry.clone());
         }
     }
 
     aliases
-        .get(&normalise_qualified_name(&format!("::{cmd_name}")))
+        .get(&crate::naming::qualify("::", cmd_name))
         .cloned()
 }
 
@@ -177,6 +177,7 @@ mod tests {
                 target_interpreter,
                 target,
                 arguments,
+                ..
             },
         ] = facts.as_slice()
         else {
@@ -264,9 +265,18 @@ mod tests {
     #[test]
     fn a_wrong_arity_rename_states_nothing() {
         // Any arity but two is `wrong # args`, which moves nothing.
-        assert!(transitions("rename", &["eval"]).is_empty());
-        assert!(transitions("rename", &[]).is_empty());
-        assert!(transitions("rename", &["a", "b", "c"]).is_empty());
+        assert_eq!(
+            transitions("rename", &["eval"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
+        assert_eq!(
+            transitions("rename", &[]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
+        assert_eq!(
+            transitions("rename", &["a", "b", "c"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
     }
 
     #[test]
@@ -308,7 +318,10 @@ mod tests {
         assert_eq!(literal(name), Some("bar"));
 
         // Only two words after `alias` — a query, which deletes nothing.
-        assert!(transitions("interp", &["alias", "", "bar"]).is_empty());
+        assert_eq!(
+            transitions("interp", &["alias", "", "bar"]),
+            [] as [tcl_registry::CommandBindingTransition; 0]
+        );
         // Five words — a creation, not a deletion.
         assert!(matches!(
             transitions("interp", &["alias", "", "bar", "", "foo"]).as_slice(),

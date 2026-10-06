@@ -1,0 +1,37 @@
+{
+  "native_only": true,
+  "rust_comparisons": 0,
+  "version": "9.1.0",
+  "windows": 6,
+  "columns": [
+    "case",
+    "window",
+    "message_references",
+    "global_literal_entries",
+    "options_same_message",
+    "errorInfo_variable_same_message",
+    "private_errorInfo_same_message",
+    "interp_result_same_message"
+  ],
+  "source_sha256": "dfae9c940ab97ea5846bd7e5ab94a115634bb4c76d2ed682bffc4473f5d2db82",
+  "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+  "internal_header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+  "binary_sha256": "538eaa3ed4239a46fbaf8bf0c3f6d147230d1b053b9168e843408f00661a71b4",
+  "output_sha256": "37ab04dd7316a67d1e7d55b2d0582ee73d3bc08ecafd68bfcb3d2b7998c21308",
+  "command": [
+    "gcc",
+    "-I",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+    "-I",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+    "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_control_expression/syntax-lifecycle.c",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-c91-syntax-lifecycle/probe"
+  ],
+  "exit": 0
+}

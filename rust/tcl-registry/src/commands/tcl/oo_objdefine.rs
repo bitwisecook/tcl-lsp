@@ -54,6 +54,7 @@ const OO_OBJDEFINE_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const OO_OBJDEFINE_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(oo_objdefine_state_transitions),
     argument_shape: StateTransitionArgumentShape::Independent,
     dynamic_widening: &[StateTransitionWideningRule {
@@ -182,6 +183,7 @@ use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::objdefine",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION

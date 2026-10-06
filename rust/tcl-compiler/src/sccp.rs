@@ -34,7 +34,8 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::codegen::helpers::split_list_values;
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
-use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
+use crate::math_function_binding::ExpressionMathBindings;
+use crate::ssa::{SsaFunction, SsaSourceView, SsaStatement, Symbol, ValueKey};
 use crate::tcl_expr_eval::{Env, EnvValue, FoldPolicy, TclValue, eval_tcl_expr_with_policy};
 
 // Public aliases
@@ -193,6 +194,10 @@ pub struct ConstantBranch {
 /// constant-folded branch annotations for reachable blocks.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SccpResult {
+    /// Exact reached math dispatch dependencies consumed by successful folds.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Expression-entry dependencies retained independently of lazy reached calls.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
     /// Per-SSA-value lattice entry.
     pub values: HashMap<ValueKey, LatticeValue>,
     /// Blocks reachable from `cfg.entry` under current assumptions.
@@ -201,6 +206,387 @@ pub struct SccpResult {
     pub executable_edges: HashSet<(BlockId, BlockId)>,
     /// Constant branches detected during propagation.
     pub constant_branches: Vec<ConstantBranch>,
+}
+
+/// Exact producer queried for an analysis value, separately from erasure proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExpressionEvaluationPoint {
+    /// Whole expression of an SSA statement at its actual source point.
+    Statement {
+        /// CFG block containing the producer.
+        block: BlockId,
+        /// Statement index within that block.
+        index: usize,
+    },
+    /// Whole expression of a CFG branch at its terminator.
+    Branch {
+        /// CFG block containing the condition.
+        block: BlockId,
+    },
+}
+
+/// Analysis value and obligations retained by the original expression producer.
+/// This never inserts a constant into the execution lattice or licenses erasure.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExpressionAnalysis {
+    /// Prepared-tree numeric interpretation with reached coercion/result dependencies.
+    /// This does not discharge preparation or original argv/object evaluation;
+    /// even an effect-free prepared tree cannot license deleting its producer.
+    pub evaluation: crate::tcl_expr_eval::FoldEvaluation,
+    /// Exact reached handlers consumed by the value calculation.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Whole-expression entry proof, even when every function call was skipped.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+}
+
+impl SccpResult {
+    /// Query an original whole-expression producer using exact source/SSA evidence.
+    /// Unknown native preparation, reads, handler identity or conflicting table
+    /// owners decline. Reached conversion/result obligations remain in the result;
+    /// numerical knowledge alone cannot justify deleting the producer. Input values
+    /// come from the existing strict lattice, avoiding a second mutable value map.
+    #[must_use]
+    pub fn expression_analysis(
+        &self,
+        cfg: &CfgFunction,
+        ssa: &SsaFunction,
+        point: ExpressionEvaluationPoint,
+        policy: FoldPolicy,
+    ) -> Option<ExpressionAnalysis> {
+        let input = analysis_expression_input(cfg, ssa, point)?;
+        let bindings = ExpressionMathBindings::for_origin(
+            &cfg.implicit_math_invocations,
+            input.origin,
+            input.base,
+        )
+        .with_preparations(&cfg.expression_preparations);
+        let bindings = match point {
+            ExpressionEvaluationPoint::Branch { block } => {
+                materialised_branch_bindings(cfg, block, bindings)
+            }
+            ExpressionEvaluationPoint::Statement { .. } => bindings,
+        };
+        let environment = env_from_uses(input.uses, &self.values, input.source);
+        let dependencies = MathDependencies {
+            purpose: SolverPurpose::SemanticAnalysis,
+            ..MathDependencies::default()
+        };
+        let _ = fold_math_expression(
+            input.expression,
+            &environment,
+            policy,
+            Some(MathFoldContext {
+                point: Some(point),
+                bindings,
+                dependencies: Some(&dependencies),
+                incoming_reads: None,
+            }),
+        );
+        dependencies.analyses.into_inner().remove(&point)
+    }
+}
+
+struct AnalysisExpressionInput<'a> {
+    expression: &'a ExprNode,
+    base: Option<u32>,
+    uses: &'a HashMap<Symbol, crate::ssa::Version>,
+    origin: Option<&'a crate::command_binding::ExecutedScriptSource>,
+    source: SsaSourceView<'a>,
+}
+
+fn analysis_expression_input<'a>(
+    cfg: &'a CfgFunction,
+    ssa: &'a SsaFunction,
+    point: ExpressionEvaluationPoint,
+) -> Option<AnalysisExpressionInput<'a>> {
+    match point {
+        ExpressionEvaluationPoint::Statement { block, index } => {
+            let statement = ssa.blocks.get(&block)?.statements.get(index)?;
+            let (Statement::AssignExpr {
+                expr, expr_base, ..
+            }
+            | Statement::ExprEval {
+                expr, expr_base, ..
+            }) = &statement.statement
+            else {
+                return None;
+            };
+            Some(AnalysisExpressionInput {
+                expression: expr,
+                base: *expr_base,
+                uses: &statement.uses,
+                origin: cfg
+                    .statement_sources
+                    .get(&(block, index))
+                    .and_then(Option::as_deref),
+                source: SsaSourceView::at_statement(ssa, block, index),
+            })
+        }
+        ExpressionEvaluationPoint::Branch { block } => {
+            let Some(Terminator::Branch {
+                condition,
+                condition_base,
+                ..
+            }) = cfg.blocks.get(&block)?.terminator.as_ref()
+            else {
+                return None;
+            };
+            Some(AnalysisExpressionInput {
+                expression: condition,
+                base: *condition_base,
+                uses: &ssa.blocks.get(&block)?.exit_versions,
+                origin: cfg
+                    .terminator_sources
+                    .get(&block)
+                    .and_then(Option::as_deref),
+                source: SsaSourceView::at_terminator(ssa, block),
+            })
+        }
+    }
+}
+
+/// Inputs shared by the execution and semantic-value purposes of one solver.
+#[derive(Clone, Copy)]
+pub struct ValueFactInputs<'a> {
+    /// Optional actual argument constants keyed by source parameter/version.
+    pub param_constants: Option<&'a HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    /// Exact target semantics and original expression axes.
+    pub policy: FoldPolicy,
+    /// Compatibility exposure only; positioned reads retain temporal worlds.
+    pub extra_escaping: &'a HashSet<String>,
+    /// Actual registry and trace inventory.
+    pub trace: TraceInputs<'a>,
+    /// Optional known native substitution folding contracts.
+    pub folds: Option<BuiltinFoldInputs<'a>>,
+}
+
+/// Immutable semantic-value projection. Known contents do not license erasure.
+/// Producer obligations remain attached to their evaluation point, independently
+/// of a later numeric use. Unknown selected-object bytes never become invented
+/// native result strings. The same solver handles phis, stores and reachability
+/// for this projection and the execution-safe compatibility result.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SemanticValueFacts {
+    result: SccpResult,
+    expressions: HashMap<ExpressionEvaluationPoint, ExpressionAnalysis>,
+    loops: HashMap<ExpressionEvaluationPoint, crate::static_loops::StaticLoopAnalysis>,
+}
+
+impl SemanticValueFacts {
+    /// Actual known stored contents, rather than permission to replace a producer.
+    #[must_use]
+    pub fn contents(&self, key: ValueKey) -> Option<&LatticeValue> {
+        self.result.values.get(&key)
+    }
+
+    /// Iterate immutable known contents for advisory consumers, never erasure.
+    pub fn contents_iter(&self) -> impl Iterator<Item = (&ValueKey, &LatticeValue)> {
+        self.result.values.iter()
+    }
+
+    /// Iterate producer numeric values with all required effects attached.
+    pub fn expression_iter(
+        &self,
+    ) -> impl Iterator<Item = (&ExpressionEvaluationPoint, &ExpressionAnalysis)> {
+        self.expressions.iter()
+    }
+
+    /// Numeric interpretation and retained effects of one original producer.
+    #[must_use]
+    pub fn expression(&self, point: ExpressionEvaluationPoint) -> Option<&ExpressionAnalysis> {
+        self.expressions.get(&point)
+    }
+
+    /// Conditional-on-normal loop contents with every reached native operation retained.
+    /// This does not prove completion without errors or permit erasing the loop.
+    #[must_use]
+    pub fn loop_analysis(
+        &self,
+        point: ExpressionEvaluationPoint,
+    ) -> Option<&crate::static_loops::StaticLoopAnalysis> {
+        self.loops.get(&point)
+    }
+
+    /// Whether semantic evaluation reaches this block. This does not license
+    /// deleting the expression which selected its successor.
+    #[must_use]
+    pub fn reaches(&self, block: BlockId) -> bool {
+        self.result.executable_blocks.contains(&block)
+    }
+}
+
+/// Execution-erasure projection of the shared purpose-aware value solver.
+#[must_use]
+pub fn execution_value_facts(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    inputs: ValueFactInputs<'_>,
+) -> SccpResult {
+    solve_value_facts(cfg, ssa, inputs, SolverPurpose::ExecutionErasure).result
+}
+
+/// Compute semantic values without donating obligation-bearing constants to
+/// legacy erasure consumers. Caches may retain this immutable purpose view;
+/// preparation and source proof identities remain unchanged.
+#[must_use]
+pub fn semantic_value_facts(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    inputs: ValueFactInputs<'_>,
+) -> SemanticValueFacts {
+    let solved = solve_value_facts(cfg, ssa, inputs, SolverPurpose::SemanticAnalysis);
+    SemanticValueFacts {
+        result: solved.result,
+        expressions: solved.expressions,
+        loops: solved.loops,
+    }
+}
+
+/// Borrowed diagnostic projection; values and reachability retain original producers.
+/// This view is never an executable constant-replacement contract.
+#[derive(Clone, Copy)]
+pub(crate) struct DiagnosticValueFacts<'a> {
+    result: &'a SccpResult,
+}
+
+impl<'a> DiagnosticValueFacts<'a> {
+    pub(crate) fn from_semantic(facts: &'a SemanticValueFacts) -> Self {
+        Self {
+            result: &facts.result,
+        }
+    }
+
+    pub(crate) fn compatibility(result: &'a SccpResult) -> Self {
+        Self { result }
+    }
+
+    pub(crate) fn values(self) -> &'a HashMap<ValueKey, LatticeValue> {
+        &self.result.values
+    }
+
+    pub(crate) fn executable_blocks(self) -> &'a HashSet<BlockId> {
+        &self.result.executable_blocks
+    }
+
+    pub(crate) fn executable_edges(self) -> &'a HashSet<(BlockId, BlockId)> {
+        &self.result.executable_edges
+    }
+
+    pub(crate) fn constant_branches(self) -> &'a [ConstantBranch] {
+        &self.result.constant_branches
+    }
+}
+
+/// Detached lazy cache for one immutable function's semantic-purpose view.
+/// Equality compares complete retained inputs, never cache population.
+#[derive(Debug, Default)]
+pub struct SemanticValueProjection {
+    inputs: Option<OwnedValueFactInputs>,
+    cached: std::sync::OnceLock<SemanticValueFacts>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct OwnedValueFactInputs {
+    registry: tcl_registry::RegistrySnapshot,
+    policy: FoldPolicy,
+    param_constants: Option<HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    extra_escaping: HashSet<String>,
+    traced_variables: BTreeSet<String>,
+    has_dynamic_variable_trace: bool,
+    mutations: Option<crate::command_binding::ModuleCommandMutations>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    defining_class: Option<String>,
+    registry_engine: bool,
+    trust: FoldTrust,
+}
+
+impl PartialEq for SemanticValueProjection {
+    fn eq(&self, other: &Self) -> bool {
+        self.inputs == other.inputs
+    }
+}
+
+impl SemanticValueProjection {
+    /// Metadata snapshot retained by this function's actual construction.
+    /// Consumers still require their own positioned handler/source proof.
+    pub(crate) fn retained_registry(&self) -> Option<&tcl_registry::CommandRegistry> {
+        Some(self.inputs.as_ref()?.registry.registry())
+    }
+
+    /// Retain the exact construction inputs without running another solver.
+    #[must_use]
+    pub fn new(inputs: ValueFactInputs<'_>) -> Self {
+        let folds = inputs.folds;
+        Self {
+            inputs: Some(OwnedValueFactInputs {
+                registry: inputs.trace.registry.snapshot(),
+                policy: inputs.policy,
+                param_constants: inputs.param_constants.cloned(),
+                extra_escaping: inputs.extra_escaping.clone(),
+                traced_variables: inputs.trace.traced_variables.clone(),
+                has_dynamic_variable_trace: inputs.trace.has_dynamic_variable_trace,
+                mutations: folds.map(|folds| folds.mutations.clone()),
+                dialect: folds.and_then(|folds| folds.dialect),
+                defining_class: folds.and_then(|folds| folds.defining_class.map(str::to_owned)),
+                registry_engine: folds.is_some_and(|folds| folds.registry_engine),
+                trust: folds.map_or(FoldTrust::ObservedBindings, |folds| folds.trust),
+            }),
+            cached: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Compute at most once for the containing immutable CFG/SSA proof graph.
+    #[must_use]
+    pub fn get(&self, cfg: &CfgFunction, ssa: &SsaFunction) -> Option<&SemanticValueFacts> {
+        let input = self.inputs.as_ref()?;
+        Some(self.cached.get_or_init(|| {
+            let registry = input.registry.registry();
+            semantic_value_facts(
+                cfg,
+                ssa,
+                ValueFactInputs {
+                    param_constants: input.param_constants.as_ref(),
+                    policy: input.policy,
+                    extra_escaping: &input.extra_escaping,
+                    trace: TraceInputs {
+                        registry,
+                        traced_variables: &input.traced_variables,
+                        has_dynamic_variable_trace: input.has_dynamic_variable_trace,
+                    },
+                    folds: input.mutations.as_ref().map(|mutations| BuiltinFoldInputs {
+                        registry,
+                        mutations,
+                        dialect: input.dialect,
+                        defining_class: input.defining_class.as_deref(),
+                        registry_engine: input.registry_engine,
+                        trust: input.trust,
+                    }),
+                },
+            )
+        }))
+    }
+
+    /// Start a detached cache after proof relocation/restoration or rebasing.
+    #[must_use]
+    pub fn uncached(&self) -> Self {
+        Self {
+            inputs: self.inputs.clone(),
+            cached: std::sync::OnceLock::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum SolverPurpose {
+    #[default]
+    ExecutionErasure,
+    SemanticAnalysis,
+}
+
+struct SolvedValueFacts {
+    result: SccpResult,
+    expressions: HashMap<ExpressionEvaluationPoint, ExpressionAnalysis>,
+    loops: HashMap<ExpressionEvaluationPoint, crate::static_loops::StaticLoopAnalysis>,
 }
 
 /// Sparse Conditional Constant Propagation driver.
@@ -352,7 +738,7 @@ pub struct TraceInputs<'a> {
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
-/// `Overdefined`, the same treatment [`is_externally_mutable`] already gives
+/// `Overdefined`, the same treatment [`crate::ssa::SsaSourceView::externally_mutable_by`] already gives
 /// a name this *function's own* `global`/`variable`/`upvar`/`trace`
 /// declares.
 ///
@@ -404,42 +790,74 @@ pub fn sccp_with_builtin_folds(
     trace: TraceInputs<'_>,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> SccpResult {
-    let preds = compute_predecessors(cfg);
-    let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
-    if let Some(seed) = param_constants {
-        // The interprocedural seed keys on the parameter *name* (a stable,
-        // cache-safe identity); resolve each to this build's interned symbol.
-        // A param never read in the body isn't interned, and its seed slot
-        // would never be consulted, so dropping it is behaviour-neutral.
-        for ((name, version), v) in seed {
-            if let Some(sym) = ssa.var_symbol(name) {
-                values.insert((sym, *version), v.clone());
-            }
-        }
-    }
+    execution_value_facts(
+        cfg,
+        ssa,
+        ValueFactInputs {
+            param_constants,
+            policy,
+            extra_escaping,
+            trace,
+            folds,
+        },
+    )
+}
 
-    let grammar = trace
-        .registry
-        .profile()
-        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
+fn seed_value_facts(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    policy: FoldPolicy,
+    registry: &CommandRegistry,
+) -> (HashMap<ValueKey, LatticeValue>, tcl_dialect::LexerGrammar) {
+    let mut values = HashMap::new();
+    seed_parameter_constants(cfg, ssa, param_constants, registry, &mut values);
+    let grammar = policy.preparation_context().map_or_else(
+        || {
+            registry
+                .profile()
+                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                    profile.grammar
+                })
+        },
+        |context| context.lexer_grammar,
+    );
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
+    (values, grammar)
+}
 
-    // Global / namespace / upvar-aliased / traced variables are shared mutable
-    // state observable and writable from other scopes, traces, and source
-    // files. Their value is therefore never a compile-time constant: folding
-    // through one would be unsound across any opaque call (`set ::g 5; mut;
-    // expr {$::g + 1}` must NOT fold to 6 — `mut` may have rewritten `::g`).
-    // Force every such definition to OVERDEFINED so SCCP never propagates a
-    // constant through it; the read is still tracked for liveness. The check
-    // consults the whole-function (flow-insensitive) view of the
-    // `var_observability` alias/trace lattice, widened by any whole-module
-    // fact the caller supplies (`extra_escaping`) and by the whole-module
-    // `traced_variables` fact — the latter also catches a trace installed by
-    // a *called* proc, which the single-`CfgFunction` view here cannot see.
-    let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
-        .escaping_var_names();
-    escaping.extend(extra_escaping.iter().cloned());
-    escaping.extend(trace.traced_variables.iter().cloned());
+fn solve_value_facts(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    inputs: ValueFactInputs<'_>,
+    purpose: SolverPurpose,
+) -> SolvedValueFacts {
+    let ValueFactInputs {
+        param_constants,
+        policy,
+        extra_escaping,
+        trace,
+        folds,
+    } = inputs;
+    let preds = compute_predecessors(cfg);
+    let (mut values, grammar) = seed_value_facts(cfg, ssa, param_constants, policy, trace.registry);
+
+    // Retained point contexts describe actual read and write observers and
+    // contents origins. A later alias, opaque call or unreachable branch must
+    // not retroactively erase an earlier definition. Carrierless compatibility
+    // SSA still uses the conservative whole-function exposure summary.
+    let escaping = compatibility_escaping(cfg, ssa, trace, extra_escaping);
+    let required_math_invocations = MathDependencies::for_parameters(purpose, param_constants);
+    let store_inputs = StoreInputs {
+        math_dependencies: Some(&required_math_invocations),
+        cfg: Some(cfg),
+        escaping: &escaping,
+        policy,
+        has_dynamic_variable_trace: trace.has_dynamic_variable_trace
+            && ssa.point_contexts.is_none(),
+        folds,
+        registry: trace.registry,
+    };
 
     let mut executable_blocks: HashSet<BlockId> = HashSet::new();
     let mut executable_edges: HashSet<(BlockId, BlockId)> = HashSet::new();
@@ -488,21 +906,20 @@ pub fn sccp_with_builtin_folds(
                     ssa_block,
                     ssa,
                     StatementInputs {
-                        escaping: &escaping,
-                        policy,
-                        has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
-                        folds,
+                        store: &store_inputs,
                         clobbers: ssa.value_clobbers.get(bn),
                     },
                 );
 
                 // Terminator.
                 let inputs = TerminatorInputs {
+                    math_dependencies: Some(&required_math_invocations),
                     cfg,
                     ssa,
                     values: &values,
                     policy,
                     grammar,
+                    registry: trace.registry,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -527,15 +944,66 @@ pub fn sccp_with_builtin_folds(
         &values,
         &executable_blocks,
         &order,
-        policy,
-        grammar,
+        BranchFold {
+            math_dependencies: Some(&required_math_invocations),
+            policy,
+            grammar,
+            registry: trace.registry,
+        },
     );
 
-    SccpResult {
+    required_math_invocations.finish(
         values,
         executable_blocks,
         executable_edges,
         constant_branches,
+    )
+}
+
+fn compatibility_escaping(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    trace: TraceInputs<'_>,
+    extra: &HashSet<String>,
+) -> HashSet<String> {
+    if ssa.point_contexts.is_some() {
+        return HashSet::new();
+    }
+    let mut names = crate::var_observability::analyse_var_observability(cfg, trace.registry)
+        .escaping_var_names();
+    names.extend(extra.iter().cloned());
+    names.extend(trace.traced_variables.iter().cloned());
+    names
+}
+
+fn seed_parameter_constants(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    param_constants: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    registry: &CommandRegistry,
+    values: &mut HashMap<ValueKey, LatticeValue>,
+) {
+    if let Some(seed) = param_constants {
+        // The interprocedural seed keys on the parameter *name* (a stable,
+        // cache-safe identity); resolve each to this build's interned symbol.
+        // A param never read in the body isn't interned, and its seed slot
+        // would never be consulted, so dropping it is behaviour-neutral.
+        for ((name, version), v) in seed {
+            let symbol = ssa.point_contexts.as_ref().map_or_else(
+                || ssa.var_symbol(name),
+                |points| {
+                    crate::var_resolve::canonical_variable_key(
+                        name,
+                        points.before_statement(cfg.entry, 0),
+                        registry,
+                    )
+                    .and_then(|cell| ssa.cell_symbol(&cell))
+                },
+            );
+            if let Some(symbol) = symbol {
+                values.insert((symbol, *version), v.clone());
+            }
+        }
     }
 }
 
@@ -582,7 +1050,7 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
             && let Some(sb) = ssa.blocks.get(bn)
         {
             for var in crate::var_refs::vars_in_expr(condition, grammar) {
-                let Some(sym) = ssa.var_symbol(&var) else {
+                let Some(sym) = ssa.var_symbol_at_terminator(*bn, &var) else {
                     continue;
                 };
                 let ver = sb.exit_versions.get(&sym).copied().unwrap_or(0);
@@ -613,13 +1081,32 @@ fn branch_deferrable(
     ssa: &SsaFunction,
     grammar: tcl_dialect::LexerGrammar,
 ) -> bool {
+    let block = ssa.block_id(&ssa_block.name).unwrap_or(BlockId(u32::MAX));
+    let lookup = if ssa.point_contexts.is_some() {
+        SsaSourceView::at_terminator(ssa, block)
+    } else {
+        SsaSourceView::unpositioned(ssa)
+    };
     let mut any_operand = false;
     let mut any_unknown = false;
     for name in crate::var_refs::vars_in_expr(condition, grammar) {
-        let Some(sym) = ssa.var_symbol(&name) else {
-            continue;
+        let (sym, ver) = if lookup.is_positioned() {
+            let Some(read) = lookup.read_spelling(&name) else {
+                return false;
+            };
+            let Some(version) = read.version else {
+                return false;
+            };
+            (read.symbol, version)
+        } else {
+            let Some(symbol) = lookup.symbol(&name) else {
+                continue;
+            };
+            (
+                symbol,
+                ssa_block.exit_versions.get(&symbol).copied().unwrap_or(0),
+            )
         };
-        let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
         if ver == 0 {
             continue;
         }
@@ -631,28 +1118,6 @@ fn branch_deferrable(
         }
     }
     any_operand && any_unknown
-}
-
-/// A name is externally mutable (and so never a constant) when it is global /
-/// namespace-qualified, escapes via alias / trace *within this function* (or
-/// is traced *anywhere in the module* — a `trace add variable` installed by
-/// a different proc, unioned into `escaping` by the caller; see [`sccp`]'s
-/// docs), or the module installs a variable trace on a non-literal
-/// (dynamic) target — in which case *every* name is potentially traced and
-/// none can be trusted, mirroring
-/// [`crate::gvn::is_pure_command_with_traces`]'s handling of
-/// `has_dynamic_trace`.
-///
-/// `pub(crate)`: also consulted by [`crate::optimiser::propagation`]'s
-/// def-use-chain-based load-forwarding (O102), which does not otherwise run
-/// through this module's lattice and so needs the same predicate applied
-/// directly.
-pub(crate) fn is_externally_mutable(
-    name: &str,
-    escaping: &HashSet<String>,
-    has_dynamic_variable_trace: bool,
-) -> bool {
-    has_dynamic_variable_trace || name.starts_with("::") || escaping.contains(name)
 }
 
 /// Join phi values from edge-executable predecessors for one block. Returns
@@ -698,29 +1163,92 @@ fn sccp_process_phis(
 
 #[derive(Clone, Copy)]
 struct StatementInputs<'a> {
-    escaping: &'a HashSet<String>,
-    policy: FoldPolicy,
-    has_dynamic_variable_trace: bool,
-    folds: Option<BuiltinFoldInputs<'a>>,
+    store: &'a StoreInputs<'a>,
     clobbers: Option<&'a crate::ssa::BlockValueClobbers>,
 }
 
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
+/// Store proof inputs shared by every SCCP entry point.
+struct StoreInputs<'a> {
+    math_dependencies: Option<&'a MathDependencies>,
+    cfg: Option<&'a CfgFunction>,
+    escaping: &'a HashSet<String>,
+    policy: FoldPolicy,
+    has_dynamic_variable_trace: bool,
+    folds: Option<BuiltinFoldInputs<'a>>,
+    registry: &'a CommandRegistry,
+}
+
+fn observed_store_keys(
+    ssa: &SsaFunction,
+    block: BlockId,
+    index: usize,
+    statement: &Statement,
+    registry: &CommandRegistry,
+) -> HashSet<crate::var_resolve::VariableCellKey> {
+    let Some(points) = &ssa.point_contexts else {
+        return HashSet::new();
+    };
+    crate::place_bridge::def_places_with_continuation(
+        statement,
+        points.before_statement(block, index),
+        points.after_statement(block, index),
+        registry,
+    )
+    .into_iter()
+    .filter(|place| place.observed)
+    .filter_map(|place| crate::var_resolve::canonical_binding_value_key(&place))
+    .collect()
+}
+
+fn statement_math_context<'a>(
+    cfg: Option<&'a CfgFunction>,
+    block: BlockId,
+    index: usize,
+    statement: &Statement,
+    dependencies: Option<&'a MathDependencies>,
+) -> Option<MathFoldContext<'a>> {
+    let cfg = cfg?;
+    let base = match statement {
+        Statement::AssignExpr { expr_base, .. } | Statement::ExprEval { expr_base, .. } => {
+            *expr_base
+        }
+        _ => None,
+    };
+    Some(MathFoldContext {
+        point: Some(ExpressionEvaluationPoint::Statement { block, index }),
+        dependencies,
+        incoming_reads: None,
+        bindings: ExpressionMathBindings::for_origin(
+            &cfg.implicit_math_invocations,
+            cfg.statement_sources
+                .get(&(block, index))
+                .and_then(Option::as_deref),
+            base,
+        )
+        .with_preparations(&cfg.expression_preparations),
+    })
+}
+
 fn sccp_process_statements(
     values: &mut HashMap<ValueKey, LatticeValue>,
     ssa_block: &crate::ssa::SsaBlock,
     ssa: &SsaFunction,
     inputs: StatementInputs<'_>,
 ) -> bool {
-    let StatementInputs {
+    let StatementInputs { store, clobbers } = inputs;
+    let StoreInputs {
+        math_dependencies,
+        cfg,
         escaping,
         policy,
         has_dynamic_variable_trace,
         folds,
-        clobbers,
-    } = inputs;
+        registry,
+    } = *store;
     let mut changed = false;
+    let block = ssa.block_id(&ssa_block.name).unwrap_or(BlockId(u32::MAX));
     for (index, stmt_ssa) in ssa_block.statements.iter().enumerate() {
         // Statement defs become live after its inputs and barrier effect.
         let registry_barrier = stmt_ssa.statement.synthetic_marker()
@@ -745,9 +1273,14 @@ fn sccp_process_statements(
             }
             continue;
         }
+        let lookup = if ssa.point_contexts.is_some() {
+            SsaSourceView::at_statement(ssa, block, index)
+        } else {
+            SsaSourceView::unpositioned(ssa)
+        };
         if matches!(
             stmt_ssa.statement,
-            Statement::Barrier { .. } | Statement::UpFrame { .. }
+            Statement::Barrier { .. } | Statement::NativeCall { .. } | Statement::UpFrame { .. }
         ) {
             // Executable barriers widen tracked values except version-0
             // parameter seeds. Registry boundaries use fresh versions above,
@@ -765,7 +1298,13 @@ fn sccp_process_statements(
             // against tclsh 8.6/9.0: `set n 5; uplevel #0 {set n 99};
             // puts [expr {$n + 1}]` prints `100`; before this widening,
             // the optimiser proposed folding to the stale `6`.
-            let keys: Vec<ValueKey> = values.keys().copied().collect();
+            let keys: Vec<ValueKey> = if ssa.point_contexts.is_none() {
+                values.keys().copied().collect()
+            } else {
+                // Exact reads after an unrepresented store have no contents
+                // version. Earlier SSA versions remain immutable evidence.
+                Vec::new()
+            };
             for k in keys {
                 if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {
                     changed = true;
@@ -785,48 +1324,48 @@ fn sccp_process_statements(
             }
             continue;
         }
-        // An element write's base def carries no scalar value of its own —
-        // `set arr(k) 5` / `set arr($i) 5` refresh `arr` for whole-array
-        // readers but must never let `$arr` fold to the element's value.
-        let element_write_base = match &stmt_ssa.statement {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. }
-                if name.contains('(') =>
-            {
-                ssa.var_symbol(crate::naming::normalise_var_name(name))
-            }
-            _ => None,
-        };
+        let observed = observed_store_keys(ssa, block, index, &stmt_ssa.statement, registry);
+        let math =
+            statement_math_context(cfg, block, index, &stmt_ssa.statement, math_dependencies)
+                .map(|context| context.with_incoming_reads(lookup, registry));
+        if math_dependencies.is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis)
+            && let Statement::ExprEval { expr, .. } = &stmt_ssa.statement
+        {
+            let environment = env_from_uses(&stmt_ssa.uses, values, lookup);
+            let _ = fold_math_expression(expr, &environment, policy, math);
+        }
         for (&var, ver) in &stmt_ssa.defs {
-            let val =
-                if is_externally_mutable(ssa.var_name(var), escaping, has_dynamic_variable_trace)
-                    || element_write_base == Some(var)
-                {
-                    LatticeValue::Overdefined
-                } else if stmt_ssa.may_defs.contains(&var) {
-                    // A synthetic array-element may-def: the write may or may
-                    // not have hit this element, so its value is the JOIN of
-                    // the prior version (recorded as a use) and the written
-                    // value. The base refresh of an element write carries no
-                    // prior use — the base holds no value of its own.
-                    match stmt_ssa.uses.get(&var) {
-                        Some(prev_ver) => {
-                            let prev = values
-                                .get(&(var, *prev_ver))
-                                .cloned()
-                                .unwrap_or(LatticeValue::Overdefined);
-                            join(
-                                &prev,
-                                &evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds),
-                            )
-                        }
-                        None => LatticeValue::Overdefined,
+            let val = if observed.contains(ssa.cell_key(var))
+                || lookup.externally_mutable_by(var, escaping, has_dynamic_variable_trace, registry)
+                    != Some(false)
+                || ssa.is_array_root_refresh_version(var, *ver)
+                || stmt_ssa.destruction_defs.contains(&var)
+            {
+                LatticeValue::Overdefined
+            } else if stmt_ssa.may_defs.contains(&var) {
+                // A synthetic array-element may-def: the write may or may
+                // not have hit this element, so its value is the JOIN of
+                // the prior version (recorded as a use) and the written
+                // value. The base refresh of an element write carries no
+                // prior use — the base holds no value of its own.
+                match stmt_ssa.uses.get(&var) {
+                    Some(prev_ver) => {
+                        let prev = values
+                            .get(&(var, *prev_ver))
+                            .cloned()
+                            .unwrap_or(LatticeValue::Overdefined);
+                        join(
+                            &prev,
+                            &evaluate_def_with_math(
+                                stmt_ssa, &*values, lookup, policy, folds, math,
+                            ),
+                        )
                     }
-                } else {
-                    evaluate_def_with_folds(stmt_ssa, &*values, ssa, policy, folds)
-                };
+                    None => LatticeValue::Overdefined,
+                }
+            } else {
+                evaluate_def_with_math(stmt_ssa, &*values, lookup, policy, folds, math)
+            };
             if set_value(values, (var, *ver), &val) {
                 changed = true;
             }
@@ -837,6 +1376,8 @@ fn sccp_process_statements(
 
 /// Read-only inputs shared by [`sccp_process_terminator`].
 struct TerminatorInputs<'a> {
+    math_dependencies: Option<&'a MathDependencies>,
+    registry: &'a CommandRegistry,
     cfg: &'a CfgFunction,
     ssa: &'a SsaFunction,
     values: &'a HashMap<ValueKey, LatticeValue>,
@@ -857,11 +1398,13 @@ fn sccp_process_terminator(
     finalizing: bool,
 ) -> bool {
     let TerminatorInputs {
+        math_dependencies,
         cfg,
         ssa,
         values,
         policy,
         grammar,
+        registry,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -897,7 +1440,12 @@ fn sccp_process_terminator(
                 ssa_block,
                 condition,
                 values,
-                BranchFold { policy, grammar },
+                BranchFold {
+                    math_dependencies,
+                    registry,
+                    policy,
+                    grammar,
+                },
             );
             let targets: Vec<BlockId> = match decision {
                 Some(true) => vec![*true_target],
@@ -927,11 +1475,11 @@ fn sccp_process_terminator(
                 }
             }
         }
-        Terminator::Return { .. } => {}
+        Terminator::Return { .. } | Terminator::Complete { .. } => {}
     }
     // `try` exception edges sourced at `bn`: when `bn` is executable the
     // handler is reachable (a throw can occur in the body).
-    for (from, to) in &cfg.exception_edges {
+    for (from, to) in cfg.exception_edges.iter().chain(&cfg.analysis_edges) {
         if *from != bn {
             continue;
         }
@@ -955,8 +1503,7 @@ fn collect_constant_branches(
     values: &HashMap<ValueKey, LatticeValue>,
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
+    fold: BranchFold<'_>,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -979,15 +1526,7 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = branch_decision(
-            cfg,
-            ssa,
-            *bn,
-            ssa_block,
-            condition,
-            values,
-            BranchFold { policy, grammar },
-        );
+        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, fold);
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -1081,6 +1620,87 @@ pub struct ExistenceFrame<'a> {
     /// registry's special variables — a procedure-local `argv` is an ordinary
     /// fresh Tcl name and keeps folding.
     pub initial_global: bool,
+}
+
+/// Existence folds from exact invocation and contents-presence proofs.
+/// Both optimiser rewrites and diagnostics consume this positioned entry point.
+/// Missing nested dispatch or uncertain presence declines without a name scan.
+#[must_use]
+pub fn existence_constant_branches_with_ssa(
+    cfg: &CfgFunction,
+    frame: ExistenceFrame<'_>,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    ssa: &SsaFunction,
+) -> Vec<ConstantBranch> {
+    let Some(points) = &ssa.point_contexts else {
+        return existence_constant_branches(
+            cfg,
+            frame,
+            registry,
+            crate::dynamic_names::dynamic_name_barrier(cfg, registry, config),
+            config,
+        );
+    };
+    cfg.blocks
+        .iter()
+        .filter_map(|(&id, block)| {
+            let Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                span: Some(span),
+                condition_base: Some(base),
+            } = block.terminator.as_ref()?
+            else {
+                return None;
+            };
+            let tokens = points.source_tokens_at(id, usize::MAX)?;
+            let (query, context) =
+                crate::existence_query::in_expr_at(condition, *base, tokens, registry, config)?;
+            let place =
+                crate::var_resolve::resolve_literal_place(&query.var, &context, false, registry);
+            let exists = match context.contents_presence(&place) {
+                crate::var_resolve::ContentsPresence::Undefined => false,
+                crate::var_resolve::ContentsPresence::Defined => match query.kind {
+                    crate::existence_query::ExistenceKind::AnyVariable => true,
+                    crate::existence_query::ExistenceKind::Array => {
+                        // Literal scalar contents and untouched own formal cells
+                        // prove scalar storage. Other defined cells may be arrays.
+                        let formal = frame.params.contains(&query.var)
+                            && context.contents_origin(&place)
+                                == crate::var_resolve::ContentsOrigin::Incoming
+                            && place.cell.as_ref().is_some_and(|cell| {
+                                matches!(
+                                    &cell.owner, crate::place::CellOwner::Activation(owner)
+                                        if context.activation.as_ref() == Some(owner)
+                                )
+                            });
+                        if !formal && context.literal_contents_at(&place, registry).is_none() {
+                            return None;
+                        }
+                        false
+                    }
+                },
+                crate::var_resolve::ContentsPresence::Unknown
+                | crate::var_resolve::ContentsPresence::DefinedOrUndefined => return None,
+            };
+            let value = exists ^ query.negated;
+            let (taken, not_taken) = if value {
+                (*true_target, *false_target)
+            } else {
+                (*false_target, *true_target)
+            };
+            Some(ConstantBranch {
+                block: block.name.clone(),
+                span: Some(*span),
+                condition: crate::expr_ast::expr_text(condition),
+                value,
+                taken_target: cfg.block_name(taken).to_owned(),
+                not_taken_target: cfg.block_name(not_taken).to_owned(),
+            })
+        })
+        .collect()
 }
 
 /// The array base name of an existence query written as an element guard —
@@ -1194,9 +1814,14 @@ pub fn existence_constant_branches(
 ) -> Vec<ConstantBranch> {
     let mut out = Vec::new();
     if cfg.blocks.values().any(|b| {
-        b.statements
-            .iter()
-            .any(|s| matches!(s, Statement::Barrier { .. } | Statement::UpFrame { .. }))
+        b.statements.iter().any(|s| {
+            matches!(
+                s,
+                Statement::Barrier { .. }
+                    | Statement::NativeCall { .. }
+                    | Statement::UpFrame { .. }
+            )
+        })
     }) {
         return out;
     }
@@ -1392,35 +2017,430 @@ pub fn existence_constant_branches(
 /// builtin rather than a user `proc` of that name. A caller with the fact
 /// uses [`evaluate_def_with_folds`].
 #[must_use]
-pub fn evaluate_def<S: std::hash::BuildHasher>(
+pub fn evaluate_def<'a, S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
 ) -> LatticeValue {
+    let ssa = ssa.into();
     evaluate_def_with_folds(stmt_ssa, values, ssa, policy, None)
 }
 
 /// [`evaluate_def`] with an optional registry builtin-fold context: when
 /// `folds` is supplied, an `AssignValue` command-substitution
 /// RHS additionally consults the registry `const_fold` engine — see
-/// [`BuiltinFoldInputs`]. `None` is byte-identical to [`evaluate_def`].
+/// [`BuiltinFoldInputs`]. Pass a [`SsaSourceView::at_statement`] for production
+/// evaluation so source aliases resolve at this operation. A borrowed SSA
+/// function retains only the unique whole-function compatibility projection.
+/// `None` is byte-identical to [`evaluate_def`].
 #[must_use]
-pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
+pub fn evaluate_def_with_folds<'a, S: std::hash::BuildHasher>(
     stmt_ssa: &SsaStatement,
     values: &HashMap<ValueKey, LatticeValue, S>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
+) -> LatticeValue {
+    evaluate_def_with_math(stmt_ssa, values, ssa.into(), policy, folds, None)
+}
+
+#[derive(Default)]
+struct MathDependencies {
+    purpose: SolverPurpose,
+    incoming_parameters: HashMap<String, ConstValue>,
+    analyses: std::cell::RefCell<HashMap<ExpressionEvaluationPoint, ExpressionAnalysis>>,
+    loops: std::cell::RefCell<
+        HashMap<ExpressionEvaluationPoint, crate::static_loops::StaticLoopAnalysis>,
+    >,
+    invocations: std::cell::RefCell<Vec<crate::command_binding::SourceMathInvocation>>,
+    preparations: std::cell::RefCell<Vec<crate::command_binding::SourceExpressionPreparation>>,
+}
+
+impl MathDependencies {
+    fn for_parameters(
+        purpose: SolverPurpose,
+        parameters: Option<&HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    ) -> Self {
+        if purpose == SolverPurpose::ExecutionErasure {
+            return Self::default();
+        }
+        Self {
+            purpose,
+            incoming_parameters: parameters
+                .into_iter()
+                .flat_map(|parameters| parameters.iter())
+                .filter_map(|((name, version), value)| match value {
+                    LatticeValue::Const(value) if *version == 0 => {
+                        Some((name.clone(), value.clone()))
+                    }
+                    _ => None,
+                })
+                .collect(),
+            ..Self::default()
+        }
+    }
+
+    fn finish(
+        self,
+        values: HashMap<ValueKey, LatticeValue>,
+        executable_blocks: HashSet<BlockId>,
+        executable_edges: HashSet<(BlockId, BlockId)>,
+        constant_branches: Vec<ConstantBranch>,
+    ) -> SolvedValueFacts {
+        SolvedValueFacts {
+            expressions: self.analyses.into_inner(),
+            loops: self.loops.into_inner(),
+            result: SccpResult {
+                required_math_invocations: self.invocations.into_inner(),
+                required_expression_preparations: self.preparations.into_inner(),
+                values,
+                executable_blocks,
+                executable_edges,
+                constant_branches,
+            },
+        }
+    }
+
+    fn retain(
+        &self,
+        invocations: &[crate::command_binding::SourceMathInvocation],
+        preparations: &[crate::command_binding::SourceExpressionPreparation],
+    ) -> bool {
+        let old_invocations = self.invocations.borrow();
+        let old_preparations = self.preparations.borrow();
+        let mut required = None;
+        for prerequisite in old_invocations
+            .iter()
+            .chain(invocations)
+            .filter_map(|proof| proof.fixed_prerequisite())
+            .chain(
+                old_preparations
+                    .iter()
+                    .chain(preparations)
+                    .filter_map(|proof| proof.witness.fixed_functions()),
+            )
+        {
+            if !crate::math_function_binding::native_math_prerequisites_compatible(
+                required,
+                Some(prerequisite),
+            ) {
+                return false;
+            }
+            required = Some(prerequisite);
+        }
+        drop(old_invocations);
+        drop(old_preparations);
+        let mut retained_invocations = self.invocations.borrow_mut();
+        for proof in invocations {
+            if !retained_invocations.contains(proof) {
+                retained_invocations.push(proof.clone());
+            }
+        }
+        let mut retained_preparations = self.preparations.borrow_mut();
+        for proof in preparations {
+            if !retained_preparations.contains(proof) {
+                retained_preparations.push(proof.clone());
+            }
+        }
+        true
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MathFoldContext<'a> {
+    point: Option<ExpressionEvaluationPoint>,
+    bindings: ExpressionMathBindings<'a>,
+    dependencies: Option<&'a MathDependencies>,
+    incoming_reads: Option<(SsaSourceView<'a>, &'a CommandRegistry)>,
+}
+
+impl<'a> MathFoldContext<'a> {
+    fn with_incoming_reads(self, source: SsaSourceView<'a>, registry: &'a CommandRegistry) -> Self {
+        Self {
+            incoming_reads: Some((source, registry)),
+            ..self
+        }
+    }
+}
+
+fn math_dependencies_compatible(
+    previous: &crate::command_binding::SourceMathInvocation,
+    current: &crate::command_binding::SourceMathInvocation,
+) -> bool {
+    crate::math_function_binding::native_math_prerequisites_compatible(
+        previous.fixed_prerequisite(),
+        current.fixed_prerequisite(),
+    )
+}
+
+enum FoldedExpressionContents {
+    Numeric(TclValue),
+    Bytes(String),
+}
+
+/// Logical caller inputs are contents facts across proved ordinary incoming
+/// slots. They do not allocate an SSA version or prove a native object state.
+fn semantic_incoming_environment(
+    expression: &ExprNode,
+    base: Option<u32>,
+    environment: &Env,
+    context: Option<MathFoldContext<'_>>,
+) -> Option<Env> {
+    let context = context?;
+    let ledger = context.dependencies?;
+    if ledger.purpose != SolverPurpose::SemanticAnalysis || ledger.incoming_parameters.is_empty() {
+        return None;
+    }
+    let (source, registry) = context.incoming_reads?;
+    let mut admitted = HashMap::<&str, bool>::new();
+    let mut pending = vec![expression];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Var { name, .. } if ledger.incoming_parameters.contains_key(name) => {
+                let proved = source
+                    .read_expression_incoming_slot(node, base, name, registry)
+                    .is_some();
+                *admitted.entry(name).or_insert(true) &= proved;
+            }
+            ExprNode::Binary { left, right, .. } => pending.extend([left.as_ref(), right.as_ref()]),
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.extend([
+                    condition.as_ref(),
+                    true_branch.as_ref(),
+                    false_branch.as_ref(),
+                ]);
+            }
+            ExprNode::Call { args, .. } => pending.extend(args),
+            _ => {}
+        }
+    }
+    let mut result = environment.clone();
+    for (name, _) in admitted.into_iter().filter(|(_, proved)| *proved) {
+        if let Some(value) = ledger.incoming_parameters.get(name) {
+            result
+                .entry(name.to_owned())
+                .or_insert_with(|| const_to_env_value(value));
+        }
+    }
+    Some(result)
+}
+
+impl FoldedExpressionContents {
+    fn into_const(self) -> ConstValue {
+        match self {
+            Self::Numeric(value) => tcl_value_to_const(value),
+            Self::Bytes(value) => ConstValue::String(value),
+        }
+    }
+}
+
+fn retained_result_needs_native_protocol(
+    preparation: Option<&crate::command_binding::SourceExpressionPreparation>,
+    point: Option<ExpressionEvaluationPoint>,
+    analysis: bool,
+) -> bool {
+    if analysis || matches!(point, Some(ExpressionEvaluationPoint::Branch { .. })) {
+        return false;
+    }
+    // ConstValue retains contents only. A retained result instruction also
+    // carries normalisation, allocation or pool-reuse semantics that this
+    // projection cannot preserve. Consumed branch values have no output object.
+    preparation.is_some_and(|preparation| {
+        crate::expression_rewrite::expression_result_protocol_equivalence(
+            &preparation.witness,
+            None,
+        )
+        .is_err()
+    })
+}
+
+fn fold_math_expression(
+    expression: &ExprNode,
+    environment: &Env,
+    policy: FoldPolicy,
+    context: Option<MathFoldContext<'_>>,
+) -> Option<FoldedExpressionContents> {
+    let ledger = context.and_then(|context| context.dependencies);
+    let point = context.and_then(|context| context.point);
+    let analysis_purpose =
+        ledger.is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis);
+    if let (true, Some(ledger), Some(point)) = (analysis_purpose, ledger, point) {
+        ledger.analyses.borrow_mut().remove(&point);
+    }
+    let preparation = context.and_then(|context| {
+        context
+            .bindings
+            .preparation_for_context(&policy.preparation_context()?)
+    });
+    if context.is_some_and(|context| context.bindings.is_positioned()) && preparation.is_none()
+        || retained_result_needs_native_protocol(preparation, point, analysis_purpose)
+    {
+        return None;
+    }
+    let expression = preparation.map_or(expression, |preparation| preparation.witness.tree());
+    let incoming_environment = semantic_incoming_environment(
+        expression,
+        preparation.map(|preparation| preparation.source.base()),
+        environment,
+        context,
+    );
+    let environment = incoming_environment.as_ref().unwrap_or(environment);
+    let numeric_operands = context.and_then(|context| {
+        let (source, registry) = context.incoming_reads?;
+        crate::native_numeric::expression_operands(expression, |node| {
+            source.read_expression_native_numeric(
+                node,
+                preparation.map(|proof| proof.source.base()),
+                registry,
+            )
+        })
+    });
+    let mut numeric_environment = environment.clone();
+    if let Some((native, _)) = &numeric_operands {
+        numeric_environment.extend(native.clone());
+    }
+    let environment = &numeric_environment;
+    let consumed = std::cell::RefCell::new(Vec::new());
+    let query = |function: &str, start| {
+        let context = context?;
+        let call = context.bindings.resolved_call(function, start)?;
+        let proof = call.invocation;
+        crate::math_function_binding::native_fold_dependency(proof)?;
+        if consumed
+            .borrow()
+            .iter()
+            .any(|other| !math_dependencies_compatible(other, proof))
+            || ledger.is_some_and(|ledger| {
+                ledger
+                    .invocations
+                    .borrow()
+                    .iter()
+                    .any(|other| !math_dependencies_compatible(other, proof))
+            })
+        {
+            return None;
+        }
+        consumed.borrow_mut().push(proof.clone());
+        Some(call.target())
+    };
+    let (value, analysis) = evaluate_prepared_numeric_expression(
+        expression,
+        environment,
+        policy,
+        &query,
+        numeric_operands.as_ref().map(|(_, proofs)| proofs),
+        analysis_purpose,
+        matches!(point, Some(ExpressionEvaluationPoint::Branch { .. })),
+    )?;
+    let consumed = consumed.into_inner();
+    if let Some(ledger) = ledger {
+        let preparations: &[crate::command_binding::SourceExpressionPreparation] =
+            preparation.map_or(&[], std::slice::from_ref);
+        if !ledger.retain(&consumed, preparations) {
+            return None;
+        }
+        if let (Some(point), Some(evaluation)) = (point, analysis) {
+            ledger.analyses.borrow_mut().insert(
+                point,
+                ExpressionAnalysis {
+                    evaluation,
+                    required_math_invocations: consumed,
+                    required_expression_preparations: preparations.to_vec(),
+                },
+            );
+        }
+    }
+    value
+}
+
+fn evaluate_prepared_numeric_expression(
+    expression: &ExprNode,
+    environment: &Env,
+    policy: FoldPolicy,
+    query: &crate::tcl_expr_eval::ResolvedMathQuery<'_>,
+    operands: Option<&crate::tcl_expr_eval::NativeOperandProofs>,
+    analysis_purpose: bool,
+    branch_result: bool,
+) -> Option<(
+    Option<FoldedExpressionContents>,
+    Option<crate::tcl_expr_eval::FoldEvaluation>,
+)> {
+    if analysis_purpose {
+        let evaluation = crate::tcl_expr_eval::analyse_tcl_expr_with_resolved_math_bindings(
+            expression,
+            environment,
+            policy,
+            query,
+            operands,
+        )?;
+        let value = if branch_result {
+            Some(FoldedExpressionContents::Numeric(evaluation.value.clone()))
+        } else {
+            analysis_native_contents(&evaluation)
+        };
+        Some((value, Some(evaluation)))
+    } else {
+        // Operand receipts close input conversion, not the arithmetic result's
+        // allocation or sharing with a substituted literal. Branch truth is
+        // consumed internally; represented stores and returns retain the
+        // original numeric result operation until its output protocol is proved.
+        if !branch_result && operands.is_some_and(|operands| !operands.is_empty()) {
+            return None;
+        }
+        Some((
+            Some(FoldedExpressionContents::Numeric(
+                crate::tcl_expr_eval::eval_tcl_expr_with_proved_operands(
+                    expression,
+                    environment,
+                    policy,
+                    query,
+                    operands.unwrap_or(&crate::tcl_expr_eval::NativeOperandProofs::new()),
+                )?,
+            )),
+            None,
+        ))
+    }
+}
+
+fn analysis_native_contents(
+    evaluation: &crate::tcl_expr_eval::FoldEvaluation,
+) -> Option<FoldedExpressionContents> {
+    use crate::tcl_expr_eval::NativeExpressionResultDependency;
+    match &evaluation.result_dependency {
+        Some(NativeExpressionResultDependency::SelectedOperand { existing_bytes, .. }) => {
+            existing_bytes
+                .as_ref()
+                .map(|bytes| FoldedExpressionContents::Bytes(bytes.clone()))
+        }
+        Some(NativeExpressionResultDependency::StringResult { bytes }) => {
+            Some(FoldedExpressionContents::Bytes(bytes.clone()))
+        }
+        None => Some(FoldedExpressionContents::Numeric(evaluation.value.clone())),
+    }
+}
+
+fn evaluate_def_with_math<S: std::hash::BuildHasher>(
+    stmt_ssa: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    ssa: SsaSourceView<'_>,
+    policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
+    math: Option<MathFoldContext<'_>>,
 ) -> LatticeValue {
     match &stmt_ssa.statement {
         Statement::AssignConst { value, .. } => LatticeValue::Const(parse_literal_value(value)),
         Statement::AssignExpr { expr, .. } => {
             let env = env_from_uses(&stmt_ssa.uses, values, ssa);
-            match eval_tcl_expr_with_policy(expr, &env, policy) {
-                Some(v) => LatticeValue::Const(tcl_value_to_const(v)),
-                None => LatticeValue::Overdefined,
-            }
+            fold_math_expression(expr, &env, policy, math)
+                .map_or(LatticeValue::Overdefined, |value| {
+                    LatticeValue::Const(value.into_const())
+                })
         }
         Statement::AssignValue { value, .. } => {
             // Fold when the RHS is either a plain literal
@@ -1428,61 +2448,25 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
             // resolves to a lattice Const, or a `[cmd args...]`
             // that try_fold_cmd_subst (or, under `folds`, the registry
             // const-fold engine) recognises.
-            fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy, folds)
+            fold_retained_assignment_expression(stmt_ssa, values, ssa, policy, folds, math)
+                .unwrap_or_else(|| {
+                    fold_assign_value(value, &stmt_ssa.uses, values, ssa, policy, folds)
+                })
         }
         Statement::Call {
             command,
             args,
             defs,
+            tokens,
             ..
-        } if matches!(command.as_str(), "foreach" | "lmap")
-            && defs.len() == 1
-            && args.len() == 1 =>
-        {
-            // `foreach v LIST` / `lmap v LIST` folds the
-            // iteration variable to the CONSTSET of elements when
-            // LIST is a literal, resolves to a Const(String)
-            // through the lattice, or is a command substitution
-            // (`[list a b c]`, `[format …]`) that folds to a
-            // constant list. Multi-variable and multi-list
-            // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0], policy.word_rules)
-                .or_else(|| {
-                    resolve_foreach_list_via_lattice(
-                        &args[0],
-                        &stmt_ssa.uses,
-                        values,
-                        ssa,
-                        policy.word_rules,
-                    )
-                })
-                .or_else(|| {
-                    // `foreach v [list a b c]` — fold the command substitution
-                    // to a constant list string, then split into elements.
-                    let arg = args[0].trim();
-                    if arg.starts_with('[')
-                        && arg.ends_with(']')
-                        && let Some(LatticeValue::Const(ConstValue::String(s))) =
-                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy, folds)
-                    {
-                        return Some(split_list_values(&s, policy.word_rules));
-                    }
-                    None
-                });
-            match elements {
-                Some(items) if items.is_empty() => LatticeValue::Overdefined,
-                Some(items) => {
-                    let consts: Vec<ConstValue> =
-                        items.iter().map(|s| parse_literal_value(s)).collect();
-                    if consts.len() == 1 {
-                        LatticeValue::Const(consts.into_iter().next().unwrap())
-                    } else {
-                        LatticeValue::constset(consts)
-                    }
-                }
-                None => LatticeValue::Overdefined,
-            }
+        } if single_iteration_binding(command, args, defs, tokens.as_ref()) => {
+            fold_iteration_value(&args[0], stmt_ssa, values, ssa, policy, folds)
         }
+        Statement::Call {
+            tokens: Some(tokens),
+            ..
+        } => fold_normal_store_value(tokens, stmt_ssa, values, ssa, policy, folds, math)
+            .unwrap_or(LatticeValue::Overdefined),
         Statement::Incr { name, amount, .. } => {
             // Track `incr NAME ?AMOUNT?` through the lattice
             // when the current value of NAME is a single Const(Int)
@@ -1493,7 +2477,7 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
             // that miss is permanent, so it must widen: returning Unknown
             // would launder a fanned element's stale constant through
             // `join(prev, Unknown) = prev`.
-            let Some(sym) = ssa.var_symbol(crate::naming::element_var_name(name)) else {
+            let Some(sym) = ssa.symbol(crate::naming::element_var_name(name)) else {
                 return LatticeValue::Overdefined;
             };
             let ver = stmt_ssa.uses.get(&sym).copied().unwrap_or(0);
@@ -1536,15 +2520,272 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
     }
 }
 
+#[derive(Clone, Copy)]
+struct RetainedExpressionFoldInputs<'a> {
+    registry: &'a CommandRegistry,
+    policy: FoldPolicy,
+    math: Option<MathFoldContext<'a>>,
+}
+
+fn fold_retained_assignment_expression<S: std::hash::BuildHasher>(
+    statement: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    source: SsaSourceView<'_>,
+    policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
+    math: Option<MathFoldContext<'_>>,
+) -> Option<LatticeValue> {
+    let registry = folds?.registry;
+    let tokens = statement.statement.tokens()?;
+    let invocation = crate::registry_invocation::normal_transfer_invocation(
+        registry,
+        registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    )?;
+    let (_, word) = invocation
+        .stored_value_operand(&tokens.source_binding.as_ref()?.variable_context, registry)?;
+    fold_retained_expression_word(
+        word,
+        tokens,
+        statement,
+        values,
+        source,
+        RetainedExpressionFoldInputs {
+            registry,
+            policy,
+            math,
+        },
+    )
+}
+
+fn fold_retained_expression_word<S: std::hash::BuildHasher>(
+    word: &crate::ir::WordExpr,
+    tokens: &crate::ir::CommandTokens,
+    statement: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    source: SsaSourceView<'_>,
+    inputs: RetainedExpressionFoldInputs<'_>,
+) -> Option<LatticeValue> {
+    let (spelling, site) = word.sole_command_substitution()?;
+    if inputs
+        .math?
+        .dependencies
+        .is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis)
+        && let Some(value) = fold_prepared_invocation_expression(spelling, site, inputs)
+    {
+        return Some(value);
+    }
+    let expressions = crate::word_subst::lifted_source_expressions(Some(tokens), inputs.registry);
+    let mut matching = expressions
+        .iter()
+        .filter(|expression| expression.span == site.span);
+    let expression = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let context = inputs.math?;
+    let context = MathFoldContext {
+        bindings: context.bindings.at_base(expression.expression_base),
+        ..context
+    };
+    let environment = env_from_uses(&statement.uses, values, source);
+    fold_math_expression(
+        &expression.expression,
+        &environment,
+        inputs.policy,
+        Some(context),
+    )
+    .map_or(Some(LatticeValue::Overdefined), |value| {
+        Some(LatticeValue::Const(value.into_const()))
+    })
+}
+
+fn fold_prepared_invocation_expression(
+    spelling: &str,
+    site: &crate::ir::SourceSite,
+    inputs: RetainedExpressionFoldInputs<'_>,
+) -> Option<LatticeValue> {
+    let grammar = inputs.policy.preparation_context()?.lexer_grammar;
+    let invocation = crate::word_subst::nested_command_words(
+        spelling,
+        site,
+        tcl_lexer::LexerConfig::from_grammar(grammar),
+    )
+    .ok()?;
+    let offset = invocation.argv.first()?.start();
+    let context = inputs.math?;
+    let context = MathFoldContext {
+        bindings: context.bindings.at_invocation(offset)?,
+        ..context
+    };
+    let preparation = context
+        .bindings
+        .preparation_for_context(&inputs.policy.preparation_context()?)?;
+    fold_math_expression(
+        preparation.witness.tree(),
+        &Env::default(),
+        inputs.policy,
+        Some(context),
+    )
+    .map(|value| LatticeValue::Const(value.into_const()))
+}
+
+fn fold_iteration_value<S: std::hash::BuildHasher>(
+    argument: &str,
+    statement: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    source: SsaSourceView<'_>,
+    policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
+) -> LatticeValue {
+    // `foreach v LIST` / `lmap v LIST` folds the
+    // iteration variable to the CONSTSET of elements when
+    // LIST is a literal, resolves to a Const(String)
+    // through the lattice, or is a command substitution
+    // (`[list a b c]`, `[format …]`) that folds to a
+    // constant list. Multi-variable and multi-list
+    // foreaches are left as Overdefined.
+    let elements = extract_foreach_elements(argument, policy.word_rules)
+        .or_else(|| {
+            resolve_foreach_list_via_lattice(
+                argument,
+                &statement.uses,
+                values,
+                source,
+                policy.word_rules,
+            )
+        })
+        .or_else(|| {
+            // `foreach v [list a b c]` — fold the command substitution
+            // to a constant list string, then split into elements.
+            let arg = argument.trim();
+            if arg.starts_with('[')
+                && arg.ends_with(']')
+                && let Some(LatticeValue::Const(ConstValue::String(s))) =
+                    try_fold_cmd_subst(arg, &statement.uses, values, source, policy, folds)
+            {
+                return Some(split_list_values(&s, policy.word_rules));
+            }
+            None
+        });
+    match elements {
+        Some(items) if items.is_empty() => LatticeValue::Overdefined,
+        Some(items) => {
+            let consts: Vec<ConstValue> = items.iter().map(|s| parse_literal_value(s)).collect();
+            if consts.len() == 1 {
+                LatticeValue::Const(consts.into_iter().next().unwrap())
+            } else {
+                LatticeValue::constset(consts)
+            }
+        }
+        None => LatticeValue::Overdefined,
+    }
+}
+
+/// A normal handler's bounded store is separate from its compiler completion.
+/// Frozen argv values take precedence; original variable reads retain their
+/// exact temporal SSA dependency. This never licenses executing/eliding a call.
+fn fold_normal_store_value<S: std::hash::BuildHasher>(
+    tokens: &crate::ir::CommandTokens,
+    statement: &SsaStatement,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    source: SsaSourceView<'_>,
+    policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
+    math: Option<MathFoldContext<'_>>,
+) -> Option<LatticeValue> {
+    let registry = folds?.registry;
+    let binding = tokens.source_binding.as_ref()?;
+    let invocation = crate::registry_invocation::normal_transfer_invocation(
+        registry,
+        registry
+            .profile()
+            .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+        tokens,
+    )?;
+    let (spelling, word) = invocation.stored_value_operand(&binding.variable_context, registry)?;
+    if let Some(value) = fold_retained_expression_word(
+        word,
+        tokens,
+        statement,
+        values,
+        source,
+        RetainedExpressionFoldInputs {
+            registry,
+            policy,
+            math,
+        },
+    ) {
+        return Some(value);
+    }
+    if let Some(value) = invocation.stored_value_literal(&binding.variable_context, registry) {
+        return Some(LatticeValue::Const(parse_literal_value(&value)));
+    }
+    if source.is_positioned() && word.sole_variable_substitution().is_some() {
+        return Some(
+            source
+                .read_word(word)
+                .and_then(|read| read.version.map(|version| (read.symbol, version)))
+                .map_or(LatticeValue::Overdefined, |key| {
+                    values.get(&key).cloned().unwrap_or(LatticeValue::Unknown)
+                }),
+        );
+    }
+    Some(fold_assign_value(
+        spelling,
+        &statement.uses,
+        values,
+        source,
+        policy,
+        folds,
+    ))
+}
+
+fn single_iteration_binding(
+    command: &str,
+    args: &[String],
+    defs: &[String],
+    tokens: Option<&crate::ir::CommandTokens>,
+) -> bool {
+    defs.len() == 1
+        && args.len() == 1
+        && tokens.map_or_else(
+            || matches!(command, "foreach" | "lmap"),
+            |tokens| {
+                matches!(
+                    tokens.synthetic,
+                    Some(crate::ir::SyntheticMarker::IterationBindings(_))
+                )
+            },
+        )
+}
+
 /// Resolve `$var` / `${var}` to a lattice value by looking up the
 /// SSA version in `uses` and indexing `values`. Returns None when
 /// the text isn't a simple var reference.
-fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn source_read_key<S: std::hash::BuildHasher>(
+    name: &str,
+    uses: &HashMap<Symbol, crate::ssa::Version, S>,
+    source: SsaSourceView<'_>,
+) -> Option<ValueKey> {
+    if source.is_positioned() {
+        let read = source.read_spelling(name)?;
+        Some((read.symbol, read.version?))
+    } else {
+        let symbol = source.symbol(name)?;
+        Some((symbol, *uses.get(&symbol)?))
+    }
+}
+
+fn resolve_simple_var_ref<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     text: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
 ) -> Option<LatticeValue> {
+    let ssa = ssa.into();
     let name = if let Some(name) = text.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
         name
     } else {
@@ -1558,14 +2799,8 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
             return None;
         }
     };
-    let sym = ssa.var_symbol(name)?;
-    let ver = *uses.get(&sym)?;
-    Some(
-        values
-            .get(&(sym, ver))
-            .cloned()
-            .unwrap_or(LatticeValue::Unknown),
-    )
+    let key = source_read_key(name, uses, ssa)?;
+    Some(values.get(&key).cloned().unwrap_or(LatticeValue::Unknown))
 }
 
 /// Resolve a branch decision, preferring a *static-loop summary* when the
@@ -1583,7 +2818,9 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// (`grammar`). Bundled so the fold entry points stay inside clippy's
 /// argument budget and neither fact can be threaded without the other.
 #[derive(Clone, Copy)]
-struct BranchFold {
+struct BranchFold<'a> {
+    math_dependencies: Option<&'a MathDependencies>,
+    registry: &'a CommandRegistry,
     policy: FoldPolicy,
     grammar: tcl_dialect::LexerGrammar,
 }
@@ -1595,11 +2832,71 @@ fn branch_decision(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    fold: BranchFold,
+    fold: BranchFold<'_>,
 ) -> Option<bool> {
-    let BranchFold { policy, grammar } = fold;
-    loop_summary_decision(cfg, ssa, bn, condition, values, policy)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa, grammar))
+    loop_summary_decision(cfg, ssa, bn, condition, values, fold).or_else(|| {
+        let math = branch_math_bindings(cfg, bn);
+        let math = if fold
+            .math_dependencies
+            .is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis)
+        {
+            materialised_branch_bindings(cfg, bn, math)
+        } else {
+            math
+        };
+        evaluate_branch_with_math(
+            ssa_block,
+            condition,
+            values,
+            BranchExpressionPolicy {
+                policy: fold.policy,
+                grammar: fold.grammar,
+            },
+            ssa,
+            Some(MathFoldContext {
+                point: Some(ExpressionEvaluationPoint::Branch { block: bn }),
+                bindings: math,
+                dependencies: fold.math_dependencies,
+                incoming_reads: Some((SsaSourceView::at_terminator(ssa, bn), fold.registry)),
+            }),
+        )
+    })
+}
+
+fn branch_math_bindings(cfg: &CfgFunction, block: BlockId) -> ExpressionMathBindings<'_> {
+    let base = match cfg
+        .blocks
+        .get(&block)
+        .and_then(|block| block.terminator.as_ref())
+    {
+        Some(Terminator::Branch { condition_base, .. }) => *condition_base,
+        _ => None,
+    };
+    ExpressionMathBindings::for_origin(
+        &cfg.implicit_math_invocations,
+        cfg.terminator_sources
+            .get(&block)
+            .and_then(Option::as_deref),
+        base,
+    )
+    .with_preparations(&cfg.expression_preparations)
+}
+
+/// A dynamic condition word is prepared from its actual evaluated bytes.
+/// Only analysis may use that source object: its fresh tree does not prove
+/// that discarding the original argv/read/conversion effects is safe.
+fn materialised_branch_bindings<'a>(
+    cfg: &'a CfgFunction,
+    block: BlockId,
+    bindings: ExpressionMathBindings<'a>,
+) -> ExpressionMathBindings<'a> {
+    if bindings.preparation().is_some() {
+        return bindings;
+    }
+    cfg.source_input_tokens_at(block, usize::MAX)
+        .and_then(|tokens| tokens.argv.first())
+        .and_then(|span| bindings.at_invocation(span.start()))
+        .unwrap_or(bindings)
 }
 
 /// Convert an SCCP [`ConstValue`] to the static simulator's
@@ -1624,24 +2921,128 @@ fn loop_summary_decision(
     bn: BlockId,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    policy: FoldPolicy,
+    fold: BranchFold<'_>,
 ) -> Option<bool> {
+    let policy = fold.policy;
     let node = cfg.loop_nodes.get(&bn)?;
     let start_ssa = ssa.blocks.get(&node.entry_block)?;
     let mut start_env = crate::static_loops::StaticEnv::new();
-    for (&sym, &ver) in &start_ssa.exit_versions {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
-            start_env.insert(ssa.var_name(sym).to_owned(), const_to_static(c));
+    let lookup = if ssa.point_contexts.is_some() {
+        SsaSourceView::at_terminator(ssa, node.entry_block)
+    } else {
+        SsaSourceView::unpositioned(ssa)
+    };
+    if lookup.is_positioned() {
+        for (name, reference) in lookup.reaching_bindings(fold.registry) {
+            let Some(version) = reference.version else {
+                continue;
+            };
+            if let Some(LatticeValue::Const(value)) = values.get(&(reference.symbol, version)) {
+                start_env.insert(name.to_owned(), const_to_static(value));
+            }
+        }
+    } else {
+        for (name, symbol) in lookup.source_symbols() {
+            let Some(version) = start_ssa.exit_versions.get(&symbol) else {
+                continue;
+            };
+            if let Some(LatticeValue::Const(value)) = values.get(&(symbol, *version)) {
+                start_env.insert(name.to_owned(), const_to_static(value));
+            }
         }
     }
-    let summarised = crate::static_loops::summarise_for_statement(
+    let condition_base = match &node.for_stmt {
+        crate::ir::Statement::For { condition_base, .. } => *condition_base,
+        _ => None,
+    };
+    let loop_math = ExpressionMathBindings::for_origin(
+        &cfg.implicit_math_invocations,
+        node.executed_source.as_deref(),
+        condition_base,
+    )
+    .with_preparations(&cfg.expression_preparations);
+    if fold
+        .math_dependencies
+        .is_some_and(|ledger| ledger.purpose == SolverPurpose::SemanticAnalysis)
+    {
+        return semantic_loop_summary_decision(
+            cfg,
+            bn,
+            condition,
+            &node.for_stmt,
+            &start_env,
+            loop_math,
+            fold,
+        );
+    }
+    let summarised = crate::static_loops::summarise_for_statement_with_dependencies(
         &node.for_stmt,
         &start_env,
         crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
         policy,
+        Some(loop_math),
     )?;
-    let v = crate::static_loops::evaluate_expr_with_constants(condition, &summarised, policy)?;
+    let v =
+        crate::static_loops::evaluate_expr_with_constants(condition, &summarised.values, policy)?;
+    if let Some(ledger) = fold.math_dependencies
+        && !ledger.retain(
+            &summarised.required_math_invocations,
+            &summarised.required_expression_preparations,
+        )
+    {
+        return None;
+    }
     Some(v != 0)
+}
+
+fn semantic_loop_summary_decision(
+    cfg: &CfgFunction,
+    block: BlockId,
+    condition: &ExprNode,
+    statement: &Statement,
+    initial: &crate::static_loops::StaticEnv,
+    bindings: ExpressionMathBindings<'_>,
+    fold: BranchFold<'_>,
+) -> Option<bool> {
+    let ledger = fold.math_dependencies?;
+    let point = ExpressionEvaluationPoint::Branch { block };
+    ledger.loops.borrow_mut().remove(&point);
+    let analysis = crate::static_loops::analyse_for_statement_with_dependencies(
+        statement,
+        initial,
+        crate::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS,
+        fold.policy,
+        Some(bindings),
+    )?;
+    let environment = analysis
+        .values
+        .iter()
+        .map(|(name, value)| (name.clone(), value.to_env_value()))
+        .collect();
+    let FoldedExpressionContents::Numeric(value) = fold_math_expression(
+        condition,
+        &environment,
+        fold.policy,
+        Some(MathFoldContext {
+            point: Some(point),
+            bindings: branch_math_bindings(cfg, block),
+            dependencies: Some(ledger),
+            incoming_reads: None,
+        }),
+    )?
+    else {
+        return None;
+    };
+    if matches!(&value, TclValue::Float(value) if value.is_nan())
+        || !ledger.retain(
+            &analysis.required_math_invocations,
+            &analysis.required_expression_preparations,
+        )
+    {
+        return None;
+    }
+    ledger.loops.borrow_mut().insert(point, analysis);
+    Some(value.is_truthy())
 }
 
 /// Evaluate a branch condition.
@@ -1657,7 +3058,38 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
     ssa: &SsaFunction,
     grammar: tcl_dialect::LexerGrammar,
 ) -> Option<bool> {
-    let mut env = env_from_uses(&ssa_block.exit_versions, values, ssa);
+    evaluate_branch_with_math(
+        ssa_block,
+        condition,
+        values,
+        BranchExpressionPolicy { policy, grammar },
+        ssa,
+        None,
+    )
+}
+
+#[derive(Clone, Copy)]
+struct BranchExpressionPolicy {
+    policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
+}
+
+fn evaluate_branch_with_math<S: std::hash::BuildHasher>(
+    ssa_block: &crate::ssa::SsaBlock,
+    condition: &ExprNode,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    fold: BranchExpressionPolicy,
+    ssa: &SsaFunction,
+    math: Option<MathFoldContext<'_>>,
+) -> Option<bool> {
+    let BranchExpressionPolicy { policy, grammar } = fold;
+    let block = ssa.block_id(&ssa_block.name).unwrap_or(BlockId(u32::MAX));
+    let lookup = if ssa.point_contexts.is_some() {
+        SsaSourceView::at_terminator(ssa, block)
+    } else {
+        SsaSourceView::unpositioned(ssa)
+    };
+    let mut env = env_from_uses(&ssa_block.exit_versions, values, lookup);
     // A parameter read in a branch condition without a local redefinition
     // isn't in `exit_versions` (those carry defined-in-block versions), so
     // its caller-provided version-0 seed never reaches the fold. Bind it
@@ -1667,7 +3099,15 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
         if env.contains_key(&name) {
             continue;
         }
-        let Some(sym) = ssa.var_symbol(&name) else {
+        let symbol = if lookup.is_positioned() {
+            lookup
+                .read_spelling(&name)
+                .filter(|read| read.version == Some(0))
+                .map(|read| read.symbol)
+        } else {
+            lookup.symbol(&name)
+        };
+        let Some(sym) = symbol else {
             continue;
         };
         let v0_live = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0) == 0;
@@ -1675,7 +3115,10 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
             env.insert(name, const_to_env_value(c));
         }
     }
-    let v = eval_tcl_expr_with_policy(condition, &env, policy)?;
+    let FoldedExpressionContents::Numeric(v) = fold_math_expression(condition, &env, policy, math)?
+    else {
+        return None;
+    };
     // A NaN condition is C's "floating point value is Not a Number" runtime
     // error, not a truth value — folding either way would delete a branch
     // that must raise. Decline.
@@ -1689,15 +3132,19 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
 /// and the current lattice. Only entries whose lattice value is
 /// a single [`LatticeValue::Const`] are bound; anything else
 /// leaves the variable unbound so the evaluator returns `None`.
-fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn env_from_uses<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
 ) -> Env {
+    let ssa = ssa.into();
     let mut env = Env::new();
-    for (&sym, &ver) in uses {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver)) {
-            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
+    for (name, _) in ssa.source_symbols() {
+        let Some(key) = source_read_key(name, uses, ssa) else {
+            continue;
+        };
+        if let Some(LatticeValue::Const(c)) = values.get(&key) {
+            env.insert(name.to_owned(), const_to_env_value(c));
         }
     }
     env
@@ -1708,20 +3155,24 @@ fn env_from_uses<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 /// `expr "…"`, where Tcl substitutes the variable's value textually before
 /// parsing: a non-numeric value becomes an invalid bareword, so leaving it
 /// unbound makes the fold bail (matching Tcl's runtime error).
-fn env_from_uses_numeric<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn env_from_uses_numeric<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
 ) -> Env {
+    let ssa = ssa.into();
     let mut env = Env::new();
-    for (&sym, &ver) in uses {
-        if let Some(LatticeValue::Const(c)) = values.get(&(sym, ver))
+    for (name, _) in ssa.source_symbols() {
+        let Some(key) = source_read_key(name, uses, ssa) else {
+            continue;
+        };
+        if let Some(LatticeValue::Const(c)) = values.get(&key)
             && matches!(
                 c,
                 ConstValue::Int(_) | ConstValue::Float(_) | ConstValue::Bool(_)
             )
         {
-            env.insert(ssa.var_name(sym).to_owned(), const_to_env_value(c));
+            env.insert(name.to_owned(), const_to_env_value(c));
         }
     }
     env
@@ -1786,17 +3237,18 @@ pub fn extract_foreach_elements(
 /// simple var reference or its lattice value is not a
 /// Const(String).
 #[must_use]
-pub fn resolve_foreach_list_via_lattice<S1, S2>(
+pub fn resolve_foreach_list_via_lattice<'a, S1, S2>(
     list_text: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
+    let ssa = ssa.into();
     let stripped = list_text.trim();
     let name = if let Some(name) = stripped
         .strip_prefix("${")
@@ -1814,7 +3266,7 @@ where
             return None;
         }
     };
-    let sym = ssa.var_symbol(name)?;
+    let sym = ssa.symbol(name)?;
     let ver = uses.get(&sym).copied()?;
     match values.get(&(sym, ver))? {
         // The lattice value is the variable's runtime string; splitting it as a
@@ -1837,20 +3289,35 @@ where
 ///    registry const-fold engine ([`BuiltinFoldInputs`]).
 ///
 /// Anything else widens to `Overdefined`.
-fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn fold_assign_value<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> LatticeValue {
+    let ssa = ssa.into();
     let stripped = value.trim();
     // Plain literal.
     if !stripped.contains('$') && !stripped.contains('[') {
         return LatticeValue::Const(parse_literal_value(stripped));
     }
-    // Simple var reference.
+    // A retained set value word identifies its exact read. The statement's
+    // later spelling map cannot represent alias reselection within argv.
+    if let Some(tokens) = ssa.source_tokens()
+        && let Some(effective) = crate::registry_invocation::effective_command_words(tokens)
+        && let Some(word) = effective.words.get(2)
+        && word.sole_variable_substitution().is_some()
+    {
+        return ssa
+            .read_word(word)
+            .and_then(|read| read.version.map(|version| (read.symbol, version)))
+            .map_or(LatticeValue::Overdefined, |key| {
+                values.get(&key).cloned().unwrap_or(LatticeValue::Unknown)
+            });
+    }
+    // Legacy tokenless callers retain the unique-binding compatibility view.
     if let Some(resolved) = resolve_simple_var_ref(stripped, uses, values, ssa) {
         return resolved;
     }
@@ -1866,10 +3333,11 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         // Checked AFTER them so single-hop results stay byte-identical.
         if let Some(f) = folds.filter(|f| f.registry_engine) {
             let trusts = |name: &str| f.mutations.trusts(name);
-            let lookup = |name: &str| lattice_const_text(name, uses, values, ssa);
+            let lookup = |name: &str| lattice_const_text(name, uses, values, ssa, policy);
             if let Some(folded) = (crate::const_subst::ConstSubstCtx {
                 registry: f.registry,
                 resolution_namespace: "::",
+                namespace_context: None,
                 version: f
                     .dialect
                     .and_then(tcl_dialect::DialectProfile::const_fold_version),
@@ -1890,19 +3358,22 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 /// statement's use version, or `None` when it is not a single `Const` —
 /// the variable-lookup the registry const-fold engine runs under (see
 /// [`fold_assign_value`]).
-fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn lattice_const_text<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     name: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
+    policy: FoldPolicy,
 ) -> Option<String> {
-    let sym = ssa.var_symbol(name)?;
-    let ver = uses.get(&sym)?;
-    match values.get(&(sym, *ver))? {
+    let ssa = ssa.into();
+    let key = source_read_key(name, uses, ssa)?;
+    match values.get(&key)? {
         LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
         LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
         LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-        LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
+        LatticeValue::Const(ConstValue::Float(f)) => {
+            crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)
+        }
         _ => None,
     }
 }
@@ -1923,12 +3394,14 @@ fn lattice_const_text<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 /// SCCP lattice value is a constant. Returns `None` for anything that isn't a
 /// compile-time constant (array refs, command substitutions, unknown vars),
 /// so the caller skips folding.
-fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn resolve_const_string<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     arg: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
+    policy: FoldPolicy,
 ) -> Option<String> {
+    let ssa = ssa.into();
     let arg = arg.trim();
     if let Some(rest) = arg.strip_prefix('$') {
         // `$name` or `${name}` — reject compound refs (array element,
@@ -1944,13 +3417,14 @@ fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         {
             return None;
         }
-        let sym = ssa.var_symbol(name)?;
-        let ver = uses.get(&sym)?;
-        return match values.get(&(sym, *ver))? {
+        let key = source_read_key(name, uses, ssa)?;
+        return match values.get(&key)? {
             LatticeValue::Const(ConstValue::String(s)) => Some(s.clone()),
             LatticeValue::Const(ConstValue::Int(i)) => Some(i.to_string()),
             LatticeValue::Const(ConstValue::Bool(b)) => Some(if *b { "1" } else { "0" }.to_owned()),
-            LatticeValue::Const(ConstValue::Float(f)) => Some(f.to_string()),
+            LatticeValue::Const(ConstValue::Float(f)) => {
+                crate::tcl_expr_eval::format_tcl_value_with_policy(&TclValue::Float(*f), policy)
+            }
             _ => None,
         };
     }
@@ -1966,14 +3440,15 @@ fn resolve_const_string<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 // fold semantics (what a constant call evaluates to), not a membership
 // test a registry trait could answer — the same irreducible-fold rationale
 // as `chain_fold`'s per-command arms.
-fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+fn try_fold_cmd_subst<'a, S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     value: &str,
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
-    ssa: &SsaFunction,
+    ssa: impl Into<SsaSourceView<'a>>,
     policy: FoldPolicy,
     folds: Option<BuiltinFoldInputs<'_>>,
 ) -> Option<LatticeValue> {
+    let ssa = ssa.into();
     // Each arm below *is* a builtin's semantics, so it may only run while
     // that name still denotes the builtin: after `rename list mylist` or a
     // shadowing `proc format …` anywhere in the unit, `[list a 1 a 2]` is a
@@ -2056,7 +3531,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
             let (sub, sub_rest) = split_head(after_cmd.trim());
             if sub == "length"
                 && let Some(raw) = sub_rest
-                && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa)
+                && let Some(s) = resolve_const_string(raw.trim(), uses, values, ssa, policy)
             {
                 // `string length` counts UTF-16 code units on Tcl 8 and
                 // Unicode scalars on Tcl 9, so the fold uses the selected
@@ -2169,6 +3644,304 @@ pub fn parse_literal_value(text: &str) -> ConstValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn semantic_math_dependencies_survive_only_successful_reached_evaluations() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        for (source, expected) in [
+            ("set x [expr {abs(-3)}]", 1),
+            ("set x [expr {0 && abs(-3)}]", 0),
+            ("set x [expr {sqrt(-1)}]", 0),
+            (
+                "proc ::tcl::mathfunc::abs {x} {return 99}; set x [expr {abs(-3)}]",
+                0,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, &registry, false, profile,
+            );
+            let semantic = semantic_facts_for_unit(&unit, &registry);
+            let requirements = &semantic.result.required_math_invocations;
+            assert_eq!(requirements.len(), expected, "{source}");
+            for requirement in requirements {
+                assert_eq!(requirement.function, "abs");
+                assert!(semantic.expressions.values().any(|expression| {
+                    expression.required_math_invocations.contains(requirement)
+                }));
+            }
+            assert!(unit.top_level.sccp.required_math_invocations.is_empty());
+        }
+    }
+
+    #[test]
+    fn successful_lazy_expression_analysis_retains_preparation_without_reached_calls() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set x [expr {0 && future_function(1)}]",
+            &registry,
+            false,
+            profile,
+        );
+        let semantic = semantic_facts_for_unit(&unit, &registry);
+        let result = &semantic.result;
+        assert_eq!(result.required_math_invocations.len(), 0);
+        assert_eq!(result.required_expression_preparations.len(), 1);
+        assert!(
+            unit.top_level
+                .sccp
+                .required_expression_preparations
+                .is_empty()
+        );
+        let preparation = &result.required_expression_preparations[0];
+        assert_eq!(preparation.witness.source(), "0 && future_function(1)");
+        assert!(semantic.expressions.values().any(|expression| {
+            expression
+                .required_expression_preparations
+                .contains(preparation)
+        }));
+        let bindings = ExpressionMathBindings::for_origin(
+            &unit.top_level.cfg.implicit_math_invocations,
+            unit.top_level.cfg.executed_source.as_deref(),
+            Some(preparation.source.base()),
+        )
+        .with_preparations(&unit.top_level.cfg.expression_preparations);
+        let wrong_profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let dependencies = MathDependencies {
+            purpose: SolverPurpose::SemanticAnalysis,
+            ..MathDependencies::default()
+        };
+        assert!(
+            fold_math_expression(
+                preparation.witness.tree(),
+                &Env::new(),
+                FoldPolicy::for_profile(Some(true), Some(wrong_profile)),
+                Some(MathFoldContext {
+                    point: None,
+                    bindings,
+                    dependencies: Some(&dependencies),
+                    incoming_reads: None,
+                }),
+            )
+            .is_none()
+        );
+        assert_eq!(dependencies.preparations.borrow().len(), 0);
+    }
+
+    #[test]
+    fn analysis_value_keeps_native_conversion_obligations_out_of_execution_constants() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set x 3; expr {$x + 1}",
+            &registry,
+            false,
+            profile,
+        );
+        let function = &unit.top_level;
+        let point = function
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        matches!(statement.statement, Statement::ExprEval { .. })
+                            .then_some(ExpressionEvaluationPoint::Statement { block, index })
+                    })
+            })
+            .expect("retained full expression producer");
+        let original_values = function.sccp.values.clone();
+        let analysis = function
+            .sccp
+            .expression_analysis(
+                &function.cfg,
+                &function.ssa,
+                point,
+                FoldPolicy::for_profile(Some(false), Some(profile)),
+            )
+            .expect("known numerical input at exact native read");
+        assert_eq!(analysis.evaluation.value, TclValue::Int(4));
+        assert_ne!(
+            analysis.evaluation.coercions,
+            [] as [crate::tcl_expr_eval::NativeCoercionObligation; 0]
+        );
+        assert!(!analysis.evaluation.native_value_effects_are_proved());
+        assert_eq!(analysis.required_expression_preparations.len(), 1);
+        assert_eq!(analysis.required_math_invocations.len(), 0);
+        assert_eq!(function.sccp.values, original_values);
+    }
+
+    fn semantic_facts_for_unit(
+        unit: &crate::compilation_unit::CompilationUnit,
+        registry: &CommandRegistry,
+    ) -> SemanticValueFacts {
+        semantic_value_facts(
+            &unit.top_level.cfg,
+            &unit.top_level.ssa,
+            ValueFactInputs {
+                param_constants: None,
+                policy: FoldPolicy::from_registry(registry),
+                extra_escaping: &HashSet::new(),
+                trace: TraceInputs {
+                    registry,
+                    traced_variables: &unit.ir_module.traced_variables,
+                    has_dynamic_variable_trace: unit.ir_module.has_dynamic_variable_trace,
+                },
+                folds: Some(BuiltinFoldInputs {
+                    registry,
+                    mutations: &unit.command_mutations,
+                    dialect: registry.profile(),
+                    defining_class: None,
+                    registry_engine: false,
+                    trust: FoldTrust::ObservedBindings,
+                }),
+            },
+        )
+    }
+
+    #[test]
+    fn semantic_solver_propagates_numeric_contents_without_erasing_producer_effects() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set x 3; set y [expr {$x + 1}]; set z [expr {$y + 1}]; expr {$z + 1}",
+            &registry,
+            false,
+            profile,
+        );
+        let facts = semantic_facts_for_unit(&unit, &registry);
+        let analyses: Vec<_> = facts.expressions.values().collect();
+        for expected in [4, 5, 6] {
+            assert!(
+                analyses
+                    .iter()
+                    .any(|analysis| analysis.evaluation.value == TclValue::Int(expected)),
+                "missing chained value {expected}: {facts:#?}"
+            );
+        }
+        assert!(
+            analyses
+                .iter()
+                .all(|analysis| !analysis.evaluation.coercions.is_empty())
+        );
+        assert!(
+            analyses
+                .iter()
+                .all(|analysis| analysis.required_expression_preparations.len() == 1)
+        );
+        let final_point = unit
+            .top_level
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(&block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        matches!(statement.statement, Statement::ExprEval { .. })
+                            .then_some(ExpressionEvaluationPoint::Statement { block, index })
+                    })
+            })
+            .expect("retained standalone expression");
+        assert_eq!(
+            facts.expression(final_point).unwrap().evaluation.value,
+            TclValue::Int(6)
+        );
+        assert!(
+            unit.top_level
+                .sccp
+                .expression_analysis(
+                    &unit.top_level.cfg,
+                    &unit.top_level.ssa,
+                    final_point,
+                    FoldPolicy::from_registry(&registry),
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn native_result_protocols_do_not_become_contents_only_execution_constants() {
+        for selected in ["tcl8.4", "tcl8.6", "jim"] {
+            let owner = tcl_registry::model::ingress::static_context_for(selected);
+            let registry = owner.commands();
+            let profile = registry.profile().expect("actual selected native profile");
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "set result [expr {2 + 2}]",
+                registry,
+                false,
+                profile,
+            );
+            let semantic = semantic_facts_for_unit(&unit, registry);
+            let producer = unit
+                .top_level
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .find(|statement| {
+                    matches!(&statement.statement, Statement::AssignExpr { name, .. } if name == "result")
+                })
+                .expect("retained original arithmetic result producer");
+            assert!(!producer.defs.is_empty());
+            for (&symbol, &version) in &producer.defs {
+                let key = (symbol, version);
+                assert_eq!(
+                    semantic.contents(key),
+                    Some(&LatticeValue::Const(ConstValue::Int(4))),
+                    "numeric contents remain available for {selected}",
+                );
+                assert!(
+                    !matches!(
+                        unit.top_level.sccp.values.get(&key),
+                        Some(LatticeValue::Const(_))
+                    ),
+                    "native arithmetic/pool result cannot become a raw literal for {selected}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn semantic_solver_keeps_selected_native_result_bytes_separate_from_number() {
+        let profile = tcl_registry::model::ingress::static_context_for("jim")
+            .commands()
+            .profile()
+            .unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set x 003; set y [expr {$x}]; expr {$y + 1}",
+            &registry,
+            false,
+            profile,
+        );
+        let facts = semantic_facts_for_unit(&unit, &registry);
+        let selected = facts.expressions.values().find(|analysis| {
+            matches!(analysis.evaluation.result_dependency,
+                Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand { .. }))
+        }).expect("retained selected-object producer");
+        assert_eq!(selected.evaluation.value, TclValue::Int(3));
+        assert!(matches!(&selected.evaluation.result_dependency,
+            Some(crate::tcl_expr_eval::NativeExpressionResultDependency::SelectedOperand {
+                existing_bytes: Some(bytes), ..
+            }) if bytes == "003"));
+        assert!(
+            facts.result.values.values().any(|value| {
+                *value == LatticeValue::Const(ConstValue::String("003".to_owned()))
+            })
+        );
+        assert!(
+            facts
+                .expressions
+                .values()
+                .any(|analysis| analysis.evaluation.value == TclValue::Int(4))
+        );
+    }
 
     /// Whitespace inside a Tcl word is data, so the lattice keeps the exact
     /// spelling (#2052).
@@ -2378,6 +4151,8 @@ mod tests {
         let b = block(&mut f, "b");
         f.blocks.get_mut(&a).unwrap().terminator = Some(goto(b));
         f.blocks.get_mut(&b).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2400,6 +4175,8 @@ mod tests {
         f.blocks.get_mut(&t).unwrap().terminator = Some(goto(join));
         f.blocks.get_mut(&e).unwrap().terminator = Some(goto(join));
         f.blocks.get_mut(&join).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2416,12 +4193,63 @@ mod tests {
         assert!(join_pos > e_pos);
     }
 
-    /// A static-body `uplevel 0` is an `UpFrame`, not a generic
-    /// barrier, but its body can create a local in the frame whose existence
-    /// query follows. The whole-function existence fold must abstain just as
-    /// it does for `Barrier`.
     #[test]
-    fn existence_fold_abstains_for_a_live_upframe() {
+    fn point_expression_environment_preserves_alias_spelling_and_retargeting() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let source =
+            include_str!("../../tcl-syntax/tests/data/resolution/alias-retarget-expression.tcl");
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            source, registry, false, "tcl9.0",
+        );
+        let ssa = &unit.procedures["::p"].ssa;
+        let mut seen = 0;
+        for (&block, body) in &ssa.blocks {
+            for (index, statement) in body.statements.iter().enumerate() {
+                let (Statement::AssignExpr { name, .. } | Statement::AssignValue { name, .. }) =
+                    &statement.statement
+                else {
+                    continue;
+                };
+                let expected = match name.as_str() {
+                    "first" => 1,
+                    "second" => 9,
+                    _ => continue,
+                };
+                let lookup = SsaSourceView::at_statement(ssa, block, index);
+                let symbol = lookup.symbol("y").expect("point-specific alias read");
+                let version = statement.uses[&symbol];
+                let values = HashMap::from([(
+                    (symbol, version),
+                    LatticeValue::Const(ConstValue::Int(expected)),
+                )]);
+                let env = env_from_uses(&statement.uses, &values, lookup);
+                assert!(
+                    matches!(env.get("y"), Some(EnvValue::Int(value)) if *value == expected),
+                    "source alias must remain available: {env:?}"
+                );
+                assert_eq!(
+                    env_from_uses(
+                        &statement.uses,
+                        &values,
+                        SsaSourceView::at_statement(ssa, BlockId(u32::MAX), index)
+                    )
+                    .len(),
+                    0,
+                    "missing exact point cannot recover a display-name environment"
+                );
+                seen += 1;
+            }
+        }
+        assert_eq!(
+            seen, 2,
+            "both source expressions must be exercised: {ssa:#?}"
+        );
+    }
+
+    /// A literal body resolves its actual selected-frame mutation; a dynamic
+    /// body retains unknown contents and presence on its reached continuation.
+    #[test]
+    fn existence_fold_resolves_literal_upframe_and_declines_dynamic_body() {
         let registry = CommandRegistry::build_default();
         let cu = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {} { uplevel 0 { set created 1 }; if {[info exists created]} { return yes } else { return no } }",
@@ -2438,18 +4266,32 @@ mod tests {
             "the regression requires the static uplevel lowering path"
         );
         assert!(
-            f.sccp.constant_branches.is_empty(),
-            "UpFrame may define `created`, so info exists must not fold: {:?}",
-            f.sccp.constant_branches
+            f.sccp.constant_branches.iter().any(|branch| branch.value),
+            "the literal selected-frame store creates the queried cell: {:?}",
+            f.sccp.constant_branches,
+        );
+        let dynamic = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {script} {uplevel 0 $script; if {[info exists created]} {return yes} else {return no}}",
+            &registry,
+            false,
+        );
+        assert!(
+            dynamic
+                .function("::f")
+                .unwrap()
+                .sccp
+                .constant_branches
+                .is_empty(),
+            "a caller-supplied body may create or remove the queried cell",
         );
     }
 
     #[test]
-    fn existence_fold_abstains_for_nested_upframe_alias_unset_mutation() {
+    fn existence_fold_resolves_nested_upframe_alias_unset_mutation() {
         // `uplevel 0` evaluates in this procedure's frame. The nested body
         // aliases that frame's parameter and unsets it, so Tcl observes the else
         // branch. The no-uplevel twin proves the branch is otherwise foldable;
-        // this is a mutation test of the exact fact the fold must block.
+        // this tests the resolved mutation rather than a whole-function barrier.
         let registry = CommandRegistry::build_default();
         let stable = crate::compilation_unit::CompilationUnit::build_for(
             "proc f {local} { if {[info exists local]} { return yes } else { return no } }",
@@ -2489,11 +4331,12 @@ mod tests {
                 .any(|statement| matches!(statement, Statement::UpFrame { .. })),
             "the nested literal uplevel must remain an UpFrame in its parent body"
         );
+        let branches = &f.sccp.constant_branches;
         assert!(
-            f.sccp.constant_branches.is_empty(),
-            "nested upframe/upvar/unset may remove local: {:?}",
-            f.sccp.constant_branches
+            branches.iter().any(|branch| !branch.value),
+            "the literal alias unset removes the selected local: {branches:?}",
         );
+        assert!(branches.iter().all(|branch| !branch.value));
     }
 
     #[test]
@@ -2530,7 +4373,6 @@ mod tests {
 
     // Driver.
 
-    use crate::expr_ast::BinOp;
     use crate::ir::Statement;
     use crate::ssa::{SsaBlock, SsaStatement};
     use tcl_lexer::Span;
@@ -2555,6 +4397,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -2639,6 +4482,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         });
@@ -2649,11 +4493,16 @@ mod tests {
             &block,
             &ssa,
             StatementInputs {
-                escaping: &escaping,
-                policy: FoldPolicy::default(),
-                has_dynamic_variable_trace: false,
-                folds: None,
                 clobbers: None,
+                store: &StoreInputs {
+                    math_dependencies: None,
+                    cfg: None,
+                    escaping: &escaping,
+                    policy: FoldPolicy::default(),
+                    has_dynamic_variable_trace: false,
+                    folds: None,
+                    registry: &CommandRegistry::build_default(),
+                },
             }
         ));
         assert_eq!(
@@ -2692,6 +4541,8 @@ mod tests {
         let mut f = Function::new("::top", "entry");
         let entry = f.entry;
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2720,6 +4571,8 @@ mod tests {
         let e = block(&mut f, "e");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("1"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2727,6 +4580,8 @@ mod tests {
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2753,6 +4608,8 @@ mod tests {
         let e = block(&mut f, "e");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(literal("0"), t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2760,6 +4617,8 @@ mod tests {
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2788,6 +4647,8 @@ mod tests {
         };
         f.blocks.get_mut(&entry).unwrap().terminator = Some(branch(cond, t, e));
         f.blocks.get_mut(&t).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2795,6 +4656,8 @@ mod tests {
             braced: false,
         });
         f.blocks.get_mut(&e).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -2806,7 +4669,7 @@ mod tests {
         let r = sccp_no_traces(&f, &ssa, None, FoldPolicy::default());
         assert!(r.executable_blocks.contains(&t));
         assert!(r.executable_blocks.contains(&e));
-        assert!(r.constant_branches.is_empty());
+        assert_eq!(r.constant_branches.len(), 0);
     }
 
     #[test]
@@ -2825,53 +4688,27 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_def_assign_expr_folds_with_lattice() {
-        // `set x [expr {$a + 3}]` with $a → Const(2) should fold to 5.
-        let mut ssa = bare_ssa();
-        let a = ssa.intern_var("a");
-        let x = ssa.intern_var("x");
-        let mut uses = HashMap::new();
-        uses.insert(a, 1);
-        let mut defs = HashMap::new();
-        defs.insert(x, 1);
-
-        let expr = ExprNode::Binary {
-            op: BinOp::Add,
-            left: Box::new(ExprNode::Var {
-                text: "$a".into(),
-                name: "a".into(),
-                start: 0,
-                end: 2,
-            }),
-            right: Box::new(ExprNode::Literal {
-                text: "3".into(),
-                start: 3,
-                end: 4,
-            }),
-        };
-        let stmt_ssa = SsaStatement {
-            statement: Statement::AssignExpr {
-                span: Span::new(0, 0),
-                name: "x".into(),
-                name_braced: false,
-                expr,
-                command_binding: Some(tcl_runtime_api::CommandBindingIdentity::new("expr", "expr")),
-                expr_base: None,
-                fallback_value: "[expr {$a + 3}]".into(),
-            },
-            uses,
-            defs,
-            may_defs: std::collections::HashSet::new(),
-            quoted_uses: std::collections::HashSet::new(),
-            name_only_uses: std::collections::HashSet::new(),
-        };
-
-        let mut values = HashMap::new();
-        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(2)));
-
-        assert_eq!(
-            evaluate_def(&stmt_ssa, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(5))
+    fn evaluate_def_assign_expr_retains_numeric_precision_and_conversion() {
+        let unit = cu("set a 2; set x [expr {$a + 3}]");
+        let facts = unit.top_level.semantic_values().unwrap();
+        let analysis = facts
+            .expression_iter()
+            .find_map(|(_, analysis)| {
+                (analysis.evaluation.value == TclValue::Int(5)).then_some(analysis)
+            })
+            .expect("the actual prepared expression computes 5");
+        assert_ne!(
+            analysis.evaluation.coercions,
+            [] as [crate::tcl_expr_eval::NativeCoercionObligation; 0]
+        );
+        assert!(
+            !unit
+                .top_level
+                .sccp
+                .values
+                .values()
+                .any(|value| { *value == LatticeValue::Const(ConstValue::Int(5)) }),
+            "a contents value alone cannot erase its retained-object conversion"
         );
     }
 
@@ -2919,6 +4756,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         };
@@ -2968,6 +4806,7 @@ mod tests {
             uses,
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -3109,6 +4948,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -3329,6 +5169,7 @@ mod tests {
             uses: HashMap::new(),
             defs,
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -3598,14 +5439,10 @@ mod tests {
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[llength {a b c}]", 1);
 
-        let computed = mutations_for(
-            "set a llength
-rename $a {}
-",
-        );
+        let computed = mutations_for("rename $a {}\n");
         assert!(
             computed.has_dynamic_mutation(),
-            "a computed rename raises the unbounded top"
+            "an unresolved rename subject raises the unbounded top"
         );
         assert!(
             !computed.observed_binding_is_the_builtin("llength"),
@@ -3615,6 +5452,19 @@ rename $a {}
             evaluate_under_lattice_stance(&stmt, &ssa, &reg, &computed),
             LatticeValue::Overdefined,
             "the lattice must not fold a builtin a computed rename may have moved"
+        );
+
+        // A value actually established by the shared source owner resolves
+        // the same operand to an exact mutation, without widening unrelated names.
+        let exact = mutations_for("set a llength\nrename $a {}\n");
+        assert!(
+            !exact.has_dynamic_mutation(),
+            "resolved subject is an exact rename"
+        );
+        assert!(!exact.observed_binding_is_the_builtin("llength"));
+        assert_eq!(
+            evaluate_under_lattice_stance(&stmt, &ssa, &reg, &exact),
+            LatticeValue::Overdefined
         );
 
         // Positive control, and the coverage #2164 measured: an unresolved
@@ -3760,46 +5610,143 @@ p
     }
 
     #[test]
-    fn quoted_expr_with_numeric_var_still_folds() {
-        // `set r [expr "$a + $b"]` with numeric a, b is sound: textual
-        // substitution yields `3 + 4`, a valid expr → fold to 7.
-        let mut ssa = bare_ssa();
-        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr \"$a + $b\"]", 1);
-        let a = ssa.intern_var("a");
-        let b = ssa.intern_var("b");
-        stmt.uses.insert(a, 1);
-        stmt.uses.insert(b, 1);
-        let mut values = HashMap::new();
-        values.insert((a, 1), LatticeValue::Const(ConstValue::Int(3)));
-        values.insert((b, 1), LatticeValue::Const(ConstValue::Int(4)));
-        assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(7))
+    fn quoted_expr_with_numeric_var_retains_known_contents() {
+        let unit = cu(r#"set a 3; set b 4; set r [expr "$a + $b"]"#);
+        let facts = unit.top_level.semantic_values().unwrap();
+        let known_seven = facts
+            .contents_iter()
+            .any(|(_, value)| *value == LatticeValue::Const(ConstValue::Int(7)));
+        if !known_seven {
+            eprintln!(
+                "quoted expr statement kinds={:?} failure={} admission={}",
+                unit.ir_module
+                    .top_level
+                    .statements
+                    .iter()
+                    .map(std::mem::discriminant)
+                    .collect::<Vec<_>>(),
+                unit.ir_module
+                    .top_level
+                    .native_compilation_failure
+                    .is_some(),
+                unit.ir_module
+                    .top_level
+                    .native_compilation_admission
+                    .is_some()
+            );
+            let show = |binding: &crate::command_binding::SourceInvocationBinding| {
+                format!(
+                    "targets={:?} unknown={} absent={} residual={:?} handler={:?} bindings={} traces={} argv={:?} compiled={:?}",
+                    binding
+                        .targets
+                        .iter()
+                        .map(|target| (&target.command, target.registry_backed))
+                        .collect::<Vec<_>>(),
+                    binding.unknown,
+                    binding.may_be_absent,
+                    binding.compiled_execution_residual,
+                    binding
+                        .native_handler_envelope
+                        .as_ref()
+                        .map(|target| &target.command),
+                    binding.variable_context.dynamic_bindings,
+                    binding.variable_context.dynamic_traces,
+                    binding.evaluated_argument_values,
+                    binding
+                        .compiled_candidates
+                        .iter()
+                        .map(|proof| (proof.operation, proof.certainty))
+                        .collect::<Vec<_>>()
+                )
+            };
+            for site in unit.ir_module.top_level.command_binding_sites.iter() {
+                if let Some(tokens) = &site.source_tokens {
+                    eprintln!(
+                        "quoted expr point {:?} argv={:?} proof={:?}",
+                        site.span,
+                        tokens.argv_texts,
+                        tokens.source_binding.as_ref().map(show)
+                    );
+                    for (offset, binding) in &tokens.nested_bindings {
+                        eprintln!("quoted expr nested {offset} {}", show(binding));
+                    }
+                }
+            }
+            for proof in &unit.top_level.cfg.expression_preparations {
+                eprintln!(
+                    "quoted expr preparation site={} base={} bytes={:?} axes={:?}",
+                    proof.invocation.offset,
+                    proof.source.base(),
+                    proof.witness.source(),
+                    proof.witness.context()
+                );
+            }
+        }
+        assert!(
+            known_seven,
+            "textual substitution computes native contents 7: {facts:#?}"
+        );
+        assert!(
+            !unit
+                .top_level
+                .sccp
+                .values
+                .values()
+                .any(|value| { *value == LatticeValue::Const(ConstValue::Int(7)) }),
+            "unproved preparation/producer effects do not license erasure"
         );
     }
 
     #[test]
-    fn braced_expr_with_string_var_folds_as_string_compare() {
-        // `set r [expr {$a == $b}]` is braced — expr resolves the vars itself,
-        // so a string-valued var is a valid operand and the compare folds.
-        let mut ssa = bare_ssa();
-        let mut stmt = assign_value_stmt(&mut ssa, "r", "[expr {$a == $b}]", 1);
-        let a = ssa.intern_var("a");
-        let b = ssa.intern_var("b");
-        stmt.uses.insert(a, 1);
-        stmt.uses.insert(b, 1);
-        let mut values = HashMap::new();
-        values.insert(
-            (a, 1),
-            LatticeValue::Const(ConstValue::String("alpha".into())),
+    fn materialised_condition_values_do_not_license_branch_erasure() {
+        let unit = cu("set n 1; if $n {set result YES} else {set result NO}");
+        let function = &unit.top_level;
+        let known = function.semantic_values().unwrap();
+        assert!(
+            known
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| { branch.condition == "$n" && branch.value })
         );
-        values.insert(
-            (b, 1),
-            LatticeValue::Const(ConstValue::String("beta".into())),
-        );
+        assert_eq!(function.sccp.constant_branches, [] as [ConstantBranch; 0]);
+        let analysis = known
+            .expression_iter()
+            .find_map(|(point, analysis)| {
+                matches!(point, ExpressionEvaluationPoint::Branch { .. }).then_some(analysis)
+            })
+            .expect("the reached condition retains its actual preparation");
+        assert_eq!(analysis.required_expression_preparations.len(), 1);
         assert_eq!(
-            evaluate_pristine(&stmt, &values, &ssa, FoldPolicy::default()),
-            LatticeValue::Const(ConstValue::Int(0))
+            analysis.required_expression_preparations[0]
+                .witness
+                .source(),
+            "1"
+        );
+    }
+
+    #[test]
+    fn braced_expr_with_string_var_retains_numeric_comparison_obligations() {
+        let unit = cu("set a alpha; set b beta; set r [expr {$a == $b}]");
+        let facts = unit.top_level.semantic_values().unwrap();
+        let analysis = facts
+            .expression_iter()
+            .find_map(|(_, analysis)| {
+                (analysis.evaluation.value == TclValue::Int(0)).then_some(analysis)
+            })
+            .expect("the actual prepared string comparison computes false");
+        assert_ne!(
+            analysis.evaluation.coercions,
+            [] as [crate::tcl_expr_eval::NativeCoercionObligation; 0]
+        );
+        assert!(
+            !unit
+                .top_level
+                .sccp
+                .values
+                .values()
+                .any(|value| { *value == LatticeValue::Const(ConstValue::Int(0)) }),
+            "numeric comparison may change shared string representations"
         );
     }
 
@@ -3868,6 +5815,8 @@ p
         let entry = f.entry;
         let dead = block(&mut f, "dead");
         f.blocks.get_mut(&entry).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3875,6 +5824,8 @@ p
             braced: false,
         });
         f.blocks.get_mut(&dead).unwrap().terminator = Some(Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: None,
             value_word: None,
             span: None,
@@ -3887,11 +5838,10 @@ p
     }
 
     fn cu(src: &str) -> crate::compilation_unit::CompilationUnit {
-        crate::compilation_unit::CompilationUnit::build_for(
-            src,
-            &tcl_registry::CommandRegistry::build_default(),
-            false,
-        )
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
+        let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        crate::compilation_unit::CompilationUnit::build_for_profile(src, &registry, false, profile)
     }
 
     #[test]
@@ -3905,26 +5855,56 @@ p
             "proc ::p {} { for {set i 0} {$i < 10} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fu = c.function("::p").unwrap();
-        let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, FoldPolicy::default());
+        let r = &fu.semantic_values().unwrap().result;
         let cb = r
             .constant_branches
             .iter()
             .find(|cb| cb.condition.contains("$i == 10"))
-            .expect("post-loop branch must fold via the static-loop summary");
+            .unwrap_or_else(|| {
+                panic!(
+                    "post-loop branch must fold via the static-loop summary: facts={:#?} loops={:#?} preparations={:#?} sources={:#?}",
+                    fu.semantic_values(),
+                    fu.cfg.loop_nodes,
+                    fu.cfg.expression_preparations,
+                    fu.cfg.terminator_sources
+                )
+            });
         assert!(cb.value, "i == 10 after the loop, so the branch is true");
+        let facts = fu.semantic_values().unwrap();
+        assert!(
+            facts.loops.values().any(|analysis| {
+                !analysis.expression_obligations.is_empty()
+                    && !analysis.increment_obligations.is_empty()
+            }),
+            "semantic loop contents retain native operations in evaluation order"
+        );
+        assert!(
+            !fu.sccp
+                .constant_branches
+                .iter()
+                .any(|branch| branch.condition.contains("$i == 10")),
+            "numeric simulation does not erase loop or branch conversions"
+        );
 
         // Body side effects are simulated too: j accumulates to 5.
         let ca = cu(
             "proc ::a {} { set j 0\n for {set k 5} {$k > 0} {incr k -1} { incr j }\n if {$j == 5} { return yes } else { return no } }",
         );
         let fa = ca.function("::a").unwrap();
-        let ra = sccp_no_traces(&fa.cfg, &fa.ssa, None, FoldPolicy::default());
+        let ra = &fa.semantic_values().unwrap().result;
         let cba = ra
             .constant_branches
             .iter()
             .find(|cb| cb.condition.contains("$j == 5"))
             .expect("accumulator branch must fold via the static-loop summary");
         assert!(cba.value, "j == 5 after the loop");
+        assert!(
+            !fa.sccp
+                .constant_branches
+                .iter()
+                .any(|branch| branch.condition.contains("$j == 5")),
+            "accumulator precision is not execution-erasure proof"
+        );
 
         // A loop with an unknown (parameter) bound cannot be summarised, so the
         // post-loop branch stays unfolded (conservative).
@@ -3932,7 +5912,7 @@ p
             "proc ::q {n} { for {set i 0} {$i < $n} {incr i} {}\n if {$i == 10} { return yes } else { return no } }",
         );
         let fq = cq.function("::q").unwrap();
-        let rq = sccp_no_traces(&fq.cfg, &fq.ssa, None, FoldPolicy::default());
+        let rq = &fq.semantic_values().unwrap().result;
         assert!(
             !rq.constant_branches
                 .iter()
@@ -3955,11 +5935,10 @@ p
         );
         let fu = c.function("::p").unwrap();
         let r = sccp_no_traces(&fu.cfg, &fu.ssa, None, FoldPolicy::default());
-        let v = fu.ssa.var_symbol("v").expect("v must be an SSA symbol");
         let const_sets: Vec<_> = r
             .values
             .iter()
-            .filter(|((sym, _), _)| *sym == v)
+            .filter(|((symbol, _), _)| fu.ssa.var_name(*symbol) == "v")
             .filter_map(|(_, val)| match val {
                 LatticeValue::ConstSet(vs) => Some(vs.clone()),
                 _ => None,
@@ -4046,30 +6025,144 @@ p
     }
 
     #[test]
-    fn sccp_widens_global_aliased_var_to_overdefined() {
-        // A `global`-aliased variable is shared mutable state: SCCP must not
-        // fold a constant through it, so the `if {$g == 5}` branch stays
-        // unresolved (both arms executable, no constant branch). The matching
-        // *local* program does fold — proving the widening is what makes the
-        // difference, not an unrelated failure to evaluate.
-        let global_src =
-            "proc ::p {} { global g\n set g 5\n if {$g == 5} { return 1 } else { return 0 } }";
-        let local_src = "proc ::p {} { set x 5\n if {$x == 5} { return 1 } else { return 0 } }";
-
-        let cg = cu(global_src);
-        let fg = cg.function("::p").unwrap();
-        let rg = sccp_no_traces(&fg.cfg, &fg.ssa, None, FoldPolicy::default());
+    fn canonical_root_cells_fold_until_a_proved_mutation_dependency() {
+        let stable = cu("set a 3; set b 4; if {$a+$b == 7} {set result YES} else {set result NO}");
         assert!(
-            rg.constant_branches.is_empty(),
-            "global var must not fold a constant branch"
+            !stable
+                .top_level
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .is_empty(),
+            "root-qualified identity alone does not imply mutation; values={:?}; cells={:?}",
+            stable.top_level.sccp.values,
+            stable.top_level.ssa.cell_names()
+        );
+        assert!(
+            stable.top_level.sccp.constant_branches.is_empty(),
+            "known branch values do not prove retained coercion erasure"
+        );
+        let observed = cu(
+            "set a 3; proc observer {args} {set ::a 4}; trace add variable a read observer; if {$a == 3} {set result YES} else {set result NO}",
+        );
+        assert!(
+            observed
+                .top_level
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .is_empty(),
+            "a read observer may mutate the stored value"
+        );
+        let mutated = cu(
+            "set a 3; proc mutate {} {global a; set a 4}; mutate; if {$a == 3} {set result YES} else {set result NO}",
+        );
+        assert!(
+            !mutated
+                .top_level
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value),
+            "re-entry must never reuse the stale root value"
+        );
+    }
+
+    #[test]
+    fn positioned_constants_do_not_cross_unrepresented_mutations_or_observers() {
+        for source in [
+            "proc f {cmd} {set x 3; $cmd; if {$x == 3} {return YES} else {return NO}}",
+            "proc f {n} {set x 3; set $n 4; if {$x == 3} {return YES} else {return NO}}",
+            "proc f {n} {set x 3; unset $n; if {$x == 3} {return YES} else {return NO}}",
+            "proc f {n} {set x 3; trace add variable $n read observer; if {$x == 3} {return YES} else {return NO}}",
+        ] {
+            let unit = cu(source);
+            let function = unit.function("::f").expect("procedure retained");
+            assert!(
+                function
+                    .sccp
+                    .constant_branches
+                    .iter()
+                    .all(|branch| !branch.value),
+                "an uncertain later read must not reuse the earlier value: {source}; branches={:?}",
+                function.sccp.constant_branches,
+            );
+        }
+    }
+
+    #[test]
+    fn later_opaque_effects_do_not_destroy_an_earlier_branch_proof() {
+        let unit = cu(
+            "proc f {cmd} {set x 3; if {$x == 3} {set first YES} else {set first NO}; $cmd; if {$x == 4} {set second YES} else {set second NO}}",
+        );
+        let function = unit.function("::f").expect("procedure retained");
+        assert!(
+            function.sccp.constant_branches.is_empty(),
+            "unknown retained conversions prevent execution erasure"
+        );
+        assert!(
+            function
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value && branch.condition.contains('3')),
+            "the earlier read remains precise: {:?}",
+            function.semantic_values().unwrap().result.constant_branches
+        );
+        assert!(
+            !function
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value && branch.condition.contains('4')),
+            "the later read has an unknown contents origin: {:?}",
+            function.semantic_values().unwrap().result.constant_branches
+        );
+    }
+
+    #[test]
+    fn global_alias_contents_are_precise_until_an_actual_reentry_dependency() {
+        // Both controls are independently executed in the six-engine temporal
+        // vector corpus. Sharing a cell alone does not change its contents.
+        let direct =
+            cu("proc p {} {global g; set g 5; if {$g == 5} {return YES} else {return NO}}; p");
+        let function = direct.function("::p").unwrap();
+        assert!(
+            function.sccp.constant_branches.is_empty(),
+            "alias contents alone do not erase numeric read conversions"
+        );
+        assert!(
+            function
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value),
+            "an unobserved literal store followed immediately by its read is precise"
         );
 
-        let cl = cu(local_src);
-        let fl = cl.function("::p").unwrap();
-        let rl = sccp_no_traces(&fl.cfg, &fl.ssa, None, FoldPolicy::default());
+        let mutated = cu(
+            "proc mutate {} {global g; set g 6}; proc p {} {global g; set g 5; mutate; if {$g == 5} {return YES} else {return NO}}; p",
+        );
+        let function = mutated.function("::p").unwrap();
         assert!(
-            !rl.constant_branches.is_empty(),
-            "local var should still fold the constant branch"
+            !function
+                .semantic_values()
+                .unwrap()
+                .result
+                .constant_branches
+                .iter()
+                .any(|branch| branch.value),
+            "the alias read must use the contents after reentry"
         );
     }
 
@@ -4087,8 +6180,9 @@ p
             cu("set n 5\nuplevel #0 { set n 99 }\nif {$n == 5} { set r yes } else { set r no }\n");
         let f = with_upframe.function("::top").unwrap();
         let r = sccp_no_traces(&f.cfg, &f.ssa, None, FoldPolicy::default());
-        assert!(
-            r.constant_branches.is_empty(),
+        assert_eq!(
+            r.constant_branches.len(),
+            0,
             "a value reachable through an UpFrame must not fold a constant branch, got {:?}",
             r.constant_branches,
         );

@@ -1,0 +1,8 @@
+S|1|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|3
+S|1|warm-return|1|1|1|1|1|bytecode|1|none|2|1|none|-1|0|-1|1|3
+R|1|warm-return|0|44454641554c54
+S|1|procbody-held|1|1|1|2|1|bytecode|1|none|2|1|none|-1|0|-1|1|3
+S|1|invalidated|1|1|1|2|1|bytecode|1|none|1|1|none|-1|0|-1|1|4
+S|1|recompiled-return|0|0|1|1|1|bytecode|1|none|3|1|none|-1|0|-1|1|4
+R|1|recompiled-return|0|44454641554c54
+S|1|procbody-released|0|0|1|1|1|bytecode|1|none|2|1|none|-1|0|-1|1|4

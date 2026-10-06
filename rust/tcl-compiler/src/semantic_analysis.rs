@@ -20,9 +20,9 @@ use tcl_registry::{CommandRegistry, EffectFootprint};
 use crate::completion::CompletionObligations;
 use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::executable_ir::{
-    ExecutableFunction, ExecutableFunctionId, GenericInvoke, InvocationResolution,
-    LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, StructuredRegion,
-    build_linear_executable_ir,
+    EvaluatedRegionCompletion, ExecutableFunction, ExecutableFunctionId, GenericInvoke,
+    InvocationResolution, LoweredOperation, OpaqueRegion, SourceCompatibilityDecline,
+    StructuredRegion, build_linear_executable_ir,
 };
 use crate::ir::Script;
 use crate::mixed_region_plan::{MixedPlanBuildError, MixedRegionPlan};
@@ -359,7 +359,8 @@ impl ExecutableAnalysisAvailability {
                         }
                         | crate::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
                             _,
-                        ) => None,
+                        )
+                        | crate::executable_ir::ExecutableInstruction::CompleteEvaluatedRegion(_) => None,
                     })
             })
         })
@@ -421,6 +422,33 @@ impl ExecutableAnalysisAvailability {
         })
     }
 
+    /// Iterate wrapper completions whose scripts already have executable edges.
+    ///
+    /// These are metadata for the residual wrapper, not a second invocation of
+    /// its original source. Consumers must not replay the wrapper after its phases.
+    ///
+    /// ```
+    /// use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
+    /// let unavailable = ExecutableAnalysisAvailability::SourceUnavailable;
+    /// assert_eq!(unavailable.evaluated_regions().count(), 0);
+    /// ```
+    pub fn evaluated_regions(&self) -> impl Iterator<Item = &EvaluatedRegionCompletion> {
+        self.function().into_iter().flat_map(|function| {
+            function.blocks.iter().flat_map(|block| {
+                block.instructions.iter().filter_map(|instruction| {
+                    if let crate::executable_ir::ExecutableInstruction::CompleteEvaluatedRegion(
+                        region,
+                    ) = instruction
+                    {
+                        Some(region)
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+    }
+
     /// Iterate completion inputs for generic invocation sites.
     ///
     /// Unresolved heads are deliberately conservative, not assumed to have a
@@ -441,6 +469,10 @@ impl ExecutableAnalysisAvailability {
                 self.opaque_regions()
                     .map(|_| CompletionObligations::conservative()),
             )
+            .chain(
+                self.evaluated_regions()
+                    .map(|_| CompletionObligations::conservative()),
+            )
     }
 
     /// Iterate effect inputs without fabricating a closed footprint for an
@@ -459,6 +491,10 @@ impl ExecutableAnalysisAvailability {
             )
             .chain(
                 self.opaque_regions()
+                    .map(|_| InvocationEffectInput::ConservativeUnknown),
+            )
+            .chain(
+                self.evaluated_regions()
                     .map(|_| InvocationEffectInput::ConservativeUnknown),
             )
     }
@@ -505,6 +541,20 @@ mod tests {
     use crate::ir::NodeId;
     use crate::lowering::lower_to_ir;
     use crate::mixed_region_plan::{InvocationSelection, RegionPlan};
+
+    #[test]
+    fn evaluated_wrapper_metadata_is_not_an_ordinary_invocation() {
+        let availability = ExecutableAnalysisAvailability::WorldStateNotRequired {
+            function: crate::execution_region::evaluated_region_test_fixture(),
+        };
+        assert_eq!(availability.evaluated_regions().count(), 1);
+        assert!(availability.invocations().all(|invoke| invoke.original_words.first().is_none_or(|word| !matches!(word, crate::ir::WordExpr::Literal { text, .. } if text == "tcltest::test"))));
+        assert!(
+            availability
+                .effect_inputs()
+                .any(|effect| effect == InvocationEffectInput::ConservativeUnknown)
+        );
+    }
 
     #[test]
     fn guarded_intrinsic_selection_requires_explicit_enablement() {

@@ -1,0 +1,4 @@
+abs 4 pow 8 randRange 1
+arity 1 0 {too many arguments for math function}
+missing 1 0 {syntax error in expression: "missing_function([incr touched])"}
+commandShadow 4

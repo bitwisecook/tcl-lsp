@@ -195,14 +195,30 @@ but about the move itself, and there are exactly three cases:
 
 ### 3.5 Invalidation
 
-Nothing to invalidate.  Resolution is a live `BTreeMap` walk on every
-dispatch — there is no per-namespace command-reference epoch, no
-resolver cache, and no proc-lookup LRU in this runtime, so a rename is
-observable on the very next resolve with no bookkeeping.  The one
-cache-shaped structure that does exist is the command-FQN ⇆ `CommandId`
-arena (`InterpState::cmd_arena`), and it is a name interner, not a
-binding cache: ids map to FQNs, and the FQN is re-resolved when a
-`dispatch_id` invokes it.
+Original C command objects retain a `cmdName` primary descriptor. The
+descriptor carries the owning interpreter, named command node, command
+epoch and selected referencing namespace. `resolve_original_command`
+validates these against `Namespaces` using the Registry's selected native
+command-name protocol before obtaining a worker. Failed lookup applies the
+selected C8 null descriptor or retains the C9 primary. Jim uses its selected
+live lookup without acquiring a C cache descriptor.
+
+`Namespaces` owns command nodes as metadata only. Rename keeps a node and
+increments its command epoch after rename callbacks and source-entry removal.
+Hide increments that epoch; expose restores the same node. Replacement and
+deletion retire the displaced node. Namespace command-reference epochs are
+independent of compiler guards: publication invalidates shadowed global
+lookups through actual parent links, and namespace paths retain their actual
+target tokens and reverse dependencies. Duplicate path entries each contribute
+an invalidation. Command teardown keeps paths available during command
+callbacks and unlinks them before child teardown.
+
+New command consumers use the original object lookup door. Mutation consumers
+use the central binding, retirement and visibility operations; direct table
+mutation cannot certify cache validity. Cache descriptors retain no callable,
+procedure or bytecode. The `CommandId` arena retains exact command generations
+alongside reporting names, so a recreated namespace or same-name replacement
+cannot capture an existing command handle.
 
 ## 4. ``interp alias``
 

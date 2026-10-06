@@ -22,40 +22,83 @@
 //! dispatch (and a few stdlib helpers) rely on. The `match` error messages and
 //! `-message` / `-error` / `-exact` options mirror `tclIndexObj.c`.
 
-use tcl_runtime_api::{Code, Completion};
-use tcl_syntax::list::split_list;
+use std::rc::Rc;
 
-use crate::interp::{Vm, err, ok};
+use crate::return_options::NativeReturnOps;
+use tcl_cmd_core::prefix::{NativePrefixProtocol, Resolution};
+use tcl_cmd_core::return_options::{
+    self, PreparedOptionPairs, ReturnOptionPair, ReturnOptionsOps, ReturnOptionsPurpose,
+};
+use tcl_runtime_api::Completion;
+use tcl_syntax::value::ValueOps;
+
+use crate::interp::{Vm, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("tcl::prefix", cmd_prefix);
-    vm.register("::tcl::prefix", cmd_prefix);
+    vm.register_stock_builtin("tcl::prefix", cmd_prefix);
+    vm.register_stock_builtin("::tcl::prefix", cmd_prefix);
 }
 
 fn cmd_prefix(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"tcl::prefix subcommand ?arg ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tcl::prefix subcommand ?arg ...?\"",
+        );
     };
-    let word = sub.to_str();
-    let canon = match tcl_cmd_core::ensemble::resolve_subcommand(PREFIX_SUBS, word.as_bytes(), true)
-    {
-        Some(index) => PREFIX_SUBS[index],
-        None => {
-            return err(String::from_utf8_lossy(
-                &tcl_cmd_core::ensemble::unknown_subcommand_message(
-                    PREFIX_SUBS,
-                    word.as_bytes(),
-                    true,
-                    b"::tcl::prefix",
-                ),
-            )
-            .into_owned());
+    let word = match ValueOps::native_string_bytes(vm, sub) {
+        Ok(word) => word,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+    };
+    let Some(selected) = vm
+        .name_policy_protocol()
+        .and_then(NativePrefixProtocol::from_policy)
+    else {
+        return vm.refuse_host_command("native prefix protocol is unavailable".into());
+    };
+    let canon = if selected.policy().recipe().is_jim084() {
+        let table: Vec<Rc<[u8]>> = [b"match".as_slice(), b"all", b"longest"]
+            .into_iter()
+            .map(Rc::from)
+            .collect();
+        match selected.resolve(&table, &word, false) {
+            Resolution::Exact(index) | Resolution::UniquePrefix(index) => {
+                ["match", "all", "longest"][index]
+            }
+            resolution => {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    selected.miss_error(
+                        &table,
+                        b"option",
+                        &word,
+                        resolution == Resolution::Ambiguous,
+                    ),
+                );
+            }
+        }
+    } else {
+        match tcl_cmd_core::ensemble::resolve_subcommand(PREFIX_SUBS, &word, true) {
+            Some(index) => PREFIX_SUBS[index],
+            None => {
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::new_bytes(
+                        tcl_cmd_core::ensemble::unknown_subcommand_message(
+                            PREFIX_SUBS,
+                            &word,
+                            true,
+                            b"::tcl::prefix",
+                        ),
+                    ),
+                );
+            }
         }
     };
     match canon {
-        "all" => prefix_all(rest),
-        "longest" => prefix_longest(rest),
+        "all" => prefix_all(vm, rest),
+        "longest" => prefix_longest(vm, rest),
         _ => prefix_match(vm, rest),
     }
 }
@@ -63,146 +106,232 @@ fn cmd_prefix(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `tcl::prefix`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 const PREFIX_SUBS: &[&str] = &["all", "longest", "match"];
 
-/// Split a list value, surfacing a parse error as a completion.
-fn entries(v: &Value) -> Result<Vec<String>, Completion<Value>> {
-    split_list(&v.to_str())
-        .map(|e| e.iter().map(ToString::to_string).collect())
-        .map_err(|e| err(e.message().to_string()))
-}
-
 /// `tcl::prefix all table string` — every table entry with `string` as a prefix.
-fn prefix_all(rest: &[Value]) -> Completion<Value> {
+fn prefix_all(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [table, s] = rest else {
-        return err("wrong # args: should be \"tcl::prefix all table string\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tcl::prefix all table string\"",
+        );
     };
-    let table = match entries(table) {
-        Ok(t) => t,
-        Err(c) => return c,
-    };
-    let s = s.to_str();
-    let out: Vec<Value> = table
-        .into_iter()
-        .filter(|e| e.starts_with(&*s))
-        .map(Value::string)
-        .collect();
-    ok(Value::list(out))
+    match tcl_cmd_core::prefix::native_all(vm, table, s) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
+    }
 }
 
 /// `tcl::prefix longest table string` — the longest common prefix of the table
 /// entries that have `string` as a prefix (empty when none match).
-fn prefix_longest(rest: &[Value]) -> Completion<Value> {
+fn prefix_longest(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [table, s] = rest else {
-        return err("wrong # args: should be \"tcl::prefix longest table string\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tcl::prefix longest table string\"",
+        );
     };
-    let table = match entries(table) {
-        Ok(t) => t,
-        Err(c) => return c,
-    };
-    let s = s.to_str();
-    let matches: Vec<&String> = table.iter().filter(|e| e.starts_with(&*s)).collect();
-    let Some((first, others)) = matches.split_first() else {
-        return ok(Value::empty());
-    };
-    // Longest common prefix of all matching entries.
-    let mut len = first.chars().count();
-    for e in others {
-        let common = first
-            .chars()
-            .zip(e.chars())
-            .take_while(|(a, b)| a == b)
-            .count();
-        len = len.min(common);
+    match tcl_cmd_core::prefix::native_longest(vm, table, s) {
+        Ok(value) => ok(value),
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    ok(Value::string(first.chars().take(len).collect::<String>()))
 }
 
-/// `tcl::prefix match`'s own option words, in C table order (`matchOptions[]`,
-/// `tclIndexObj.c`): `Tcl_GetIndexFromObj(…, "option", 0)`, so `-m`
-/// abbreviates `-message` while `-e` prefixes both `-error` and `-exact` and
-/// is `ambiguous option "-e"`.
-const MATCH_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("option", &["-error", "-exact", "-message"]);
-
 /// `tcl::prefix match ?-exact? ?-message s? ?-error opts? table string`.
-fn prefix_match(_vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    let mut exact = false;
-    let mut message = "option".to_string();
-    let mut error_opts: Option<Value> = None;
-    // The trailing two words are always `table string`; everything before them
-    // is the option region (C parses `objv[2 .. objc-2]`). So a non-option there
-    // is `bad option` (not `wrong # args`), and a `-message`/`-error` with no
-    // following word *within* the region is `missing value` (string-26.x).
-    if rest.len() < 2 {
-        return err("wrong # args: should be \"tcl::prefix match ?options? table string\"");
+fn prefix_match(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match prepare_match(vm, rest) {
+        Ok(completion) => completion,
+        Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
-    let (opts, tail) = rest.split_at(rest.len() - 2);
-    let [table, sv] = tail else {
-        return err("wrong # args: should be \"tcl::prefix match ?options? table string\"");
-    };
-    let mut i = 0;
-    while i < opts.len() {
-        // C's `matchOptions[]` (`tclIndexObj.c`), resolved with
-        // `Tcl_GetIndexFromObj(…, "option", 0)`: `-m` abbreviates `-message`,
-        // while `-e` prefixes both `-error` and `-exact` and is `ambiguous`.
-        match MATCH_OPTIONS.index_of_str(&opts[i].to_str()) {
-            Ok(0) => {
-                let Some(v) = opts.get(i + 1) else {
-                    return err("missing value for -error");
-                };
-                error_opts = Some(v.clone());
-                i += 2;
-            }
-            Ok(1) => {
-                exact = true;
-                i += 1;
-            }
-            Ok(_) => {
-                let Some(v) = opts.get(i + 1) else {
-                    return err("missing value for -message");
-                };
-                message = v.to_str().to_string();
-                i += 2;
-            }
-            Err(e) => return err(e.into_message()),
-        }
-    }
-    let table = match entries(table) {
-        Ok(t) => t,
-        Err(c) => return c,
-    };
-    let s = sv.to_str();
+}
 
-    // The shared `Tcl_GetIndexFromObjStruct` matcher over the runtime
-    // `String` table — `TclPrefixMatchObjCmd` passes the caller's table,
-    // `-message` noun, and `-exact` (as `TCL_EXACT`) straight through. An
-    // exact entry always wins; otherwise a unique prefix (unless `-exact`);
-    // the miss carries C's exact bad/ambiguous wording (including the
-    // empty-string-never-matches rule, where the old local matcher wrongly
-    // resolved `""` against a one-entry table).
-    let options = if exact {
-        tcl_cmd_core::prefix::OptionTable::exact_only(&message, &table)
-    } else {
-        tcl_cmd_core::prefix::OptionTable::abbreviating(&message, &table)
-    };
-    let msg = match options.index_of(s.as_bytes()) {
-        Ok(i) => return ok(Value::string(table[i].clone())),
-        Err(m) => String::from_utf8_lossy(&m).into_owned(),
-    };
-    match error_opts {
-        // No `-error`: a normal error.
-        None => err(msg),
-        Some(opts) => match opts.as_list() {
-            // The `-error` value must be a proper, even-length list (a
-            // return-options dict): a malformed or odd one is reported as such
-            // (string-26.3).
-            Err(e) => err(e.message),
-            Ok(list) if list.is_empty() => ok(Value::empty()),
-            Ok(list) if list.len() % 2 != 0 => {
-                err("error options must have an even number of elements")
+fn prepare_match(vm: &mut Vm, rest: &[Value]) -> Result<Completion<Value>, tcl_cmd_core::CmdError> {
+    if rest.len() < 2 {
+        return Ok(crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"tcl::prefix match ?options? table string\"",
+        ));
+    }
+    let selected = vm
+        .name_policy_protocol()
+        .and_then(NativePrefixProtocol::from_policy)
+        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native prefix",
+        ))?;
+    let jim = selected.policy().recipe().is_jim084();
+    let (mut return_ops, return_protocol) = NativeReturnOps::selected(vm)?;
+    let options: Vec<Rc<[u8]>> = [b"-error".as_slice(), b"-exact", b"-message"]
+        .into_iter()
+        .map(Rc::from)
+        .collect();
+    let (opts, tail) = rest.split_at(rest.len() - 2);
+    let table_value = &tail[0];
+    let key_value = &tail[1];
+    let mut exact = false;
+    let mut noun: Rc<[u8]> = Rc::from(b"option".as_slice());
+    let mut error_options = None;
+    let mut cursor = 0;
+    while cursor < opts.len() {
+        let key = ValueOps::native_string_bytes(vm, &opts[cursor])?;
+        let index = match selected.resolve(&options, &key, false) {
+            Resolution::Exact(index) | Resolution::UniquePrefix(index) => index,
+            resolution => {
+                return Err(selected.miss_error(
+                    &options,
+                    b"option",
+                    &key,
+                    resolution == Resolution::Ambiguous,
+                ));
             }
-            // `-error <opts>`: report the message with the caller's return
-            // options attached (the trampoline applies `-code`/`-level`).
-            Ok(_) => Completion::new(Code::Error, Value::string(msg), opts),
-        },
+        };
+        if index == 1 {
+            exact = true;
+            cursor += 1;
+            continue;
+        }
+        let value = opts
+            .get(cursor + 1)
+            .ok_or_else(|| selected.missing_value(index == 0))?;
+        if index == 0 {
+            error_options = Some(return_options::prepare_prefix_error_options(
+                &mut return_ops,
+                return_protocol,
+                value,
+            )?);
+        } else {
+            noun = ValueOps::native_string_bytes(vm, value)?;
+        }
+        cursor += 2;
+    }
+    let table = ValueOps::list_elements(vm, table_value)?;
+    let matched = tcl_cmd_core::prefix::native_table_match(vm, &table, key_value, exact)?;
+    match matched.resolution {
+        Resolution::Exact(index) | Resolution::UniquePrefix(index) => {
+            return Ok(ok(table[index].clone()));
+        }
+        _ => {}
+    }
+    let key =
+        matched
+            .key
+            .as_deref()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native prefix miss key",
+            ))?;
+    let ambiguous = matched.resolution == Resolution::Ambiguous;
+    let miss = selected.miss_error(&matched.entries, &noun, key, ambiguous);
+    // Jim's empty-table failure is returned before its -error branch.
+    let Some(options) = error_options.filter(|_| !jim || !table.is_empty()) else {
+        return Err(miss);
+    };
+    if options.suppresses_error {
+        return Ok(ok(Value::empty()));
+    }
+    let message = Value::new_native_string_bytes(selected.miss_message(
+        &matched.entries,
+        &noun,
+        key,
+        ambiguous,
+    ));
+    let prepared = if jim {
+        let mut argv = vec![
+            Value::string("-level"),
+            Value::int(0),
+            Value::string("-code"),
+            Value::string("error"),
+        ];
+        argv.extend(return_ops.list(&options.original)?);
+        argv.push(message);
+        return_options::prepare_return(
+            &mut return_ops,
+            return_protocol,
+            &argv,
+            ReturnOptionsPurpose::User,
+        )?
+    } else {
+        let mut pairs = Vec::new();
+        for (key, value) in
+            options
+                .c_pairs
+                .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "native prefix options receipt",
+                ))?
+        {
+            let key_bytes = return_ops.bytes(&key)?;
+            pairs.push(ReturnOptionPair {
+                key,
+                value,
+                key_bytes,
+            });
+        }
+        pairs.push(ReturnOptionPair {
+            key: Value::string("-code"),
+            value: Value::int(1),
+            key_bytes: b"-code".to_vec(),
+        });
+        return_options::prepare_return_pairs(
+            &mut return_ops,
+            return_protocol,
+            PreparedOptionPairs { pairs },
+            Some(message),
+            ReturnOptionsPurpose::InternalDictionary,
+        )?
+    };
+    Ok(crate::return_options::publish(
+        vm,
+        &mut return_ops,
+        prepared,
+    ))
+}
+
+#[cfg(test)]
+mod native_object_tests {
+    use super::*;
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+
+    #[test]
+    fn temporary_c86_table_retires_only_a_nonidentity_key_cache() {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let key = Value::int(5);
+        let table = Value::list(vec![Value::string("5")]);
+        let result = prefix_match(&mut vm, &[table, key.clone()]);
+        assert_eq!(result.code, tcl_runtime_api::Code::Ok);
+        assert!(matches!(
+            key.native_object_snapshot().cache,
+            NativeObjectCacheSnapshot::None
+        ));
+        assert_eq!(
+            key.resident_string_bytes().as_deref(),
+            Some(b"5".as_slice())
+        );
+
+        let original = Value::int(5);
+        let table = Value::list(vec![original.clone()]);
+        let result = prefix_match(&mut vm, &[table, original.clone()]);
+        assert!(result.result.is_same_object(&original));
+        assert!(original.resident_string_bytes().is_none());
+        assert!(matches!(
+            original.native_object_snapshot().cache,
+            NativeObjectCacheSnapshot::Numeric(_)
+        ));
+    }
+
+    #[test]
+    fn error_options_are_checked_before_a_successful_match() {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+        let completion = prefix_match(
+            &mut vm,
+            &[
+                Value::string("-error"),
+                Value::string("-x"),
+                Value::list(vec![Value::string("a")]),
+                Value::string("a"),
+            ],
+        );
+        assert_eq!(completion.code, tcl_runtime_api::Code::Error);
+        assert_eq!(
+            completion.result.string_bytes().as_ref(),
+            b"error options must have an even number of elements"
+        );
     }
 }

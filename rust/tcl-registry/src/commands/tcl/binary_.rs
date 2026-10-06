@@ -20,6 +20,224 @@
 use crate::prelude::*;
 use tcl_dialect::model::SpecSurface;
 
+const BINARY_FORMAT_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::binary",
+        member: "format",
+        slot: "::tcl::binary::format",
+        command: "binary",
+        prepended: &["format"],
+    };
+const BINARY_SCAN_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::binary",
+        member: "scan",
+        slot: "::tcl::binary::scan",
+        command: "binary",
+        prepended: &["scan"],
+    };
+
+// TclMakeEnsemble copies BasicMin1Arg/BasicMin2Arg onto these actual
+// C8.6+ private workers. Earlier C releases keep the public monolithic token.
+const fn binary_named_compilation(
+    lookup: &'static crate::native_compilation::NativeCompilerImplementationLookup,
+    arity: Arity,
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+            lookup,
+            implementation_from: tcl_dialect::TclVersion::V8_6,
+            hook_from: tcl_dialect::TclVersion::V8_6,
+            arity,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
+const fn encoding_path(
+    member: &'static str,
+    slot: &'static str,
+    prepended: &'static [&'static str],
+) -> [crate::native_compilation::NativeCompilerImplementationLookup; 2] {
+    use crate::native_compilation::NativeCompilerImplementationLookup;
+    [
+        NativeCompilerImplementationLookup {
+            ensemble: "binary",
+            member: "encode",
+            slot: "::tcl::binary::encode",
+            command: "binary",
+            prepended: &["encode"],
+        },
+        NativeCompilerImplementationLookup {
+            ensemble: "::tcl::binary::encode",
+            member,
+            slot,
+            command: "binary",
+            prepended,
+        },
+    ]
+}
+
+static ENCODE_HEX_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    encoding_path("hex", "::tcl::binary::encode::hex", &["encode", "hex"]);
+static ENCODE_BASE64_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    encoding_path(
+        "base64",
+        "::tcl::binary::encode::base64",
+        &["encode", "base64"],
+    );
+static ENCODE_UU_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    encoding_path(
+        "uuencode",
+        "::tcl::binary::encode::uuencode",
+        &["encode", "uuencode"],
+    );
+
+/// Audited C8.6+ public and nested encoding ensemble dependencies.
+pub const ENCODE_IMPLEMENTATION_PATHS: crate::native_handler_path::NativeHandlerLookupPaths =
+    crate::native_handler_path::NativeHandlerLookupPaths {
+        argument: 0,
+        alternatives: &[
+            crate::native_handler_path::NativeHandlerLookupPath {
+                value: "hex",
+                lookups: &ENCODE_HEX_PATH,
+            },
+            crate::native_handler_path::NativeHandlerLookupPath {
+                value: "base64",
+                lookups: &ENCODE_BASE64_PATH,
+            },
+            crate::native_handler_path::NativeHandlerLookupPath {
+                value: "uuencode",
+                lookups: &ENCODE_UU_PATH,
+            },
+        ],
+    };
+
+const DECODE_HEX_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::tcl::binary::decode",
+        member: "hex",
+        slot: "::tcl::binary::decode::hex",
+        command: "binary",
+        prepended: &["decode", "hex"],
+    };
+const DECODE_BASE64_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::tcl::binary::decode",
+        member: "base64",
+        slot: "::tcl::binary::decode::base64",
+        command: "binary",
+        prepended: &["decode", "base64"],
+    };
+const DECODE_UU_LOOKUP: crate::native_compilation::NativeCompilerImplementationLookup =
+    crate::native_compilation::NativeCompilerImplementationLookup {
+        ensemble: "::tcl::binary::decode",
+        member: "uuencode",
+        slot: "::tcl::binary::decode::uuencode",
+        command: "binary",
+        prepended: &["decode", "uuencode"],
+    };
+
+const NATIVE_NULL_COMPILATION: crate::native_compilation::NativeCompilationSpec =
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    };
+
+const fn decoding_path(
+    terminal: crate::native_compilation::NativeCompilerImplementationLookup,
+) -> [crate::native_compilation::NativeCompilerImplementationLookup; 2] {
+    [
+        crate::native_compilation::NativeCompilerImplementationLookup {
+            ensemble: "binary",
+            member: "decode",
+            slot: "::tcl::binary::decode",
+            command: "binary",
+            prepended: &["decode"],
+        },
+        terminal,
+    ]
+}
+static DECODE_HEX_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    decoding_path(DECODE_HEX_LOOKUP);
+static DECODE_BASE64_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    decoding_path(DECODE_BASE64_LOOKUP);
+static DECODE_UU_PATH: [crate::native_compilation::NativeCompilerImplementationLookup; 2] =
+    decoding_path(DECODE_UU_LOOKUP);
+
+static ENCODE_HEX_COMPILER: crate::native_compilation::NativeCompilationSpec =
+    binary_named_compilation(&ENCODE_HEX_PATH[1], Arity::exact(1));
+static DECODE_HEX_COMPILER: crate::native_compilation::NativeCompilationSpec =
+    binary_named_compilation(&DECODE_HEX_LOOKUP, Arity::new(1, 2));
+static DECODE_BASE64_COMPILER: crate::native_compilation::NativeCompilationSpec =
+    binary_named_compilation(&DECODE_BASE64_LOOKUP, Arity::new(1, 2));
+static DECODE_UU_COMPILER: crate::native_compilation::NativeCompilationSpec =
+    binary_named_compilation(&DECODE_UU_LOOKUP, Arity::new(1, 2));
+
+const fn binary_compiler_path(
+    compiler: &'static crate::native_compilation::NativeCompilationSpec,
+    lookups: &'static [crate::native_compilation::NativeCompilerImplementationLookup],
+) -> crate::native_compilation::NativeCompilationSpec {
+    crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::WithImplementationPath {
+            compiler,
+            lookups,
+            implementation_from: tcl_dialect::TclVersion::V8_6,
+        },
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    }
+}
+
+// Pinned C8.6–9.1 tables independently author the compiler prerequisites:
+// encode hex Basic1Arg; wrapped encoders NULL; every decoder Basic1Or2Arg.
+static ENCODE_WORKERS: &[crate::spec::SubSubCommand] = &[
+    crate::spec::SubSubCommand {
+        name: "hex",
+        options: Some(&[]),
+        native_compilation: Some(binary_compiler_path(&ENCODE_HEX_COMPILER, &ENCODE_HEX_PATH)),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+    crate::spec::SubSubCommand {
+        name: "base64",
+        native_compilation: Some(binary_compiler_path(
+            &NATIVE_NULL_COMPILATION,
+            &ENCODE_BASE64_PATH,
+        )),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+    crate::spec::SubSubCommand {
+        name: "uuencode",
+        native_compilation: Some(binary_compiler_path(
+            &NATIVE_NULL_COMPILATION,
+            &ENCODE_UU_PATH,
+        )),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+];
+static DECODE_WORKERS: &[crate::spec::SubSubCommand] = &[
+    crate::spec::SubSubCommand {
+        name: "hex",
+        native_compilation: Some(binary_compiler_path(&DECODE_HEX_COMPILER, &DECODE_HEX_PATH)),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+    crate::spec::SubSubCommand {
+        name: "base64",
+        native_compilation: Some(binary_compiler_path(
+            &DECODE_BASE64_COMPILER,
+            &DECODE_BASE64_PATH,
+        )),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+    crate::spec::SubSubCommand {
+        name: "uuencode",
+        native_compilation: Some(binary_compiler_path(&DECODE_UU_COMPILER, &DECODE_UU_PATH)),
+        ..crate::spec::SubSubCommand::DEFAULT
+    },
+];
+
 // Only `binary scan` ever reaches this: `format`/`encode`/`decode` are
 // `pure: true` on their `SubCommand` entries, so the compiler's side-effect
 // classifier (`classify_side_effects`) short-circuits on subcommand purity
@@ -83,6 +301,14 @@ const ENCODE_DECODE_FORMAT_VALUES: &[ArgValue] = &[
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "decode",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        sub_subcommands: DECODE_WORKERS,
         arity: Arity::at_least(2),
         detail: "Decode base64/hex/uuencode-encoded text back into a binary string.",
         synopsis: "binary decode format ?-option value ...? data",
@@ -129,6 +355,20 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "encode",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        sub_subcommands: ENCODE_WORKERS,
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsemblePathLeaf {
+                lookup: &ENCODE_IMPLEMENTATION_PATHS,
+                implementation_from: tcl_dialect::TclVersion::V8_6,
+            },
+        ),
         arity: Arity::at_least(2),
         detail: "Encode binary data as base64, hex, or uuencode text.",
         synopsis: "binary encode format ?-option value ...? data",
@@ -189,6 +429,21 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "format",
+        native_compilation: Some(binary_named_compilation(
+            &BINARY_FORMAT_LOOKUP,
+            Arity::at_least(1),
+        )),
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
+                direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5Binary),
+                implementation_from: tcl_dialect::TclVersion::V8_6,
+                lookup: &BINARY_FORMAT_LOOKUP,
+            },
+        ),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         arity: Arity::at_least(1),
         detail: "Build a binary string from Tcl values, laid out by a cursor-driven format specification.",
         synopsis: "binary format formatString ?arg ...?",
@@ -222,6 +477,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "scan",
+        native_compilation: Some(binary_named_compilation(
+            &BINARY_SCAN_LOOKUP,
+            Arity::at_least(2),
+        )),
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
         // The match / conversion path is the only one that writes: a failed
         // `regexp`, and a `scan` or `binary scan` whose input runs out, leave
         // each remaining target's previous value in place and never create a
@@ -268,7 +530,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 },
             ),
         ],
-        arg_role_resolver: Some(binary_scan_arg_roles),
+        arg_role_count_resolver: Some(binary_scan_arg_roles),
         arg_role_resolver_roles: &[ArgRole::ScanFormat, ArgRole::VarWrite],
         format_string_type: Some(FormatType::Binary),
         ..SubCommand::DEFAULT
@@ -280,19 +542,31 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// *after* the `scan` subcommand word: `string`, `format`, then the vars).
 /// Resolve `VarWrite` dynamically so calls with arbitrarily many vars don't
 /// false-fire W210 on the unmodelled tail.  Mirrors the plain `scan`
-/// command's own resolver (`scan_arg_roles` in `scan_.rs`).
-fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
+/// command's own resolver (`scan_arg_roles` in `scan_.rs`). Unknown input or
+/// format values do not change this cardinality-only layout.
+fn binary_scan_arg_roles(argument_count: usize) -> Vec<(u8, ArgRole)> {
     // Index 1 (after the `scan` subcommand word) is the field string itself;
     // marking it `ScanFormat` is what lets the LSP locate it without naming
     // `binary`.
     std::iter::once((1u8, ArgRole::ScanFormat))
-        .chain((2..args.len()).filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))))
+        .chain(
+            (2..argument_count)
+                .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite))),
+        )
         .collect()
 }
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
@@ -314,5 +588,93 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::native_compilation::{
+        NativeCompilationContext, NativeCompilationFrame, NativeCompilationMode,
+        NativeCompilationSelection, NativeCompilationWordShape,
+    };
+    use crate::{InvocationArguments, InvocationDialect, InvocationWord};
+
+    #[test]
+    fn nested_codec_compilers_preserve_exact_registration_and_selector() {
+        let command = spec();
+        for version in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(version);
+            for (direction, rows) in [("encode", ENCODE_WORKERS), ("decode", DECODE_WORKERS)] {
+                let parent = command.resolve_subcommand(direction).unwrap();
+                for worker in rows {
+                    let arguments = [worker.name];
+                    let selected = parent.nested_native_compilation(
+                        InvocationArguments::literals(&arguments).with_dialect(dialect),
+                    );
+                    if version < tcl_dialect::TclVersion::V8_6 {
+                        assert!(selected.is_none());
+                        continue;
+                    }
+                    let selected = selected.expect("audited actual nested worker");
+                    let null_hook = direction == "encode" && worker.name != "hex";
+                    assert_eq!(
+                        selected.compiler_hook_presence(dialect) == Some(false),
+                        null_hook
+                    );
+                    let path = selected.implementation_prerequisites(dialect).unwrap();
+                    assert_eq!(path.len(), 2);
+                    assert_eq!(path[0].ensemble, "binary");
+                    assert_eq!(path[0].member, direction);
+                    assert_eq!(path[1].member, worker.name);
+                    if !null_hook {
+                        let lookup = selected.implementation_lookup(dialect).unwrap();
+                        let words = crate::InvocationWords::literals(lookup.slot, &["DATA"]);
+                        let selection = selected.select(
+                            words,
+                            &[NativeCompilationWordShape::Substituted],
+                            Some(dialect),
+                            NativeCompilationContext {
+                                mode: NativeCompilationMode::BytecodeObject,
+                                frame: NativeCompilationFrame::ProcedureCode,
+                                ..NativeCompilationContext::default()
+                            },
+                        );
+                        assert!(matches!(
+                            selection,
+                            NativeCompilationSelection::NamedInvocation { .. }
+                        ));
+                    }
+                }
+                for selector in ["h", "future"] {
+                    assert!(
+                        parent
+                            .nested_native_compilation(
+                                InvocationArguments::literals(&[selector]).with_dialect(dialect)
+                            )
+                            .is_none()
+                    );
+                }
+                assert!(
+                    parent
+                        .nested_native_compilation(
+                            InvocationArguments::structured(&[InvocationWord::Dynamic])
+                                .with_dialect(dialect)
+                        )
+                        .is_none()
+                );
+            }
+        }
+        let jim = crate::model::ingress::resolve_environment("jim").unit_profile();
+        let dialect = InvocationDialect::of_profile(jim);
+        assert!(
+            command
+                .resolve_subcommand("encode")
+                .unwrap()
+                .nested_native_compilation(
+                    InvocationArguments::literals(&["hex"]).with_dialect(dialect)
+                )
+                .is_none()
+        );
     }
 }

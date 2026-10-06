@@ -38,15 +38,15 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock};
 
 use rustc_hash::FxHashMap;
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::{Family, SpecProvider};
+use tcl_dialect::{DialectProfile, DialectProfileKey};
 
 use crate::registry::CommandRegistry;
 use crate::spec::CommandSpec;
 
 /// The `(profile, overlay)` lookup table's own type, named so the static, the
 /// sweep, and its test all say the same thing.
-type RegistryTable = FxHashMap<(&'static str, u64), Arc<CommandRegistry>>;
+type RegistryTable = FxHashMap<(DialectProfileKey, u64), Arc<CommandRegistry>>;
 
 /// Every `(profile, overlay)` registry built so far.
 ///
@@ -97,13 +97,14 @@ pub(crate) fn registry_handle_for_profile(
 /// Backs [`registry_for_profile`]. The value is a leaked *clone of the
 /// handle*, not a second registry, so the `&'static` and the `Arc` name one
 /// allocation and cannot drift apart.
-static LEAKED: OnceLock<Mutex<FxHashMap<&'static str, &'static CommandRegistry>>> = OnceLock::new();
+static LEAKED: OnceLock<Mutex<FxHashMap<DialectProfileKey, &'static CommandRegistry>>> =
+    OnceLock::new();
 
 /// Return the cached registry for `profile`, building it on first use.
 ///
 /// The registry is the default build plus the profile's
 /// [`base_layers`](DialectProfile::base_layers) command packs, keyed by the
-/// profile's canonical name — so aliases share their canonical entry and
+/// profile's complete snapshot — so aliases share their canonical entry and
 /// every unknown dialect string shares the one `PLAIN_TCL` entry.
 ///
 /// The `&'static` is honest here and stays: the dialect catalogue is closed,
@@ -117,7 +118,7 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
     if let Some(view) = leaked
         .lock()
         .expect("registry leak map mutex")
-        .get(profile.name)
+        .get(&profile.cache_key())
         .copied()
     {
         return view;
@@ -126,7 +127,7 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
     // profile's layers, and nothing about that needs this map held.
     let handle = registry_handle_for_profile(profile);
     let mut guard = leaked.lock().expect("registry leak map mutex");
-    if let Some(view) = guard.get(profile.name).copied() {
+    if let Some(view) = guard.get(&profile.cache_key()).copied() {
         // Another thread promoted this profile while we were building. Its
         // handle and ours are clones of one cache entry, so either view is
         // the same allocation; keep the one already published and let ours
@@ -135,7 +136,7 @@ pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static
     }
     let pinned: &'static Arc<CommandRegistry> = Box::leak(Box::new(handle));
     let view: &'static CommandRegistry = pinned.as_ref();
-    guard.insert(profile.name, view);
+    guard.insert(profile.cache_key(), view);
     view
 }
 
@@ -170,7 +171,7 @@ pub(crate) fn registry_for_profile_if_built(
     }
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let guard = map.lock().expect("registry cache mutex");
-    guard.get(&(profile.name, overlay)).cloned()
+    guard.get(&(profile.cache_key(), overlay)).cloned()
 }
 
 /// Return the cached registry for `profile` **plus a caller-supplied overlay**,
@@ -224,7 +225,7 @@ pub fn registry_for_profile_with_overlay(
 ) -> Arc<CommandRegistry> {
     let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut guard = map.lock().expect("registry cache mutex");
-    let key = (profile.name, overlay);
+    let key = (profile.cache_key(), overlay);
     if let Some(r) = guard.get(&key) {
         return Arc::clone(r);
     }
@@ -345,7 +346,7 @@ fn core_surface_for(family: Family) -> (u64, Vec<&'static CommandSpec>) {
 
 /// The identity of one core-surface store: the `(profile, overlay)` store it
 /// extends, the family whose specs it carries, and the registered generation.
-type CoreSurfaceKey = (&'static str, u64, Family, u64);
+type CoreSurfaceKey = (DialectProfileKey, u64, Family, u64);
 
 static CORE_SURFACE_REGISTRIES: OnceLock<Mutex<FxHashMap<CoreSurfaceKey, Arc<CommandRegistry>>>> =
     OnceLock::new();
@@ -382,7 +383,7 @@ pub(crate) fn registry_with_core_surface(
         registry_handle_for_profile(profile)
     };
     let map = CORE_SURFACE_REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
-    let key: CoreSurfaceKey = (profile.name, overlay, family, generation);
+    let key: CoreSurfaceKey = (profile.cache_key(), overlay, family, generation);
     let mut guard = map.lock().expect("core surface registry cache mutex");
     if let Some(held) = guard.get(&key) {
         return Arc::clone(held);
@@ -535,23 +536,26 @@ mod tests {
         assert!(!registry.known_in_any_dialect("core-surface-unregistered"));
     }
 
-    /// The jim store is the plain store plus the registered specs: every
-    /// name the plain store has is still there, and the plain store is not
-    /// the same allocation.
+    /// A native family's exact store preserves its registered additions while
+    /// keeping its measured command roster distinct from the C Tcl catalogue.
     #[test]
     fn the_core_surface_store_extends_the_plain_store_without_replacing_it() {
         register_core_surface_specs(probe_specs());
         let plain = crate::model::ingress::resolve_environment("tcl").default_context_registry();
         let jim = crate::model::ingress::resolve_environment("jim").default_context_registry();
         assert!(!Arc::ptr_eq(plain.commands(), jim.commands()));
-        for name in plain.commands().command_names() {
-            assert!(jim.commands().get(name).is_some(), "{name}");
-        }
-        assert_eq!(
-            jim.commands().command_names().count(),
-            plain.commands().command_names().count() + 1,
-            "one registered name more than the plain store"
+        assert!(plain.commands().get(PROBE_NAME).is_none());
+        assert!(jim.commands().get(PROBE_NAME).is_some());
+        assert!(jim.commands().get("set").is_some());
+        assert!(
+            jim.commands().get("readFile").is_some(),
+            "shared catalogue metadata remains available for assistance"
         );
+        assert!(
+            jim.resolve_command("readFile").is_none(),
+            "catalogue presence does not install an unavailable native/provider command"
+        );
+        assert!(plain.commands().get("readFile").is_some());
     }
 
     /// A pack's row for a name the family's own surface also carries wins
@@ -624,14 +628,14 @@ mod tests {
         // A closed set of un-overlaid entries, the profiles this reload has
         // already built for the current key, and a long tail of stale ones
         // from earlier edits — together past the cap.
-        let profiles: Vec<&'static str> = DialectProfile::all()
+        let profiles: Vec<DialectProfileKey> = DialectProfile::all()
             .iter()
-            .map(|profile| profile.name)
+            .map(DialectProfile::cache_key)
             .collect();
         assert!(profiles.len() >= 2, "the catalogue must have real profiles");
         for name in &profiles {
-            map.insert((name, 0), Arc::clone(&one));
-            map.insert((name, CURRENT), Arc::clone(&one));
+            map.insert((*name, 0), Arc::clone(&one));
+            map.insert((*name, CURRENT), Arc::clone(&one));
         }
         for stale in 0..OVERLAY_LIMIT as u64 {
             map.insert((profiles[0], OLD + stale), Arc::clone(&one));
@@ -642,12 +646,12 @@ mod tests {
 
         for name in &profiles {
             assert!(
-                map.contains_key(&(name, CURRENT)),
-                "profile {name} lost the overlay being built"
+                map.contains_key(&(*name, CURRENT)),
+                "profile {name:?} lost the overlay being built"
             );
             assert!(
-                map.contains_key(&(name, 0)),
-                "profile {name} lost its un-overlaid entry"
+                map.contains_key(&(*name, 0)),
+                "profile {name:?} lost its un-overlaid entry"
             );
         }
         assert!(
@@ -724,11 +728,42 @@ mod tests {
         let map = REGISTRIES.get_or_init(|| Mutex::new(FxHashMap::default()));
         let guard = map.lock().expect("registry cache mutex");
         let still = guard
-            .get(&(profile.name, 0))
+            .get(&(profile.cache_key(), 0))
             .expect("the sweep evicted an un-overlaid entry");
         assert!(
             Arc::ptr_eq(still, &plain),
             "the un-overlaid entry was replaced rather than retained"
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_cache_tests {
+    use super::*;
+    use tcl_dialect::model::{DialectPoint, Release};
+
+    #[test]
+    fn same_name_execution_snapshots_never_share_registry_entries() {
+        let early = DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_80),
+        )
+        .intern();
+        let late = DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            DialectPoint::canonical(Release::JIM_0_84),
+        )
+        .intern();
+        let first = registry_for_profile_with_overlay(early, 0, |_| {});
+        let second = registry_for_profile_with_overlay(late, 0, |_| {});
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert_eq!(first.profile().unwrap().cache_key(), early.cache_key());
+        assert_eq!(second.profile().unwrap().cache_key(), late.cache_key());
+        assert!(std::ptr::eq(registry_for_profile(early), first.as_ref()));
+        assert!(std::ptr::eq(registry_for_profile(late), second.as_ref()));
     }
 }

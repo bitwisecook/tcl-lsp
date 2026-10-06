@@ -599,14 +599,26 @@ fn prefer_latest_selects_the_prerelease() {
     }
     let mut both = PackageResolver::new();
     both.scan_path(root);
-    // TP — the raise moves the answer onto the prerelease.
+    // A concrete Tcl 8.6 entry selects the prerelease after the raise.
     assert_eq!(
-        both.resolve_require("w", None, false, PackagePrefer::Latest),
+        both.resolve_require_for_profile(
+            "w",
+            &[],
+            false,
+            PackagePrefer::Latest,
+            tcl_dialect::DialectProfile::find("tcl8.6")
+        ),
         vec![root.join("u").join("wu.tcl")],
     );
     // FP guard — the default is untouched.
     assert_eq!(
-        both.resolve_require("w", None, false, PackagePrefer::Stable),
+        both.resolve_require_for_profile(
+            "w",
+            &[],
+            false,
+            PackagePrefer::Stable,
+            tcl_dialect::DialectProfile::find("tcl8.6")
+        ),
         vec![root.join("s").join("ws.tcl")],
     );
     // TN — with no prerelease in the acceptable set the mode changes nothing.
@@ -846,6 +858,31 @@ fn resolver_auto_command_uses_auto_qualify_candidates() {
 }
 
 #[test]
+fn resolver_autoload_keys_preserve_unicode_through_colon_normalisation() {
+    let td = TempDir::new("unicode-autoload");
+    let dir = td.path();
+    write(&dir.join("impl.tcl"), "proc ::工具::café {} {}\n");
+    write(
+        &dir.join("tclIndex"),
+        "# Tcl autoload index file, version 2.0\n\
+         set auto_index(::工具::café) [list source [file join $dir impl.tcl]]\n",
+    );
+    let mut resolver = PackageResolver::new();
+    resolver.scan_path(dir);
+    for (command, namespace) in [
+        ("café", "::工具"),
+        ("工具::::café", "::"),
+        (":::工具::::café", "::ignored"),
+    ] {
+        assert_eq!(
+            resolver.resolve_auto_command(command, namespace),
+            vec![dir.join("impl.tcl")],
+            "{command:?}/{namespace:?}"
+        );
+    }
+}
+
+#[test]
 fn package_requires_in_collects_require_and_provide_names() {
     let content = "package require Tk\n\
                    package require -exact Tcl 8.6\n\
@@ -1056,4 +1093,60 @@ fn package_defined_commands_unions_available_package_sources() {
     // No available packages ⇒ empty, extractor never consulted.
     let empty = resolver.package_defined_commands(&[], None, &extract);
     assert!(empty.is_empty());
+}
+
+#[test]
+fn requirement_candidates_respect_release_and_keep_unpinned_alternatives() {
+    let mut resolver = PackageResolver::new();
+    for version in ["1.0", "2.0b1"] {
+        resolver.add_pkg_index(vec![PackageInfo {
+            name: "p".to_owned(),
+            version: version.to_owned(),
+            source_files: vec![PathBuf::from(format!("/{version}.tcl"))],
+            pkg_index_path: PathBuf::from("/pkgIndex.tcl"),
+            conditions: reachability::Conditions::default(),
+        }]);
+    }
+    let legacy = resolver.candidate_providers_for_require(
+        "p",
+        &[],
+        false,
+        PackagePrefer::Latest,
+        Some(tcl_dialect::TclVersion::V8_4),
+    );
+    assert_eq!(
+        legacy
+            .iter()
+            .map(|info| info.version.as_str())
+            .collect::<Vec<_>>(),
+        ["1.0"]
+    );
+    let modern = resolver.candidate_providers_for_require(
+        "p",
+        &[],
+        false,
+        PackagePrefer::Latest,
+        Some(tcl_dialect::TclVersion::V8_5),
+    );
+    assert_eq!(
+        modern
+            .iter()
+            .map(|info| info.version.as_str())
+            .collect::<Vec<_>>(),
+        ["2.0b1"]
+    );
+    let unpinned =
+        resolver.candidate_providers_for_require("p", &[], false, PackagePrefer::Latest, None);
+    assert_eq!(unpinned.len(), 2);
+    assert!(
+        resolver
+            .candidate_providers_for_require(
+                "p",
+                &["1", "2"],
+                false,
+                PackagePrefer::Latest,
+                Some(tcl_dialect::TclVersion::V8_4)
+            )
+            .is_empty()
+    );
 }

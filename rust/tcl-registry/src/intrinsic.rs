@@ -29,11 +29,13 @@ const TCL9_SCALAR_STRING_SEMANTICS: u32 = 2;
 /// with a release that counts differently, and 8.4 answers 4 where 8.6
 /// answers 2. Appended rather than renumbered, because these keys are stable.
 const TCL84_BMP_STRING_SEMANTICS: u32 = 3;
+const JIM084_UTF8_STRING_SEMANTICS: u32 = 4;
 const INVARIANT_SEMANTICS: &[u32] = &[RUNTIME_INVARIANT_SEMANTICS];
 const VERSIONED_STRING_SEMANTICS: &[u32] = &[
     TCL8_UTF16_STRING_SEMANTICS,
     TCL9_SCALAR_STRING_SEMANTICS,
     TCL84_BMP_STRING_SEMANTICS,
+    JIM084_UTF8_STRING_SEMANTICS,
 ];
 
 /// Target-neutral identity of a registry-described intrinsic operation.
@@ -85,6 +87,10 @@ pub enum IntrinsicId {
     Regexp,
     /// Test whether a variable exists.
     InfoExists,
+    /// Resolve an absolute literal command name and return its singleton list, or an empty list.
+    InfoCommandsResolve,
+    /// Native stack-level introspection.
+    InfoLevel,
     /// Test whether an array variable exists.
     ArrayExists,
     /// Return array element names.
@@ -99,6 +105,14 @@ pub enum IntrinsicId {
     /// still select only invocation forms whose option and channel shape they
     /// implement directly.
     ChannelWrite,
+    /// Native compiler result for an empty non-precompiled variadic procedure.
+    ProcedureNoOp,
+    /// Return the namespace of the currently executing activation.
+    NamespaceCurrent,
+    /// Resolve a command's original imported identity in the current namespace.
+    NamespaceOrigin,
+    /// Build a prefix that captures the runtime namespace around a literal script.
+    NamespaceCode,
 }
 
 impl IntrinsicId {
@@ -127,11 +141,17 @@ impl IntrinsicId {
         Self::StringIs,
         Self::Regexp,
         Self::InfoExists,
+        Self::InfoCommandsResolve,
+        Self::InfoLevel,
         Self::ArrayExists,
         Self::ArrayNames,
         Self::ArraySize,
         Self::Concat,
         Self::ChannelWrite,
+        Self::ProcedureNoOp,
+        Self::NamespaceCurrent,
+        Self::NamespaceOrigin,
+        Self::NamespaceCode,
     ];
 
     /// Explicit stable scalar identity for offline artefacts and runtime guards.
@@ -164,11 +184,17 @@ impl IntrinsicId {
             Self::StringIs => 0x0307,
             Self::Regexp => 0x0401,
             Self::InfoExists => 0x0501,
+            Self::InfoCommandsResolve => 0x0502,
+            Self::InfoLevel => 0x0503,
             Self::ArrayExists => 0x0601,
             Self::ArrayNames => 0x0602,
             Self::ArraySize => 0x0603,
             Self::Concat => 0x0701,
             Self::ChannelWrite => 0x0801,
+            Self::ProcedureNoOp => 0x0901,
+            Self::NamespaceCurrent => 0x0A01,
+            Self::NamespaceOrigin => 0x0A02,
+            Self::NamespaceCode => 0x0A03,
         }
     }
 
@@ -181,11 +207,18 @@ impl IntrinsicId {
     /// `Tcl_UniChar` units, and 9.x counts Unicode scalar values.
     #[must_use]
     pub const fn guard_semantics_key(self, runtime: TclVersion) -> u32 {
+        self.guard_semantics_key_for_characters(runtime.string_character_model())
+    }
+
+    /// Semantics key for the actual selected character model, including byte-valued Jim.
+    #[must_use]
+    pub const fn guard_semantics_key_for_characters(self, characters: StringCharacterModel) -> u32 {
         match self {
-            Self::StringLength => match runtime.string_character_model() {
+            Self::StringLength => match characters {
                 StringCharacterModel::BmpCharsElseUtf8Bytes => TCL84_BMP_STRING_SEMANTICS,
                 StringCharacterModel::Utf16CodeUnits => TCL8_UTF16_STRING_SEMANTICS,
                 StringCharacterModel::UnicodeScalars => TCL9_SCALAR_STRING_SEMANTICS,
+                StringCharacterModel::Jim084Utf8 => JIM084_UTF8_STRING_SEMANTICS,
             },
             _ => RUNTIME_INVARIANT_SEMANTICS,
         }
@@ -267,11 +300,17 @@ impl IntrinsicId {
             Self::StringIs => "string-is",
             Self::Regexp => "regexp",
             Self::InfoExists => "info-exists",
+            Self::InfoCommandsResolve => "info-commands-resolve",
+            Self::InfoLevel => "info-level",
             Self::ArrayExists => "array-exists",
             Self::ArrayNames => "array-names",
             Self::ArraySize => "array-size",
             Self::Concat => "concat",
             Self::ChannelWrite => "channel-write",
+            Self::ProcedureNoOp => "procedure-noop",
+            Self::NamespaceCurrent => "namespace-current",
+            Self::NamespaceOrigin => "namespace-origin",
+            Self::NamespaceCode => "namespace-code",
         }
     }
 
@@ -298,7 +337,8 @@ impl IntrinsicId {
             | CodegenHookId::Upvar
             | CodegenHookId::Dict
             | CodegenHookId::Array
-            | CodegenHookId::Namespace => None,
+            | CodegenHookId::Namespace
+            | CodegenHookId::Uplevel => None,
         }
     }
 
@@ -309,6 +349,11 @@ impl IntrinsicId {
     pub const fn from_legacy_inline_codegen(hook: InlineCodegenHookId) -> Option<Self> {
         match hook {
             InlineCodegenHookId::InfoExists => Some(Self::InfoExists),
+            InlineCodegenHookId::InfoCommandsResolve => Some(Self::InfoCommandsResolve),
+            InlineCodegenHookId::InfoLevel => Some(Self::InfoLevel),
+            InlineCodegenHookId::NamespaceCurrent => Some(Self::NamespaceCurrent),
+            InlineCodegenHookId::NamespaceOrigin => Some(Self::NamespaceOrigin),
+            InlineCodegenHookId::NamespaceCode => Some(Self::NamespaceCode),
             InlineCodegenHookId::Lindex => Some(Self::ListIndex),
             InlineCodegenHookId::Lrange => Some(Self::ListRange),
             InlineCodegenHookId::Lreplace => Some(Self::ListReplace),
@@ -323,6 +368,8 @@ impl IntrinsicId {
             | InlineCodegenHookId::Error
             | InlineCodegenHookId::Break
             | InlineCodegenHookId::Continue
+            | InlineCodegenHookId::Yield
+            | InlineCodegenHookId::YieldTo
             | InlineCodegenHookId::Try
             | InlineCodegenHookId::String
             | InlineCodegenHookId::Array => None,
@@ -351,20 +398,13 @@ mod tests {
         );
     }
 
-    /// #2140: `docs/design/compiler/wasm-native-lowering-plan.md` § 2.5
-    /// note 4 quotes this catalogue's size to make its point — one
-    /// `execute_intrinsic` arm against the whole declared set. It said
-    /// "about twenty" while the enum held twenty-eight.
-    ///
-    /// Growing the catalogue is expected; leaving the plan quoting the old
-    /// number is not. This fails until the note is updated with it.
+    /// The current execution-surface document names the complete catalogue.
     #[test]
     fn the_intrinsic_catalogue_is_the_size_this_plan_quotes_issue_2140() {
         assert_eq!(
             IntrinsicId::ALL.len(),
-            28,
-            "update `docs/design/compiler/wasm-native-lowering-plan.md` \u{a7} 2.5 note 4, \
-             which quotes this count, then update this assertion"
+            34,
+            "update the current intrinsic catalogue count in \"docs/design/compiler/wasm-native-lowering.md\""
         );
     }
 

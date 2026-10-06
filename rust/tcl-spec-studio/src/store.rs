@@ -2747,7 +2747,12 @@ command add_parameter {\narity 1..\n}\n}\n";
              foreach name {alpha beta} { fleet-command $name }\n}\n",
         );
         let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
-        assert_eq!(names, vec!["fleet::alpha", "fleet::beta"]);
+        assert_eq!(
+            names,
+            vec!["fleet::alpha", "fleet::beta"],
+            "{:?}",
+            store.notices()
+        );
         for name in names {
             let site = store.declaration_site(name).expect("a declaration site");
             assert!(site.expanded, "{name}: {site:?}");

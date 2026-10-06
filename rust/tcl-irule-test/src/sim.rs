@@ -89,6 +89,21 @@ pub fn simulate_irule(
     pools: &[(String, Vec<String>)],
     request: Option<&SimRequest>,
 ) -> SimOutcome {
+    let rules: Vec<_> = sources
+        .iter()
+        .map(|source| crate::session::RuleSource::unnamed(source.clone()))
+        .collect();
+    simulate_rules(&rules, profiles, pools, request)
+}
+
+/// Simulate explicitly owned rules and unattached procedure libraries.
+#[must_use]
+pub fn simulate_rules(
+    sources: &[crate::session::RuleSource],
+    profiles: &[String],
+    pools: &[(String, Vec<String>)],
+    request: Option<&SimRequest>,
+) -> SimOutcome {
     let mut out = SimOutcome::default();
 
     if sources.is_empty() {
@@ -118,7 +133,7 @@ pub fn simulate_irule(
         profiles.join(" ")
     )));
     for src in sources {
-        guard!(sess.load_irule(src));
+        guard!(sess.load_rule(src));
     }
     for (name, members) in pools {
         let member_list = members

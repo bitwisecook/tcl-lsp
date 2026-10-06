@@ -1,0 +1,8 @@
+S|2|defined|1|1|1|1|1|none|1|none|1|1|none|-1|0|-1|1|3
+S|2|warm-return|1|1|1|1|1|bytecode|1|none|2|1|none|-1|0|-1|1|3
+R|2|warm-return|0|44454641554c54
+S|2|active-before-invalidation|1|1|1|2|1|bytecode|1|none|2|1|none|-1|1|2|1|3
+S|2|active-after-invalidation|1|1|1|2|1|bytecode|1|none|2|1|none|-1|1|2|1|4
+S|2|active-after-recursive-call|0|0|1|1|1|bytecode|1|none|4|1|none|-1|0|1|1|4
+S|2|recompiled-return|0|0|1|1|1|bytecode|1|none|2|1|none|-1|0|-1|1|4
+R|2|recompiled-return|0|44454641554c54

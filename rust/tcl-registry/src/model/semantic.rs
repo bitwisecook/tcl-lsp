@@ -204,22 +204,51 @@ pub fn resolve_structured_invocation_in_context<'r, 'w>(
     context: Option<SemanticContext>,
     words: InvocationWords<'w>,
 ) -> StructuredInvocationResolution<'r, 'w> {
-    let Some(context) = context else {
+    if context.is_none() {
         return commands.resolve_structured_invocation(words, None);
+    }
+    resolve_structured_invocation_in_realm(
+        commands,
+        context,
+        words,
+        tcl_dialect::model::InvocationRealm::RuleLoader,
+    )
+}
+
+/// Resolve an invocation under its explicitly retained availability phase.
+/// The phase changes availability filtering, never runtime command identity
+/// or native compiler admission evidence.
+#[must_use]
+pub fn resolve_structured_invocation_in_realm<'r, 'w>(
+    commands: &'r CommandRegistry,
+    context: Option<SemanticContext>,
+    words: InvocationWords<'w>,
+    realm: tcl_dialect::model::InvocationRealm,
+) -> StructuredInvocationResolution<'r, 'w> {
+    let Some(context) = context else {
+        let query = commands
+            .profile()
+            .and_then(|profile| crate::InvocationDialect::of_profile(profile).authoring_query())
+            .map(|query| query.with_realm(realm));
+        return commands.resolve_structured_invocation(words, query);
     };
+    let query = context.context().authoring_query().with_realm(realm);
     let Some(name) = words.head_literal() else {
         // A computed head selects nothing in either model; report it through
         // the ordinary path so the decline names the word kind rather than a
         // missing spec.
-        return commands
-            .resolve_structured_invocation(words, Some(context.context().authoring_query()));
+        return commands.resolve_structured_invocation(words, Some(query));
     };
-    if context.context().resolve_spec(commands, name).is_none() {
+    if context
+        .context()
+        .resolve_spec_in_realm(commands, name, realm)
+        .is_none()
+    {
         return StructuredInvocationResolution::from_unresolved(
             InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
         );
     }
-    commands.resolve_structured_invocation(words, Some(context.context().authoring_query()))
+    commands.resolve_structured_invocation(words, Some(query))
 }
 
 #[cfg(test)]
@@ -346,12 +375,24 @@ mod tests {
             ),
             "expected an unknown-literal-head decline, got {resolution:?}"
         );
-        // The same words resolve with no context carried, which is the
-        // dialect-blind store selection the retired empty mask performed.
+        // Omitting the context retains the attached store's selected profile;
+        // it cannot manufacture a Tk provider in the iRules environment.
         assert!(
             resolve_structured_invocation_in_context(
                 commands,
                 None,
+                InvocationWords::literals("tk_popup", &args),
+            )
+            .resolved()
+            .is_none()
+        );
+        // The explicitly ambient Tk provider admits the same availability
+        // query. This is catalogue availability, not an execution body proof.
+        let loaded = SemanticContext::for_environment("tk");
+        assert!(
+            resolve_structured_invocation_in_context(
+                loaded.commands(),
+                Some(loaded),
                 InvocationWords::literals("tk_popup", &args),
             )
             .resolved()

@@ -940,10 +940,10 @@ mod tests {
     #[test]
     fn empty_input_yields_empty_hierarchy() {
         let h = build_class_hierarchy(HashMap::new());
-        assert!(h.classes.is_empty());
-        assert!(h.mro_map.is_empty());
-        assert!(h.subclasses.is_empty());
-        assert!(h.errors.is_empty());
+        assert_eq!(h.classes.len(), 0);
+        assert_eq!(h.mro_map.len(), 0);
+        assert_eq!(h.subclasses.len(), 0);
+        assert_eq!(h.errors, [] as [std::string::String; 0]);
     }
 
     #[test]
@@ -1010,7 +1010,7 @@ mod tests {
         assert!(a_subs.contains("::C"));
         assert_eq!(a_subs.len(), 2);
         // Leaves have empty subclass sets, never None.
-        assert!(h.subclasses["::B"].is_empty());
+        assert_eq!(h.subclasses["::B"].len(), 0);
     }
 
     #[test]
@@ -1056,7 +1056,7 @@ mod tests {
             cls("::B", &["::A"], &[], &[]),
         ]);
         let h = build_class_hierarchy(classes);
-        assert!(!h.errors.is_empty());
+        assert_ne!(h.errors, [] as [std::string::String; 0]);
         // Cycle classes get single-element MRO fallback.
         assert_eq!(h.mro_map["::A"], vec!["::A"]);
     }
@@ -1068,7 +1068,7 @@ mod tests {
             cls("::B", &[], &["::A"], &[]),
             cls("::C", &[], &["::A"], &[]),
         ]));
-        assert!(!cyclic.errors.is_empty());
+        assert_ne!(cyclic.errors, [] as [std::string::String; 0]);
 
         let diamond = build_class_hierarchy(map(vec![
             cls("::Root", &[], &[], &[]),
@@ -1076,7 +1076,7 @@ mod tests {
             cls("::Right", &["::Root"], &[], &[]),
             cls("::Leaf", &["::Left", "::Right"], &[], &[]),
         ]));
-        assert!(diamond.errors.is_empty());
+        assert_eq!(diamond.errors, [] as [std::string::String; 0]);
     }
 
     #[test]

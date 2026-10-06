@@ -35,6 +35,41 @@ use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
 
 use crate::naming::normalise_var_name;
 
+/// Owned expression leaves; native execution keeps byte payloads while
+/// Unicode analysis uses the default `String` specialization.
+pub trait ExprText: Clone {
+    /// The exact original leaf bytes.
+    fn bytes(&self) -> &[u8];
+    /// Own a slice from the same source channel. Unicode consumers supply
+    /// only verified Unicode token boundaries.
+    fn from_source_bytes(bytes: &[u8]) -> Self;
+    /// A checked textual projection for ASCII grammar and Unicode advice.
+    fn try_text(&self) -> Option<&str> {
+        std::str::from_utf8(self.bytes()).ok()
+    }
+}
+
+impl ExprText for String {
+    fn bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+    fn from_source_bytes(bytes: &[u8]) -> Self {
+        String::from_utf8(bytes.to_vec()).expect("Unicode expression source boundary")
+    }
+}
+
+impl ExprText for Vec<u8> {
+    fn bytes(&self) -> &[u8] {
+        self
+    }
+    fn from_source_bytes(bytes: &[u8]) -> Self {
+        bytes.to_vec()
+    }
+}
+
+/// Native expression tree with original byte leaves and byte offsets.
+pub type NativeExprNode = ExprNode<Vec<u8>>;
+
 /// Character offset within expression source text.
 pub type ExprOffset = u32;
 
@@ -281,11 +316,11 @@ impl fmt::Display for UnaryOp {
 /// trees are immutable once built (no interior mutability). Recursive
 /// children are `Box<ExprNode>` to keep the enum size bounded.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ExprNode {
+pub enum ExprNode<Text = String> {
     /// Integer, float, or boolean literal.
     Literal {
         /// Source text of the literal.
-        text: String,
+        text: Text,
         /// Start offset within expression text.
         start: ExprOffset,
         /// End offset within expression text.
@@ -295,7 +330,7 @@ pub enum ExprNode {
     /// Quoted or braced string literal (`"..."` or `{...}`).
     String {
         /// Source text including delimiters.
-        text: String,
+        text: Text,
         /// Start offset within expression text.
         start: ExprOffset,
         /// End offset within expression text.
@@ -320,7 +355,7 @@ pub enum ExprNode {
     /// too.
     CompiledWord {
         /// The word's value.
-        text: String,
+        text: Text,
         /// Whether the word was braced, so its value suppresses substitution
         /// outright.
         braced: bool,
@@ -329,9 +364,9 @@ pub enum ExprNode {
     /// Variable reference (`$var`, `${var}`, `$arr(idx)`).
     Var {
         /// Full text including `$`.
-        text: String,
+        text: Text,
         /// Normalised base name.
-        name: String,
+        name: Text,
         /// Start offset within expression text.
         start: ExprOffset,
         /// End offset within expression text.
@@ -341,7 +376,7 @@ pub enum ExprNode {
     /// Command substitution `[cmd ...]` — opaque boundary.
     Command {
         /// Full text including brackets.
-        text: String,
+        text: Text,
         /// Start offset within expression text.
         start: ExprOffset,
         /// End offset within expression text.
@@ -353,9 +388,9 @@ pub enum ExprNode {
         /// The operator.
         op: BinOp,
         /// Left operand.
-        left: Box<ExprNode>,
+        left: Box<ExprNode<Text>>,
         /// Right operand.
-        right: Box<ExprNode>,
+        right: Box<ExprNode<Text>>,
     },
 
     /// Unary operator application.
@@ -363,25 +398,25 @@ pub enum ExprNode {
         /// The operator.
         op: UnaryOp,
         /// The operand.
-        operand: Box<ExprNode>,
+        operand: Box<ExprNode<Text>>,
     },
 
     /// Ternary conditional `cond ? true_val : false_val`.
     Ternary {
         /// Condition expression.
-        condition: Box<ExprNode>,
+        condition: Box<ExprNode<Text>>,
         /// Value when condition is true.
-        true_branch: Box<ExprNode>,
+        true_branch: Box<ExprNode<Text>>,
         /// Value when condition is false.
-        false_branch: Box<ExprNode>,
+        false_branch: Box<ExprNode<Text>>,
     },
 
     /// Math function call: `sin($x)`, `int($y)`, `max($a, $b)`.
     Call {
         /// Function name.
-        function: String,
+        function: Text,
         /// Arguments.
-        args: Vec<ExprNode>,
+        args: Vec<ExprNode<Text>>,
         /// Start offset within expression text.
         start: ExprOffset,
         /// End offset within expression text.
@@ -394,8 +429,86 @@ pub enum ExprNode {
     /// same result as the old string-based analysis.
     Raw {
         /// Original expression text.
-        text: String,
+        text: Text,
     },
+}
+
+impl<Text> ExprNode<Text> {
+    /// Change leaf ownership without changing operators, ordering or offsets.
+    /// This projection grants no source parsing or native implementation proof.
+    pub fn map_text<Output>(self, mut convert: impl FnMut(Text) -> Output) -> ExprNode<Output> {
+        self.map_text_with(&mut convert)
+    }
+
+    fn map_text_with<Output>(self, convert: &mut impl FnMut(Text) -> Output) -> ExprNode<Output> {
+        match self {
+            Self::Literal { text, start, end } => ExprNode::Literal {
+                text: convert(text),
+                start,
+                end,
+            },
+            Self::String { text, start, end } => ExprNode::String {
+                text: convert(text),
+                start,
+                end,
+            },
+            Self::CompiledWord { text, braced } => ExprNode::CompiledWord {
+                text: convert(text),
+                braced,
+            },
+            Self::Var {
+                text,
+                name,
+                start,
+                end,
+            } => ExprNode::Var {
+                text: convert(text),
+                name: convert(name),
+                start,
+                end,
+            },
+            Self::Command { text, start, end } => ExprNode::Command {
+                text: convert(text),
+                start,
+                end,
+            },
+            Self::Binary { op, left, right } => ExprNode::Binary {
+                op,
+                left: Box::new(left.map_text_with(convert)),
+                right: Box::new(right.map_text_with(convert)),
+            },
+            Self::Unary { op, operand } => ExprNode::Unary {
+                op,
+                operand: Box::new(operand.map_text_with(convert)),
+            },
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => ExprNode::Ternary {
+                condition: Box::new(condition.map_text_with(convert)),
+                true_branch: Box::new(true_branch.map_text_with(convert)),
+                false_branch: Box::new(false_branch.map_text_with(convert)),
+            },
+            Self::Call {
+                function,
+                args,
+                start,
+                end,
+            } => ExprNode::Call {
+                function: convert(function),
+                args: args
+                    .into_iter()
+                    .map(|arg| arg.map_text_with(convert))
+                    .collect(),
+                start,
+                end,
+            },
+            Self::Raw { text } => ExprNode::Raw {
+                text: convert(text),
+            },
+        }
+    }
 }
 
 /// The body of a `"…"` [`ExprNode::String`] operand, or `None` for a `{…}`
@@ -472,6 +585,82 @@ impl ExprNode {
         // to that detached buffer.
         self.collect_vars(config.nested().normalized(), &mut result);
         result
+    }
+
+    /// Original variable syntax under the actual lexer configuration.
+    ///
+    /// `Var.name` is a base/dependency label. This projection preserves the
+    /// complete braced name and the unevaluated array index separately; it
+    /// never identifies a physical cell or evaluates index substitutions.
+    /// Malformed or non-variable leaves provide no reference.
+    pub fn variable_reference(
+        &self,
+        config: LexerConfig,
+    ) -> Result<Option<tcl_lexer::word_parts::RawVarRef<'_>>, &'static str> {
+        let Self::Var { text, .. } = self else {
+            return Ok(None);
+        };
+        tcl_lexer::word_parts::whole_var_ref(text.as_bytes(), config)
+    }
+
+    /// Direct variable occurrences in source traversal order.
+    ///
+    /// Command substitutions, quoted words and recovery text own separate
+    /// evaluation protocols. Enumerating these leaves grants no execution or
+    /// read proof; positioned consumers must resolve each original occurrence.
+    #[must_use]
+    pub fn variable_nodes(&self) -> Vec<&Self> {
+        let mut pending = vec![self];
+        let mut variables = Vec::new();
+        while let Some(node) = pending.pop() {
+            match node {
+                Self::Var { .. } => variables.push(node),
+                Self::Binary { left, right, .. } => {
+                    pending.push(right);
+                    pending.push(left);
+                }
+                Self::Unary { operand, .. } => pending.push(operand),
+                Self::Ternary {
+                    condition,
+                    true_branch,
+                    false_branch,
+                } => {
+                    pending.push(false_branch);
+                    pending.push(true_branch);
+                    pending.push(condition);
+                }
+                Self::Call { args, .. } => pending.extend(args.iter().rev()),
+                _ => {}
+            }
+        }
+        variables
+    }
+
+    /// Native lexical extent of one positioned expression variable reference.
+    /// The expression lexer retains inclusive token ends; the variable scanner
+    /// owns the source-span convention for bare, braced and array references.
+    /// Reconstructed or malformed leaves provide no authored extent.
+    #[must_use]
+    pub fn variable_source_span(
+        &self,
+        expression_base: u32,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<tcl_lexer::Span> {
+        let Self::Var {
+            text, start, end, ..
+        } = self
+        else {
+            return None;
+        };
+        let width = u32::try_from(text.len()).ok()?;
+        if start.checked_add(width.checked_sub(1)?)? != *end {
+            return None;
+        }
+        let reference = tcl_lexer::word_parts::scan_var_ref(text.as_bytes(), 0, config).ok()??;
+        if reference.next != text.len() {
+            return None;
+        }
+        reference.source_span(text.as_bytes(), 0, expression_base.checked_add(*start)?)
     }
 
     /// Every direct variable-reference range in this parsed expression.
@@ -987,6 +1176,34 @@ mod tests {
     }
 
     #[test]
+    fn original_variable_reference_separates_names_from_index_evaluation() {
+        let jim = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        for profile in [tcl_dialect::DialectProfile::find("tcl8.6").unwrap(), &jim] {
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for (text, expected_name, expected_index) in [
+                ("${$b}", "$b", None),
+                ("${a(k)}", "a(k)", None),
+                ("$a($k)", "a", Some("$k")),
+            ] {
+                let node = ExprNode::Var {
+                    text: text.to_owned(),
+                    name: "base-label-decoy".to_owned(),
+                    start: 0,
+                    end: u32::try_from(text.len() - 1).unwrap(),
+                };
+                let reference = node.variable_reference(config).unwrap().unwrap();
+                assert_eq!(reference.name, expected_name.as_bytes());
+                assert_eq!(reference.index, expected_index.map(str::as_bytes));
+            }
+        }
+    }
+
+    #[test]
     fn empty_var_name_not_collected() {
         let node = ExprNode::Var {
             text: "$".into(),
@@ -1326,7 +1543,7 @@ mod tests {
 
     #[test]
     fn clone_and_eq() {
-        let a = ExprNode::Literal {
+        let a: ExprNode = ExprNode::Literal {
             text: "1".into(),
             start: 0,
             end: 1,

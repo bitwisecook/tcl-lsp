@@ -36,12 +36,136 @@ use crate::parse;
 
 /// Register the `dict` ensemble.
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"dict", dict_cmd);
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "dict",
+        DICT_SUBS,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::Dict,
+        b"dict",
+        dict_cmd,
+        STOCK_MEMBERS,
+        admitted,
+    );
+}
+
+const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"append", stock_append),
+    (b"create", stock_create),
+    (b"exists", stock_exists),
+    (b"filter", stock_filter),
+    (b"for", stock_for),
+    (b"get", stock_get),
+    (b"getdef", stock_getdef),
+    (b"getwithdefault", stock_getwithdefault),
+    (b"incr", stock_incr),
+    (b"info", stock_info),
+    (b"keys", stock_keys),
+    (b"lappend", stock_lappend),
+    (b"map", stock_map),
+    (b"merge", stock_merge),
+    (b"remove", stock_remove),
+    (b"replace", stock_replace),
+    (b"set", stock_set),
+    (b"size", stock_size),
+    (b"unset", stock_unset),
+    (b"update", stock_update),
+    (b"values", stock_values),
+    (b"with", stock_with),
+];
+
+fn stock_append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"append"], dict_cmd)
+}
+
+fn stock_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"create"], dict_cmd)
+}
+
+fn stock_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"exists"], dict_cmd)
+}
+
+fn stock_filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"filter"], dict_cmd)
+}
+
+fn stock_for(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"for"], dict_cmd)
+}
+
+fn stock_get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"get"], dict_cmd)
+}
+
+fn stock_getdef(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"getdef"], dict_cmd)
+}
+
+fn stock_getwithdefault(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"getwithdefault"], dict_cmd)
+}
+
+fn stock_incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"incr"], dict_cmd)
+}
+
+fn stock_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"info"], dict_cmd)
+}
+
+fn stock_keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"keys"], dict_cmd)
+}
+
+fn stock_lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"lappend"], dict_cmd)
+}
+
+fn stock_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"map"], dict_cmd)
+}
+
+fn stock_merge(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"merge"], dict_cmd)
+}
+
+fn stock_remove(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"remove"], dict_cmd)
+}
+
+fn stock_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"replace"], dict_cmd)
+}
+
+fn stock_set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"set"], dict_cmd)
+}
+
+fn stock_size(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"size"], dict_cmd)
+}
+
+fn stock_unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"unset"], dict_cmd)
+}
+
+fn stock_update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"update"], dict_cmd)
+}
+
+fn stock_values(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"values"], dict_cmd)
+}
+
+fn stock_with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"dict", b"with"], dict_cmd)
 }
 
 fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"dict subcommand ?arg ...?");
+        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
     let word = obj_bytes(argv[1]);
     // `dict` is a `TclMakeEnsemble` command: exact match, else a unique
@@ -63,14 +187,33 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         ));
     };
     let sub = subs[index];
+    if let Ok(selected) = std::str::from_utf8(sub) {
+        if let Some(dispatch) = tcl_registry::dictionary_scope::scripted_dictionary_dispatch(
+            interp.native_invocation_dialect(),
+            selected,
+            &word,
+            argv.len() - 2,
+        ) {
+            let Some(count) = dispatch.arguments() else {
+                return interp.wrong_args(dispatch.usage());
+            };
+            let target = crate::obj::Owned::fresh(crate::interp::new_string(dispatch.command()));
+            let mut words = Vec::with_capacity(count + 1);
+            words.push(target.as_ptr());
+            words.extend_from_slice(&argv[2..2 + count]);
+            return interp.dispatch(&words);
+        }
+    }
     // Pure dict subcommands now live in the shared command core; the runtime is
     // a thin adapter. Variable-mutating subcommands fall through to the legacy
     // match below.
     if let Ok(sub_str) = std::str::from_utf8(sub) {
-        let invoked = String::from_utf8_lossy(&obj_bytes(argv[0])).into_owned();
-        let usage_prefix = format!("{invoked} {sub_str}");
+        let header = match interp.argument_usage_prefix(argv, 2) {
+            Ok(header) => header,
+            Err(code) => return code,
+        };
         if let Some(result) =
-            tcl_cmd_core::dict::dispatch_canon(interp, &usage_prefix, sub_str, &argv[2..])
+            tcl_cmd_core::dict::dispatch_canon(interp, &header, sub_str, &argv[2..])
         {
             return match result {
                 Ok(v) => {
@@ -88,17 +231,7 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // `merge`/`filter`/`replace`/`remove`/`getdef`) reaches C's
                 // parser only through here, so without the re-wording every
                 // one of them would report the list noun.
-                Err(e) => {
-                    let (message, portable_code) = e.into_parts();
-                    let msg = dict_worded(&message);
-                    match dict_parse_error_code(&msg) {
-                        Some(code) => interp.error_with_code(msg.as_bytes(), code),
-                        None => match portable_code {
-                            Some(code) => interp.error_with_code(msg.as_bytes(), code.as_bytes()),
-                            None => interp.set_error(msg.as_bytes()),
-                        },
-                    }
-                }
+                Err(error) => interp.report_cmd_error(error),
             };
         }
     }
@@ -164,7 +297,7 @@ const DICT_SUBS: &[&[u8]] = &[
 fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let rest = &argv[2..];
     if rest.len() % 2 != 0 {
-        return interp.wrong_args(b"dict create ?key value ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"?key value ...?");
     }
     let pairs: Vec<(*mut TclObj, *mut TclObj)> =
         rest.chunks_exact(2).map(|c| (c[0], c[1])).collect();
@@ -175,7 +308,7 @@ fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict get dictValue ?key?` — the value for `key`, or the whole dict if no key.
 fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp.wrong_args(b"dict get dictionary ?key ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictionary ?key ...?");
     }
     if argv.len() == 3 {
         interp.set_result(argv[2]); // whole dict
@@ -199,7 +332,7 @@ fn get(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict exists dictValue key`
 fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"dict exists dictionary key ?key ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictionary key ?key ...?");
     }
     // Drill the key path; a missing key or a non-dict along the way → 0 (Tcl
     // `dict exists` reports false rather than erroring).
@@ -226,7 +359,7 @@ fn exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict size dictionary`
 fn size(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"dict size dictionary");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictionary");
     }
     match dict::dict_size(argv[2]) {
         Ok(n) => {
@@ -257,14 +390,14 @@ fn glob_filtered_result(
         }
         None => items,
     };
-    interp.set_result(crate::list::new_list_obj(&filtered));
+    interp.set_result(interp.new_list_object(&filtered));
     Code::Ok
 }
 
 /// `dict keys dictionary ?pattern?` — keys in insertion order, glob-filtered.
 fn keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return interp.wrong_args(b"dict keys dictionary ?pattern?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictionary ?pattern?");
     }
     match dict::dict_keys(argv[2]) {
         Ok(ks) => glob_filtered_result(interp, argv, ks),
@@ -275,7 +408,7 @@ fn keys(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict values dictionary ?pattern?` — values in insertion order, glob-filtered.
 fn values(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 || argv.len() > 4 {
-        return interp.wrong_args(b"dict values dictionary ?pattern?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictionary ?pattern?");
     }
     match dict::dict_pairs(argv[2]) {
         Ok(pairs) => {
@@ -376,10 +509,11 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 // numeric false like `0x0`/`0.0` drops the pair and a
                 // non-boolean result raises `expected boolean value` — matching
                 // C's `Tcl_GetBooleanFromObj` rather than a loose string test.
-                match dict_filter_bool(interp.get_obj_result()) {
+                match dict_filter_bool(interp.get_obj_result(), interp.native_invocation_dialect())
+                {
                     Ok(true) => kept.push((k, v)),
                     Ok(false) => {}
-                    Err(e) => return interp.error_with_code(&e.message, e.code),
+                    Err(e) => return interp.report_cmd_error(e.into()),
                 }
             }
             Code::Continue => {}
@@ -395,8 +529,11 @@ fn filter(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `Tcl_GetBooleanFromObj` — the runtime's one typed-read owner, so this
 /// accepts exactly what `if` and `expr` do, and refuses with the same
 /// message and `-errorcode` (tclsh: `TCL VALUE NUMBER` for a non-boolean).
-fn dict_filter_bool(o: *mut TclObj) -> Result<bool, crate::typed_value::TypedError> {
-    crate::typed_value::boolean(o)
+fn dict_filter_bool(
+    o: *mut TclObj,
+    dialect: tcl_registry::InvocationDialect,
+) -> Result<bool, tcl_syntax::value::ValueError> {
+    crate::typed_value::native_boolean(o, dialect)
 }
 
 // variable-mutating subcommands (copy-on-write)
@@ -446,10 +583,117 @@ fn store_dict(interp: &mut Interp, name: &[u8], target: *mut TclObj, is_new: boo
     Code::Ok
 }
 
+fn native_variable_objects(
+    interp: &mut Interp,
+    name: *mut TclObj,
+) -> Result<Option<(Vec<u8>, crate::value_ops::RuntimeDictionaryObjects)>, Code> {
+    if interp
+        .native_invocation_dialect()
+        .native_dictionary_append_inputs()
+        .is_none()
+    {
+        return Err(interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native dictionary command protocol",
+            )
+            .into(),
+        ));
+    }
+    let objects = crate::value_ops::RuntimeDictionaryObjects::selected(interp)
+        .map_err(|error| interp.report_cmd_error(error))?;
+    if objects.protocol.is_jim084() {
+        return Ok(None);
+    }
+    let name = tcl_syntax::value::ValueOps::native_string_bytes(interp, &name)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    Ok(Some((name.to_vec(), objects)))
+}
+
 /// `dict append dictVarName key ?value ...?` — string-append to the key's value.
 fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"dict append dictVarName key ?value ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?value ...?");
+    }
+    match native_variable_objects(interp, argv[2]) {
+        Ok(Some((name, objects))) => {
+            let dialect = interp.native_invocation_dialect();
+            let Some(policy) = dialect.native_dictionary_append_policy() else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native dictionary append member policy",
+                    )
+                    .into(),
+                );
+            };
+            let Some(issued) = dialect.native_object_append_protocol(None) else {
+                return interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "native dictionary member append",
+                    )
+                    .into(),
+                );
+            };
+            let append_objects = crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: dialect.byte_array_string_recipe(None),
+            };
+            let key = crate::value_ops::RuntimeAppendValue::borrowed(argv[3]);
+            let sources: Vec<_> = argv[4..]
+                .iter()
+                .copied()
+                .map(crate::value_ops::RuntimeAppendValue::borrowed)
+                .collect();
+            return interp.dictionary_variable_update(&name, &objects, |_, prepared| {
+                tcl_cmd_core::native_dictionary::update_prepared_member_if(
+                    &objects,
+                    prepared,
+                    &key,
+                    |original| {
+                        use tcl_registry::native_dictionary::{
+                            NativeDictionaryAppendInputs as Inputs,
+                            NativeDictionaryEmptyAppend as Empty,
+                            NativeDictionaryMissingAppendMember as Missing,
+                        };
+                        if sources.is_empty()
+                            && original.is_some()
+                            && policy.empty == Empty::StoreOnly
+                        {
+                            return Ok(None);
+                        }
+                        let empty = crate::value_ops::RuntimeAppendValue::fresh_string(b"");
+                        let original = match policy.missing {
+                            Missing::FreshEmptyReceiver => original.or(Some(&empty)),
+                            Missing::AdoptPreparedInput => original,
+                        };
+                        let result = match policy.inputs {
+                            Inputs::Concatenate(cat) if sources.len() > 1 => {
+                                let source = tcl_cmd_core::native_cat::concatenate(
+                                    &append_objects,
+                                    cat.recipe(),
+                                    &sources,
+                                    true,
+                                )?;
+                                tcl_cmd_core::native_append::append_dictionary_operands(
+                                    &append_objects,
+                                    issued.recipe(),
+                                    original,
+                                    std::slice::from_ref(&source),
+                                )?
+                            }
+                            _ => tcl_cmd_core::native_append::append_dictionary_operands(
+                                &append_objects,
+                                issued.recipe(),
+                                original,
+                                &sources,
+                            )?,
+                        };
+                        Ok(Some(result))
+                    },
+                )
+            });
+        }
+        Ok(None) => {}
+        Err(code) => return code,
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -478,7 +722,29 @@ fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `dict lappend dictVarName key ?value ...?` — list-append to the key's value.
 fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"dict lappend dictVarName key ?value ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?value ...?");
+    }
+    match native_variable_objects(interp, argv[2]) {
+        Ok(Some((name, objects))) => {
+            let key = crate::value_ops::RuntimeAppendValue::borrowed(argv[3]);
+            return interp.dictionary_variable_update(&name, &objects, |_, prepared| {
+                tcl_cmd_core::native_dictionary::update_prepared_member(
+                    &objects,
+                    prepared,
+                    &key,
+                    |original| {
+                        let value = crate::list::append_native_elements(
+                            original.map(crate::value_ops::RuntimeAppendValue::as_ptr),
+                            &argv[4..],
+                            objects.protocol,
+                        )?;
+                        Ok(crate::value_ops::RuntimeAppendValue::retain(value.as_ptr()))
+                    },
+                )
+            });
+        }
+        Ok(None) => {}
+        Err(code) => return code,
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -494,13 +760,13 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 if is_new {
                     drop_fresh(target);
                 }
-                return interp.set_error(e.message());
+                return interp.report_cmd_error(e.into());
             }
         },
         _ => Vec::new(),
     };
     elems.extend_from_slice(&argv[4..]);
-    let val = crate::list::new_list_obj(&elems); // rc 0; dict_set retains
+    let val = interp.new_list_object(&elems); // rc 0; dict_set retains
     if let Err(e) = dict::dict_set(target, key, val) {
         drop_fresh(val);
         if is_new {
@@ -520,7 +786,50 @@ fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `wrapping_add`.
 fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 || argv.len() > 5 {
-        return interp.wrong_args(b"dict incr dictVarName key ?increment?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?increment?");
+    }
+    match native_variable_objects(interp, argv[2]) {
+        Ok(Some((name, objects))) => {
+            let objects = objects.with_preparation(
+                tcl_cmd_core::native_dictionary::NativeDictionaryPreparation::IncrementCommand,
+            );
+            let increment = match crate::value_ops::RuntimeIncrementObjects::selected(
+                interp.native_invocation_dialect(),
+            ) {
+                Ok(increment) => increment,
+                Err(error) => return interp.report_cmd_error(error),
+            };
+            let key = crate::value_ops::RuntimeAppendValue::borrowed(argv[3]);
+            let default =
+                (argv.len() == 4).then(|| crate::obj::Owned::fresh(obj::new_wide_int_obj(1)));
+            let amount = crate::value_ops::RuntimeAppendValue::borrowed(
+                argv.get(4)
+                    .copied()
+                    .unwrap_or_else(|| default.as_ref().unwrap().as_ptr()),
+            );
+            return interp.dictionary_variable_update(&name, &objects, |_, prepared| {
+                tcl_cmd_core::native_dictionary::update_prepared_member(
+                    &objects,
+                    prepared,
+                    &key,
+                    |original| match original {
+                        Some(value) => tcl_cmd_core::native_increment::increment(
+                            &increment,
+                            Some(value),
+                            &amount,
+                        ),
+                        None if argv.len() == 5 => {
+                            tcl_cmd_core::native_increment::missing_dictionary_member(
+                                &increment, &amount,
+                            )
+                        }
+                        None => Ok(amount.clone()),
+                    },
+                )
+            });
+        }
+        Ok(None) => {}
+        Err(code) => return code,
     }
     let name = obj_bytes(argv[2]);
     let key = argv[3];
@@ -545,7 +854,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if is_new {
                 drop_fresh(target);
             }
-            return interp.set_error(e.message().as_bytes());
+            return crate::value_ops::integer_error(interp, e);
         }
     };
     if let Err(e) = dict::dict_set(target, key, sum) {
@@ -563,7 +872,22 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// dicts along the path as needed.
 fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 5 {
-        return interp.wrong_args(b"dict set dictVarName key ?key ...? value");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?key ...? value");
+    }
+    match native_variable_objects(interp, argv[2]) {
+        Ok(Some((name, objects))) => {
+            let keys: Vec<_> = argv[3..argv.len() - 1]
+                .iter()
+                .copied()
+                .map(crate::value_ops::RuntimeAppendValue::borrowed)
+                .collect();
+            let value = crate::value_ops::RuntimeAppendValue::borrowed(argv[argv.len() - 1]);
+            return interp.dictionary_variable_update(&name, &objects, |_, prepared| {
+                tcl_cmd_core::native_dictionary::set_prepared_path(&objects, prepared, &keys, value)
+            });
+        }
+        Ok(None) => {}
+        Err(code) => return code,
     }
     let name = obj_bytes(argv[2]);
     let keys = &argv[3..argv.len() - 1];
@@ -695,7 +1019,21 @@ fn dict_path_set(
 /// nested) key path from the dict held by the variable.
 fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"dict unset dictVarName key ?key ...?");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName key ?key ...?");
+    }
+    match native_variable_objects(interp, argv[2]) {
+        Ok(Some((name, objects))) => {
+            let keys: Vec<_> = argv[3..]
+                .iter()
+                .copied()
+                .map(crate::value_ops::RuntimeAppendValue::borrowed)
+                .collect();
+            return interp.dictionary_variable_update(&name, &objects, |_, prepared| {
+                tcl_cmd_core::native_dictionary::remove_prepared_path(&objects, prepared, &keys)
+            });
+        }
+        Ok(None) => {}
+        Err(code) => return code,
     }
     let name = obj_bytes(argv[2]);
     let keys = &argv[3..];
@@ -806,7 +1144,11 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
     if argv.len() != 5 {
-        return interp.wrong_args(b"dict for {keyVarName valueVarName} dictionary script");
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            b"{keyVarName valueVarName} dictionary script",
+        );
     }
     let var_spec = obj_bytes(argv[2]);
     let vars = match parse::split_list(&var_spec) {
@@ -856,7 +1198,11 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_runtime_api::completion_options::ControlOptionPolicy;
 
     if argv.len() != 5 {
-        return interp.wrong_args(b"dict map {keyVarName valueVarName} dictionary script");
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            b"{keyVarName valueVarName} dictionary script",
+        );
     }
     let vars = match parse::split_list(&obj_bytes(argv[2])) {
         Ok(v) => v,
@@ -904,13 +1250,104 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+fn scope_plan(
+    interp: &Interp,
+    argv: &[*mut TclObj],
+    spec: tcl_registry::dictionary_scope::DictionaryScopeSpec,
+) -> Option<tcl_registry::dictionary_scope::DictionaryScopePlan> {
+    let words = vec![tcl_registry::InvocationWord::Dynamic; argv.len().checked_sub(2)?];
+    let arguments = tcl_registry::InvocationArguments::structured(&words)
+        .with_dialect(interp.native_invocation_dialect());
+    let tcl_registry::dictionary_scope::DictionaryScopeSelection::Selected(plan) =
+        spec.select(arguments, 0)
+    else {
+        return None;
+    };
+    Some(plan)
+}
+
+fn scope_route(
+    interp: &Interp,
+    code: Code,
+) -> tcl_registry::completion_route::InvocationCompletionRoute {
+    use tcl_registry::completion_route::{
+        InvocationCompletionRoute as Route, ReturnCompletionRoute,
+    };
+    if interp.exit_pending() {
+        return Route::ProcessExit;
+    }
+    if code == Code::Return {
+        Route::Return(ReturnCompletionRoute {
+            eventual_code: tcl_registry::CompletionCode::from_int(
+                interp.pending_return_code().as_int() as i32,
+            ),
+            remaining_level: interp.pending_return_level() as u64,
+        })
+    } else {
+        Route::Tcl(tcl_registry::CompletionCode::from_int(code.as_int() as i32))
+    }
+}
+
+fn scope_writeback_failure(plan: &tcl_registry::dictionary_scope::DictionaryScopePlan) -> Code {
+    match plan.writeback_failure_route() {
+        tcl_registry::completion_route::InvocationCompletionRoute::Tcl(code) => {
+            Code::from_int(code.as_int() as i32)
+        }
+        _ => unreachable!("authored writeback failure route is exact"),
+    }
+}
+
+fn finish_scope_completion(
+    interp: &mut Interp,
+    plan: &tcl_registry::dictionary_scope::DictionaryScopePlan,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    original: Code,
+) -> Code {
+    use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+    match plan.completion_after_writeback(route) {
+        Route::Tcl(code) => {
+            if original == Code::Return {
+                interp.set_return_state(0, Code::Ok);
+            }
+            Code::from_int(code.as_int() as i32)
+        }
+        Route::Return(returned) => {
+            interp.set_return_state(
+                returned.remaining_level as usize,
+                Code::from_int(returned.eventual_code.as_int() as i32),
+            );
+            Code::Return
+        }
+        _ => original,
+    }
+}
+
 /// `dict update dictVar key var ?key var ...? body` — link each key's value to
 /// a local var, run body, then write the (possibly changed/unset) vars back
 /// into the dict variable. The body's completion is the result.
 fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // [dict, update, dictVar, k, v, k, v, …, body]: at least one pair + body.
     if argv.len() < 6 || argv.len() % 2 != 0 {
-        return interp.wrong_args(b"dict update dictVarName key varName ?key varName ...? script");
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            b"dictVarName key varName ?key varName ...? script",
+        );
+    }
+    let Some(plan) = scope_plan(
+        interp,
+        argv,
+        tcl_registry::dictionary_scope::DictionaryScopeSpec::Update,
+    ) else {
+        return interp.error(b"native dictionary scope protocol is not selected");
+    };
+    if let Some(wrapper) = plan.scripted_wrapper() {
+        let command = crate::interp::new_string(wrapper.command.as_bytes());
+        let command = crate::obj::Owned::fresh(command);
+        let mut words = Vec::with_capacity(argv.len() - 1);
+        words.push(command.as_ptr());
+        words.extend_from_slice(&argv[2..]);
+        return interp.dispatch(&words);
     }
     let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
@@ -919,56 +1356,74 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(d) = dict_var_get(interp, &dict_var) else {
         return no_such_var(interp, &dict_var);
     };
+    let original_dictionary = crate::obj::Owned::retain(d);
     // Link phase: set each local to its key's value (or unset if absent).
     for c in pairs_args.chunks_exact(2) {
         let key = obj_bytes(c[0]);
         let var = obj_bytes(c[1]);
-        match dict::dict_get(d, &key) {
+        match dict::dict_get(original_dictionary.as_ptr(), &key) {
             Ok(Some(val)) => {
                 if interp.var_set(&var, val).is_err() {
                     return cant_set(interp, &var);
                 }
             }
             Ok(None) => {
-                interp.var_unset(&var);
+                if plan.missing_key == tcl_registry::dictionary_scope::DictionaryMissingKey::Unset {
+                    interp.var_unset(&var);
+                }
             }
             Err(e) => return bad_dict(interp, e),
         }
     }
 
     let code = interp.eval_control_body(body_obj);
+    let route = scope_route(interp, code);
+    if !plan.writeback_routes(route).captured {
+        return code;
+    }
+    let result = crate::obj::Owned::retain(interp.get_obj_result());
 
     // Write-back: re-read the dict (the body may have replaced it), then apply
     // each local var (set if it exists, drop the key if it was unset).
     if let Some(cur) = dict_var_get(interp, &dict_var) {
-        if let Some(acc) = copy_dict(interp, cur) {
-            for c in pairs_args.chunks_exact(2) {
-                let var = obj_bytes(c[1]);
-                match interp.var_get(&var) {
-                    Some(val) => {
-                        let _ = dict::dict_set(acc, c[0], val);
-                    }
-                    None => {
-                        let _ = dict::dict_unset(acc, &obj_bytes(c[0]));
-                    }
+        let Some(acc) = copy_dict(interp, cur) else {
+            return scope_writeback_failure(&plan);
+        };
+        for c in pairs_args.chunks_exact(2) {
+            let var = obj_bytes(c[1]);
+            match interp.var_get(&var) {
+                Some(val) => {
+                    let _ = dict::dict_set(acc, c[0], val);
+                }
+                None => {
+                    let _ = dict::dict_unset(acc, &obj_bytes(c[0]));
                 }
             }
-            if dict_var_set(interp, &dict_var, acc).is_err() {
-                unsafe { obj::decr_ref_count(acc) };
-                return cant_set(interp, &dict_var);
-            }
-            unsafe { obj::decr_ref_count(acc) };
         }
+        if dict_var_set(interp, &dict_var, acc).is_err() {
+            unsafe { obj::decr_ref_count(acc) };
+            cant_set(interp, &dict_var);
+            return scope_writeback_failure(&plan);
+        }
+        unsafe { obj::decr_ref_count(acc) };
     }
-    code
+    interp.set_result(result.as_ptr());
+    finish_scope_completion(interp, &plan, route, code)
 }
 
 /// `dict with dictVarName ?key ...? script` — map every key of the (sub-)dict to a
 /// local var, run body, write the vars back. Supports a leading key path.
 fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
-        return interp.wrong_args(b"dict with dictVarName ?key ...? script");
+        return interp.wrong_args_for_prefix(argv, 2, b"dictVarName ?key ...? script");
     }
+    let Some(plan) = scope_plan(
+        interp,
+        argv,
+        tcl_registry::dictionary_scope::DictionaryScopeSpec::With,
+    ) else {
+        return interp.error(b"native dictionary scope protocol is not selected");
+    };
     let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
     let path = &argv[3..argv.len() - 1];
@@ -976,8 +1431,9 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Some(d) = dict_var_get(interp, &dict_var) else {
         return no_such_var(interp, &dict_var);
     };
+    let original_dictionary = crate::obj::Owned::retain(d);
     // Navigate the optional key path to the sub-dict.
-    let mut sub = d;
+    let mut sub = original_dictionary.as_ptr();
     for &k in path {
         match dict::dict_get(sub, &obj_bytes(k)) {
             Ok(Some(v)) => sub = v,
@@ -998,6 +1454,11 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 
     let code = interp.eval_control_body(body_obj);
+    let route = scope_route(interp, code);
+    if !plan.writeback_routes(route).captured {
+        return code;
+    }
+    let result = crate::obj::Owned::retain(interp.get_obj_result());
 
     // Write-back: rebuild the (sub-)dict at the key path from the mapped locals,
     // then store it back through the path. The body may have replaced the dict,
@@ -1006,7 +1467,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // A malformed current/sub dict is a write-back error, not a silent
         // skip (the `copy_dict` call has already set the result).
         let Some(acc) = copy_dict(interp, cur) else {
-            return Code::Error;
+            return scope_writeback_failure(&plan);
         };
         // Navigate `acc` to the sub-dict at `path`.
         let mut sub_src = acc;
@@ -1023,7 +1484,7 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if reached {
             let Some(newsub) = copy_dict(interp, sub_src) else {
                 unsafe { obj::decr_ref_count(acc) };
-                return Code::Error;
+                return scope_writeback_failure(&plan);
             };
             for key in &keys {
                 let kobj = crate::interp::new_string(key);
@@ -1051,57 +1512,30 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     obj::decr_ref_count(newsub);
                     obj::decr_ref_count(acc);
                 }
-                return cant_set(interp, &dict_var);
+                cant_set(interp, &dict_var);
+                return scope_writeback_failure(&plan);
             }
             unsafe { obj::decr_ref_count(newsub) };
         }
         unsafe { obj::decr_ref_count(acc) };
     }
-    code
+    interp.set_result(result.as_ptr());
+    finish_scope_completion(interp, &plan, route, code)
 }
 
 // helpers
 
-/// Re-word a *list*-parse failure as the **dict** failure C reports.
-///
-/// `SetDictFromAny` (tclDictObj.c) hands `FindElement` the type strings
-/// `dict`/`DICTIONARY`, so the same malformed input `llength` calls a
-/// `list element …` problem, `dict size` calls a `dict element …` one. The
-/// shared command core decodes dicts with the list codec, so its message
-/// arrives list-worded and has to be translated here.
-///
-/// Anything already dict-specific (`missing value to go with key`) or not a
-/// parse failure at all (`wrong # args`, a missing key) passes through
-/// untouched.
-fn dict_worded(msg: &str) -> String {
-    tcl_cmd_core::dict::worded_parse_error(msg)
-}
-
-/// The C `-errorcode` for a dict string-parse failure, keyed off the message the
-/// shared `tcl-cmd-core` core produced (which carries no code of its own). The
-/// message set mirrors [`bad_dict`] / C's `SetDictFromAny`.
-fn dict_parse_error_code(msg: &str) -> Option<&'static [u8]> {
-    if msg == "missing value to go with key" {
-        Some(b"TCL VALUE DICTIONARY")
-    } else if msg.starts_with("dict element in braces followed by")
-        || msg.starts_with("dict element in quotes followed by")
-    {
-        Some(b"TCL VALUE DICTIONARY JUNK")
-    } else if msg == "unmatched open brace in dict" {
-        Some(b"TCL VALUE DICTIONARY BRACE")
-    } else if msg == "unmatched open quote in dict" {
-        Some(b"TCL VALUE DICTIONARY QUOTE")
-    } else {
-        None
-    }
-}
-
-/// Map a dict string-parse failure to its C-faithful message + `-errorcode`
-/// (`SetDictFromAny`/`FindElement`, type strings `dict`/`DICTIONARY`).
+/// Present a typed dictionary conversion failure with its exact byte message
+/// and dictionary-specific native error code.
 fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
     use crate::dict::DictError as E;
+    let parsed_code;
     let code: &[u8] = match &e {
-        E::MissingValue | E::NotUtf8 => b"TCL VALUE DICTIONARY",
+        E::Parse { error, .. } => {
+            parsed_code = error.error_code().replace(" LIST", " DICTIONARY");
+            parsed_code.as_bytes()
+        }
+        E::MissingValue => b"TCL VALUE DICTIONARY",
         E::BraceJunk(_) | E::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK",
         E::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE",
         E::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE",
@@ -1143,6 +1577,88 @@ fn drop_fresh(obj: *mut TclObj) {
 mod tests {
     use crate::counters;
     use crate::interp::{Code, Interp};
+
+    #[test]
+    fn selected_dictionary_completion_and_scripted_worker_lookup() {
+        let cases: &[(&str, &[u8], &[u8])] = &[
+            ("tcl8.6", b"set d {k A};set c [catch {dict update d k v {set v NEW;return BODY}} r];list $c $r $d", b"2 BODY {k NEW}"),
+            ("tcl8.6", b"set d {k A};set c [catch {dict update d k v {set d BROKEN}} r];list $c $r $d", b"1 {missing value to go with key} BROKEN"),
+            ("jim", b"set d {k A};set c [catch {dict update d k v {set v NEW;return BODY}} r];list $c $r $d", b"0 BODY {k NEW}"),
+            ("jim", b"set d {k A};set c [catch {dict with d {set k NEW;return BODY}} r];list $c $r $d", b"2 BODY {k A}"),
+            ("jim", b"set d {k A};set c [catch {dict with d {set d BROKEN}} r];list $c $r $d", b"0 {missing value to go with key} BROKEN"),
+            ("jim", b"proc {dict update} {args} {return CUSTOM};set d {k A};dict update d k v {}", b"CUSTOM"),
+            ("jim", b"namespace eval N {proc {dict update} {args} {return LOCAL};set d {k A};dict update d k v {}}", b"LOCAL"),
+            ("jim", b"proc catch {args} {return CUSTOM};set d {k A};catch {dict update d k v {}}", b"CUSTOM"),
+        ];
+        for &(dialect, source, expected) in cases {
+            counters::reset();
+            {
+                let mut interp = Interp::new();
+                interp.set_dialect_profile(crate::environment::profile_for_dialect(dialect));
+                assert_eq!(
+                    interp.eval_str(source),
+                    Code::Ok,
+                    "{dialect}: {} => {}",
+                    String::from_utf8_lossy(source),
+                    String::from_utf8_lossy(&interp.result_bytes())
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    expected,
+                    "{dialect}: {}",
+                    String::from_utf8_lossy(source)
+                );
+            }
+            assert_eq!(counters::finalize(), 0);
+            assert_eq!(counters::double_free_count(), 0);
+        }
+    }
+
+    #[test]
+    fn dictionary_receiver_and_defaults_match_original_native_scripts() {
+        fn unhex(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .chunks_exact(2)
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut measured = 0;
+        for row in include_str!("../tests/data/native_dictionary_receiver/controls.tsv").lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            assert_eq!(fields.len(), 4);
+            let version = match fields[0] {
+                "8.5.19" => tcl_dialect::TclVersion::V8_5,
+                "8.6.18" => tcl_dialect::TclVersion::V8_6,
+                "9.0.4" => tcl_dialect::TclVersion::V9_0,
+                "9.1.0" => tcl_dialect::TclVersion::V9_1,
+                _ => panic!("unselected native fixture"),
+            };
+            counters::reset();
+            {
+                let mut interp = Interp::new();
+                interp.set_runtime_version(version);
+                assert_eq!(
+                    interp.eval_str(&unhex(fields[2])),
+                    Code::Ok,
+                    "{} {}: {:?}",
+                    fields[0],
+                    fields[1],
+                    interp.result_bytes()
+                );
+                assert_eq!(
+                    interp.result_bytes(),
+                    unhex(fields[3]),
+                    "{} {}",
+                    fields[0],
+                    fields[1]
+                );
+            }
+            assert_eq!(counters::finalize(), 0, "{} {}", fields[0], fields[1]);
+            assert_eq!(counters::double_free_count(), 0);
+            measured += 1;
+        }
+        assert_eq!(measured, 18);
+    }
 
     fn run(src: &[u8]) -> (Code, Vec<u8>) {
         counters::reset();
@@ -1331,43 +1847,9 @@ mod tests {
         assert_eq!(b, b"key \"b\" not known in dictionary");
     }
 
-    /// Regression coverage for the native-stack recursion hazard
-    /// `dict_path_set`/`dict_path_unset` avoid by being iterative: `dict set
-    /// d {*}[lrepeat N k] v` makes the path length (and so the native
-    /// recursion depth a recursive implementation would cost) trivially
-    /// attacker-controlled via `{*}` argument expansion. The
-    /// descend-then-rebind shape here (see `dict_path_set`'s doc comment) is
-    /// an explicit loop + stack, which removes the recursion — and so the
-    /// whole crash class — entirely, rather than merely bounding it.
-    ///
-    /// Empirically (a throwaway probe temporarily reproducing the exact
-    /// pre-fix recursive shape in-place, run then reverted per this sweep's
-    /// calibration process — see `docs/design/compiler/
-    /// recursive-descent-depth-limits.md`): via this exact
-    /// `dict set d {*}[lrepeat N k] v` pipeline, unguarded `dict_path_set`
-    /// overflowed the native stack (SIGABRT) between depth 3000-3600 on
-    /// `cargo test`'s per-test default stack. 3800 is past that crash range.
-    ///
-    /// Reading the result also forces the whole nest's string rep, which was
-    /// a second, independent recursion of the same shape: a dict value that
-    /// is itself a dict reached `dict_update_string` again through
-    /// `bytes_of`, one native frame per level. That overflowed between depth
-    /// 3400-3600 on macOS/aarch64 — inside this test's range, so the test
-    /// caught it there while passing on the wider Linux frames.
-    /// `dict::generate_nested_string_reps` now writes the nest deepest-first
-    /// on an explicit stack, so this test covers both.
-    ///
-    /// The depth is deliberately not much larger: constructing this deep a
-    /// dict also builds a linked chain of that many nested `TclObj` dicts,
-    /// and freeing that chain recursively (this runtime's refcounted
-    /// `TclObj` drop, entirely unrelated to `dict_path_set`/`dict_path_unset`
-    /// and to the string rep, and out of scope here) is itself unguarded and
-    /// was independently observed to overflow the same stack between depth
-    /// 4200-4300 — noted here for whoever triages that separately, matching
-    /// this sweep's note about `self_reachable`'s distinct
-    /// algorithmic-complexity issue in `cmd_oo.rs`. The assertion is that a
-    /// deep `dict set`/`dict unset` completes (`Code::Ok`) at all, not what
-    /// the resulting (huge) dict string is.
+    /// Deep dictionary paths use iterative mutation and deepest-first string
+    /// generation. This fixed depth exercises both operations and successful
+    /// completion without comparing the complete nested string.
     #[test]
     fn deeply_nested_dict_path_set_and_unset_survive() {
         const DEPTH: usize = 3800;

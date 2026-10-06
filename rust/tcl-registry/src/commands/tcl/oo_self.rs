@@ -120,6 +120,13 @@ const SELF_SUBCOMMAND_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "self",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::TclOoHelper(
+                crate::native_tcloo_compilation::NativeTclOoHelper::SelfObject,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         traits: Traits::PURE
             | Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_INTROSPECTION
@@ -151,7 +158,8 @@ pub fn spec() -> CommandSpec {
         // time.
         oo_context_facts: &[("class", OoContextFact::DefiningClass)],
         // `[self]`/`[self object]` used as a dispatch head (`[self] m`) is
-        // TclOO's own same-object spelling — the same target `my m` reaches,
+        // TclOO's own same-object spelling; the ordinary object dispatcher
+        // still applies its public visibility policy, unlike `my m`,
         // never an inferred type. See `CommandRegistry::is_self_receiver_call`
         // and its consumers in `tcl-lsp-core`.
         self_receiver_words: &["object"],

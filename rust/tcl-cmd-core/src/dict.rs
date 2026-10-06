@@ -28,11 +28,40 @@
 //!
 //! [`ValueOps`]: tcl_syntax::value::ValueOps
 
-use tcl_syntax::glob::string_match;
+use tcl_syntax::glob::string_match_bytes;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::namespace::TclStringHashOrder;
+
+/// Render the selected lookup stage's error without changing dictionary key
+/// equality or rebuilding an original key object.
+pub fn missing_key_error<O: ValueOps>(
+    ops: &mut O,
+    operation: tcl_syntax::naming::NativeDictionaryMissingKeyOperation,
+    original: &[u8],
+) -> CmdError {
+    let Some(policy) = ops.name_policy_protocol() else {
+        return tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native dictionary missing-key diagnostic",
+        )
+        .into();
+    };
+    match tcl_syntax::naming::report_native_dictionary_missing_key(
+        policy.recipe(),
+        operation,
+        original,
+    ) {
+        Ok(report) => match report.error_code {
+            Some(code) => CmdError::with_error_code_bytes(report.message, code),
+            None => CmdError::new_bytes(report.message),
+        },
+        Err(_) => tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+            "native dictionary missing-key diagnostic",
+        )
+        .into(),
+    }
+}
 
 /// Re-word a list-codec parse failure as the dict failure C reports.
 ///
@@ -61,14 +90,15 @@ fn ilen(n: usize) -> i64 {
 pub fn lookup<O: ValueOps>(
     ops: &mut O,
     pairs: &[(O::Value, O::Value)],
-    key: &str,
-) -> Option<O::Value> {
+    key: impl AsRef<[u8]>,
+) -> Result<Option<O::Value>, CmdError> {
+    let key = key.as_ref();
     for (k, v) in pairs {
-        if *ops.as_str(k) == *key {
-            return Some(v.clone());
+        if *ops.native_string_bytes(k)? == *key {
+            return Ok(Some(v.clone()));
         }
     }
-    None
+    Ok(None)
 }
 
 /// Insert or update `key` in `pairs` (last value wins, position preserved).
@@ -77,11 +107,11 @@ pub fn upsert<O: ValueOps>(
     pairs: &mut Vec<(O::Value, O::Value)>,
     key: &O::Value,
     value: O::Value,
-) {
-    let ks = ops.as_str(key).to_string();
+) -> Result<(), CmdError> {
+    let ks = ops.native_string_bytes(key)?.to_vec();
     let mut found = None;
     for (i, (k, _)) in pairs.iter().enumerate() {
-        if *ops.as_str(k) == *ks {
+        if *ops.native_string_bytes(k)? == *ks {
             found = Some(i);
             break;
         }
@@ -90,6 +120,7 @@ pub fn upsert<O: ValueOps>(
         Some(i) => pairs[i].1 = value,
         None => pairs.push((key.clone(), value)),
     }
+    Ok(())
 }
 
 /// Key → position index over `pairs`, so the dict build commands can upsert
@@ -97,12 +128,12 @@ pub fn upsert<O: ValueOps>(
 fn index_of_pairs<O: ValueOps>(
     ops: &mut O,
     pairs: &[(O::Value, O::Value)],
-) -> std::collections::HashMap<String, usize> {
+) -> Result<std::collections::HashMap<Vec<u8>, usize>, CmdError> {
     let mut index = std::collections::HashMap::with_capacity(pairs.len());
     for (i, (k, _)) in pairs.iter().enumerate() {
-        index.insert(ops.as_str(k).to_string(), i);
+        index.insert(ops.native_string_bytes(k)?.to_vec(), i);
     }
-    index
+    Ok(index)
 }
 
 /// Bucket-array size produced by Tcl's native dict-copy operation.
@@ -110,12 +141,15 @@ fn index_of_pairs<O: ValueOps>(
 /// `DupDictInternalRep` starts from four buckets and reinserts every live key;
 /// it does not inherit deleted-entry history from the source object. Commands
 /// that copy before transforming use this size as their new table's baseline.
-fn copied_hash_bucket_count<O: ValueOps>(ops: &mut O, pairs: &[(O::Value, O::Value)]) -> usize {
+fn copied_hash_bucket_count<O: ValueOps>(
+    ops: &mut O,
+    pairs: &[(O::Value, O::Value)],
+) -> Result<usize, CmdError> {
     let mut table = TclStringHashOrder::default();
     for (key, _) in pairs {
-        table.insert(&ops.as_bytes(key));
+        table.insert(&ops.native_string_bytes(key)?);
     }
-    table.bucket_count()
+    Ok(table.bucket_count())
 }
 
 /// [`upsert`] against a maintained key→position `index` (last value wins,
@@ -124,17 +158,18 @@ fn copied_hash_bucket_count<O: ValueOps>(ops: &mut O, pairs: &[(O::Value, O::Val
 fn upsert_indexed<O: ValueOps>(
     ops: &mut O,
     pairs: &mut Vec<(O::Value, O::Value)>,
-    index: &mut std::collections::HashMap<String, usize>,
+    index: &mut std::collections::HashMap<Vec<u8>, usize>,
     key: &O::Value,
     value: O::Value,
-) {
-    let ks = ops.as_str(key).to_string();
+) -> Result<(), CmdError> {
+    let ks = ops.native_string_bytes(key)?.to_vec();
     if let Some(&i) = index.get(&ks) {
         pairs[i].1 = value;
     } else {
         index.insert(ks, pairs.len());
         pairs.push((key.clone(), value));
     }
+    Ok(())
 }
 
 /// `dict create ?key value ...?`.
@@ -145,9 +180,9 @@ pub fn create<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
     let mut pairs: Vec<(O::Value, O::Value)> = Vec::new();
     let mut index = std::collections::HashMap::new();
     for chunk in args.as_chunks::<2>().0 {
-        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
+        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone())?;
     }
-    Ok(ops.new_dict(pairs))
+    Ok(ops.new_dict_checked(pairs)?)
 }
 
 /// `dict get dictionary ?key ...?` — descend nested keys; a missing key errors.
@@ -158,15 +193,16 @@ pub fn get<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let mut cur = dict.clone();
     for k in keys {
-        let ks = ops.as_str(k).to_string();
+        let ks = ops.native_string_bytes(k)?.to_vec();
         let pairs = ops.dict_pairs(&cur)?;
-        match lookup(ops, &pairs, &ks) {
-            Some(v) => cur = v,
-            None => {
-                return Err(CmdError::new(format!(
-                    "key \"{ks}\" not known in dictionary"
-                )));
-            }
+        if let Some(value) = lookup(ops, &pairs, &ks)? {
+            cur = value;
+        } else {
+            return Err(missing_key_error(
+                ops,
+                tcl_syntax::naming::NativeDictionaryMissingKeyOperation::Get,
+                &ks,
+            ));
         }
     }
     // `dict get` parses its dictionary argument even with no keys, so a
@@ -181,19 +217,30 @@ pub fn get<O: ValueOps>(
 }
 
 /// `dict exists dictionary key ?key ...?` — boolean, never errors on a missing key.
-pub fn exists<O: ValueOps>(ops: &mut O, dict: &O::Value, keys: &[O::Value]) -> O::Value {
+pub fn exists<O: ValueOps>(
+    ops: &mut O,
+    dict: &O::Value,
+    keys: &[O::Value],
+) -> Result<O::Value, CmdError> {
     let mut cur = dict.clone();
     for k in keys {
-        let ks = ops.as_str(k).to_string();
-        let Ok(pairs) = ops.dict_pairs(&cur) else {
-            return ops.new_bool(false);
+        let ks = ops.native_string_bytes(k)?.to_vec();
+        let pairs = match ops.dict_pairs(&cur) {
+            Ok(pairs) => pairs,
+            Err(error) => {
+                let error = CmdError::from(error);
+                if error.native_access_refusal().is_some() {
+                    return Err(error);
+                }
+                return Ok(ops.new_bool(false));
+            }
         };
-        match lookup(ops, &pairs, &ks) {
+        match lookup(ops, &pairs, &ks)? {
             Some(v) => cur = v,
-            None => return ops.new_bool(false),
+            None => return Ok(ops.new_bool(false)),
         }
     }
-    ops.new_bool(true)
+    Ok(ops.new_bool(true))
 }
 
 /// `dict keys dictionary ?globPattern?`.
@@ -202,12 +249,12 @@ pub fn keys<O: ValueOps>(
     dict: &O::Value,
     pattern: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    let pat = pattern.map(|p| ops.as_str(p).to_string());
+    let pat = pattern.map(|p| ops.as_bytes(p));
     let pairs = ops.dict_pairs(dict)?;
     let mut out = Vec::new();
     for (k, _) in &pairs {
-        let ks = ops.as_str(k);
-        if pat.as_deref().is_none_or(|p| string_match(p, &ks)) {
+        let ks = ops.as_bytes(k);
+        if pat.as_deref().is_none_or(|p| string_match_bytes(p, &ks)) {
             out.push(k.clone());
         }
     }
@@ -220,12 +267,12 @@ pub fn values<O: ValueOps>(
     dict: &O::Value,
     pattern: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
-    let pat = pattern.map(|p| ops.as_str(p).to_string());
+    let pat = pattern.map(|p| ops.as_bytes(p));
     let pairs = ops.dict_pairs(dict)?;
     let mut out = Vec::new();
     for (_, v) in &pairs {
-        let vs = ops.as_str(v);
-        if pat.as_deref().is_none_or(|p| string_match(p, &vs)) {
+        let vs = ops.as_bytes(v);
+        if pat.as_deref().is_none_or(|p| string_match_bytes(p, &vs)) {
             out.push(v.clone());
         }
     }
@@ -251,7 +298,7 @@ pub fn info<O: ValueOps>(ops: &mut O, dict: &O::Value) -> Result<O::Value, CmdEr
         table.retain_bucket_count(bucket_count);
     }
     for (key, _) in &pairs {
-        table.insert(&ops.as_bytes(key));
+        table.insert(&ops.native_string_bytes(key)?);
     }
     Ok(ops.new_string(table.statistics()))
 }
@@ -269,12 +316,12 @@ pub fn filter<O: ValueOps>(
     by_key: bool,
     patterns: &[O::Value],
 ) -> Result<O::Value, CmdError> {
-    let pats: Vec<String> = patterns.iter().map(|p| ops.as_str(p).to_string()).collect();
+    let pats: Vec<_> = patterns.iter().map(|p| ops.as_bytes(p)).collect();
     let pairs = ops.dict_pairs(dict)?;
     let mut out: Vec<O::Value> = Vec::new();
     for (k, v) in pairs {
-        let target = ops.as_str(if by_key { &k } else { &v });
-        if pats.iter().any(|p| string_match(p, &target)) {
+        let target = ops.as_bytes(if by_key { &k } else { &v });
+        if pats.iter().any(|p| string_match_bytes(p, &target)) {
             out.push(k);
             out.push(v);
         }
@@ -289,10 +336,10 @@ pub fn merge<O: ValueOps>(ops: &mut O, dicts: &[O::Value]) -> Result<O::Value, C
     for d in dicts {
         let pairs = ops.dict_pairs(d)?;
         for (k, v) in pairs {
-            upsert_indexed(ops, &mut acc, &mut index, &k, v);
+            upsert_indexed(ops, &mut acc, &mut index, &k, v)?;
         }
     }
-    Ok(ops.new_dict(acc))
+    Ok(ops.new_dict_checked(acc)?)
 }
 
 /// `dict replace dictionary ?key value ...?` — the dict with the pairs upserted
@@ -308,12 +355,12 @@ pub fn replace<O: ValueOps>(
         ));
     }
     let mut pairs = ops.dict_pairs(dict)?;
-    let bucket_count = copied_hash_bucket_count(ops, &pairs);
-    let mut index = index_of_pairs(ops, &pairs);
+    let bucket_count = copied_hash_bucket_count(ops, &pairs)?;
+    let mut index = index_of_pairs(ops, &pairs)?;
     for chunk in kv.as_chunks::<2>().0 {
-        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
+        upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone())?;
     }
-    Ok(ops.new_dict_with_hash_bucket_count(pairs, bucket_count))
+    Ok(ops.new_dict_with_hash_bucket_count_checked(pairs, bucket_count)?)
 }
 
 /// `dict remove dictionary ?key ...?` — the dict without the given keys (a
@@ -324,15 +371,18 @@ pub fn remove<O: ValueOps>(
     keys: &[O::Value],
 ) -> Result<O::Value, CmdError> {
     let pairs = ops.dict_pairs(dict)?;
-    let bucket_count = copied_hash_bucket_count(ops, &pairs);
-    let drop: Vec<String> = keys.iter().map(|k| ops.as_str(k).to_string()).collect();
+    let bucket_count = copied_hash_bucket_count(ops, &pairs)?;
+    let drop = keys
+        .iter()
+        .map(|key| ops.native_string_bytes(key).map(|bytes| bytes.to_vec()))
+        .collect::<Result<Vec<_>, _>>()?;
     let mut kept: Vec<(O::Value, O::Value)> = Vec::with_capacity(pairs.len());
     for (k, v) in pairs {
-        if !drop.contains(&ops.as_str(&k).to_string()) {
+        if !drop.contains(&ops.native_string_bytes(&k)?.to_vec()) {
             kept.push((k, v));
         }
     }
-    Ok(ops.new_dict_with_hash_bucket_count(kept, bucket_count))
+    Ok(ops.new_dict_with_hash_bucket_count_checked(kept, bucket_count)?)
 }
 
 /// `dict getdef`/`getwithdefault dictionary ?key ...? key default` — like
@@ -346,9 +396,9 @@ pub fn getdef<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let mut cur = dict.clone();
     for k in keys {
-        let ks = ops.as_str(k).to_string();
+        let ks = ops.native_string_bytes(k)?.to_vec();
         let pairs = ops.dict_pairs(&cur)?;
-        match lookup(ops, &pairs, &ks) {
+        match lookup(ops, &pairs, &ks)? {
             Some(v) => cur = v,
             None => return Ok(default.clone()),
         }
@@ -359,8 +409,9 @@ pub fn getdef<O: ValueOps>(
 /// `dict filter`'s type word, in C table order (`filters[]`, `tclDictObj.c`):
 /// `Tcl_GetIndexFromObj(…, "filterType", 0)`, so `k`/`s`/`v` abbreviate and
 /// the empty word — a prefix of all three — is `ambiguous filterType ""`.
-const FILTER_TYPES: crate::prefix::OptionTable<'static> =
-    crate::prefix::OptionTable::abbreviating("filterType", &["key", "script", "value"]);
+static FILTER_TYPE_NAMES: [&str; 3] = ["key", "script", "value"];
+static FILTER_TYPES: crate::prefix::OptionTable<'static> =
+    crate::prefix::OptionTable::abbreviating("filterType", &FILTER_TYPE_NAMES);
 
 /// Dispatch a pure `dict` subcommand. `rest` is the args after the subcommand;
 /// `invoked` is the actual command prefix used by `info`'s arity diagnostic
@@ -370,7 +421,7 @@ const FILTER_TYPES: crate::prefix::OptionTable<'static> =
 /// adapter owns.
 pub fn dispatch_canon<O: ValueOps>(
     ops: &mut O,
-    invoked: &str,
+    invoked: &[u8],
     sub: &str,
     rest: &[O::Value],
 ) -> Option<Result<O::Value, CmdError>> {
@@ -381,7 +432,7 @@ pub fn dispatch_canon<O: ValueOps>(
             None => Some(Err(CmdError::wrong_args("dict get dictionary ?key ...?"))),
         },
         "exists" => match rest.split_first() {
-            Some((d, keys)) if !keys.is_empty() => Some(Ok(exists(ops, d, keys))),
+            Some((d, keys)) if !keys.is_empty() => Some(exists(ops, d, keys)),
             _ => Some(Err(CmdError::wrong_args(
                 "dict exists dictionary key ?key ...?",
             ))),
@@ -402,17 +453,22 @@ pub fn dispatch_canon<O: ValueOps>(
             [d] => Some(size(ops, d)),
             _ => Some(Err(CmdError::wrong_args("dict size dictionary"))),
         },
-        "info" => match rest {
-            [d] => Some(info(ops, d)),
-            _ => Some(Err(CmdError::wrong_args(&format!("{invoked} dictionary")))),
-        },
+        "info" => {
+            if let [d] = rest {
+                Some(info(ops, d))
+            } else {
+                let mut usage = invoked.to_vec();
+                usage.extend_from_slice(b" dictionary");
+                Some(Err(CmdError::wrong_args_bytes(&usage)))
+            }
+        }
         "merge" => Some(merge(ops, rest)),
         // `key`/`value` are pure (glob); `script` is Family-B → `None` so the
         // caller's adapter handles it. The filterType is validated *before* the
         // dict is parsed (tclsh: `dict filter {a b c} bogus` is a bad-filterType
         // error, not a bad-dict one).
         "filter" => match (rest.first(), rest.get(1)) {
-            (Some(dict), Some(ft)) => match FILTER_TYPES.index_of_str(ops.as_str(ft).as_ref()) {
+            (Some(dict), Some(ft)) => match FILTER_TYPES.index_of_original(ops, ft) {
                 Ok(0) => Some(filter(ops, dict, true, &rest[2..])),
                 Ok(2) => Some(filter(ops, dict, false, &rest[2..])),
                 Ok(_) => None,

@@ -76,6 +76,7 @@ pub mod namespace_symbol;
 pub mod oo_body;
 mod oo_dispatch;
 pub mod package_resolver;
+mod receiver_identity;
 pub mod refactor;
 pub mod references;
 pub mod rename;
@@ -135,6 +136,28 @@ pub fn environment_for_dialect(name: &str) -> tcl_registry::model::DocumentEnvir
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static tcl_dialect::DialectProfile {
     environment_for_dialect(name).unit_profile()
+}
+
+/// Retained analysis profile, with name assistance for legacy records that
+/// carry no editing input. A display label cannot replace an actual profile.
+#[must_use]
+pub fn profile_for_analysis(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> &'static tcl_dialect::DialectProfile {
+    analysis
+        .resolved_profile()
+        .unwrap_or_else(|| profile_for_dialect(&analysis.dialect))
+}
+
+/// Retained editing store, with legacy name assistance only when absent.
+/// Native handler and execution proofs remain separate queries.
+#[must_use]
+pub fn registry_for_analysis(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> &tcl_registry::CommandRegistry {
+    analysis
+        .resolved_registry()
+        .unwrap_or_else(|| registry_for_dialect(&analysis.dialect))
 }
 
 /// [`profile_for_dialect`] for the inputs where an *empty* name means "this

@@ -45,8 +45,8 @@
 //! lexes in *local* space (base 0, exactly as `segment_commands_local`)
 //! and leaves the anchoring to the red [`super::red::SyntaxTree`].
 
-use tcl_lexer::script::{CommandSpan, group_commands};
-use tcl_lexer::{LexWarning, Lexer, LexerConfig, SourceMap, Token, TokenType};
+use tcl_lexer::script::{CommandSpan, group_commands_bytes};
+use tcl_lexer::{LexWarning, Lexer, LexerConfig, SourceImage, SourceMap, Token, TokenType};
 
 use super::green::{GreenElement, GreenNode, GreenToken, GreenTrivia, TokenTrivia, TriviaKind};
 
@@ -76,25 +76,51 @@ pub fn build_document_with_ghosts(
     config: LexerConfig,
     ghosts: std::collections::BTreeMap<u32, u8>,
 ) -> (GreenNode, Vec<LexWarning>) {
+    build_document_mapped(source, &SourceMap::new(source), config, ghosts)
+        .unwrap_or_else(|| (GreenNode::document(Vec::new(), Vec::new()), Vec::new()))
+}
+
+/// Build the same structural tree from an unchanged Unicode view of an
+/// original byte image. The selected lexer consumes its original channel;
+/// opaque images have no `GreenToken` String projection.
+#[must_use]
+pub fn build_document_image(
+    image: &SourceImage,
+    config: LexerConfig,
+) -> Option<(GreenNode, Vec<LexWarning>)> {
+    let source = image.try_text().ok()?;
+    build_document_mapped(
+        source,
+        &SourceMap::from_image(image),
+        config,
+        std::collections::BTreeMap::new(),
+    )
+}
+
+fn build_document_mapped(
+    source: &str,
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    ghosts: std::collections::BTreeMap<u32, u8>,
+) -> Option<(GreenNode, Vec<LexWarning>)> {
     let config = LexerConfig {
         base_offset: 0,
         base_line: 0,
         base_col: 0,
         ..config
     };
-    let sm = SourceMap::new(source);
-    let lexer = Lexer::with_source_map(SourceMap::new(source), config).with_ghosts(ghosts);
-    let Ok((tokens, warnings)) = lexer.tokenise_all_with_warnings() else {
-        return (GreenNode::document(Vec::new(), Vec::new()), Vec::new());
-    };
-    // Ask the boundary owner where the commands and words are, then shape
-    // the CST around its answer.
-    let plan = Plan::new(&group_commands(&tokens, source, config), &tokens, source);
-    let document = Builder::new(source, &sm, &tokens, plan).run();
-    (document, warnings)
+    let lexer = Lexer::with_source_map(sm.clone(), config).with_ghosts(ghosts);
+    let (tokens, warnings) = lexer.tokenise_all_with_warnings().ok()?;
+    let plan = Plan::new(
+        &group_commands_bytes(&tokens, source.as_bytes(), config),
+        &tokens,
+        source,
+    );
+    let document = Builder::new(source, sm, &tokens, plan).run();
+    Some((document, warnings))
 }
 
-/// [`group_commands`]'s answers, projected onto the token stream so the
+/// [`group_commands_bytes`]'s answers, projected onto the token stream so the
 /// builder can consult them token by token as it tiles.
 ///
 /// Everything here is *derived* — nothing in this struct is a boundary
@@ -618,7 +644,10 @@ mod tests {
         let doc = build(src);
         assert_eq!(doc.full_text(), src);
         // One real command; the trailing `# bye` is on the document.
-        assert!(!doc.trailing.is_empty());
+        assert_ne!(
+            doc.trailing,
+            [] as [crate::parsing::syntax::green::GreenTrivia; 0]
+        );
     }
 
     /// `range_end_rel` across `{*}` markers.

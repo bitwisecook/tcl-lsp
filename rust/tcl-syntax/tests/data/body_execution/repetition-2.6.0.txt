@@ -1,0 +1,5 @@
+REPEATS=1
+COUNT=0 EVENTS=
+COUNT=1 EVENTS=setup body cleanup
+COUNT=3 EVENTS=setup body cleanup setup body cleanup setup body cleanup
+HOOK=setup hook cleanup setup hook cleanup setup hook cleanup

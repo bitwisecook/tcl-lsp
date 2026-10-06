@@ -1,0 +1,6 @@
+mode=0 before=string code=0 after=int
+mode=1 before=wideInt code=0 after=wideInt
+mode=2 before=list code=0 after=int
+mode=3 before=bytearray code=0 after=int
+mode=4 before=list code=0 after=list
+mode=5 before=double code=0 after=double

@@ -79,7 +79,7 @@ fn scan_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     .map_or_else(|| new_string_bytes(b""), scanned_obj)
             })
             .collect();
-        interp.set_result(crate::list::new_list_obj(&objs));
+        interp.set_result(interp.new_list_object(&objs));
         return Code::Ok;
     }
 

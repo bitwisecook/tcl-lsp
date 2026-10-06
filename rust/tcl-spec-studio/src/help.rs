@@ -81,7 +81,9 @@ no maximum, so leave max unbounded. `incr x ?increment?` is 1 to 2; \
 `list` is 0 to unbounded.\n\nOn a subcommand, count after the subcommand \
 word instead: `string length string` is exactly 1. The step and \
 extra-exact-count fields cover commands whose argument tail comes in pairs \
-(`array set` style `name value` lists).",
+(`array set` style `name value` lists). Select positional operands to exclude \
+options and their values using the declared option grammar; the default counts \
+every argument.",
     ),
     (
         "arg_roles",
@@ -736,6 +738,26 @@ in a separate context of its own (`proc` bodies, class definition bodies — \
 \"Structural\"). Plain bodies join the surrounding data flow: a `set` \
 inside them changes the enclosing scope. Structural bodies deliberately do \
 not.",
+    ),
+    (
+        "native_compilation",
+        "Actual native compiler grammar and command selection timing. Stock implementation tokens, compilation entry, private ensemble members and compiler-hook dependencies must all be proved. Loadable declarations cannot certify these native implementation contracts.",
+    ),
+    (
+        "native_result",
+        "The actual native handler's result value, identity and representation contract. Successful dispatch and all observer boundaries must be proved; a nominal return type alone does not establish this contract. Loadable packs cannot certify native implementation results.",
+    ),
+    (
+        "procedure_definition",
+        "Native procedure installation grammar, including Jim persistent static storage. This native implementation contract is excluded from pack-authored strong analysis.",
+    ),
+    (
+        "successful_handler",
+        "Audited normal variable effects of a converged native implementation. Physical cell, alias, observer and output-order proofs remain required. This contract cannot select an opcode or license callback-body execution, and a loadable pack cannot certify it.",
+    ),
+    (
+        "body_execution",
+        "An evaluated-body grammar and completion contract. Script phases share semantic control flow only after live command implementation and optional-hook dependencies are proved. Package hook support is resolved independently of the Tcl core version.",
     ),
     (
         "body_interpreter",

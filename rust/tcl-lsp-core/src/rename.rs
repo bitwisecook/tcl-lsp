@@ -214,6 +214,16 @@ pub fn prepare_rename_in_program(
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<PrepareRename> {
     let line_index = LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+    {
+        let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+        let span = selected.editable_selector()?;
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, span),
+            placeholder: selected.method.name.clone(),
+        });
+    }
     // A namespace name is renameable, and the check must come
     // first: the word resolvers below would otherwise anchor prepare on a
     // same-spelled proc or class in a completely different place in the file.
@@ -303,38 +313,14 @@ pub fn prepare_rename_in_program(
             placeholder: word.clone(),
         });
     }
-    // External `$obj method` call site — editors that gate the
-    // rename UI on `prepare_rename` should still see it as
-    // renameable.  Resolve `$obj`'s class and confirm a method
-    // of that name exists.
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        crate::definition::dialect_config(analysis),
-    ) && let Some(class_q) =
-        crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
-        && let Some(class_def) = analysis.all_classes.get(class_q)
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+        && let Some(selector) = selected.editable_selector()
     {
-        let member = class_def
-            .methods
-            .get(&method)
-            .or_else(|| class_def.class_methods.get(&method));
-        if let Some(m) = member {
-            // Anchor the placeholder range on the call
-            // site's method token so the editor's rename
-            // box opens where the cursor is.
-            let (_, mstart, mend) = find_word_span_at_position(source, line, character)?;
-            return Some(PrepareRename {
-                range: LspRange {
-                    start_line: line,
-                    start_character: mstart,
-                    end_line: line,
-                    end_character: mend,
-                },
-                placeholder: m.name.clone(),
-            });
-        }
+        return Some(PrepareRename {
+            range: span_to_range(source, &line_index, selector),
+            placeholder: selected.method.name.clone(),
+        });
     }
     None
 }
@@ -473,6 +459,12 @@ pub fn rename_in_program(
     ) {
         return Err(refusal);
     }
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(result) =
+        rename_definition_operand(source, dialect, analysis, &line_index, cursor, new_name)
+    {
+        return result;
+    }
 
     // Namespace name first: the position is *definitive* (a proc or class of
     // the same spelling is not what it names), and the gate above already
@@ -522,30 +514,22 @@ pub fn rename_in_program(
     ) {
         return Ok(edits);
     }
-    // `$obj method` external call site — when the cursor sits
-    // on the method-name token of an instance-method call and
-    // `$obj`'s class is known, rename the method across its
-    // declaration + all call sites (intra-class + external).
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
-    ) && method == word
-        && let Some(class_q) = crate::definition::receiver_instance_class_at(
-            analysis,
-            &inst,
-            is_dollar,
-            crate::definition::byte_offset_at(&line_index, source, line, character),
-        )
+    let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+        && selected.method.name == word
+        && selected.editable_selector().is_some()
+        && analysis
+            .all_classes
+            .get(&selected.class.qualified_name)
+            .is_some_and(|current| current.name_span == selected.class.name_span)
         && let Some(edits) = rename_method_in_class(
             source,
             dialect,
             (
-                class_q,
-                &method,
-                crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
-                    == crate::definition::MethodBucket::Class,
+                &selected.class.qualified_name,
+                &selected.method.name,
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
             ),
             new_name,
             analysis,
@@ -568,29 +552,61 @@ pub fn rename_in_program(
     .map(Option::unwrap_or_default)
 }
 
+fn rename_definition_operand(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    cursor: u32,
+    new_name: &str,
+) -> Option<Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal>> {
+    let reference =
+        crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor)?;
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor);
+    let edits = selected
+        .filter(|selected| {
+            selected.editable_selector().is_some()
+                && analysis
+                    .all_classes
+                    .get(&selected.class.qualified_name)
+                    .is_some_and(|current| current.name_span == selected.class.name_span)
+        })
+        .and_then(|selected| {
+            rename_method_in_class(
+                source,
+                dialect,
+                (
+                    &selected.class.qualified_name,
+                    &selected.method.name,
+                    selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                ),
+                new_name,
+                analysis,
+                line_index,
+            )
+        });
+    Some(edits.map(Ok).unwrap_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
+        "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
+        source, line_index, Some(reference.name_span()),
+    ))))
+}
+
 fn prepare_list_built_self_method_rename(
     source: &str,
-    line: u32,
-    word_range: (u32, u32),
+    _line: u32,
+    _word_range: (u32, u32),
     analysis: &AnalysisResult,
     word: &str,
     cursor_offset: u32,
 ) -> Option<PrepareRename> {
-    crate::references::list_built_self_method_target_at_cursor(
-        source,
-        crate::profile_for_dialect(&analysis.dialect),
-        analysis,
-        word,
-        cursor_offset,
-    )?;
+    let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)?;
+    if selected.method.name != word {
+        return None;
+    }
+    let selector = selected.editable_selector()?;
     Some(PrepareRename {
-        range: LspRange {
-            start_line: line,
-            start_character: word_range.0,
-            end_line: line,
-            end_character: word_range.1,
-        },
-        placeholder: word.to_owned(),
+        range: span_to_range(source, &LineIndex::new(source), selector),
+        placeholder: selected.method.name.clone(),
     })
 }
 
@@ -1062,7 +1078,7 @@ fn callback_prefix_target_in_workspace(
     let (receiver, is_classmethod, external) =
         crate::references::callback_prefix_method_receiver_at_cursor(
             source,
-            crate::profile_for_dialect(&analysis.dialect),
+            crate::profile_for_analysis(analysis),
             analysis,
             word,
             cursor,
@@ -1119,6 +1135,21 @@ pub fn method_target_with_access_in_workspace(
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor).is_some()
+    {
+        let selected = crate::receiver_identity::method_at_cursor(analysis, source, cursor)?;
+        let current = analysis.all_classes.get(&selected.class.qualified_name)?;
+        return (current.name_span == selected.class.name_span
+            && selected.editable_selector().is_some())
+        .then(|| {
+            (
+                selected.class.qualified_name.clone(),
+                selected.method.name.clone(),
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                MethodAccess::Internal,
+            )
+        });
+    }
     if let Some(target) =
         callback_prefix_target_in_workspace(source, analysis, &word, cursor, index)
     {
@@ -1127,7 +1158,7 @@ pub fn method_target_with_access_in_workspace(
     if let Some((provider, is_classmethod)) =
         crate::references::list_built_self_method_target_at_cursor(
             source,
-            crate::profile_for_dialect(&analysis.dialect),
+            crate::profile_for_analysis(analysis),
             analysis,
             &word,
             cursor,
@@ -1135,74 +1166,23 @@ pub fn method_target_with_access_in_workspace(
     {
         return Some((provider, word, is_classmethod, MethodAccess::External));
     }
-    // A bare receiver word resolves like any other command word — against the
-    // namespace in effect where it is written, then the global one, then
-    // through whatever `namespace import` has made reachable there. Both facts
-    // are read off the cursor, so the server only has to hand over the index
-    // and the document's URI.
-    let receiver_ns = crate::definition::namespace_context_at(
-        &analysis.global_scope,
-        cursor,
-        &analysis.namespace_overrides,
-    );
-    let workspace = index.map(|(index, uri)| crate::definition::WorkspaceReceiver {
-        index,
-        namespace: &receiver_ns,
-        call: crate::workspace_index::CallSite {
-            uri,
-            at: cursor,
-            enclosing_body: analysis.innermost_definition_body_span(cursor),
-        },
-    });
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
+    if let Some((_, method, _)) = crate::definition::instance_method_at_cursor(
         source,
         line,
         character,
         crate::definition::dialect_config(analysis),
     ) && method == word
     {
-        // `my method` — an internal call from inside the enclosing class.
-        // Always instance-context: `my` never reaches a classmethod.
-        if crate::definition::is_self_dispatch_keyword(&inst)
-            && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor)
+        if let Some(selected) = crate::receiver_identity::method_at_cursor(analysis, source, cursor)
         {
-            return Some((class_q.to_owned(), method, false, MethodAccess::Internal));
+            return Some((
+                selected.class.qualified_name.clone(),
+                selected.method.name.clone(),
+                selected.receiver == tcl_compiler::command_binding::SourceMethodReceiver::Class,
+                MethodAccess::External,
+            ));
         }
-        // Bare `ClassName method` — a classmethod dispatches on the class's
-        // **own** command, never an instance, so it's tried only when the
-        // receiver isn't `$`-prefixed (a `$var` can never name a class).
-        //
-        // Ordered ahead of the instance branch, and gated on the receiver
-        // resolving as a *class* rather than an object handle
-        // ([`MethodBucket`], which recomputes `receiver_instance_class`'s own
-        // instance test rather than inferring it from outside). Without the
-        // gate this arm was unreachable: `receiver_instance_class` answers for
-        // a bare class name too — its last resort is "this word names a class"
-        // — so every bare `ClassName member` was classified instance-side and
-        // resolved against the wrong table. That is why a class-side member
-        // could never reach the cross-file class-command dispatch, whatever
-        // the index held.
-        //
-        // The gate keeps the change to exactly the shape it is about: an
-        // object handle still takes the instance branch, and a bare class name
-        // whose class-object side has no such member falls through to it
-        // unchanged.
-        if !is_dollar
-            && crate::definition::receiver_method_bucket(analysis, &inst, is_dollar)
-                == crate::definition::MethodBucket::Class
-            && let Some(class_q) = crate::definition::classmethod_dispatch_class_in_workspace(
-                analysis, &inst, &method, workspace,
-            )
-        {
-            return Some((class_q, method, true, MethodAccess::External));
-        }
-        // External `$obj method` — resolve `$obj`'s class.  Always
-        // instance-context too: a classmethod is never reached via `$obj`.
-        if let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor)
-        {
-            return Some((class_q.clone(), method, false, MethodAccess::External));
-        }
+        return None;
     }
     // Inside a class body on one of its method / classmethod names — the
     // declaration side, an internal context.
@@ -1563,7 +1543,7 @@ fn rename_proc(
     // emit edits that leave the dispatch running the old name.
     if analysis.command_invocations.iter().any(|inv| {
         !inv.rename_safe
-            && crate::references::invocation_references_proc(analysis, inv, qname, proc_def)
+            && crate::references::invocation_references_proc(analysis, inv, qname, proc_def, source)
     }) {
         return Some(Vec::new());
     }
@@ -1587,7 +1567,7 @@ fn rename_proc(
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `helper` call in
         // `namespace eval ::b` from matching `::a::helper`.
-        if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def) {
+        if !crate::references::invocation_references_proc(analysis, inv, qname, proc_def, source) {
             continue;
         }
         let replacement =
@@ -1648,7 +1628,9 @@ fn rename_class(
     // follow the rename, so refuse it outright.
     if analysis.command_invocations.iter().any(|inv| {
         !inv.rename_safe
-            && crate::references::invocation_references_class(analysis, inv, qname, class_def)
+            && crate::references::invocation_references_class(
+                analysis, inv, qname, class_def, source,
+            )
     }) {
         return Some(Vec::new());
     }
@@ -1671,7 +1653,8 @@ fn rename_class(
         // rename never rewrites a call the reference finder wouldn't report —
         // in particular the namespace gate that keeps a bare `ClassName new`
         // call in a *different* namespace from being rewritten.
-        if !crate::references::invocation_references_class(analysis, inv, qname, class_def) {
+        if !crate::references::invocation_references_class(analysis, inv, qname, class_def, source)
+        {
             continue;
         }
         // Skip an invocation whose range contains the class
@@ -3971,11 +3954,11 @@ mod tests {
     #[test]
     fn rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site() {
         let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on the *classmethod* declaration (line 2, col 16).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             2,
             16,
             "hail",
@@ -4342,11 +4325,11 @@ mod tests {
         // `references::method_references_for_class`, so this exercises
         // Part 2 + Part 3 together end-to-end).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
-        let analysis = analyse(src);
+        let analysis = Analyser::new().analyse(src, "tcl9.1").clone();
         // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
         let edits = rename(
             src,
-            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile(),
             7,
             13,
             "lookup",

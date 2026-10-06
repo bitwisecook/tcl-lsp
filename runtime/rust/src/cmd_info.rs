@@ -28,17 +28,209 @@
 //! remaining `CmdFrame`-adjacent item.
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
-use crate::list;
 use crate::obj::TclObj;
 
 /// Register `info`.
+mod native_oo;
+
 pub fn install(interp: &mut Interp) {
-    interp.register_builtin(b"info", info_cmd);
+    const NAMES: &[&[u8]] = &[
+        b"args".as_slice(),
+        b"body".as_slice(),
+        b"class".as_slice(),
+        b"cmdcount".as_slice(),
+        b"cmdtype".as_slice(),
+        b"commands".as_slice(),
+        b"complete".as_slice(),
+        b"constant".as_slice(),
+        b"consts".as_slice(),
+        b"coroutine".as_slice(),
+        b"default".as_slice(),
+        b"errorstack".as_slice(),
+        b"exists".as_slice(),
+        b"frame".as_slice(),
+        b"functions".as_slice(),
+        b"globals".as_slice(),
+        b"hostname".as_slice(),
+        b"level".as_slice(),
+        b"library".as_slice(),
+        b"loaded".as_slice(),
+        b"locals".as_slice(),
+        b"nameofexecutable".as_slice(),
+        b"object".as_slice(),
+        b"patchlevel".as_slice(),
+        b"procs".as_slice(),
+        b"script".as_slice(),
+        b"sharedlibextension".as_slice(),
+        b"tclversion".as_slice(),
+        b"vars".as_slice(),
+    ];
+    let admitted = crate::environment::release_subcommands(
+        interp.native_ensemble_profile_name(),
+        "info",
+        NAMES,
+    );
+    interp.register_stock_ensemble(
+        tcl_registry::invocation_words::EnsembleImplementationFamily::Info,
+        b"info",
+        info_cmd,
+        STOCK_MEMBERS,
+        admitted,
+    );
+    native_oo::install(interp);
+}
+
+const STOCK_MEMBERS: &[(&[u8], crate::interp::BuiltinFn)] = &[
+    (b"args", stock_args),
+    (b"body", stock_body),
+    (b"class", stock_class),
+    (b"cmdcount", stock_cmdcount),
+    (b"cmdtype", stock_cmdtype),
+    (b"commands", stock_commands),
+    (b"complete", stock_complete),
+    (b"constant", stock_constant),
+    (b"consts", stock_consts),
+    (b"coroutine", stock_coroutine),
+    (b"default", stock_default),
+    (b"errorstack", stock_errorstack),
+    (b"exists", stock_exists),
+    (b"frame", stock_frame),
+    (b"functions", stock_functions),
+    (b"globals", stock_globals),
+    (b"hostname", stock_hostname),
+    (b"level", stock_level),
+    (b"library", stock_library),
+    (b"loaded", stock_loaded),
+    (b"locals", stock_locals),
+    (b"nameofexecutable", stock_nameofexecutable),
+    (b"object", stock_object),
+    (b"patchlevel", stock_patchlevel),
+    (b"procs", stock_procs),
+    (b"script", stock_script),
+    (b"sharedlibextension", stock_sharedlibextension),
+    (b"tclversion", stock_tclversion),
+    (b"vars", stock_vars),
+];
+
+fn stock_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"args"], info_cmd)
+}
+
+fn stock_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"body"], info_cmd)
+}
+
+fn stock_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"class"], info_cmd)
+}
+
+fn stock_cmdcount(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"cmdcount"], info_cmd)
+}
+
+fn stock_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"cmdtype"], info_cmd)
+}
+
+fn stock_commands(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"commands"], info_cmd)
+}
+
+fn stock_complete(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"complete"], info_cmd)
+}
+
+fn stock_constant(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"constant"], info_cmd)
+}
+
+fn stock_consts(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"consts"], info_cmd)
+}
+
+fn stock_coroutine(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"coroutine"], info_cmd)
+}
+
+fn stock_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"default"], info_cmd)
+}
+
+fn stock_errorstack(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"errorstack"], info_cmd)
+}
+
+fn stock_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"exists"], info_cmd)
+}
+
+fn stock_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"frame"], info_cmd)
+}
+
+fn stock_functions(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"functions"], info_cmd)
+}
+
+fn stock_globals(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"globals"], info_cmd)
+}
+
+fn stock_hostname(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"hostname"], info_cmd)
+}
+
+fn stock_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"level"], info_cmd)
+}
+
+fn stock_library(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"library"], info_cmd)
+}
+
+fn stock_loaded(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"loaded"], info_cmd)
+}
+
+fn stock_locals(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"locals"], info_cmd)
+}
+
+fn stock_nameofexecutable(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"nameofexecutable"], info_cmd)
+}
+
+fn stock_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"object"], info_cmd)
+}
+
+fn stock_patchlevel(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"patchlevel"], info_cmd)
+}
+
+fn stock_procs(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"procs"], info_cmd)
+}
+
+fn stock_script(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"script"], info_cmd)
+}
+
+fn stock_sharedlibextension(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"sharedlibextension"], info_cmd)
+}
+
+fn stock_tclversion(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"tclversion"], info_cmd)
+}
+
+fn stock_vars(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    interp.invoke_stock_worker(argv, &[b"info", b"vars"], info_cmd)
 }
 
 fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return interp.wrong_args(b"info subcommand ?arg ...?");
+        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
     }
     // `info` is an ensemble: resolve an exact name, else an unambiguous prefix
     // (so `info command` → `commands`, matching tclsh).
@@ -69,6 +261,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"patchlevel",
         b"procs",
         b"script",
+        b"stacktrace",
         b"sharedlibextension",
         b"tclversion",
         b"vars",
@@ -79,7 +272,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // the emulated release, `info cm` is `cmdcount` on 8.6 and ambiguous with
     // `cmdtype` on 9.0, exactly as tclsh has it.
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        interp.native_ensemble_profile_name(),
         "info",
         SUBS,
     );
@@ -115,7 +308,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"frame" => info_frame(interp, argv),
         b"coroutine" => {
             if argv.len() != 2 {
-                return interp.wrong_args(b"info coroutine");
+                return interp.wrong_args_for_prefix(argv, 2, b"");
             }
             interp.set_result_bytes(&crate::cmd_coro::current_coroutine());
             Code::Ok
@@ -135,7 +328,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         ),
         b"complete" => {
             if argv.len() != 3 {
-                return interp.wrong_args(b"info complete command");
+                return interp.wrong_args_for_prefix(argv, 2, b"command");
             }
             let ok = tcl_cmd_core::info::complete(&obj_bytes(argv[2]));
             interp.set_result_bytes(if ok { b"1" } else { b"0" });
@@ -147,21 +340,21 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"cmdtype" => info_cmdtype(interp, argv),
         b"cmdcount" => {
             if argv.len() != 2 {
-                return interp.wrong_args(b"info cmdcount");
+                return interp.wrong_args_for_prefix(argv, 2, b"");
             }
             interp.set_result(crate::obj::new_wide_int_obj(interp.cmd_count() as i64));
             Code::Ok
         }
         b"functions" => {
             if argv.len() > 3 {
-                return interp.wrong_args(b"info functions ?pattern?");
+                return interp.wrong_args_for_prefix(argv, 2, b"?pattern?");
             }
             let pat = argv.get(2).map(|&a| obj_bytes(a));
             set_filtered(interp, interp.mathfunc_names(), pat.as_deref())
         }
         b"loaded" => {
             if argv.len() > 4 {
-                return interp.wrong_args(b"info loaded ?interp? ?prefix?");
+                return interp.wrong_args_for_prefix(argv, 2, b"?interp? ?prefix?");
             }
             // A named interp must resolve (C's `Tcl_GetChild` in
             // `TclGetLoadedLibraries`); the empty path is the current interp.
@@ -180,8 +373,27 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok
         }
         b"script" => {
+            if interp.native_invocation_dialect().native_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::Jim084)
+            {
+                if argv.len() > 3 {
+                    return interp.wrong_args_for_prefix(argv, 2, b"?filename?");
+                }
+                let context = match interp.native_jim_object_context() {
+                    Ok(context) => context,
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                if let Some(&filename) = argv.get(2) {
+                    if let Err(error) = context.replace_current_filename(filename) {
+                        return interp.report_cmd_error(error.into());
+                    }
+                }
+                let filename = context.current_filename_object();
+                interp.set_result(filename.as_ptr());
+                return Code::Ok;
+            }
             if argv.len() > 3 {
-                return interp.wrong_args(b"info script ?filename?");
+                return interp.wrong_args_for_prefix(argv, 2, b"?filename?");
             }
             if argv.len() == 3 {
                 // Set the current script name and return it (C's `info script F`).
@@ -195,7 +407,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"nameofexecutable" => {
             if argv.len() != 2 {
-                return interp.wrong_args(b"info nameofexecutable");
+                return interp.wrong_args_for_prefix(argv, 2, b"");
             }
             let exe = interp.host().env().current_exe().unwrap_or_default();
             interp.set_result_bytes(exe.as_bytes());
@@ -203,7 +415,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"library" => {
             if argv.len() != 2 {
-                return interp.wrong_args(b"info library");
+                return interp.wrong_args_for_prefix(argv, 2, b"");
             }
             match interp.var_get(b"::tcl_library") {
                 Some(o) => {
@@ -215,26 +427,33 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"hostname" => {
             if argv.len() != 2 {
-                return interp.wrong_args(b"info hostname");
+                return interp.wrong_args_for_prefix(argv, 2, b"");
             }
             let h = hostname(interp);
             interp.set_result_bytes(&h);
+            Code::Ok
+        }
+        b"stacktrace" => {
+            if argv.len() != 2 {
+                return interp.wrong_args_for_prefix(argv, 2, b"");
+            }
+            interp.set_result_bytes(&interp.jim_stacktrace());
             Code::Ok
         }
         b"errorstack" => {
             // TIP 348: the error stack of the last error (`?interp?` accepted but
             // only the current interp is supported).
             if argv.len() > 3 {
-                return interp.wrong_args(b"info errorstack ?interp?");
+                return interp.wrong_args_for_prefix(argv, 2, b"?interp?");
             }
-            let es = interp.error_stack_value();
-            interp.set_result_bytes(&es);
+            let es = interp.original_error_stack_value();
+            interp.set_result(es.as_ptr());
             Code::Ok
         }
         b"constant" => {
             // TIP 677: whether `varName` resolves to a `const` scalar.
             if argv.len() != 3 {
-                return interp.wrong_args(b"info constant varName");
+                return interp.wrong_args_for_prefix(argv, 2, b"varName");
             }
             let is_const = interp.is_constant(&obj_bytes(argv[2]));
             interp.set_result_bytes(if is_const { b"1" } else { b"0" });
@@ -267,7 +486,7 @@ fn hostname(interp: &Interp) -> Vec<u8> {
 /// `info cmdtype command` — the kind of command (`native`/`proc`/`alias`/…).
 fn info_cmdtype(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"info cmdtype commandName");
+        return interp.wrong_args_for_prefix(argv, 2, b"commandName");
     }
     let name = obj_bytes(argv[2]);
     match interp.cmdtype(&name) {
@@ -291,7 +510,7 @@ fn set_filtered(interp: &mut Interp, names: Vec<Vec<u8>>, pattern: Option<&[u8]>
         .filter(|n| pattern.is_none_or(|p| glob_match(p, n)))
         .map(|n| new_string(n))
         .collect();
-    let l = list::new_list_obj(&objs); // retains each element
+    let l = interp.new_list_object(&objs); // retains each element
     interp.set_result(l); // retains the list; the rc-0 temporaries are now owned by it
     Code::Ok
 }
@@ -308,11 +527,19 @@ fn info_command_list(
     procs_only: bool,
 ) -> Code {
     if argv.len() > 3 {
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
-    let result = tcl_cmd_core::info::command_list(interp, argv.get(2), procs_only);
-    interp.set_result(result);
-    Code::Ok
+    match tcl_cmd_core::info::command_list(interp, argv.get(2), procs_only) {
+        Ok(result) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
+    }
 }
 
 /// Which variable-listing core `info_var_list` dispatches to.
@@ -331,7 +558,11 @@ enum VarList {
 /// arity and maps the result.
 fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which: VarList) -> Code {
     if argv.len() > 3 {
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
     let pattern = argv.get(2);
     let result = match which {
@@ -339,25 +570,38 @@ fn info_var_list(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], which:
         VarList::Locals => tcl_cmd_core::info::locals(interp, pattern),
         VarList::Globals => tcl_cmd_core::info::globals(interp, pattern),
     };
-    interp.set_result(result);
-    Code::Ok
+    match result {
+        Ok(result) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
+    }
 }
 
 fn info_consts(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
-        return interp.wrong_args(b"info consts ?pattern?");
+        return interp.wrong_args_for_prefix(argv, 2, b"?pattern?");
     }
-    let result = tcl_cmd_core::info::consts(interp, argv.get(2));
-    interp.set_result(result);
-    Code::Ok
+    match tcl_cmd_core::info::consts(interp, argv.get(2)) {
+        Ok(result) => {
+            interp.set_result(result);
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
+    }
 }
 
 fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"info exists varName");
+        return interp.wrong_args_for_prefix(argv, 2, b"varName");
     }
+    // Tcl's existence query fires read traces and ignores their errors. The
+    // resolved variable owner includes native linked-variable callbacks.
+    let name = obj_bytes(argv[2]);
+    let _ = interp.fire_var_traces_for(&name, b"read");
     // The shared Family-B core over `VarStore::exists`.
-    let result = tcl_cmd_core::info::exists(interp, &argv[2]);
+    let result = crate::obj::new_boolean_obj(i32::from(interp.var_exists(&name)));
     interp.set_result(result);
     Code::Ok
 }
@@ -370,7 +614,7 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let number = match argv.len() {
         2 => None,
         3 => Some(&argv[2]),
-        _ => return interp.wrong_args(b"info level ?number?"),
+        _ => return interp.wrong_args_for_prefix(argv, 2, b"?number?"),
     };
     match tcl_cmd_core::info::level(interp, number) {
         Ok(v) => {
@@ -406,7 +650,7 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             };
             match interp.cmd_frame_info(n) {
-                Some(pairs) => {
+                Ok(Some(pairs)) => {
                     let kv: Vec<(*mut TclObj, *mut TclObj)> = pairs
                         .iter()
                         .map(|(k, v)| (new_string(k), new_string(v)))
@@ -414,10 +658,11 @@ fn info_frame(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(crate::dict::new_dict_obj(&kv));
                     Code::Ok
                 }
-                None => bad_level(interp, &spec),
+                Ok(None) => bad_level(interp, &spec),
+                Err(error) => interp.report_cmd_error(error.into()),
             }
         }
-        _ => interp.wrong_args(b"info frame ?number?"),
+        _ => interp.wrong_args_for_prefix(argv, 2, b"?number?"),
     }
 }
 
@@ -433,7 +678,11 @@ fn bad_level(interp: &mut Interp, spec: &[u8]) -> Code {
 
 fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) -> Code {
     if argv.len() != 2 {
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
     interp.set_result_bytes(value);
     Code::Ok
@@ -445,7 +694,11 @@ fn fixed(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], value: &[u8]) 
 /// the read is `::`-qualified so it works inside a proc/eval frame.
 fn info_global(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], var: &[u8]) -> Code {
     if argv.len() != 2 {
-        return interp.wrong_args(usage);
+        return interp.wrong_args_for_prefix(
+            argv,
+            2,
+            usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
+        );
     }
     let mut qualified = b"::".to_vec();
     qualified.extend_from_slice(var);
@@ -465,7 +718,7 @@ fn info_global(interp: &mut Interp, argv: &[*mut TclObj], usage: &[u8], var: &[u
 
 fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"info body procname");
+        return interp.wrong_args_for_prefix(argv, 2, b"procname");
     }
     match tcl_cmd_core::info::body(interp, &argv[2]) {
         Ok(v) => {
@@ -478,7 +731,7 @@ fn info_body(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
-        return interp.wrong_args(b"info args procname");
+        return interp.wrong_args_for_prefix(argv, 2, b"procname");
     }
     match tcl_cmd_core::info::args(interp, &argv[2]) {
         Ok(v) => {
@@ -491,7 +744,7 @@ fn info_args(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 fn info_default(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
-        return interp.wrong_args(b"info default procname arg varname");
+        return interp.wrong_args_for_prefix(argv, 2, b"procname arg varname");
     }
     let var = obj_bytes(argv[4]);
     // The core computes the `(value, has_default)` pair (and the not-a-proc /

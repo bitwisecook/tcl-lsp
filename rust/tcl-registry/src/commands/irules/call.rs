@@ -34,6 +34,9 @@ pub const fn spec() -> CommandSpec {
         surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         traits: Traits::INVOKES_USER_PROC,
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::UserProcedureCall,
+        ),
         hover: Some(HoverSnippet {
             summary: "Calls an iRule procedure.",
             synopsis: &["call ?-debug? <proc_name> ?arg ...?"],

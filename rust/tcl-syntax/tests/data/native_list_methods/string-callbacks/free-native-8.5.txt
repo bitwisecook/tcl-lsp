@@ -1,0 +1,6 @@
+route=compiled kind=scalar code=0 result=1 FREED custom-scalar list
+route=compiled kind=list code=0 result=1 SAFE list list
+route=compiled kind=dict code=0 result=2 SAFE dict list
+route=generic kind=scalar code=0 result=1 FREED custom-scalar list
+route=generic kind=list code=0 result=1 SAFE list list
+route=generic kind=dict code=0 result=2 SAFE dict list

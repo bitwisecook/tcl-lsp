@@ -57,8 +57,14 @@ impl HostCommand for FoldList {
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         let words: Vec<String> = arguments
             .iter()
-            .map(|argument| argument.as_str().unwrap_or_default().to_owned())
-            .collect();
+            .map(|argument| {
+                argument.as_str().map(str::to_owned).ok_or_else(|| {
+                    EngineError::ExecutionRefusal(
+                        "foldlist requires Unicode string arguments".into(),
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
         let borrowed: Vec<&str> = words.iter().map(String::as_str).collect();
         tcl_registry::const_fold::fold_list(&borrowed).map_or_else(
             || {

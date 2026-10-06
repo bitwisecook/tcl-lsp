@@ -71,6 +71,7 @@ const COPY_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
 
 const COPY_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
     composition: StateTransitionComposition::Extend,
+    success_resolver: None,
     resolver: Some(copy_state_transitions),
     argument_shape: StateTransitionArgumentShape::Positional,
     dynamic_widening: &[
@@ -169,6 +170,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::copy",
+        native_compilation: Some(super::oo_class::OO_NATIVE_COMPILATION),
         surface: Some(SpecSurface::TCL86_PLUS),
         // Three positional arguments total (sourceObject required,
         // targetObject and targetNamespace each optional), matching the

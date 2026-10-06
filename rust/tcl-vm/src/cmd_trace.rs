@@ -38,50 +38,26 @@
 use tcl_cmd_core::trace as core_trace;
 use tcl_runtime_api::Completion;
 
-use crate::interp::{Vm, err, ok};
+use crate::interp::{Vm, ok};
 use crate::value::Value;
-use tcl_dialect::model::surface_admits;
 
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("trace", cmd_trace);
-}
-
-/// The `trace` option words the emulated release carries, in the registry's
-/// declaration order — which is C's `traceOptions[]` order, so the `bad
-/// option` / `ambiguous option` enumeration matches byte for byte. The three
-/// legacy forms are gated to `SpecSurface::TCL8X`, so 9.0+ sees only
-/// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
-fn visible_options(vm: &Vm) -> Vec<&'static str> {
-    // The emulated release's name resolves through the one ingress seam;
-    // the option table is gated on the resolved environment's document
-    // authoring mask, the same mask a `by_name(name).surface_query()` read
-    // would hand back.
-    let dialect = Some(crate::environment::surface_point_for_dialect(
-        vm.runtime_version().dialect_profile_name(),
-    ));
-    let registry = tcl_registry::default_registry();
-    let Some(spec) = registry.get_for_surface("trace", dialect) else {
-        return Vec::new();
-    };
-    spec.subcommands
-        .iter()
-        .filter(|sub| {
-            sub.surface
-                .or(spec.surface)
-                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
-        })
-        .map(|sub| sub.name)
-        .collect()
+    vm.register_stock_builtin("trace", cmd_trace);
 }
 
 fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
-        return err("wrong # args: should be \"trace option ?arg ...?\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"trace option ?arg ...?\"",
+        );
     };
-    let options = visible_options(vm);
-    let option = match core_trace::resolve_option(&sub.to_str(), &options) {
+    let protocol = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol();
+    let option = match core_trace::resolve_option_original(vm, sub, protocol) {
         Ok(o) => o,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     match option {
         "add" => trace_add_remove(vm, "add", rest, true),
@@ -92,14 +68,7 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "variable" => legacy_variable(vm, rest, true),
         "vdelete" => legacy_variable(vm, rest, false),
         "vinfo" => trace_vinfo(vm, rest),
-        // A registry-declared option this engine has no arm for. Reporting it
-        // as unknown keeps a data-only spec edit (a new subcommand or alias)
-        // from turning into a panic in a shipped interpreter.
-        _ => err(format!(
-            "bad option \"{}\": must be {}",
-            sub.to_str(),
-            tcl_cmd_core::prefix::choice_list(&options)
-        )),
+        _ => unreachable!("selected trace declaration is exhaustive"),
     }
 }
 
@@ -110,36 +79,56 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// the op list — matching `TraceVariableObjCmd`/`Command`/`Execution`'s order.
 fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Completion<Value> {
     let Some((kindw, args)) = rest.split_first() else {
-        return err(format!(
-            "wrong # args: should be \"trace {sub} type ?arg ...?\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!("wrong # args: should be \"trace {sub} type ?arg ...?\""),
+        );
     };
     // Tcl resolves the type word with `Tcl_GetIndexFromObj`, so an
     // unambiguous prefix (`var` → `variable`) is accepted (set-2.4 / set-4.4).
-    let typeword = kindw.to_str();
-    let kind = match core_trace::resolve_type(&typeword) {
+    let kind = match core_trace::resolve_type_original(vm, kindw) {
         Ok(k) => k,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     let [name, ops, command] = args else {
-        return err(format!(
-            "wrong # args: should be \"trace {sub} {typeword} name opList command\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!(
+                "wrong # args: should be \"trace {sub} {} name opList command\"",
+                kindw.to_str()
+            ),
+        );
     };
     // Validate the op list against the type's table (`bad operation …`).
-    let ops: Vec<String> = match core_trace::parse_ops(ops.to_str().as_bytes(), kind) {
+    let ops: Vec<String> = match core_trace::parse_ops_original(vm, ops, kind) {
         Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     match kind {
         core_trace::TraceKind::Variable => {
+            let name = match vm.native_name_operand_bytes(name) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return vm.refuse_host_command(format!(
+                        "variable trace name is unavailable: {error}"
+                    ));
+                }
+            };
             if add {
-                if let Err(e) = vm.ensure_trace_variable(&name.to_str()) {
+                if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
                     return e;
                 }
-                vm.add_var_trace(&name.to_str(), ops, command.to_str().to_string(), false);
+                vm.add_var_trace_bytes(&name, ops, command.clone(), false);
             } else {
-                vm.remove_var_trace(&name.to_str(), &ops, &command.to_str());
+                let prefix = match vm.native_name_operand_bytes(command) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return vm.refuse_host_command(format!(
+                            "variable trace prefix is unavailable: {error}"
+                        ));
+                    }
+                };
+                vm.remove_var_trace_bytes(&name, &ops, &prefix);
             }
             ok(Value::empty())
         }
@@ -156,20 +145,36 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
 
 fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((kindw, args)) = rest.split_first() else {
-        return err("wrong # args: should be \"trace info type name\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"trace info type name\"",
+        );
     };
-    let typeword = kindw.to_str();
-    let kind = match core_trace::resolve_type(&typeword) {
+    let kind = match core_trace::resolve_type_original(vm, kindw) {
         Ok(k) => k,
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     let [name] = args else {
-        return err(format!(
-            "wrong # args: should be \"trace info {typeword} name\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!(
+                "wrong # args: should be \"trace info {} name\"",
+                kindw.to_str()
+            ),
+        );
     };
     match kind {
-        core_trace::TraceKind::Variable => ok(var_trace_entries(vm, &name.to_str())),
+        core_trace::TraceKind::Variable => {
+            let name = match vm.native_name_operand_bytes(name) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return vm.refuse_host_command(format!(
+                        "variable trace name is unavailable: {error}"
+                    ));
+                }
+            };
+            ok(var_trace_entries(vm, &name))
+        }
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
             vm.cmd_trace_entries(kind == core_trace::TraceKind::Execution, &name.to_str())
         }
@@ -178,14 +183,14 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// The `{ops command}` pairs registered on variable `name` (newest first), as the
 /// `trace info variable` result list.
-fn var_trace_entries(vm: &Vm, name: &str) -> Value {
+fn var_trace_entries(vm: &Vm, name: &[u8]) -> Value {
     Value::list(
-        vm.var_trace_info(name)
+        vm.var_trace_info_bytes(name)
             .into_iter()
             .map(|(ops, cmd)| {
                 Value::list(vec![
                     Value::list(ops.into_iter().map(Value::string).collect()),
-                    Value::string(cmd),
+                    cmd,
                 ])
             })
             .collect(),
@@ -195,17 +200,26 @@ fn var_trace_entries(vm: &Vm, name: &str) -> Value {
 /// Legacy `trace vinfo name` → the variable's `{letters command}` pairs, with
 /// the operations rendered as the `rwua` letter string C's `TRACE_OLD_VINFO`
 /// arm builds (not the word list `trace info variable` reports).
-fn trace_vinfo(vm: &Vm, args: &[Value]) -> Completion<Value> {
+fn trace_vinfo(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let [name] = args else {
-        return err("wrong # args: should be \"trace vinfo name\"");
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"trace vinfo name\"",
+        );
+    };
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return vm.refuse_host_command(format!("variable trace name is unavailable: {error}"));
+        }
     };
     ok(Value::list(
-        vm.var_trace_info(&name.to_str())
+        vm.var_trace_info_bytes(&name)
             .into_iter()
             .map(|(ops, cmd)| {
                 Value::list(vec![
                     Value::string(core_trace::legacy_ops_letters(&ops)),
-                    Value::string(cmd),
+                    cmd,
                 ])
             })
             .collect(),
@@ -222,22 +236,35 @@ fn trace_vinfo(vm: &Vm, args: &[Value]) -> Completion<Value> {
 fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> {
     let form = if add { "variable" } else { "vdelete" };
     let [name, ops, command] = args else {
-        return err(format!(
-            "wrong # args: should be \"trace {form} name ops command\""
-        ));
+        return crate::command::native_wrong_arguments_message(
+            vm,
+            format!("wrong # args: should be \"trace {form} name ops command\""),
+        );
     };
     let ops: Vec<String> = match core_trace::parse_legacy_variable_ops(ops.to_str().as_bytes()) {
         Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-        Err(e) => return crate::command::completion_from_cmd_error(e),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
-    let command = command.to_str().to_string();
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return vm.refuse_host_command(format!("variable trace name is unavailable: {error}"));
+        }
+    };
     if add {
-        if let Err(e) = vm.ensure_trace_variable(&name.to_str()) {
+        if let Err(e) = vm.ensure_trace_variable_bytes(&name) {
             return e;
         }
-        vm.add_var_trace(&name.to_str(), ops, command, true);
+        vm.add_var_trace_bytes(&name, ops, command.clone(), true);
     } else {
-        vm.remove_var_trace(&name.to_str(), &ops, &command);
+        let prefix = match vm.native_name_operand_bytes(command) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                return vm
+                    .refuse_host_command(format!("variable trace prefix is unavailable: {error}"));
+            }
+        };
+        vm.remove_var_trace_bytes(&name, &ops, &prefix);
     }
     ok(Value::empty())
 }

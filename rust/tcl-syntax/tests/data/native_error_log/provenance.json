@@ -1,0 +1,29 @@
+{
+  "source_sha256": "e83f3ef02ca097c087bae45f4e3ec45cdbb1776f008addd3c35abff5e5856a88",
+  "runs": [
+    {
+      "version": "8.6",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit": 0,
+      "stdout": "caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}\nunwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}\nreturn|{INNER {invokeStk1 r}} {-code -level -errorstack -errorcode -errorinfo -errorline}\nshifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}\nexplicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.0",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit": 0,
+      "stdout": "caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}\nunwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}\nreturn|{INNER {invokeStk1 r}} {-code -level -errorstack -errorcode -errorinfo -errorline}\nshifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}\nexplicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.1",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit": 0,
+      "stdout": "caught|{INNER {returnImm BODY {}} CALL p} {-code -level -errorstack -errorcode -errorinfo -errorline}\nunwound|{INNER {returnImm BODY {}} CALL q} {-code -level -errorstack -errorcode -errorinfo -errorline}\nreturn|{INNER {invokeStk r}} {-code -level -errorstack -errorcode -errorinfo -errorline}\nshifted|{INNER {returnImm BODY {}} UP 1 CALL u} {-code -level -errorstack -errorcode -errorinfo -errorline}\nexplicit|{INNER {returnImm BODY {-custom kept -errorcode CUSTOM}} CALL e} {-custom -errorcode -code -level -errorstack -errorinfo -errorline}\n",
+      "stderr": ""
+    }
+  ]
+}

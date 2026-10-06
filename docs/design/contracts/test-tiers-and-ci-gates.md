@@ -28,7 +28,7 @@ fail-closed classifier covers `tcl-lsp-server`'s locked local Cargo dependency
 closure with all features, the archive configuration, the workflow and
 classifier inputs, embedded SpecTcl packs, and cross-package E2E fixtures. It reads the
 classifier and manifests from the PR base commit. An incomplete changed-file
-list, malformed closure, or absent base-copy runs the whole archive lane. The
+list, malformed closure, or absent base-copy runs the complete archive. The
 required aggregate job always reports a status; when the closure is unaffected,
 only its archive, partition, and proof-transfer steps are skipped.
 Validate that no-op path in Actions with a change outside both committed
@@ -67,13 +67,7 @@ if `channel` or doctests fail. The doctest job has the same job-level
 unchanged/exact-green skip as the shard matrix, while its test command remains
 step-gated for docs-only and already-green merge revisions.
 
-Exact-head run 34289762415 proved the preceding direct five-way hash layout
-complete, but each leg still spent 3m34–3m51 compiling/linking all 319 test
-binaries before 3m30–4m26 of execution. On the same tree, the binary-aware
-prototype linked/listed the 50 common lib/bin harnesses in 1m47 on a cold local
-target, added 64 integration targets in 7.46s once dependencies were warm,
-selected the same 4,568 tests for that representative shard, and executed them
-in 94.8s. Binary-level assignment preserves automatic coverage for new tests
+Binary-level assignment preserves automatic coverage for new tests
 inside an existing harness; a new or renamed harness fails the metadata proof
 until the map assigns it.
 
@@ -90,9 +84,8 @@ until the map assigns it.
    root + live kernel), marked
    `#[ignore = "<reason>; run explicitly with --ignored"]`. These form the
    exhaustive tier and are not debt.
-3. **No shipped xfails.** An expected-failure marker is an intermediate
-   state while a feature is under development; fix the root cause and remove
-   the marker before release. Do not confuse an xfail with rule 2. The one
+3. **No shipped xfails.** Shipped tests have no expected-failure markers;
+   failures require a root-cause fix. Do not confuse an xfail with rule 2. The one
    standing exception is the eglot semantic-token repaint failure in
    `make test-emacs`: an upstream eglot painter bug (issue #333,
    `eglot--semtok-font-lock-2` stacks stale faces mid-response). The server
@@ -122,8 +115,8 @@ until the map assigns it.
    after touching TypeScript or Python. Failures are fixed, not skipped;
    tooling-missing skips are deliberate (`SKIP_CHECK_RUST=1`, …). Commit
    whatever formatting `prep-pr` applies, then re-run the gate — a
-   `cargo fmt` after the commit is not a pass. Every "pr-gate bounced on a
-   trivial lint" on this repo was a push that skipped this step.
+   `cargo fmt` after the commit does not establish that the committed tree
+   passes the gate.
 6. **CI carries the deep suites.** Rebase on `rust`, run `prep-pr`, open the
    PR, subscribe to its activity, fix forward. Do not block on the full suite
    locally. To reproduce a deep-tier failure or add confidence on a risky
@@ -266,8 +259,8 @@ CI skips only what demonstrably did not change. The rules live in
   crate plus the path-dependency closure its own lockfile resolves. It is its
   own job because `runtime/rust` is its own cargo workspace: the root
   `cargo test --workspace` never reaches it, and `wasm-real-link` builds and
-  links it *without running its tests*, so before this job a standalone-runtime
-  semantic regression could land with every required check green (#1768). The
+  links it *without running its tests*. `runtime-rust-tests` supplies the
+  independent semantic check. The
   closure lives in `scripts/dev/runtime-rust-path.sh`, gated against the
   committed lockfile by `scripts/dev/test-runtime-rust-paths.sh`
   (`make check-runtime-rust-paths`, part of `xtask-check`), so it cannot
@@ -289,7 +282,7 @@ Trusted pull requests may place only shard 1 of `rust-tests-shard` on the
 self-hosted `tank` runner. The `channel` job queries every nonterminal workflow
 state and routes to hosted capacity when another active shard-1 job already
 targets `tank`; shards 2–5 are always hosted. The API snapshot is advisory:
-simultaneous channel jobs can both observe an idle lane, so the non-cancelling
+simultaneous channel jobs can both observe an idle runner, so the non-cancelling
 `rust-tests-tank` concurrency group remains the final one-physical-host safety
 guard. API errors, malformed data, and incomplete pagination fail safely to
 hosted capacity. Fork, Dependabot, and runner-policy pull requests
@@ -367,3 +360,24 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 - [differential-fuzzing.md](differential-fuzzing.md) — the fuzzer contract.
 - [release-and-publish.md](release-and-publish.md) — what CI may and may not
   do after the tests pass.
+
+## Resolution interpreter matrix
+
+`.github/workflows/resolution-oracles.yml` runs the deterministic full interpreter
+matrix for changes to Rust, specs and the oracle tooling. It provisions all five
+C Tcl releases from the shared manifest plus the inspected current Jim revision,
+then runs `scripts/dev/run-resolution-oracles.sh`. This is separate from ordinary
+available-reference unit coverage: a missing or invalid requested interpreter
+fails. Unsupported language operations remain explicit expected results.
+
+The matrix checks command/variable/namespace vectors, executable binding/package/
+autoload observations and standalone original-versus-rewritten source fixtures.
+These include exactly-once substitution effects, conditional builtin replacement,
+relative variable cells, alias retargeting, trace rebinding, package loader effects
+and C/Jim import differences. Output, status and primary errors are compared;
+stack-layout equivalence is outside these rewrite fixtures' assertions.
+
+Package-loader filesystem fixtures also run against all six interpreters. They
+assert loader activation, implicit/provisional package state, recursion, and
+partial mutations after errors; compiler rewrites execute the same files in
+separate temporary roots.

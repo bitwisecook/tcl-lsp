@@ -200,7 +200,12 @@ fn dispatching_subcommand<'s>(spec: &'s CommandSpec, args: &[&str]) -> Option<&'
 /// subcommand dispatch, then the option scan (with its `--` terminator), then
 /// the positional tables — because an explanation that disagreed with the
 /// answer it explains would be worse than no explanation at all.
-fn provenance(spec: &CommandSpec, args: &[&str], idx: usize) -> Provenance {
+fn provenance(
+    registry: &CommandRegistry,
+    spec: &CommandSpec,
+    args: &[&str],
+    idx: usize,
+) -> Provenance {
     let sub = dispatching_subcommand(spec, args);
     if let Some(sub) = sub
         && idx == 0
@@ -294,21 +299,22 @@ fn provenance(spec: &CommandSpec, args: &[&str], idx: usize) -> Provenance {
         }
     }
 
-    positional(spec, sub, args, idx, offset)
+    positional(registry, spec, sub, args, idx, offset)
 }
 
 /// The positional half of [`provenance`]: the three tables that can name an
 /// argument position, in the registry's own precedence.
 fn positional(
+    registry: &CommandRegistry,
     spec: &CommandSpec,
     sub: Option<&SubCommand>,
     args: &[&str],
     idx: usize,
     offset: usize,
 ) -> Provenance {
-    let (roles, resolver, repeated) = match sub {
-        Some(sub) => (sub.arg_roles, sub.arg_role_resolver, sub.repeated_args),
-        None => (spec.arg_roles, spec.arg_role_resolver, spec.repeated_args),
+    let (roles, repeated) = match sub {
+        Some(sub) => (sub.arg_roles, sub.repeated_args),
+        None => (spec.arg_roles, spec.repeated_args),
     };
     let Some(local) = idx.checked_sub(offset) else {
         return Provenance {
@@ -322,17 +328,29 @@ fn positional(
         None => word.to_owned(),
     };
 
-    if let Some(resolve) = resolver {
-        let tail: Vec<&str> = args.iter().skip(offset).copied().collect();
-        if let Some((_, role)) = resolve(&tail)
-            .into_iter()
-            .find(|(at, _)| usize::from(*at) == local)
+    if let Some(resolved) = registry.resolve_invocation(spec.name, args, None) {
+        let semantics = &resolved.semantics;
+        let field = if semantics.arg_role_layout_resolver.is_some() {
+            Some("arg_role_layout_resolver")
+        } else if semantics.arg_role_count_resolver.is_some() {
+            Some("arg_role_count_resolver")
+        } else if semantics.arg_role_resolver.is_some() {
+            Some("arg_role_resolver")
+        } else {
+            None
+        };
+        if let Some(field) = field
+            && let Some((_, role)) = resolved
+                .argument_roles()
+                .0
+                .into_iter()
+                .find(|(at, _)| usize::from(*at) + semantics.argument_offset == idx)
         {
             return Provenance {
                 kind: "argument",
-                field: Some(owner("arg_role_resolver")),
+                field: Some(owner(field)),
                 detail: format!(
-                    "the resolver read this whole call and gave word {local} the role {}",
+                    "the selected resolver gave word {local} the role {}",
                     catalogue::variant_name(&role)
                 ),
             };
@@ -452,7 +470,7 @@ impl<'a> Bench<'a> {
                     .map(|spec| self.roles_at(spec, &word.head, &arg_refs, word.arg_index()))
                     .unwrap_or_default();
                 let prov = match (resolved, word.arg_index()) {
-                    (Some(spec), Some(idx)) => provenance(spec, &arg_refs, idx),
+                    (Some(spec), Some(idx)) => provenance(&self.registry, spec, &arg_refs, idx),
                     (Some(_), None) => Provenance {
                         kind: "command",
                         field: Some("command".to_owned()),
@@ -561,7 +579,7 @@ impl<'a> Bench<'a> {
             .collect();
 
         let prov = match (resolved, word.arg_index()) {
-            (Some(spec), Some(idx)) => provenance(spec, &arg_refs, idx),
+            (Some(spec), Some(idx)) => provenance(&self.registry, spec, &arg_refs, idx),
             (Some(_), None) => Provenance {
                 kind: "command",
                 field: Some("command".to_owned()),
@@ -757,13 +775,17 @@ fn origin_label(origin: Option<Origin>) -> &'static str {
 
 /// `1..3`, `2..`, `0` — the arity as a spec author writes it in the DSL.
 fn arity_text(arity: tcl_registry::arity::Arity) -> String {
-    if arity.is_unlimited() {
+    let mut label = if arity.is_unlimited() {
         format!("{}..", arity.min)
     } else if arity.min == arity.max {
         format!("{}", arity.min)
     } else {
         format!("{}..{}", arity.min, arity.max)
+    };
+    if arity.count == tcl_registry::arity::ArityCount::Positionals {
+        label.push_str(" positionals");
     }
+    label
 }
 
 /// The pack's load notices that mention `name`, as plain lines.

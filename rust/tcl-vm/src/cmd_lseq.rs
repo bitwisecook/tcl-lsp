@@ -16,58 +16,67 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `lseq` — the arithmetic-sequence generator, over the
-//! shared [`tcl_cmd_core::lseq`] core. Supports
-//! every form (`lseq 5`, `lseq 1 to 10 by 2`, `lseq 0 0.5 by 0.1`,
-//! expression-valued arguments) over its `i64`+`double` number model — the same
-//! core the WASM runtime drives over its bignum tower.
-//!
-//! The adapter supplies the two per-runtime edges: evaluating an
-//! expression-valued argument through `vm.eval_expr`, and constructing the
-//! element list over the VM's `ValueOps`.
+//! Native numeric sequence arguments and result generation over the shared core.
 
+use crate::command::{completion_from_cmd_error, native_wrong_args};
+use crate::interp::{Vm, ok};
+use crate::value::Value;
+use tcl_cmd_core::lseq::{self, LseqError};
 use tcl_runtime_api::Completion;
 
-use tcl_cmd_core::lseq::{self, LseqError, Num};
-
-use crate::command::completion_from_tcl_error;
-use crate::error::TclError;
-use crate::interp::{Vm, err, ok};
-use crate::value::Value;
-
-/// Register `lseq`.
+/// Register the native numeric sequence command.
 pub(crate) fn register(vm: &mut Vm) {
-    vm.register("lseq", cmd_lseq);
+    vm.register_stock_builtin("lseq", cmd_lseq);
 }
 
 fn cmd_lseq(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    // The VM's argv is already name-stripped; snapshot each arg's string rep so
-    // the byte slices the core sees don't borrow through the values.
-    let bytes: Vec<Vec<u8>> = args
-        .iter()
-        .map(|v| v.to_str().as_bytes().to_vec())
-        .collect();
-    let refs: Vec<&[u8]> = bytes.iter().map(Vec::as_slice).collect();
-
-    // Decode first (the eval callback borrows the vm), then generate (the vm is
-    // borrowed as the value-ops) — two separate calls, so no borrow conflict.
-    let plan = match lseq::decode(&refs, |src| eval_num(vm, src)) {
-        Ok(p) => p,
-        Err(LseqError::Message(m)) => return err(String::from_utf8_lossy(&m).into_owned()),
-        Err(LseqError::Eval(e)) => return completion_from_tcl_error(e),
+    let bytes = args.iter().map(Value::string_bytes).collect::<Vec<_>>();
+    let refs = bytes.iter().map(|bytes| bytes.as_ref()).collect::<Vec<_>>();
+    let plan = match lseq::decode(&refs) {
+        Ok(plan) => plan,
+        Err(LseqError::WrongArguments) => {
+            return native_wrong_args(vm, "lseq n ??op? n ??by? n??");
+        }
+        Err(LseqError::Command(error)) => return completion_from_cmd_error(vm, error),
     };
     match lseq::generate(vm, &plan) {
-        Ok(v) => ok(v),
-        Err(m) => err(String::from_utf8_lossy(m).into_owned()),
+        Ok(value) => ok(value),
+        Err(error) => completion_from_cmd_error(vm, error),
     }
 }
 
-/// Evaluate `src` as an expression and classify its result as a number — the
-/// `lseq` expression-valued-argument edge. `Ok(None)` = evaluated but not a
-/// number (the core maps that to a syntax error); `Err` = the evaluation failed.
-fn eval_num(vm: &mut Vm, src: &[u8]) -> Result<Option<Num>, TclError> {
-    let s =
-        core::str::from_utf8(src).map_err(|_| TclError::new("expr operand is not valid UTF-8"))?;
-    let v = vm.eval_expr(s)?;
-    Ok(lseq::as_number(v.to_str().as_bytes()))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sequence_backend_capacity_bypasses_guest_capture_and_finally() {
+        for script in [
+            "set prior BEFORE; catch {lseq 100000001} captured options; set after YES",
+            "set prior BEFORE; try {lseq 100000001} finally {set final YES}; set after YES",
+        ] {
+            let mut vm = Vm::new();
+            vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
+            vm.set_compiler(Box::new(
+                tcl_compiler::compile_service::BytecodeCompileService::default(),
+            ));
+            let error = vm.try_eval_source(script).unwrap_err();
+            let tcl_runtime_api::NativeExecutionError::HostCommandRefusal(refusal) = error else {
+                panic!("expected reached materialization refusal: {error:?}");
+            };
+            assert_eq!(
+                refusal.reason,
+                "host cannot materialize 100000001 elements; backend limit is 100000000"
+            );
+            assert_eq!(
+                vm.get_var("prior").unwrap().string_bytes().as_ref(),
+                b"BEFORE"
+            );
+            for name in ["captured", "options", "final", "after"] {
+                assert!(vm.get_var(name).is_none());
+            }
+        }
+    }
 }

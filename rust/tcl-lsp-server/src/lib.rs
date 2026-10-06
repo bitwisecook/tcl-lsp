@@ -6050,7 +6050,7 @@ async fn publish_fast_tier(
     let decode_report = lift_inputs.decode_report;
     let severity_overrides = lift_inputs.severity_overrides.clone();
     let style_line_length = lift_inputs.style_line_length;
-    let dialect = lift_inputs.dialect.to_owned();
+    let dialect = lift_inputs.dialect;
     let lifted = crate::rt::spawn_blocking(move || {
         let mut diagnostics =
             lift_analyser_diagnostics(&text, &fast, &analysis_lifts.suppressed_lines);
@@ -6215,7 +6215,7 @@ async fn refine_and_lift_diagnostics(
     let opt_disabled = inputs.opt_disabled.clone();
     let optimiser_enabled = inputs.optimiser_enabled;
     let style_line_length = inputs.style_line_length;
-    let dialect = inputs.dialect.to_owned();
+    let dialect = inputs.dialect;
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
     // SslicTcl documents carry a second whole-file validator, exactly as the
     // F5 dialects do: the `.sslictcl` loader. Resolved from the profile here
@@ -6303,7 +6303,7 @@ struct IndexedDiagnosticFacts {
     /// values sourced children import — while the source rows themselves
     /// compare equal, so the constants are resolution-relevant exactly as
     /// the rows are.
-    path_constants: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
+    path_constants: tcl_compiler::auto_path_eval::PathConstantAssignments,
     package_requires: Vec<core_workspace_index::WorkspacePackageRequire>,
     package_provides: Vec<core_workspace_index::WorkspacePackageProvide>,
     package_ifneededs: Vec<core_workspace_index::WorkspacePackageIfneeded>,
@@ -6333,7 +6333,7 @@ impl IndexedDiagnosticFacts {
                 .filter(|source| source.uri == uri)
                 .cloned()
                 .collect(),
-            path_constants: index.path_constant_assignments(uri).to_vec(),
+            path_constants: index.path_constant_assignments(uri).clone(),
             package_requires: index
                 .package_requires()
                 .filter(|require| require.uri == uri)
@@ -6580,7 +6580,7 @@ fn source_diagnostic_consumers(
 /// so the old facts travel together.
 struct ReplacedSources<'a> {
     rows: &'a [core_workspace_index::WorkspaceSource],
-    constants: &'a [tcl_compiler::auto_path_eval::PathConstantWrite],
+    constants: &'a tcl_compiler::auto_path_eval::PathConstantAssignments,
 }
 
 /// [`source_diagnostic_consumers`] with one document's source rows replaced.
@@ -6631,6 +6631,7 @@ fn source_diagnostic_consumers_with_sources(
                 &source.uri,
                 &source.raw_path,
                 source.is_literal,
+                source.range.start(),
                 replaced.constants,
                 &index.imported_path_constants_for(&source.uri),
             )
@@ -13677,9 +13678,18 @@ impl Backend {
                     req.range.start(),
                     inherited_prefer,
                 );
-                for f in
-                    resolver.resolve_require(&req.name, req.version.as_deref(), req.exact, prefer)
-                {
+                let requirements: Vec<&str> = if req.requirements.is_empty() {
+                    req.version.as_deref().into_iter().collect()
+                } else {
+                    req.requirements.iter().map(String::as_str).collect()
+                };
+                for f in resolver.resolve_require_for_profile(
+                    &req.name,
+                    &requirements,
+                    req.exact,
+                    prefer,
+                    tcl_dialect::DialectProfile::find(&analysis.dialect),
+                ) {
                     if !files.contains(&f) {
                         files.push(f);
                     }
@@ -16395,7 +16405,6 @@ impl Backend {
     ) -> Vec<CallHierarchyOutgoingCall> {
         let unresolved = {
             let source = source.to_owned();
-            let dialect = dialect.to_owned();
             let item = item.clone();
             let analysis = analysis.clone();
             let exports = self.export_snapshot().await;
@@ -29430,6 +29439,7 @@ fn workspace_source_edges(
                 &s.uri,
                 &s.raw_path,
                 s.is_literal,
+                s.range.start(),
                 index.path_constant_assignments(&s.uri),
                 &index.imported_path_constants_for(&s.uri),
             )
@@ -29494,6 +29504,7 @@ fn compute_source_inheritance(
             uri_str,
             &src.raw_path,
             src.is_literal,
+            src.range.start(),
             &analysis.path_constant_assignments,
             &index.imported_path_constants_for(uri_str),
         ) {
@@ -29638,9 +29649,9 @@ fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
 /// (literal constants still carry; `[info script]` idioms abstain).
 fn fold_document_constants(
     uri: &str,
-    writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    imported: &HashMap<String, String>,
-) -> HashMap<String, String> {
+    writes: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
+) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
     let parsed = Uri::from_str(uri).ok();
     let path = parsed.as_ref().and_then(Uri::to_file_path);
     tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
@@ -29667,8 +29678,9 @@ fn resolve_source_edge(
     parent_uri: &str,
     raw_path: &str,
     is_literal: bool,
-    raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    imported: &HashMap<String, String>,
+    source_offset: u32,
+    raw_constants: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
 ) -> Option<String> {
     if is_literal {
         return resolve_source_uri(parent_uri, raw_path);
@@ -29683,7 +29695,7 @@ fn resolve_source_edge(
     let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
         raw_path,
         parent_path.to_str(),
-        &constants,
+        &constants.at(source_offset),
     )?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
@@ -30498,7 +30510,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
         for folded in tcl_compiler::auto_path_eval::evaluate_auto_path_entry_with_constants(
             entry,
             file_path.to_str(),
-            &constants,
+            &constants.at(entry.range.start()),
             Some(tcl_lsp_core::profile_for_dialect(&analysis.dialect)),
         ) {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {

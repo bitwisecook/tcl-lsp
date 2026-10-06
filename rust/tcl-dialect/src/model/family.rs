@@ -962,7 +962,7 @@ impl CoreProfileId {
             // `string length` on real TMOS.
             Family::F5Tcl | Family::F5Irules => Some(StringCharacterModel::Utf16CodeUnits),
             Family::Jim => match self.resolve_capabilities().utf8_character_model {
-                CapabilityAnswer::Yes => Some(StringCharacterModel::UnicodeScalars),
+                CapabilityAnswer::Yes => Some(StringCharacterModel::Jim084Utf8),
                 CapabilityAnswer::No | CapabilityAnswer::Unknown => None,
             },
         }
@@ -1214,10 +1214,7 @@ mod tests {
             CapabilityAnswer::No,
             "Jim never had it"
         );
-        assert_eq!(
-            jim.character_model,
-            Some(StringCharacterModel::UnicodeScalars)
-        );
+        assert_eq!(jim.character_model, Some(StringCharacterModel::Jim084Utf8));
     }
 
     /// The two-level F5 tree (§0.2/§2, owner rulings 2026-08-26): grammar
@@ -1458,10 +1455,7 @@ mod tests {
 
         // The character model differs too, and the honest answer for the
         // byte-counting build is "this vocabulary cannot name it".
-        assert_eq!(
-            full.character_model,
-            Some(StringCharacterModel::UnicodeScalars)
-        );
+        assert_eq!(full.character_model, Some(StringCharacterModel::Jim084Utf8));
         assert_eq!(minimal.character_model, None);
         assert_eq!(
             minimal.capabilities.utf8_character_model,

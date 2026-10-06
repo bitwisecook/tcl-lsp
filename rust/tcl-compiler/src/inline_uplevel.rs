@@ -25,7 +25,7 @@
 
 use std::collections::HashMap;
 
-use crate::ir::{Module, Procedure, Script, Statement};
+use crate::ir::{CommandTokens, Module, Procedure, Script, Statement};
 use crate::lowering::Lowerer;
 use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
 use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS};
@@ -49,6 +49,10 @@ pub enum PassthroughShape {
         /// rewrite time (the callsite's literal is what gets inlined,
         /// not the param name).
         param_name: String,
+        /// Actual selector operands from the dispatcher before its body.
+        selector: Vec<String>,
+        /// Authored frame grammar, revalidated with every concrete body.
+        frame: tcl_registry::FrameEffectSpec,
     },
 }
 
@@ -64,7 +68,9 @@ pub fn detect_passthrough_candidates(
 ) -> HashMap<String, PassthroughShape> {
     let mut out = HashMap::new();
     for (qname, proc) in &module.procedures {
-        if let Some(shape) = classify_passthrough(proc, registry) {
+        if let Some(shape) =
+            classify_passthrough(proc, registry, module.source_entry.invocation_dialect)
+        {
             out.insert(qname.clone(), shape);
         }
     }
@@ -88,12 +94,22 @@ pub fn detect_static_passthrough(
 
 /// Classify a single procedure as a passthrough candidate or
 /// return `None`.
-fn classify_passthrough(proc: &Procedure, registry: &CommandRegistry) -> Option<PassthroughShape> {
+fn classify_passthrough(
+    proc: &Procedure,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<PassthroughShape> {
     if let Some(body) = static_passthrough_body(proc, registry) {
         return Some(PassthroughShape::Static { body });
     }
-    if let Some(param) = param_body_passthrough_param(proc, registry) {
-        return Some(PassthroughShape::ParamBody { param_name: param });
+    if let Some((param_name, selector, frame)) =
+        param_body_passthrough_param(proc, registry, dialect)
+    {
+        return Some(PassthroughShape::ParamBody {
+            param_name,
+            selector,
+            frame,
+        });
     }
     None
 }
@@ -139,7 +155,11 @@ fn static_passthrough_body(proc: &Procedure, registry: &CommandRegistry) -> Opti
 /// The actual frame-reach check still runs on the *callsite's*
 /// inlined body inside the rewriter — at detector time we only
 /// confirm the dispatcher's surface shape.
-fn param_body_passthrough_param(proc: &Procedure, registry: &CommandRegistry) -> Option<String> {
+fn param_body_passthrough_param(
+    proc: &Procedure,
+    registry: &CommandRegistry,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<(String, Vec<String>, tcl_registry::FrameEffectSpec)> {
     if proc.params.len() != 1 {
         return None;
     }
@@ -163,25 +183,53 @@ fn param_body_passthrough_param(proc: &Procedure, registry: &CommandRegistry) ->
     // grammar rather than the spelling covers every spelling of the
     // command (``::uplevel``) and every spelling of the level word
     // (``1``, ``+1``, ``0x1``, omitted) without enumerating either.
-    let spec = registry.get(stmt.canonical_command_or_source())?;
+    let tokens = stmt.tokens()?;
+    let target = tokens.source_binding.as_ref()?.proved_execution_target()?;
+    if !target.registry_backed {
+        return None;
+    }
+    let spec = registry.get(&target.command)?;
     let frame_effect = spec.frame_effect?;
     if frame_effect.layout != FrameArgLayout::ScriptInSelectedFrame {
         return None;
     }
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
-    let (level, rest) = frame_effect.resolve_for_version(&words, registry.runtime_version());
+    let source_words = tokens.words();
+    let mut words: Vec<_> = target
+        .prepended
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    words.extend(
+        source_words
+            .iter()
+            .skip(1)
+            .map(crate::registry_invocation::invocation_word),
+    );
+    let mut arguments =
+        tcl_registry::InvocationArguments::Structured(&words).with_profile(registry.profile());
+    if let Some(dialect) = dialect {
+        arguments = arguments.with_dialect(dialect);
+    }
+    let tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+        level,
+        level_word_len,
+    } = frame_effect.successful_layout(arguments).layout
+    else {
+        return None;
+    };
+    // A dispatcher body must originate from its actual parameter source word;
+    // a literal body inserted by an alias is a different procedure shape.
+    if words.len() != level_word_len + 1 {
+        return None;
+    }
+    let source_body_index = level_word_len.checked_sub(target.prepended.len())?;
+    let body_arg = args.get(source_body_index)?;
     // Only the immediate caller's frame is the passthrough idiom;
     // a deeper shift, an absolute frame, or a runtime-computed level
     // can't be inlined the same way.
     if level != FrameLevel::Relative(1) {
         return None;
     }
-    // The script is the whole argument tail, which `uplevel`
-    // concatenates — only a single body word is the passthrough shape.
-    let [body_arg] = rest else {
-        return None;
-    };
-
     // Body word must be a pure ``$param`` reference to the sole
     // proc parameter.
     let referenced = body_arg.strip_prefix('$')?;
@@ -191,7 +239,11 @@ fn param_body_passthrough_param(proc: &Procedure, registry: &CommandRegistry) ->
     if referenced != *param {
         return None;
     }
-    Some(param.clone())
+    let selector = words[..level_word_len]
+        .iter()
+        .map(|word| word.literal().map(str::to_owned))
+        .collect::<Option<Vec<_>>>()?;
+    Some((param.clone(), selector, frame_effect))
 }
 
 /// True if *script* contains a command that reaches a stack frame other
@@ -256,35 +308,52 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
 /// The registry's answer for one `Call` / `Barrier`: does this invocation
 /// reach a frame other than the one it is written in?
 ///
-/// Keyed off [`Statement::canonical_command_or_source`], so a resolved
-/// `::uplevel` and a surface `uplevel` are the same command here.  Traits
-/// are composed over the resolved subcommand
-/// ([`CommandRegistry::invocation_traits`]) because `info level` /
-/// `info frame` carry [`tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION`]
-/// on the subcommand rather than on `info` itself.
-///
-/// The `None` read is deliberate under invariant I4: this is
-/// a **widening** query — a frame-reaching answer *declines* the inline,
-/// so over-approximating across environments is the conservative
-/// direction, never a specialisation on an unproved binding.
+/// The retained source proof selects the actual registry implementation and
+/// composes frozen alias argv before asking its structured trait descriptor.
+/// Traits such as `info level` and `info frame` belong to the selected
+/// subcommand. Missing implementation, frame, or argument evidence declines
+/// inlining; written command spelling does not supply execution proof.
 fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> bool {
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
-        return false;
+    let Some(tokens) = stmt.tokens() else {
+        return true;
     };
-    let command = stmt.canonical_command_or_source();
-    if command.is_empty() {
-        return false;
-    }
-    if registry
-        .get(command)
-        .is_some_and(|spec| spec.frame_effect.is_some())
-    {
+    let Some(target) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(crate::command_binding::SourceInvocationBinding::proved_target)
+    else {
+        return true;
+    };
+    if !target.registry_backed {
         return true;
     }
-    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let Some(spec) = registry.get(&target.command) else {
+        return true;
+    };
+    if spec.frame_effect.is_some() {
+        return true;
+    }
+    let source_words = tokens.words();
+    let mut arguments: Vec<_> = target
+        .prepended
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    arguments.extend(
+        source_words
+            .iter()
+            .skip(1)
+            .map(crate::registry_invocation::invocation_word),
+    );
+    let invocation = tcl_registry::InvocationWords::structured(
+        tcl_registry::InvocationWord::Literal(&target.command),
+        &arguments,
+    )
+    .with_profile(registry.profile());
     registry
-        .invocation_traits(command, &words, None)
-        .intersects(FRAME_REACH_TRAITS)
+        .resolve_structured_invocation(invocation, registry.own_surface_query())
+        .resolved()
+        .is_none_or(|resolved| resolved.facts().traits.intersects(FRAME_REACH_TRAITS))
 }
 
 /// True if *script* can complete with a `return` / `break` / `continue`
@@ -400,19 +469,45 @@ fn statement_scripts_escape(scripts: &[&Script], in_loop: bool) -> bool {
 /// Safe to call multiple times — already-inlined callsites no
 /// longer match the pattern.
 pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistry) {
+    let source_image = module.source.clone();
+    let Ok(source) = source_image.try_text() else {
+        return;
+    };
     let candidates = detect_passthrough_candidates(module, registry);
     if candidates.is_empty() {
         return;
     }
+    let generations: HashMap<_, _> = module
+        .procedures
+        .iter()
+        .map(|(name, proc)| (name.clone(), proc.span.start()))
+        .collect();
+    let config = module.lexer_config;
+    let bindings = crate::command_binding::SourceCommandBindings::analyse_in_namespace_with_options(
+        source,
+        &module.top_level_namespace,
+        config,
+        registry,
+        module.source_entry.options(),
+    );
+    let context = InlineContext {
+        candidates: &candidates,
+        generations: &generations,
+        registry,
+        bindings: &bindings,
+        config,
+        entry: &module.source_entry,
+        source,
+    };
     let mut top = std::mem::take(&mut module.top_level);
-    rewrite_script_in_place(&mut top, &candidates, "::", registry);
+    rewrite_script_in_place(&mut top, "::", &context);
     module.top_level = top;
     let proc_qnames: Vec<String> = module.procedures.keys().cloned().collect();
     for qname in proc_qnames {
         let caller_ns = namespace_of(&qname);
         if let Some(proc) = module.procedures.get_mut(&qname) {
             let mut body = std::mem::take(&mut proc.body);
-            rewrite_script_in_place(&mut body, &candidates, &caller_ns, registry);
+            rewrite_script_in_place(&mut body, &caller_ns, &context);
             proc.body = body;
         }
     }
@@ -433,48 +528,49 @@ fn namespace_of(qname: &str) -> String {
     "::".to_string()
 }
 
-fn rewrite_script_in_place(
-    script: &mut Script,
-    candidates: &HashMap<String, PassthroughShape>,
-    namespace: &str,
-    registry: &CommandRegistry,
-) {
+struct InlineContext<'a> {
+    candidates: &'a HashMap<String, PassthroughShape>,
+    generations: &'a HashMap<String, u32>,
+    registry: &'a CommandRegistry,
+    bindings: &'a crate::command_binding::SourceCommandBindings,
+    config: tcl_lexer::LexerConfig,
+    entry: &'a crate::command_binding::SourceAnalysisEntry,
+    source: &'a str,
+}
+
+fn rewrite_script_in_place(script: &mut Script, namespace: &str, context: &InlineContext<'_>) {
     for stmt in &mut script.statements {
-        rewrite_statement_in_place(stmt, candidates, namespace, registry);
+        rewrite_statement_in_place(stmt, namespace, context);
     }
 }
 
-fn rewrite_statement_in_place(
-    stmt: &mut Statement,
-    candidates: &HashMap<String, PassthroughShape>,
-    namespace: &str,
-    registry: &CommandRegistry,
-) {
-    // First recurse into nested scripts so the inner-most rewrites
-    // happen before the outer one.
+fn rewrite_statement_in_place(stmt: &mut Statement, namespace: &str, context: &InlineContext<'_>) {
     walk_nested_scripts(
         stmt,
-        |body, ns| {
-            rewrite_script_in_place(body, candidates, ns, registry);
-        },
+        |body, ns| rewrite_script_in_place(body, ns, context),
         namespace,
     );
-
-    // Then attempt to rewrite this statement itself if it's a
-    // matching callsite.
-    let replacement = try_inline_callsite(stmt, candidates, namespace, registry);
-    if let Some(new_stmt) = replacement {
-        *stmt = new_stmt;
+    if let Some(replacement) = try_inline_callsite(stmt, namespace, context) {
+        *stmt = replacement;
     }
 }
 
 fn try_inline_callsite(
     stmt: &Statement,
-    candidates: &HashMap<String, PassthroughShape>,
     namespace: &str,
-    registry: &CommandRegistry,
+    context: &InlineContext<'_>,
 ) -> Option<Statement> {
-    let (command, args, span, tokens) = match stmt {
+    let InlineContext {
+        candidates,
+        generations,
+        registry,
+        bindings,
+        config,
+        entry,
+        source,
+    } = context;
+    let config = *config;
+    let (_command, args, span, tokens) = match stmt {
         Statement::Call {
             command,
             args,
@@ -492,13 +588,24 @@ fn try_inline_callsite(
         _ => return None,
     };
 
-    // Tcl's two-step existence-checked resolution (current namespace, then
-    // global) against the candidate map — the shared rule, so this inliner
-    // can't drift from the analyser / optimiser / VM.
-    let target = crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |q| {
-        candidates.contains_key(q)
-    })?;
-    let shape = &candidates[&target];
+    let target = tokens
+        .as_ref()?
+        .source_binding
+        .as_ref()?
+        .proved_execution_target()?;
+    if target.kind != crate::command_binding::BindingKind::Proc {
+        return None;
+    }
+    let identity = target.identity.as_ref()?;
+    let shape = candidates.get(&identity.origin)?;
+    let declaration = generations.get(&identity.origin).copied()?;
+    if !target.matches_authored_implementation(source, declaration) {
+        return None;
+    }
+    // Retain effective argv: an alias prefix counts towards procedure arity.
+    if !target.prepended.is_empty() {
+        return None;
+    }
 
     match shape {
         PassthroughShape::Static { body } => {
@@ -513,7 +620,9 @@ fn try_inline_callsite(
                 error_context: None,
             })
         }
-        PassthroughShape::ParamBody { .. } => {
+        PassthroughShape::ParamBody {
+            selector, frame, ..
+        } => {
             // ParamBody: the dispatcher proc is `proc D {body}
             // { uplevel ?1? $body }`. Rewrite a callsite when:
             //   * exactly one argument,
@@ -523,23 +632,24 @@ fn try_inline_callsite(
             //   * no `{*}`-expansion on any word,
             //   * the materialised body lowers cleanly and
             //     contains no nested frame-reaching commands.
-            if args.len() != 1 {
-                return None;
-            }
             let tk = tokens.as_ref()?;
-            // argv = [command, body_arg]. Index 1 is the body.
-            if tk.argv.len() < 2 || tk.argv_kinds.len() < 2 {
+            let (literal, base) = literal_body_argument(args, tk)?;
+            if !concrete_body_selects_caller(*frame, selector, literal, entry.invocation_dialect) {
                 return None;
             }
-            if tk.argv_kinds[1] != tcl_lexer::TokenType::Str {
-                return None;
-            }
-            // ``{*}`` expansion on any word disables the rewrite.
-            if tk.expand_word.iter().flatten().any(|&e| e) {
-                return None;
-            }
-            let literal = &args[0];
-            let inlined = lower_literal_script(literal, namespace, registry);
+            let call_proof = tk.source_binding.as_ref()?;
+            let selected = bindings.analyse_script_at_site(
+                literal,
+                base,
+                span.start(),
+                &call_proof.variable_frame,
+                config,
+                registry,
+            )?;
+            let mut lowerer = Lowerer::with_config(registry, config);
+            lowerer.set_source_analysis_options(entry.options());
+            let inlined =
+                lowerer.lower_into_script_with_bindings(literal, base, namespace, selected);
             if body_has_frame_reach(&inlined, registry) || body_has_completion_escape(&inlined) {
                 return None;
             }
@@ -552,6 +662,43 @@ fn try_inline_callsite(
             })
         }
     }
+}
+
+fn literal_body_argument<'a>(args: &'a [String], tokens: &CommandTokens) -> Option<(&'a str, u32)> {
+    let [literal] = args else {
+        return None;
+    };
+    if tokens.argv_kinds.get(1) != Some(&tcl_lexer::TokenType::Str)
+        || tokens
+            .expand_word
+            .iter()
+            .flatten()
+            .any(|&expanded| expanded)
+    {
+        return None;
+    }
+    Some((literal, tokens.argv.get(1)?.start().checked_add(1)?))
+}
+
+fn concrete_body_selects_caller(
+    frame: tcl_registry::FrameEffectSpec,
+    selector: &[String],
+    literal: &str,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> bool {
+    let mut concrete: Vec<_> = selector
+        .iter()
+        .map(|word| tcl_registry::InvocationWord::Literal(word))
+        .collect();
+    concrete.push(tcl_registry::InvocationWord::Literal(literal));
+    let mut arguments = tcl_registry::InvocationArguments::structured(&concrete);
+    if let Some(dialect) = dialect {
+        arguments = arguments.with_dialect(dialect);
+    }
+    matches!(frame.resolve_arguments(arguments),
+        tcl_registry::frame_effect::FrameArgumentResolution::Valid {
+            level: FrameLevel::Relative(1), level_word_len,
+        } if level_word_len == selector.len())
 }
 
 /// Visit every nested [`Script`] field of *stmt* with *visitor*
@@ -625,30 +772,34 @@ where
     }
 }
 
-/// Lower a brace-literal script into a [`Script`] for the inline
-/// rewriter. Used by the `ParamBody` rewrite path to materialise
-/// the callsite's brace-literal body before splicing.
-fn lower_literal_script(literal: &str, namespace: &str, registry: &CommandRegistry) -> Script {
-    let mut lowerer = Lowerer::with_config(
-        registry,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
-    );
-    lowerer.lower_into_script(literal, namespace)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::lower_to_ir;
+    use crate::lowering::lower_to_ir_with;
     use tcl_registry::CommandRegistry;
 
     fn reg() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_dialect::DialectProfile::find("tcl8.6").expect("C Tcl 8.6 profile"),
+        )
+    }
+
+    fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
+        let profile = registry.profile().expect("selected test interpreter");
+        let mut lowerer =
+            Lowerer::with_config(registry, tcl_lexer::LexerConfig::for_profile(Some(profile)));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            unknown_entry: false,
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        });
+        lower_to_ir_with(lowerer, source)
     }
 
     #[test]
     fn zero_param_static_passthrough_detected() {
-        let m = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }", &reg());
+        let m = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }\nreset", &reg());
         let candidates = detect_static_passthrough(&m, &reg());
         assert_eq!(candidates.len(), 1);
         assert!(candidates.contains_key("::reset"));
@@ -699,7 +850,7 @@ mod tests {
         // 1; only the `absolute` flag separates them.
         let m = lower_to_ir("proc reset {} { uplevel #1 {set counter 0} }", &reg());
         assert!(detect_static_passthrough(&m, &reg()).is_empty());
-        let relative = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }", &reg());
+        let relative = lower_to_ir("proc reset {} { uplevel 1 {set counter 0} }\nreset", &reg());
         assert!(
             !detect_static_passthrough(&relative, &reg()).is_empty(),
             "the relative form is still recognised",
@@ -731,7 +882,7 @@ mod tests {
         // A `break` fully contained in a loop within the body is absorbed by
         // that loop and never escapes, so the inline stays safe.
         let m = lower_to_ir(
-            "proc run {} { uplevel 1 {foreach x {1 2} { break }} }",
+            "proc run {} { uplevel 1 {foreach x {1 2} { break }} }\nrun",
             &reg(),
         );
         assert_eq!(detect_static_passthrough(&m, &reg()).len(), 1);
@@ -741,7 +892,7 @@ mod tests {
     fn static_passthrough_with_catch_absorbed_return_allowed() {
         // `catch` intercepts every non-OK completion code, so a `return`
         // inside it cannot escape the body.
-        let m = lower_to_ir("proc run {} { uplevel 1 {catch {return 5}} }", &reg());
+        let m = lower_to_ir("proc run {} { uplevel 1 {catch {return 5}} }\nrun", &reg());
         assert_eq!(detect_static_passthrough(&m, &reg()).len(), 1);
     }
 
@@ -853,6 +1004,34 @@ mod tests {
     }
 
     #[test]
+    fn implicit_selector_candidate_revalidates_the_concrete_body() {
+        let mut accepted = lower_to_ir(
+            "proc dispatcher {body} {uplevel $body}\ndispatcher {set x 1}",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut accepted, &reg());
+        assert!(
+            accepted
+                .top_level
+                .statements
+                .iter()
+                .any(|statement| matches!(statement, Statement::Block { .. }))
+        );
+        let mut rejected = lower_to_ir(
+            "proc dispatcher {body} {uplevel $body}\ndispatcher {1}",
+            &reg(),
+        );
+        inline_uplevel_passthrough(&mut rejected, &reg());
+        assert!(
+            !rejected
+                .top_level
+                .statements
+                .iter()
+                .any(|statement| matches!(statement, Statement::Block { .. }))
+        );
+    }
+
+    #[test]
     fn qualified_uplevel_dispatcher_is_still_a_candidate() {
         // The dispatcher's own head resolves through the registry too, so
         // `proc D {b} { ::uplevel 1 $b }` is the same passthrough shape.
@@ -869,7 +1048,7 @@ mod tests {
         let candidates = detect_passthrough_candidates(&m, &reg());
         let shape = candidates.get("::dispatcher").expect("expected candidate");
         match shape {
-            PassthroughShape::ParamBody { param_name } => assert_eq!(param_name, "body"),
+            PassthroughShape::ParamBody { param_name, .. } => assert_eq!(param_name, "body"),
             PassthroughShape::Static { .. } => panic!("expected ParamBody, got Static"),
         }
     }
@@ -922,6 +1101,43 @@ mod tests {
         // The callsite ``reset`` should now be a Statement::Block
         // splicing in the body.
         assert_eq!(count_blocks(&m.top_level), 1);
+    }
+
+    #[test]
+    fn rewriter_requires_the_retained_authored_implementation_allocation() {
+        use crate::command_binding::{AllocationIncarnation, SourceOriginId};
+        use std::sync::Arc;
+
+        let registry = reg();
+        let original = lower_to_ir(
+            "proc reset {} { uplevel 1 {set counter 0} }\nreset",
+            &registry,
+        );
+        for different_source in [false, true] {
+            let mut module = original.clone();
+            let (Statement::Call { tokens, .. } | Statement::Barrier { tokens, .. }) =
+                module.top_level.statements.last_mut().unwrap()
+            else {
+                panic!("expected procedure call");
+            };
+            let target = &mut tokens
+                .as_mut()
+                .unwrap()
+                .source_binding
+                .as_mut()
+                .unwrap()
+                .targets[0];
+            let allocation = target.implementation_allocation.as_mut().unwrap();
+            if different_source {
+                allocation.site.source = Arc::new(SourceOriginId::authored(&Arc::from(
+                    "a different source instance",
+                )));
+            } else {
+                allocation.incarnation = AllocationIncarnation::RepeatedFresh;
+            }
+            inline_uplevel_passthrough(&mut module, &registry);
+            assert_eq!(count_blocks(&module.top_level), 0);
+        }
     }
 
     #[test]

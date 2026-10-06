@@ -51,7 +51,7 @@ use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use super::state::Analyser;
-use super::types::{CodeFix, Severity};
+use super::types::Severity;
 
 /// Process-wide cached iRules event registry.  The data is static, so
 /// building it once and sharing it avoids rebuilding the table on every
@@ -138,49 +138,6 @@ fn is_deprecated_event(event: &str, target: Option<&str>) -> bool {
         .is_some_and(|p| p.is_deprecated(target))
 }
 
-/// Every argument index this call writes as a variable, as the registry
-/// resolves it for *these* arguments — `arg_role_resolver` first, then the
-/// static `arg_roles` table and any repeated tail
-/// ([`tcl_registry::CommandRegistry::arg_indices_for_role`]).
-///
-/// Registry-driven rather than a per-command table of single indices: it
-/// covers every multi-name writer (`catch {…} ::err`, `lassign $l ::a ::b`,
-/// `regexp … ::m`, `scan … ::v`) and does not read `array names ::x` — whose
-/// subcommand declares [`ArgRole::VarRead`] — as a write.
-fn var_write_indices(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> Vec<usize> {
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    registry.arg_indices_for_role(cmd_name, &arg_strs, ArgRole::VarWrite)
-}
-
-/// Return the `static::` variable name a command
-/// writes, or `None`.
-fn static_var_from_set<'a>(cmd_name: &str, args: &'a [String]) -> Option<&'a str> {
-    if cmd_name == "set" && args.first().is_some_and(|f| f.starts_with("static::")) {
-        return Some(args[0].as_str());
-    }
-    if cmd_name == "array" && args.len() >= 2 && args[0] == "set" && args[1].starts_with("static::")
-    {
-        return Some(args[1].as_str());
-    }
-    None
-}
-
-/// Whether this call destroys the variables it names rather than assigning
-/// them — [`Traits::DESTROYS_VARIABLE`] on the command (`unset`), or the
-/// resolved subcommand's `destructive` flag (`array unset`, `dict unset`).
-/// A destroyer never *creates* the implicit global that IRULE6001's `RULE_INIT`
-/// variant reports.
-fn destroys_variables(registry: &CommandRegistry, cmd_name: &str, args: &[String]) -> bool {
-    let Some(spec) = registry.get(cmd_name) else {
-        return false;
-    };
-    spec.traits.contains(Traits::DESTROYS_VARIABLE)
-        || args
-            .first()
-            .and_then(|sub| spec.resolve_subcommand(sub))
-            .is_some_and(|sub| sub.destructive)
-}
-
 impl Analyser {
     /// Run every analyser-level iRules event check for one command.
     /// No-op outside the `f5-irules` dialect.  Called from
@@ -211,9 +168,6 @@ impl Analyser {
         self.emit_irule3102_unnormalised_getter(cmd_name, args, cmd_tok);
         self.emit_irule2101_heavy_regex(cmd_name, cmd_tok, event_ref);
         self.emit_irule5001_ungated_log(cmd_name, cmd_tok, event_ref);
-        self.emit_irule4001_static_write(cmd_name, args, cmd_tok, event_ref);
-        self.emit_irule4003_var_scope(cmd_name, args, cmd_tok, event_ref);
-        self.emit_irule6001_global_var(cmd_name, args, arg_tokens, cmd_tok, event_ref);
         let execution_context = self.irules_execution_context(scope_path);
         self.emit_irule5006_top_level_only(cmd_name, cmd_tok, execution_context);
         self.emit_irule5007_top_level_executable(cmd_name, cmd_tok, execution_context);
@@ -526,27 +480,6 @@ impl Analyser {
         registry.irules_top_level_declaration_shape(cmd_name, arguments)
     }
 
-    /// The document's `(event, body texts)` index for IRULE4003, built once
-    /// per analysis run.
-    ///
-    /// Structural, not textual: [`collect_event_bodies`] uses the shared
-    /// top-level, offset-resolved event-handler boundary owner.  A byte scan
-    /// for `\bwhen\s+[A-Z_][A-Z0-9_]*` matches anywhere in the file, so a
-    /// `when` inside a `#` comment or a string literal invents a phantom event
-    /// block, and it needs its own `priority` / `timing` skip and brace matcher
-    /// that the registry's argument roles already describe.
-    fn irules_event_bodies(&mut self) -> &[(String, Vec<String>)] {
-        if self.irules_event_bodies.is_none() {
-            let bodies = collect_event_bodies(
-                &self.source,
-                self.registry.as_deref(),
-                &self.head_identities,
-            );
-            self.irules_event_bodies = Some(bodies);
-        }
-        self.irules_event_bodies.as_deref().unwrap_or_default()
-    }
-
     /// **IRULE1002.** `when` references an unknown iRules event name.
     /// Only literal event names are validated (`$var` / `[cmd]` skipped).
     fn emit_irule1002_unknown_event(
@@ -817,7 +750,13 @@ impl Analyser {
     /// reached only through a decision made on a debug flag is gated
     /// whichever way that decision went, and over-suppressing is the safe
     /// direction for a hint whose whole complaint is a missing gate.
-    pub(super) fn irules_debug_gate_opens(&mut self, cmd_name: &str, args: &[String]) -> bool {
+    pub(super) fn irules_debug_gate_opens(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        cmd_tok: Token,
+    ) -> bool {
         // Cheap gates first: only an iRules event body can hold the `log`
         // this suppresses, and a command that selects a body from a
         // selector has at least those two words.
@@ -827,13 +766,71 @@ impl Analyser {
         let Some(selectors) = self.irules_branch_selector_words(cmd_name, args) else {
             return false;
         };
-        if selectors.iter().any(|word| mentions_static_variable(word)) {
-            return true;
+        let flags = self.irules_debug_flag_names().to_vec();
+        let Some(registry) = self.registry.as_deref() else {
+            return false;
+        };
+        let bindings = self.head_identities.source_bindings();
+        let ingress = bindings.invocation_at_source(cmd_name, cmd_tok.span.start());
+        for index in selectors {
+            if let Some(token) = arg_tokens.get(index) {
+                for access in bindings.variable_accesses_in_span(token.span) {
+                    let place = crate::var_resolve::resolve_substitution_access(
+                        &access.original_spelling,
+                        &access.variable_context,
+                        registry,
+                        tcl_registry::TraceOperation::Read,
+                    );
+                    if crate::connection_scope::cell_from_place(&place)
+                        .is_some_and(|cell| flags.contains(&cell))
+                        || (!place.dynamic
+                            && place.is_global()
+                            && tcl_registry::f5::namespace_storage_domain(
+                                tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                                &place.ns,
+                            ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+                    {
+                        return true;
+                    }
+                }
+            }
+            let Some(word) = args.get(index) else {
+                continue;
+            };
+            // A hint can be suppressed for unresolved named reads in a nested
+            // command. Direct lexical references above use their actual cells.
+            let expression =
+                tcl_syntax::expr::parser::parse_expr_for_profile(word, Some(self.profile));
+            // This is suppress-only advisory evidence. Structural expression
+            // references can be considered even when execution has not been
+            // proved; their cell still needs the retained point binding context.
+            let direct_flag = expression.vars_parsed_only().iter().any(|name| {
+                let place = crate::var_resolve::resolve_literal_access(
+                    name,
+                    &ingress.variable_context,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Read,
+                );
+                crate::connection_scope::cell_from_place(&place)
+                    .is_some_and(|cell| flags.contains(&cell))
+                    || (!place.dynamic
+                        && place.is_global()
+                        && tcl_registry::f5::namespace_storage_domain(
+                            tcl_registry::f5::BigIpExecutionContext::TmmIRule,
+                            &place.ns,
+                        ) == tcl_registry::f5::VariableStorageDomain::WorkerNamespace)
+            });
+            if direct_flag
+                || expression
+                    .command_texts()
+                    .iter()
+                    .any(|text| mentions_static_variable(text))
+            {
+                return true;
+            }
         }
-        let flags = self.irules_debug_flag_names();
-        flags
-            .iter()
-            .any(|flag| selectors.iter().any(|word| var_referenced_in(flag, word)))
+        false
     }
 
     /// The words a branch-selecting command evaluates to choose *which* of
@@ -849,7 +846,7 @@ impl Analyser {
     /// the loop exclusion this leaves `if`, `switch`, and `case` — every one
     /// of them a command all of whose bodies are selected — so a gate never
     /// spans a body that runs regardless.
-    fn irules_branch_selector_words(&self, cmd_name: &str, args: &[String]) -> Option<Vec<String>> {
+    fn irules_branch_selector_words(&self, cmd_name: &str, args: &[String]) -> Option<Vec<usize>> {
         let registry = self.registry.as_deref()?;
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
         let traits = registry.invocation_traits(
@@ -867,7 +864,7 @@ impl Analyser {
                 .iter()
                 .enumerate()
                 .filter(|(index, _)| !bodies.contains(index) && !written.contains(index))
-                .map(|(_, word)| (*word).to_owned())
+                .map(|(index, _)| index)
                 .collect(),
         )
     }
@@ -876,200 +873,19 @@ impl Analyser {
     /// once per request — the debug flags a hot-event `log` can be gated on.
     /// Built once per source and memoised beside
     /// [`Self::irules_event_bodies`], which supplies its input.
-    fn irules_debug_flag_names(&mut self) -> &[String] {
+    fn irules_debug_flag_names(&mut self) -> &[crate::connection_scope::EventCell] {
         if self.irules_debug_flags.is_none() {
-            let config = self.lexer_config();
-            let bodies = self.irules_event_bodies().to_vec();
-            let flags = self.registry.clone().map_or_else(Vec::new, |registry| {
-                collect_debug_flag_names(&registry, &bodies, config)
+            let flags = self.registry.as_deref().map_or_else(Vec::new, |registry| {
+                collect_debug_flag_names(
+                    registry,
+                    &self.source,
+                    &self.head_identities,
+                    self.lexer_config(),
+                )
             });
             self.irules_debug_flags = Some(flags);
         }
         self.irules_debug_flags.as_deref().unwrap_or_default()
-    }
-
-    /// **IRULE4001.** Write to a `static::` variable outside `RULE_INIT`.
-    fn emit_irule4001_static_write(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: Token,
-        event: Option<&str>,
-    ) {
-        if event == Some("RULE_INIT") {
-            return;
-        }
-        let Some(var_name) = static_var_from_set(cmd_name, args) else {
-            return;
-        };
-        self.result
-            .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
-                DiagCode::Irule4001,
-                cmd_tok.span,
-                format!(
-                    "Writing to '{var_name}' outside RULE_INIT is dangerous. \
-                 static:: variables are shared across all connections; \
-                 concurrent writes can cause race conditions."
-                ),
-                Severity::Warning,
-            ));
-    }
-
-    /// **IRULE4003.** Variable scoping concern across `when` events.
-    fn emit_irule4003_var_scope(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        cmd_tok: Token,
-        event: Option<&str>,
-    ) {
-        if cmd_name != "set" {
-            return;
-        }
-        let Some(event) = event else { return };
-        if event == "RULE_INIT" {
-            return;
-        }
-        // Must be a write (`set var value`), not a read (`set var`).
-        if args.len() < 2 {
-            return;
-        }
-        let var_name = &args[0];
-        // static:: handled by IRULE4001/4002; global ::vars skipped.
-        if var_name.starts_with("static::") || var_name.starts_with("::") {
-            return;
-        }
-
-        let events = event_registry();
-        let concerns: Vec<String> = {
-            let blocks = self.irules_event_bodies();
-            let mut concerns: Vec<String> = Vec::new();
-            for (other_event, bodies) in blocks {
-                if other_event == event {
-                    continue;
-                }
-                if bodies.iter().any(|body| var_referenced_in(var_name, body))
-                    && let Some(note) = events.variable_scope_note(event, other_event)
-                {
-                    concerns.push(note);
-                }
-            }
-            concerns
-        };
-        if concerns.is_empty() {
-            return;
-        }
-        let mut msg = format!("Variable '{var_name}': {}", concerns[0]);
-        if concerns.len() > 1 {
-            msg = format!("{msg}; {}", concerns[1..].join("; "));
-        }
-        self.result
-            .diagnostics
-            .push(crate::analyser::types::Diagnostic::new(
-                DiagCode::Irule4003,
-                cmd_tok.span,
-                msg,
-                Severity::Hint,
-            ));
-    }
-
-    /// **IRULE6001.** Global namespace variable usage (CMP pinning).
-    fn emit_irule6001_global_var(
-        &mut self,
-        cmd_name: &str,
-        args: &[String],
-        arg_tokens: &[Token],
-        cmd_tok: Token,
-        event: Option<&str>,
-    ) {
-        // `global varname` — imports from the global namespace.
-        if cmd_name == "global"
-            && let Some(var_name) = args.first()
-        {
-            let static_name = format!("static::{var_name}");
-            self.result
-                .diagnostics
-                .push(crate::analyser::types::Diagnostic::new(
-                    DiagCode::Irule6001,
-                    cmd_tok.span,
-                    format!(
-                        "'global {var_name}' imports from the global namespace, \
-                     forcing CMP compatibility mode and pinning the virtual server \
-                     to a single TMM. Use '{static_name}' instead."
-                    ),
-                    Severity::Warning,
-                ));
-            return;
-        }
-
-        // Every argument the registry resolves as a variable *write* for this
-        // concrete call — `set ::var`, `incr ::var`, `catch {…} ::err`,
-        // `lassign $l ::a ::b`, `regexp $re $s ::m`, `scan $s $f ::v`, …
-        let Some(registry) = self.registry.clone() else {
-            return;
-        };
-        let writes = var_write_indices(&registry, cmd_name, args);
-        let destroys = destroys_variables(&registry, cmd_name, args);
-        for idx in writes {
-            let Some(word) = args.get(idx) else { continue };
-            let fix_span = arg_tokens.get(idx).map_or(cmd_tok.span, |t| t.span);
-            if let Some(bare) = word.strip_prefix("::") {
-                let var_name = word.as_str();
-                let static_name = format!("static::{bare}");
-                self.result.diagnostics.push(
-                    crate::analyser::types::Diagnostic::new(
-                        DiagCode::Irule6001,
-                        fix_span,
-                        format!(
-                            "Global namespace variable '{var_name}' forces CMP compatibility \
-                         mode, pinning the virtual server to a single TMM. \
-                         Use '{static_name}' instead."
-                        ),
-                        Severity::Warning,
-                    )
-                    .with_fixes(vec![CodeFix {
-                        span: fix_span,
-                        new_text: static_name.clone(),
-                        description: format!("Replace '{var_name}' with '{static_name}'"),
-                        // IRULE6001: `static::` variables have per-TMM storage and a
-                        // different lifetime from a global — the CMP fix, and a change of
-                        // where the value lives.
-                        safety: crate::irules_checks::FixSafety::RequiresReview,
-                    }]),
-                );
-                continue;
-            }
-            // Implicit globals in RULE_INIT: `set var value` (no `::`) is
-            // global because RULE_INIT executes at the global namespace
-            // scope.  A destroyer names a variable it removes, so it creates
-            // no implicit global.
-            if event != Some("RULE_INIT") || destroys || word.starts_with("static::") {
-                continue;
-            }
-            let bare = word.as_str();
-            let static_name = format!("static::{bare}");
-            self.result.diagnostics.push(
-                crate::analyser::types::Diagnostic::new(
-                    DiagCode::Irule6001,
-                    fix_span,
-                    format!(
-                        "'{bare}' in RULE_INIT is implicitly global — RULE_INIT \
-                     runs at the global namespace scope. This forces CMP \
-                     compatibility mode, pinning the virtual server to a \
-                     single TMM. Use '{static_name}' instead."
-                    ),
-                    Severity::Warning,
-                )
-                .with_fixes(vec![CodeFix {
-                    span: fix_span,
-                    new_text: static_name.clone(),
-                    description: format!("Replace '{bare}' with '{static_name}'"),
-                    // IRULE6001: as above.
-                    safety: crate::irules_checks::FixSafety::RequiresReview,
-                }]),
-            );
-        }
     }
 }
 
@@ -1082,6 +898,7 @@ impl Analyser {
 /// cannot enter the cross-event inventory. Non-literal event names are already
 /// rejected by that owner. Its caller-supplied profile preserves the TMM `}{`
 /// ghost separator.
+#[cfg(test)]
 fn collect_event_bodies(
     source: &str,
     registry: Option<&CommandRegistry>,
@@ -1108,152 +925,89 @@ fn collect_event_bodies(
     out
 }
 
-/// How deep the debug-flag scan descends into a setup event's nested bodies.
-/// Such an event assigns its flag at or near the top level, so the cap costs
-/// nothing real and keeps a pathological file from turning a hint into a
-/// walk.
-const MAX_DEBUG_FLAG_SCAN_DEPTH: u32 = 4;
-
-/// Whether `word` reads a `static::` variable.
-///
-/// A substring test rather than a parse, deliberately: the namespace
-/// qualifier is unambiguous inside an expression word, it catches
-/// `$static::debug`, `${static::debug}` and `[info exists static::debug]`
-/// alike, and the only cost of a false positive is a silenced hint.
+/// Whether a selector mentions a worker namespace while no flag inventory
+/// is required. Exact setup-event definitions below use the shared Tcl cells.
 fn mentions_static_variable(word: &str) -> bool {
     word.contains("static::")
 }
 
-/// Every variable name assigned inside an event body that runs **less often
-/// than once per request** — `RULE_INIT` at load, `CLIENT_ACCEPTED` once per
-/// connection. Those are the two the message names, and the registry's
-/// multiplicity axis is what distinguishes them from per-request state: a
-/// variable the request path sets itself is not an out-of-band debug switch,
-/// so gating on one is not gating at all.
+/// Possible debug flags from infrequently invoked handlers. Reuse the source
+/// kernel's positioned bindings and shared analysis CFG, including possible
+/// body regions, instead of reparsing command heads or introducing a walker.
 fn collect_debug_flag_names(
     registry: &CommandRegistry,
-    bodies: &[(String, Vec<String>)],
+    source: &str,
+    resolver: &crate::realm::CommandBindingRealm,
     config: tcl_lexer::LexerConfig,
-) -> Vec<String> {
-    let events = event_registry();
-    let mut names = std::collections::BTreeSet::new();
-    for (event, texts) in bodies {
+) -> Vec<crate::connection_scope::EventCell> {
+    use tcl_registry::events::EventExecutionMultiplicity;
+    let mut names = std::collections::HashSet::new();
+    let bindings = resolver.source_bindings();
+    let declarations = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+    for candidate in declarations.iter().flat_map(|command| {
+        bindings
+            .deferred_rule_declaration_candidates(command.span.start())
+            .into_iter()
+            .flatten()
+    }) {
+        let tcl_registry::events::IrulesTopLevelDeclaration::Event { event, .. } =
+            &candidate.declaration
+        else {
+            continue;
+        };
         if !matches!(
-            events.event_multiplicity(event),
-            "init" | "once_per_connection"
+            event_registry().execution_multiplicity(event),
+            EventExecutionMultiplicity::OncePerWorkerEpoch
+                | EventExecutionMultiplicity::OncePerConnection
         ) {
             continue;
         }
-        for text in texts {
-            collect_written_variable_names(registry, text, config, 0, &mut names);
+        let Some(body) = &candidate.body else {
+            continue;
+        };
+        let Some(selected) = bindings.selected_source(body) else {
+            continue;
+        };
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_dialect(registry.profile());
+        let Ok(text) = body.try_text() else {
+            continue;
+        };
+        let mut script = lowerer.lower_into_script_with_bindings(text, body.base(), "::", selected);
+        script.executed_source = Some(std::sync::Arc::new(body.clone()));
+        let cfg = crate::cfg_builder::build_analysis_body(
+            &format!("::when::{event}"),
+            &script,
+            crate::ir::ExecutionNamespace::exact("::"),
+            registry,
+            config,
+        );
+        let points = crate::place_bridge::build_point_resolve_contexts_with_entry(
+            &cfg,
+            crate::connection_scope::event_resolve_context(event),
+            registry,
+        );
+        for (&block_id, block) in &cfg.blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                for place in crate::place_bridge::def_places_with_continuation(
+                    statement,
+                    points.before_statement(block_id, index),
+                    points.after_statement(block_id, index),
+                    registry,
+                ) {
+                    if let Some(name) = crate::connection_scope::cell_from_place(&place) {
+                        names.insert(name);
+                    }
+                }
+            }
         }
     }
     names.into_iter().collect()
 }
 
-/// Recursive half of [`collect_debug_flag_names`]: every `VarWrite`-role
-/// argument of every command in `script`, then the same over any word the
-/// registry says the command executes as a script.
-fn collect_written_variable_names(
-    registry: &CommandRegistry,
-    script: &str,
-    config: tcl_lexer::LexerConfig,
-    depth: u32,
-    names: &mut std::collections::BTreeSet<String>,
-) {
-    if depth >= MAX_DEBUG_FLAG_SCAN_DEPTH {
-        return;
-    }
-    let map = tcl_lexer::SourceMap::new(script);
-    for command in tcl_syntax::event_handler::script_commands(script, config) {
-        let Some(head) = command.words.first().and_then(|word| word.first()) else {
-            continue;
-        };
-        let cmd_name = tcl_syntax::naming::canonical_written_command(map.token_text(*head));
-        let args: Vec<String> = command.words[1..]
-            .iter()
-            .map(|word| map.token_text(word[0]).to_owned())
-            .collect();
-        for index in var_write_indices(registry, &cmd_name, &args) {
-            if command.words[1..]
-                .get(index)
-                .is_some_and(|word| literal_variable_name_word(word))
-                && let Some(name) = args.get(index)
-            {
-                names.insert(name.clone());
-            }
-        }
-        let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let clause_list = case_list_clause_index(registry, &cmd_name, &words);
-        for index in registry.arg_indices_for_role(&cmd_name, &words, ArgRole::Body) {
-            let Some(body) = args.get(index) else {
-                continue;
-            };
-            if clause_list == Some(index) {
-                for arm in case_list_arm_scripts(registry, &cmd_name, &words, body) {
-                    collect_written_variable_names(registry, &arm, config, depth + 1, names);
-                }
-            } else {
-                collect_written_variable_names(registry, body, config, depth + 1, names);
-            }
-        }
-    }
-}
-
-/// The index of a clause-list word — `switch`'s and `case`'s single braced
-/// `{pat body …}` argument — among a command's arguments, if it has one.
-fn case_list_clause_index(
-    registry: &CommandRegistry,
-    cmd_name: &str,
-    words: &[&str],
-) -> Option<usize> {
-    let dialect = registry
-        .profile()
-        .map(tcl_dialect::DialectProfile::surface_query);
-    registry
-        .case_invocation(cmd_name, words, dialect)
-        .and_then(|(_, invocation)| invocation.clause_list_index)
-}
-
-/// The arm scripts inside a clause-list word.
-///
-/// A clause list carries the `ArgRole::Body` role, but it is not itself a
-/// script: `{high {set debug 1} default {set debug 0}}` is a pattern/body
-/// sequence, and reading it as one script makes each *pattern* a command head
-/// and hides every assignment in an arm. The clause layout belongs to the
-/// registry's case-list descriptor, so ask it rather than splitting here.
-fn case_list_arm_scripts(
-    registry: &CommandRegistry,
-    cmd_name: &str,
-    words: &[&str],
-    clause_list: &str,
-) -> Vec<String> {
-    let dialect = registry
-        .profile()
-        .map(tcl_dialect::DialectProfile::surface_query);
-    let Some((case, _)) = registry.case_invocation(cmd_name, words, dialect) else {
-        return Vec::new();
-    };
-    let shape = tcl_syntax::case_list::CaseListShape {
-        clause_flags: case.clause_flags,
-        clause_value_flags: case.clause_value_flags,
-    };
-    tcl_syntax::case_list::split_case_list(clause_list, &shape)
-        .iter()
-        .filter_map(|clause| clause.body)
-        .filter_map(|body| clause_list.get(body.content_range()).map(str::to_owned))
-        .collect()
-}
-
-/// Whether a word is a literal variable name rather than one built at run
-/// time (`set $prefix.flag 1`). Only a literal name can be matched against a
-/// later `$flag` read, so only a literal one is a usable debug flag.
-fn literal_variable_name_word(word: &[Token]) -> bool {
-    matches!(word, [token] if token.kind == TokenType::Esc)
-}
-
 /// Is `$var_name` referenced in *body*?  Matches
 /// `$name` (not followed by a word char) or `${name}`.
+#[cfg(test)]
 fn var_referenced_in(var_name: &str, body: &str) -> bool {
     let bytes = body.as_bytes();
     let mut i = 0usize;
@@ -1619,7 +1373,11 @@ mod tests {
         // `if {$debug}`; that pair has to work too.
         assert!(!has(
             "when RULE_INIT { set debug 0 }\n\
-             when HTTP_REQUEST { if {$debug} { log local0. hi } }",
+             when HTTP_REQUEST { if {$::debug} { log local0. hi } }",
+            "IRULE5001"
+        ));
+        assert!(has(
+            "when RULE_INIT {set debug 0}\nwhen HTTP_REQUEST {if {$debug} {log local0. hi}}",
             "IRULE5001"
         ));
     }
@@ -1688,12 +1446,20 @@ mod tests {
         // A clause list is a pattern/body sequence, not a script: read as one
         // script its patterns become command heads and the arm assignments
         // vanish, leaving the gated `log` reported.
-        assert!(!has(
-            "when CLIENT_ACCEPTED { switch $mode { \
+        let source = "when CLIENT_ACCEPTED { switch $mode { \
              loud { set debug 1 } default { set debug 0 } } }\n\
-             when HTTP_REQUEST { if {$debug} { log local0. hi } }",
-            "IRULE5001"
-        ));
+             when HTTP_REQUEST { if {$debug} { log local0. hi } }";
+        let mut analyser = Analyser::new();
+        let result = analyser.analyse(source, "f5-irules");
+        assert!(
+            result
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code != DiagCode::Irule5001),
+            "flags: {:?}; diagnostics: {:?}",
+            analyser.irules_debug_flag_names(),
+            result.diagnostics
+        );
     }
 
     #[test]
@@ -1718,6 +1484,28 @@ mod tests {
     #[test]
     fn irule4001_fires_for_static_write_outside_rule_init() {
         assert!(has("when HTTP_REQUEST { set static::c 1 }", "IRULE4001"));
+    }
+
+    #[test]
+    fn storage_diagnostics_follow_canonical_cells_and_point_aliases() {
+        for target in ["static::c", "::static::c"] {
+            assert!(has(
+                &format!("when HTTP_REQUEST {{set {target} 1}}"),
+                "IRULE4001"
+            ));
+            assert!(!has(
+                &format!("when HTTP_REQUEST {{set {target} 1}}"),
+                "IRULE6001"
+            ));
+        }
+        let static_alias = "when HTTP_REQUEST {upvar #0 ::static::c linked; set linked 1}";
+        assert!(has(static_alias, "IRULE4001"));
+        assert!(!has(static_alias, "IRULE6001"));
+        assert!(has(
+            "when HTTP_REQUEST {upvar #0 ::counter linked; set linked 1}",
+            "IRULE6001"
+        ));
+        assert!(!has("when HTTP_REQUEST {set local_value 1}", "IRULE6001"));
     }
 
     #[test]
@@ -1758,10 +1546,12 @@ mod tests {
     fn irule6001_fires_for_registry_writers_the_name_table_missed() {
         for (source, expected) in [
             ("when HTTP_REQUEST { catch {HTTP::collect} ::err }", 1),
-            ("when HTTP_REQUEST { lassign $l ::a ::b }", 2),
-            ("when HTTP_REQUEST { regexp {(a)} $s ::m ::one }", 2),
-            ("when HTTP_REQUEST { scan $s %d%d ::v ::w }", 2),
-            ("when HTTP_REQUEST { binary scan $d H2 ::v }", 1),
+            ("when HTTP_REQUEST {set s a; regexp {(a)} $s ::m ::one }", 2),
+            (
+                "when HTTP_REQUEST {set s {1 2}; scan $s {%d %d} ::v ::w }",
+                2,
+            ),
+            ("when HTTP_REQUEST {set d AB; binary scan $d H2 ::v }", 1),
         ] {
             assert_eq!(
                 irule6001_count(source),
@@ -1769,6 +1559,18 @@ mod tests {
                 "{source} must report {expected} IRULE6001; got {:?}",
                 codes(source)
             );
+        }
+    }
+
+    #[test]
+    fn irule6001_does_not_invent_writes_for_unavailable_core_commands() {
+        for source in [
+            "when HTTP_REQUEST {lassign {1 2} ::a ::b}",
+            "when HTTP_REQUEST {const ::c 1}",
+            "when HTTP_REQUEST {ledit ::c 0 0 x}",
+            "when HTTP_REQUEST {lpop ::c}",
+        ] {
+            assert!(!has(source, "IRULE6001"), "{source}");
         }
     }
 
@@ -1789,17 +1591,14 @@ mod tests {
     fn irule6001_still_fires_for_every_name_the_old_table_listed() {
         for source in [
             "when HTTP_REQUEST { append ::c x }",
-            "when HTTP_REQUEST { const ::c 1 }",
             "when HTTP_REQUEST { incr ::c }",
             "when HTTP_REQUEST { lappend ::c x }",
-            "when HTTP_REQUEST { ledit ::c 0 0 x }",
-            "when HTTP_REQUEST { lpop ::c }",
             "when HTTP_REQUEST { lset ::c 0 x }",
             "when HTTP_REQUEST { set ::c 0 }",
             "when HTTP_REQUEST { unset ::c }",
             "when HTTP_REQUEST { variable ::c }",
             "when HTTP_REQUEST { array set ::c {a 1} }",
-            "when HTTP_REQUEST { gets $ch ::c }",
+            "when HTTP_REQUEST {set ch stdin; eval [list gets $ch ::c] }",
         ] {
             assert!(
                 has(source, "IRULE6001"),
@@ -1807,6 +1606,14 @@ mod tests {
                 codes(source)
             );
         }
+        // The load-time refusal prevents a literal handler from reaching its
+        // output binding; a constructed runtime script retains that hazard.
+        let literal = "when HTTP_REQUEST {set ch stdin; gets $ch ::c}";
+        assert!(has(literal, "IRULE2004"));
+        assert!(!has(literal, "IRULE6001"));
+        let constructed = "when HTTP_REQUEST {set ch stdin; eval [list gets $ch ::c]}";
+        assert!(!has(constructed, "IRULE2004"), "{:?}", codes(constructed));
+        assert!(has(constructed, "IRULE6001"), "{:?}", codes(constructed));
         // `global` keeps its own message and its own branch.
         assert!(has("when HTTP_REQUEST { global shared }", "IRULE6001"));
     }
@@ -1818,7 +1625,10 @@ mod tests {
     /// implicit global.
     #[test]
     fn irule6001_implicit_global_in_rule_init_follows_the_registry() {
-        assert_eq!(irule6001_count("when RULE_INIT { lassign {1 2} a b }"), 2);
+        assert_eq!(
+            irule6001_count("when RULE_INIT { scan {1 2} {%d %d} a b }"),
+            2
+        );
         assert!(has("when RULE_INIT { catch {foo} err }", "IRULE6001"));
         assert!(has("when RULE_INIT { set greeting hi }", "IRULE6001"));
         // `set var` (one argument) is a read.
@@ -1953,6 +1763,14 @@ mod tests {
     fn irule4003_fires_for_cross_event_variable() {
         let src = "when HTTP_REQUEST { set token abc }\nwhen CLIENT_DATA { log local0. $token }";
         assert!(has(src, "IRULE4003"));
+    }
+
+    #[test]
+    fn irule4003_ignores_literal_variable_text() {
+        assert!(!has(
+            "when HTTP_REQUEST {set token abc}\nwhen CLIENT_DATA {log local0. {$token}}",
+            "IRULE4003"
+        ));
     }
 
     #[test]
@@ -2114,8 +1932,9 @@ mod tests {
     fn nested_event_handler_retains_outer_event_context() {
         let src = "when HTTP_REQUEST { when CLIENT_ACCEPTED { HTTP::respond 200 } }";
         assert!(has(src, "IRULE5006"), "nested when must be rejected");
-        assert!(
-            irule1001(src).is_empty(),
+        assert_eq!(
+            irule1001(src).len(),
+            0,
             "the invalid nested body remains in HTTP_REQUEST context"
         );
     }
@@ -2159,7 +1978,10 @@ mod tests {
     fn irule1001_quiet_for_legal_command_with_inferred_profile() {
         // HTTP_REQUEST infers the HTTP profile, so HTTP::respond is fully
         // satisfied — no diagnostic at all.
-        assert!(irule1001("when HTTP_REQUEST { HTTP::respond 200 content \"ok\" }").is_empty());
+        assert_eq!(
+            irule1001("when HTTP_REQUEST { HTTP::respond 200 content \"ok\" }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2240,8 +2062,9 @@ mod tests {
             "when HTTP_REQUEST { IP::server_addr }",
             "when CLIENT_CLOSED { IP::server_addr }",
         ] {
-            assert!(
-                irule1001(source).is_empty(),
+            assert_eq!(
+                irule1001(source).len(),
+                0,
                 "{source}: {:?}",
                 irule1001(source)
             );
@@ -2315,7 +2138,10 @@ mod tests {
                 diags[0].1
             );
         }
-        assert!(irule1001("when CLIENT_ACCEPTED { LB::server pool }").is_empty());
+        assert_eq!(
+            irule1001("when CLIENT_ACCEPTED { LB::server pool }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2339,8 +2165,9 @@ mod tests {
     fn irule1001_hint_suppressed_by_profile_directive() {
         // A leading `# profiles: CLIENTSSL` directive confirms the SSL stack,
         // so SSL::cipher's profile hint is suppressed.
-        assert!(
-            irule1001("# profiles: CLIENTSSL\nwhen HTTP_REQUEST { SSL::cipher name }").is_empty()
+        assert_eq!(
+            irule1001("# profiles: CLIENTSSL\nwhen HTTP_REQUEST { SSL::cipher name }").len(),
+            0
         );
     }
 
@@ -2350,7 +2177,10 @@ mod tests {
         // covers SSL::cipher's requirement — hint suppressed.
         let src =
             "when CLIENTSSL_HANDSHAKE { log local0. hi }\nwhen HTTP_REQUEST { SSL::cipher name }";
-        assert!(irule1001(src).is_empty());
+        assert_eq!(
+            irule1001(src),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2358,7 +2188,10 @@ mod tests {
         // FP: `FIX::tag map set` is configuration. F5 documents it as valid
         // in any event, unlike `FIX::tag get`; the form distinction is in the
         // registry, not this checker.
-        assert!(irule1001("when RULE_INIT { FIX::tag map set client_1 tag_map }").is_empty());
+        assert_eq!(
+            irule1001("when RULE_INIT { FIX::tag map set client_1 tag_map }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2378,7 +2211,10 @@ mod tests {
     fn irule1001_tn_fix_message_read_is_accepted_in_its_documented_event() {
         // TN: the same `get` form is legal at FIX_MESSAGE, whose event data
         // supplies the required FIX profile.
-        assert!(irule1001("when FIX_MESSAGE { FIX::tag get 49 }").is_empty());
+        assert_eq!(
+            irule1001("when FIX_MESSAGE { FIX::tag get 49 }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2386,11 +2222,12 @@ mod tests {
         // The current-message forms are available at ingress, while a bare
         // collected-payload read is limited to the corresponding DATA event.
         for form in ["length", "replace bytes", "prepend bytes"] {
-            assert!(
+            assert_eq!(
                 irule1001(&format!(
                     "when MQTT_CLIENT_INGRESS {{ MQTT::payload {form} }}"
                 ))
-                .is_empty(),
+                .len(),
+                0,
                 "MQTT::payload {form} must be valid at ingress"
             );
         }
@@ -2402,12 +2239,14 @@ mod tests {
                     .to_string(),
             )]
         );
-        assert!(
-            irule1001("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }").is_empty(),
+        assert_eq!(
+            irule1001("when MQTT_CLIENT_DATA { set bytes [MQTT::payload] }").len(),
+            0,
             "the bare collected-payload form is valid in MQTT_CLIENT_DATA"
         );
-        assert!(
-            irule1001("when MQTT_CLIENT_INGRESS { MQTT::payload $form bytes }").is_empty(),
+        assert_eq!(
+            irule1001("when MQTT_CLIENT_INGRESS { MQTT::payload $form bytes }").len(),
+            0,
             "a dynamic form must fall back to the profile requirement"
         );
     }
@@ -2417,8 +2256,14 @@ mod tests {
         // Treating optional protocol consumers as mandatory requirements draws
         // false warnings here. The generic event-contract test covers every
         // registry example; these two data rows are kept as focused cases.
-        assert!(irule1001("when HTTP_REQUEST { active_members web_pool }").is_empty());
-        assert!(irule1001("when HTTP_REQUEST { snat automap }").is_empty());
+        assert_eq!(
+            irule1001("when HTTP_REQUEST { active_members web_pool }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
+        assert_eq!(
+            irule1001("when HTTP_REQUEST { snat automap }"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]
@@ -2432,7 +2277,10 @@ mod tests {
     #[test]
     fn irule1001_quiet_at_top_level_without_event() {
         // No enclosing `when` block ⇒ no event context ⇒ the check never runs.
-        assert!(irule1001("HTTP::respond 200").is_empty());
+        assert_eq!(
+            irule1001("HTTP::respond 200"),
+            [] as [(tcl_core_types::Severity, std::string::String); 0]
+        );
     }
 
     #[test]

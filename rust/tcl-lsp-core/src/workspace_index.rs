@@ -83,6 +83,7 @@ use crate::workspace_symbols::{
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_lexer::Span;
+use tcl_syntax::naming::{key_holder_and_tail, root_unrooted_key, unroot_rooted_key};
 
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -449,6 +450,8 @@ pub enum MethodAccess {
 /// / rename / call-hierarchy can walk every call site of a symbol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceInvocation {
+    /// Lookup purpose retained independently of the source edit span.
+    pub lookup: tcl_compiler::signature_scan::types::SignatureCommandLookup,
     /// Document the call site is in.
     pub uri: String,
     /// Command head as written at the call site (no namespace
@@ -466,6 +469,12 @@ pub struct WorkspaceInvocation {
     /// live-name set, this remains true for a call which provably ran before
     /// a later load-level deletion.
     pub resolved_user_definition: Option<String>,
+    /// Actual source implementation selected at this call, independent of its
+    /// current slot and the document-final declaration inventory.
+    pub resolved_definition: Option<tcl_compiler::command_binding::SourceCommandDefinition>,
+    /// Complete called-slot navigation receipt. A known non-definition cannot
+    /// borrow a same-named procedure or class from workspace assistance.
+    pub resolved_command_reference: Option<tcl_compiler::command_binding::SourceCommandReference>,
     /// Byte span of the command-head token in `uri`'s source.
     pub range: Span,
     /// The span does not carry the written command name (an indirect site —
@@ -778,10 +787,17 @@ pub struct WorkspaceCommandLink {
     /// Fully-qualified name the link introduces (`::`-rooted): the imported
     /// `<ns>::<tail>`, the alias name, or the `rename` `NEW`.
     pub linked_qname: String,
+    /// Exact authored alias publication slot, when supplied by its original
+    /// declaration. Its reported full name is not new lookup input.
+    pub linked_source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Fully-qualified name (`::`-rooted) the link resolves *to*: the import
     /// pattern's source, the alias `TARGET`, or the `rename` `OLD` — the
     /// command whose references a call through `linked_qname` joins.
     pub target_qname: String,
+    /// Exact authored global alias target slot. Its report need not be a
+    /// globally callable spelling; positioned source references resolve it.
+    /// Imports and renames retain their existing declaration carriers.
+    pub target_source_name: Option<tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
     /// Byte span of the token naming the target in the declaration (import
     /// pattern, alias `TARGET`, `rename` `OLD`).  A reference to the target;
     /// rename rewrites it.  `None` when the source scan did not record a span
@@ -1108,7 +1124,7 @@ struct DocumentRecords {
     /// own path standing in for `[info script]`) before resolving a computed
     /// `source` argument.  Raw here for the same reason as there: the fold
     /// depends on where the document lives, the index must not.
-    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
+    path_constant_assignments: tcl_compiler::auto_path_eval::PathConstantAssignments,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1149,7 +1165,7 @@ struct SettlementDependencies {
     /// A changed constant can change which child a computed source row
     /// resolves to, so the raw assignments are resolution-relevant exactly
     /// as the source rows themselves are.
-    path_constant_assignments: Vec<tcl_compiler::auto_path_eval::PathConstantWrite>,
+    path_constant_assignments: tcl_compiler::auto_path_eval::PathConstantAssignments,
     package_requires: Vec<WorkspacePackageRequire>,
     package_provides: Vec<WorkspacePackageProvide>,
     package_ifneededs: Vec<WorkspacePackageIfneeded>,
@@ -1408,10 +1424,13 @@ impl DocumentRecords {
         );
         for (inv, enclosing_body) in analysis.command_invocations.iter().zip(bodies) {
             self.invocations.push(WorkspaceInvocation {
+                lookup: inv.lookup,
                 uri: uri.to_owned(),
                 name: inv.name.clone(),
                 resolution_candidates: inv.resolution_candidates.clone(),
                 resolved_user_definition: resolved_user_definition(inv),
+                resolved_definition: inv.resolved_definition.clone(),
+                resolved_command_reference: inv.resolved_command_reference.clone(),
                 range: inv.range,
                 indirect: inv.indirect,
                 rename_safe: inv.rename_safe,
@@ -1569,7 +1588,7 @@ impl DocumentRecords {
         let mut destroyed: Vec<(&String, &u32)> = analysis.destroyed_commands.iter().collect();
         destroyed.sort_unstable_by(|a, b| a.1.cmp(b.1).then_with(|| a.0.cmp(b.0)));
         for (name, at) in destroyed {
-            let qualified_name = tcl_syntax::naming::normalise_qualified_name(name);
+            let qualified_name = name.clone();
             self.command_deletions.push(WorkspaceCommandDeletion {
                 uri: uri.to_owned(),
                 qualified_name: qualified_name.clone(),
@@ -1607,7 +1626,7 @@ impl DocumentRecords {
         // the rename visit this document", not "where in it".
         let mut aliased: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for link in tcl_compiler::analyser::variable_alias_links(&analysis.global_scope) {
-            aliased.insert(tcl_syntax::naming::normalise_qualified_name(link.cell));
+            aliased.insert(link.cell.to_owned());
         }
         for qualified_name in aliased {
             self.variable_aliases.push(WorkspaceVariableAlias {
@@ -1618,7 +1637,7 @@ impl DocumentRecords {
         for vref in &analysis.qualified_var_refs {
             self.variable_refs.push(WorkspaceVariableRef {
                 uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(&vref.qualified_name),
+                qualified_name: vref.qualified_name.clone(),
                 span: vref.span,
             });
         }
@@ -1636,7 +1655,7 @@ impl DocumentRecords {
         for nref in &analysis.namespace_refs {
             self.namespace_refs.push(WorkspaceNamespaceRef {
                 uri: uri.to_owned(),
-                qualified_name: tcl_syntax::naming::normalise_qualified_name(&nref.qualified_name),
+                qualified_name: nref.qualified_name.clone(),
                 span: nref.span,
                 declares: nref.declares,
             });
@@ -1648,7 +1667,6 @@ impl DocumentRecords {
     /// reference walk can follow.  Each becomes `linked_qname → target_qname`:
     /// the new callable name and the command it ultimately runs.
     fn index_command_links(&mut self, uri: &str, analysis: &AnalysisResult) {
-        use tcl_syntax::naming::normalise_qualified_name;
         // `namespace import ::mod::helper` inside `::app` binds `::app::helper`
         // to the exporting `::mod::helper`.  A glob pattern names no single
         // command, so it introduces no fixed `WorkspaceCommandLink` — instead
@@ -1656,23 +1674,23 @@ impl DocumentRecords {
         // [`Self::resolve_wildcard_import`] against whichever bare name the
         // invocation actually writes.
         for imp in &analysis.namespace_imports {
-            if imp.pattern.contains(['*', '?', '[']) {
-                if let Some((source_ns, tail_pattern)) = import_pattern_parts(&imp.pattern) {
-                    self.glob_imports.push(WorkspaceGlobImport {
-                        uri: uri.to_owned(),
-                        ns: imp.ns.clone(),
-                        source_ns: global_rooted(&source_ns).to_owned(),
-                        tail_pattern: tail_pattern.clone(),
-                        at: imp.range.start(),
-                        enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
-                        forced: imp.forced,
-                    });
-                }
-                continue;
-            }
-            let Some((source_ns, tail)) = import_pattern_parts(&imp.pattern) else {
+            let Some(source) = &imp.source else {
                 continue;
             };
+            if source.tail_pattern.contains(['*', '?', '[']) {
+                self.glob_imports.push(WorkspaceGlobImport {
+                    uri: uri.to_owned(),
+                    ns: imp.ns.clone(),
+                    source_ns: source.namespace.clone(),
+                    tail_pattern: source.tail_pattern.clone(),
+                    at: imp.range.start(),
+                    enclosing_body: analysis.innermost_definition_body_span(imp.range.start()),
+                    forced: imp.forced,
+                });
+                continue;
+            }
+            let source_ns = &source.namespace;
+            let tail = &source.tail_pattern;
             // An exact import is export-gated exactly like a glob one — real
             // Tcl silently installs nothing when the name is not exported at
             // the import's own position (oracle on
@@ -1702,7 +1720,9 @@ impl DocumentRecords {
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
                 linked_qname: tcl_syntax::naming::qualify(&imp.ns, &tail),
-                target_qname: normalise_qualified_name(&imp.pattern),
+                linked_source_name: None,
+                target_qname: source.constructed_pattern(),
+                target_source_name: None,
                 target_span: Some(imp.range),
                 nested: analysis.offset_is_inside_any_definition_body(imp.range.start()),
                 import_gate,
@@ -1715,17 +1735,25 @@ impl DocumentRecords {
         // `target_span` here — the ordinary reference/rename path covers it;
         // this link only lets a call through the *alias name* resolve.
         for alias in analysis.command_aliases.values() {
-            if alias.target.is_empty() {
+            if alias.target.as_str().is_empty() {
                 continue;
             }
             let nested = analysis
                 .alias_offsets
                 .get(&alias.qualified_name)
                 .is_some_and(|&off| analysis.offset_is_inside_any_definition_body(off));
+            let policy = analysis.resolved_profile().and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            });
+            let Some(target) = alias.target.reported_global_key(policy) else {
+                continue;
+            };
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: normalise_qualified_name(&alias.qualified_name),
-                target_qname: normalise_qualified_name(&alias.target),
+                linked_qname: alias.qualified_name.clone(),
+                linked_source_name: alias.source_name.clone(),
+                target_qname: target.into_owned(),
+                target_source_name: alias.target.selected_global_name(policy),
                 target_span: None,
                 nested,
                 import_gate: None,
@@ -1744,8 +1772,10 @@ impl DocumentRecords {
             let nested = analysis.offset_is_inside_any_definition_body(at);
             self.command_links.push(WorkspaceCommandLink {
                 uri: uri.to_owned(),
-                linked_qname: normalise_qualified_name(new),
-                target_qname: normalise_qualified_name(old),
+                linked_qname: new.clone(),
+                linked_source_name: None,
+                target_qname: old.clone(),
+                target_source_name: None,
                 target_span: None,
                 nested,
                 import_gate: None,
@@ -1756,7 +1786,7 @@ impl DocumentRecords {
             if !nested {
                 self.command_retirements.push(WorkspaceCommandRetirement {
                     uri: uri.to_owned(),
-                    qualified_name: normalise_qualified_name(old),
+                    qualified_name: old.clone(),
                     at,
                 });
             }
@@ -1820,7 +1850,7 @@ pub struct WorkspaceIndex {
     /// Per-document **imported** path constants — values source-graph
     /// ancestors establish before the document runs — see
     /// [`WorkspaceIndex::imported_constants`].
-    imported_constants: Derived<HashMap<String, HashMap<String, String>>>,
+    imported_constants: Derived<HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants>>,
 }
 
 /// The host's `source`-path → document-URI resolver: `(sourcing document's
@@ -1837,7 +1867,8 @@ pub struct WorkspaceIndex {
 /// supplied by the index, which carries them, and folded by the host, which
 /// knows the parent's filesystem path; that split is why the argument is the
 /// raw pairs rather than a folded map.
-/// The fifth argument is the document's **imported** constants — values its
+/// The fourth argument is the original source-site byte offset. The sixth
+/// argument is the document's **imported** constants — values its
 /// source-graph ancestors establish before it runs
 /// ([`WorkspaceIndex::imported_constants`]); empty until the
 /// import fixpoint has something to say.
@@ -1845,8 +1876,9 @@ pub type SourceResolver = fn(
     &str,
     &str,
     bool,
-    &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    &HashMap<String, String>,
+    u32,
+    &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    &tcl_compiler::auto_path_eval::FoldedPathConstants,
 ) -> Option<String>;
 
 /// The host's constant folder: `(document URI, raw write facts, imported
@@ -1857,9 +1889,9 @@ pub type SourceResolver = fn(
 /// what one document *provides* to the documents it sources.
 pub type ConstantFolder = fn(
     &str,
-    &[tcl_compiler::auto_path_eval::PathConstantWrite],
-    &HashMap<String, String>,
-) -> HashMap<String, String>;
+    &tcl_compiler::auto_path_eval::PathConstantAssignments,
+    &tcl_compiler::auto_path_eval::FoldedPathConstants,
+) -> tcl_compiler::auto_path_eval::FoldedPathConstants;
 
 /// A whole-index **derived view**: a value that is a pure function of the
 /// index's contents, built at most once per [`WorkspaceIndex::generation`] and
@@ -2019,9 +2051,8 @@ impl ClassEdges {
 
     /// The spines `TclOO`'s call-chain builder walks for a receiver of class
     /// `class_q`, in the order it walks them: every reachable `mixin` branch,
-    /// then the receiver's own spine — the cross-file twin of
-    /// `tcl_lsp_core::oo_dispatch`'s `dispatch_branch_spines`, and the same
-    /// rule, since C enters each mixin with a **fresh copy** of the dispatch
+    /// then the receiver's own spine. C enters each mixin with a fresh copy
+    /// of the dispatch
     /// flags and so lets a branch's `export` / `unexport` govern that branch
     /// alone.
     fn branch_spines(&self, class_q: &str, linearisation: &[String]) -> Vec<Vec<String>> {
@@ -2132,13 +2163,15 @@ impl WorkspaceIndex {
     /// static Tcl fact; a lifecycle record therefore only retires a
     /// definition from the same URI.
     fn definition_name_is_live(&self, uri: &str, qualified_name: &str, at: u32) -> bool {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.slots.get(uri).is_none_or(|&slot| {
             !self.docs[slot]
                 .command_retirements
                 .iter()
                 .any(|retirement| {
-                    retirement.qualified_name.trim_start_matches("::") == target
+                    unroot_rooted_key(&retirement.qualified_name)
+                        .unwrap_or(&retirement.qualified_name)
+                        == target
                         && retirement.at > at
                 })
         })
@@ -2246,7 +2279,7 @@ impl WorkspaceIndex {
             > = std::collections::HashMap::new();
             for exp in self.namespace_exports() {
                 exports_by_ns
-                    .entry(exp.ns.trim_start_matches("::").to_owned())
+                    .entry(unroot_rooted_key(&exp.ns).unwrap_or(&exp.ns).to_owned())
                     .or_default()
                     .push(exp.clone());
             }
@@ -2312,7 +2345,7 @@ impl WorkspaceIndex {
     fn run_order(&self) -> Arc<crate::source_graph::RunOrder> {
         self.run_order.get_or_build(|| {
             let imports = self.imported_constants();
-            let empty = HashMap::new();
+            let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
             let source_edges = self.source_resolver.into_iter().flat_map(|resolve| {
                 let imports = &imports;
                 let empty = &empty;
@@ -2321,6 +2354,7 @@ impl WorkspaceIndex {
                         &s.uri,
                         &s.raw_path,
                         s.is_literal,
+                        s.range.start(),
                         self.path_constant_assignments(&s.uri),
                         imports.get(&s.uri).unwrap_or(empty),
                     )
@@ -2373,15 +2407,18 @@ impl WorkspaceIndex {
     /// converged by the cap — constructible only from pathological
     /// import-unlocked cycles — ships **no** imports rather than a map its
     /// own edges disagree with.
-    fn imported_constants(&self) -> Arc<HashMap<String, HashMap<String, String>>> {
+    fn imported_constants(
+        &self,
+    ) -> Arc<HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants>> {
         const ROUND_CAP: usize = 5;
         self.imported_constants.get_or_build(|| {
             let (Some(resolve), Some(fold)) = (self.source_resolver, self.constant_folder) else {
                 return HashMap::new();
             };
-            let empty: HashMap<String, String> = HashMap::new();
+            let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
             let rows: Vec<&WorkspaceSource> = self.sources().collect();
-            let mut imports: HashMap<String, HashMap<String, String>> = HashMap::new();
+            let mut imports: HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants> =
+                HashMap::new();
             for _round in 0..ROUND_CAP {
                 // Step 1: the round's edge set, from scratch.
                 let edges: Vec<(&WorkspaceSource, String)> = rows
@@ -2391,6 +2428,7 @@ impl WorkspaceIndex {
                             &s.uri,
                             &s.raw_path,
                             s.is_literal,
+                            s.range.start(),
                             self.path_constant_assignments(&s.uri),
                             imports.get(&s.uri).unwrap_or(&empty),
                         )?;
@@ -2399,10 +2437,13 @@ impl WorkspaceIndex {
                     })
                     .collect();
                 // Steps 2 + 3 to their own fixpoint over this fixed edge set.
-                let mut next: HashMap<String, HashMap<String, String>> = HashMap::new();
+                let mut next: HashMap<String, tcl_compiler::auto_path_eval::FoldedPathConstants> =
+                    HashMap::new();
                 for _inner in 0..ROUND_CAP {
-                    let mut candidates: HashMap<&str, Vec<HashMap<String, String>>> =
-                        HashMap::new();
+                    let mut candidates: HashMap<
+                        &str,
+                        Vec<tcl_compiler::auto_path_eval::FoldedPathConstants>,
+                    > = HashMap::new();
                     for (s, child) in &edges {
                         // A `source` inside a proc or method body runs when
                         // that body is *called*, not at its lexical position
@@ -2414,18 +2455,16 @@ impl WorkspaceIndex {
                         // intersecting the agreement with an empty map
                         // correctly drops every name for it.
                         if s.enclosing_body.is_some() {
-                            candidates
-                                .entry(child.as_str())
-                                .or_default()
-                                .push(HashMap::new());
+                            candidates.entry(child.as_str()).or_default().push(
+                                tcl_compiler::auto_path_eval::FoldedPathConstants::empty(
+                                    self.path_constant_assignments(&s.uri).naming_policy(),
+                                ),
+                            );
                             continue;
                         }
-                        let before: Vec<tcl_compiler::auto_path_eval::PathConstantWrite> = self
+                        let before = self
                             .path_constant_assignments(&s.uri)
-                            .iter()
-                            .filter(|w| w.at < s.range.start())
-                            .cloned()
-                            .collect();
+                            .before(s.range.start());
                         // From `next` only — never the previous round's map:
                         // the inner iteration is a fixpoint **from below**
                         // over this round's fixed edge set, and seeding it
@@ -2439,18 +2478,16 @@ impl WorkspaceIndex {
                             parent_imports,
                         ));
                     }
-                    let stepped: HashMap<String, HashMap<String, String>> = candidates
+                    let stepped: HashMap<
+                        String,
+                        tcl_compiler::auto_path_eval::FoldedPathConstants,
+                    > = candidates
                         .into_iter()
-                        .filter_map(|(child, maps)| {
-                            let (first, rest) = maps.split_first()?;
-                            let agreed: HashMap<String, String> = first
-                                .iter()
-                                .filter(|(name, value)| {
-                                    rest.iter().all(|m| m.get(*name) == Some(*value))
-                                })
-                                .map(|(name, value)| (name.clone(), value.clone()))
-                                .collect();
-                            (!agreed.is_empty()).then(|| (child.to_owned(), agreed))
+                        .map(|(child, maps)| {
+                            (
+                                child.to_owned(),
+                                tcl_compiler::auto_path_eval::FoldedPathConstants::agreement(&maps),
+                            )
                         })
                         .collect();
                     if stepped == next {
@@ -2469,11 +2506,14 @@ impl WorkspaceIndex {
     }
 
     /// The imported constants for one document — the map
-    /// [`SourceResolver`] receives as its fifth argument, exposed so hosts
+    /// [`SourceResolver`] receives as its sixth argument, exposed so hosts
     /// can hand the very same view to their other per-document consumers
     /// (document links, a fresh analysis's own edges).
     #[must_use]
-    pub fn imported_path_constants_for(&self, uri: &str) -> HashMap<String, String> {
+    pub fn imported_path_constants_for(
+        &self,
+        uri: &str,
+    ) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
         self.imported_constants()
             .get(uri)
             .cloned()
@@ -2618,7 +2658,9 @@ impl WorkspaceIndex {
             self.command_links()
                 .map(|l| {
                     l.import_gate.as_ref().is_none_or(|g| {
-                        if !observable.contains(g.source_ns.trim_start_matches("::")) {
+                        if !observable
+                            .contains(unroot_rooted_key(&g.source_ns).unwrap_or(&g.source_ns))
+                        {
                             return true;
                         }
                         if !wci.exports_name_at(&g.source_ns, &g.name, g.site(&l.uri)) {
@@ -2696,7 +2738,7 @@ impl WorkspaceIndex {
     /// would cost O(procs) *per call site per in-scope import*.
     fn defines_command(&self, qualified_name: &str) -> bool {
         self.defined_command_names(false)
-            .contains(qualified_name.trim_start_matches("::"))
+            .contains(unroot_rooted_key(qualified_name).unwrap_or(qualified_name))
     }
 
     /// The `::`-stripped namespaces the workspace can say anything about: one
@@ -2714,22 +2756,22 @@ impl WorkspaceIndex {
     /// gate abstain where it has the evidence to decide.
     fn observable_namespaces(&self) -> HashSet<&str> {
         fn owning_ns(qualified: &str) -> &str {
-            qualified
-                .trim_start_matches("::")
-                .rsplit_once("::")
-                .map_or("", |(ns, _)| ns)
+            {
+                let (holder, _) = key_holder_and_tail(qualified);
+                unroot_rooted_key(holder).unwrap_or(holder)
+            }
         }
         self.procs()
             .map(|p| owning_ns(&p.qualified_name))
             .chain(self.classes().map(|c| owning_ns(&c.qualified_name)))
             .chain(
                 self.namespace_exports()
-                    .map(|e| e.ns.trim_start_matches("::")),
+                    .map(|e| unroot_rooted_key(&e.ns).unwrap_or(&e.ns)),
             )
             .chain(
                 self.namespace_refs()
                     .filter(|n| n.declares)
-                    .map(|n| n.qualified_name.trim_start_matches("::")),
+                    .map(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name)),
             )
             .collect()
     }
@@ -2872,10 +2914,11 @@ impl WorkspaceIndex {
     pub fn path_constant_assignments(
         &self,
         uri: &str,
-    ) -> &[tcl_compiler::auto_path_eval::PathConstantWrite] {
-        self.slots
-            .get(uri)
-            .map_or(&[][..], |&slot| &self.docs[slot].path_constant_assignments)
+    ) -> &tcl_compiler::auto_path_eval::PathConstantAssignments {
+        self.slots.get(uri).map_or(
+            tcl_compiler::auto_path_eval::PathConstantAssignments::unknown(),
+            |&slot| &self.docs[slot].path_constant_assignments,
+        )
     }
 
     /// Every indexed `package require NAME` declaration.
@@ -3013,12 +3056,13 @@ impl WorkspaceIndex {
             &str,
             &str,
             bool,
-            &[tcl_compiler::auto_path_eval::PathConstantWrite],
-            &HashMap<String, String>,
+            u32,
+            &tcl_compiler::auto_path_eval::PathConstantAssignments,
+            &tcl_compiler::auto_path_eval::FoldedPathConstants,
         ) -> Option<String>,
     ) -> std::collections::HashMap<String, std::collections::BTreeSet<String>> {
         let imports = self.imported_constants();
-        let empty = HashMap::new();
+        let empty = tcl_compiler::auto_path_eval::FoldedPathConstants::default();
         let mut out: std::collections::HashMap<String, std::collections::BTreeSet<String>> =
             std::collections::HashMap::new();
         for src in self.sources() {
@@ -3026,6 +3070,7 @@ impl WorkspaceIndex {
                 &src.uri,
                 &src.raw_path,
                 src.is_literal,
+                src.range.start(),
                 self.path_constant_assignments(&src.uri),
                 imports.get(&src.uri).unwrap_or(&empty),
             ) else {
@@ -3208,7 +3253,7 @@ impl WorkspaceIndex {
     /// namespace ancestry before considering a *unique* tail.
     #[must_use]
     pub fn classes_named<'a>(&'a self, name: &str) -> Vec<&'a WorkspaceClass> {
-        let q = format!("::{}", name.trim_start_matches("::"));
+        let q = root_unrooted_key(unroot_rooted_key(name).unwrap_or(name));
         self.classes()
             .filter(|c| c.qualified_name == name || c.qualified_name == q)
             .collect()
@@ -3519,9 +3564,7 @@ impl WorkspaceIndex {
     /// `unknown method "make"` on 8.6 and 9.0.4), whereas an `ooutil`
     /// `classmethod` does propagate.  Both share the `"classmethod"` receiver
     /// kind, so a `self method` is kept only when the providing record *is* the
-    /// receiver class — the same test
-    /// `tcl_lsp_core::oo_dispatch::method_dispatch_provider` applies
-    /// same-document.
+    /// receiver class.
     #[must_use]
     pub fn class_method_dispatch_chain<'a>(
         &'a self,
@@ -4122,10 +4165,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceProc> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.procs()
             .filter(|p| p.uri != exclude_uri)
-            .filter(|p| p.qualified_name.trim_start_matches("::") == target)
+            .filter(|p| unroot_rooted_key(&p.qualified_name).unwrap_or(&p.qualified_name) == target)
             .collect()
     }
 
@@ -4138,10 +4181,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceClass> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.classes()
             .filter(|c| c.uri != exclude_uri)
-            .filter(|c| c.qualified_name.trim_start_matches("::") == target)
+            .filter(|c| unroot_rooted_key(&c.qualified_name).unwrap_or(&c.qualified_name) == target)
             .collect()
     }
 
@@ -4171,10 +4214,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariable> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.variables()
             .filter(|v| v.uri != exclude_uri)
-            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .filter(|v| unroot_rooted_key(&v.qualified_name).unwrap_or(&v.qualified_name) == target)
             .collect()
     }
 
@@ -4196,13 +4239,10 @@ impl WorkspaceIndex {
     /// neither subsumes the other.
     #[must_use]
     pub fn documents_in_namespace(&self, namespace: &str) -> Vec<String> {
-        let target = namespace.trim_start_matches("::");
+        let target = unroot_rooted_key(namespace).unwrap_or(namespace);
         let parent_matches = |qualified: &str| -> bool {
-            let bare = qualified.trim_start_matches("::");
-            match bare.rfind("::") {
-                Some(idx) => &bare[..idx] == target,
-                None => target.is_empty(),
-            }
+            let (holder, _) = key_holder_and_tail(qualified);
+            unroot_rooted_key(holder).unwrap_or(holder) == target
         };
         let mut uris: Vec<String> = self
             .procs()
@@ -4242,11 +4282,11 @@ impl WorkspaceIndex {
     /// business instead.
     #[must_use]
     pub fn documents_aliasing_variable(&self, qualified_name: &str) -> Vec<String> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         let mut uris: Vec<String> = self
             .variable_aliases()
             .filter(|a| !alias_cell_is_computed(&a.qualified_name))
-            .filter(|a| a.qualified_name.trim_start_matches("::") == target)
+            .filter(|a| unroot_rooted_key(&a.qualified_name).unwrap_or(&a.qualified_name) == target)
             .map(|a| a.uri.clone())
             .collect();
         uris.sort();
@@ -4274,14 +4314,14 @@ impl WorkspaceIndex {
     /// in scope.
     #[must_use]
     pub fn documents_with_ambiguous_alias_of(&self, qualified_name: &str) -> Vec<String> {
-        let bare = qualified_name.trim_start_matches("::");
-        let (cell_ns, cell_tail) = bare.rsplit_once("::").unwrap_or(("", bare));
+        let (cell_holder, cell_tail) = key_holder_and_tail(qualified_name);
+        let cell_ns = unroot_rooted_key(cell_holder).unwrap_or(cell_holder);
         let mut uris: Vec<String> = self
             .variable_aliases()
             .filter(|a| alias_cell_is_computed(&a.qualified_name))
             .filter(|a| {
-                let written = a.qualified_name.trim_start_matches("::");
-                let (ns, tail) = written.rsplit_once("::").unwrap_or(("", written));
+                let (holder, tail) = key_holder_and_tail(&a.qualified_name);
+                let ns = unroot_rooted_key(holder).unwrap_or(holder);
                 let ns_could_match = is_computed_word(ns) || ns == cell_ns;
                 let tail_could_match = is_computed_word(tail) || tail == cell_tail;
                 ns_could_match && tail_could_match
@@ -4316,10 +4356,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.namespace_refs()
             .filter(|n| n.declares && n.uri != exclude_uri)
-            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .filter(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name) == target)
             .collect()
     }
 
@@ -4347,7 +4387,7 @@ impl WorkspaceIndex {
         // block, so it has no implicit creator — the same bound the
         // in-document tier keeps.  Without it every declaring row in the
         // workspace would count as creating `::`.
-        if qualified_name.trim_start_matches(':').is_empty() {
+        if qualified_name == "::" || qualified_name.is_empty() {
             return Vec::new();
         }
         self.namespace_refs()
@@ -4370,10 +4410,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceNamespaceRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.namespace_refs()
             .filter(|n| !n.declares && n.uri != exclude_uri)
-            .filter(|n| n.qualified_name.trim_start_matches("::") == target)
+            .filter(|n| unroot_rooted_key(&n.qualified_name).unwrap_or(&n.qualified_name) == target)
             .collect()
     }
 
@@ -4387,10 +4427,10 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<&'a WorkspaceVariableRef> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.variable_refs()
             .filter(|v| v.uri != exclude_uri)
-            .filter(|v| v.qualified_name.trim_start_matches("::") == target)
+            .filter(|v| unroot_rooted_key(&v.qualified_name).unwrap_or(&v.qualified_name) == target)
             .collect()
     }
 
@@ -4492,7 +4532,7 @@ impl WorkspaceIndex {
         exclude_uri: &str,
         follow_links: bool,
     ) -> Vec<&'a WorkspaceInvocation> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         let sites = self.settled_sites(target, follow_links);
         sites
             .iter()
@@ -4584,6 +4624,42 @@ impl WorkspaceIndex {
         links: Option<&std::collections::HashMap<String, String>>,
         wci: &WildcardImportIndex<'_>,
     ) -> Option<String> {
+        // A positioned source receipt precedes the workspace's assistance
+        // inventory. Later imports, renames and unrelated same-named records
+        // cannot change the implementation this invocation already selected.
+        // The direct view edits a called definition slot; imported spellings
+        // belong only to the linked view, which retains the actual declaration.
+        if let Some(reference) = &inv.resolved_command_reference {
+            return if links.is_some() {
+                reference
+                    .linked_definition()
+                    .or_else(|| reference.definition())
+                    .map(|definition| {
+                        unroot_rooted_key(&definition.allocation().command)
+                            .unwrap_or(&definition.allocation().command)
+                            .to_owned()
+                    })
+            } else {
+                reference.is_direct_definition().then(|| {
+                    unroot_rooted_key(reference.slot())
+                        .unwrap_or(reference.slot())
+                        .to_owned()
+                })
+            };
+        }
+        if let Some(definition) = &inv.resolved_definition {
+            return if links.is_some() {
+                Some(
+                    unroot_rooted_key(&definition.allocation().command)
+                        .unwrap_or(&definition.allocation().command)
+                        .to_owned(),
+                )
+            } else {
+                inv.resolved_user_definition
+                    .as_deref()
+                    .map(|slot| unroot_rooted_key(slot).unwrap_or(slot).to_owned())
+            };
+        }
         let call = CallSite {
             uri: &inv.uri,
             at: inv.range.start(),
@@ -4603,15 +4679,15 @@ impl WorkspaceIndex {
         let forced_shadow = links.is_some()
             && wci.forced_shadow_over_candidates(&inv.name, &inv.resolution_candidates, call);
         if !forced_shadow && let Some(winner) = inv.resolved_user_definition.as_deref() {
-            return Some(winner.trim_start_matches("::").to_owned());
+            return Some(unroot_rooted_key(winner).unwrap_or(winner).to_owned());
         }
         if !forced_shadow
             && let Some(winner) = inv
                 .resolution_candidates
                 .iter()
-                .find(|c| defined.contains(c.trim_start_matches("::")))
+                .find(|c| defined.contains(unroot_rooted_key(c).unwrap_or(c)))
         {
-            let winner = winner.trim_start_matches("::");
+            let winner = unroot_rooted_key(winner).unwrap_or(winner);
             return Some(
                 links.map_or_else(|| winner.to_owned(), |m| Self::follow_links(m, winner)),
             );
@@ -4626,7 +4702,7 @@ impl WorkspaceIndex {
         // just because its ultimate source is renamed.
         links?;
         self.resolve_wildcard_import_indexed(&inv.name, &inv.resolution_candidates, call, wci)
-            .map(|resolved| resolved.trim_start_matches("::").to_owned())
+            .map(|resolved| unroot_rooted_key(&resolved).unwrap_or(&resolved).to_owned())
     }
 
     /// The command name-link map (`::`-stripped `linked → immediate target`)
@@ -4638,10 +4714,23 @@ impl WorkspaceIndex {
         self.command_link_map.get_or_build(|| {
             self.live_command_links()
                 .into_iter()
+                .filter(|link| {
+                    link.linked_source_name
+                        .as_ref()
+                        .is_none_or(|name| name.source_spelling().is_some())
+                        && link
+                            .target_source_name
+                            .as_ref()
+                            .is_none_or(|name| name.source_spelling().is_some())
+                })
                 .map(|l| {
                     (
-                        l.linked_qname.trim_start_matches("::").to_owned(),
-                        l.target_qname.trim_start_matches("::").to_owned(),
+                        unroot_rooted_key(&l.linked_qname)
+                            .unwrap_or(&l.linked_qname)
+                            .to_owned(),
+                        unroot_rooted_key(&l.target_qname)
+                            .unwrap_or(&l.target_qname)
+                            .to_owned(),
                     )
                 })
                 .collect()
@@ -4671,8 +4760,8 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn resolve_command_target(&self, name: &str) -> String {
         let links = self.command_link_map();
-        let settled = Self::follow_links(&links, name.trim_start_matches("::"));
-        format!("::{settled}")
+        let settled = Self::follow_links(&links, unroot_rooted_key(name).unwrap_or(name));
+        root_unrooted_key(&settled)
     }
 
     /// The declaration spans that *name* the command `qualified_name` in an
@@ -4688,11 +4777,11 @@ impl WorkspaceIndex {
         qualified_name: &str,
         exclude_uri: &str,
     ) -> Vec<(String, Span)> {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.live_command_links()
             .into_iter()
             .filter(|l| l.uri != exclude_uri)
-            .filter(|l| l.target_qname.trim_start_matches("::") == target)
+            .filter(|l| unroot_rooted_key(&l.target_qname).unwrap_or(&l.target_qname) == target)
             .filter_map(|l| l.target_span.map(|sp| (l.uri.clone(), sp)))
             .collect()
     }
@@ -4736,7 +4825,7 @@ impl WorkspaceIndex {
             .filter(|i| {
                 i.resolution_candidates
                     .iter()
-                    .any(|c| class_qnames.contains(c.trim_start_matches("::")))
+                    .any(|c| class_qnames.contains(unroot_rooted_key(c).unwrap_or(c)))
             })
             .map(|i| i.uri.clone())
             .collect()
@@ -4751,7 +4840,7 @@ impl WorkspaceIndex {
     #[must_use]
     pub fn workspace_command_exists(&self, qualified_name: &str) -> bool {
         self.defined_command_names(true)
-            .contains(qualified_name.trim_start_matches("::"))
+            .contains(unroot_rooted_key(qualified_name).unwrap_or(qualified_name))
     }
 
     /// [`Self::workspace_command_exists`], but a proc, or an `interp alias` /
@@ -4785,14 +4874,16 @@ impl WorkspaceIndex {
         qualified_name: &str,
         has_builtin: bool,
     ) -> bool {
-        let target = qualified_name.trim_start_matches("::");
+        let target = unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
         self.live_procs().any(|p| {
-            (!has_builtin || !p.nested) && p.qualified_name.trim_start_matches("::") == target
+            (!has_builtin || !p.nested)
+                && unroot_rooted_key(&p.qualified_name).unwrap_or(&p.qualified_name) == target
         }) || self
             .live_classes()
-            .any(|c| c.qualified_name.trim_start_matches("::") == target)
+            .any(|c| unroot_rooted_key(&c.qualified_name).unwrap_or(&c.qualified_name) == target)
             || self.live_command_links().into_iter().any(|l| {
-                (!has_builtin || !l.nested) && l.linked_qname.trim_start_matches("::") == target
+                (!has_builtin || !l.nested)
+                    && unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == target
             })
     }
 
@@ -4817,18 +4908,23 @@ impl WorkspaceIndex {
         self.defined_names[usize::from(include_links)].get_or_build(|| {
             let mut names: HashSet<String> = self
                 .live_procs()
-                .map(|p| p.qualified_name.trim_start_matches("::").to_owned())
-                .chain(
-                    self.live_classes()
-                        .map(|c| c.qualified_name.trim_start_matches("::").to_owned()),
-                )
+                .map(|p| {
+                    unroot_rooted_key(&p.qualified_name)
+                        .unwrap_or(&p.qualified_name)
+                        .to_owned()
+                })
+                .chain(self.live_classes().map(|c| {
+                    unroot_rooted_key(&c.qualified_name)
+                        .unwrap_or(&c.qualified_name)
+                        .to_owned()
+                }))
                 .collect();
             if include_links {
-                names.extend(
-                    self.live_command_links()
-                        .into_iter()
-                        .map(|l| l.linked_qname.trim_start_matches("::").to_owned()),
-                );
+                names.extend(self.live_command_links().into_iter().map(|l| {
+                    unroot_rooted_key(&l.linked_qname)
+                        .unwrap_or(&l.linked_qname)
+                        .to_owned()
+                }));
             }
             names
         })
@@ -5362,10 +5458,9 @@ impl<'a> WildcardImportIndex<'a> {
             // read `NamespaceImports::by_name`.
             imports.forced_rows().any(|row| {
                 tcl_syntax::glob::string_match(&row.imp.tail_pattern, name)
-                    && (!self
-                        .observable
-                        .contains(row.imp.source_ns.trim_start_matches("::"))
-                        || row.exported.covers(name))
+                    && (!self.observable.contains(
+                        unroot_rooted_key(&row.imp.source_ns).unwrap_or(&row.imp.source_ns),
+                    ) || row.exported.covers(name))
                     && self.alias_live_at(ns, &row.imp.source_ns, name, row.site(), call)
             })
         })
@@ -5423,7 +5518,8 @@ impl<'a> WildcardImportIndex<'a> {
             .iter()
             .filter(move |f| {
                 f.source_ns.as_deref().is_none_or(|src| {
-                    src.trim_start_matches("::") == source_ns.trim_start_matches("::")
+                    unroot_rooted_key(src).unwrap_or(src)
+                        == unroot_rooted_key(source_ns).unwrap_or(source_ns)
                 }) && tcl_syntax::glob::string_match(&f.pattern, name)
             })
             .map(move |f| AliasEvent {
@@ -5751,7 +5847,7 @@ pub struct NamespaceExportSnapshot {
 
 impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot {
     fn exported_at(&self, source_ns: &str, name: &str, import_site: RunPoint<'_>) -> ExportVerdict {
-        let ns = source_ns.trim_start_matches("::");
+        let ns = unroot_rooted_key(source_ns).unwrap_or(source_ns);
         if !self.observable.contains(ns) {
             // The namespace lives somewhere the workspace cannot see — an
             // installed package, a file outside the project. Silence is not
@@ -5776,27 +5872,6 @@ fn importing_namespace_of(linked_qname: &str) -> &str {
     if ns.is_empty() { "::" } else { ns }
 }
 
-/// Split a written `namespace import` pattern at its final colon run.  The
-/// command core owns this operation because Tcl treats `::a:::b` as the
-/// qualifier `::a` and tail `b`; a pairwise `rsplit_once("::")` would invent
-/// a different source namespace.  The `Qualifier` tri-state also keeps the
-/// absolute marker on `::name` instead of collapsing it to an unqualified
-/// pattern.
-fn import_pattern_parts(pattern: &str) -> Option<(String, String)> {
-    use tcl_cmd_core::namespace::{Qualifier, qualifier, tail};
-
-    let tail = std::str::from_utf8(tail(pattern.as_bytes()))
-        .ok()?
-        .to_owned();
-    let source = match qualifier(pattern.as_bytes()) {
-        Qualifier::Absolute(ns) | Qualifier::Relative(ns) => {
-            Some(std::str::from_utf8(ns).ok()?.to_owned())
-        }
-        Qualifier::Unqualified => None,
-    }?;
-    Some((source, tail))
-}
-
 /// The source namespace an import pattern names, reading the empty prefix a
 /// global-rooted pattern (`::p`, `::*`) splits to as the global namespace it
 /// actually is.
@@ -5811,7 +5886,7 @@ fn global_rooted(source_ns: &str) -> &str {
 /// Namespace-name equality, ignoring a leading `::` one spelling carries and
 /// the other does not.
 fn ns_eq(a: &str, b: &str) -> bool {
-    a.trim_start_matches("::") == b.trim_start_matches("::")
+    unroot_rooted_key(a).unwrap_or(a) == unroot_rooted_key(b).unwrap_or(b)
 }
 
 /// Where a `namespace import` sits, as the export-snapshot gate needs to see
@@ -5904,6 +5979,171 @@ mod tests {
     fn analyse_as(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
         let mut a = Analyser::new();
         a.analyse(source, dialect.name).clone()
+    }
+
+    #[test]
+    fn literal_colon_namespace_keys_keep_definitions_and_variables_distinct() {
+        let nested = analyse("namespace eval : {proc p {} {}; variable v 1}\n");
+        let global = analyse("proc :p {} {}\nvariable :v 2\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///nested.tcl", &nested),
+            ("file:///global.tcl", &global),
+        ]);
+        let nested_proc = index.proc_definitions_qualified(":::::p", "");
+        let global_proc = index.proc_definitions_qualified(":::p", "");
+        assert_eq!(nested_proc.len(), 1);
+        assert_eq!(global_proc.len(), 1);
+        assert_eq!(nested_proc[0].uri, "file:///nested.tcl");
+        assert_eq!(global_proc[0].uri, "file:///global.tcl");
+        let nested_var = index.variable_definitions_qualified(":::::v", "");
+        assert_eq!(nested_var.len(), 1);
+        assert_eq!(nested_var[0].uri, "file:///nested.tcl");
+        let global_var = index.variable_definitions_qualified(":::v", "");
+        assert_eq!(global_var.len(), 1);
+        assert_eq!(global_var[0].uri, "file:///global.tcl");
+        assert_eq!(index.documents_in_namespace(":::"), ["file:///nested.tcl"]);
+        assert_eq!(index.documents_in_namespace("::"), ["file:///global.tcl"]);
+        let namespaces = index.observable_namespaces();
+        assert!(namespaces.contains(":"));
+        assert!(namespaces.contains(""));
+    }
+
+    #[test]
+    fn literal_colon_import_sources_survive_workspace_ingestion() {
+        let source = "namespace eval : {namespace eval src {proc p {} {}; namespace export p}; namespace import src::p; p}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///colon-import.tcl", &analysis)]);
+        let link = index
+            .command_links()
+            .find(|link| link.linked_qname == ":::::p")
+            .unwrap();
+        assert_eq!(link.target_qname, ":::::src::p");
+        assert_eq!(link.import_gate.as_ref().unwrap().source_ns, ":::::src");
+        assert!(
+            index
+                .command_links()
+                .all(|link| link.target_qname != "::src::p")
+        );
+        assert!(
+            index
+                .linked_invocations_of(":::::src::p", "")
+                .iter()
+                .any(|invocation| invocation.name == "p")
+        );
+    }
+
+    #[test]
+    fn literal_colon_alias_targets_survive_workspace_and_indirection() {
+        let source = "proc :target {} {}; interp alias {} :alias {} :target; :alias\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///colon-alias.tcl", &analysis)]);
+        let link = index
+            .command_links()
+            .find(|link| link.linked_qname == ":::alias")
+            .unwrap();
+        assert_eq!(link.target_qname, ":::target");
+        assert_eq!(
+            link.linked_source_name
+                .as_ref()
+                .unwrap()
+                .slot()
+                .simple
+                .as_bytes(),
+            b":alias"
+        );
+        let selected = link.target_source_name.as_ref().unwrap();
+        assert!(selected.slot().namespace.is_root());
+        assert_eq!(selected.slot().simple.as_bytes(), b":target");
+        assert_eq!(selected.source_spelling(), None);
+        assert!(!index.command_link_map().contains_key(":alias"));
+        let hop = tcl_compiler::analyser::indirection::walk(
+            &analysis,
+            ":alias",
+            u32::MAX,
+            &tcl_syntax::naming::normalise_qualified_name,
+        )
+        .unwrap();
+        assert_eq!(hop.target, ":::target");
+        assert_eq!(hop.target_source_name.as_ref(), Some(selected));
+        assert_eq!(hop.lookup_spelling(), None);
+        assert!(
+            index
+                .linked_invocations_of(":::target", "")
+                .iter()
+                .any(|invocation| invocation.name == ":alias")
+        );
+    }
+
+    #[test]
+    fn alias_target_navigation_uses_selected_global_or_caller_context() {
+        // native_alias_target_context.tcl: C aliases select ROOT and Jim
+        // aliases select LOCAL from the same original relative target operand.
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let alias = if engine == "jimtcl" {
+                "alias contextual target"
+            } else {
+                "interp alias {} contextual {} target"
+            };
+            let source = format!(
+                "proc target {{}} {{return ROOT}}; {alias}; namespace eval N {{proc target {{}} {{return LOCAL}}; contextual}}\n"
+            );
+            let analysis = Analyser::new().analyse(&source, engine).clone();
+            let call = analysis
+                .command_invocations
+                .iter()
+                .find(|call| call.name == "contextual" && call.lookup.is_execution_site())
+                .unwrap_or_else(|| panic!("{engine}: missing original caller"));
+            let reference = call
+                .resolved_command_reference
+                .as_ref()
+                .unwrap_or_else(|| panic!("{engine}: missing positioned caller receipt"));
+            let selected = reference
+                .linked_definition()
+                .or_else(|| reference.definition())
+                .unwrap_or_else(|| panic!("{engine}: missing selected target allocation"));
+            let target = if engine == "jimtcl" {
+                "::N::target"
+            } else {
+                "::target"
+            };
+            assert_eq!(selected.allocation().command, target, "{engine}");
+            let index = WorkspaceIndex::from_documents([("file:///alias-context.tcl", &analysis)]);
+            assert!(
+                index
+                    .linked_invocations_of(target, "")
+                    .iter()
+                    .any(|call| call.name == "contextual"),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn positioned_import_definition_keeps_linked_and_editable_views_separate() {
+        let source = "namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {namespace import ::origin::helper; helper}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///imports.tcl", &analysis)]);
+        let call = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.name == "helper")
+            .unwrap();
+        assert!(call.resolved_definition.is_some());
+        assert!(!call.resolved_user_definition);
+        assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
+        assert!(index.invocations_of("::origin::helper", "").is_empty());
+        assert!(index.invocations_of("::app::helper", "").is_empty());
+    }
+
+    #[test]
+    fn positioned_definition_precedes_later_forced_import_assistance() {
+        let source = "namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {proc helper {} {return LOCAL}; helper; namespace import -force ::origin::helper; helper}\n";
+        let analysis = analyse(source);
+        let index = WorkspaceIndex::from_documents([("file:///timeline.tcl", &analysis)]);
+        assert_eq!(index.invocations_of("::app::helper", "").len(), 1);
+        assert_eq!(index.linked_invocations_of("::app::helper", "").len(), 1);
+        assert_eq!(index.linked_invocations_of("::origin::helper", "").len(), 1);
+        assert!(index.invocations_of("::origin::helper", "").is_empty());
     }
 
     #[test]
@@ -7688,8 +7928,9 @@ mod tests {
         parent_uri: &str,
         raw_path: &str,
         is_literal: bool,
-        raw_constants: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-        imported: &HashMap<String, String>,
+        source_offset: u32,
+        raw_constants: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+        imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
     ) -> Option<String> {
         let parent = parent_uri.strip_prefix("file://")?;
         let dir = std::path::Path::new(parent).parent()?;
@@ -7708,7 +7949,7 @@ mod tests {
             tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
                 raw_path,
                 Some(parent),
-                &constants,
+                &constants.at(source_offset),
             )?
         };
         let child = crate::source_graph::resolve_under(dir, &raw);
@@ -7719,9 +7960,9 @@ mod tests {
     /// [`test_resolve`], same URI-to-path convention.
     fn test_fold(
         uri: &str,
-        writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
-        imported: &HashMap<String, String>,
-    ) -> HashMap<String, String> {
+        writes: &tcl_compiler::auto_path_eval::PathConstantAssignments,
+        imported: &tcl_compiler::auto_path_eval::FoldedPathConstants,
+    ) -> tcl_compiler::auto_path_eval::FoldedPathConstants {
         let path = uri.strip_prefix("file://");
         tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(writes, path, imported)
     }
@@ -8128,6 +8369,51 @@ mod tests {
                 )
                 .as_deref(),
             Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn typed_source_imports_export_global_homes_and_keep_original_site_scope() {
+        let parent = tcl_compiler::analyser::Analyser::new().analyse(
+            "namespace eval N {set dir /EPHEMERAL; source /s/shared.tcl}; set globalDir /GLOBAL; source /s/shared.tcl", "jim");
+        let reader = tcl_compiler::analyser::Analyser::new()
+            .analyse("source $dir/missing.tcl; source $globalDir/core.tcl", "jim");
+        let core = tcl_compiler::analyser::Analyser::new().analyse("", "jim");
+        let index = sourced_index([
+            ("file:///s/start.tcl", &parent),
+            ("file:///s/shared.tcl", &reader),
+            ("file:///GLOBAL/core.tcl", &core),
+        ]);
+        let imports = index.imported_path_constants_for("file:///s/shared.tcl");
+        assert!(!imports.contains_key("dir"));
+        // The earlier namespace route supplies no globalDir; agreement must
+        // not use the later route's value for all executions.
+        assert!(!imports.contains_key("globalDir"));
+        assert_eq!(
+            imports.naming_policy(),
+            parent.path_constant_assignments.naming_policy()
+        );
+        let seeds = index.source_seed_map(test_resolve);
+        assert!(!seeds.contains_key("file:///s/missing.tcl"));
+    }
+
+    #[test]
+    fn path_inventory_reset_and_snapshot_preserve_empty_policy_changes() {
+        let c = tcl_compiler::analyser::Analyser::new().analyse("", "tcl8.6");
+        let jim = tcl_compiler::analyser::Analyser::new().analyse("", "jim");
+        let mut index = sourced_index([("file:///empty.tcl", &c)]);
+        let before = index.path_constant_assignments("file:///empty.tcl").clone();
+        assert!(before.is_empty());
+        index.add_document("file:///empty.tcl", &jim);
+        assert_ne!(
+            index.path_constant_assignments("file:///empty.tcl"),
+            &before
+        );
+        assert_eq!(
+            index
+                .path_constant_assignments("file:///missing.tcl")
+                .naming_policy(),
+            None
         );
     }
 
@@ -9967,7 +10253,7 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .find(|l| unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == "set")
             .expect("top-level alias link indexed");
         assert!(!link.nested, "a top-level alias is never nested");
         assert!(
@@ -9989,7 +10275,7 @@ mod tests {
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
         let link = index
             .command_links()
-            .find(|l| l.linked_qname.trim_start_matches("::") == "set")
+            .find(|l| unroot_rooted_key(&l.linked_qname).unwrap_or(&l.linked_qname) == "set")
             .expect("nested alias link indexed");
         assert!(
             link.nested,

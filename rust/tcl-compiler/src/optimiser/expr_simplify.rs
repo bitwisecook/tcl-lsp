@@ -57,9 +57,7 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::expr_ast::ExprNode;
 use crate::ir::{Script, Statement};
-use crate::tcl_expr_eval::{
-    Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
-};
+use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 
@@ -69,9 +67,15 @@ use super::{Optimisation, PassContext};
 /// Run the expression-simplification pass across every function
 /// in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    use super::helpers::expr_simplify::operand_types;
+    use super::helpers::expr_simplify::{operand_types, operand_types_with_original_advice};
     let procedures = &cu.ir_module.procedures;
-    let top_numeric = operand_types(&cu.top_level);
+    let type_context = |fu: &crate::compilation_unit::FunctionUnit| {
+        ctx.registry.map_or_else(
+            || operand_types(fu),
+            |registry| operand_types_with_original_advice(fu, registry),
+        )
+    };
+    let top_numeric = type_context(&cu.top_level);
     walk_script(
         ctx,
         &cu.ir_module.top_level,
@@ -80,7 +84,12 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         0,
     );
     for (qname, proc) in &cu.ir_module.procedures {
-        let numeric = cu.procedures.get(qname).map(operand_types);
+        let numeric = cu.procedures.get(qname).map(|fu| {
+            ctx.registry.map_or_else(
+                || operand_types(fu),
+                |registry| operand_types_with_original_advice(fu, registry),
+            )
+        });
         walk_script(ctx, &proc.body, numeric.as_ref(), procedures, 0);
     }
 }
@@ -96,7 +105,7 @@ fn walk_script(
     procedures: &Procedures,
     depth: u32,
 ) {
-    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
+    if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
         return;
     }
     for stmt in &script.statements {
@@ -111,14 +120,22 @@ fn walk_statement(
     procedures: &Procedures,
     depth: u32,
 ) {
+    if matches!(
+        stmt,
+        Statement::Call { .. }
+            | Statement::AssignValue { .. }
+            | Statement::Return { expr: None, .. }
+    ) {
+        report_original_expression_candidates(ctx, stmt, numeric);
+    }
     match stmt {
         Statement::ExprEval { span, expr, .. } => {
-            try_rewrite_expr(ctx, *span, expr, procedures);
+            try_rewrite_expr(ctx, *span, expr);
         }
         Statement::AssignExpr {
             span, name, expr, ..
         } => {
-            try_rewrite_assign_expr(ctx, *span, name, expr, numeric, procedures);
+            try_rewrite_assign_expr(ctx, *span, name, expr, numeric);
         }
         // `return [expr {…}]` gets the same partial simplification as
         // `set v [expr {…}]` (#1962). The walker used to fall through here,
@@ -194,6 +211,81 @@ fn walk_statement(
     }
 }
 
+/// Conditional simplifications of retained generic invocations never carry an edit.
+fn report_original_expression_candidates(
+    ctx: &mut PassContext<'_>,
+    stmt: &Statement,
+    numeric: NumericCtx<'_>,
+) {
+    let Some(registry) = ctx.registry else {
+        return;
+    };
+    let tokens = stmt.tokens();
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
+    let mut originals = crate::word_subst::lifted_calls(tokens, config)
+        .into_iter()
+        .filter_map(|call| call.tokens)
+        .collect::<Vec<_>>();
+    if let Some(tokens) = tokens {
+        originals.push(tokens.clone());
+    }
+    for tokens in originals {
+        let Some(advice) =
+            crate::registry_invocation::original_expression_operand_advice(registry, &tokens)
+        else {
+            continue;
+        };
+        if let ExprNode::Command { text, .. } = &advice.expression
+            && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
+            && stmt
+                .tokens()
+                .is_some_and(|original| original.words() == tokens.words())
+            && ctx.command_mutations.trusts("expr")
+            && ctx
+                .fold_policy()
+                .preparation_context()
+                .is_some_and(|context| {
+                    tokens.source_binding.as_ref().is_some_and(|binding| {
+                        binding.nested_expression_normalisation(
+                            registry,
+                            &tokens,
+                            &context,
+                            Some(&advice.expression),
+                        )
+                    })
+                })
+        {
+            ctx.report(Optimisation::new(
+                DiagCode::O115,
+                "Remove redundant nested expr",
+                stmt.span(),
+                format!("expr {{{unwrapped}}}"),
+            ));
+            continue;
+        }
+        let original_context = numeric
+            .and_then(|types| types.original_candidate_context(advice.span))
+            .unwrap_or_default();
+        let rendered = crate::expr_ast::render_expr(&advice.expression);
+        let (_, changed) = super::helpers::expr_simplify::instcombine_expr_typed(
+            &rendered,
+            false,
+            Some(&original_context),
+            ctx.dialect,
+        );
+        if changed {
+            let mut candidate = Optimisation::new(
+                DiagCode::O110,
+                "The expression may be simplified after preserving conversions, reads and object sharing",
+                advice.span,
+                String::new(),
+            );
+            candidate.hint_only = true;
+            ctx.report(candidate);
+        }
+    }
+}
+
 /// Fold `set name [expr {…}]` via the standard chain:
 ///
 /// 1. Full constant fold (`expr {2 + 3}` → `5`) → O101
@@ -210,11 +302,9 @@ fn try_rewrite_assign_expr(
     name: &str,
     expr: &ExprNode,
     numeric: NumericCtx<'_>,
-    procedures: &Procedures,
 ) {
     use super::helpers::expr_simplify::{
-        expr_has_command_subst, expr_uses_shadowed_mathfunc, instcombine_expr_typed,
-        try_strength_reduce_expr_typed,
+        expr_has_command_subst, instcombine_expr_typed, try_strength_reduce_expr_typed,
     };
     use super::helpers::spans::full_rewrite_span;
 
@@ -241,11 +331,9 @@ fn try_rewrite_assign_expr(
     // identities that don't evaluate a call's result, so they're
     // unaffected by a shadowed math function.)
     let env = Env::new();
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
-    if !expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
+    if let Some(val) = ctx.eval_expression_at(expr, &env, span)
+        && let Some(folded) = format_tcl_value_with_policy(&val, ctx.fold_policy())
     {
-        let folded = format_tcl_value(&val);
         let original = crate::expr_ast::render_expr(expr);
         if folded != original.trim() {
             // Safe-word check: the folded value must inline as a
@@ -279,7 +367,11 @@ fn try_rewrite_assign_expr(
     let rendered_expr = crate::expr_ast::render_expr(expr);
     let (simplified, inst_changed) =
         instcombine_expr_typed(&rendered_expr, false, numeric, ctx.dialect);
-    if inst_changed {
+    if inst_changed
+        && ctx
+            .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
+            .is_ok()
+    {
         ctx.report(Optimisation::new(
             DiagCode::O110,
             "Simplify expression (instcombine)",
@@ -288,9 +380,19 @@ fn try_rewrite_assign_expr(
         ));
         return;
     }
+    if inst_changed
+        && (report_unproved_square_candidate(ctx, expr, span)
+            || report_unproved_identity_candidate(ctx, expr, span))
+    {
+        return;
+    }
     let (reduced, sred_changed) =
         try_strength_reduce_expr_typed(&rendered_expr, numeric, ctx.dialect);
-    if sred_changed {
+    if sred_changed
+        && ctx
+            .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
+            .is_ok()
+    {
         ctx.report(Optimisation::new(
             DiagCode::O113,
             "Strength-reduce expression",
@@ -337,7 +439,11 @@ fn try_rewrite_return_expr(
 
     let rendered = crate::expr_ast::render_expr(expr);
     let (simplified, inst_changed) = instcombine_expr_typed(&rendered, false, numeric, ctx.dialect);
-    if inst_changed {
+    if inst_changed
+        && ctx
+            .expression_rewrite_equivalence_at(expr, &simplified, &Env::new(), span)
+            .is_ok()
+    {
         ctx.report(Optimisation::new(
             DiagCode::O110,
             "Simplify expression (instcombine)",
@@ -346,8 +452,18 @@ fn try_rewrite_return_expr(
         ));
         return;
     }
+    if inst_changed
+        && (report_unproved_square_candidate(ctx, expr, span)
+            || report_unproved_identity_candidate(ctx, expr, span))
+    {
+        return;
+    }
     let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered, numeric, ctx.dialect);
-    if sred_changed {
+    if sred_changed
+        && ctx
+            .expression_rewrite_equivalence_at(expr, &reduced, &Env::new(), span)
+            .is_ok()
+    {
         ctx.report(Optimisation::new(
             DiagCode::O113,
             "Strength-reduce expression",
@@ -357,45 +473,72 @@ fn try_rewrite_return_expr(
     }
 }
 
-/// The `return`-shaped twin of [`collapse_assign_expr_wrapper`]: a
-/// safe-to-inline literal drops the `[expr {…}]` wrapper so a cascading
-/// pass need not re-fold a trivial `expr {K}`; anything else keeps it.
-fn collapse_return_expr_wrapper(simplified: &str) -> String {
-    let trimmed = simplified.trim();
-    let looks_literal = !trimmed.is_empty()
-        && !trimmed.contains([
-            ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
-        ]);
-    if looks_literal {
-        return format!("return {trimmed}");
+/// Advisory only: no replacement exists until the native operand and read
+/// effects are proved. This cannot be passed to an executable rewrite consumer.
+fn report_unproved_square_candidate(
+    ctx: &mut PassContext<'_>,
+    expression: &ExprNode,
+    span: tcl_lexer::Span,
+) -> bool {
+    let ExprNode::Binary {
+        op: crate::expr_ast::BinOp::Pow,
+        left,
+        right,
+    } = expression
+    else {
+        return false;
+    };
+    if !matches!(left.as_ref(), ExprNode::Var { .. })
+        || !matches!(right.as_ref(), ExprNode::Literal { text, .. } if text == "2")
+    {
+        return false;
     }
+    let mut candidate = Optimisation::new(
+        DiagCode::O110,
+        "Squaring may use multiplication after proving native numeric operands and unchanged read, error and coercion behaviour",
+        span,
+        String::new(),
+    );
+    candidate.hint_only = true;
+    ctx.report(candidate);
+    true
+}
+
+/// An identity candidate does not erase an arithmetic result object or a read.
+fn report_unproved_identity_candidate(
+    ctx: &mut PassContext<'_>,
+    expression: &ExprNode,
+    span: Span,
+) -> bool {
+    use crate::expr_ast::BinOp;
+    let ExprNode::Binary { op, left, right } = expression else {
+        return false;
+    };
+    let identity = match (op, right.as_ref()) {
+        (BinOp::Add | BinOp::Sub, ExprNode::Literal { text, .. }) => text == "0",
+        (BinOp::Mul, ExprNode::Literal { text, .. }) => text == "1",
+        _ => false,
+    };
+    matches!(left.as_ref(), ExprNode::Var { .. })
+        && identity
+        && ctx.report_prepared_expression_candidate(
+            DiagCode::O110,
+            "The arithmetic identity may be simplified after preserving conversions, reads and object sharing",
+            span,
+        )
+}
+
+/// Keep the native result operation after proving a partial expression rewrite.
+fn collapse_return_expr_wrapper(simplified: &str) -> String {
     format!("return [expr {{{simplified}}}]")
 }
 
-/// Build the replacement for ``set name [expr {…}]`` after a
-/// simplifier produced `simplified`. When `simplified` is a
-/// safe-to-inline integer literal (or bare identifier), emit the
-/// unwrapped ``set name SIMPLIFIED`` form so cascading passes
-/// don't have to re-fold the trivial ``expr {K}``. Otherwise
-/// preserve the ``expr { … }`` wrapper.
+/// Keep the native result operation after proving a partial expression rewrite.
 fn collapse_assign_expr_wrapper(name: &str, simplified: &str) -> String {
-    let trimmed = simplified.trim();
-    let looks_literal = !trimmed.is_empty()
-        && !trimmed.contains([
-            ' ', '\t', '\n', '\r', '$', '[', ']', '{', '}', '"', '\\', '\0', ';',
-        ]);
-    if looks_literal {
-        return format!("set {name} {trimmed}");
-    }
     format!("set {name} [expr {{{simplified}}}]")
 }
 
-fn try_rewrite_expr(
-    ctx: &mut PassContext<'_>,
-    span: Span,
-    expr: &ExprNode,
-    procedures: &Procedures,
-) {
+fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     // Both rewrites below assume this statement's `expr` — and, for the
     // O115 unwrap, any nested `[expr {…}]` inside it — is the untouched
     // builtin. A `rename`/`interp alias`/redefining `proc` anywhere in the
@@ -411,6 +554,20 @@ fn try_rewrite_expr(
     // `lowering::structured` for the token-span limitation).
     if let ExprNode::Command { text, .. } = expr
         && let Some(unwrapped) = try_unwrap_expr_in_expr(text)
+        && ctx
+            .ir_module
+            .zip(ctx.registry)
+            .is_some_and(|(module, registry)| {
+                crate::math_function_binding::ExpressionMathBindings::for_module_statement(
+                    module, span,
+                )
+                .is_some_and(|bindings| {
+                    let Some(context) = ctx.fold_policy().preparation_context() else {
+                        return false;
+                    };
+                    bindings.nested_numeric_normalisation(&context, registry, expr)
+                })
+            })
     {
         ctx.report(Optimisation::new(
             DiagCode::O115,
@@ -429,11 +586,9 @@ fn try_rewrite_expr(
     if matches!(expr, ExprNode::Raw { .. }) {
         return;
     }
-    let octal = ctx.dialect.and_then(leading_zero_is_octal);
-    if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(expr, procedures)
-        && let Some(val) = eval_tcl_expr_with_octal_and_dialect(expr, &env, octal, ctx.dialect)
+    if let Some(val) = ctx.eval_expression_at(expr, &env, span)
+        && let Some(folded) = format_tcl_value_with_policy(&val, ctx.fold_policy())
     {
-        let folded = format_tcl_value(&val);
         // Compare against the original body text slice when it is
         // recoverable; the outer span covers the whole `expr …`
         // command so we look at the `ExprNode::Command`-free
@@ -461,11 +616,16 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap())
     }
 
     fn run_pass(source: &str) -> Vec<Optimisation> {
-        let cu = CompilationUnit::build_for(source, &registry(), false);
+        let registry = registry();
+        let cu = CompilationUnit::build_for(source, &registry, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.dialect = registry.profile();
+        ctx.registry = Some(&registry);
+        ctx.ir_module = Some(&cu.ir_module);
         run(&mut ctx, &cu);
         ctx.optimisations
     }
@@ -478,6 +638,9 @@ mod tests {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        ctx.dialect = reg.profile();
+        ctx.registry = Some(&reg);
+        ctx.ir_module = Some(&cu.ir_module);
         ctx.command_mutations =
             crate::command_binding::scan_module_command_mutations(&cu.ir_module, &reg);
         run(&mut ctx, &cu);
@@ -504,6 +667,27 @@ mod tests {
                 .any(|o| o.code == DiagCode::O115 && o.replacement.contains("$x + 1")),
             "expected O115 unwrap, got {opts:?}",
         );
+    }
+
+    #[test]
+    fn scoped_standalone_nested_expr_uses_original_normalisation_receipt() {
+        let source = "proc f {x} {expr {[expr {$x * 2}]}}";
+        assert!(run_pass_with_mutations(source).iter().any(|optimisation| {
+            optimisation.code == DiagCode::O115
+                && !optimisation.hint_only
+                && optimisation.replacement == "expr {$x * 2}"
+        }));
+        for suffix in [
+            "; unknown_future_entry",
+            "; trace add execution expr enter callback",
+            "; rename expr saved; proc expr args {return changed}",
+        ] {
+            assert!(
+                run_pass_with_mutations(&format!("{source}{suffix}"))
+                    .iter()
+                    .all(|optimisation| optimisation.code != DiagCode::O115)
+            );
+        }
     }
 
     #[test]
@@ -538,6 +722,83 @@ mod tests {
             opts.iter()
                 .any(|o| o.code == DiagCode::O101 && o.replacement == "5"),
             "expected O101 fold of abs(-5), got {opts:?}",
+        );
+    }
+
+    #[test]
+    fn aliased_mathfunc_uses_actual_implicit_dispatch() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = registry().project_for_profile(profile);
+        let source = "rename ::tcl::mathfunc::abs saved\ninterp alias {} ::tcl::mathfunc::abs {} list BOX\nexpr {abs(-3)}";
+        let cu = CompilationUnit::build_for(source, &registry, false);
+        let mut context = PassContext::new(&cu.source, InterproceduralAnalysis::default());
+        context.dialect = Some(profile);
+        context.registry = Some(&registry);
+        context.ir_module = Some(&cu.ir_module);
+        context.command_mutations =
+            crate::command_binding::scan_module_command_mutations(&cu.ir_module, &registry);
+        run(&mut context, &cu);
+        assert!(
+            context
+                .optimisations
+                .iter()
+                .all(|rewrite| rewrite.code != DiagCode::O101),
+            "native implicit call returns BOX -3, not stock abs: {:?}",
+            context.optimisations,
+        );
+    }
+
+    #[test]
+    fn native_math_alias_resolves_its_terminal_implementation_before_folding() {
+        let source =
+            "interp alias {} ::tcl::mathfunc::chosen {} ::tcl::mathfunc::abs; expr {chosen(-3)}";
+        let rewrites = run_pass(source);
+        assert!(
+            rewrites
+                .iter()
+                .any(|rewrite| rewrite.code == DiagCode::O101 && rewrite.replacement == "3"),
+            "the actual native alias call returns 3: {rewrites:?}"
+        );
+    }
+
+    #[test]
+    fn frozen_math_alias_prefix_bytes_do_not_prove_object_coercion_is_unobserved() {
+        let source = "set prefix [list -3]; interp alias {} ::tcl::mathfunc::chosen {} ::tcl::mathfunc::abs $prefix; expr {chosen()}";
+        let rewrites = run_pass(source);
+        assert!(
+            rewrites
+                .iter()
+                .all(|rewrite| rewrite.code != DiagCode::O101)
+        );
+    }
+
+    #[test]
+    fn later_mathfunc_replacement_does_not_poison_the_prior_native_call() {
+        let source = "expr {abs(-3)}\nproc ::tcl::mathfunc::abs {x} {return LATER}\nexpr {abs(-3)}";
+        let rewrites = run_pass(source);
+        let folded = rewrites
+            .iter()
+            .filter(|rewrite| rewrite.code == DiagCode::O101)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            folded.len(),
+            1,
+            "only the reached stock invocation folds: {rewrites:?}"
+        );
+        assert_eq!(folded[0].replacement, "3");
+        assert_eq!(folded[0].span.start(), 0);
+    }
+
+    #[test]
+    fn namespace_mathfunc_override_is_selected_before_folding() {
+        let rewrites = run_pass(
+            "namespace eval N {namespace eval tcl::mathfunc {}; proc tcl::mathfunc::abs {x} {return LOCAL}; expr {abs(-3)}}",
+        );
+        assert!(
+            rewrites
+                .iter()
+                .all(|rewrite| rewrite.code != DiagCode::O101),
+            "actual local math handler must be preserved: {rewrites:?}"
         );
     }
 
@@ -599,6 +860,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn full_expression_folds_retain_the_native_result_protocol() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let owner = tcl_registry::model::ingress::static_context_for(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            for source in [
+                "set result [expr {2+2}]; puts $result",
+                "proc f {} {return [expr {2+2}]}; puts [f]",
+                "expr {2+2}",
+            ] {
+                let findings = crate::optimiser::optimise_raw_for_profile(
+                    source,
+                    owner.commands(),
+                    Some(profile),
+                );
+                assert!(
+                    findings
+                        .iter()
+                        .all(|finding| finding.code != DiagCode::O101),
+                    "{dialect}: contents cannot replace native result instructions: {findings:?}"
+                );
+            }
+        }
+    }
+
     /// Issue #1962: the expression rewriters reached a `set` body but not a
     /// `return` one, so `return [expr {$r ** 2}]` was left alone while
     /// `set v [expr {$r ** 2}]` became `set v [expr {$r * $r}]`.
@@ -645,12 +932,54 @@ mod tests {
             codes("proc id {x} {\n    set v [expr {$x + 0}]\n    return $v\n}\n").is_empty(),
             "nor in a set",
         );
-        // Proven numeric, the return shape does rewrite — so the guard above
-        // is a real proof and not the rewrite being unreachable.
+        // Mathematical numeric contents do not establish an already numeric
+        // shared object; a pooled source string still needs its conversion.
         assert_eq!(
             codes("proc n {x} {\n    set x 4\n    return [expr {$x + 0}]\n}\n"),
-            vec!["O110".to_owned()],
-            "a provably numeric operand may lose `+ 0`",
+            [] as [String; 0],
+        );
+        // Already numeric inputs permit a numeric-result operation rewrite;
+        // they do not permit returning the existing operand instead of the
+        // separately produced result object.
+        let source = "proc n {} {set x [expr {4}]; return [expr {$x ** 2}]}";
+        let findings = crate::optimiser::optimise_raw_for_profile(
+            source,
+            &tcl_registry::CommandRegistry::build_default(),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
+        assert!(
+            findings.iter().any(|finding| finding.code == DiagCode::O110
+                && !finding.hint_only
+                && !finding.replacement.is_empty()),
+            "native numeric producer must permit the actual edit: {findings:?}"
+        );
+        let pooled = crate::optimiser::optimise_raw_for_profile(
+            "proc n {} {set x [expr {2 + 2}]; return [expr {$x ** 2}]}",
+            &tcl_registry::CommandRegistry::build_default(),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
+        assert!(
+            pooled
+                .iter()
+                .filter(|finding| finding.code == DiagCode::O110)
+                .all(|finding| finding.hint_only && finding.replacement.is_empty())
+        );
+        assert!(
+            codes("set x [expr {2 + 2}]; set result [expr {$x + 0}]; llength $result; puts [tcl::unsupported::representation $x]")
+                .iter()
+                .all(|code| code != "O110"),
+            "numeric input proof cannot introduce result sharing observed by later conversion"
+        );
+        let unknown = crate::optimiser::optimise_raw_for_profile(
+            "proc square {r} {return [expr {$r ** 2}]}",
+            &tcl_registry::CommandRegistry::build_default(),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
+        assert!(
+            unknown
+                .iter()
+                .filter(|finding| finding.code == DiagCode::O110)
+                .all(|finding| finding.hint_only && finding.replacement.is_empty())
         );
 
         // A command substitution may have side effects, so the rewrite must
@@ -660,12 +989,12 @@ mod tests {
             "a command substitution blocks the rewrite",
         );
 
-        // `propagation::try_fold_return_terminator` still owns O101 and
-        // O115 for `return`; neither may now be reported twice.
+        // A known constant result retains its native allocation/pool protocol.
+        // The nested-wrapper diagnostic remains owned by propagation.
         assert_eq!(
             codes("proc c {} {\n    return [expr {1 + 2}]\n}\n"),
-            vec!["O101".to_owned()],
-            "constant fold stays single-reported",
+            [] as [String; 0],
+            "constant contents do not license replacing the native result",
         );
         assert_eq!(
             codes("proc d {x} {\n    return [expr {[expr {$x * 2}]}]\n}\n"),

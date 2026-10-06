@@ -39,7 +39,7 @@ use crate::alias::CommandAliasMap;
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
-    ArgTokenKind, LoweringCommand, extract_single_expr_arg_with_config, has_expansion,
+    ArgTokenKind, LoweringCommand, extract_proved_expr_arg, has_expansion,
 };
 use tcl_runtime_api::CommandBindingIdentity;
 
@@ -90,6 +90,11 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
             cmd.resolution_namespace,
             cmd.name,
             cmd.name,
+        )
+        .with_namespace_context(
+            cmd.tokens
+                .as_ref()
+                .and_then(crate::registry_invocation::compiled_namespace_context),
         ),
         expr,
         expr_base,
@@ -116,7 +121,7 @@ pub fn try_lower_return(
             tokens: cmd.tokens.clone(),
         };
     }
-    if !cmd.args.is_empty() && cmd.args[0].starts_with('-') {
+    if cmd.args.len() > 1 || (!cmd.args.is_empty() && cmd.args[0].starts_with('-')) {
         return Statement::Barrier {
             span: cmd.span,
             reason: "return with options".into(),
@@ -136,11 +141,45 @@ pub fn try_lower_return(
                 .cloned()
         })
         .flatten();
+    let ReturnValueLowering {
+        expr,
+        expr_base,
+        command_binding,
+        braced,
+    } = lower_return_value(cmd, aliases, registry, context);
+
+    Statement::Return {
+        span: cmd.span,
+        tokens: cmd.tokens.clone(),
+        value,
+        value_word,
+        expr,
+        expr_base,
+        command_binding,
+        braced,
+    }
+}
+
+#[derive(Default)]
+struct ReturnValueLowering {
+    expr: Option<tcl_syntax::expr::ExprNode>,
+    expr_base: Option<u32>,
+    command_binding: Option<CommandBindingIdentity>,
+    braced: bool,
+}
+
+fn lower_return_value(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &tcl_registry::CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+) -> ReturnValueLowering {
     let mut expr = None;
+    let mut expr_base = None;
     let mut command_binding = None;
     let mut braced = false;
 
-    if value.is_some()
+    if !cmd.args.is_empty()
         && !cmd.arg_kinds.is_empty()
         && cmd.single_token_word.len() >= 2
         && cmd.single_token_word[1]
@@ -152,8 +191,9 @@ pub fn try_lower_return(
                     .strip_prefix('[')
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(&cmd.args[0]);
-                if let Some((expr_cmd, canonical_cmd, expr_arg, _)) =
-                    extract_single_expr_arg_with_config(
+                if let Some((expr_cmd, canonical_cmd, expr_arg, relative_base)) =
+                    extract_proved_expr_arg(
+                        (cmd.tokens.as_ref(), 1),
                         inner,
                         aliases,
                         cmd.resolution_namespace,
@@ -163,11 +203,26 @@ pub fn try_lower_return(
                     )
                 {
                     expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
-                    command_binding = Some(CommandBindingIdentity::in_rooted_namespace(
-                        cmd.resolution_namespace,
-                        expr_cmd,
-                        canonical_cmd,
-                    ));
+                    expr_base = cmd.tokens.as_ref().and_then(|tokens| {
+                        let base = crate::lowering_hooks::word_content_base(
+                            *tokens.argv.get(1)?,
+                            tokens.single_token_word.get(1).copied().unwrap_or(false),
+                            inner,
+                        )?;
+                        base.checked_add(relative_base?)
+                    });
+                    command_binding = Some(
+                        CommandBindingIdentity::in_rooted_namespace(
+                            cmd.resolution_namespace,
+                            expr_cmd,
+                            canonical_cmd,
+                        )
+                        .with_namespace_context(
+                            cmd.tokens
+                                .as_ref()
+                                .and_then(crate::registry_invocation::compiled_namespace_context),
+                        ),
+                    );
                 }
             }
             ArgTokenKind::ExprSugar => {
@@ -178,17 +233,21 @@ pub fn try_lower_return(
                     .and_then(|s| s.strip_suffix(')'))
                 {
                     expr = Some(parse_expr_for_profile(body, cmd.dialect));
+                    expr_base = cmd.tokens.as_ref().and_then(|tokens| {
+                        let span = *tokens.argv.get(1)?;
+                        let raw_len = span.end().checked_sub(span.start())?;
+                        let body_len = u32::try_from(body.len()).ok()?;
+                        (raw_len == body_len.checked_add(2)?).then(|| span.start() + 2)
+                    });
                 }
             }
             _ => {}
         }
     }
 
-    Statement::Return {
-        span: cmd.span,
-        value,
-        value_word,
+    ReturnValueLowering {
         expr,
+        expr_base,
         command_binding,
         braced,
     }
@@ -206,6 +265,36 @@ mod tests {
     }
 
     // expr — end-to-end via lower_to_ir
+
+    #[test]
+    fn nested_return_expression_retains_original_parser_source_base() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let source = "proc p {} {return [expr {abs(-3)}]}";
+        let module = crate::lowering::lower_to_ir_with(
+            crate::lowering::Lowerer::new(registry).with_dialect(registry.profile()),
+            source,
+        );
+        let statement = module.procedures["::p"].body.statements.first().unwrap();
+        let Statement::Return {
+            expr: Some(_),
+            expr_base: Some(base),
+            ..
+        } = statement
+        else {
+            panic!("missing exact returned expression: {statement:#?}");
+        };
+        assert_eq!(
+            source.get(*base as usize..*base as usize + 7),
+            Some("abs(-3)")
+        );
+        assert!(
+            module.procedures["::p"]
+                .body
+                .implicit_math_invocations
+                .iter()
+                .any(|proof| proof.site == *base && proof.function == "abs")
+        );
+    }
 
     #[test]
     fn expr_braced_lowers_to_expr_eval() {
@@ -434,6 +523,22 @@ mod tests {
             Statement::Return { value, .. } => assert!(value.is_none()),
             other => panic!("expected Return, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn unit_return_extra_values_preserve_runtime_arity_error() {
+        let args = vec!["first".to_owned(), "second".to_owned()];
+        let cmd = make_cmd(
+            "return",
+            &args,
+            &[true, true, true],
+            &[ArgTokenKind::Esc, ArgTokenKind::Esc],
+            None,
+        );
+        assert!(matches!(
+            try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None),
+            Statement::Barrier { args: retained, .. } if retained == args
+        ));
     }
 
     #[test]

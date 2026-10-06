@@ -1,0 +1,162 @@
+[
+  [
+    "each-simple",
+    "foreach i {A B} {set last $i}; list $last [info locals]"
+  ],
+  [
+    "each-pairs",
+    "foreach {i j} {A B C} {set last [list $i $j]}; list $last [info locals]"
+  ],
+  [
+    "each-two",
+    "foreach i {A B} j {C} {set last [list $i $j]}; list $last [info locals]"
+  ],
+  [
+    "each-array",
+    "foreach {a(k)} {A} {set last $a(k)}; list $last [info locals]"
+  ],
+  [
+    "each-qualified",
+    "namespace eval N {}; foreach ::N::i {A} {set last $::N::i}; list $last [info locals]"
+  ],
+  [
+    "each-empty",
+    "foreach {} {A} {set never 1}"
+  ],
+  [
+    "each-later-decline",
+    "foreach i {A} {a(k)} {B} {set last $i}; list $last [info locals]"
+  ],
+  [
+    "each-backslash-var",
+    "foreach \\x69 {A} {set last $i}; list $last [info locals]"
+  ],
+  [
+    "each-variable-var",
+    "set names i; foreach $names {A} {set last $i}; list $last [info locals]"
+  ],
+  [
+    "each-dynamic-body",
+    "set body {set last $i}; foreach i {A} $body; list $last [info locals]"
+  ],
+  [
+    "each-values-before-body",
+    "foreach i [set values A] {set body $i}; info locals"
+  ],
+  [
+    "each-protected-continue",
+    "foreach i {A B} {continue}; return AFTER"
+  ],
+  [
+    "each-value-continue",
+    "foreach i [return -level 0 -code continue VALUE] {set last $i}"
+  ],
+  [
+    "each-malformed-body",
+    "foreach i {A} {set broken \"}"
+  ],
+  [
+    "each-malformed-list",
+    "foreach {i {} {A} {set last $i}"
+  ],
+  [
+    "each-null-var",
+    "foreach {a\\u0000b} {A} {set last DONE}; info locals"
+  ],
+  [
+    "each-two-loops",
+    "foreach i {A} {set first $i}; foreach j {B} {set second $j}; info locals"
+  ],
+  [
+    "lmap-simple",
+    "lmap i {A B} {list $i $i}"
+  ],
+  [
+    "lmap-break",
+    "lmap i {A B} {if {$i eq \"B\"} {break}; set i}"
+  ],
+  [
+    "try-bare",
+    "try {set b BODY}; info locals"
+  ],
+  [
+    "try-finally",
+    "try {set b BODY} finally {set f FINALLY}; list $b $f [info locals]"
+  ],
+  [
+    "try-empty-finally",
+    "try {set b BODY} finally {}; info locals"
+  ],
+  [
+    "try-on-ok",
+    "try {set b BODY} on ok {m o} {list $m [dict get $o -code]}; info locals"
+  ],
+  [
+    "try-on-error",
+    "try {error BODY} on error {m o} {list $m [dict get $o -code]}; info locals"
+  ],
+  [
+    "try-trap",
+    "try {error BODY {} {TCL TEST}} trap {TCL} {m o} {list $m [dict get $o -code]}; info locals"
+  ],
+  [
+    "try-empty-trap",
+    "try {error BODY} trap {} {m o} {set chosen $m}; info locals"
+  ],
+  [
+    "try-three-vars",
+    "try {error BODY} on error {m o extra} {set chosen $m}; info locals"
+  ],
+  [
+    "try-array-binding",
+    "try {error BODY} on error {a(k) o} {set chosen $a(k)}; info locals"
+  ],
+  [
+    "try-later-decline",
+    "try {error BODY} on error {m o} - on ok {a(k) opts} {set chosen $m}; info locals"
+  ],
+  [
+    "try-bad-last-fallthrough",
+    "try {error BODY} on error {m o} -; info locals"
+  ],
+  [
+    "try-code-variable",
+    "set which error; try {error BODY} on $which {m o} {set chosen $m}; info locals"
+  ],
+  [
+    "try-dynamic-protected",
+    "set body {error BODY}; try $body on error {m o} {set chosen $m}; info locals"
+  ],
+  [
+    "try-dynamic-handler",
+    "set handler {set chosen $m}; try {error BODY} on error {m o} $handler; info locals"
+  ],
+  [
+    "try-dynamic-finally",
+    "set handler {set done DONE}; try {set b BODY} finally $handler; info locals"
+  ],
+  [
+    "try-all",
+    "try {error BODY {} {TCL TEST}} trap {TCL} {m o} {set chosen $m} finally {set done DONE}; info locals"
+  ],
+  [
+    "try-on-continue",
+    "try {continue} on continue {m o} {list $m [dict get $o -code]}; info locals"
+  ],
+  [
+    "try-handlers-prefix",
+    "try {error BODY} on error {first opts} - trap {TCL} {second options} {set chosen $second}; info locals"
+  ],
+  [
+    "try-body-before-handler",
+    "try {set body B} on ok {result options} {set handler H} finally {set final F}; info locals"
+  ],
+  [
+    "try-finally-replace",
+    "try {return ORIGINAL} finally {return OVERRIDE}"
+  ],
+  [
+    "try-finally-during",
+    "try {error ORIGINAL} finally {error OVERRIDE}"
+  ]
+]

@@ -55,14 +55,17 @@ pub fn exec<O: ValueOps>(
     if args.is_empty() {
         return Err(CmdError::wrong_args("exec ?-option ...? arg ?arg ...?"));
     }
-    let parts: Vec<String> = args.iter().map(|a| ops.as_str(a).to_string()).collect();
+    let parts: Vec<String> = args
+        .iter()
+        .map(|a| ops.try_as_str(a).map(|text| text.to_string()))
+        .collect::<Result<_, _>>()?;
     let part_refs: Vec<&str> = parts.iter().map(String::as_str).collect();
     let output = process.run(&part_refs)?;
-    let mut out = String::from_utf8_lossy(&output.stdout).into_owned();
-    while out.ends_with('\n') {
+    let mut out = output.stdout;
+    while out.last() == Some(&b'\n') {
         out.pop();
     }
-    Ok(ops.new_string(out))
+    Ok(ops.new_bytes(&out))
 }
 
 /// `pwd` — the current working directory. The working directory is a *mandatory*

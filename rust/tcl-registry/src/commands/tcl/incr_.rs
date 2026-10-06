@@ -57,6 +57,17 @@ const INCR_EXPLICIT: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "incr",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Increment,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Incr,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        completion: Some(crate::completion::CompletionDescriptor::exact(&[
+            crate::completion::CompletionCode::Ok,
+            crate::completion::CompletionCode::Error,
+        ])),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -95,9 +106,11 @@ pub fn spec() -> CommandSpec {
         }),
         lowering_hook: Some(LoweringHookId::Incr),
         native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Increment)),
+        native_result: Some(crate::native_result::NativeResultContract::IncrementStore),
         inline_codegen_hook: Some(InlineCodegenHookId::Incr),
         command_forms: &[INCR_IMPLICIT, INCR_EXPLICIT],
         forms: FORMS,
+        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_READ_MODIFY_WRITE),
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Incr),
         ..CommandSpec::DEFAULT

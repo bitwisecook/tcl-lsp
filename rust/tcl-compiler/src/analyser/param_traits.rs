@@ -64,7 +64,6 @@
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::model::DocumentCommandSurface;
 
@@ -87,7 +86,7 @@ pub fn infer_param_traits(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty() || body_source.trim().is_empty() {
+    if params.is_empty() || body_source.trim().is_empty() || !env.matches_source(body_source) {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -97,9 +96,14 @@ pub fn infer_param_traits(
 
     let ctx = ScanCtx {
         param_set: &param_set,
+        parameters: params,
         surface: env.surface,
         config: env.config,
         identities: env.identities,
+        executed_source: env.executed_source,
+        source_base: env
+            .executed_source
+            .map(crate::command_binding::ExecutedScriptSource::base),
     };
     scan_commands(body_source, &ctx, &mut traits, &mut aliases);
 
@@ -151,7 +155,11 @@ fn infer_param_traits_deep_at_depth(
     env: TraitScanEnv<'_>,
     depth: u8,
 ) -> HashMap<String, HashSet<ProcArgTrait>> {
-    if params.is_empty() || body_source.trim().is_empty() || depth > MAX_DEPTH {
+    if params.is_empty()
+        || body_source.trim().is_empty()
+        || depth > MAX_DEPTH
+        || !env.matches_source(body_source)
+    {
         return HashMap::new();
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
@@ -161,9 +169,14 @@ fn infer_param_traits_deep_at_depth(
 
     let ctx = ScanCtx {
         param_set: &param_set,
+        parameters: params,
         surface: env.surface,
         config: env.config,
         identities: env.identities,
+        executed_source: env.executed_source,
+        source_base: env
+            .executed_source
+            .map(crate::command_binding::ExecutedScriptSource::base),
     };
     scan_deep(body_source, &ctx, &mut traits, &mut aliases, depth);
 
@@ -215,23 +228,153 @@ fn finalise_traits(
 /// `'p` is the params' lifetime (the param-name slices borrowed
 /// from the caller's `params` argument); `'r` borrows the
 /// command surface / param-set for the duration of a scan.
+#[derive(Clone, Copy)]
 struct ScanCtx<'p, 'r> {
     param_set: &'r HashSet<&'p str>,
+    parameters: &'r [&'p str],
     surface: DocumentCommandSurface<'r>,
     config: LexerConfig,
     /// The **document's** proven command-identity facts, so a
     /// role, frame-effect, or structural handler is chosen by the command a
     /// head *is* rather than the one it is spelled as.
     ///
-    /// Read *unpositioned*: a proc body is segmented from its own text at
-    /// offset 0, so no document-absolute offset exists here.
+    /// Positioned scans retain the actual evaluated body origin and its map;
+    /// standalone scans require conservative unpositioned identity consensus.
     identities: &'r crate::realm::CommandBindingRealm,
+    executed_source: Option<&'r crate::command_binding::ExecutedScriptSource>,
+    source_base: Option<u32>,
 }
 
-impl ScanCtx<'_, '_> {
-    /// One command head in both its forms.
-    fn head<'h>(&'h self, written: &'h str) -> crate::realm::HeadWords<'h> {
-        self.identities.head_words_unpositioned(written)
+impl<'p> ScanCtx<'p, '_> {
+    fn body_assistance(
+        &self,
+        source: &str,
+        command: &crate::segmenter::SegmentedCommand,
+    ) -> Option<Box<crate::registry_invocation::InvocationBodyAssistance>> {
+        let bindings = self.identities.source_bindings_ref();
+        if self.executed_source.is_none() {
+            return crate::registry_invocation::unpositioned_body_assistance(
+                &self.surface,
+                bindings,
+                source,
+                self.config,
+                command,
+            );
+        }
+        let selected = self
+            .executed_source
+            .filter(|source| bindings.source_origin() != Some(&source.origin))
+            .and_then(|source| bindings.selected_source(source));
+        crate::registry_invocation::segmented_body_assistance(
+            &self.surface,
+            selected.as_ref().unwrap_or(bindings),
+            source,
+            self.config,
+            command,
+            self.source_base.unwrap_or(0),
+        )
+    }
+
+    fn argument_values(
+        &self,
+        source: &str,
+        command: &crate::segmenter::SegmentedCommand,
+        aliases: &Aliases<'p>,
+    ) -> ArgumentValues<'p> {
+        let Some(executed) = self.executed_source else {
+            return ArgumentValues::lexical(command, self.param_set, aliases, self.config);
+        };
+        let bindings = self.identities.source_bindings_ref();
+        let selected = (bindings.source_origin() != Some(&executed.origin))
+            .then(|| bindings.selected_source(executed))
+            .flatten();
+        let bindings = selected.as_ref().unwrap_or(bindings);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            self.config,
+            command,
+        );
+        crate::lattice_rebase::rebase_command_tokens(
+            &mut tokens,
+            i64::from(self.source_base.unwrap_or(0)),
+        );
+        let parameters = self.parameters;
+        let registry = self.surface.commands();
+        // Parameter traits describe the original declaration's inputs. A
+        // caller's entered values cannot erase or donate that symbolic input.
+        let full = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                let (spelling, site) = word.sole_variable_substitution()?;
+                let name = bindings.symbolic_declaration_formal_value_at(
+                    &executed.origin,
+                    site,
+                    spelling,
+                    parameters,
+                    registry,
+                )?;
+                self.param_set.get(name.as_str()).copied()
+            })
+            .collect();
+        let offset = command
+            .span
+            .start()
+            .checked_add(self.source_base.unwrap_or(0));
+        let components = tokens
+            .words()
+            .iter()
+            .map(|word| {
+                offset.map_or_else(Vec::new, |offset| {
+                    bindings
+                        .symbolic_declaration_formal_components_in_word(
+                            &executed.origin,
+                            offset,
+                            word,
+                            parameters,
+                            registry,
+                        )
+                        .into_iter()
+                        .filter_map(|name| self.param_set.get(name.as_str()).copied())
+                        .collect()
+                })
+            })
+            .collect();
+        ArgumentValues { full, components }
+    }
+
+    fn nested(&self, token: &tcl_lexer::Token, text: &str) -> Self {
+        let source_base = self.source_base.and_then(|base| {
+            base.checked_add(token.span.start())?
+                .checked_add(u32::from(token.content_offset))
+        });
+        let source_base = self.executed_source.map_or(source_base, |source| {
+            let base = source_base?;
+            crate::command_binding::ExecutedScriptSource::contiguous(
+                std::sync::Arc::clone(&source.origin),
+                text,
+                base,
+            )
+            .map(|_| base)
+        });
+        Self {
+            source_base,
+            ..*self
+        }
+    }
+
+    fn source_slice(
+        &self,
+        text: &str,
+        offset: u32,
+    ) -> Option<crate::command_binding::ExecutedScriptSource> {
+        let source = self.executed_source?;
+        let base = self.source_base?.checked_add(offset)?;
+        crate::command_binding::ExecutedScriptSource::contiguous(
+            std::sync::Arc::clone(&source.origin),
+            text,
+            base,
+        )
     }
 }
 
@@ -264,20 +407,102 @@ pub struct TraitScanEnv<'a> {
     /// [`CommandBindingRealm::none()`](crate::realm::CommandBindingRealm::none)
     /// when there is no document to scan.
     pub identities: &'a crate::realm::CommandBindingRealm,
+    /// Exact evaluated body bytes and origin. Missing carriers use only
+    /// conservative unpositioned identity consensus.
+    pub executed_source: Option<&'a crate::command_binding::ExecutedScriptSource>,
+}
+
+impl TraitScanEnv<'_> {
+    fn matches_source(self, text: &str) -> bool {
+        self.executed_source
+            .is_none_or(|source| source.text.bytes() == text.as_bytes())
+    }
+
+    #[cfg(test)]
+    fn has_actual_procedure_entry(self) -> bool {
+        self.executed_source.is_some_and(|source| {
+            self.identities
+                .source_bindings_ref()
+                .has_actual_procedure_entry(source)
+        })
+    }
+}
+
+/// Frozen input origins for each original word, including the command head.
+/// Equal spellings in different positions can read different stored values.
+struct ArgumentValues<'p> {
+    full: Vec<Option<&'p str>>,
+    components: Vec<Vec<&'p str>>,
+}
+
+impl<'p> ArgumentValues<'p> {
+    fn lexical(
+        command: &crate::segmenter::SegmentedCommand,
+        parameters: &HashSet<&'p str>,
+        aliases: &Aliases<'p>,
+        config: LexerConfig,
+    ) -> Self {
+        Self {
+            full: command
+                .texts
+                .iter()
+                .map(|word| resolve_param(word, parameters, aliases))
+                .collect(),
+            components: command
+                .texts
+                .iter()
+                .map(|word| {
+                    var_substitutions(word, config.braced_var)
+                        .into_iter()
+                        .filter_map(|name| lookup_param(name, parameters, aliases))
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
+    fn argument(&self, index: usize) -> Option<&'p str> {
+        self.full.get(index + 1).copied().flatten()
+    }
+
+    fn argument_components(&self, index: usize) -> &[&'p str] {
+        self.components.get(index + 1).map_or(&[], Vec::as_slice)
+    }
 }
 
 /// Mutable alias / value-copy state accumulated while scanning a proc body.
 /// Bundling the two maps keeps the scan helpers at or under the argument limit.
-#[derive(Default)]
+#[derive(Clone)]
 struct Aliases<'p> {
     /// `myVar` (an `upvar` / `namespace upvar` alias name) → the param it
     /// aliases, so a later `set myVar …` writes the caller's variable
     /// (`VarWrite`).
     upvar: HashMap<String, &'p str>,
+    retired_inputs: HashSet<String>,
+    direct_inputs_known: bool,
     /// A local name → the param whose *value* it currently holds (`set n $p`),
     /// so a later `$n` in a name / command position resolves to that param.
     /// Invalidated when the local is written to anything else.
     value_copies: HashMap<String, &'p str>,
+}
+
+impl Default for Aliases<'_> {
+    fn default() -> Self {
+        Self {
+            upvar: HashMap::new(),
+            value_copies: HashMap::new(),
+            retired_inputs: HashSet::new(),
+            direct_inputs_known: true,
+        }
+    }
+}
+
+impl Aliases<'_> {
+    fn clear(&mut self) {
+        self.upvar.clear();
+        self.value_copies.clear();
+        self.direct_inputs_known = false;
+    }
 }
 
 /// `true` when `name` is a plain scalar local identifier — the only shape a
@@ -289,9 +514,7 @@ fn is_plain_local_name(name: &str) -> bool {
             .bytes()
             .next()
             .is_some_and(|b| b.is_ascii_alphabetic() || b == b'_')
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
 /// Single-level command scan shared by both passes.  Extracts
@@ -328,42 +551,56 @@ fn scan_commands_bounded<'p>(
         if seg.texts.is_empty() {
             continue;
         }
-        let cmd_args: Vec<String> = seg.texts[1..].to_vec();
-        // Per-arg "braced literal" flags: a single `Str` word (`{…}`) suppresses
-        // substitution, so a `$k` inside it is literal text, not a param ref.
-        let braced: Vec<bool> = (1..seg.texts.len())
-            .map(|i| {
-                seg.argv.get(i).is_some_and(|t| t.kind == TokenType::Str)
-                    && seg.single_token_word.get(i).copied().unwrap_or(false)
-            })
-            .collect();
-        // The head names a command by *substitution* only when it lexes as a
-        // `Var` word (`$cmd` / `${cmd}`); a braced `{$cmd}` or bareword head is
-        // a literal command name, not a param reference.
-        let head_is_var = seg.argv.first().is_some_and(|t| t.kind == TokenType::Var);
-        scan_command(
-            ctx.head(&seg.texts[0]),
-            &cmd_args,
-            &braced,
-            head_is_var,
-            ctx,
-            traits,
-            aliases,
-        );
-        if depth >= MAX_DEPTH {
-            continue;
-        }
-        // A whole-word `Cmd` token's `texts` entry is the bracketed
-        // substitution; strip the outer `[` / `]` and recurse into its script.
-        for (word, tok) in seg.texts.iter().zip(seg.argv.iter()) {
-            if tok.kind == TokenType::Cmd
-                && let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))
-                && !inner.trim().is_empty()
-            {
-                scan_commands_bounded(inner, ctx, traits, aliases, depth + 1);
-            }
+        scan_segment(source, seg, ctx, traits, aliases, depth);
+    }
+}
+
+fn scan_segment<'p>(
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    ctx: &ScanCtx<'p, '_>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    aliases: &mut Aliases<'p>,
+    depth: u8,
+) -> (
+    Option<Box<crate::registry_invocation::InvocationBodyAssistance>>,
+    Aliases<'p>,
+    ArgumentValues<'p>,
+) {
+    let cmd_args: Vec<String> = seg.texts[1..].to_vec();
+    // Per-arg "braced literal" flags: a single `Str` word (`{…}`) suppresses
+    // substitution, so a `$k` inside it is literal text, not a param ref.
+    let braced: Vec<bool> = (1..seg.texts.len())
+        .map(|i| {
+            seg.argv.get(i).is_some_and(|t| t.kind == TokenType::Str)
+                && seg.single_token_word.get(i).copied().unwrap_or(false)
+        })
+        .collect();
+    let values = ctx.argument_values(source, seg, aliases);
+    // A whole-word `Cmd` token's `texts` entry is the bracketed
+    // substitution; strip the outer `[` / `]` and recurse into its script.
+    for (word, tok) in seg.texts.iter().zip(seg.argv.iter()) {
+        if depth < MAX_DEPTH
+            && tok.kind == TokenType::Cmd
+            && let Some(inner) = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))
+            && !inner.trim().is_empty()
+        {
+            let nested = ctx.nested(tok, inner);
+            scan_commands_bounded(inner, &nested, traits, aliases, depth + 1);
         }
     }
+    let body_aliases = aliases.clone();
+    let view = ctx.body_assistance(source, seg);
+    scan_command(
+        view.as_deref(),
+        &cmd_args,
+        &braced,
+        &values,
+        ctx,
+        traits,
+        aliases,
+    );
+    (view, body_aliases, values)
 }
 
 /// Recursive scan with depth tracking.  Walks every command at
@@ -386,48 +623,34 @@ fn scan_deep<'p>(
         return;
     }
 
-    scan_commands(source, ctx, traits, aliases);
-
-    // The recursion only walks braced bodies, so we re-segment
-    // here rather than threading the segmented commands through
-    // `scan_commands`.  The segmented slices have a lifetime
-    // tied to this stack frame; each recursion needs its own.
+    // Each nested body receives its original pre-dispatch copy state. A
+    // conditional body cannot publish its assignments into a sibling path.
     let segments = segment_commands_with_offset_and_config(source, 0, ctx.config);
     for seg in segments {
         if seg.texts.is_empty() {
             continue;
         }
-        let cmd_name = ctx.head(&seg.texts[0]).resolved;
+        let (view, body_aliases, values) = scan_segment(source, &seg, ctx, traits, aliases, depth);
         let cmd_args: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
         // One surface answers for both a catalogue command and a
         // document-declared `# tcl-lsp: stub` one, so a stub-defined body
         // arg recurses just like a shipped one.
-        let body_indices: HashSet<usize> = ctx
-            .surface
-            .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body)
-            .into_iter()
+        let roles = view.as_ref().map_or_else(Vec::new, |view| {
+            let mut roles = view.parameter_role_advice().written_roles();
+            roles.extend(view.declared_roles.iter().copied());
+            roles
+        });
+        let body_indices: HashSet<usize> = roles
+            .iter()
+            .filter_map(|&(index, role)| (role == ArgRole::Body).then_some(index))
             .collect();
         for idx in body_indices {
             let Some(body_text) = cmd_args.get(idx) else {
                 continue;
             };
-            if body_text.trim().is_empty() {
-                continue;
+            if let Some(token) = seg.argv.get(idx + 1) {
+                scan_deep_body(body_text, token, ctx, traits, &body_aliases, depth);
             }
-            // Skip non-braced bodies — `$var` / `[cmd]` heads
-            // are already handled at the top-level role scan
-            // (their `Eval` trait is recorded by
-            // `apply_arg_role_traits` /
-            // `apply_eval_traits`).  Peek at the first two bytes
-            // for cheap detection.
-            let head = body_text.as_bytes();
-            if head.first().is_some_and(|&b| b == b'$' || b == b'[') {
-                continue;
-            }
-            if head.len() >= 2 && (head[1] == b'$' || head[1] == b'[') {
-                continue;
-            }
-            scan_deep(body_text, ctx, traits, aliases, depth + 1);
         }
 
         // `apply {argList body ?ns?} …` — an apply body runs in a *fresh*
@@ -444,9 +667,9 @@ fn scan_deep<'p>(
         // corresponding actual argument is a bare, unadorned reference to
         // that enclosing param, i.e. only when the value genuinely flows
         // from the caller's frame into the lambda's.
-        for idx in ctx
-            .surface
-            .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::LambdaLiteral)
+        for idx in roles
+            .iter()
+            .filter_map(|&(index, role)| (role == ArgRole::LambdaLiteral).then_some(index))
         {
             let Some(&tok) = seg.argv.get(idx + 1) else {
                 continue;
@@ -481,6 +704,10 @@ fn scan_deep<'p>(
             if lambda_param_names.is_empty() {
                 continue;
             }
+            let lambda_source = ctx.source_slice(body_text, body_span.start());
+            if ctx.executed_source.is_some() && lambda_source.is_none() {
+                continue;
+            }
             let lambda_traits = infer_param_traits_deep_at_depth(
                 &lambda_param_names,
                 body_text,
@@ -488,23 +715,17 @@ fn scan_deep<'p>(
                     surface: ctx.surface,
                     config: ctx.config,
                     identities: ctx.identities,
+                    executed_source: lambda_source.as_ref(),
                 },
                 depth + 1,
             );
             if lambda_traits.is_empty() {
                 continue;
             }
-            // Positional actual arguments following the lambda literal bind
-            // to `argList`'s names in order (`apply {argList body} a1 a2 …`).
-            for (param_name, actual) in lambda_param_names.iter().copied().zip(&cmd_args[idx + 1..])
+            for (param_name, outer_param) in
+                lambda_input_bindings(view.as_deref(), idx, &lambda_param_defs, &values)
             {
-                let Some(outer_name) = extract_var_name(actual) else {
-                    continue;
-                };
-                let Some(outer_param) = ctx.param_set.get(outer_name).copied() else {
-                    continue;
-                };
-                if let Some(lambda_param_traits) = lambda_traits.get(param_name) {
+                if let Some(lambda_param_traits) = lambda_traits.get(&param_name) {
                     traits
                         .entry(outer_param)
                         .or_default()
@@ -513,6 +734,85 @@ fn scan_deep<'p>(
             }
         }
     }
+}
+
+/// Only an ordinary value binding forwards the original outer input. Defaults,
+/// variadic list construction and Jim caller links have different value owners.
+fn lambda_input_bindings<'p>(
+    view: Option<&crate::registry_invocation::InvocationBodyAssistance>,
+    lambda: usize,
+    parameters: &[crate::signature_scan::types::ParamDef],
+    values: &ArgumentValues<'p>,
+) -> Vec<(String, &'p str)> {
+    use tcl_syntax::formal_params::{
+        FormalArgumentBinding, FormalParameter, bind_formal_arguments,
+    };
+    let Some(selected) = view.and_then(|view| view.caller_name_template_invocation()) else {
+        return Vec::new();
+    };
+    let Some(grammar) = selected
+        .dialect
+        .and_then(tcl_registry::InvocationDialect::parameter_grammar)
+    else {
+        return Vec::new();
+    };
+    let Some(lambda) = (0..selected.arguments.len())
+        .find(|index| selected.effective.written_argument(*index) == Some(lambda))
+    else {
+        return Vec::new();
+    };
+    let formals: Vec<_> = parameters
+        .iter()
+        .map(|parameter| FormalParameter {
+            name: parameter.name.clone(),
+            default: parameter.default_value.clone(),
+        })
+        .collect();
+    let Ok(plan) = bind_formal_arguments(
+        &formals,
+        selected.arguments.len().saturating_sub(lambda + 1),
+        grammar,
+    ) else {
+        return Vec::new();
+    };
+    plan.into_iter()
+        .filter_map(|binding| {
+            let FormalArgumentBinding::Value {
+                parameter,
+                argument,
+            } = binding
+            else {
+                return None;
+            };
+            let original = selected.effective.written_argument(lambda + 1 + argument)?;
+            Some((formals[parameter].name.clone(), values.argument(original)?))
+        })
+        .collect()
+}
+
+fn scan_deep_body<'p>(
+    body_text: &str,
+    token: &tcl_lexer::Token,
+    ctx: &ScanCtx<'p, '_>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    aliases: &Aliases<'p>,
+    depth: u8,
+) {
+    if body_text.trim().is_empty() {
+        return;
+    }
+    let head = body_text.as_bytes();
+    if head
+        .first()
+        .is_some_and(|&byte| byte == b'$' || byte == b'[')
+        || head
+            .get(1)
+            .is_some_and(|&byte| byte == b'$' || byte == b'[')
+    {
+        return;
+    }
+    let nested = ctx.nested(token, body_text);
+    scan_deep(body_text, &nested, traits, &mut aliases.clone(), depth + 1);
 }
 
 /// Extract a bare variable name from ``$var`` or ``${var}``.
@@ -560,162 +860,228 @@ fn extract_var_name(text: &str) -> Option<&str> {
     Some(name)
 }
 
-/// Resolve a command's per-arg roles over the document's one command
-/// surface.  Picks the `arg_role_resolver` callback first, then static
-/// `arg_roles`, then sub-command-level roles, and adds whatever the
-/// document declares for the same name (gap ruling R1) — the surface
-/// unions the two, so a declaration widens a shipped command's role set
-/// and never narrows it.  When two roles claim the same index the later
-/// role in the iteration order below wins.
-fn resolve_arg_roles(
-    command: &str,
-    args: &[String],
-    surface: DocumentCommandSurface<'_>,
-) -> HashMap<u8, ArgRole> {
-    let registry = surface.commands();
-    let mut roles: HashMap<u8, ArgRole> = HashMap::new();
-    let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // `upvar`'s VarWrite slots are binding destinations, not ordinary
-    // callee-local variable-name writes.  Treating a `$param` in one of those
-    // slots as a parameter-flow write upgrades its ProcArgTrait spuriously
-    // (the binding is established in another frame).  The frame-effect
-    // descriptor remains the owner of the pair layout; param-trait inference
-    // simply abstains from this binding role.
-    let alias_binding = registry.frame_effect(command).is_some_and(|effect| {
-        effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-    });
-    for role in [
-        ArgRole::Body,
-        ArgRole::Expr,
-        ArgRole::VarWrite,
-        ArgRole::VarRead,
-        ArgRole::CommandPrefix,
-    ] {
-        if alias_binding && role == ArgRole::VarWrite {
-            continue;
-        }
-        for idx in surface.arg_indices_for_role(command, &arg_strs, role) {
-            if let Ok(idx_u8) = u8::try_from(idx) {
-                roles.insert(idx_u8, role);
-            }
-        }
-    }
-    roles
-}
-
+/// Trait navigation is a May projection; alias and value-copy state require
+/// the separate accepted, definite invocation and original written operands.
 fn scan_command<'p>(
-    head: crate::realm::HeadWords<'_>,
+    view: Option<&crate::registry_invocation::InvocationBodyAssistance>,
     cmd_args: &[String],
     braced: &[bool],
-    head_is_var: bool,
+    values: &ArgumentValues<'p>,
     ctx: &ScanCtx<'p, '_>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    let param_set = ctx.param_set;
-    // The *written* spelling is what a `$param` head test reads (a `$cmd` head
-    // is a substitution, not a command binding); every registry query and
-    // structural handler below reads the resolved one.
-    let cmd_name = head.written;
-    let resolved = head.resolved;
-    // A `$param` command *head* (`$cmd arg1 arg2`) means the param's value names
-    // a command.  Only a genuine `$`-substitution head counts — a braced
-    // `{$cmd}` is a literal command name.  Resolves value-copies, so
-    // `set c $cmd; $c …` also marks `cmd`.
-    if head_is_var
-        && let Some(vn) = extract_var_name(cmd_name)
-        && let Some(p) = lookup_param(vn, param_set, aliases)
+    if let Some(p) = values.full.first().copied().flatten()
         && let Some(set) = traits.get_mut(p)
     {
         set.insert(ProcArgTrait::Command);
     }
-    apply_arg_role_traits(resolved, cmd_args, braced, ctx, traits, aliases);
-    apply_eval_traits(resolved, cmd_args, param_set, traits);
-
-    // Per-command structural handlers.  Matched on the *resolved* head, so a
-    // proven alias or rename of `upvar` / `foreach` / `after` is handled like
-    // the command it is, and a spelling whose binding was provably taken over
-    // matches nothing.
-    match resolved {
-        "upvar" => {
-            handle_upvar(cmd_args, ctx, traits, aliases);
-        }
-        "namespace" if cmd_args.first().map(String::as_str) == Some("upvar") => {
-            handle_namespace_upvar(cmd_args, param_set, traits, aliases);
-        }
-        "foreach" | "lmap" => handle_foreach(cmd_args, param_set, traits),
-        "while" => handle_while(cmd_args, param_set, traits),
-        "for" => handle_for(cmd_args, param_set, traits),
-        "after" => handle_after(cmd_args, param_set, traits),
-        "scan" => handle_variadic_var_write(cmd_args, param_set, traits, 2),
-        "lassign" => handle_variadic_var_write(cmd_args, param_set, traits, 1),
-        _ => {}
+    let Some(view) = view else {
+        aliases.clear();
+        return;
+    };
+    if !view.parameter_role_advice().is_closed() {
+        aliases.clear();
+        apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
+        return;
     }
-
-    // (Variable-writing commands where a param is used directly as
-    // the var name — `set`/`incr`/`append`/`lappend`/`global`/
-    // `variable` etc. — are already covered by
-    // `apply_arg_role_traits` above, which marks `ProcArgTrait::VarWrite`
-    // for any arg whose registry `ArgRole` is `VarWrite`, so no hardcoded
-    // name list is needed here.  `regexp` capture vars and `regsub`'s output
-    // var are covered the same way: their specs' `arg_role_resolver` performs
-    // the spec-declared switch skip (`-start` consumes a value, `--`
-    // terminates) and resolves the trailing vars as `VarWrite` — a hardcoded
-    // switch list would miss `-about` and the Tcl 9 `regsub -command`.)
-
-    // Track writes through upvar aliases — ``set local …`` where
-    // ``local`` was registered as an alias for some param.
-    if matches!(resolved, "set" | "incr" | "append" | "lappend")
-        && !cmd_args.is_empty()
-        && let Some(target) = aliases.upvar.get(cmd_args[0].as_str())
-        && let Some(set) = traits.get_mut(target)
-    {
-        set.insert(ProcArgTrait::VarWrite);
+    // An unresolved replacement may have no parameter-evaluation grammar.
+    // Preserve declaration navigation independently of that execution residual.
+    let advice = view.parameter_role_advice();
+    apply_arg_role_traits(&advice.written_roles(), cmd_args, braced, values, traits);
+    apply_arg_role_traits(&view.declared_roles, cmd_args, braced, values, traits);
+    apply_possible_evaluation_traits(advice, cmd_args, braced, values, traits);
+    if let Some(selected) = view.parameter_invocation(ctx.parameters) {
+        record_selected_aliases(selected, values, traits, aliases);
+        apply_definite_writes(
+            selected,
+            &selected.written_argument_roles(),
+            cmd_args,
+            values,
+            traits,
+            aliases,
+        );
+        if advice.may_execute_body() {
+            aliases.clear();
+        }
+    } else {
+        aliases.clear();
     }
+}
 
-    // foreach / lmap loop variables write through aliases.
-    if matches!(resolved, "foreach" | "lmap") && cmd_args.len() >= 3 {
-        let remaining = &cmd_args[..cmd_args.len() - 1];
-        let mut i = 0;
-        while i < remaining.len() {
-            if let Some(target) = aliases.upvar.get(remaining[i].as_str())
-                && let Some(set) = traits.get_mut(target)
+fn apply_possible_evaluation_traits<'p>(
+    advice: &crate::registry_invocation::ParameterRoleAdvice,
+    args: &[String],
+    braced: &[bool],
+    values: &ArgumentValues<'p>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+) {
+    use tcl_registry::{SemanticOperationId, Traits, hooks::LoweringHookId};
+    for candidate in advice.candidates() {
+        for (index, role) in candidate.written_argument_roles() {
+            if role == ArgRole::Body
+                && !braced.get(index).copied().unwrap_or(false)
+                && candidate
+                    .possible_traits
+                    .intersects(Traits::DYNAMIC_EVAL_BODY | Traits::DEFERS_BODY)
+                && let Some(param) = values.argument(index)
+                && let Some(set) = traits.get_mut(param)
             {
-                set.insert(ProcArgTrait::VarWrite);
+                set.insert(ProcArgTrait::Eval);
             }
-            i += 2;
         }
-    }
-
-    // Value-copy tracking: `set n $p` makes local `n` carry param `p`'s value,
-    // so a later `$n` in a name / command position resolves to `p`.  Any other
-    // write to a tracked local invalidates the copy.  Recorded *after* the role
-    // scan so this command's effect applies only to later commands.
-    match resolved {
-        "set" if cmd_args.len() == 2 => {
-            let target = cmd_args[0].as_str();
-            if extract_var_name(&cmd_args[0]).is_none()
-                && is_plain_local_name(target)
-                && !param_set.contains(target)
-            {
-                match extract_var_name(&cmd_args[1])
-                    .and_then(|vn| lookup_param(vn, param_set, aliases))
+        if candidate
+            .possible_traits
+            .contains(Traits::PERFORMS_SUBSTITUTION)
+        {
+            for index in 0..args.len() {
+                if braced.get(index).copied().unwrap_or(false) {
+                    continue;
+                }
+                if let Some(param) = values.argument(index)
+                    && let Some(set) = traits.get_mut(param)
                 {
-                    Some(p) => {
-                        aliases.value_copies.insert(target.to_owned(), p);
-                    }
-                    None => {
-                        aliases.value_copies.remove(target);
-                    }
+                    set.insert(ProcArgTrait::Eval);
                 }
             }
         }
-        "incr" | "append" | "lappend"
-            if cmd_args.first().is_some_and(|t| is_plain_local_name(t)) =>
-        {
-            aliases.value_copies.remove(cmd_args[0].as_str());
+        if !matches!(
+            candidate.operation,
+            SemanticOperationId::StructuredLowering(LoweringHookId::Foreach | LoweringHookId::Lmap)
+        ) {
+            continue;
         }
-        _ => {}
+        let effective = &candidate.effective;
+        for index in (1..effective.words.len().saturating_sub(2)).step_by(2) {
+            if let Some(param) = effective
+                .written_argument(index)
+                .and_then(|original| values.argument(original))
+                && let Some(set) = traits.get_mut(param)
+            {
+                set.insert(ProcArgTrait::LoopList);
+            }
+        }
+    }
+}
+
+fn record_selected_aliases<'p>(
+    selected: &crate::registry_invocation::ResolvedStatementInvocation,
+    values: &ArgumentValues<'p>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    aliases: &mut Aliases<'p>,
+) {
+    let Some((_, first)) = selected_alias_layout(selected) else {
+        return;
+    };
+    for source in (first..selected.arguments.len()).step_by(2) {
+        let destination = source + 1;
+        if let Some(Some(local)) = selected.arguments.get(destination) {
+            aliases.value_copies.remove(local);
+            aliases.upvar.remove(local);
+            aliases.retired_inputs.insert(local.clone());
+        }
+        if let Some(param) = selected
+            .effective
+            .written_argument(source)
+            .and_then(|original| values.argument(original))
+        {
+            if let Some(set) = traits.get_mut(param) {
+                set.insert(ProcArgTrait::VarRead);
+            }
+            if let Some(Some(local)) = selected.arguments.get(destination)
+                && is_plain_local_name(local)
+            {
+                aliases.upvar.insert(local.clone(), param);
+            }
+        }
+        if let Some(param) = selected
+            .effective
+            .written_argument(destination)
+            .and_then(|original| values.argument(original))
+            && let Some(set) = traits.get_mut(param)
+        {
+            mark_dynamic_name_local(set);
+        }
+    }
+}
+
+fn selected_alias_layout(
+    selected: &crate::registry_invocation::ResolvedStatementInvocation,
+) -> Option<(tcl_registry::frame_effect::FrameLevel, usize)> {
+    use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution, FrameLevel};
+    if selected.facts.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar) {
+        return Some((FrameLevel::Dynamic, selected.facts.argument_offset + 1));
+    }
+    let effect = selected.facts.frame_effect?;
+    if effect.layout != FrameArgLayout::AliasPairs {
+        return None;
+    }
+    let words: Vec<_> = selected
+        .evaluated_words
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    let arguments =
+        tcl_registry::InvocationArguments::structured(&words).with_dialect(selected.dialect?);
+    match effect.successful_layout(arguments).layout {
+        FrameArgumentResolution::Valid {
+            level,
+            level_word_len,
+        } => Some((level, level_word_len)),
+        FrameArgumentResolution::Invalid | FrameArgumentResolution::Unknown => None,
+    }
+}
+
+fn apply_definite_writes<'p>(
+    selected: &crate::registry_invocation::ResolvedStatementInvocation,
+    roles: &[(usize, ArgRole)],
+    args: &[String],
+    values: &ArgumentValues<'p>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    aliases: &mut Aliases<'p>,
+) {
+    if selected_alias_layout(selected).is_some() {
+        return;
+    }
+    // Freeze the read-side copy before applying this command's writes.
+    let copy = (selected.facts.operation
+        == tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Set,
+        )
+        && selected.arguments.len() == 2)
+        .then(|| {
+            let target = selected.arguments.first()?.as_ref()?;
+            if !is_plain_local_name(target) {
+                return None;
+            }
+            let param = selected
+                .effective
+                .written_argument(1)
+                .and_then(|index| values.argument(index))?;
+            Some((target.clone(), param))
+        })
+        .flatten();
+    for &(index, role) in roles {
+        if role != ArgRole::VarWrite {
+            continue;
+        }
+        let Some(name) = args.get(index) else {
+            continue;
+        };
+        if extract_var_name(name).is_some() {
+            aliases.clear();
+            continue;
+        }
+        if let Some(param) = aliases.upvar.get(name.as_str())
+            && let Some(set) = traits.get_mut(param)
+        {
+            set.insert(ProcArgTrait::VarWrite);
+        }
+        aliases.value_copies.remove(name.as_str());
+        aliases.retired_inputs.insert(name.clone());
+    }
+    if let Some((target, param)) = copy {
+        aliases.value_copies.insert(target, param);
     }
 }
 
@@ -731,77 +1097,72 @@ fn scan_command<'p>(
 /// roles; a braced `Body` / `Expr` word still substitutes internally when Tcl
 /// evaluates it, and the deep pass recurses into it.
 fn apply_arg_role_traits<'p>(
-    cmd_name: &str,
+    roles: &[(usize, ArgRole)],
     cmd_args: &[String],
     braced: &[bool],
-    ctx: &ScanCtx<'p, '_>,
+    values: &ArgumentValues<'p>,
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    aliases: &Aliases<'p>,
 ) {
-    let param_set = ctx.param_set;
-    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, ctx.surface);
-    for (idx, arg) in cmd_args.iter().enumerate() {
-        let Ok(idx_u8) = u8::try_from(idx) else {
-            continue;
-        };
-        match arg_roles.get(&idx_u8) {
-            // Body / Expr apply only to a bare `$param` (or upvar-aliased) word:
-            // the whole argument *is* the param's value, evaluated as a script /
-            // expression.
-            Some(ArgRole::Body) => {
-                if let Some(p) = resolve_param(arg, param_set, aliases)
-                    && let Some(set) = traits.get_mut(p)
-                {
-                    set.insert(ProcArgTrait::Body);
-                }
-            }
-            Some(ArgRole::Expr) => {
-                if let Some(p) = resolve_param(arg, param_set, aliases)
-                    && let Some(set) = traits.get_mut(p)
-                {
-                    set.insert(ProcArgTrait::Expr);
-                }
-            }
-            // A registry / stub `VarWrite` / `VarRead` role names a variable.
-            // Every param whose value flows into that name — the whole `$p`, or
-            // a `$p` component of a compound dynamic name (`${p}($k)`,
-            // `$p($k)`) — names a CALLEE-LOCAL variable (`set $p 1`,
-            // `set ${v}($k)`, `incr $p`), NOT a caller-frame alias.  Record the
-            // callee-local refinement (never `VarWrite`; only an `upvar`-aliased
-            // write-back is a genuine caller write).  A braced word is a literal
-            // name — no substitution — so no param flows into it.
-            Some(ArgRole::VarWrite | ArgRole::VarRead)
-                if !braced.get(idx).copied().unwrap_or(false) =>
-            {
-                for var_name in var_substitutions(arg, ctx.config.braced_var) {
-                    if let Some(p) = lookup_param(var_name, param_set, aliases)
+    for idx in 0..cmd_args.len() {
+        for role in roles
+            .iter()
+            .filter_map(|&(index, role)| (index == idx).then_some(role))
+        {
+            match role {
+                // Body / Expr apply only to a bare `$param` (or upvar-aliased) word:
+                // the whole argument *is* the param's value, evaluated as a script /
+                // expression.
+                ArgRole::Body => {
+                    if let Some(p) = values.argument(idx)
                         && let Some(set) = traits.get_mut(p)
                     {
-                        mark_dynamic_name_local(set);
+                        set.insert(ProcArgTrait::Body);
                     }
                 }
-            }
-            // A registry / stub `CommandPrefix` role names a command — a callback
-            // command prefix (`tcltest::customMatch`, `selection handle`, a stub
-            // `:command_prefix` arg).  A `$param` (or component of a dynamic
-            // name) flowing there means the param's value is a command name.
-            // Braced words are literal — no substitution.
-            Some(ArgRole::CommandPrefix) if !braced.get(idx).copied().unwrap_or(false) => {
-                for var_name in var_substitutions(arg, ctx.config.braced_var) {
-                    if let Some(p) = lookup_param(var_name, param_set, aliases)
+                ArgRole::Expr => {
+                    if let Some(p) = values.argument(idx)
                         && let Some(set) = traits.get_mut(p)
                     {
-                        set.insert(ProcArgTrait::Command);
+                        set.insert(ProcArgTrait::Expr);
                     }
                 }
+                // A registry / stub `VarWrite` / `VarRead` role names a variable.
+                // Every param whose value flows into that name — the whole `$p`, or
+                // a `$p` component of a compound dynamic name (`${p}($k)`,
+                // `$p($k)`) — names a CALLEE-LOCAL variable (`set $p 1`,
+                // `set ${v}($k)`, `incr $p`), NOT a caller-frame alias.  Record the
+                // callee-local refinement (never `VarWrite`; only an `upvar`-aliased
+                // write-back is a genuine caller write).  A braced word is a literal
+                // name — no substitution — so no param flows into it.
+                ArgRole::VarWrite | ArgRole::VarRead
+                    if !braced.get(idx).copied().unwrap_or(false) =>
+                {
+                    for p in values.argument_components(idx) {
+                        if let Some(set) = traits.get_mut(p) {
+                            mark_dynamic_name_local(set);
+                        }
+                    }
+                }
+                // A registry / stub `CommandPrefix` role names a command — a callback
+                // command prefix (`tcltest::customMatch`, `selection handle`, a stub
+                // `:command_prefix` arg).  A `$param` (or component of a dynamic
+                // name) flowing there means the param's value is a command name.
+                // Braced words are literal — no substitution.
+                ArgRole::CommandPrefix if !braced.get(idx).copied().unwrap_or(false) => {
+                    for p in values.argument_components(idx) {
+                        if let Some(set) = traits.get_mut(p) {
+                            set.insert(ProcArgTrait::Command);
+                        }
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 }
 
-/// Resolve a bare `$param` / `${param}` argument to the param it references,
-/// following an `upvar` alias.  `None` when the argument is not a simple
+/// Resolve a bare `$param` / `${param}` argument to its parameter value,
+/// following accepted value copies. `None` when it is not a simple
 /// variable reference or names no known param.
 fn resolve_param<'p>(
     arg: &str,
@@ -811,19 +1172,19 @@ fn resolve_param<'p>(
     lookup_param(extract_var_name(arg)?, param_set, aliases)
 }
 
-/// Map a bare variable name to the param it references — directly, via an
-/// `upvar` alias, or via a local that carries a param's value (`set n $p`).
-/// `None` when it names no known param.
+/// Map a substituted name to a parameter value, directly or through an
+/// accepted value copy. An upvar's contents belong to the referenced cell;
+/// they are not the parameter string that named that cell.
 fn lookup_param<'p>(
     var_name: &str,
     param_set: &HashSet<&'p str>,
     aliases: &Aliases<'p>,
 ) -> Option<&'p str> {
-    param_set
-        .get(var_name)
-        .copied()
-        .or_else(|| aliases.upvar.get(var_name).copied())
-        .or_else(|| aliases.value_copies.get(var_name).copied())
+    aliases.value_copies.get(var_name).copied().or_else(|| {
+        (aliases.direct_inputs_known && !aliases.retired_inputs.contains(var_name))
+            .then(|| param_set.get(var_name).copied())
+            .flatten()
+    })
 }
 
 /// Yield each simple variable name substituted in `text` — `$name`, `${name}`,
@@ -902,92 +1263,14 @@ fn mark_dynamic_name_local(set: &mut HashSet<ProcArgTrait>) {
     set.insert(ProcArgTrait::VarRead);
 }
 
-/// Code-evaluating commands — ``eval`` / ``subst`` mark every
-/// ``$param`` arg as ``Eval``; ``uplevel ?level? script`` marks
-/// only the last arg.
-fn apply_eval_traits<'a>(
-    cmd_name: &str,
-    cmd_args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    let mark_as_eval = |vn: &str, traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>| {
-        if let Some(p) = param_set.get(vn)
-            && let Some(set) = traits.get_mut(p)
-        {
-            set.insert(ProcArgTrait::Eval);
-        }
-    };
-    match cmd_name {
-        "eval" | "subst" => {
-            for arg in cmd_args {
-                if let Some(vn) = extract_var_name(arg) {
-                    mark_as_eval(vn, traits);
-                }
-            }
-        }
-        "uplevel" => {
-            // ``uplevel ?level? script`` — last arg is the script.
-            if let Some(last) = cmd_args.last()
-                && let Some(vn) = extract_var_name(last)
-            {
-                mark_as_eval(vn, traits);
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Split an `upvar` argument list into the frame its level word selects and
-/// the `otherVar myVar …` pairs that follow.
-///
-/// C Tcl decides whether the level word is present from the **argument count
-/// parity** (`Tcl_UpvarObjCmd` tests `objc`), not from the word's text.
-/// Sniffing the text instead dropped the commonest by-reference idiom of all:
-/// `upvar $lvl a b` has three words, so `$lvl` *is* the level and `(a, b)` is
-/// the pair, but a digits-or-`#` test sees no level and pairs `($lvl, a)` —
-/// losing the `a`/`b` binding entirely.  tclsh 9.0.4 / 8.6.14 agree; the rule
-/// itself lives in the registry as
-/// [`tcl_registry::frame_effect::FrameLevelWord::ArityParity`], queried here
-/// through the spec rather than re-derived, so this stays the one description
-/// of `upvar`'s shape.
-///
-/// A level word whose value is not a frame at all (C Tcl's `bad level "…"`)
-/// answers [`FrameLevel::Dynamic`] — unplaceable, which is the abstaining
-/// direction every consumer here wants.
-fn upvar_level_and_pairs<'a>(
-    args: &'a [String],
-    registry: &CommandRegistry,
-) -> (tcl_registry::frame_effect::FrameLevel, &'a [String]) {
-    use tcl_registry::frame_effect::FrameLevel;
-    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let taken = registry.frame_effect("upvar").map_or_else(
-        || usize::from(args.len() % 2 == 1),
-        |s| s.level_word_len(&refs),
-    );
-    let level = if taken == 0 {
-        FrameLevel::DEFAULT
-    } else {
-        FrameLevel::parse_in(&args[0], registry).unwrap_or(FrameLevel::Dynamic)
-    };
-    (level, args.get(taken..).unwrap_or(&[]))
-}
-
-fn handle_upvar<'p>(
-    args: &[String],
-    ctx: &ScanCtx<'p, '_>,
-    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    aliases: &mut Aliases<'p>,
-) {
-    let (_, pairs) = upvar_level_and_pairs(args, ctx.surface.commands());
-    record_upvar_pairs(pairs, ctx.param_set, traits, aliases);
-}
-
 /// The parameters whose **value names a variable in the immediate caller's
 /// frame** — `upvar 1 $param local` and its default-level spelling `upvar
 /// $param local`, and nothing else.
 ///
-/// This is the fact call-site navigation needs, and it is strictly narrower
+/// This symbolic layout is conditional on entry to the retained declaration.
+/// It names no caller cell and grants no read, store or successful activation.
+/// Call-site navigation selects the actual callee and argument independently.
+/// It is strictly narrower
 /// than [`ProcArgTrait::VarWrite`] / [`ProcArgTrait::VarRead`], which record
 /// only *that* a parameter's value is used as a variable name through an
 /// `upvar`, never *which frame* the alias lands in.  Every other level names a
@@ -1013,34 +1296,44 @@ pub fn caller_frame_upvar_params(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashSet<String> {
-    let registry = env.surface.commands();
     let mut out = HashSet::new();
-    if params.is_empty() || body_source.trim().is_empty() {
+    if params.is_empty() || body_source.trim().is_empty() || !env.matches_source(body_source) {
         return out;
     }
     let param_set: HashSet<&str> = params.iter().copied().collect();
+    let ctx = ScanCtx {
+        param_set: &param_set,
+        parameters: params,
+        surface: env.surface,
+        config: env.config,
+        identities: env.identities,
+        executed_source: env.executed_source,
+        source_base: env
+            .executed_source
+            .map(crate::command_binding::ExecutedScriptSource::base),
+    };
     for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
-        let Some(head) = seg.texts.first() else {
+        let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
-        let resolved = env.identities.resolve_unpositioned(head).spec_name();
-        if registry.frame_effect(resolved).is_none_or(|spec| {
-            spec.layout != tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-        }) {
+        let Some(selected) = view.parameter_invocation(params) else {
             continue;
-        }
-        let (level, pairs) = upvar_level_and_pairs(&seg.texts[1..], registry);
+        };
+        let Some((level, first)) = selected_alias_layout(selected) else {
+            continue;
+        };
         if !level.is_caller_frame() {
             continue;
         }
-        let mut i = 0;
-        while i + 1 < pairs.len() {
-            if let Some(vn) = extract_var_name(&pairs[i])
-                && let Some(p) = param_set.get(vn)
+        let values = ctx.argument_values(body_source, seg, &Aliases::default());
+        for source in (first..selected.arguments.len()).step_by(2) {
+            if let Some(param) = selected
+                .effective
+                .written_argument(source)
+                .and_then(|original| values.argument(original))
             {
-                out.insert((*p).to_string());
+                out.insert(param.to_owned());
             }
-            i += 2;
         }
     }
     out
@@ -1058,6 +1351,12 @@ pub fn caller_frame_upvar_params(
 /// W1}`, a caller running `np; puts $name` prints `W1` — `name` exists in
 /// the caller's frame although the caller never assigns it and no call-site
 /// word spells it.
+///
+/// This is an owned callee template, conditional on its entry and normal alias
+/// operations. It identifies no actual caller cell and proves no completed
+/// write. Navigation instantiates it only with a separate original
+/// call/allocation/frame receipt; execution and value consumers use actual
+/// source access and continuation proofs instead.
 ///
 /// Exclusions, each the abstaining direction:
 ///
@@ -1083,58 +1382,63 @@ pub fn caller_frame_literal_targets(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashMap<String, bool> {
-    use tcl_registry::frame_effect::FrameArgLayout;
-
-    let registry = env.surface.commands();
-    let mut targets: HashMap<String, bool> = HashMap::new();
-    if body_source.trim().is_empty() {
+    if !env.matches_source(body_source) {
+        return HashMap::new();
+    }
+    let params = HashSet::new();
+    let ctx = ScanCtx {
+        param_set: &params,
+        parameters: &[],
+        surface: env.surface,
+        config: env.config,
+        identities: env.identities,
+        executed_source: env.executed_source,
+        source_base: env
+            .executed_source
+            .map(crate::command_binding::ExecutedScriptSource::base),
+    };
+    let mut targets = HashMap::new();
+    if body_source.trim().is_empty() || !env.matches_source(body_source) {
         return targets;
     }
-    // local alias name → the caller-frame name it stands for.
-    let mut alias_to_target: HashMap<String, String> = HashMap::new();
-    let segs = segment_commands_with_offset_and_config(body_source, 0, env.config);
-    for seg in &segs {
-        let Some(written) = seg.texts.first() else {
+    let mut alias_to_target = HashMap::new();
+    for seg in &segment_commands_with_offset_and_config(body_source, 0, env.config) {
+        let Some(view) = ctx.body_assistance(body_source, seg) else {
             continue;
         };
-        let head = env.identities.resolve_unpositioned(written).spec_name();
-        if registry
-            .frame_effect(head)
-            .is_none_or(|spec| spec.layout != FrameArgLayout::AliasPairs)
-        {
+        let Some(selected) = view.caller_name_template_invocation() else {
             continue;
-        }
-        let (level, pairs) = upvar_level_and_pairs(&seg.texts[1..], registry);
-        if !level.is_caller_frame() {
-            continue;
-        }
-        let mut i = 0;
-        while i + 1 < pairs.len() {
-            let (src, dst) = (&pairs[i], &pairs[i + 1]);
-            i += 2;
-            if is_literal_caller_frame_name(src) && is_plain_local_name(dst) {
-                targets.entry(src.clone()).or_insert(false);
-                alias_to_target.insert(dst.clone(), src.clone());
+        };
+        if let Some((level, first)) = selected_alias_layout(selected) {
+            if !level.is_caller_frame() {
+                continue;
             }
-        }
-    }
-    if alias_to_target.is_empty() {
-        return targets;
-    }
-    for seg in &segs {
-        let Some(written) = seg.texts.first() else {
+            for source in (first..selected.arguments.len()).step_by(2) {
+                let Some(name) = selected
+                    .effective
+                    .written_argument(source)
+                    .and_then(|original| seg.args().get(original))
+                else {
+                    continue;
+                };
+                let Some(Some(local)) = selected.arguments.get(source + 1) else {
+                    continue;
+                };
+                if is_literal_caller_frame_name(name) && is_plain_local_name(local) {
+                    targets.entry(name.clone()).or_insert(false);
+                    alias_to_target.insert(local.clone(), name.clone());
+                }
+            }
             continue;
-        };
-        let head = env.identities.resolve_unpositioned(written).spec_name();
-        if registry.frame_effect(head).is_some_and(|effect| {
-            effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
-        }) {
-            continue;
         }
-        let args: Vec<&str> = seg.texts.iter().skip(1).map(String::as_str).collect();
-        for idx in registry.arg_indices_for_role(head, &args, ArgRole::VarWrite) {
-            if let Some(word) = args.get(idx)
-                && let Some(caller_name) = alias_to_target.get(*word)
+        for (index, role) in selected.written_argument_roles() {
+            if role != ArgRole::VarWrite {
+                continue;
+            }
+            if let Some(caller_name) = seg
+                .args()
+                .get(index)
+                .and_then(|name| alias_to_target.get(name))
             {
                 targets.insert(caller_name.clone(), true);
             }
@@ -1152,187 +1456,10 @@ fn is_literal_caller_frame_name(word: &str) -> bool {
         && word.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// `namespace upvar namespace ?otherVar myVar ...?` — the pairs alias namespace
-/// variables named by `otherVar` (`$token`) into locals.  Structurally
-/// identical to [`handle_upvar`] once the `upvar` sub-command word and the
-/// `namespace` word are skipped.  `args` is the whole sub-command arg list:
-/// `["upvar", namespace, otherVar, myVar, …]`, so the pairs start at index 2.
-fn handle_namespace_upvar<'p>(
-    args: &[String],
-    param_set: &HashSet<&'p str>,
-    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    aliases: &mut Aliases<'p>,
-) {
-    if args.len() > 2 {
-        record_upvar_pairs(&args[2..], param_set, traits, aliases);
-    }
-}
-
-/// Record the `otherVar myVar` pairs shared by `upvar` and `namespace upvar`:
-/// each `otherVar` that is a `$param` reads the aliased caller variable
-/// (`VarRead`) and registers `myVar` as an alias for that param, so a later
-/// write *through the alias* (`set myVar …`) upgrades it to a genuine
-/// caller-frame `VarWrite`.  A `$param` in the `myVar` slot is different — its
-/// value names a *callee-local* alias variable, not a caller variable, so it is
-/// a `DynamicNameLocal` use (never a caller-frame `VarWrite`).
-fn record_upvar_pairs<'p>(
-    pairs: &[String],
-    param_set: &HashSet<&'p str>,
-    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
-    aliases: &mut Aliases<'p>,
-) {
-    let mut i = 0;
-    while i + 1 < pairs.len() {
-        let other_var = &pairs[i];
-        let my_var = &pairs[i + 1];
-        i += 2;
-
-        if let Some(other_vn) = extract_var_name(other_var)
-            && let Some(p) = param_set.get(other_vn).copied()
-        {
-            if let Some(set) = traits.get_mut(p) {
-                set.insert(ProcArgTrait::VarRead);
-            }
-            aliases.upvar.insert(my_var.clone(), p);
-        }
-        if let Some(my_vn) = extract_var_name(my_var)
-            && let Some(p) = param_set.get(my_vn).copied()
-            && let Some(set) = traits.get_mut(p)
-        {
-            mark_dynamic_name_local(set);
-        }
-    }
-}
-
-fn handle_foreach<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    if args.len() < 3 {
-        return;
-    }
-    if let Some(body_vn) = extract_var_name(args.last().unwrap())
-        && let Some(p) = param_set.get(body_vn).copied()
-        && let Some(set) = traits.get_mut(p)
-    {
-        set.insert(ProcArgTrait::Body);
-    }
-    let remaining = &args[..args.len() - 1];
-    let mut i = 0;
-    while i + 1 < remaining.len() {
-        if let Some(list_vn) = extract_var_name(&remaining[i + 1])
-            && let Some(p) = param_set.get(list_vn).copied()
-            && let Some(set) = traits.get_mut(p)
-        {
-            set.insert(ProcArgTrait::LoopList);
-        }
-        i += 2;
-    }
-}
-
-fn handle_while<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    if args.len() < 2 {
-        return;
-    }
-    if let Some(vn) = extract_var_name(&args[0])
-        && let Some(p) = param_set.get(vn).copied()
-        && let Some(set) = traits.get_mut(p)
-    {
-        set.insert(ProcArgTrait::Expr);
-    }
-    if let Some(vn) = extract_var_name(&args[1])
-        && let Some(p) = param_set.get(vn).copied()
-        && let Some(set) = traits.get_mut(p)
-    {
-        set.insert(ProcArgTrait::Body);
-    }
-}
-
-fn handle_for<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    if args.len() < 4 {
-        return;
-    }
-    let pairs = [
-        (&args[0], ProcArgTrait::Body),
-        (&args[1], ProcArgTrait::Expr),
-        (&args[2], ProcArgTrait::Body),
-        (&args[3], ProcArgTrait::Body),
-    ];
-    for (arg, trait_) in pairs {
-        if let Some(vn) = extract_var_name(arg)
-            && let Some(p) = param_set.get(vn).copied()
-            && let Some(set) = traits.get_mut(p)
-        {
-            set.insert(trait_);
-        }
-    }
-}
-
-fn handle_after<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-) {
-    if args.len() < 2 {
-        return;
-    }
-    if matches!(args[0].as_str(), "cancel" | "info") {
-        return;
-    }
-    let mut start = 1usize;
-    if start < args.len() && args[start] == "-periodic" {
-        start += 1;
-    }
-    for arg in &args[start..] {
-        if let Some(vn) = extract_var_name(arg)
-            && let Some(p) = param_set.get(vn).copied()
-            && let Some(set) = traits.get_mut(p)
-        {
-            set.insert(ProcArgTrait::Eval);
-        }
-    }
-}
-
-/// Mark every ``$param`` from `start` onward as a callee-local
-/// dynamic name.  Used for commands whose trailing args name
-/// CALLEE-LOCAL output variables — ``scan`` (start 2) and ``lassign``
-/// (start 1); ``regexp`` / ``regsub`` output vars take the
-/// registry-role path in `apply_arg_role_traits` instead.  These
-/// writes land in the
-/// callee's own frame; they do **not** consume / alias the caller's
-/// variable unless an explicit ``upvar`` set one up (handled
-/// separately via the upvar-alias path, which emits a genuine
-/// `VarWrite`).  Emitting [`ProcArgTrait::DynamicNameLocal`] (+
-/// `VarRead`) rather than `VarWrite` keeps caller-side dead-store /
-/// unused-variable suppression from silencing the caller's literal arg.
-fn handle_variadic_var_write<'a>(
-    args: &[String],
-    param_set: &HashSet<&'a str>,
-    traits: &mut HashMap<&'a str, HashSet<ProcArgTrait>>,
-    start: usize,
-) {
-    for arg in &args[start.min(args.len())..] {
-        if let Some(vn) = extract_var_name(arg)
-            && let Some(p) = param_set.get(vn).copied()
-            && let Some(set) = traits.get_mut(p)
-        {
-            mark_dynamic_name_local(set);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandRegistry;
 
     fn assert_trait(
         traits: &HashMap<String, HashSet<ProcArgTrait>>,
@@ -1348,12 +1475,122 @@ mod tests {
         );
     }
 
-    /// Test helper — builds the registry once, since the public
-    /// API now requires the caller to thread one through.  No document
-    /// declarations; tests that need them construct them inline.
+    /// Retain an uncalled declaration with its exact formals and body source.
+    /// Successful own-body advice requires this receipt; no caller is invented.
     fn infer(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
+        infer_owned(params, body, false)
+    }
+
+    fn infer_owned(
+        params: &[&str],
+        body: &str,
+        deep: bool,
+    ) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        infer_param_traits(params, body, env_for(&registry, LexerConfig::default()))
+        let formals = tcl_syntax::list::join_list(params);
+        let source = tcl_syntax::list::join_list(["proc", "__trait_probe", &formals, body]);
+        let identities = crate::realm::document_realm_bindings(
+            &source,
+            tcl_dialect::DialectProfile::find("tcl9.0").unwrap(),
+            &registry,
+        );
+        let command = segment_commands_with_offset_and_config(&source, 0, LexerConfig::default())
+            .pop()
+            .unwrap();
+        let script = identities
+            .executed_script_for_word(command.argv.last().unwrap().span)
+            .unwrap();
+        assert_eq!(script.text.try_text().unwrap(), body);
+        let env = TraitScanEnv {
+            surface: DocumentCommandSurface::new(&registry, None),
+            config: LexerConfig::default(),
+            identities: &identities,
+            executed_source: Some(script),
+        };
+        if deep {
+            infer_param_traits_deep(params, body, env)
+        } else {
+            infer_param_traits(params, body, env)
+        }
+    }
+
+    #[test]
+    fn replaced_formal_does_not_represent_its_incoming_value() {
+        let replaced = infer(&["body"], "set body {}; eval $body");
+        assert!(
+            !replaced
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+        let copied = infer(&["body"], "set local $body; set body {}; eval $local");
+        assert!(
+            copied
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+    }
+
+    #[test]
+    fn callback_mutations_follow_the_actual_selected_cell() {
+        let helper = "proc replace {name} {upvar 1 $name local; set local {}};";
+        let replaced = infer(
+            &["body"],
+            &format!("{helper} set local $body; replace local; eval $local"),
+        );
+        assert!(
+            !replaced
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+        let untouched = infer(
+            &["body"],
+            &format!("{helper} set local $body; replace body; eval $local"),
+        );
+        assert!(
+            untouched
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+    }
+
+    #[test]
+    fn iteration_binding_retires_the_original_formal_input() {
+        let replaced = infer_owned(&["body"], "foreach body {{}} {eval $body}", true);
+        assert!(
+            !replaced
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+        let untouched = infer_owned(&["body"], "foreach other {{}} {eval $body}", true);
+        assert!(
+            untouched
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
+        );
+    }
+
+    #[test]
+    fn original_formal_reads_preserve_literal_variable_names() {
+        for (name, reference) in [("a$b", "${a$b}"), ("1", "$1"), ("é", "${é}")] {
+            let body = format!("eval {reference}");
+            let result = infer(&[name], &body);
+            assert!(
+                result
+                    .get(name)
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval)),
+                "{name:?}: {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_command_reads_do_not_name_the_outer_argument() {
+        let result = infer(&["body"], "set [string length $body] 1");
+        assert!(
+            !result
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::DynamicNameLocal))
+        );
     }
 
     /// A scan environment over `registry` with no document declarations and
@@ -1362,7 +1599,20 @@ mod tests {
         TraitScanEnv {
             surface: DocumentCommandSurface::new(registry, None),
             config,
-            identities: crate::realm::CommandBindingRealm::none(),
+            executed_source: None,
+            identities: if registry.profile().is_some() {
+                crate::realm::CommandBindingRealm::none()
+            } else {
+                static ENTRY: std::sync::OnceLock<crate::realm::CommandBindingRealm> =
+                    std::sync::OnceLock::new();
+                ENTRY.get_or_init(|| {
+                    crate::realm::document_realm_bindings(
+                        "",
+                        tcl_dialect::DialectProfile::find("tcl9.0").expect("test native core"),
+                        tcl_registry::default_registry(),
+                    )
+                })
+            },
         }
     }
 
@@ -1797,6 +2047,40 @@ mod tests {
     }
 
     #[test]
+    fn accepted_copies_feed_eval_without_surviving_unknown_or_mutated_values() {
+        assert_trait(
+            &infer(&["body"], "set local $body; eval $local"),
+            "body",
+            ProcArgTrait::Eval,
+        );
+        for body in [
+            "set local $body; set local ordinary; eval $local",
+            "set local $body; unknown_callback; eval $local",
+            "set local $body; eval {$local}",
+        ] {
+            assert!(
+                !infer(&["body"], body)
+                    .get("body")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval)),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn referenced_upvar_contents_are_not_the_parameter_value_that_named_them() {
+        let traits = infer(
+            &["name"],
+            "upvar 1 $name contents; set contents SCRIPT; set copy $contents; eval $copy",
+        );
+        assert_trait(&traits, "name", ProcArgTrait::VarWrite);
+        assert!(
+            !traits["name"].contains(&ProcArgTrait::Eval),
+            "the caller cell's contents are distinct from its parameter-supplied name"
+        );
+    }
+
+    #[test]
     fn param_used_as_command_head_is_command() {
         // `$cmd arg1 arg2` — the param's value is the command word, so it names
         // a command.  Works at the top level and inside a `[...]` substitution.
@@ -1831,6 +2115,7 @@ mod tests {
                 surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
+                executed_source: None,
             },
         );
         assert_trait(&traits, "h", ProcArgTrait::Command);
@@ -2206,6 +2491,7 @@ mod tests {
                 surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
+                executed_source: None,
             },
         );
         assert_trait(&traits, "script", ProcArgTrait::Body);
@@ -2227,6 +2513,7 @@ mod tests {
                 surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
+                executed_source: None,
             },
         );
         // A declared `VarWrite` role on a bare `$v` substitution is the same
@@ -2270,6 +2557,7 @@ mod tests {
                 surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
+                executed_source: None,
             },
         );
         assert_trait(&with_declaration, "script", ProcArgTrait::Eval);
@@ -2317,13 +2605,25 @@ mod tests {
     ///
     /// The environment carries the *document's* facts while the scan reads a
     /// *proc body*, which is exactly the shape the analyser threads.
-    fn traits_under(prelude: &str, body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
+    fn realm_for_body(
+        prelude: &str,
+        body: &str,
+    ) -> (crate::realm::CommandBindingRealm, tcl_lexer::Span) {
+        let source = format!("{prelude}proc __trait_probe {{body v}} {{{body}}}");
         let registry = CommandRegistry::build_default();
         let identities = crate::realm::document_realm_bindings(
-            prelude,
+            &source,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
+        let segments = segment_commands_with_offset_and_config(&source, 0, LexerConfig::default());
+        let body_span = segments.last().unwrap().argv.last().unwrap().span;
+        (identities, body_span)
+    }
+
+    fn traits_under(prelude: &str, body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
+        let registry = CommandRegistry::build_default();
+        let (identities, body_span) = realm_for_body(prelude, body);
         infer_param_traits(
             &["body"],
             body,
@@ -2331,6 +2631,7 @@ mod tests {
                 surface: DocumentCommandSurface::new(&registry, None),
                 config: LexerConfig::default(),
                 identities: &identities,
+                executed_source: identities.executed_script_for_word(body_span),
             },
         )
     }
@@ -2382,8 +2683,12 @@ mod tests {
             "a dynamic rename must not make `run` an evaluator"
         );
         assert!(
-            is_eval(&traits_under("rename $old run\n", "eval $body")),
-            "a dynamic rename must not take `eval`'s grammar away either"
+            !is_eval(&traits_under("rename $old run\n", "eval $body")),
+            "the unknown source may be eval, so its later evaluator identity is unresolved"
+        );
+        assert!(
+            is_eval(&traits_under("rename puts output\n", "eval $body")),
+            "a proved unrelated rename preserves the evaluator binding"
         );
     }
 
@@ -2392,53 +2697,183 @@ mod tests {
     #[test]
     fn caller_frame_scans_follow_the_resolved_head() {
         let registry = CommandRegistry::build_default();
-        let env_of = |prelude: &str| {
-            crate::realm::document_realm_bindings(
-                prelude,
-                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-                &registry,
+        let params_under = |prelude: &str, body: &str| {
+            let (identities, span) = realm_for_body(prelude, body);
+            caller_frame_upvar_params(
+                &["v"],
+                body,
+                TraitScanEnv {
+                    surface: DocumentCommandSurface::new(&registry, None),
+                    config: LexerConfig::default(),
+                    executed_source: identities.executed_script_for_word(span),
+                    identities: &identities,
+                },
             )
         };
+        let literals_under = |prelude: &str, body: &str| {
+            let (identities, span) = realm_for_body(prelude, body);
+            caller_frame_literal_targets(
+                body,
+                TraitScanEnv {
+                    surface: DocumentCommandSurface::new(&registry, None),
+                    config: LexerConfig::default(),
+                    executed_source: identities.executed_script_for_word(span),
+                    identities: &identities,
+                },
+            )
+        };
+        let alias = "interp alias {} peek {} upvar\n";
+        assert!(
+            params_under(alias, "peek 1 $v alias").contains("v"),
+            "an alias of upvar must select the caller frame"
+        );
+        assert!(literals_under(alias, "peek 1 name name\nset name W1").contains_key("name"));
+        let shadow = "proc upvar {a b c} { return 1 }\n";
+        assert!(params_under(shadow, "upvar 1 $v alias").is_empty());
+        assert!(literals_under(shadow, "upvar 1 name name\nset name W1").is_empty());
+        assert!(params_under("", "upvar 1 $v alias").contains("v"));
+        assert!(literals_under("", "upvar 1 name name\nset name W1").contains_key("name"));
+    }
 
-        let aliased = env_of("interp alias {} peek {} upvar\n");
+    #[test]
+    fn positioned_own_body_tracks_local_symbolic_copy_without_a_caller() {
+        let source = "proc p {body} {set local $body; eval $local}";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let identities = crate::realm::document_realm_bindings(
+            source,
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            registry,
+        );
+        let command = segment_commands_with_offset_and_config(source, 0, LexerConfig::default())
+            .pop()
+            .unwrap();
+        let script = identities
+            .executed_script_for_word(command.argv.last().unwrap().span)
+            .unwrap();
         let env = TraitScanEnv {
-            surface: DocumentCommandSurface::new(&registry, None),
+            surface: DocumentCommandSurface::new(registry, None),
             config: LexerConfig::default(),
-            identities: &aliased,
+            identities: &identities,
+            executed_source: Some(script),
         };
-        assert!(
-            caller_frame_upvar_params(&["v"], "peek 1 $v alias", env).contains("v"),
-            "an alias of `upvar` must bind the caller's frame like `upvar`"
+        let traits = infer_param_traits(&["body"], script.try_text().unwrap(), env);
+        assert_trait(&traits, "body", ProcArgTrait::Eval);
+        assert!(caller_frame_upvar_params(&["body"], script.try_text().unwrap(), env).is_empty());
+        assert!(caller_frame_literal_targets(script.try_text().unwrap(), env).is_empty());
+        let bare = infer_param_traits(
+            &["body"],
+            script.try_text().unwrap(),
+            env_for(registry, LexerConfig::default()),
         );
         assert!(
-            caller_frame_literal_targets("peek 1 name name\nset name W1", env).contains_key("name"),
-            "an alias of `upvar` must record its literal caller-frame target"
+            !bare
+                .get("body")
+                .is_some_and(|traits| traits.contains(&ProcArgTrait::Eval))
         );
+    }
 
-        let shadowed = env_of("proc upvar {a b c} { return 1 }\n");
-        let env = TraitScanEnv {
-            identities: &shadowed,
-            ..env
-        };
-        assert!(
-            caller_frame_upvar_params(&["v"], "upvar 1 $v alias", env).is_empty(),
-            "a shadowed `upvar` binds no caller frame"
-        );
-        assert!(
-            caller_frame_literal_targets("upvar 1 name name\nset name W1", env).is_empty(),
-            "a shadowed `upvar` records no literal caller-frame target"
-        );
+    #[test]
+    fn declaration_retains_symbolic_caller_name_without_caller_identity() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let declaration = "proc p {v} {upvar 1 $v alias; set alias 1}";
+        for (called, source) in [
+            (false, declaration.to_owned()),
+            (true, format!("{declaration}; p target")),
+        ] {
+            let identities = crate::realm::document_realm_bindings(
+                &source,
+                tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+                registry,
+            );
+            let commands =
+                segment_commands_with_offset_and_config(&source, 0, LexerConfig::default());
+            let script = identities
+                .executed_script_for_word(commands[0].argv.last().unwrap().span)
+                .unwrap();
+            let env = TraitScanEnv {
+                surface: DocumentCommandSurface::new(registry, None),
+                config: LexerConfig::default(),
+                identities: &identities,
+                executed_source: Some(script),
+            };
+            assert!(
+                caller_frame_upvar_params(&["v"], script.try_text().unwrap(), env).contains("v")
+            );
+            assert_eq!(env.has_actual_procedure_entry(), called);
+            assert!(caller_frame_literal_targets(script.try_text().unwrap(), env).is_empty());
+        }
+    }
 
-        // Guard: with nothing bound, both scans fire on the built-in.
-        let none = crate::realm::CommandBindingRealm::none();
-        let env = TraitScanEnv {
-            identities: none,
-            ..env
-        };
-        assert!(caller_frame_upvar_params(&["v"], "upvar 1 $v alias", env).contains("v"));
-        assert!(
-            caller_frame_literal_targets("upvar 1 name name\nset name W1", env)
-                .contains_key("name")
-        );
+    #[test]
+    fn conditional_own_body_traits_reach_whole_and_per_item_proc_consumers() {
+        let source = "proc p {body} {set local $body; eval $local}";
+        let mut analyser = crate::analyser::Analyser::new();
+        let whole = analyser.analyse(source, "tcl8.6");
+        let mut analyser = crate::analyser::Analyser::new();
+        let per_item = analyser.analyse_per_item(source, "tcl8.6");
+        for result in [whole, per_item] {
+            let procedure = result.all_procs.get("::p").expect("original declaration");
+            assert_trait(&procedure.param_traits, "body", ProcArgTrait::Eval);
+            assert!(procedure.caller_frame_params.is_empty());
+            assert!(procedure.caller_frame_literals.is_empty());
+        }
+    }
+
+    #[test]
+    fn caller_frame_parameter_templates_reach_navigation_without_entered_caller() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let source = "proc setter {d} {upvar 1 $d local; set local VALUE}\nproc caller {} {setter target; puts $target}";
+            let mut whole = crate::analyser::Analyser::new();
+            let mut per_item = crate::analyser::Analyser::new();
+            for analysis in [
+                whole.analyse(source, dialect),
+                per_item.analyse_per_item(source, dialect),
+            ] {
+                let setter = analysis.all_procs.get("::setter").expect("original setter");
+                assert!(setter.caller_frame_params.contains("d"), "{dialect}");
+                assert_trait(&setter.param_traits, "d", ProcArgTrait::VarWrite);
+            }
+            let replaced = "proc setter {d} {set d OTHER; upvar 1 $d local; set local VALUE}\nproc caller {} {setter target; puts $target}";
+            let mut analyser = crate::analyser::Analyser::new();
+            let analysis = analyser.analyse(replaced, dialect);
+            let setter = analysis.all_procs.get("::setter").expect("original setter");
+            assert!(!setter.caller_frame_params.contains("d"), "{dialect}");
+            assert!(
+                !setter
+                    .param_traits
+                    .get("d")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::VarWrite)),
+                "{dialect}"
+            );
+        }
+    }
+
+    #[test]
+    fn declared_roles_cannot_restore_a_replaced_or_opaque_slot() {
+        let declared = make_declarations(vec![stub_sig("my_eval", &[("script", ArgRole::Body)])]);
+        let registry = CommandRegistry::build_default();
+        for prelude in [
+            "proc my_eval args {return ordinary};",
+            "rename $old output;",
+        ] {
+            let body = "my_eval $body";
+            let (identities, span) = realm_for_body(prelude, body);
+            let traits = infer_param_traits(
+                &["body"],
+                body,
+                TraitScanEnv {
+                    surface: DocumentCommandSurface::new(&registry, Some(&declared)),
+                    config: LexerConfig::default(),
+                    identities: &identities,
+                    executed_source: identities.executed_script_for_word(span),
+                },
+            );
+            assert!(
+                !traits
+                    .get("body")
+                    .is_some_and(|traits| traits.contains(&ProcArgTrait::Body)),
+                "{prelude}"
+            );
+        }
     }
 }

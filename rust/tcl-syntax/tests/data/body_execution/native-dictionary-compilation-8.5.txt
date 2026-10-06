@@ -1,0 +1,12 @@
+dictionary-available 1
+create-before-argv 0 CUSTOM
+get-before-argv 1 {key "VALUE" not known in dictionary}
+set-local-before-argv 0 {{k VALUE}}
+set-global-before-argv 0 {{}}
+for-captured-break 0 a
+for-captured-continue 0 b
+update-return-writeback 0 {2 BODY {a NEW}}
+with-return-writeback 0 {2 BODY {a NEW}}
+for-body-replaces-helper 0 {{a b}}
+with-malformed-writeback 0 {1 {missing value to go with key} BROKEN}
+with-dictionary-key-collision 0 {1 {missing value to go with key} INNER}

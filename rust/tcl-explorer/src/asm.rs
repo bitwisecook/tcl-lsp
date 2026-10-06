@@ -300,8 +300,15 @@ fn function_explorer(
         "kind": kind,
         "instrCount": instrs.len(),
         "byteCount": instrs.iter().map(|i| u32::from(i.op.size())).sum::<u32>(),
-        "literals": asm.literals.entries(),
-        "locals": asm.lvt.entries(),
+        "literals": asm.literals.entries().iter().map(|literal| {
+            literal.unicode().map_or_else(
+                |_| json!({"bytes": literal.bytes()}),
+                |text| json!(text),
+            )
+        }).collect::<Vec<_>>(),
+        "locals": asm.lvt.entries().iter().map(|name| {
+            name.try_utf8().map_or_else(|_| json!({"bytes": name.as_bytes()}), |text| json!(text))
+        }).collect::<Vec<_>>(),
         "instructions": rows,
         "text": format_function_asm(asm),
         "sourceRange": source_range,

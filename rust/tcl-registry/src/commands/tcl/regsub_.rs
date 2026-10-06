@@ -53,31 +53,30 @@ fn fold_regsub(args: &[&str]) -> Option<String> {
 /// string directly instead of writing a variable and returning the
 /// replacement count — so omitting it simply yields no `VarWrite` index,
 /// with no dialect/version gating of its own.
-fn regsub_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    let i = first_positional_index(OPTIONS, args, 0);
-    let has_command = args[..i.min(args.len())].contains(&"-command");
-    // exp (i), string (i+1), subSpec (i+2), varName (i+3).
-    let mut roles: Vec<(u8, ArgRole)> = Vec::new();
-    let push = |roles: &mut Vec<(u8, ArgRole)>, idx: usize, role: ArgRole| {
-        if idx < args.len()
-            && let Ok(idx) = u8::try_from(idx)
-        {
-            roles.push((idx, role));
-        }
-    };
-    // The regular expression itself — the leading-option shift means a static
-    // slot cannot place it, so this resolver walks the leading options to
-    // find it.
-    push(&mut roles, i, ArgRole::Pattern);
-    // The replacement template, whose `\&` / `\N` backreferences are the
-    // `FormatType::Regsub` mini-language.  With `-command` the same position
-    // is a callback prefix instead (handled by `regsub_command_prefixes`), so
-    // it carries no template role then.
-    if !has_command {
-        push(&mut roles, i + 2, ArgRole::FormatString);
+///
+/// Structured native roles use only the actual prefix and cardinality.
+fn regsub_layout_roles(
+    arguments: crate::InvocationArguments<'_>,
+    options: crate::resolved_invocation::InvocationOptions<'_>,
+) -> Option<Vec<(u8, ArgRole)>> {
+    let count = arguments.exact_argv_len()?;
+    if count > usize::from(u8::MAX) + 1 {
+        return None;
     }
-    push(&mut roles, i + 3, ArgRole::VarWrite);
-    roles
+    let first = options.leading_word_count(arguments)?;
+    let mut roles = Vec::new();
+    let mut push = |index: usize, role| {
+        if index < count {
+            roles.push((u8::try_from(index).ok()?, role));
+        }
+        Some(())
+    };
+    push(first, ArgRole::Pattern)?;
+    if !options.prefix_contains(arguments, "-command")? {
+        push(first + 2, ArgRole::FormatString)?;
+    }
+    push(first + 3, ArgRole::VarWrite)?;
+    Some(roles)
 }
 
 /// `regsub -command ?switches? exp string cmdPrefix ?varName?` (Tcl 9.0+, TIP
@@ -170,12 +169,15 @@ const OPTIONS: &[OptionSpec] = &[
     },
     // `regsub -command` is Tcl 9.0+ (TIP 463): absent from the fetched
     // 8.4/8.5/8.6 manpages' switch lists, present — identically worded —
-    // in the fetched 9.0 and 9.1 manpages.
+    // in the fetched 9.0 and 9.1 manpages and measured Jim 0.84.
     OptionSpec {
         name: "-command",
         value: OptionValue::flag(),
         detail: "Treat subSpec as a command prefix (a non-empty list) instead of a substitution template: & and \\n lose their special meaning. The whole match, then each capturing subexpression's match (like regexp -inline), are appended to the prefix, and the completed list is evaluated as a Tcl command whose result becomes the replacement text. Invoked once per match with -all, otherwise at most once; any error or exception from the callback becomes an error from regsub itself.",
-        surface: Some(SpecSurface::TCL90_PLUS),
+        surface: Some(tcl_dialect::surface![
+            SpecSurface::core_in(tcl_dialect::model::Family::Tcl, &[("9.0", None)]),
+            SpecSurface::core_in(tcl_dialect::model::Family::Jim, &[("0.84", None)]),
+        ]),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -190,6 +192,14 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::HookFrom(
+                tcl_dialect::TclVersion::V8_6,
+            ),
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED
@@ -201,7 +211,7 @@ pub fn spec() -> CommandSpec {
         // string subSpec ?varName?` synopsis; `-command` (9.0+) changes how
         // `subSpec` is interpreted, not the word count, so the range is
         // unaffected by it.
-        arity: Arity::new(3, 4),
+        arity: Arity::new(3, 4).with_positionals(),
         // Documented return is the int replacement count (the `varName`
         // form). The `varName`-omitted form — equally idiomatic, e.g.
         // `set new [regsub $pat $orig $repl]` — actually returns the
@@ -248,7 +258,7 @@ pub fn spec() -> CommandSpec {
         // `exp` is an ARE pattern — drives regex sub-tokens and
         // pattern validation.
         pattern_type: Some(PatternType::Regex),
-        arg_role_resolver: Some(regsub_arg_roles),
+        arg_role_layout_resolver: Some(regsub_layout_roles),
         arg_role_resolver_roles: &[ArgRole::Pattern, ArgRole::FormatString, ArgRole::VarWrite],
         // The `subSpec` replacement template's own mini-language; the
         // `ArgRole::FormatString` the resolver puts on that word locates it.
@@ -264,6 +274,34 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frozen_arity_counts_positionals_and_retains_raw_argument_cardinality() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let registry = crate::model::ingress::static_context_for(profile).commands();
+            let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+            for (arguments, positional_count, accepted) in [
+                (&["-all", "x", "xxx", "y"][..], 3, true),
+                (&["-all", "-nocase", "x", "xxx", "y", "out"][..], 4, true),
+                (&["-all", "x", "xxx", "y", "out", "extra"][..], 5, false),
+                (&["-start", "1", "--", "x", "xxx", "y"][..], 3, true),
+            ] {
+                let resolution = registry.resolve_structured_invocation(
+                    crate::InvocationWords::literals("regsub", arguments).with_dialect(dialect),
+                    dialect.authoring_query(),
+                );
+                let invocation = resolution.resolved().expect("selected native descriptor");
+                let facts = invocation.facts();
+                assert_eq!(
+                    facts.arity_argument_count,
+                    Some(positional_count),
+                    "{profile}: {arguments:?}"
+                );
+                assert_eq!(facts.frozen_argument_count, Some(arguments.len()));
+                assert_eq!(facts.arity_accepts_frozen_arguments(), Some(accepted));
+            }
+        }
+    }
 
     #[test]
     fn value_returning_regsub_const_fold_uses_the_tcl_are_engine() {

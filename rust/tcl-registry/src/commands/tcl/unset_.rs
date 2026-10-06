@@ -103,6 +103,18 @@ fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
+        // Deletion mutates only the selected cells; trace callbacks are the
+        // explicit re-entry boundary, as for the other variable primitives.
+        world_effects: Some(crate::world_effect::WorldEffectDescriptor::VARIABLE_WRITE),
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::LiteralUnset,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // A core variable primitive with no filesystem/process/network access,
         // present unmodified in every dialect that hosts a real Tcl core
         // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — iRules

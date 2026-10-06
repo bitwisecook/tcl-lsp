@@ -1251,7 +1251,21 @@ impl Analyser {
         // active dialect, so `get(bare)` misses an iRules command like
         // `when`/`log`/`session` under tcl8.6, so use the
         // dialect-independent `known_in_any_dialect`.
-        if generation.context().resolve_spec(registry, bare).is_some()
+        let realm = self
+            .evaluated_body_invocation
+            .as_ref()
+            .filter(|(offset, _)| *offset == cmd_tok.span.start())
+            .and_then(|(_, proof)| proof.invocation_realm())
+            .or_else(|| {
+                self.head_identities
+                    .invocation_at_source(cmd_name, cmd_tok.span.start())
+                    .invocation_realm()
+            })
+            .unwrap_or_default();
+        if generation
+            .context()
+            .resolve_spec_in_realm(registry, bare, realm)
+            .is_some()
             || !registry.known_in_any_dialect(bare)
         {
             return;
@@ -1286,9 +1300,7 @@ impl Analyser {
         // compiler-refused name reached only through dynamic `eval`
         // (variable-held) is never a literal head here, so it is not
         // flagged at all — it works at runtime (§4c).
-        if self.profile.is_irules()
-            && tcl_registry::irules_policy::irules_disabled_class(bare)
-                .is_some_and(|class| !class.is_language_fact())
+        if self.profile.is_irules() && tcl_registry::irules_policy::rule_loader_refuses(bare, realm)
         {
             let diag = crate::analyser::types::Diagnostic::new(
                 DiagCode::Irule2004,
@@ -3004,7 +3016,7 @@ impl Analyser {
     /// }`, `p 1 2 3` still fails "wrong # args" against `p`'s original
     /// 2-arg signature, since `maybeDelete` is never called and the
     /// `rename` never runs). Mirrors the equivalent guard
-    /// [`Self::fact_live_for_call`] applies for the same question in the
+    /// [`crate::command_binding::SourceInvocationBinding::selected_slot_presence`] applies for the same question in the
     /// W123 pass.
     fn fact_superseded_by_deletion(
         &self,
@@ -4515,22 +4527,12 @@ in the active dialect ({}).",
             return;
         };
 
-        // Both the parse and the re-tokenise below force the `f5-irules`
-        // dialect rather than the active one: the lexer's
-        // iRules word-operator recognition (`contains`, `and`, …) is
-        // itself gated on the tokenisation dialect, so under any other
-        // dialect these words would lex as plain `Word` tokens, the parse
-        // below would never see a `Binary`/`Unary` application of them,
-        // and it would fall back to `ExprNode::Raw` — silently hiding the
-        // exact misuse this check exists to catch. `f5-irules` is a
-        // strict superset of every other dialect's operator vocabulary
-        // (it recognises everything `lt`/`in`/`**`/etc. does, plus the 9
-        // iRules words), so forcing it here never misparses an expression
-        // that would otherwise parse; the real pass/fail gate decision
-        // below still keys on the active dialect's actual `(base,
-        // f5_words)` facts, not this parsing dialect.
+        // Operator assistance recognises the full shipped vocabulary while
+        // preserving this document's lexical rules. Availability remains the
+        // actual profile's gate above; this tree carries no native proof.
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr(trimmed, Some("f5-irules"));
+        let assistance = gated_operator_assistance_context(self.profile);
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &assistance);
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -4546,7 +4548,12 @@ in the active dialect ({}).",
         // without adding source-position fields to `ExprNode::Binary`
         // (which recursive/optimiser/codegen consumers across the
         // compiler pattern-match on by name, not span).
-        let (tokens, _) = tcl_lexer::tokenise_expr_checked(trimmed, Some("f5-irules"));
+        let (tokens, _) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+            trimmed,
+            &assistance.lexer_grammar,
+            assistance.expr_grammar_base,
+            assistance.f5_word_grammar,
+        );
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
@@ -4670,14 +4677,11 @@ in the active dialect ({}).",
         let Some((base, f5_words)) = self.w003_gates() else {
             return;
         };
-        // Forced to `f5-irules` for the same reason as the braced-argument
-        // path: under any other dialect the tokeniser lexes
-        // the iRules words (`contains`, `and`, …) as plain `Word`s rather
-        // than operators, so the parse below would never see a valid
-        // infix application and would fall back to `ExprNode::Raw`,
-        // silently skipping this whole check. The real gate decision below
-        // still uses the active dialect's actual `(base, f5_words)`.
-        let parsed = crate::parse_expr(joined_text.trim(), Some("f5-irules"));
+        let assistance = gated_operator_assistance_context(self.profile);
+        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(
+            joined_text.trim(),
+            &assistance,
+        );
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
@@ -4884,6 +4888,19 @@ pub(super) fn last_literal_set_value_for_var(
         return Some((cmd.texts[2].clone(), value_tok.span, var_name.to_string()));
     }
     None
+}
+
+/// Recognition context for operator availability assistance, never native
+/// syntax acceptance. The warning compares each recognised operator with the
+/// actual profile separately; lexical and numeral rules remain source-selected.
+fn gated_operator_assistance_context(
+    profile: &tcl_dialect::DialectProfile,
+) -> tcl_syntax::expr::parser::ExprParseContext {
+    let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
+    context.expr_grammar_base = Some(tcl_dialect::TclVersion::V9_1);
+    context.f5_word_grammar = tcl_dialect::DialectProfile::irules().f5_core_expr_grammar();
+    context.native_syntax = tcl_syntax::expr::parser::NativeExprSyntax::Unknown;
+    context
 }
 
 /// A version-gated `expr` operator: its text, whether it is word-shaped, the

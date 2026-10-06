@@ -72,10 +72,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 /// This command's own frame-crossing grammar, so the arg-role resolver and
 /// `CommandSpec::frame_effect` below cannot drift apart.
-const FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
-    level_word: FrameLevelWord::LeadingProbe,
-    layout: FrameArgLayout::ScriptInSelectedFrame,
-};
+const FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec::UPLEVEL;
 
 /// Index of the first *script* word in an `uplevel` argument list — `1`
 /// when a leading `level` word is present, else `0`.
@@ -125,6 +122,16 @@ fn uplevel_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uplevel",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            // TclCompileUplevelCmd first appears in pinned C9.1 tclCompCmdsSZ.c;
+            // it compiles original argv and selects UPLEVEL, without public dispatch.
+            grammar: crate::native_compilation::NativeCompilationGrammar::Uplevel,
+            operation: crate::SemanticOperationId::StructuredLowering(
+                crate::hooks::LoweringHookId::Uplevel,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Uplevel,
+        }),
+        codegen_hook: Some(crate::hooks::CodegenHookId::Uplevel),
         // Present and unrestricted — `uplevel` carries an iRules row
         // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
         // `IRULES` mask — a pure control-flow primitive with no

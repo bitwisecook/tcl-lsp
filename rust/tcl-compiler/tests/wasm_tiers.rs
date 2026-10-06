@@ -21,7 +21,7 @@
 //! plus the committed framing budgets a compiled sample must stay under.
 //!
 //! This is the acceptance surface described in
-//! [`docs/design/compiler/wasm-native-lowering-plan.md`] (§2.2 for today's
+//! [`docs/design/compiler/wasm-native-lowering.md`] (§2.2 for today's
 //! divergences). It answers two questions on every commit:
 //!
 //! 1. **Does the compiled program still mean what Tcl means?** Each
@@ -488,7 +488,7 @@ fn check_plan(plan: Plan) {
     assert!(
         report.is_empty(),
         "the {} plan does not agree with the expected-divergence ledger \
-         (§2.2 of docs/design/compiler/wasm-native-lowering-plan.md):\n{report}",
+         (§2.2 of docs/design/compiler/wasm-native-lowering.md):\n{report}",
         plan.as_str()
     );
     eprintln!(
@@ -540,7 +540,7 @@ fn render_budgets() -> String {
          # counts native 64-bit numeric instructions (arithmetic, bitwise and\n\
          # comparison; not const/load/store/extend).\n\
          #\n\
-         # Every phase of docs/design/compiler/wasm-native-lowering-plan.md moves\n\
+         # Every phase of docs/design/compiler/wasm-native-lowering.md moves\n\
          # these numbers, and a reviewed diff to this file is how that reduction is\n\
          # claimed. A number that goes UP without a matching design change is a\n\
          # framing regression.\n",

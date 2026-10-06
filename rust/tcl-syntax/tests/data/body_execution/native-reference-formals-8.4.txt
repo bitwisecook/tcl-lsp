@@ -1,0 +1,7 @@
+&x 0 0 AFTER BEFORE
+&a(k) 1 - {procedure "p" has formal parameter "&a(k)" that is an array element} BEFORE
+&::alias 1 - {procedure "p" has formal parameter "&::alias" that is not a simple name} BEFORE
+&n::alias 1 - {procedure "p" has formal parameter "&n::alias" that is not a simple name} BEFORE
+elementtarget {0 AFTER BEFORE}
+emptybody {0 {}}
+default {&x DEFAULT}

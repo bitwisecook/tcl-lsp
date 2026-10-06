@@ -38,15 +38,15 @@ use crate::expr_ast::ExprNode;
 use crate::ir::{CommandTokens, Statement};
 use crate::ssa::{SsaBlock, SsaFunction, SsaStatement, Version};
 use crate::var_escape::cfg_propagation::handlers::{
-    handle_dynamic_name_first, handle_introspection, handle_variable_aliases,
+    handle_dynamic_name_first, handle_introspection, handle_normal_variable_aliases,
 };
 use crate::var_escape::cfg_propagation::known_names::collect_known_names_from_cfg;
 use crate::var_escape::cfg_propagation::state::{CfgEscapeResult, CfgState};
 use crate::var_escape::handlers::has_expand_word;
 use crate::var_escape::helpers::{
     default_registry, invocation_facts, invocation_facts_from_tokens, is_dynamic_name,
-    is_dynamic_token, is_frameless_runtime_command_in, normalise_cmd_subst_head,
-    scan_value_for_info_hazards,
+    is_dynamic_token, is_frameless_runtime_command_in, normal_handler_is_frameless,
+    normalise_cmd_subst_head, scan_value_for_info_hazards,
 };
 
 /// Walk *value* for embedded `[cmd ...]` substitution heads;
@@ -152,11 +152,7 @@ fn handle_call(
     let cmd = command.as_str();
     let facts = invocation_facts(stmt, registry);
 
-    if !facts.as_ref().is_some_and(|facts| {
-        facts
-            .traits
-            .contains(tcl_registry::prelude::Traits::FRAMELESS_RUNTIME)
-    }) {
+    if !normal_handler_is_frameless(stmt, registry) {
         if cmd.is_empty() || is_dynamic_token(cmd) {
             state.record_fallback();
         } else {
@@ -175,8 +171,18 @@ fn handle_call(
         return;
     }
 
+    if let Some(normal) = tokens.as_ref().and_then(|tokens| {
+        crate::registry_invocation::normal_transfer_invocation(
+            registry,
+            registry
+                .profile()
+                .map(tcl_registry::model::semantic::SemanticContext::for_profile),
+            tokens,
+        )
+    }) {
+        handle_normal_variable_aliases(&normal, state, defs);
+    }
     if let Some(facts) = facts.as_deref() {
-        handle_variable_aliases(facts, state, defs, registry);
         handle_introspection(facts, args, state, defs);
         if facts
             .traits
@@ -949,9 +955,26 @@ mod tests {
     }
 
     #[test]
-    fn global_escapes_named_var() {
-        let r = analyse("global g");
-        assert_eq!(r.name_tags.get("g"), Some(&EscapeTag::Frame));
+    fn global_escapes_named_var_in_an_actual_procedure_frame() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc p {} {global g}",
+            registry,
+            false,
+        );
+        let function = unit.function("::p").unwrap();
+        let result = analyse_cfg_function_with_registry(
+            &function.cfg,
+            &function.ssa,
+            std::iter::empty::<String>(),
+            registry,
+        );
+        assert_eq!(result.name_tags.get("g"), Some(&EscapeTag::Frame));
+        assert_eq!(
+            analyse("global g").name_tags.get("g"),
+            None,
+            "global frame declaration is a no-op"
+        );
     }
 
     #[test]

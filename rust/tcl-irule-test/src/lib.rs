@@ -48,5 +48,6 @@ pub mod topology;
 
 pub use embedded::EmbeddedLib;
 pub use live::{LiveSession, SessionError};
-pub use sim::{SimOutcome, SimRequest, simulate_irule};
+pub use session::{RuleIdentity, RuleSource};
+pub use sim::{SimOutcome, SimRequest, simulate_irule, simulate_rules};
 pub use topology::{Topology, TopologyError};

@@ -1,0 +1,12 @@
+free=0 route=direct kind=scalar code=0 result=1 MUTATED
+free=0 route=direct kind=list code=0 result=1 SAFE
+free=0 route=direct kind=dict code=0 result=2 SAFE
+free=0 route=alias kind=scalar code=0 result=1 MUTATED
+free=0 route=alias kind=list code=0 result=1 SAFE
+free=0 route=alias kind=dict code=0 result=2 SAFE
+free=1 route=direct kind=scalar code=0 result=1 FREED
+free=1 route=direct kind=list code=0 result=1 SAFE
+free=1 route=direct kind=dict code=0 result=2 SAFE
+free=1 route=alias kind=scalar code=0 result=1 FREED
+free=1 route=alias kind=list code=0 result=1 SAFE
+free=1 route=alias kind=dict code=0 result=2 SAFE

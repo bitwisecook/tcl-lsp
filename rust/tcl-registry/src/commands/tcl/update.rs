@@ -72,6 +72,12 @@ const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // `ALL_TCL` (no iRules row) is deliberate, not an oversight: F5's TMM
         // interpreter does ban `update` — it is one of the K36322151
         // event-loop bans — and that ban is now encoded directly here, as an

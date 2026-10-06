@@ -1,0 +1,37 @@
+{
+  "source_sha256": "c28e46cf365c1d682b2ee7f9585b45e3c5a208468d6b225abbb8ae7dd95aa932",
+  "original_fixture": "../probe.c",
+  "results": [
+    {
+      "release": "8.4.20",
+      "exit": 0,
+      "stdout_sha256": "096254a2b0df3c6f7c4b814c5865b5b150886feb26a0e2b3eee0bbcfd18914eb",
+      "canonical_fixture_sha256": "570feb82387ea77cf20eb615761ff4c97decbf41d741def1c8cd12e200e93f5e"
+    },
+    {
+      "release": "8.5.19",
+      "exit": 0,
+      "stdout_sha256": "3b731a1ff44854def6bf58f7d67bb3b858a4d6d3158b1b20218c1be1a386db03",
+      "canonical_fixture_sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a"
+    },
+    {
+      "release": "8.6.18",
+      "exit": 0,
+      "stdout_sha256": "3b731a1ff44854def6bf58f7d67bb3b858a4d6d3158b1b20218c1be1a386db03",
+      "canonical_fixture_sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a"
+    },
+    {
+      "release": "9.0.4",
+      "exit": 0,
+      "stdout_sha256": "3b731a1ff44854def6bf58f7d67bb3b858a4d6d3158b1b20218c1be1a386db03",
+      "canonical_fixture_sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a"
+    },
+    {
+      "release": "9.1.0",
+      "exit": 0,
+      "stdout_sha256": "3b731a1ff44854def6bf58f7d67bb3b858a4d6d3158b1b20218c1be1a386db03",
+      "canonical_fixture_sha256": "82322d31446305173785f47416981076a3c0de0e68a4f52a18d08340072e688a"
+    }
+  ],
+  "purpose": "Actual list canonical flag after original upvar local-name GetString; original type/reference-count fixture remains independent."
+}

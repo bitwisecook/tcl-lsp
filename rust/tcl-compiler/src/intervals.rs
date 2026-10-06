@@ -47,7 +47,7 @@ use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::ssa::{SsaFunction, ValueKey, Version};
+use crate::ssa::{SsaFunction, SsaSourceView, Symbol, ValueKey, Version};
 
 /// A bound is an `i64`, or `None` for an infinity (sign given by position).
 pub type Bound = Option<i64>;
@@ -311,6 +311,7 @@ fn const_int_from_value(text: &str) -> Option<i64> {
 
 /// Abstract-evaluate `expr` over the current interval environment, reading its
 /// numeric literals under `numbers` (the target release's numeral grammar).
+#[cfg(test)]
 #[must_use]
 pub(crate) fn eval_expr(
     expr: &ExprNode,
@@ -319,13 +320,31 @@ pub(crate) fn eval_expr(
 ) -> Interval {
     // Public entry: the top of an expression tree is nesting depth 0; the
     // recursion cap lives in [`eval_expr_at`].
-    eval_expr_at(expr, env, 0, numbers)
+    eval_expr_with_reads(
+        expr,
+        &|node| match node {
+            ExprNode::Var { name, .. } => env.get(name).copied().unwrap_or(TOP),
+            _ => TOP,
+        },
+        numbers,
+    )
+}
+
+/// Evaluate intervals using only the caller's exact original operand reads.
+/// The callback supplies conditional integer ranges, never execution or coercion proof.
+#[must_use]
+pub(crate) fn eval_expr_with_reads(
+    expr: &ExprNode,
+    read: &impl Fn(&ExprNode) -> Interval,
+    numbers: NumberSyntax,
+) -> Interval {
+    eval_expr_at(expr, read, 0, numbers)
 }
 
 #[must_use]
 fn eval_expr_at(
     expr: &ExprNode,
-    env: &HashMap<String, Interval>,
+    read: &impl Fn(&ExprNode) -> Interval,
     depth: u32,
     numbers: NumberSyntax,
 ) -> Interval {
@@ -339,9 +358,9 @@ fn eval_expr_at(
     }
     match expr {
         ExprNode::Literal { .. } => literal_int(expr, numbers).map_or(TOP, constant),
-        ExprNode::Var { name, .. } => env.get(name).copied().unwrap_or(TOP),
+        ExprNode::Var { .. } => read(expr),
         ExprNode::Unary { op, operand } => {
-            let inner = eval_expr_at(operand, env, depth + 1, numbers);
+            let inner = eval_expr_at(operand, read, depth + 1, numbers);
             match op {
                 UnaryOp::Neg => negate(inner),
                 UnaryOp::Pos => inner,
@@ -349,8 +368,8 @@ fn eval_expr_at(
             }
         }
         ExprNode::Binary { op, left, right } => {
-            let la = eval_expr_at(left, env, depth + 1, numbers);
-            let ra = eval_expr_at(right, env, depth + 1, numbers);
+            let la = eval_expr_at(left, read, depth + 1, numbers);
+            let ra = eval_expr_at(right, read, depth + 1, numbers);
             match op {
                 BinOp::Add => add(la, ra),
                 BinOp::Sub => sub(la, ra),
@@ -439,7 +458,7 @@ fn guard_interval(op: BinOp, k: i64, negate: bool) -> Option<Interval> {
 #[must_use]
 fn guard_constraint(
     cond: &ExprNode,
-    name: &str,
+    variable: &ExprNode,
     negate: bool,
     numbers: NumberSyntax,
 ) -> Option<Interval> {
@@ -447,15 +466,15 @@ fn guard_constraint(
         return None;
     };
     // $name <op> K
-    if let ExprNode::Var { name: vn, .. } = left.as_ref()
-        && vn == name
+    if matches!(left.as_ref(), ExprNode::Var { .. })
+        && left.as_ref() == variable
         && let Some(k) = literal_int(right, numbers)
     {
         return guard_interval(*op, k, negate);
     }
     // K <op> $name  → rewrite as $name <flipped-op> K
-    if let ExprNode::Var { name: vn, .. } = right.as_ref()
-        && vn == name
+    if matches!(right.as_ref(), ExprNode::Var { .. })
+        && right.as_ref() == variable
         && let Some(k) = literal_int(left, numbers)
     {
         let mirror = match op {
@@ -490,7 +509,7 @@ pub fn build_guard_index(
         for name in condition.vars_with_grammar(grammar) {
             // `name` is a raw IR scan; only an interned SSA variable can carry
             // a guard fact (an un-interned name is not a tracked value).
-            let Some(sym) = ssa.var_symbol(&name) else {
+            let Some(sym) = ssa.var_symbol_at_terminator(*dn, &name) else {
                 continue;
             };
             if let Some(&version) = sb.exit_versions.get(&sym) {
@@ -552,16 +571,29 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
     version: Version,
     guards: GuardTables<'_>,
 ) -> Interval {
+    let Some(symbol) = ssa.var_symbol(name) else {
+        return TOP;
+    };
+    refine_interval_for_value(base, cfg, ssa, block, symbol, version, guards)
+}
+
+/// Narrow an actual SSA value by dominating guards on that same cell.
+/// Guard source spellings are resolved at their own terminator points.
+#[must_use]
+pub fn refine_interval_for_value<S1: std::hash::BuildHasher>(
+    base: &HashMap<ValueKey, Interval, S1>,
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    block: BlockId,
+    sym: Symbol,
+    version: Version,
+    guards: GuardTables<'_>,
+) -> Interval {
     let GuardTables {
         guard_index,
         pred_counts,
         numbers,
     } = guards;
-    // A name that was never interned is not a tracked SSA value: no base
-    // interval and no guard fact, so its interval is TOP.
-    let Some(sym) = ssa.var_symbol(name) else {
-        return TOP;
-    };
     let mut iv = base.get(&(sym, version)).copied().unwrap_or(TOP);
     let Some(candidate_blocks) = guard_index.get(&(sym, version)) else {
         return iv;
@@ -577,6 +609,7 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
             condition,
             true_target,
             false_target,
+            condition_base,
             ..
         }) = &dblock.terminator
         else {
@@ -621,8 +654,17 @@ pub fn refine_interval<S1: std::hash::BuildHasher>(
                 continue;
             }
         }
-        if let Some(c) = guard_constraint(condition, name, negate, numbers) {
-            iv = intersect(iv, c);
+        if let ExprNode::Binary { left, right, .. } = condition {
+            for operand in [left, right] {
+                if let Some(read) = SsaSourceView::at_terminator(ssa, dn)
+                    .read_expression_variable(operand, *condition_base)
+                    && read.symbol == sym
+                    && read.version == Some(version)
+                    && let Some(constraint) = guard_constraint(condition, operand, negate, numbers)
+                {
+                    iv = intersect(iv, constraint);
+                }
+            }
         }
     }
     iv
@@ -645,16 +687,16 @@ fn seed_const<S: std::hash::BuildHasher>(
 #[must_use]
 fn transfer(
     stmt: &crate::ir::Statement,
-    name: &str,
     env: &HashMap<String, Interval>,
     old: Interval,
     numbers: NumberSyntax,
+    read: &impl Fn(&ExprNode) -> Interval,
 ) -> Interval {
     use crate::ir::Statement;
     match stmt {
         Statement::AssignConst { value, .. } => const_int_from_value(value).map_or(TOP, constant),
-        Statement::AssignExpr { expr, .. } => eval_expr(expr, env, numbers),
-        Statement::Incr { amount, .. } => {
+        Statement::AssignExpr { expr, .. } => eval_expr_with_reads(expr, read, numbers),
+        Statement::Incr { name, amount, .. } => {
             let mut base = env.get(name).copied().unwrap_or(old);
             if base.is_bottom() {
                 base = TOP;
@@ -736,11 +778,107 @@ pub fn compute_intervals_with<S: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S>,
     numbers: NumberSyntax,
 ) -> HashMap<ValueKey, Interval> {
+    compute_intervals_kernel(cfg, ssa, values, numbers, None)
+}
+
+/// Symbolic intervals conditional on the original native declaration handlers
+/// and local values. These values cannot supply normal optimisation facts.
+pub(crate) struct DeclarationIntervals(HashMap<ValueKey, Interval>);
+
+impl DeclarationIntervals {
+    pub(crate) fn values(&self) -> &HashMap<ValueKey, Interval> {
+        &self.0
+    }
+}
+
+pub(crate) fn compute_declaration_intervals_with<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    numbers: NumberSyntax,
+    registry: &tcl_registry::CommandRegistry,
+) -> DeclarationIntervals {
+    DeclarationIntervals(compute_intervals_kernel(
+        cfg,
+        ssa,
+        values,
+        numbers,
+        Some(registry),
+    ))
+}
+
+fn declaration_increment_input(
+    view: SsaSourceView<'_>,
+    ssa: &SsaFunction,
+    block: BlockId,
+    index: usize,
+    symbol: Symbol,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<(ValueKey, i64)> {
+    let tokens = view.source_tokens()?;
+    let increment = crate::registry_invocation::declaration_increment_advice(registry, tokens)?;
+    let operand = tokens
+        .source_binding
+        .as_ref()?
+        .declaration_variable_operand_advice(registry, tokens, &increment.operand)?;
+    let (selected, version) = operand.diagnostic_version(ssa, block, index, registry)?;
+    if selected != symbol {
+        return None;
+    }
+    let amount = increment
+        .amount
+        .as_deref()
+        .map_or(Some(1), const_int_from_value)?;
+    Some(((selected, version), amount))
+}
+
+fn declaration_increment_inputs(
+    ssa: &SsaFunction,
+    declaration: Option<&tcl_registry::CommandRegistry>,
+) -> HashMap<ValueKey, (ValueKey, i64)> {
+    declaration
+        .map(|registry| {
+            ssa.blocks
+                .iter()
+                .flat_map(|(&block, body)| {
+                    body.statements
+                        .iter()
+                        .enumerate()
+                        .flat_map(move |(index, statement)| {
+                            statement
+                                .defs
+                                .iter()
+                                .filter_map(move |(&symbol, &version)| {
+                                    declaration_increment_input(
+                                        SsaSourceView::at_statement(ssa, block, index),
+                                        ssa,
+                                        block,
+                                        index,
+                                        symbol,
+                                        registry,
+                                    )
+                                    .map(|input| ((symbol, version), input))
+                                })
+                        })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn compute_intervals_kernel<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    values: &HashMap<ValueKey, LatticeValue, S>,
+    numbers: NumberSyntax,
+    declaration: Option<&tcl_registry::CommandRegistry>,
+) -> HashMap<ValueKey, Interval> {
     let mut result: HashMap<ValueKey, Interval> = HashMap::new();
     let cur = |result: &HashMap<ValueKey, Interval>, key: &ValueKey| -> Interval {
         result.get(key).copied().unwrap_or(BOTTOM)
     };
 
+    let declaration_increments = declaration_increment_inputs(ssa, declaration);
     let headers = loop_headers(cfg, ssa);
     let order = cfg.reverse_postorder();
 
@@ -770,20 +908,31 @@ pub fn compute_intervals_with<S: std::hash::BuildHasher>(
                     changed = true;
                 }
             }
-            for s in &ssa_block.statements {
-                // `env` is keyed by display name for `transfer` / `eval_expr`
-                // (which resolve `ExprNode::Var` by name); resolve each use
-                // symbol to its name, looking the interval up by `(sym, ver)`.
-                let env: HashMap<String, Interval> = s
-                    .uses
-                    .iter()
-                    .map(|(&sym, &ver)| (ssa.var_name(sym).to_owned(), cur(&result, &(sym, ver))))
+            for (index, s) in ssa_block.statements.iter().enumerate() {
+                let view = SsaSourceView::at_statement(ssa, *bn, index);
+                let env: HashMap<String, Interval> = view
+                    .source_symbols()
+                    .filter_map(|(name, symbol)| {
+                        s.uses
+                            .get(&symbol)
+                            .map(|&version| (name.to_owned(), cur(&result, &(symbol, version))))
+                    })
                     .collect();
                 for (&sym, &ver) in &s.defs {
                     let key = (sym, ver);
-                    let nm = ssa.var_name(sym);
                     let val = seed_const(key, values).unwrap_or_else(|| {
-                        transfer(&s.statement, nm, &env, cur(&result, &key), numbers)
+                        if let Some(&(input, amount)) = declaration_increments.get(&key) {
+                            return add(cur(&result, &input), constant(amount));
+                        }
+                        let base = match &s.statement {
+                            crate::ir::Statement::AssignExpr { expr_base, .. } => *expr_base,
+                            _ => None,
+                        };
+                        transfer(&s.statement, &env, cur(&result, &key), numbers, &|node| {
+                            view.read_expression_variable(node, base)
+                                .and_then(|read| read.version.map(|version| (read.symbol, version)))
+                                .map_or(TOP, |key| cur(&result, &key))
+                        })
                     });
                     if val != cur(&result, &key) {
                         result.insert(key, val);
@@ -1172,9 +1321,32 @@ mod tests {
     }
 
     #[test]
+    fn interval_reads_distinguish_elements_with_the_same_base_label() {
+        let expression = pexpr("$a(k) - $a(j)");
+        let read = |node: &ExprNode| match node {
+            ExprNode::Var { text, .. } if text == "$a(k)" => constant(5),
+            ExprNode::Var { text, .. } if text == "$a(j)" => constant(2),
+            _ => TOP,
+        };
+        assert_eq!(
+            eval_expr_with_reads(&expression, &read, NumberSyntax::Tcl90),
+            constant(3)
+        );
+        assert_eq!(
+            eval_expr_with_reads(&expression, &|_| TOP, NumberSyntax::Tcl90),
+            TOP
+        );
+    }
+
+    #[test]
     fn guard_constraint_both_operand_orders() {
         let gc = |src: &str, negate: bool| {
-            guard_constraint(&pexpr(src), "x", negate, NumberSyntax::Tcl90)
+            let expression = pexpr(src);
+            let variable = expression
+                .variable_nodes()
+                .into_iter()
+                .find(|node| matches!(node, ExprNode::Var { text, .. } if text == "$x"))?;
+            guard_constraint(&expression, variable, negate, NumberSyntax::Tcl90)
         };
         // `$x < 5` true → x ∈ [-inf, 4] (tclsh: 4<5=1, 5<5=0).
         assert_eq!(

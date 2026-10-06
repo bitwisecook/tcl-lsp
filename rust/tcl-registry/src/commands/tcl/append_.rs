@@ -27,10 +27,47 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+// All six native engines read an existing variable and reject an undefined
+// variable when no values are supplied. Neither conversion nor a store occurs.
+const COMMAND_FORMS: &[crate::forms::CommandForm] = &[crate::forms::CommandForm {
+    name: "read",
+    arity: Arity::exact(1),
+    arg_roles: &[(0, ArgRole::VarRead)],
+    semantic_operation: Some(crate::SemanticOperationId::Invoke),
+    native_result: Some(crate::native_result::NativeResultContract::VariableValue {
+        variable_at: 0,
+        phase: crate::native_result::VariableResultPhase::AfterRead,
+    }),
+    return_type: Some(None),
+    arg_types: Some(&[]),
+    byte_array_effect: Some(ByteArrayEffect::None),
+    safe_on_uninit: Some(None),
+    traits: Some(Traits::FRAMELESS_RUNTIME.union(Traits::FIRST_ARG_VARNAME)),
+    side_effects: Some(&[SideEffect {
+        target: SideEffectTarget::Variable,
+        reads: true,
+        ..SideEffect::DEFAULT
+    }]),
+    ..crate::forms::CommandForm::DEFAULT
+}];
+
 /// Command spec for `append`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
+        successful_handler: Some(
+            crate::native_compilation::SuccessfulHandlerSpec::VariableOperands,
+        ),
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::VariableAppend(
+                crate::native_compilation::NativeAppendKind::String,
+            ),
+            operation: crate::SemanticOperationId::StructuredLowering(
+                LoweringHookId::AppendOrLappend,
+            ),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
@@ -38,6 +75,11 @@ pub fn spec() -> CommandSpec {
             | Traits::FIRST_ARG_VARNAME
             | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::at_least(1),
+        command_forms: COMMAND_FORMS,
+        completion: Some(crate::CompletionDescriptor::exact(&[
+            crate::CompletionCode::Ok,
+            crate::CompletionCode::Error,
+        ])),
         // S110: string-concatenates onto the target variable, coercing a
         // binary target (or a binary appended operand) to a character string.
         // Combined with `assigns_variable_at`/`READS_BEFORE_WRITE` below,
@@ -74,7 +116,7 @@ pub fn spec() -> CommandSpec {
         hover: Some(HoverSnippet {
             summary: "Append values to a variable, creating it if it does not already exist.",
             synopsis: &["append varName ?value value value ...?"],
-            snippet: "Append all of the value arguments to the current value of variable varName. If varName does not exist, it is created with the concatenation of the value arguments (the empty string if none are given). This is an efficient way to build up a long string incrementally: `append a $b` is much cheaper than `set a $a$b` once $a is already long. From Tcl 9.0, appending to a nonexistent element of an array that has a default value set (see `array default`) stores the concatenation of that default value and the value arguments, rather than just the value arguments.",
+            snippet: "Append all of the value arguments to the current value of variable varName. If varName does not exist and values are supplied, it is created with their concatenation. With no value arguments, append reads the existing variable and reports an error if it is missing. This is an efficient way to build up a long string incrementally: `append a $b` is much cheaper than `set a $a$b` once $a is already long. From Tcl 9.0, appending to a nonexistent element of an array that has a default value set (see `array default`) stores the concatenation of that default value and the value arguments, rather than just the value arguments.",
             source: "Tcl man page append.n",
             examples: "set msg \"Tcl\"\nappend msg \" is \" \"fun\"\n\nset out {}\nforeach n {1 2 3 4 5} {\n    append out $n \",\"\n}\n# out is now \"1,2,3,4,5,\"",
             return_value: "The new value stored in varName after the append.",

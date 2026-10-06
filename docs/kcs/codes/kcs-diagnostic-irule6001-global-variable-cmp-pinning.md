@@ -19,13 +19,12 @@ tell me to use `static::` instead?
 ## Why
 
 BIG-IP runs one TMM per CPU and spreads connections across all of them.
-A variable in the global namespace has no per-TMM storage, so touching
-one forces the virtual server into CMP compatibility mode: every
+Legacy global-variable access is not CMP-compatible, so it can force the virtual server into CMP compatibility mode: every
 connection is pinned to a single TMM and the rest of the box sits idle.
 On a busy virtual server that is a large, silent throughput loss.
 
 `static::` variables are the supported alternative. They have per-TMM
-storage, so the virtual server keeps running demoted across every TMM.
+storage, so the virtual server can distribute connections across TMMs.
 
 ## Symptoms
 
@@ -104,3 +103,8 @@ whole project with `disabled = IRULE6001` under `[diagnostics]` in
 - [Diagnostics feature](../features/kcs-feature-diagnostics.md)
 - [command walk](../../GLOSSARY.md#command-walk)
 - Related codes: `IRULE4001`, `IRULE4002`, `IRULE4005`
+
+The resolved static namespace is excluded from this warning. `::static::name`
+is the absolute spelling of the same namespace; GTM requires that spelling.
+A relative name inside another namespace is classified only when Tcl lookup
+proves the cell it reaches.

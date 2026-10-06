@@ -23,6 +23,10 @@ command foreach {
     # command's name (issue #1185).
     repeat LoopVarList -from 0 -stride 2 -exclude-trailing 1
 
+    # Exact evaluated cardinality locates the body even when list values are
+    # dynamic. The value hook below remains the literal-argument projection.
+    arg_role_count_resolver -native foreach::arg_role_count_resolver
+
     # The last argument is always the body.
     arg_role_resolver {words ctx} {
         if {[llength $words] >= 3} {

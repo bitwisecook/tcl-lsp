@@ -39,6 +39,9 @@ pub mod host_native;
 // a dependency no native build should carry.
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub mod host_wasm;
+#[cfg(any(test, feature = "test-support"))]
+pub mod native_conformance;
+mod return_options;
 pub mod value;
 mod value_ops;
 
@@ -75,16 +78,28 @@ mod exec;
 mod expr;
 mod frame;
 mod interp;
+mod literal_pool;
+#[cfg(test)]
+mod native_fixture;
+mod native_jim_script;
+mod retained_activation;
 mod subst;
 mod vars;
 
 pub use cmd_thread::{CompileFactory, ThreadedOutput};
 pub use command::NativeCommand;
 pub use debug::{DebugAction, DebugFrame, DebugHook, DebugSnapshot, DebugVar};
-pub use embed::FunctionHandle;
-pub use error::TclError;
-pub use interp::Vm;
-pub use value::Value;
+pub use embed::{FunctionHandle, ProcedureDefinitionError, VmCompilationError};
+pub use error::{TclError, TclHostFailure};
+pub use interp::{
+    NativeCommandLookupUnavailable, NativePreparedPublication, NativePublicationCommit,
+    NativePublicationError, NativePublicationKey, NativePublicationPurpose,
+    NativePublicationService, NativeRegisteredCommandToken, Vm,
+};
+pub use retained_activation::RetainedActivation;
+pub use value::{NativeObjectLifetimeLease, Value};
+mod native_list_backing;
+pub use native_list_backing::NativeListItems;
 
 pub use tcl_runtime_api::{
     Code, CompileError, CompileService, Completion, ProcedureCompileTarget, ProcedureDispatch,
@@ -94,3 +109,6 @@ pub use tcl_runtime_api::{
 // the impls (a trait must be in scope to use its methods). More land as the VM
 // grows.
 pub use tcl_runtime_api::{Commands, Frames, Introspect, Namespaces, Traces, VarStore};
+
+mod native_return_merge;
+mod native_switch;

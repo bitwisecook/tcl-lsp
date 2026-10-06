@@ -112,31 +112,7 @@ pub(crate) fn resolve_available_option_prefix_with<'a>(
     word: &str,
     prefix_matching: PrefixMatching,
 ) -> Option<&'a crate::hover::OptionSpec> {
-    if let Some(option) = options.iter().copied().find(|option| option.matches(word)) {
-        return Some(option);
-    }
-    if !prefix_matching.accepts_prefixes() || !word.starts_with('-') || word.len() < 2 {
-        return None;
-    }
-    let mut found = None;
-    for option in options.iter().copied() {
-        if std::iter::once(option.name)
-            .chain(option.aliases.iter().copied())
-            .any(|spelling| {
-                spelling.starts_with(word)
-                    && option
-                        .min_abbrev
-                        .is_none_or(|minimum| word.len() >= usize::from(minimum))
-            })
-        {
-            match found {
-                None => found = Some(option),
-                Some(previous) if std::ptr::eq(previous, option) => {}
-                Some(_) => return None,
-            }
-        }
-    }
-    found
+    crate::spec::resolve_available_option_prefix_with(options, word, prefix_matching)
 }
 
 impl PatternType {

@@ -87,6 +87,12 @@ const ORIGIN_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "seek",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Core Tcl command whose surface is `ALL_TCL` (no iRules row). Its
         // absence from F5 iRules — the sandboxed TMM interpreter has no real
         // filesystem/channel-seek support — falls straight out of that

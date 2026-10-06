@@ -1,0 +1,4 @@
+plain 0 VALUE {}
+error 1 VALUE {::errorCode ::errorInfo ::errorInfo}
+explicit_ok 0 VALUE {}
+invalid 1 {bad completion code "invalid": must be ok, error, return, break, continue, or an integer} {::errorInfo ::errorCode ::errorInfo ::errorInfo ::errorInfo}

@@ -144,19 +144,15 @@ pub fn hover(
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
 ) -> Option<Hover> {
-    // Dialect-agnostic entry point (every subcommand is a resolution
-    // candidate).  Production callers that know the document's Tcl version
-    // should prefer [`hover_with_dialect`] so a prefix's uniqueness matches the
-    // version (see [`tcl_registry::CommandSpec::resolve_subcommand_for_dialect`]).
+    // The analysis owns the document's actual editing dialect. An explicit
+    // profile entry point can select a different caller-provided environment.
     hover_with_profile(
         source,
         line,
         character,
         analysis,
         registry,
-        // The "no dialect stated" ingress: the lenient environment, which
-        // resolves to the permissive fallback profile.
-        crate::profile_for_dialect(""),
+        crate::profile_for_analysis(analysis),
     )
 }
 
@@ -370,6 +366,16 @@ fn proc_hover_at(
     // mirroring how `definition()` consults `proc_declaration_sites` before
     // its own call resolution.
     if let Some(proc_def) = crate::definition::proc_declaration_at(analysis, cursor_offset) {
+        return Some(Hover::markdown(proc_hover_text(proc_def)));
+    }
+    if let Some(invocation) = crate::definition::invocation_reference_at(analysis, cursor_offset)
+        && !invocation.lookup.is_execution_site()
+    {
+        let reference = invocation.resolved_command_reference.as_ref()?;
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())?;
+        let proc_def = analysis.proc_for_definition(definition, source)?;
         return Some(Hover::markdown(proc_hover_text(proc_def)));
     }
     if let Some(proc_def) = crate::definition::resolved_indirect_head_proc(analysis, cursor_offset)
@@ -861,15 +867,9 @@ fn hover_impl(
     // `$obj m` / `my m` method-dispatch hover, including the per-object
     // visibility mask — `Break(None)` is a definitive
     // no-hover.
-    if let std::ops::ControlFlow::Break(answer) = method_dispatch_hover(
-        source,
-        line,
-        character,
-        cursor_offset,
-        analysis,
-        registry,
-        profile,
-    ) {
+    if let std::ops::ControlFlow::Break(answer) =
+        method_dispatch_hover(source, line, character, cursor_offset, analysis)
+    {
         return answer;
     }
 
@@ -977,8 +977,10 @@ fn resolve_imported_command<'r>(
         if imp.ns != "::" || imp.range.end() > cursor_offset {
             continue;
         }
-        let Some(candidate) =
-            tcl_cmd_core::namespace::imported_command_candidate(&imp.pattern, name)
+        let Some(candidate) = imp
+            .source
+            .as_ref()
+            .and_then(|source| source.candidate(name))
         else {
             continue;
         };
@@ -2596,9 +2598,10 @@ fn scan_regex_single_meta(c: char) -> Option<RegexComp> {
 /// when `word` names a recorded alias.
 fn alias_hover_text(analysis: &AnalysisResult, word: &str) -> Option<String> {
     for alias in analysis.command_aliases.values() {
-        let simple = alias.qualified_name.trim_start_matches("::");
+        let simple = tcl_syntax::naming::unroot_rooted_key(&alias.qualified_name)
+            .unwrap_or(&alias.qualified_name);
         if simple == word || alias.qualified_name == word {
-            let mut target = alias.target.clone();
+            let mut target = alias.target.as_str().to_owned();
             if !alias.extras.is_empty() {
                 target.push(' ');
                 target.push_str(&alias.extras.join(" "));
@@ -3643,34 +3646,6 @@ fn member_declaration_hover_text(
     }
 }
 
-/// Hover text for a `$obj method` / `my method` call — `method` resolved
-/// against the class identified by `class_q`, rendering a one-line summary
-/// that names the *providing* class plus an MRO note (inherited-from /
-/// overrides).
-///
-/// Resolution is the shared `TclOO` linearisation walk
-/// ([`crate::oo_dispatch::method_dispatch_provider`]), the same one
-/// go-to-definition and find-references use. A direct-only
-/// `class_def.methods.get(method)` on the receiver's own class is not enough:
-/// a method reached purely through a `mixin` or a `superclass` — with no
-/// local override — would hover as nothing at all even though
-/// go-to-definition resolves it one line of code away in the same request
-/// path. The MRO-aware provider is
-/// already computed in this file, but only to *annotate* a hit the direct
-/// lookup had already found.
-///
-/// `class_q` may name either a *user*-defined class (`analysis.all_classes`
-/// — `oo::class`/`oo::define`/snit/itcl bodies the analyser parsed) or a
-/// *registry*-modelled one (a `tcl-registry` `ObjectClassSpec` — tcllib
-/// factories, or a Tk/ttk widget's self-referential class).
-/// User classes are tried first (richer: params, MRO note); the registry is
-/// the fallback so e.g. `.t instate` still hovers even though `ttk::treeview`
-/// is never a user-defined class.
-///
-/// `external` distinguishes the two dispatch spellings the way
-/// `definition.rs` already does: a `$obj m` / `CLASS m` call sees exported
-/// implementations only, while an internal `my m` also reaches unexported
-/// ones.
 /// The `$obj method` / `my method` dispatch arms of the hover walk, plus
 /// the per-object visibility mask that precedes them.
 ///
@@ -3688,53 +3663,29 @@ fn method_dispatch_hover(
     character: u32,
     cursor_offset: u32,
     analysis: &AnalysisResult,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
 ) -> std::ops::ControlFlow<Option<Hover>> {
     use std::ops::ControlFlow;
-    if crate::definition::object_masks_external_dispatch(analysis, source, line, character) {
+    if let Some(selected) =
+        crate::receiver_identity::method_at_cursor(analysis, source, cursor_offset)
+    {
+        let label = match selected.receiver {
+            tcl_compiler::command_binding::SourceMethodReceiver::Instance => "method",
+            tcl_compiler::command_binding::SourceMethodReceiver::Class => "classmethod",
+        };
+        return ControlFlow::Break(Some(Hover::markdown(format!(
+            "**{label}** `{}::{}` ({} param(s))",
+            selected.class.qualified_name,
+            selected.method.name,
+            selected.method.params.len(),
+        ))));
+    }
+    if crate::receiver_identity::definition_reference_at_cursor(analysis, source, cursor_offset)
+        .is_some()
+        || crate::definition::object_masks_external_dispatch(analysis, source, line, character)
+    {
         return ControlFlow::Break(None);
     }
 
-    // `$obj method` dispatch — when the cursor sits on the
-    // method-name token of an instance-method call and the
-    // instance's class is known, render the method summary.
-    // Checked before the proc lookup so a method call wins over
-    // a same-named proc.
-    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) && let Some(class_q) =
-        crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(text) =
-            obj_method_hover_text(analysis, class_q, &method, true, registry, profile)
-    {
-        return ControlFlow::Break(Some(Hover::markdown(text)));
-    }
-
-    // `my method` internal dispatch — mirrors
-    // `crate::definition::instance_method_definition`'s own `inst == "my"`
-    // branch: unlike `$obj method`, `my`'s receiver isn't an instance
-    // *variable* (`receiver_instance_class` above only resolves those), it
-    // means "the class whose body lexically encloses this call", found via
-    // `enclosing_class_at`. Without this, a definite, single-target `my
-    // methodName` call has no hover at all, even though go-to-definition and
-    // find-references resolve it.  The shape reproduces identically whether
-    // or not the class is split across a separate `oo::define` block.
-    if let Some((inst, method, _)) = crate::definition::instance_method_at_cursor(
-        source,
-        line,
-        character,
-        tcl_lexer::LexerConfig::for_profile(Some(profile)),
-    ) && crate::definition::is_self_dispatch_keyword(&inst)
-        && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
-        && let Some(text) =
-            obj_method_hover_text(analysis, class_q, &method, false, registry, profile)
-    {
-        return ControlFlow::Break(Some(Hover::markdown(text)));
-    }
     ControlFlow::Continue(())
 }
 
@@ -3781,51 +3732,6 @@ pub fn cross_document_method_hover(
     ))
 }
 
-fn obj_method_hover_text(
-    analysis: &AnalysisResult,
-    class_q: &str,
-    method: &str,
-    external: bool,
-    registry: Option<&CommandRegistry>,
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Option<String> {
-    if analysis.all_classes.contains_key(class_q) {
-        for (bucket, label) in [
-            (crate::definition::MethodBucket::Instance, "method"),
-            (crate::definition::MethodBucket::Class, "classmethod"),
-        ] {
-            let Some((provider_q, m)) = crate::oo_dispatch::method_dispatch_provider(
-                analysis, class_q, method, external, bucket,
-            ) else {
-                continue;
-            };
-            let suffix = oo_resolution_note_for_provider(analysis, class_q, provider_q, method)
-                .map_or(String::new(), |n| format!("  \n{n}"));
-            return Some(format!(
-                "**{label}** `{provider_q}::{name}` ({nparam} param(s)){suffix}",
-                name = m.name,
-                nparam = m.params.len(),
-            ));
-        }
-        return None;
-    }
-    let registry = registry?;
-    let package_version = registry.get(class_q).and_then(|spec| {
-        crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
-    });
-    let sub = registry.instance_method_at(
-        class_q,
-        method,
-        package_version,
-        Some(crate::document_context_for_profile(profile).authoring_query()),
-    )?;
-    Some(format!(
-        "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",
-        detail = sub.detail,
-        synopsis = sub.synopsis,
-    ))
-}
-
 /// MRO note for `method` on `class_q`: `inherited from ::Provider` when the
 /// method resolves to an ancestor, or `overrides ::Super::method` when it
 /// is defined on `class_q` but a superclass also provides it.  `None` for a
@@ -3839,15 +3745,8 @@ fn oo_method_resolution_note(
     oo_resolution_note_for_provider(analysis, class_q, provider, method)
 }
 
-/// [`oo_method_resolution_note`] for a provider the caller has **already**
-/// resolved — the shared dispatch walk's own answer
-/// ([`crate::oo_dispatch::method_dispatch_provider`]).
-///
-/// Split out so the `$obj m` / `my m` hover renders its note from the very
-/// provider it names in the heading rather than re-deriving one through a
-/// second, differently-filtered lookup (`method_target` applies neither the
-/// visibility rule nor the instance/class-side bucket split). The two can
-/// then never disagree about whether a method is inherited.
+/// Render the inheritance or override note for the provider selected by the
+/// caller. The note uses that exact provider rather than resolving it again.
 fn oo_resolution_note_for_provider(
     analysis: &AnalysisResult,
     class_q: &str,
@@ -6122,6 +6021,32 @@ mod tests {
         let analysis = analyse(src);
         let h = hover(src, 3, 12, &analysis, None).expect("hover on the call head");
         assert!(h.value.contains("proc ::anotherproc"), "{}", h.value);
+    }
+
+    #[test]
+    fn consumed_procedure_name_hover_uses_its_lookup_receipt() {
+        let source = "proc target {} {return OK}\ninfo args target\nrename target moved\nmoved\n";
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        for (written, prefix) in [
+            ("info args target", "info args "),
+            ("rename target", "rename "),
+        ] {
+            let offset = u32::try_from(source.find(written).unwrap() + prefix.len()).unwrap();
+            assert!(!crate::definition::offset_is_command_head(
+                &analysis, offset
+            ));
+            let result = proc_hover_at(
+                &analysis,
+                source,
+                offset,
+                "target",
+                crate::definition::CallResolution::document_only(),
+            )
+            .expect("hover on the consumed source procedure");
+            assert!(result.value.contains("proc ::target"), "{}", result.value);
+        }
     }
 
     #[test]

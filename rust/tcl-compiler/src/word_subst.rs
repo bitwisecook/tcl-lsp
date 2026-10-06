@@ -69,10 +69,11 @@ const MAX_SUBSTITUTION_DEPTH: u32 = 8;
 /// invocation it behaves as.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiftedCall {
-    /// The substitution's command word, as spelled. No lowering pass resolves
-    /// a nested substitution, so there is no `interp alias` canonicalisation
-    /// available here and the spelling is also the registry lookup key.
+    /// The substitution's command word, as spelled. Dispatch identity belongs
+    /// to the retained source proof in `tokens`, rather than this spelling.
     pub command: String,
+    /// Retained structured command words and their exact dispatch proof, when queried.
+    pub tokens: Option<CommandTokens>,
     /// The substitution's argument words, index-aligned with `arg_spans`.
     pub args: Vec<String>,
     /// Absolute source span of each argument word.
@@ -89,6 +90,22 @@ pub struct LiftedCall {
     pub span: Span,
 }
 
+#[derive(Default)]
+struct LiftedCallCollection {
+    calls: Vec<LiftedCall>,
+    incomplete: bool,
+}
+
+/// Complete original substitution inventory for effect consumers. A truncated
+/// or unsupported word walk must not establish absence of name effects.
+pub(crate) fn checked_lifted_calls(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<LiftedCall>> {
+    let collected = lift(Some(tokens), config, None);
+    (!collected.incomplete).then_some(collected.calls)
+}
+
 /// Every command substitution nested in `tokens`' words, innermost-first.
 ///
 /// Returns an empty vector for a statement whose words hold no substitution —
@@ -98,7 +115,111 @@ pub fn lifted_calls(
     tokens: Option<&CommandTokens>,
     config: tcl_lexer::LexerConfig,
 ) -> Vec<LiftedCall> {
-    lift(tokens, config, None)
+    lift(tokens, config, None).calls
+}
+
+/// A reached expression evaluator inside an original written operand.
+/// This carries no dispatch or normal-completion authority for its parent.
+pub(crate) struct EnteredExpressionEvaluation {
+    expression: crate::expr_ast::ExprNode,
+    expression_base: u32,
+    span: Span,
+    numbers: tcl_dialect::NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
+}
+
+impl EnteredExpressionEvaluation {
+    pub(crate) fn expression(&self) -> &crate::expr_ast::ExprNode {
+        &self.expression
+    }
+
+    pub(crate) fn expression_base(&self) -> u32 {
+        self.expression_base
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        self.span
+    }
+
+    pub(crate) fn numbers(&self) -> tcl_dialect::NumberSyntax {
+        self.numbers
+    }
+
+    pub(crate) fn grammar(&self) -> tcl_dialect::LexerGrammar {
+        self.grammar
+    }
+}
+
+/// Recover entered child evaluation independently of the enclosing handler.
+/// Only the child's exact source binding supplies its implementation and syntax.
+pub(crate) fn entered_expression_evaluations(
+    tokens: Option<&CommandTokens>,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<EnteredExpressionEvaluation> {
+    lifted_calls(tokens, config)
+        .into_iter()
+        .filter_map(|call| entered_expression_evaluation(&call.tokens?, registry))
+        .collect()
+}
+
+fn entered_expression_evaluation(
+    tokens: &CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<EnteredExpressionEvaluation> {
+    let binding = tokens.source_binding.as_ref()?;
+    if binding.runtime_reachability() != crate::command_binding::SourceRuntimeReachability::Reached
+    {
+        return None;
+    }
+    let site = binding.invocation_site()?;
+    let invocation =
+        crate::registry_invocation::resolved_handler_invocation(registry, None, tokens)?;
+    if invocation.facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Expr,
+        )
+        || invocation.facts.argument_offset != 0
+        || tokens.words().len() != 2
+    {
+        return None;
+    }
+    let word = tokens.words().get(1)?;
+    let WordExpr::BracedLiteral { text, source } = word else {
+        return None;
+    };
+    if source.provenance != Provenance::Source {
+        return None;
+    }
+    let head = tokens.words().first()?.source();
+    if head.provenance != Provenance::Source || head.span.start() != site.offset {
+        return None;
+    }
+    let base = crate::lowering_hooks::word_content_base(
+        *tokens.argv.get(1)?,
+        tokens.single_token_word.get(1).copied()?,
+        text,
+    )?;
+    let length = u32::try_from(text.len()).ok()?;
+    let end = base.checked_add(length)?;
+    if site
+        .source
+        .source_image()
+        .bytes()
+        .get(base as usize..end as usize)
+        != Some(text.as_bytes())
+    {
+        return None;
+    }
+    let dialect = binding.variable_context.invocation_dialect?;
+    let parser = dialect.expression_parse_context(None);
+    Some(EnteredExpressionEvaluation {
+        expression: crate::expr_parser::parse_expr_with_syntax_context(text, &parser),
+        expression_base: base,
+        span: Span::new(head.span.start(), word.source().span.end()),
+        numbers: dialect.numbers,
+        grammar: parser.lexer_grammar,
+    })
 }
 
 /// [`lifted_calls_with_surface`] over one word rather than a whole command.
@@ -112,11 +233,11 @@ pub fn lifted_calls_in_word(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
 ) -> Vec<LiftedCall> {
-    let mut out = Vec::new();
+    let mut out = LiftedCallCollection::default();
     if let Some(word) = word {
         collect_word(word, config, Some(surface), 0, &mut out);
     }
-    out
+    out.calls
 }
 
 /// [`lifted_calls`], plus the substitutions a brace-quoted **expression** word
@@ -147,19 +268,57 @@ pub fn lifted_calls_with_surface(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
 ) -> Vec<LiftedCall> {
-    lift(tokens, config, Some(surface))
+    lift(tokens, config, Some(surface)).calls
+}
+
+/// Checked lexical substitutions in retained original source, independently
+/// of whether this declaration was entered. Each child retains its own proof;
+/// this inventory grants no reached operand or command dispatch authority.
+pub(crate) fn original_lifted_calls_with_surface(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    surface: &DocumentCommandSurface<'_>,
+) -> Vec<LiftedCall> {
+    let Some(site) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.invocation_site())
+    else {
+        return Vec::new();
+    };
+    if crate::registry_invocation::native_compiler_replay_source(tokens, site).is_none() {
+        return Vec::new();
+    }
+    let config = tokens.native_lexer_config(config);
+    let mut out = LiftedCallCollection::default();
+    collect_command_words(&tokens.word_exprs, config, Some(surface), 0, &mut out);
+    for call in &mut out.calls {
+        if let Some(nested) = &mut call.tokens {
+            nested.inherit_nested_bindings(tokens);
+        }
+    }
+    out.calls
 }
 
 fn lift(
     tokens: Option<&CommandTokens>,
     config: tcl_lexer::LexerConfig,
     surface: Option<&DocumentCommandSurface<'_>>,
-) -> Vec<LiftedCall> {
-    let mut out = Vec::new();
+) -> LiftedCallCollection {
+    let mut out = LiftedCallCollection::default();
     let Some(tokens) = tokens else {
         return out;
     };
+    if !tokens.evaluates_words() {
+        return out;
+    }
+    let config = tokens.native_lexer_config(config);
     collect_command_words(&tokens.word_exprs, config, surface, 0, &mut out);
+    for lifted in &mut out.calls {
+        if let Some(nested) = &mut lifted.tokens {
+            nested.inherit_nested_bindings(tokens);
+        }
+    }
     out
 }
 
@@ -171,7 +330,7 @@ fn collect_command_words(
     config: tcl_lexer::LexerConfig,
     surface: Option<&DocumentCommandSurface<'_>>,
     depth: u32,
-    out: &mut Vec<LiftedCall>,
+    out: &mut LiftedCallCollection,
 ) {
     for word in words {
         collect_word(word, config, surface, depth, out);
@@ -179,10 +338,8 @@ fn collect_command_words(
     let Some(surface) = surface else {
         return;
     };
-    // No lowering pass resolves a nested substitution, so there is no
-    // `interp alias` canonicalisation available here and the head's spelling
-    // is the registry lookup key. A head that is itself substituted names no
-    // command this walk can ask about.
+    // This lexical traversal asks only for assistance roles. Actual nested
+    // dispatch proofs are attached to the lifted token carriers afterwards.
     let Some(WordExpr::Literal { text: head, .. }) = words.first() else {
         return;
     };
@@ -222,9 +379,9 @@ pub fn lifted_calls_in_text(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
 ) -> Vec<LiftedCall> {
-    let mut out = Vec::new();
+    let mut out = LiftedCallCollection::default();
     collect_surface_text(text, base, config, surface, 0, &mut out);
-    out
+    out.calls
 }
 
 fn collect_surface_text(
@@ -233,12 +390,14 @@ fn collect_surface_text(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
     depth: u32,
-    out: &mut Vec<LiftedCall>,
+    out: &mut LiftedCallCollection,
 ) {
     if depth > MAX_SUBSTITUTION_DEPTH {
+        out.incomplete = true;
         return;
     }
     let Ok(tokens) = tcl_lexer::Lexer::with_config(text, config).tokenise_all() else {
+        out.incomplete = true;
         return;
     };
     let provenance = if base.is_some() {
@@ -294,9 +453,9 @@ pub fn lifted_calls_in_expr(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
 ) -> Vec<LiftedCall> {
-    let mut out = Vec::new();
+    let mut out = LiftedCallCollection::default();
     collect_expr_node(expr, expr_base, config, surface, 0, &mut out);
-    out
+    out.calls
 }
 
 fn collect_expr_node(
@@ -305,11 +464,12 @@ fn collect_expr_node(
     config: tcl_lexer::LexerConfig,
     surface: &DocumentCommandSurface<'_>,
     depth: u32,
-    out: &mut Vec<LiftedCall>,
+    out: &mut LiftedCallCollection,
 ) {
     use crate::expr_ast::ExprNode;
 
     if depth > MAX_SUBSTITUTION_DEPTH {
+        out.incomplete = true;
         return;
     }
     let mut descend = |node| collect_expr_node(node, expr_base, config, surface, depth + 1, out);
@@ -391,9 +551,10 @@ fn collect_word(
     config: tcl_lexer::LexerConfig,
     surface: Option<&DocumentCommandSurface<'_>>,
     depth: u32,
-    out: &mut Vec<LiftedCall>,
+    out: &mut LiftedCallCollection,
 ) {
     if depth > MAX_SUBSTITUTION_DEPTH {
+        out.incomplete = true;
         return;
     }
     match word {
@@ -405,8 +566,17 @@ fn collect_word(
         // parts evaluate left to right.
         WordExpr::Template { parts, .. } => {
             for part in parts {
-                if let WordPart::CommandSubstitution { spelling, source } = part {
-                    push_substitution(spelling, source, config, surface, depth, out);
+                match part {
+                    WordPart::CommandSubstitution { spelling, source } => {
+                        push_substitution(spelling, source, config, surface, depth, out);
+                    }
+                    WordPart::Opaque { .. } => out.incomplete = true,
+                    WordPart::Variable { spelling, .. }
+                        if variable_index_may_run_command(spelling, config) =>
+                    {
+                        out.incomplete = true;
+                    }
+                    _ => {}
                 }
             }
         }
@@ -417,10 +587,26 @@ fn collect_word(
         // knowing that. Whether the command it is an argument *to* re-parses
         // it as an expression is `collect_command_words`' question, not this
         // one. `Literal`, `Variable` and `Opaque` carry no substitution.
-        WordExpr::Literal { .. }
-        | WordExpr::BracedLiteral { .. }
-        | WordExpr::Variable { .. }
-        | WordExpr::Opaque { .. } => {}
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => {}
+        WordExpr::Variable { spelling, .. } => {
+            out.incomplete |= variable_index_may_run_command(spelling, config);
+        }
+        WordExpr::Opaque { .. } => out.incomplete = true,
+    }
+}
+
+// Only an index is substituted. Braced names may contain a literal `[`.
+// Index command traversal is not part of this collector, so retain an opaque
+// effect residual when its original extent could contain a command.
+fn variable_index_may_run_command(spelling: &str, config: tcl_lexer::LexerConfig) -> bool {
+    if !spelling.starts_with('$') {
+        return true;
+    }
+    match tcl_lexer::word_parts::scan_var_ref(spelling.as_bytes(), 0, config) {
+        Ok(Some(reference)) if reference.next == spelling.len() => {
+            reference.index.is_some_and(|index| index.contains(&b'['))
+        }
+        _ => true,
     }
 }
 
@@ -432,14 +618,16 @@ fn push_substitution(
     config: tcl_lexer::LexerConfig,
     surface: Option<&DocumentCommandSurface<'_>>,
     depth: u32,
-    out: &mut Vec<LiftedCall>,
+    out: &mut LiftedCallCollection,
 ) {
     if depth > MAX_SUBSTITUTION_DEPTH {
+        out.incomplete = true;
         return;
     }
     let Some((command, args_with_spans)) =
         crate::value_shapes::parse_command_substitution_with_spans_and_config(spelling, config)
     else {
+        out.incomplete = true;
         return;
     };
     let base = source.span.start();
@@ -454,6 +642,7 @@ fn push_substitution(
     // — `[list "[a]"]` and `[list b[c]d]` run one, `[list {[a]}]` does not —
     // and no test over the flat argument text can tell those apart.
     let nested = nested_command_words(spelling, source, config).ok();
+    out.incomplete |= nested.is_none();
     if let Some(tokens) = nested.as_ref() {
         collect_command_words(&tokens.word_exprs, config, surface, depth + 1, out);
     }
@@ -474,8 +663,9 @@ fn push_substitution(
         args.push(text.clone());
         arg_spans.push(Span::new(base + rel.start(), base + rel.end()));
     }
-    out.push(LiftedCall {
+    out.calls.push(LiftedCall {
         command,
+        tokens: nested,
         args,
         arg_spans,
         arg_words,
@@ -589,6 +779,184 @@ pub fn whole_word_command_tokens(
     }
 }
 
+/// A proved nested native expression with its verbatim source anchor.
+#[derive(Debug, Clone)]
+pub struct LiftedSourceExpression {
+    /// Parsed expression selected by the shared invocation owner.
+    pub expression: crate::expr_ast::ExprNode,
+    /// Extent of the enclosing substitution, for diagnostics.
+    pub span: Span,
+    /// First byte of the original expression text; transformed text has no anchor.
+    pub expression_base: Option<u32>,
+    /// Exact concatenated expression bytes and piecewise original read sites.
+    pub executed_source: Option<crate::command_binding::ExecutedExpressionSource>,
+}
+
+/// Select an expression from proved invocation facts, retaining its exact
+/// argument source. Dynamic concatenation cannot be projected into authored
+/// expression offsets and yields no positioned expression proof.
+#[must_use]
+pub(crate) fn source_expression_from_invocation(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    profile: Option<&tcl_dialect::DialectProfile>,
+    span: Span,
+    parent: Option<crate::command_binding::CommandAllocationSite>,
+) -> Option<LiftedSourceExpression> {
+    if invocation.facts.operation
+        != tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Expr,
+        )
+    {
+        return None;
+    }
+    if let Some(parent) = parent {
+        let values = (0..invocation.arguments.len())
+            .map(|index| invocation.argument_literal(index))
+            .collect::<Option<Vec<_>>>()?;
+        let executed_source = crate::command_binding::ExecutedExpressionSource::from_arguments(
+            parent,
+            invocation.effective.words.get(1..)?,
+            &values,
+            invocation.dialect?,
+        )?;
+        return Some(LiftedSourceExpression {
+            expression: tcl_syntax::expr::parser::parse_expr_for_profile(
+                &executed_source.text,
+                profile,
+            ),
+            span,
+            expression_base: None,
+            executed_source: Some(executed_source),
+        });
+    }
+    if invocation.arguments.len() != 1 {
+        return None;
+    }
+    let word = invocation.effective.words.get(1)?;
+    let (WordExpr::BracedLiteral { text, .. } | WordExpr::Literal { text, .. }) = word else {
+        return None;
+    };
+    if invocation.argument_literal(0)?.as_str() != text {
+        return None;
+    }
+    Some(LiftedSourceExpression {
+        expression: tcl_syntax::expr::parser::parse_expr_for_profile(text, profile),
+        span,
+        expression_base: None,
+        executed_source: None,
+    })
+}
+
+/// Positioned operand projection for a reached normal representation contract.
+#[must_use]
+pub(crate) fn source_expression_from_representation(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+    profile: Option<&tcl_dialect::DialectProfile>,
+    span: Span,
+    parent: Option<crate::command_binding::CommandAllocationSite>,
+) -> Option<LiftedSourceExpression> {
+    invocation.source_expression(profile, span, parent)
+}
+
+/// Select the actual expression handler at this command, independently of opcodes.
+pub(crate) fn representation_expression_at(
+    tokens: &CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    span: Span,
+) -> Option<LiftedSourceExpression> {
+    let invocation =
+        crate::registry_invocation::normal_representation_invocation(registry, None, tokens)?;
+    source_expression_from_representation(
+        &invocation,
+        registry.profile(),
+        span,
+        expression_parent(tokens),
+    )
+}
+
+fn expression_parent(
+    tokens: &CommandTokens,
+) -> Option<crate::command_binding::CommandAllocationSite> {
+    Some(crate::command_binding::CommandAllocationSite {
+        source: std::sync::Arc::clone(tokens.source_binding.as_ref()?.source_origin()?),
+        offset: tokens.argv.first()?.start(),
+    })
+}
+
+/// Nested native expressions selected through actual retained dispatch proofs.
+/// Source anchors belong to their effective argument words, including aliases;
+/// unresolved commands and computed expression text provide no guessed proof.
+#[must_use]
+pub fn lifted_source_expressions(
+    tokens: Option<&CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<LiftedSourceExpression> {
+    selected_lifted_expressions(tokens, registry, ExpressionReadPurpose::Executable)
+}
+
+/// Normal operand-conversion reads of nested expressions, without an opcode
+/// or folding licence. The reached-handler carrier retains exact read sites.
+#[must_use]
+pub(crate) fn lifted_representation_expressions(
+    tokens: Option<&CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Vec<LiftedSourceExpression> {
+    selected_lifted_expressions(
+        tokens,
+        registry,
+        ExpressionReadPurpose::NormalRepresentation,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ExpressionReadPurpose {
+    Executable,
+    NormalRepresentation,
+}
+
+fn selected_lifted_expressions(
+    tokens: Option<&CommandTokens>,
+    registry: &tcl_registry::CommandRegistry,
+    purpose: ExpressionReadPurpose,
+) -> Vec<LiftedSourceExpression> {
+    let context = registry
+        .profile()
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    lifted_calls(
+        tokens,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )
+    .into_iter()
+    .filter_map(|lifted| {
+        let tokens = lifted.tokens.as_ref()?;
+        match purpose {
+            ExpressionReadPurpose::Executable => {
+                let invocation = crate::registry_invocation::resolved_tokens_invocation(
+                    registry, context, tokens,
+                )?;
+                source_expression_from_invocation(
+                    &invocation,
+                    registry.profile(),
+                    lifted.span,
+                    expression_parent(tokens),
+                )
+            }
+            ExpressionReadPurpose::NormalRepresentation => {
+                let invocation = crate::registry_invocation::normal_representation_invocation(
+                    registry, context, tokens,
+                )?;
+                source_expression_from_representation(
+                    &invocation,
+                    registry.profile(),
+                    lifted.span,
+                    expression_parent(tokens),
+                )
+            }
+        }
+    })
+    .collect()
+}
+
 /// Every nested `[expr …]` in `tokens`' words, parsed, with the absolute span
 /// of the substitution it came from.
 ///
@@ -629,6 +997,179 @@ mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
     use crate::ir::Statement;
+
+    fn entered_operand_tokens(
+        source: &str,
+        command_index: usize,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> (
+        CommandTokens,
+        tcl_registry::CommandRegistry,
+        tcl_lexer::LexerConfig,
+    ) {
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar);
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            source,
+            config,
+            &registry,
+            crate::command_binding::SourceAnalysisOptions {
+                invocation_dialect: Some(dialect),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..crate::command_binding::SourceAnalysisOptions::default()
+            },
+        );
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &commands[command_index],
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        (tokens, registry, config)
+    }
+
+    #[test]
+    fn entered_expression_operand_survives_absent_parent_dispatch() {
+        let source = "return [expr {1 / 0}]";
+        let actual = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_6),
+        );
+        let (tokens, registry, config) = entered_operand_tokens(source, 0, actual);
+        assert_ne!(
+            tokens
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .runtime_reachability(),
+            crate::command_binding::SourceRuntimeReachability::Reached
+        );
+        let evaluations = entered_expression_evaluations(Some(&tokens), config, &registry);
+        assert_eq!(evaluations.len(), 1);
+        let evaluation = &evaluations[0];
+        assert_eq!(
+            &source[evaluation.expression_base as usize..evaluation.expression_base as usize + 5],
+            "1 / 0"
+        );
+        assert_eq!(&source[evaluation.span.as_range()], "expr {1 / 0}");
+        assert_eq!(evaluation.numbers, actual.numbers);
+    }
+
+    #[test]
+    fn entered_expression_operands_decline_unreached_and_replaced_evaluators() {
+        let actual = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_6),
+        );
+        for (source, command) in [
+            ("error STOP; return [expr {1 / 0}]", 1),
+            ("return [error STOP] [expr {1 / 0}]", 0),
+            (
+                "rename expr saved; proc expr args {return CUSTOM}; return [expr {1 / 0}]",
+                2,
+            ),
+            ("return {[expr {1 / 0}]}", 0),
+        ] {
+            let (tokens, registry, config) = entered_operand_tokens(source, command, actual);
+            assert!(
+                entered_expression_evaluations(Some(&tokens), config, &registry).is_empty(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn entered_expression_operands_retain_actual_grammar_and_original_bytes() {
+        let actual = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::for_tcl_version(tcl_dialect::TclVersion::V8_4),
+        );
+        let (tokens, registry, config) =
+            entered_operand_tokens("return [expr {1 / 0o0}]", 0, actual);
+        let evaluations = entered_expression_evaluations(
+            Some(&tokens),
+            tcl_lexer::LexerConfig::for_dialect("tcl9.1"),
+            &registry,
+        );
+        assert_eq!(evaluations.len(), 1);
+        assert_eq!(evaluations[0].numbers, tcl_dialect::NumberSyntax::Tcl84);
+        assert!(matches!(
+            evaluations[0].expression,
+            crate::expr_ast::ExprNode::Raw { .. }
+        ));
+
+        let (tokens, registry, _) = entered_operand_tokens("return [expr {1 / 0}]", 0, actual);
+        let mut child = lifted_calls(Some(&tokens), config)
+            .pop()
+            .unwrap()
+            .tokens
+            .unwrap();
+        let WordExpr::BracedLiteral { text, .. } = &mut child.word_exprs[1] else {
+            panic!("original expression word");
+        };
+        *text = "5 / 0".into();
+        assert!(entered_expression_evaluation(&child, &registry).is_none());
+    }
+
+    #[test]
+    fn actual_entry_grammar_precedes_assistance_during_lowering_and_nested_lifting() {
+        let registry = registry();
+        let assistance = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let jim = tcl_registry::InvocationDialect::of_point(
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+        );
+        let mut lowerer = crate::lowering::Lowerer::with_config(&registry, assistance);
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            invocation_dialect: Some(jim),
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        });
+        let module = lowerer.lower("puts $café [puts $café]");
+        assert_eq!(
+            module.native_lexer_config(),
+            assistance.with_grammar(jim.lexer_grammar)
+        );
+        let tokens = module.top_level.statements[0]
+            .tokens()
+            .expect("original words");
+        assert_eq!(
+            tokens.words()[1]
+                .sole_variable_substitution()
+                .map(|(text, _)| text),
+            Some("$café")
+        );
+        let lifted = super::lifted_calls(Some(tokens), assistance);
+        assert_eq!(lifted.len(), 1);
+        assert_eq!(
+            lifted[0].arg_words[0]
+                .sole_variable_substitution()
+                .map(|(text, _)| text),
+            Some("$café")
+        );
+        let nested = lifted[0].tokens.as_ref().expect("nested source carrier");
+        assert_eq!(
+            nested.native_lexer_config(assistance),
+            assistance.with_grammar(jim.lexer_grammar)
+        );
+    }
+
+    #[test]
+    fn unknown_execution_dialect_keeps_the_supplied_lexical_policy() {
+        let registry = registry();
+        let config = tcl_lexer::LexerConfig::for_dialect("jim");
+        let mut lowerer = crate::lowering::Lowerer::with_config(&registry, config);
+        lowerer
+            .set_source_analysis_options(crate::command_binding::SourceAnalysisOptions::default());
+        let module = lowerer.lower("puts $café");
+        assert_eq!(module.native_lexer_config(), config);
+        let tokens = module.top_level.statements[0]
+            .tokens()
+            .expect("original words");
+        assert_eq!(tokens.native_lexer_config(config), config);
+        assert_eq!(
+            tokens.words()[1]
+                .sole_variable_substitution()
+                .map(|(text, _)| text),
+            Some("$café")
+        );
+    }
 
     fn registry() -> tcl_registry::CommandRegistry {
         tcl_registry::CommandRegistry::build_default()
@@ -677,18 +1218,28 @@ mod tests {
             vec![("lindex".to_owned(), vec!["$x".to_owned(), "0".to_owned()])],
             "a quoted `[…]` runs too"
         );
-        assert!(
-            lift("puts {[lindex $x 0]}").is_empty(),
+        assert_eq!(
+            lift("puts {[lindex $x 0]}").len(),
+            0,
             "a braced `[…]` is literal text, never run"
         );
     }
 
     /// Lift with a registry, so brace-quoted expression words are descended.
     fn lift_with_registry(body: &str) -> Vec<(String, Vec<String>)> {
-        let reg = registry();
-        let surface = tcl_registry::model::DocumentCommandSurface::new(&reg, None);
+        let reg = registry().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile(),
+        );
+        lift_with_selected_registry(body, &reg)
+    }
+
+    fn lift_with_selected_registry(
+        body: &str,
+        reg: &tcl_registry::CommandRegistry,
+    ) -> Vec<(String, Vec<String>)> {
+        let surface = tcl_registry::model::DocumentCommandSurface::new(reg, None);
         let src = format!("proc f {{x}} {{\n {body}\n}}");
-        let cu = CompilationUnit::build_for(&src, &reg, false);
+        let cu = CompilationUnit::build_for(&src, reg, false);
         let fu = cu.function("::f").expect("proc lowered");
         let config = tcl_lexer::LexerConfig::for_profile(reg.profile());
         let mut out = Vec::new();
@@ -751,12 +1302,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn jim_does_not_evaluate_a_rejected_variadic_expression_word() {
+        let reg = registry().project_for_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        assert_eq!(
+            lift_with_selected_registry("puts [expr 1 + {[incr x]}]", &reg),
+            vec![(
+                "expr".to_owned(),
+                vec!["1".to_owned(), "+".to_owned(), "{[incr x]}".to_owned()],
+            )],
+        );
+    }
+
     /// The descent is the registry's rule and not the brace: a braced word a
     /// command does *not* evaluate as an expression is still literal text.
     #[test]
     fn a_braced_word_that_is_not_an_expression_stays_literal() {
-        assert!(
-            lift_with_registry("puts {[lindex $x 0]}").is_empty(),
+        assert_eq!(
+            lift_with_registry("puts {[lindex $x 0]}").len(),
+            0,
             "`puts` reads its word as a value, so the `[…]` never runs"
         );
         assert!(
@@ -913,8 +1479,14 @@ mod tests {
     /// A word with nothing to run costs nothing.
     #[test]
     fn words_without_substitutions_lift_nothing() {
-        assert!(lift("puts $x").is_empty());
-        assert!(lift("puts plain").is_empty());
+        assert_eq!(
+            lift("puts $x"),
+            [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
+        );
+        assert_eq!(
+            lift("puts plain"),
+            [] as [(std::string::String, std::vec::Vec<std::string::String>); 0]
+        );
     }
 
     /// A substitution nested in a *quoted* word of another substitution still

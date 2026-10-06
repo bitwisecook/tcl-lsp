@@ -1,0 +1,14 @@
+case=0 input=41 units=41:1 encoded=41 boundaries=0
+case=1 input=00 units=0:1 encoded=c080 boundaries=0
+case=2 input=8078 units=80:1,78:1 encoded=c28078 boundaries=0,1
+case=3 input=9f78 units=9f:1,78:1 encoded=c29f78 boundaries=0,1
+case=4 input=c080 units=0:2 encoded=c080 boundaries=0,0
+case=5 input=c081 units=c0:1,81:1 encoded=c380c281 boundaries=0,1
+case=6 input=c1bf units=c1:1,bf:1 encoded=c381c2bf boundaries=0,1
+case=7 input=e08080 units=e0:1,80:1,80:1 encoded=c3a0c280c280 boundaries=0,1,2
+case=8 input=eda080 units=d800:3 encoded=eda080 boundaries=0,0,0
+case=9 input=f09f9880 units=d83d:1,de00:3 encoded=eda0bdedb880 boundaries=0,1,2,3
+case=10 input=f48fbfbf units=dbff:1,dfff:3 encoded=edafbfedbfbf boundaries=0,1,2,3
+case=11 input=f4908080 units=f4:1,90:1,80:1,80:1 encoded=c3b4c290c280c280 boundaries=0,1,2,3
+case=12 input=e282 units=e2:1,82:1 encoded=c3a2c282 boundaries=0,0
+case=13 input=418080 units=41:1,80:1,80:1 encoded=41c280c280 boundaries=0,1,2

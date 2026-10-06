@@ -1,0 +1,27 @@
+CASE	0	0	0	int,0,1
+L	0	0	int,1,2,31
+L	0	1	int,1,2,32
+CASE	1	0	0	int,0,1
+L	1	0	int,1,2,31
+L	1	1	int,1,2,32
+CASE	2	0	0	int,0,1
+L	2	0	int,1,2,30783130
+L	2	1	int,1,2,303130
+CASE	3	0	0	int,0,1
+L	3	0	boolean,1,2,66616c7365
+L	3	1	int,1,2,30
+L	3	2	int,1,2,31
+L	3	3	int,1,2,32
+CASE	4	0	0	int,0,1
+L	4	0	int,1,2,31
+L	4	1	int,1,2,32
+L	4	2	int,1,2,30
+CASE	5	0	1	string,1,1,646976696465206279207a65726f
+L	5	0	int,1,2,31
+L	5	1	int,1,2,30
+L	5	2	int,1,2,32
+CASE	6	0	0	int,0,1
+L	6	0	int,1,2,34
+CASE	7	0	0	string,1,1,646976696465206279207a65726f
+L	7	0	int,1,2,31
+L	7	1	int,1,2,30

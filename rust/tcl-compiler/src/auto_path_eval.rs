@@ -155,10 +155,10 @@ pub fn evaluate_auto_path_entry(
 /// `set libDir [file join $dir lib]; lappend auto_path $libDir` — the shape
 /// a package uses to register its own `lib` directory.
 #[must_use]
-pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
+pub fn evaluate_auto_path_entry_with_constants<C: PathConstantLookup + ?Sized>(
     entry: &AutoPathEntry,
     info_script: Option<&str>,
-    constants: &HashMap<String, String, S>,
+    constants: &C,
     profile: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<String> {
     let raw = entry.raw_path.as_str();
@@ -230,9 +230,11 @@ pub fn carries_substitution(text: &str) -> bool {
     text.contains('$') || text.contains('[')
 }
 
-/// [`evaluate_auto_path_expr_with_resolver`] over a plain constant map — the
-/// convenience form for callers whose variable facts are already a
-/// `name → value` table, such as [`constant_path_vars`]'s.  Qualified
+/// [`evaluate_auto_path_expr_with_resolver`] over a retained constant view — the
+/// convenience form for callers whose variable facts are already folded.
+/// A plain `HashMap` is the explicit authored C naming abstraction; live
+/// consumers retain [`FoldedPathConstants`] and select an original site with
+/// [`FoldedPathConstants::at`]. Under the plain-map abstraction, qualified
 /// spellings canonicalise on lookup, so `$::snit::library`, `$snit::library`
 /// (relative, read from the global context), and `$::dir` (a
 /// globally-qualified reference to a top-level global) all reach their key.
@@ -241,14 +243,12 @@ pub fn carries_substitution(text: &str) -> bool {
 /// them exactly as it does on any other unevaluated substitution — passing an
 /// empty map is precisely [`evaluate_auto_path_expr`].
 #[must_use]
-pub fn evaluate_auto_path_expr_with_constants<S: std::hash::BuildHasher>(
+pub fn evaluate_auto_path_expr_with_constants<C: PathConstantLookup + ?Sized>(
     raw: &str,
     info_script: Option<&str>,
-    constants: &HashMap<String, String, S>,
+    constants: &C,
 ) -> Option<String> {
-    evaluate_auto_path_expr_with_resolver(raw, info_script, &|name| {
-        lookup_constant(constants, name)
-    })
+    evaluate_auto_path_expr_with_resolver(raw, info_script, &|name| constants.path_constant(name))
 }
 
 /// The full evaluator: fold `raw` with variable references answered by
@@ -340,125 +340,27 @@ pub fn constant_path_vars(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     info_script: Option<&str>,
-) -> HashMap<String, String> {
+) -> FoldedPathConstants {
     fold_constant_assignments(&constant_path_assignments(source, dialect), info_script)
 }
 
-/// One recorded fact about a path-constant candidate: a write, a
-/// declaration, or a write that cannot be attributed.
-///
-/// Three kinds because the corpus needs all three distinguished:
-/// ruff's `variable ruff_dir` **declaration** followed by an
-/// unconditional `set` must fold (so a declaration cannot count as a write),
-/// Tk's declaration plus *if-guarded* set must abstain (so a declaration
-/// must still mark namespace membership, blocking a bare read from falling
-/// through to an unrelated global), and a `set` in a namespace body whose
-/// target Tcl itself resolves dynamically must kill both candidate names
-/// (so "unattributable" must be expressible, not just "absent").
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PathConstantWrite {
-    /// Canonical variable name: `::`-rooted when namespace-qualified
-    /// (`::snit::library`), bare for a global (`dir`).
-    pub name: String,
-    /// The **execution** namespace the write ran in (canonical, empty for
-    /// the top level) — where a bare variable read in the value resolves,
-    /// which is *not* always the target's own namespace: alited's
-    /// `set ::e_menu_dir [file join $LIBDIR e_menu]` targets the global but
-    /// executes inside `namespace eval alited`, so `$LIBDIR` reads
-    /// `::alited::LIBDIR`.
-    pub ns: String,
-    /// Byte offset of the writing command in its document.  Cross-file
-    /// import is position-gated on it: a parent's write flows
-    /// to a sourced child only when it precedes the `source` statement, so
-    /// an assignment *after* the source contributes nothing to it.
-    pub at: u32,
-    /// What this fact says about the name.
-    pub value: PathConstantValue,
-}
-
-/// The payload of one [`PathConstantWrite`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PathConstantValue {
-    /// An assignment, with its raw (unfolded) value word.  `literal` is true
-    /// for a braced value: Tcl suppresses substitution inside braces, so
-    /// `set dir {$root}` assigns the five characters `$root`, and the fold
-    /// must keep the text as data rather than resolving it as a reference.
-    Raw {
-        /// The value word's text, delimiters stripped.
-        text: String,
-        /// Whether the word was braced — substitution-suppressed.
-        literal: bool,
-    },
-    /// A `variable name` declaration without a value — namespace membership
-    /// only.  Assigns nothing and does not count toward multi-write
-    /// poisoning, but a bare read of the name inside that namespace's body
-    /// resolves against it (and only it), never the global.
-    Declared,
-    /// A write whose target or value cannot be attributed statically.  The
-    /// name never folds, and unlike mere absence it also cannot be answered
-    /// by a fallback.
-    Poisoned,
-}
-
-/// The **raw** facts of [`constant_path_vars`]: every path-constant write the
-/// document's load-time surface performs, in document order, values unfolded.
-/// Multi-write poisoning happens at fold time
-/// ([`fold_constant_assignments`]), not here, so the raw list can be
-/// accumulated chunk by chunk without any chunk needing the whole document's
-/// write counts.
-///
-/// Split out from the fold so the fact can be *recorded* where only the text
-/// is known and *folded* where the document's own filesystem path is (the
-/// analyser stores this on `AnalysisResult`, the workspace index carries it,
-/// and the source-graph edge resolver folds it lazily per parent).  The raw
-/// form is deliberately path-independent: the same text yields the same
-/// facts wherever the file lives, which is what makes it safe to cache
-/// alongside the rest of the analysis.
-#[must_use]
-pub fn constant_path_assignments(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<PathConstantWrite> {
-    constant_path_assignments_from_commands(
-        &segment_commands_with_offset_and_config(
-            source,
-            0,
-            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-        ),
-        dialect,
-    )
-}
-
-/// [`constant_path_assignments`] over already-segmented commands — the form
-/// the analyser's walk uses, which has the segmentation in hand and must not
-/// pay for a second one.  `dialect` configures the re-segmentation of
-/// `namespace eval` bodies, which are one braced word here.
-#[must_use]
-pub fn constant_path_assignments_from_commands(
-    commands: &[crate::segmenter::SegmentedCommand],
-    dialect: &'static tcl_dialect::DialectProfile,
-) -> Vec<PathConstantWrite> {
-    let mut out: Vec<PathConstantWrite> = Vec::new();
-    collect_writes(commands, dialect, "", 0, &mut out);
-    out
-}
+mod path_constants;
+pub use path_constants::{
+    FoldedPathConstants, PathConstantAssignments, PathConstantImports, PathConstantLookup,
+    PathConstantValue, PathConstantView, PathConstantWrite, constant_path_assignments,
+    constant_path_assignments_from_commands, constant_path_assignments_in_namespace,
+    constant_path_assignments_with_naming_policy, fold_constant_assignments,
+    fold_constant_assignments_with_imports,
+};
 
 /// A plain scalar variable word: no substitution markers, no array element.
 fn is_plain_scalar_name(name: &str) -> bool {
     !name.is_empty() && !name.contains('$') && !name.contains('[') && !name.contains('(')
 }
 
-/// Canonical `::`-rooted form of a qualified name: split on `::`, drop empty
-/// segments (absorbing leading `::` and trailing-colon spellings like
-/// `::snit::`), re-root.  `canon("snit::")` and `canon("::snit")` are both
-/// `::snit`.
+/// Root a written namespace spelling through the shared colon-run owner.
 fn canon(name: &str) -> String {
-    let mut out = String::new();
-    for segment in name.split("::").filter(|s| !s.is_empty()) {
-        out.push_str("::");
-        out.push_str(segment);
-    }
-    out
+    crate::naming::normalise_qualified_name(name)
 }
 
 /// The canonical key for `name` written or declared under `ns_prefix`
@@ -470,101 +372,7 @@ fn qualified_key(ns_prefix: &str, name: &str) -> String {
     if ns_prefix.is_empty() && !name.contains("::") {
         return name.to_owned();
     }
-    canon(&format!("{ns_prefix}::{name}"))
-}
-
-/// Walk one command stream under `ns_prefix`, appending facts to `out`.
-///
-/// The walk descends into `namespace eval NAME { … }` when NAME is a literal
-/// and the body is one braced word — the body runs unconditionally at load
-/// time, exactly like the commands around it, so its `variable` and `set`
-/// commands are load-time facts too (the corpus idiom: snit's, ruff's,
-/// alited's library directories all live in such a body).  A dynamic
-/// namespace name or a substituted body stays invisible, the same accepted
-/// blindness as an `if` body.
-///
-/// Write attribution inside a namespace body follows Tcl's own resolution:
-///
-/// * `variable` creates/writes in the **current** namespace, full stop —
-///   value'd pairs are [`PathConstantValue::Raw`] writes, a trailing lone
-///   name is a [`PathConstantValue::Declared`] membership fact.
-/// * `set name` resolves current-namespace-first, falling back to an
-///   **existing** global (the classic namespace-eval write trap).  It is
-///   attributed to the namespace when the body has already declared or
-///   written the name, to the global when the top level has already written
-///   it, and otherwise it is unattributable — Tcl's answer would depend on
-///   whether some *other* file created the global first — so both candidate
-///   names are [`PathConstantValue::Poisoned`].
-/// * `set ::abs::name` is absolute and attributes exactly; a *relative*
-///   qualified `set a::b` resolves current-first-then-global like any bare
-///   name, so both candidates poison.
-fn collect_writes(
-    commands: &[crate::segmenter::SegmentedCommand],
-    dialect: &'static tcl_dialect::DialectProfile,
-    ns_prefix: &str,
-    base_offset: u32,
-    out: &mut Vec<PathConstantWrite>,
-) {
-    let generation = crate::environment_ingress::context_for_profile(dialect);
-    let registry = generation.commands();
-    for seg in commands {
-        let words = &seg.texts;
-        if words.is_empty() {
-            continue;
-        }
-        let head = words[0].strip_prefix("::").unwrap_or(&words[0]);
-        // A computed head has no spec to read, so nothing about it is known —
-        // the same residual `poison_mutated_variables` documents.
-        if head.contains('$') || head.contains('[') {
-            continue;
-        }
-        let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
-        if let Some(body_index) = namespace_body_index(registry, head, &args) {
-            let ctx = NamespaceDescent {
-                registry,
-                head,
-                dialect,
-                ns_prefix,
-                base_offset,
-            };
-            descend_namespace_body(&ctx, seg, &args, body_index, out);
-            continue;
-        }
-        let pairs = assigned_name_value_indices(registry, head, &args);
-        if pairs.is_empty() {
-            poison_mutated_variables(seg, dialect, ns_prefix, base_offset, out);
-            continue;
-        }
-        // A declaring writer (`variable`) binds in the *current* namespace with
-        // no global fallback; a plain assigning writer (`set`, `const`) follows
-        // Tcl's current-then-global resolution.  Which one this is comes from
-        // the spec's own `CREATES_SCOPE_ALIAS`, not from the command's name.
-        let declares = registry.get(head).is_some_and(|spec| {
-            spec.traits
-                .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
-        });
-        for (name_index, value_index) in pairs {
-            let Some(name) = args.get(name_index) else {
-                break;
-            };
-            if !is_plain_scalar_name(name) {
-                break;
-            }
-            // Argument indices exclude the command word; `seg.texts` includes
-            // it, so a word index is one past its argument index.
-            let value_word = value_index.filter(|i| *i < args.len()).map(|i| i + 1);
-            if declares {
-                out.push(PathConstantWrite {
-                    name: qualified_key(ns_prefix, name),
-                    ns: ns_prefix.to_owned(),
-                    at: base_offset + seg.span.start(),
-                    value: value_word.map_or(PathConstantValue::Declared, |w| raw_value(seg, w)),
-                });
-            } else if let Some(word) = value_word {
-                collect_set_write(seg, name, word, ns_prefix, base_offset, out);
-            }
-        }
-    }
+    crate::naming::qualify(ns_prefix, name)
 }
 
 /// The `PathConstantValue::Raw` for the word at `word_index` (an index into
@@ -620,80 +428,6 @@ fn namespace_body_index(
     (*body_index + 1 == args.len()).then_some(*body_index)
 }
 
-/// The walk context a `namespace eval` descent needs: where it is, what
-/// dialect the body re-segments under, and which registry answers the
-/// argument roles.
-#[derive(Clone, Copy)]
-struct NamespaceDescent<'a> {
-    registry: &'a tcl_registry::CommandRegistry,
-    head: &'a str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    ns_prefix: &'a str,
-    base_offset: u32,
-}
-
-/// Re-segment a `namespace eval NAME { … }` body and collect its writes under
-/// the child namespace.
-///
-/// The body runs unconditionally at load time, exactly like the commands
-/// around it.  A dynamic namespace name or a substituted body stays invisible,
-/// the same accepted blindness as an `if` body.
-fn descend_namespace_body(
-    ctx: &NamespaceDescent<'_>,
-    seg: &crate::segmenter::SegmentedCommand,
-    args: &[&str],
-    body_index: usize,
-    out: &mut Vec<PathConstantWrite>,
-) {
-    let NamespaceDescent {
-        registry,
-        head,
-        dialect,
-        ns_prefix,
-        base_offset,
-    } = *ctx;
-    let names = registry.arg_indices_for_role(head, args, tcl_registry::ArgRole::NamespaceName);
-    let Some(&name_index) = names.first() else {
-        return;
-    };
-    let Some(name) = args.get(name_index) else {
-        return;
-    };
-    if !is_plain_scalar_name(name) {
-        return;
-    }
-    // Literal name + braced body only: braces mean the body text reached us
-    // unsubstituted, so re-segmenting it walks the commands Tcl would run.
-    let body_word = body_index + 1;
-    let body_is_braced = seg
-        .argv
-        .get(body_word)
-        .is_some_and(|tok| tok.kind == tcl_lexer::TokenType::Str)
-        && seg.single_token_word.get(body_word) == Some(&true);
-    if !body_is_braced {
-        return;
-    }
-    // Always `::`-rooted, unlike a variable key (whose bare global spelling
-    // `qualified_key` preserves): this is a namespace name, and `::alited` is
-    // its only canonical form.
-    let child_prefix = if name.starts_with("::") {
-        canon(name)
-    } else {
-        canon(&format!("{ns_prefix}::{name}"))
-    };
-    let body_base = base_offset
-        + seg
-            .argv
-            .get(body_word)
-            .map_or(0, |tok| tok.span.start() + u32::from(tok.content_offset));
-    let body_commands = segment_commands_with_offset_and_config(
-        &seg.texts[body_word],
-        0,
-        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
-    );
-    collect_writes(&body_commands, dialect, &child_prefix, body_base, out);
-}
-
 /// The `(name index, value index)` argument pairs a load-time command
 /// *assigns* — the registry's answer, rather than recognising `set` and
 /// `variable` by name.
@@ -714,7 +448,7 @@ fn descend_namespace_body(
 /// `lappend` do not assign the word after the name), and whole-array writers
 /// by [`tcl_registry::Traits::WHOLE_ARRAY_ARG`] (`$name` is not the value of
 /// an `array set`).  Everything else falls through to
-/// [`poison_mutated_variables`], which is the safe direction.
+/// the selected mutation inventory, which is the safe direction.
 fn assigned_name_value_indices(
     registry: &tcl_registry::CommandRegistry,
     head: &str,
@@ -745,290 +479,6 @@ fn assigned_name_value_indices(
         return vec![(base, Some(base + 1))];
     }
     Vec::new()
-}
-
-/// Record one `set NAME VALUE` write, attributing it the way Tcl resolves
-/// the target: absolute names bind exactly, a bare name inside a namespace
-/// body resolves current-namespace-first **with a global fallback**, and a
-/// relative-qualified name has the same ambiguity.  Where the answer depends
-/// on state this tier cannot see, both candidate names are poisoned rather
-/// than one guessed — see [`collect_writes`] for the whole rule set.
-fn collect_set_write(
-    seg: &crate::segmenter::SegmentedCommand,
-    name: &str,
-    value_word: usize,
-    ns_prefix: &str,
-    base_offset: u32,
-    out: &mut Vec<PathConstantWrite>,
-) {
-    let seen = |out: &Vec<PathConstantWrite>, key: &str| out.iter().any(|w| w.name == key);
-    let at = base_offset + seg.span.start();
-    let push = move |out: &mut Vec<PathConstantWrite>, key: String, value| {
-        out.push(PathConstantWrite {
-            name: key,
-            ns: ns_prefix.to_owned(),
-            at,
-            value,
-        });
-    };
-    let raw = raw_value(seg, value_word);
-    if name.starts_with("::") {
-        push(out, canon(name), raw);
-    } else if name.contains("::") {
-        // Relative-qualified: current-ns-first, global fallback —
-        // unattributable, kill both candidates.
-        for key in [qualified_key(ns_prefix, name), canon(&format!("::{name}"))] {
-            push(out, key, PathConstantValue::Poisoned);
-        }
-    } else if ns_prefix.is_empty() {
-        push(out, name.to_owned(), raw);
-    } else {
-        let ns_key = qualified_key(ns_prefix, name);
-        if seen(out, &ns_key) {
-            push(out, ns_key, raw);
-        } else if seen(out, name) {
-            // The top level already wrote this global, so the body `set`
-            // writes it too (it exists).
-            push(out, name.to_owned(), raw);
-        } else {
-            for key in [ns_key, name.to_owned()] {
-                push(out, key, PathConstantValue::Poisoned);
-            }
-        }
-    }
-}
-
-/// Poison every path-constant candidate a load-time command **mutates**.
-///
-/// `set dir /a; append dir /b; source [file join $dir x.tcl]` loads
-/// `/a/b/x.tcl`, so `$dir` must fold to nothing rather than to the `set`'s
-/// value.  Which arguments a command writes is registry
-/// data ([`tcl_registry::ArgRole::VarWrite`]) rather than a command-name
-/// match (AGENTS.md), so every read-modify-write — `append`, `lappend`,
-/// `incr`, `dict set`, a user command whose spec says so — counts without
-/// being listed here.  An alias-creating command (`upvar`, `global`, marked
-/// [`tcl_registry::Traits::CREATES_SCOPE_ALIAS`]) binds *every* name it
-/// lists to a variable another scope may write, so each one poisons too.
-///
-/// Residuals, both shared with `unit_scope`'s equivalent write scan: a
-/// computed command head has no spec to read, and a computed target name is
-/// not a plain scalar.  Neither is modelled.
-fn poison_mutated_variables(
-    seg: &crate::segmenter::SegmentedCommand,
-    dialect: &'static tcl_dialect::DialectProfile,
-    ns_prefix: &str,
-    base_offset: u32,
-    out: &mut Vec<PathConstantWrite>,
-) {
-    let words = &seg.texts;
-    let head = words[0].strip_prefix("::").unwrap_or(&words[0]);
-    // A computed head has no spec.  A read (`set var`) needs no name check:
-    // the registry reports no `VarWrite` for it, so nothing is poisoned; an
-    // assignment never reaches here at all.
-    if head.contains('$') || head.contains('[') {
-        return;
-    }
-    let generation = crate::environment_ingress::context_for_profile(dialect);
-    let registry = generation.commands();
-    let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
-    let mut written: Vec<&str> = registry
-        .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)
-        .into_iter()
-        .filter_map(|idx| args.get(idx).copied())
-        .collect();
-    if registry.get(head).is_some_and(|spec| {
-        spec.traits
-            .contains(tcl_registry::Traits::CREATES_SCOPE_ALIAS)
-    }) {
-        written.extend(args.iter().copied());
-    }
-    let at = base_offset + seg.span.start();
-    let poison = |out: &mut Vec<PathConstantWrite>, key: String| {
-        out.push(PathConstantWrite {
-            name: key,
-            ns: ns_prefix.to_owned(),
-            at,
-            value: PathConstantValue::Poisoned,
-        });
-    };
-    for name in written {
-        if !is_plain_scalar_name(name) {
-            continue;
-        }
-        // The `set` arm's target-attribution rules, every outcome poisoned:
-        // the keys must be the keys the fold counts (a bare global's key is
-        // the bare name).
-        if name.starts_with("::") {
-            poison(out, canon(name));
-        } else if name.contains("::") {
-            poison(out, qualified_key(ns_prefix, name));
-            poison(out, canon(&format!("::{name}")));
-        } else if ns_prefix.is_empty() {
-            poison(out, name.to_owned());
-        } else {
-            poison(out, qualified_key(ns_prefix, name));
-            poison(out, name.to_owned());
-        }
-    }
-}
-
-/// Look `name` (as written in an expression) up in the folded constants map,
-/// canonicalising qualified spellings: `$::snit::library`, `$snit::library`
-/// (relative, resolved from the global context), and `$::dir` (a
-/// globally-qualified reference to a top-level global) all reach their key.
-fn lookup_constant<S: std::hash::BuildHasher>(
-    constants: &HashMap<String, String, S>,
-    name: &str,
-) -> Option<String> {
-    if let Some(v) = constants.get(name) {
-        return Some(v.clone());
-    }
-    if name.contains("::") {
-        let rooted = canon(name);
-        if let Some(v) = constants.get(&rooted) {
-            return Some(v.clone());
-        }
-        // `$::dir` names the top-level global `dir`, whose key is bare.
-        if let Some(bare) = rooted.strip_prefix("::")
-            && !bare.contains("::")
-        {
-            return constants.get(bare).cloned();
-        }
-    }
-    None
-}
-
-/// Fold [`constant_path_assignments`]' raw facts into the `name → value` map
-/// [`evaluate_auto_path_expr_with_constants`] consumes.
-///
-/// Chaining: each assignment folds with the constants established before it,
-/// in document order, so a value naming a *later* constant does not fold.
-/// A bare variable read inside a namespaced assignment's value resolves
-/// namespace-first: if the namespace has the name at all (declared, written,
-/// or poisoned), the read is answered from it alone — never the global —
-/// which is Tcl's own read rule and what carries alited's in-body chain
-/// (`variable LIBDIR [file join $DIR lib]` reading the namespace's `DIR`).
-///
-/// Poisoning: a name with more than one [`PathConstantValue::Raw`] write, or
-/// any [`PathConstantValue::Poisoned`] fact, is dropped **outright** —
-/// counted in a pre-pass here rather than as the walk goes.  Last-write-wins
-/// would be wrong for a `source` sitting between the two writes, and
-/// first-write-wins wrong for one after both — so a re-assigned name
-/// contributes nothing, and contributes nothing to anything computed from it
-/// either.  A [`PathConstantValue::Declared`] fact counts toward neither.
-#[must_use]
-pub fn fold_constant_assignments(
-    assignments: &[PathConstantWrite],
-    info_script: Option<&str>,
-) -> HashMap<String, String> {
-    fold_constant_assignments_with_imports(assignments, info_script, &HashMap::new())
-}
-
-/// [`fold_constant_assignments`] with **imported** constants — values a
-/// source-graph ancestor established before this document runs — the shape
-/// where a shared start-up file reads a namespace variable every file that
-/// sources it assigns first.
-///
-/// The returned map is the document's complete view: the imports, overlaid
-/// by the document's own folds.  Ownership rules, each load-bearing:
-///
-/// * A name this document **writes** ([`PathConstantValue::Raw`] or
-///   [`PathConstantValue::Poisoned`]) never answers from the import: a
-///   foldable single write replaces it, and an unfoldable or multiply
-///   written one *removes* it — the runtime overwrote the inherited value
-///   with something unknowable, so keeping the import would answer with a
-///   value the variable no longer has.
-/// * A bare [`PathConstantValue::Declared`] keeps the import: `variable X`
-///   inside the namespace does not unset a variable the ancestor already
-///   set.  (OSVVM's guarded `if {![info exists …]} { variable … }` writes
-///   are invisible to this tier, which is exactly right — under a sourcing
-///   parent the guard is false and the import is the value.)
-/// * Namespace membership for bare in-body reads includes imported names,
-///   so `variable home [file normalize ${OsvvmScriptDirectory}/..]` chains
-///   off the import inside `namespace eval ::osvvm`.
-#[must_use]
-pub fn fold_constant_assignments_with_imports<S: std::hash::BuildHasher>(
-    assignments: &[PathConstantWrite],
-    info_script: Option<&str>,
-    imported: &HashMap<String, String, S>,
-) -> HashMap<String, String> {
-    let mut writes: HashMap<&str, usize> = HashMap::new();
-    let mut known_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for w in assignments {
-        known_names.insert(w.name.as_str());
-        match w.value {
-            PathConstantValue::Raw { .. } => *writes.entry(w.name.as_str()).or_default() += 1,
-            // A poisoned name can never fold, however many raw writes it has.
-            PathConstantValue::Poisoned => *writes.entry(w.name.as_str()).or_default() += 2,
-            PathConstantValue::Declared => {}
-        }
-    }
-    // Own writes shadow the import entirely — see the ownership rules above.
-    let blocked = &writes;
-    let mut constants: HashMap<String, String> = HashMap::new();
-    for w in assignments {
-        let PathConstantValue::Raw { text: raw, literal } = &w.value else {
-            continue;
-        };
-        if writes.get(w.name.as_str()) != Some(&1) {
-            continue;
-        }
-        // Bare reads in the value resolve in the write's **execution**
-        // namespace first (recorded on the fact — not derivable from the
-        // key, whose namespace is the *target*'s).
-        let resolve = |name: &str| -> Option<String> {
-            let one = |key: &str| -> Option<String> {
-                if blocked.contains_key(key) {
-                    // Own-written: the document's fold is the only truth —
-                    // absent/poisoned means abstain, never the import.
-                    constants.get(key).cloned()
-                } else {
-                    imported.get(key).cloned()
-                }
-            };
-            if !name.contains("::") && !w.ns.is_empty() {
-                let ns_key = format!("{}::{name}", w.ns);
-                if known_names.contains(ns_key.as_str()) || imported.contains_key(&ns_key) {
-                    // The namespace has this name: resolve from it alone,
-                    // never the global.
-                    return one(&ns_key);
-                }
-            }
-            if let Some(v) = lookup_constant(&constants, name) {
-                return Some(v);
-            }
-            if name.contains("::") {
-                let rooted = canon(name);
-                if blocked.contains_key(rooted.as_str()) {
-                    return None;
-                }
-                return imported.get(&rooted).cloned();
-            }
-            one(name)
-        };
-        // A literal keeps its own text: a path with spaces (`set d "my dir"`)
-        // is one path value, not the several words the expression parser
-        // would split it into — and a braced value is *always* its own text,
-        // because braces suppressed substitution at assignment time.
-        let value = if !literal && carries_substitution(raw) {
-            evaluate_auto_path_expr_with_resolver(raw, info_script, &resolve)
-        } else {
-            Some(raw.clone())
-        };
-        if let Some(value) = value {
-            constants.insert(w.name.clone(), value);
-        }
-    }
-    if imported.is_empty() {
-        return constants;
-    }
-    let mut merged: HashMap<String, String> = imported
-        .iter()
-        .filter(|(name, _)| !blocked.contains_key(name.as_str()))
-        .map(|(name, value)| (name.clone(), value.clone()))
-        .collect();
-    merged.extend(constants);
-    merged
 }
 
 /// A native filesystem path as Tcl's slash form.
@@ -1462,6 +912,19 @@ fn normpath(p: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn written_inventory_names_preserve_constructed_namespace_segments() {
+        assert_eq!(canon("a:::b"), "::a::b");
+        assert_eq!(qualified_key("::a:::", "b:::c"), "::a:::::b::c");
+        let writes = constant_path_assignments(
+            "namespace eval : {variable dir /one; namespace eval x {variable dir /two}}",
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+        );
+        assert_eq!(writes.len(), 2);
+        assert_eq!(writes[0].name, ":::::dir");
+        assert_eq!(writes[1].name, ":::::x::dir");
+    }
 
     // Absolute `info_script` keeps the fold rooted; a rootless fold result
     // is returned relative (see the module docs), never anchored on the
@@ -2280,7 +1743,10 @@ mod tests {
         );
         // The constant-less form still contributes nothing — the wiring is
         // opt-in per consumer, never a change to the bare entry point.
-        assert!(evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl"), None).is_empty());
+        assert_eq!(
+            evaluate_auto_path_entry(&entry, Some("/proj/SpiceGenTcl.tcl"), None),
+            [] as [std::string::String; 0]
+        );
     }
 
     /// directly.  Pins the *contract between the two*, which is what the
@@ -2500,11 +1966,15 @@ mod tests {
             ),
             vec!["/proj/lib".to_owned()],
         );
-        assert!(
-            fold_all("set auto_path [list /a /b]\n", "/w/user.tcl").is_empty(),
+        assert_eq!(
+            fold_all("set auto_path [list /a /b]\n", "/w/user.tcl").len(),
+            0,
             "`[list …]` is outside the supported subset — abstain, never \
              split its text as if it were a list literal",
         );
-        assert!(fold_all("set auto_path $env(TCLLIBPATH)\n", "/w/user.tcl").is_empty());
+        assert_eq!(
+            fold_all("set auto_path $env(TCLLIBPATH)\n", "/w/user.tcl"),
+            [] as [std::string::String; 0]
+        );
     }
 }

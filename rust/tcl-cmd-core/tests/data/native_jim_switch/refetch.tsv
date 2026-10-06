@@ -1,0 +1,12 @@
+BEFORE	0	2	source	2	source	2	1
+AFTER_SHIMMER	0	string	source	1	source	1
+AFTER_SWITCH	0	0	list	1	source	1	script	1	0
+RESULT	0	MATCH
+BEFORE	1	2	source	2	source	2	1
+AFTER_SHIMMER	1	string	source	1	source	1
+AFTER_SWITCH	1	1	list	1	source	1	source	1	0
+RESULT	1	FAILED
+BEFORE	2	2	source	2	source	2	1
+AFTER_SHIMMER	2	string	source	1	source	1
+AFTER_SWITCH	2	0	list	1	source	1	source	1	0
+RESULT	2	

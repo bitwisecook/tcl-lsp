@@ -52,18 +52,19 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-/// D4-F2: `lassign list ?varName ...?` accepts variable-name args from index 1
-/// onward to the end of the call.  Resolve `VarWrite` dynamically so calls with
-/// arbitrarily many vars don't false-fire W210 on the unmodelled tail.
-fn lassign_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
-    (1..args.len())
-        .filter_map(|i| u8::try_from(i).ok().map(|i| (i, ArgRole::VarWrite)))
-        .collect()
-}
+// Variable names follow the list value at fixed positions, even when that
+// value is dynamic. The shared role owner can resolve this without evaluating it.
+const REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarWrite, 1)];
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::ListAssignment,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListAssign),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::FRAME_HASH_BUILTIN
             | Traits::BYTE_COMPILED
@@ -89,9 +90,9 @@ pub fn spec() -> CommandSpec {
         }),
         codegen_hook: Some(CodegenHookId::Lassign),
         forms: FORMS,
+        world_effects: Some(crate::WorldEffectDescriptor::VARIABLE_WRITE),
         side_effects: SIDE_EFFECTS,
-        arg_role_resolver: Some(lassign_arg_roles),
-        arg_role_resolver_roles: &[ArgRole::VarWrite],
+        repeated_args: REPEATED,
         arg_types: &[(
             0,
             ArgTypeHint {

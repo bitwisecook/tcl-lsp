@@ -79,6 +79,61 @@ pub(super) const FIELD_SCRIPT_TIMING: Example = Example {
 
 /// One entry per field key this half owns, in the order of the field list.
 pub(super) const ENTRIES: &[(&str, Example)] = &[
+    (
+        "native_compilation",
+        Example {
+            code: "proc run {} {set x [proc set {args} {return CUSTOM}]}\nrun",
+            focuses: &[focus(
+                0,
+                "set x",
+                "the compiled native operation is selected before its argument changes the command table",
+            )],
+        },
+    ),
+    (
+        "native_result",
+        Example {
+            code: "set value [list a b]\nset same [set value]",
+            focuses: &[focus(
+                1,
+                "[set value]",
+                "the proved native getter returns the retained value object",
+            )],
+        },
+    ),
+    (
+        "successful_handler",
+        Example {
+            code: "append ::counter x",
+            focuses: &[focus(
+                0,
+                "::counter",
+                "normal transfer targets the proved physical variable after native handler identity converges",
+            )],
+        },
+    ),
+    (
+        "procedure_definition",
+        Example {
+            code: "proc identity {value} {return $value}",
+            focuses: &[focus(
+                0,
+                "{value}",
+                "native installation captures the formal binding grammar and procedure body",
+            )],
+        },
+    ),
+    (
+        "body_execution",
+        Example {
+            code: "catch {set value OK} result",
+            focuses: &[focus(
+                0,
+                "{set value OK}",
+                "the proved native body protocol defines entry and captured completion",
+            )],
+        },
+    ),
     ("traits", FIELD_TRAITS),
     (
         "arg_role_resolver",

@@ -287,7 +287,7 @@ impl PendingInvocationWord {
     fn from_registry(word: InvocationWord<'_>) -> Self {
         match word {
             InvocationWord::Literal(value) => Self::Literal(value.to_owned()),
-            InvocationWord::Dynamic => Self::Dynamic,
+            InvocationWord::Dynamic | InvocationWord::ArrayElementName { .. } => Self::Dynamic,
             InvocationWord::DynamicNonOption => Self::DynamicNonOption,
             InvocationWord::Expanded => Self::Expanded,
             InvocationWord::Opaque => Self::Opaque,

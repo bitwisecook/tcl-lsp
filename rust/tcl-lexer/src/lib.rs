@@ -57,11 +57,16 @@
 
 #![deny(missing_docs)]
 
+mod executable_parts;
 mod expr_lexer;
 #[cfg(feature = "html")]
 mod highlight;
+mod jim_script_tokens;
+mod jim_subst_tokens;
 mod lexer;
 mod line_index;
+mod native_script_words;
+mod native_word;
 pub mod parse_cut;
 mod ranges;
 pub mod script;
@@ -73,8 +78,11 @@ mod tokens;
 pub mod word_parts;
 
 pub use expr_lexer::{
-    ExprToken, ExprTokenType, math_functions as expr_math_functions, tokenise_expr,
-    tokenise_expr_checked, tokenise_expr_checked_for_profile, tokenise_expr_checked_with_grammar,
+    ExprLexicalFailure, ExprLexicalFailureKind, ExprTerm, ExprTermKind, ExprToken, ExprTokenType,
+    expression_term, expression_terms, math_functions as expr_math_functions, tokenise_expr,
+    tokenise_expr_bytes_checked_with_expression_grammar, tokenise_expr_bytes_with_failures,
+    tokenise_expr_checked, tokenise_expr_checked_for_profile,
+    tokenise_expr_checked_with_expression_grammar, tokenise_expr_checked_with_grammar,
     tokenise_expr_for_profile,
 };
 #[cfg(feature = "html")]
@@ -82,25 +90,41 @@ pub use highlight::{
     HlRange, highlight_ranges, highlight_ranges_with_config, highlight_tcl,
     highlight_tcl_with_config,
 };
+pub use jim_script_tokens::{
+    JimScriptLine, JimScriptToken, JimScriptTokenKind, JimScriptTokens, JimScriptTokensUnavailable,
+    jim_script_tokens,
+};
+pub use jim_subst_tokens::{JimSubstTokens, jim_subst_tokens};
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
-pub use parse_cut::{EXTRA_AFTER_CLOSE_QUOTE, ParseCut, first_parse_cut, first_parse_cut_in};
+pub use native_script_words::{
+    NativeScriptCommandWords, NativeScriptWordCut, NativeScriptWordsPlan,
+    NativeScriptWordsUnavailable, native_script_words_in,
+};
+pub use parse_cut::{
+    EXTRA_AFTER_CLOSE_QUOTE, ParseCut, ParseCutUnavailable, first_parse_cut, first_parse_cut_bytes,
+    first_parse_cut_bytes_in, first_parse_cut_image, first_parse_cut_image_checked,
+    first_parse_cut_image_in_checked, first_parse_cut_in,
+};
 pub use ranges::{
     ArrayIndexEnd, ArrayIndexScan, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX,
     MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, command_substitution_end,
     scan_array_index, word_append_offset, word_closer_offset, word_closer_offset_at,
     word_end_position, word_span, word_span_at,
 };
-pub use script::{CommandSpan, WordKind, WordSpan, group_commands};
-pub use source_map::SourceMap;
+pub use script::{CommandSpan, WordKind, WordSpan, group_commands, group_commands_bytes};
+pub use source_map::{SourceChannel, SourceImage, SourceMap};
 pub use span::Span;
 pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
     script_is_complete,
 };
 pub use substitution::{
-    EscapeSegment, backslash_continuation_end, backslash_escape_end, backslash_escape_end_in,
-    backslash_subst, backslash_subst_in, split_backslash_escapes, split_backslash_escapes_in,
+    BackslashFragment, BackslashFragmentValue, EscapeSegment, EscapedInputUnit, EscapedInputValue,
+    backslash_continuation_end, backslash_escape_end, backslash_escape_end_bytes_in,
+    backslash_escape_end_in, backslash_fragment_in, backslash_subst, backslash_subst_bytes_in,
+    backslash_subst_in, encode_jim084_unicode, source_backslash_continuation_end,
+    source_backslash_fragment_in, split_backslash_escapes, split_backslash_escapes_in,
 };
 // Re-exported from the foundational dialect crate so existing
 // `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to
@@ -113,8 +137,10 @@ pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Posit
 // neighbour the same way.  The module itself stays public for the constants
 // and the doc entry point.
 pub use word_parts::{
-    EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET, MISSING_PAREN,
-    MISSING_QUOTE, RawVarRef, SpannedPart, SubstFlags, VarRef, WordBody, WordPart,
+    EXTRA_AFTER_CLOSE_BRACE, ExecutableInput, ExecutablePart, ExecutablePartArena,
+    ExecutablePartsUnavailable, ExecutableText, MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET,
+    MISSING_PAREN, MISSING_QUOTE, NativeWord, NativeWordError, PartListId, RawVarRef,
+    SpannedExecutablePart, SpannedPart, SubstFlags, VarRef, WordBody, WordPart,
     command_subst_close, decompose, decompose_spanned, quoted_word_close, scan_var_ref,
 };
 

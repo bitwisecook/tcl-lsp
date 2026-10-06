@@ -18,14 +18,12 @@ interface. It is part of the spec-pack DSL design
   tcl-vm engine (tcl-engine-tclvm)
 ```
 
-The three interface rules from the spec-pack design hold here by
-construction. The interface stays **common to the backends**: the shim is
-`Interp<E: Engine>` and names no engine. **All C-required mangling lives in
-the shim**: string lifetimes, interp pointers, result codes, variadics, and
-the `int`-versus-`ptrdiff_t` size type are absorbed in `ffi.rs` and the
-header, and the interface gained nothing C-shaped. And the shim is the
-interface's **second consumer, not a bypass**: a C command reaches the engine
-through `Engine::define_command` like an emitter verb does.
+The engine interface carries exact values and guest failures. C ABI sizes,
+reference counts, pointer lifetimes and panic containment remain in the shim.
+Command publication uses an independently owned engine capability: the native
+address is prepared before callbacks and committed through the live registrar.
+The shim cannot derive an interpreter or namespace incarnation from a display
+name or a Unicode conversion.
 
 ## Trust model
 
@@ -37,7 +35,7 @@ because calling it is the act of trusting native code.
 The rest of the model follows from what packs and hooks are:
 
 - **A `.tclspec` cannot reference one.** There is no word in the `SpecTcl`
-  vocabulary for loading native code, and none is planned. A SpecTcl 2.0 pack
+  vocabulary for loading native code. A SpecTcl 2.0 pack
   is a full Tcl script evaluated in the sandboxed `tcl-vm`
   (`tcl-spec-hooks/src/pack_eval.rs`); `load`, `source`, and `exec` are not
   among the commands that sandbox has, so a pack that spells `load` reaches
@@ -86,24 +84,77 @@ a pack facility.
 
 `Tcl_Obj` is `obj::Obj`: a reference count, an optional string
 representation, and an internal representation, exactly as C Tcl's dual-rep
-object. The rule that decides what crosses the interface is one flag:
+object. Data values and original-object callbacks use separate carriers:
 
-| the object was | rep | string | crosses as |
-|---|---|---|---|
-| built by C from a number (`Tcl_NewIntObj`, `Tcl_NewDoubleObj`) | `Int` / `Double` | none, or rendered from the rep | `Value::Int` / `Value::Double` |
-| built by C as a list (`Tcl_NewListObj`, appends) | `List` | none, or rendered | `Value::List`, recursively |
-| born as text and parsed (`Tcl_GetIntFromObj` on `"0x10"`) | `Int` (cached) | authoritative | `Value::Str("0x10")` |
-| born as text, never parsed | none | authoritative | `Value::Str` |
+| Actual storage | Interface carrier |
+|---|---|
+| Native integer, double or list with no resident string | `Value::Int`, `Double` or `List` |
+| Exported full scalar cache, including bignum, word-Boolean or Jim coerced integer | `Value::NativeScalar` |
+| Exported native typed payload with a rendered or explicitly retained string | `Value::Resident { value, string, storage }` |
+| String-only value with raw NUL or non-Unicode bytes | `Value::StringBytes` |
+| Pure binary backing with no resident string | `Value::ByteArray` |
+| Binary backing with its independently resident string | `Resident` around `ByteArray` |
 
-So an integer or list the C code *built* never takes a detour through text,
-and a value the C code merely *read* keeps its spelling — `0x10` stays
-`0x10`, and `a  b` with two spaces stays that way even after
-`Tcl_ListObjGetElements` parsed it. Inbound, `Value::Int` becomes an `Int`
-rep with no string, `Value::List` a list of objects, `Value::Dict` the flat
-key/value list a Tcl dict is. Text is Tcl's modified UTF-8 (an interior NUL
-is `C0 80`) so a string rep is always a valid C string, and every C string
-the shim reads — a result, an error-code element, a `Tcl_UtfNcmp` operand —
-is decoded the same way; the interface's strings are ordinary Rust text.
+`StringBytes` borrows no Unicode identity. Raw `00`, modified NUL `c0 80` and
+`ff` remain distinct. `Value::Str` is a Unicode convenience carrier whose UTF-8
+bytes enter the shim unchanged. An explicit `Obj::from_text` construction uses
+the shared C9 unit encoder; it is not a resident-byte decoder.
+
+A pure C byte array acquires its string through `NativeStringProtocol`: each
+payload byte becomes a native U00XX unit, so `00` becomes `c0 80` and `ff`
+becomes `c3 bf`. Its original backing remains separate while that representation
+is current. The VM bridge inspects `resident_string_bytes` without materialising
+a pure byte array, and reconstructs compound values through
+`with_resident_string_bytes` or `byte_array_with_resident_string`.
+
+The VM command bridge's `MaterializedStrings` view retains full scalar caches
+alongside authentic string bytes. `NativeObjectSnapshots` inspects existing
+storage without generating a string; it accepts supported scalar, canonical
+List and ByteArray payloads and explicitly refuses other primary caches.
+Snapshots construct independent receiving objects and grant no mutation or
+original-object identity authority.
+
+The C shim requests `OriginalObjects`. Each argument has an owned capability
+for its actual VM object, an actual native issuer, and a private engine receipt.
+The current shim ABI requires C9.0; another native issuer or logical simulation
+cannot authorize its primitive conversions. Getters publish reached string and
+primary-cache effects to the same original object, including on failure.
+Repeated arguments and cached List/Dictionary members retain their original
+aliases. A weak mirror pool preserves retained C object identity and leaves an
+unchanged resident-string pointer stable across callbacks.
+
+`OriginalObjectResult` separates independent data from original handles,
+compound member handles and native Index cache receipts. Returning an original
+requires the receiving engine's private receipt and matching actual interpreter
+and issuer; an equality key alone grants no authority. Unsupported
+expression, completion and frame primary caches refuse before native code sees
+the object. Canonical empty storage is mapped to the shim's actual canonical
+empty allocation only with an independently retained storage marker; equal
+empty bytes do not supply that marker.
+
+A callback-only `NativeStringCache` retains the native count, Unicode units,
+descriptor origin and separate resident storage. The checked receiving factory
+preserves those fields without invoking a getter. Data snapshots that cannot
+carry this descriptor refuse instead of flattening it into a String value.
+
+`ResidentStringMutation` is issued by the shim's allocation owner. `Preserve`
+retains the original allocation while committing a reached cache change;
+`Replace` adopts new storage and `Discard` removes it. Equal bytes alone never
+establish pointer preservation. The receiving engine validates the disposition
+before mutating the original object.
+
+An Index cache owns its original table lifetime, stride and selected index.
+Matching-table lookups reuse the cache independently of new `EXACT` flags;
+string regeneration rereads the live canonical entry. Temporary tables do not
+install a cache. `load_static` authenticates the extension lifetime promise:
+code, persistent tables and entry strings outlive all retained or duplicated
+cache objects, including after command/interpreter retirement. An arbitrary
+pointer is insufficient; dynamic loading needs real library ownership.
+
+`Value::as_bytes` exposes only an existing string. `as_str` and `Obj::text`
+provide checked Rust UTF-8 views; they never replace invalid bytes or reinterpret
+modified NUL. SpecTcl metadata and declaration handlers require that checked
+Unicode view and return an explicit host refusal when it is unavailable.
 
 The string rep is generated lazily by `Tcl_GetString` and cached; the
 pointer it returns is valid until the object is mutated or freed, the same
@@ -118,24 +169,35 @@ and the object is freed when the count reaches zero — including from zero,
 as C Tcl does, because a freshly created object has count zero and belongs
 to whoever first takes a reference. `Tcl_SetObjResult` and
 `Tcl_ListObjAppendElement` take their own reference; `Tcl_DuplicateObj`
-returns a fresh, unshared, zero-count copy. Arguments arrive at a C
-procedure with a count of one held by the shim for the duration of the
-call: C code that duplicates-if-shared simply mutates its private copy,
-which is harmless, and nothing the engine holds is ever reachable through
-`objv`.
+returns a fresh, unshared, zero-count copy. Arguments are retained for the native call. Original capabilities capture source
+sharing before adding their own references, and `Tcl_IsShared` combines that
+fact with actual shim references. Conversions mutate shared primary caches as
+native getters do; mutating List operations check the actual sharing receipt.
+A zero-element native List constructor creates canonical empty NULL-type
+storage. Importing an existing cached List retains its independent cache flag.
 
-**Conversions are the shared owners' conversions.** Integers and doubles go
-through `tcl-syntax::number` (`parse_whole_with` with the integer-only flag
-for `Tcl_GetWideIntFromObj`, `format_double` for `Tcl_PrintDouble`'s output),
-lists through `tcl-syntax::list` (`split_list`, `join_list`, and
-`list_element` for `Tcl_WrongNumArgs`'s per-word quoting), booleans through
-`tcl-syntax::boolean::parse_boolean_strict` plus the number grammar (C's
-`Tcl_GetBooleanFromObj` accepts any number, non-zero being true), and option
-tables through `tcl-cmd-core::prefix` (`scan` for the unique-prefix rule,
-`bad_key_message` for the `bad …: must be …` / `ambiguous …` wording). The
-error codes are C Tcl's: `TCL VALUE NUMBER`, `ARITH IOVERFLOW {…}`,
-`TCL VALUE LIST BRACE|QUOTE|JUNK`, `TCL VALUE DOUBLE NAN`,
-`TCL LOOKUP INDEX <msg> <key>`, `TCL WRONGARGS`.
+**Primitive conversions use the selected shared protocol.** The shim's object
+implementation uses the C9 `NativeScalarGetterProtocol` independently of a
+host engine's authored profile and of expression numeral grammar. It inspects
+the original cache first, materialises the original string when required, then
+applies the full `Number` or `WordBoolean` cache before returning either success
+or failure. `NativeScalarGetterError` retains failure origin and an explicit
+`Unchanged` or `Set(bytes)` error-code update; `Unchanged` does not rewrite the
+private interpreter state. Primitive Boolean extraction is separate from
+expression truthiness.
+
+Lists use the shared byte parser and selected C native list-result renderer;
+option tables use shared byte prefix selection and error rendering. Guest
+messages, error-code lists and retained return options cross as exact bytes in
+`EngineError::ScriptBytes`, with `Script` remaining a lossless Unicode-compatible
+carrier. Display escaping has no role in native lookup or guest completion.
+
+The C API entry determines byte extent. Registration, deletion and package
+names consume C strings. `Tcl_NewStringObj` and `Tcl_GetStringFromObj` retain
+explicit lengths. `Tcl_NumUtfChars` distinguishes an explicit length from its
+negative-length C-string form. `Tcl_UtfNcmp` consumes the supplied count of
+native UTF units and can compare beyond a raw NUL; its guarded reader delegates
+to `NativeTclUtf` rather than scanning for a terminator.
 
 `Tcl_GetIntFromObj` follows Tcl 9: a wide within the *unsigned* 32-bit range
 is truncated two's-complement (`2147483648` reads as `-2147483648`), outside
@@ -151,63 +213,70 @@ code, the command table, the provided packages. The engine is never behind
 the pointer — the C side has no way to reach it, and no API here evaluates a
 script from C.
 
-`Interp::load_static(init)` calls `<Pkg>_Init(Tcl_Interp *)`. During the
-call, `Tcl_CreateObjCommand` records a `CommandEntry` (name, procedure,
-client data, delete procedure) in the state and queues a `Created` change;
-`Tcl_PkgProvideEx` records `(name, version)`. On `TCL_OK` the queued changes
-are applied to the engine by `Interp::sync`: each created command becomes a
-`ShimCommand` — a `HostCommand` holding the state and the name — registered
-through `Engine::define_command`, the same door the hook host's emitter
-verbs use. `Loaded` reports the commands and packages; a non-`TCL_OK` return
-is `LoadError::InitFailed` carrying the result the init left.
+`Interp::load_static(init)` obtains `CommandPublicationService` from its engine
+before entering native code. `Tcl_CreateObjCommand` prepares its address before
+any delete callback. `PreparedCommandPublication` retains original reporting
+bytes, an interpreter-scoped primary key and opaque engine authority. The key
+contains owner, interpreter, actual namespace incarnation and exact simple-name
+bytes. The consuming engine validates the opaque receipt; public key fields do
+not grant registration authority.
 
-On invocation the engine hands `ShimCommand` the call's words as `Value`s.
-It builds `objv` (the command name first), resets the result and error
-code, calls the C procedure under `catch_unwind`, and maps the return code:
-`TCL_OK` (and `TCL_RETURN`) to the result's `Value`, `TCL_ERROR` to
-`EngineError::Script { message, code }` with the result text and the error
-code the C code set, `TCL_BREAK` / `TCL_CONTINUE` to the "invoked outside of
-a loop" errors Tcl reports at a non-loop level — the interface carries
-results and errors, not loop completion codes, and adding them would be a
-Tcl-shaped wart on a value interface.
+Unqualified C API creation is global. A visibly qualified relative name uses
+the actual current namespace, including a terminal-colon namespace whose display
+name cannot be reparsed into the same slot. Creation and deletion have separate
+native purposes. A prepared address is never reconstructed from original bytes
+when queued changes are committed.
 
-Command-table changes made *during* an invocation — a factory command
-calling `Tcl_CreateObjCommand`, or `Tcl_DeleteCommand` on a sibling — are
-queued in the state and published through the engine's **registration
-door** the moment the C procedure returns: `ShimCommand` implements
-`HostCommand::invoke_with_registrar`, and the `CommandRegistrar` the engine
-passes is live for that call, so `factory x; x` works within one script.
-An engine that does not open the door (the trait method has a default) is
-still correct, only later: `Interp::eval` (compile a parameterless unit,
-invoke, `sync`) applies what is left afterwards, and a host driving the
-engine directly calls `sync` itself. `Tcl_DeleteCommand` runs the delete
-procedure immediately and its `Deleted` change reaches the engine as
-`remove_command`; deleting the very command that is executing is safe
-because the engine holds its own reference for the call. Dropping the
-`InterpState` runs every remaining delete procedure, as deleting a C Tcl
-interpreter does.
+The local table keeps the original entry visible during its delete callback.
+An outer replacement wins over a callback-created replacement. An outer deletion
+removes only the original generation, leaving a callback-created replacement in
+place. Queued changes keep only the final disposition of each exact primary slot
+before publication through `define_prepared_command` or
+`remove_prepared_command`.
+
+The owned preparation capability cannot retain a borrowed executing `Vm` or
+`CommandRegistrar`, use thread-local default scope, or reborrow an executing
+engine's `RefCell`. Missing scope, unavailable namespace authority and unsupported
+synchronous script deletion traces remain typed host refusals. The supported
+shim ABI has no `Tcl_Eval` or namespace-mutation entry; table-only preparation
+cannot claim authority to execute such callbacks.
+
+Invocation marshals the command name and arguments as exact native objects.
+`HostCommand::invoke_original_completion_with_registrar` returns
+`Completion<OriginalObjectResult>`. The raw code distinguishes normal, Error,
+Return, Break, Continue and custom completions; result and options remain
+original objects. The executing procedure or loop boundary interprets abrupt
+codes. Panic and host refusal remain outside this guest completion.
+
+`Tcl_GetReturnOptions` retains the supported C9 private state: `-code` and
+`-level`, an existing error code on any completion, and Error's default
+`NONE`, result-backed `-errorinfo`, line 1 and empty error stack. This header
+has no `Tcl_SetReturnOptions` entry; it does not synthesize unsupported custom
+interpreter option state. Result-only original callbacks explicitly refuse an abrupt completion. The
+data-only callback can retain guest Error as exact `ScriptBytes` with full
+options; Return, Break, Continue and custom codes require the completion entry.
+
+`OriginalObjectResult::Shared` retains repeated fresh object nodes across
+result, options and compound members. Export and recovery use one memo per
+callback graph; cyclic native graphs refuse. A shared data node grants no
+original engine authority. Original handles still require the engine-private
+receipt and actual interpreter. The native fixtures in
+`rust/tcl-cshim/tests/data/native_callback_completions` distinguish direct
+callback codes from script-level interpretation and record C9's result/error-info
+alias separately from older C releases.
+
+`Loaded` exposes byte command names and byte package keys/versions.
+`Tcl_PkgProvideEx` uses its C-string package primary key without a Unicode
+normalisation.
 
 ### What the interface gives the shim
 
-Three engine-neutral pieces, and nothing else — no interp pointer, no result
-slot, no completion codes:
-
-- **`Engine::remove_command(name) -> Result<bool, EngineError>`** — the
-  other half of `define_command`. The default implementation declines with
-  `Unsupported`, so an engine that cannot unregister says so rather than
-  leaving a command callable; the tclvm engine implements it with
-  `Vm::remove_command`.
-- **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the
-  registration half of the engine, opened to a host command for the
-  duration of its invocation (exactly `define_command` and
-  `remove_command`, nothing that reaches the interpreter). Defaulted, so an
-  ordinary host command is unaffected; the tclvm engine implements it over
-  the `&mut Vm` its native-command seam hands over. This is what buys
-  factories: a command that creates commands, which C extensions do
-  routinely.
-- **Verbatim host-command errors.** The tclvm engine passes a host command's
-  `Script { message, code }` through with the `-errorcode` in the completion
-  options, so a `catch` in Tcl sees exactly what the C code set.
+The engine exposes exact `Value` and `EngineError` carriers, an owned native
+publication preparation service, and consuming prepared-address methods on both
+`Engine` and `CommandRegistrar`. Byte spelling convenience methods remain
+separate from prepared native C publication. Unicode-only engines explicitly
+refuse byte names they cannot represent; engines without an authentic native
+publication scope refuse the prepared operation.
 
 ## The implemented subset
 
@@ -222,7 +291,7 @@ skill's evidence patterns name, plus what Tcl's own `dltest/pkga.c` and
 | objects | `Tcl_NewStringObj`, `Tcl_NewIntObj` / `Tcl_NewLongObj` / `Tcl_NewWideIntObj`, `Tcl_NewBooleanObj`, `Tcl_NewDoubleObj`, `Tcl_NewListObj`, `Tcl_IncrRefCount` / `Tcl_DecrRefCount` / `Tcl_IsShared` / `Tcl_DuplicateObj` |
 | reading | `Tcl_GetString`, `Tcl_GetStringFromObj`, `Tcl_GetIntFromObj` / `Tcl_GetLongFromObj` / `Tcl_GetWideIntFromObj`, `Tcl_GetBooleanFromObj`, `Tcl_GetDoubleFromObj`, `Tcl_GetIndexFromObj` / `Tcl_GetIndexFromObjStruct` |
 | lists | `Tcl_ListObjAppendElement`, `Tcl_ListObjGetElements`, `Tcl_ListObjLength` |
-| result | `Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_ResetResult`, `Tcl_SetResult`, `Tcl_AppendResult`, `Tcl_WrongNumArgs`, `Tcl_SetErrorCode`, `Tcl_SetObjErrorCode` |
+| result | `Tcl_SetObjResult`, `Tcl_GetObjResult`, `Tcl_GetReturnOptions`, `Tcl_ResetResult`, `Tcl_SetResult`, `Tcl_AppendResult`, `Tcl_WrongNumArgs`, `Tcl_SetErrorCode`, `Tcl_SetObjErrorCode` |
 | UTF-8 | `Tcl_NumUtfChars`, `Tcl_UtfNcmp` |
 | definitions | `Tcl_Interp`, `Tcl_Obj` (both opaque), `Tcl_Command`, `Tcl_ObjCmdProc`, `Tcl_CmdDeleteProc`, `Tcl_FreeProc`, `ClientData`, `Tcl_WideInt`, `Tcl_Size` / `TCL_SIZE_MAX` / `TCL_INDEX_NONE`, the `TCL_OK` … `TCL_CONTINUE` codes, `TCL_STATIC` / `TCL_VOLATILE` / `TCL_DYNAMIC`, `TCL_EXACT` / `TCL_NULL_OK` / `TCL_INDEX_TEMP_TABLE` |
 
@@ -290,7 +359,6 @@ loaded against a stub table, so an extension is recompiled against
 - `rust/tcl-cshim/src/{ffi,obj,state,lib}.rs` — the shim.
 - `rust/tcl-cshim/tests/c/pkga.c`, `tests/pkga_e2e.rs`, `tests/factory.rs`,
   `tests/sandbox_isolation.rs` — the tests.
-- `rust/tcl-engine-api/src/lib.rs` — `Engine::remove_command`.
-- `rust/tcl-engine-tclvm/src/lib.rs` — the error mapping and
-  `remove_command`.
+- `rust/tcl-engine-api/src/{lib,value}.rs` — exact carriers and native publication capabilities.
+- `rust/tcl-engine-tclvm/src/lib.rs` — native value/error, original-object and registration bridges.
 - KCS: [What is the C extension shim and when should I use it?](../../kcs/kcs-qa-what-is-the-c-extension-shim.md).

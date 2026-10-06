@@ -29,22 +29,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 
-/// Command spec for `error`.
-///
-/// Synopsis, arity, and semantics are identical across Tcl 8.4, 8.5, 8.6,
-/// 9.0, and 9.1 — `error message ?info? ?code?` has taken exactly one form
-/// since 8.4, with no options ever added or removed. The only thing that
-/// shifted is *terminology*: the 8.4 manpage says `info`/`code` seed the
-/// `errorInfo`/`errorCode` *global variables*; from 8.5 on (once return
-/// options existed) the same manpage describes them as seeding the
-/// `-errorinfo`/`-errorcode` *return options* instead. The underlying
-/// behaviour (and the `errorCode` default of `"NONE"` when `code` is
-/// omitted) is unchanged — this is a documentation vocabulary change, not
-/// a surface: gate, so it is captured in the hover snippet's prose rather
-/// than a version split.
+/// Tcl Error accepts a message and optional error information and code.
+/// C8.4 presents error globals; C8.5+ also exposes return options. C8.6+
+/// registers the Error compiler, with C9.1 Dictionary option construction.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
+        // Native TclCompileErrorCmd registration begins in C8.6; C8.4/8.5
+        // execute the generic native handler.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::Error,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Present and unrestricted: its surface explicitly carries an iRules
         // row (unlike the TMM-sandbox-banned commands, whose bare `ALL_TCL`
         // surface never intersects the `IRULES` mask) — `error` is a pure
@@ -88,4 +85,32 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }
+}
+
+/// Jim's native error accepts a message and optional stack trace.
+pub fn jim_spec() -> CommandSpec {
+    let mut command = spec();
+    command.surface = Some(tcl_dialect::surface![SpecSurface::core_in(
+        tcl_dialect::model::Family::Jim,
+        &[("0.84", None)]
+    )]);
+    command.arity = Arity::new(1, 2);
+    command.forms = &[FormSpec {
+        synopsis: "error message ?stacktrace?",
+        ..FormSpec::DEFAULT
+    }];
+    command.hover = Some(HoverSnippet {
+        summary: "Generate a Jim error",
+        synopsis: &["error message ?stacktrace?"],
+        snippet: "Raises an error with the selected message and optional raw stack trace. The error code is NONE; a third error-code operand is not accepted.",
+        source: "Jim 0.84 Jim_ErrorCoreCommand",
+        examples: "error BOOM",
+        return_value: "Native command result",
+    });
+    command.native_compilation = Some(crate::native_compilation::NativeCompilationSpec {
+        grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+        operation: crate::SemanticOperationId::Invoke,
+        body: crate::native_compilation::NativeBodyCompilation::Inherit,
+    });
+    command
 }

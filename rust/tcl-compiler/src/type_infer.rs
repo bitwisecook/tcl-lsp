@@ -49,10 +49,12 @@ use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
 use crate::analyses::{ConstValue, LatticeValue};
 use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
+#[cfg(test)]
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::expr_ast::{BinOp, ExprNode, UnaryOp};
+use crate::expr_ast::ExprNode;
+#[cfg(test)]
+use crate::expr_ast::{BinOp, UnaryOp};
 use crate::ir::Statement;
-use crate::naming::normalise_var_name;
 use crate::sccp::SccpResult;
 use crate::shimmer::hints::is_pure_intrep;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
@@ -60,7 +62,8 @@ use crate::types::{
     Elements, MAX_EXACT_ELEMENTS, TypeKind, TypeLattice, TypeShape, join_elements, shape_join,
     type_join,
 };
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
+use crate::value_shapes::is_pure_var_ref;
+use crate::var_resolve::{VariableCellKey, VariableCellTable};
 
 // Float literal pattern: requires a decimal point so that forms like `1e3`
 // (no `.`) are NOT classified as floats.
@@ -166,6 +169,7 @@ fn literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
 /// stringified intrep differs from the source text). A literal that is not a
 /// number of this release degrades to `Numeric` — an `expr` always yields a
 /// number — rather than to `String`.
+#[cfg(test)]
 fn expr_literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     let s = text.trim();
     // Boolean first (full spellings — see `literal_type`).
@@ -293,9 +297,10 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
 /// operators produce boolean; variable references look up the known
 /// type from `var_types`.
 #[must_use]
+#[cfg(test)]
 fn infer_expr_type(
     node: &ExprNode,
-    var_types: &HashMap<String, TypeLattice>,
+    var_types: &HashMap<(String, u32, u32), TypeLattice>,
     depth: u32,
     numbers: NumberSyntax,
 ) -> TypeLattice {
@@ -312,13 +317,12 @@ fn infer_expr_type(
 
         ExprNode::String { .. } | ExprNode::CompiledWord { .. } => TypeLattice::of(TclType::String),
 
-        ExprNode::Var { name, .. } => {
-            let base = normalise_var_name(name);
-            var_types
-                .get(base)
-                .cloned()
-                .unwrap_or_else(TypeLattice::unknown)
-        }
+        ExprNode::Var {
+            text, start, end, ..
+        } => var_types
+            .get(&(text.clone(), *start, *end))
+            .cloned()
+            .unwrap_or_else(TypeLattice::unknown),
 
         ExprNode::Binary {
             op, left, right, ..
@@ -416,6 +420,7 @@ fn infer_expr_type(
 /// INT op INT → INT
 /// (boolean counts as int), DOUBLE anywhere → DOUBLE, otherwise
 /// NUMERIC.  Callers guarantee both operand types are `Known`.
+#[cfg(test)]
 fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
     match (lt.tcl_type(), rt.tcl_type()) {
         (Some(TclType::Int | TclType::Boolean), Some(TclType::Int | TclType::Boolean)) => {
@@ -433,10 +438,11 @@ fn arithmetic_result(lt: &TypeLattice, rt: &TypeLattice) -> TypeLattice {
 /// types, every other built-in returns its declared type, and an
 /// unknown function is conservatively `Numeric` (an `expr` function
 /// always yields a number).
+#[cfg(test)]
 fn expr_call_type(
     function: &str,
     args: &[ExprNode],
-    var_types: &HashMap<String, TypeLattice>,
+    var_types: &HashMap<(String, u32, u32), TypeLattice>,
     depth: u32,
     numbers: NumberSyntax,
 ) -> TypeLattice {
@@ -498,22 +504,6 @@ fn is_scope_alias_call(registry: &CommandRegistry, command: &str, args: &[String
     crate::var_scoping::is_scope_alias_call(registry, command, args)
 }
 
-/// The tracked [`TypeLattice`] of the SSA value `name` reads at this site, or
-/// `None` when it is unversioned / untyped.
-fn lookup_var_type(
-    name: &str,
-    uses: &HashMap<Symbol, u32>,
-    types: &HashMap<ValueKey, TypeLattice>,
-    ssa: &SsaFunction,
-) -> Option<TypeLattice> {
-    let sym = ssa.var_symbol(name)?;
-    let ver = type_version(ssa, sym, *uses.get(&sym)?, types);
-    if ver == 0 {
-        return None;
-    }
-    types.get(&(sym, ver)).cloned()
-}
-
 /// Retain executable type provenance only when no widening fact owns the key.
 fn type_version(
     ssa: &SsaFunction,
@@ -528,9 +518,15 @@ fn type_version(
     }
 }
 
-/// Shared, read-only context for the word-shape / element-inference helpers —
-/// everything a value word's type depends on at one program point.
+/// Conditional normal result types keyed by original implementation allocation.
+pub(crate) type NormalProcedureResultTypes =
+    HashMap<crate::command_binding::CommandAllocation, TypeLattice>;
+
+/// Read-only word-shape context at one retained program point.
 struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
+    preparations: &'a [crate::command_binding::SourceExpressionPreparation],
+    tokens: Option<&'a crate::ir::CommandTokens>,
+    source: crate::ssa::SsaSourceView<'a>,
     uses: &'a HashMap<Symbol, u32>,
     /// The resolved context this function's registry answers under, when
     /// the registry carries a profile — the I4 binding proof for the
@@ -550,18 +546,156 @@ struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     /// dialect-selected registry in [`propagate_types`] and threaded to every
     /// literal classifier — see [`numbers_of`].
     numbers: NumberSyntax,
+    /// Active provenance write points; cycles cannot establish a value type.
+    active_writes: &'a [(BlockId, usize)],
+    normal_results: Option<&'a NormalProcedureResultTypes>,
 }
 
 impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
-    /// The SCCP constant of `name` at this site, when tracked.
-    fn const_of(&self, name: &str) -> Option<&LatticeValue> {
-        let sym = self.ssa.var_symbol(name)?;
-        let ver = *self.uses.get(&sym)?;
-        if ver == 0 {
+    fn variable_key(&self, spelling: &str) -> Option<VariableCellKey> {
+        self.source
+            .symbol(spelling)
+            .map(|symbol| self.ssa.cell_key(symbol).clone())
+    }
+
+    fn variable_type(&self, spelling: &str) -> Option<TypeLattice> {
+        if self.source.is_positioned() {
+            let read = self.source.read_spelling(spelling)?;
+            if let Some(version) = read.version {
+                let version = type_version(self.ssa, read.symbol, version, self.types);
+                return self.types.get(&(read.symbol, version)).cloned();
+            }
+            return self
+                .source
+                .read_spelling_contents(spelling, self.registry)
+                .map(|contents| type_of_read_contents(self, contents));
+        }
+        let symbol = self.source.symbol(spelling)?;
+        let version = type_version(self.ssa, symbol, *self.uses.get(&symbol)?, self.types);
+        (version != 0)
+            .then(|| self.types.get(&(symbol, version)).cloned())
+            .flatten()
+    }
+
+    /// Expression types are keyed by original occurrence, independently of
+    /// base-name dependency labels and conflicting same-spelling reads.
+    fn expression_variable_types(
+        &self,
+        expression: &ExprNode,
+        expression_base: Option<u32>,
+    ) -> HashMap<(String, u32, u32), TypeLattice> {
+        expression
+            .variable_nodes()
+            .into_iter()
+            .filter_map(|node| {
+                let ExprNode::Var {
+                    text, start, end, ..
+                } = node
+                else {
+                    return None;
+                };
+                let value = self
+                    .source
+                    .read_expression_variable(node, expression_base)
+                    .and_then(|read| {
+                        let version =
+                            type_version(self.ssa, read.symbol, read.version?, self.types);
+                        self.types.get(&(read.symbol, version)).cloned()
+                    })
+                    .or_else(|| {
+                        self.source
+                            .read_expression_variable_contents(node, expression_base, self.registry)
+                            .map(|contents| type_of_read_contents(self, contents))
+                    })?;
+                Some(((text.clone(), *start, *end), value))
+            })
+            .collect()
+    }
+
+    /// Written substitutions select their original read; decoded names never
+    /// pass through a second substitution decoder.
+    fn written_variable_type(
+        &self,
+        spelling: &str,
+        retained: Option<&crate::ir::WordExpr>,
+    ) -> Option<TypeLattice> {
+        if let Some(word) = retained {
+            return Some(retained_contents_type(self, word));
+        }
+        let mut selected = None;
+        for word in self
+            .tokens?
+            .words()
+            .iter()
+            .filter(|word| written_variable_word_matches(word, spelling))
+        {
+            let value = retained_contents_type(self, word);
+            if selected.as_ref().is_some_and(|previous| *previous != value) {
+                return None;
+            }
+            selected = Some(value);
+        }
+        selected
+    }
+
+    /// Contents read by an admitted native named-cell update. The operand is
+    /// an evaluated variable name, rather than a substitution from argv.
+    fn named_cell_type(&self, name: &str) -> Option<TypeLattice> {
+        let symbol = self.source.symbol(name)?;
+        let version = type_version(self.ssa, symbol, *self.uses.get(&symbol)?, self.types);
+        if version == 0 {
             return None;
         }
-        self.values.get(&(sym, ver))
+        self.types.get(&(symbol, version)).cloned()
     }
+
+    fn named_cell_constant(&self, name: &str) -> Option<&LatticeValue> {
+        let symbol = self.source.symbol(name)?;
+        self.values.get(&(symbol, *self.uses.get(&symbol)?))
+    }
+
+    fn with_tokens<'b>(&'b self, tokens: &'b crate::ir::CommandTokens) -> WordTypingCtx<'b, S> {
+        WordTypingCtx {
+            preparations: self.preparations,
+            tokens: Some(tokens),
+            source: self.source,
+            uses: self.uses,
+            context: self.context,
+            types: self.types,
+            values: self.values,
+            registry: self.registry,
+            known_classes: self.known_classes,
+            namespace: self.namespace,
+            ssa: self.ssa,
+            numbers: self.numbers,
+            active_writes: self.active_writes,
+            normal_results: self.normal_results,
+        }
+    }
+
+    /// Constant contents from the original written substitution reads.
+    fn constant_of_word(&self, spelling: &str) -> Option<&LatticeValue> {
+        let mut selected = None;
+        for word in self
+            .tokens?
+            .words()
+            .iter()
+            .filter(|word| written_variable_word_matches(word, spelling))
+        {
+            let read = self.source.read_word(word)?;
+            let value = self.values.get(&(read.symbol, read.version?))?;
+            if selected.is_some_and(|previous| previous != value) {
+                return None;
+            }
+            selected = Some(value);
+        }
+        selected
+    }
+}
+
+fn written_variable_word_matches(word: &crate::ir::WordExpr, spelling: &str) -> bool {
+    word.sole_variable_substitution()
+        .is_some_and(|(original, _)| original == spelling || word.legacy_text() == spelling)
 }
 
 /// The shape a builder argument *word* contributes as a container element,
@@ -582,22 +716,31 @@ impl<S: std::hash::BuildHasher> WordTypingCtx<'_, S> {
 fn element_word_shape<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     word: &str,
+    retained: Option<&crate::ir::WordExpr>,
 ) -> Option<TypeShape> {
     let stripped = word.trim();
     if stripped.starts_with("{*}") {
         return None;
     }
     if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
-        let t = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?;
+        let t = ctx.written_variable_type(stripped, retained)?;
         let shape = t.single_shape()?.clone();
-        if is_pure_intrep(shape.coarse(), ctx.const_of(name)) {
+        let constant = retained.map_or_else(
+            || ctx.constant_of_word(stripped),
+            |word| {
+                let read = ctx.source.read_word(word)?;
+                ctx.values.get(&(read.symbol, read.version?))
+            },
+        );
+        if is_pure_intrep(shape.coarse(), constant) {
             return None;
         }
         return Some(shape);
     }
     if stripped.starts_with('[') && stripped.ends_with(']') {
-        let shape = value_word_type(ctx, stripped).single_shape()?.clone();
+        let shape = value_word_type(ctx, stripped, retained)
+            .single_shape()?
+            .clone();
         // A string-returning command (`string trim`, `format`) yields a pure
         // result — no committed intrep enters the container.
         if is_pure_intrep(shape.coarse(), None) {
@@ -617,21 +760,30 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     fact: ReturnElements,
     args: &[&str],
+    retained: Option<&[crate::ir::WordExpr]>,
 ) -> Option<TypeLattice> {
     match fact {
         ReturnElements::ListOfArgs { from } => {
             let words = args.get(usize::from(from)..).unwrap_or(&[]);
             Some(TypeLattice::of_shape(TypeShape::List(
-                build_exact_elements(ctx, words),
+                build_exact_elements(
+                    ctx,
+                    words,
+                    retained.and_then(|words| words.get(usize::from(from)..)),
+                ),
             )))
         }
         ReturnElements::DictOfPairs { from } => {
             let words = args.get(usize::from(from)..).unwrap_or(&[]);
             // Values are the odd offsets of the key/value pairs.
             let value_words: Vec<&str> = words.iter().skip(1).step_by(2).copied().collect();
+            let retained_values = retained
+                .and_then(|words| words.get(usize::from(from)..))
+                .map(|words| words.iter().skip(1).step_by(2).cloned().collect::<Vec<_>>());
             Some(TypeLattice::of_shape(TypeShape::Dict(uniform_elements_of(
                 ctx,
                 &value_words,
+                retained_values.as_deref(),
             ))))
         }
         ReturnElements::ElementOf { container_arg } => {
@@ -645,8 +797,10 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
             if !is_pure_var_ref(container) {
                 return None;
             }
-            let name = normalise_var_name(container);
-            let t = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?;
+            let t = ctx.written_variable_type(
+                container,
+                retained.and_then(|words| words.get(container_idx)),
+            )?;
             let elements = t.elements()?;
             // A constant integer index resolves an Exact position; any
             // other index falls back to the uniform bound.
@@ -661,8 +815,11 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
             if !is_pure_var_ref(container) {
                 return None;
             }
-            let name = normalise_var_name(container);
-            let elements = lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)?
+            let elements = ctx
+                .written_variable_type(
+                    container,
+                    retained.and_then(|words| words.get(usize::from(container_arg))),
+                )?
                 .elements()?
                 .uniform_shape()
                 .map_or(Elements::Unknown, |u| Elements::Uniform(Box::new(u)));
@@ -677,14 +834,23 @@ fn return_elements_lattice<S: std::hash::BuildHasher>(
 fn build_exact_elements<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     words: &[&str],
+    retained: Option<&[crate::ir::WordExpr]>,
 ) -> Elements {
     if words.iter().any(|w| w.trim().starts_with("{*}")) {
-        return uniform_elements_of(ctx, words);
+        return uniform_elements_of(ctx, words, retained);
     }
     if words.len() > MAX_EXACT_ELEMENTS {
-        return uniform_elements_of(ctx, words);
+        return uniform_elements_of(ctx, words, retained);
     }
-    Elements::Exact(words.iter().map(|w| element_word_shape(ctx, w)).collect())
+    Elements::Exact(
+        words
+            .iter()
+            .enumerate()
+            .map(|(index, w)| {
+                element_word_shape(ctx, w, retained.and_then(|words| words.get(index)))
+            })
+            .collect(),
+    )
 }
 
 /// The uniform element bound of a word set: the single-shape join of every
@@ -692,15 +858,16 @@ fn build_exact_elements<S: std::hash::BuildHasher>(
 fn uniform_elements_of<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     words: &[&str],
+    retained: Option<&[crate::ir::WordExpr]>,
 ) -> Elements {
     let mut acc: Option<TypeShape> = None;
-    for word in words {
+    for (index, word) in words.iter().enumerate() {
         // `{*}$expansion` contributes its *list's* element shapes, which are
         // unknown here — no uniform claim survives.
         let word = word.trim();
         let shape = if let Some(expanded) = word.strip_prefix("{*}") {
             let Some(TypeShape::List(elements)) = (if is_pure_var_ref(expanded) {
-                lookup_var_type(normalise_var_name(expanded), ctx.uses, ctx.types, ctx.ssa)
+                ctx.written_variable_type(expanded, None)
                     .and_then(|t| t.single_shape().cloned())
             } else {
                 None
@@ -712,7 +879,7 @@ fn uniform_elements_of<S: std::hash::BuildHasher>(
                 None => return Elements::Unknown,
             }
         } else {
-            match element_word_shape(ctx, word) {
+            match element_word_shape(ctx, word, retained.and_then(|words| words.get(index))) {
                 Some(s) => s,
                 None => return Elements::Unknown,
             }
@@ -742,8 +909,7 @@ fn constant_index<S: std::hash::BuildHasher>(
         return Some(i);
     }
     if is_pure_var_ref(word)
-        && let Some(LatticeValue::Const(ConstValue::Int(i))) =
-            ctx.const_of(normalise_var_name(word))
+        && let Some(LatticeValue::Const(ConstValue::Int(i))) = ctx.constant_of_word(word)
     {
         return usize::try_from(*i).ok();
     }
@@ -762,8 +928,10 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
     target: &str,
     args: &[&str],
     base: usize,
+    retained: Option<&[crate::ir::WordExpr]>,
 ) -> TypeLattice {
     let (container_ctor, value_words): (fn(Elements) -> TypeShape, &[&str]) = match effect {
+        VarElementsEffect::SetsArrayElementsFromList { .. } => return TypeLattice::overdefined(),
         VarElementsEffect::AppendsListElements { values_from } => (
             TypeShape::List,
             args.get(base + usize::from(values_from)..).unwrap_or(&[]),
@@ -781,10 +949,13 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
         ),
     };
 
+    let retained_values =
+        retained.and_then(|words| words.get(args.len().saturating_sub(value_words.len())..));
     let prior = prior_container_elements(ctx, target);
     let evolved = match effect {
+        VarElementsEffect::SetsArrayElementsFromList { .. } => return TypeLattice::overdefined(),
         VarElementsEffect::AppendsListElements { .. } => {
-            append_list_elements(ctx, prior, value_words)
+            append_list_elements(ctx, prior, value_words, retained_values)
         }
         // Dict values: join the new value shape into the prior uniform
         // bound — per-key tracking is out of scope (type-tracking.md).
@@ -795,7 +966,7 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
         VarElementsEffect::SetsDictValue => {
             let single_key = args.len().saturating_sub(base) == 3;
             let incoming = if single_key {
-                uniform_elements_of(ctx, value_words)
+                uniform_elements_of(ctx, value_words, retained_values)
             } else {
                 Elements::Uniform(Box::new(TypeShape::Dict(Elements::Unknown)))
             };
@@ -810,7 +981,7 @@ fn var_elements_effect_lattice<S: std::hash::BuildHasher>(
         // pattern); anything else contributes no
         // element fact.
         VarElementsEffect::ExtendsDictValuesByName { .. } => {
-            let incoming = uniform_elements_of(ctx, value_words);
+            let incoming = uniform_elements_of(ctx, value_words, retained_values);
             let object_only = match &incoming {
                 Elements::Uniform(shape) if matches!(**shape, TypeShape::Object(_)) => {
                     Some(incoming.clone())
@@ -846,7 +1017,7 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     target: &str,
 ) -> Option<Elements> {
-    if let Some(t) = lookup_var_type(target, ctx.uses, ctx.types, ctx.ssa) {
+    if let Some(t) = ctx.named_cell_type(target) {
         if t.kind() == crate::types::TypeKind::Overdefined {
             return Some(Elements::Unknown);
         }
@@ -857,7 +1028,8 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         // strings — `lappend` on `{a b}` starts from two `String` elements.
         let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.registry.profile());
         if t.tcl_type() == Some(TclType::String)
-            && let Some(LatticeValue::Const(ConstValue::String(text))) = ctx.const_of(target)
+            && let Some(LatticeValue::Const(ConstValue::String(text))) =
+                ctx.named_cell_constant(target)
             && let Ok(parsed) = rules.split_list(text)
         {
             if parsed.len() > MAX_EXACT_ELEMENTS {
@@ -879,8 +1051,9 @@ fn append_list_elements<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     prior: Option<Elements>,
     value_words: &[&str],
+    retained: Option<&[crate::ir::WordExpr]>,
 ) -> Elements {
-    let appended = build_exact_elements(ctx, value_words);
+    let appended = build_exact_elements(ctx, value_words, retained);
     match (prior, appended) {
         (None, appended) => appended,
         (Some(Elements::Exact(existing)), Elements::Exact(new)) => {
@@ -924,6 +1097,126 @@ fn uniform_bound_of_shapes(shapes: &[TypeShape]) -> Elements {
     }
 }
 
+/// Successful result representation is independent of permission to emit a
+/// native opcode. Nested operand types retain their exact read provenance.
+fn normal_result_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    tokens: &crate::ir::CommandTokens,
+) -> TypeLattice {
+    if let Some(target) = tokens
+        .source_binding
+        .as_ref()
+        .and_then(crate::command_binding::SourceInvocationBinding::proved_handler_target)
+        && target.kind == crate::command_binding::BindingKind::Proc
+        && let Some(allocation) = &target.implementation_allocation
+        && let Some(result) = ctx
+            .normal_results
+            .and_then(|results| results.get(allocation))
+    {
+        return result.clone();
+    }
+    if let Some(result) = prepared_expression_result_type(ctx, tokens) {
+        return result;
+    }
+    let Some(invocation) =
+        crate::registry_invocation::normal_representation_invocation(ctx.registry, None, tokens)
+    else {
+        return TypeLattice::overdefined();
+    };
+    if let Some(elements) = invocation.result_elements()
+        && let Some(words) = invocation
+            .effective_words()
+            .words
+            .get(1 + invocation.argument_offset()..)
+    {
+        let arguments = words
+            .iter()
+            .map(crate::ir::WordExpr::legacy_text)
+            .collect::<Vec<_>>();
+        let references = arguments.iter().map(String::as_str).collect::<Vec<_>>();
+        if let Some(result) =
+            return_elements_lattice(&ctx.with_tokens(tokens), elements, &references, Some(words))
+        {
+            return result;
+        }
+    }
+    invocation
+        .result_representation_type()
+        .map_or_else(TypeLattice::overdefined, TypeLattice::of)
+}
+
+/// Conditional representation of an authenticated original expression.
+/// Operand normalisation and current authored pool evidence are separate from
+/// arithmetic category, physical object evidence and executable admission.
+fn prepared_expression_result_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<TypeLattice> {
+    if let Some(advice) =
+        crate::registry_invocation::original_expression_operand_advice(ctx.registry, tokens)
+    {
+        let variables =
+            ctx.expression_variable_types(&advice.expression, Some(advice.expression_base));
+        let receipt = tokens
+            .source_binding
+            .as_ref()?
+            .conditional_expression_evaluation(ctx.registry, tokens)?;
+        return receipt
+            .normal_result_representation(|node| {
+                let ExprNode::Var {
+                    text, start, end, ..
+                } = node
+                else {
+                    return None;
+                };
+                variables.get(&(text.clone(), *start, *end))?.tcl_type()
+            })
+            .map(TypeLattice::of);
+    }
+    let preparation = tokens
+        .source_binding
+        .as_ref()?
+        .expression_preparation(ctx.preparations)?;
+    let production = preparation.witness.normal_numeric_result_production()?;
+    Some(TypeLattice::of(production.result_type()))
+}
+
+/// A lowered expression retains its original sole child invocation. Analysis
+/// IR topology alone does not establish a current expression result intrep.
+fn lowered_expression_result_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    tokens: Option<&crate::ir::CommandTokens>,
+    expression: &ExprNode,
+    base: Option<u32>,
+) -> TypeLattice {
+    let Some(tokens) = tokens else {
+        return TypeLattice::overdefined();
+    };
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let Some(calls) = crate::word_subst::checked_lifted_calls(tokens, config) else {
+        return TypeLattice::overdefined();
+    };
+    let mut result = None;
+    for call in calls {
+        let Some(child) = call.tokens else {
+            continue;
+        };
+        let Some(advice) =
+            crate::registry_invocation::original_expression_operand_advice(ctx.registry, &child)
+        else {
+            continue;
+        };
+        if advice.expression != *expression || Some(advice.expression_base) != base {
+            continue;
+        }
+        if result.is_some() {
+            return TypeLattice::overdefined();
+        }
+        result = prepared_expression_result_type(ctx, &child);
+    }
+    result.unwrap_or_else(TypeLattice::overdefined)
+}
+
 /// Infer the intrep a `set`-style value *word* stores.
 ///
 /// The shared body of the [`Statement::AssignValue`] typing and the
@@ -936,59 +1229,190 @@ fn uniform_bound_of_shapes(shapes: &[TypeShape]) -> Elements {
 fn value_word_type<S: std::hash::BuildHasher>(
     ctx: &WordTypingCtx<'_, S>,
     value: &str,
+    retained: Option<&crate::ir::WordExpr>,
 ) -> TypeLattice {
-    let stripped = value.trim();
-    // Pure variable reference: inherit source type.
-    if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
-        return lookup_var_type(name, ctx.uses, ctx.types, ctx.ssa)
-            .unwrap_or_else(TypeLattice::unknown);
+    use crate::ir::{WordExpr, WordPart};
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.registry.profile());
+    let parsed = retained
+        .is_none()
+        .then(|| crate::value_shapes::value_word_with_config(value, config))
+        .flatten();
+    let Some(word) = retained.or(parsed.as_ref()) else {
+        return TypeLattice::overdefined();
+    };
+    let variable = match word {
+        WordExpr::Variable { spelling, .. } => Some(spelling.as_str()),
+        WordExpr::Template { parts, .. } => match parts.as_slice() {
+            [WordPart::Variable { spelling, .. }] => Some(spelling.as_str()),
+            _ => None,
+        },
+        _ => None,
+    };
+    if let Some(spelling) = variable {
+        if ctx.source.is_positioned() {
+            return retained_contents_type(ctx, word);
+        }
+        return ctx
+            .variable_type(tcl_syntax::naming::var_reference_for_style(
+                spelling,
+                config.braced_var,
+            ))
+            .unwrap_or_else(TypeLattice::overdefined);
     }
-    // Command substitution: [cmd ...].
-    if stripped.starts_with('[')
-        && stripped.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution_with_config(
-            stripped,
-            tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
-        )
-    {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // The registry's result↔element fact refines the declared return
-        // type: `[list …]` builds per-position elements, `[lindex $l 0]` /
-        // `[dict get $d k]` retrieves the container's tracked element shape
-        // (subsuming the old object-only collection retrieval — an
-        // `Object(class)` element shape IS the `OBJECT(class)` result).
-        if let Some(resolved) = tcl_registry::model::resolve_invocation_in_context(
-            ctx.registry,
-            ctx.context,
-            &cmd,
-            &arg_refs,
-        ) && let Some(fact) = resolved.semantics.return_elements
+    if word.sole_command_substitution().is_some() {
+        let Some(mut commands) =
+            crate::value_shapes::command_substitution_tokens(word, ctx.tokens, config)
+        else {
+            return TypeLattice::overdefined();
+        };
+        // Earlier commands may replace the last implementation or return
+        // abruptly. Their composed result is not a nominal string value.
+        if commands.len() != 1 {
+            return TypeLattice::overdefined();
+        }
+        let tokens = commands.remove(0);
+        if let Some(class_name) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.proved_construction_result(ctx.registry))
         {
-            // The fact's indices are relative to after the subcommand word
-            // when one matched (`dict get $d k` counts from `$d`).
-            let elem_args = if resolved.subcommand.is_resolved() {
-                arg_refs.get(1..).unwrap_or(&[])
-            } else {
-                &arg_refs[..]
-            };
-            if let Some(t) = return_elements_lattice(ctx, fact, elem_args) {
-                return t;
+            return TypeLattice::object_of(class_name);
+        }
+        let Some(invocation) =
+            crate::registry_invocation::resolved_tokens_invocation(ctx.registry, None, &tokens)
+        else {
+            return normal_result_type(ctx, &tokens);
+        };
+        if let Some(result) = prepared_expression_result_type(ctx, &tokens) {
+            return result;
+        }
+        let arguments = invocation
+            .arguments
+            .iter()
+            .map(Option::as_deref)
+            .collect::<Option<Vec<_>>>();
+        if let Some(fact) = invocation.facts.return_elements
+            && let Some(arguments) = arguments.as_ref()
+        {
+            let elements = arguments
+                .get(invocation.facts.argument_offset..)
+                .unwrap_or(&[]);
+            if let Some(value) = return_elements_lattice(
+                &ctx.with_tokens(&tokens),
+                fact,
+                elements,
+                invocation
+                    .effective
+                    .words
+                    .get(1 + invocation.facts.argument_offset..),
+            ) {
+                return value;
             }
         }
-        return return_type_for_command(
-            ctx.registry,
-            &cmd,
-            &arg_refs,
-            ctx.known_classes,
-            ctx.namespace,
-        );
+        return invocation
+            .facts
+            .return_type
+            .map_or_else(TypeLattice::overdefined, TypeLattice::of);
     }
-    // String interpolation or complex value.
-    if value.contains('$') || value.contains('[') {
-        return TypeLattice::of(TclType::String);
+    match word {
+        WordExpr::Literal { text, .. } | WordExpr::BracedLiteral { text, .. } => {
+            literal_type(text, ctx.numbers)
+        }
+        WordExpr::Template { .. } => TypeLattice::of(TclType::String),
+        WordExpr::Expand { .. }
+        | WordExpr::Opaque { .. }
+        | WordExpr::Variable { .. }
+        | WordExpr::CommandSubstitution { .. } => TypeLattice::overdefined(),
     }
-    literal_type(value, ctx.numbers)
+}
+
+/// Join the actual stores reaching a read whose memory contents do not have
+/// one scalar SSA version. The shared read owner proves root/lifetime overlap;
+/// this adapter only supplies the value lattice of those retained statements.
+fn retained_contents_type<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    word: &crate::ir::WordExpr,
+) -> TypeLattice {
+    if let Some(read) = ctx.source.read_word(word)
+        && let Some(version) = read.version
+    {
+        let version = type_version(ctx.ssa, read.symbol, version, ctx.types);
+        return ctx
+            .types
+            .get(&(read.symbol, version))
+            .cloned()
+            .unwrap_or_else(TypeLattice::overdefined);
+    }
+    let Some(contents) = ctx.source.read_word_contents(word, ctx.registry) else {
+        return TypeLattice::overdefined();
+    };
+    type_of_read_contents(ctx, contents)
+}
+
+fn type_of_read_contents<S: std::hash::BuildHasher>(
+    ctx: &WordTypingCtx<'_, S>,
+    contents: crate::ssa::SsaReadContents,
+) -> TypeLattice {
+    if contents.unknown_residual {
+        return TypeLattice::overdefined();
+    }
+    if let Some(version) = contents.reference.version {
+        let version = type_version(ctx.ssa, contents.reference.symbol, version, ctx.types);
+        return ctx
+            .types
+            .get(&(contents.reference.symbol, version))
+            .cloned()
+            .unwrap_or_else(TypeLattice::overdefined);
+    }
+    let mut result = if contents.includes_incoming {
+        TypeLattice::overdefined()
+    } else {
+        TypeLattice::unknown()
+    };
+    for (block, index) in contents.writes {
+        if ctx.active_writes.contains(&(block, index)) {
+            return TypeLattice::overdefined();
+        }
+        let Some(statement) = ctx
+            .ssa
+            .blocks
+            .get(&block)
+            .and_then(|block| block.statements.get(index))
+        else {
+            return TypeLattice::overdefined();
+        };
+        let mut active_writes = ctx.active_writes.to_vec();
+        active_writes.push((block, index));
+        let write_ctx = WordTypingCtx {
+            preparations: ctx.preparations,
+            tokens: statement.statement.tokens(),
+            source: crate::ssa::SsaSourceView::at_statement(ctx.ssa, block, index),
+            uses: &statement.uses,
+            context: ctx.context,
+            types: ctx.types,
+            values: ctx.values,
+            registry: ctx.registry,
+            known_classes: ctx.known_classes,
+            namespace: ctx.namespace,
+            ssa: ctx.ssa,
+            numbers: ctx.numbers,
+            active_writes: &active_writes,
+            normal_results: ctx.normal_results,
+        };
+        let value = match evaluate_type_def(&statement.statement, &write_ctx) {
+            DefTyping::Uniform(value) => value,
+            DefTyping::PerDef(values) => values
+                .get(ctx.ssa.cell_key(contents.reference.symbol))
+                .cloned()
+                .unwrap_or_else(TypeLattice::overdefined),
+        };
+        result = type_join(&result, &value);
+    }
+    if result.kind() == TypeKind::Unknown {
+        TypeLattice::overdefined()
+    } else {
+        result
+    }
 }
 
 /// Read an empty class declaration through registry manufacturer descriptors.
@@ -1158,7 +1582,7 @@ enum DefTyping {
     /// Positional element typing (`lassign`, `foreach` element vars): each
     /// def takes its own lattice; a def absent from the map widens to
     /// `Overdefined`.
-    PerDef(HashMap<String, TypeLattice>),
+    PerDef(VariableCellTable<TypeLattice>),
 }
 
 /// Infer the type produced by `stmt` under the current `types` map.
@@ -1172,144 +1596,272 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
             DefTyping::Uniform(literal_type(value, ctx.numbers))
         }
 
-        Statement::AssignExpr { expr, .. } => {
-            // Build a name→TypeLattice map for variables used in the expression.
-            let var_types: HashMap<String, TypeLattice> = ctx
-                .uses
-                .iter()
-                .filter_map(|(&sym, &ver)| {
-                    let ver = type_version(ctx.ssa, sym, ver, ctx.types);
-                    if ver == 0 {
-                        return None;
-                    }
-                    let t = ctx.types.get(&(sym, ver))?;
-                    Some((ctx.ssa.var_name(sym).to_owned(), t.clone()))
-                })
-                .collect();
-            DefTyping::Uniform(infer_expr_type(expr, &var_types, 0, ctx.numbers))
-        }
+        Statement::AssignExpr {
+            expr, expr_base, ..
+        } => DefTyping::Uniform(lowered_expression_result_type(
+            ctx, ctx.tokens, expr, *expr_base,
+        )),
 
-        Statement::AssignValue { value, .. } => DefTyping::Uniform(value_word_type(ctx, value)),
+        Statement::AssignValue { value, tokens, .. } => DefTyping::Uniform(value_word_type(
+            ctx,
+            value,
+            tokens.as_ref().and_then(|tokens| tokens.words().get(2)),
+        )),
 
         Statement::Incr { .. } => DefTyping::Uniform(TypeLattice::of(TclType::Int)),
 
-        Statement::Call {
-            command,
-            canonical_command,
-            args,
-            defs,
-            foreach_groups,
-            ..
-        } if !defs.is_empty() => {
-            // Resolve the source spelling through the lowerer's
-            // `canonical_command` snapshot (an `interp alias` / `rename`
-            // target) so a renamed or aliased builtin — `rename set myset` /
-            // `interp alias {} myset {} set` — is typed by the *real* command's
-            // registry spec, not left as an unknown `Call` (OVERDEFINED).
-            let canon = canonical_command.as_deref().unwrap_or(command);
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            // A canonically-`set` store keeps its runtime `Call` shape for
-            // codegen — an aliased / renamed command is not inline-foldable,
-            // its binding may change by call time — but for the type lattice
-            // its single def takes the *value word's* intrep verbatim, exactly
-            // as the un-aliased [`Statement::AssignValue`] path does. Keyed off
-            // the canonical command's `Set` lowering hook (the registry's own
-            // "this is a value-passthrough store" fact), never the source
-            // spelling. The two-arg / single-def guard restricts this to the
-            // `set VAR VALUE` setter shape (no `interp alias` prepended args
-            // shifting the value word out of `args[1]`, and not the one-arg
-            // getter, which has no def).
-            if defs.len() == 1
-                && arg_refs.len() == 2
-                && ctx.registry.get(canon).and_then(|s| s.lowering_hook)
-                    == Some(tcl_registry::hooks::LoweringHookId::Set)
-            {
-                return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
-            }
-
-            let resolved = tcl_registry::model::resolve_invocation_in_context(
-                ctx.registry,
-                ctx.context,
-                canon,
-                &arg_refs,
-            );
-
-            // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
-            // evolves the target's container elements — the registry's
-            // `VarElementsEffect` fact, generalising the old object-only
-            // element-class harvesting to every element shape.
-            if let Some(effect) = resolved
-                .as_ref()
-                .and_then(|resolved| resolved.semantics.var_elements_effect)
-            {
-                let base = usize::from(
-                    resolved
-                        .as_ref()
-                        .is_some_and(|resolved| resolved.subcommand.is_resolved()),
-                );
-                if let Some(target) = arg_refs.get(base) {
-                    return DefTyping::Uniform(var_elements_effect_lattice(
-                        ctx, effect, target, &arg_refs, base,
-                    ));
-                }
-            }
-
-            // How a command types the variable(s) it *writes* is a distinct
-            // fact from the value it *returns*.  A destructuring writer
-            // (`scan`, `regexp`, `binary scan`) returns a match/convert count
-            // while writing element-wise pieces; `gets` returns the character
-            // count while writing a text line; `lassign` writes its
-            // container's *elements* positionally.  The registry declares this
-            // per command / subcommand (`VarWriteTyping`), so the compiler
-            // never keys on the command name.  Resolved through `canon`, not
-            // the source spelling, so an aliased / renamed destructuring
-            // writer (`rename lassign mylassign`) still resolves to the real
-            // command's `VarWriteTyping` (FP-SH-15).
-            let typing = resolved
-                .as_ref()
-                .map_or(VarWriteTyping::ReturnValue, |resolved| {
-                    resolved.semantics.var_write_typing
-                });
-            match typing {
-                // The default typing stores the command's *return value* in the
-                // target — meaningful only for a single-target writer (`append`,
-                // `lappend`). A call that writes *several* variables under the
-                // default (no override) is not a single-value writer: the
-                // synthetic `catch {body} resultVar optionsVar` / `try …` calls
-                // carry the body's writes plus the result / options vars as defs
-                // while `catch` / `try` return an Int status code, none of which
-                // is that status. Broadcasting the return type onto all of them
-                // would mistype every such variable, so stay conservative — the
-                // old `defs.len() > 1` fallback, now scoped to the default arm
-                // rather than a blanket heuristic (a registry `Destructured` /
-                // `Fixed` override still applies at any def count).
-                VarWriteTyping::ReturnValue if defs.len() > 1 => {
-                    DefTyping::Uniform(TypeLattice::overdefined())
-                }
-                VarWriteTyping::ReturnValue => DefTyping::Uniform(return_type_for_command(
-                    ctx.registry,
-                    canon,
-                    &arg_refs,
-                    ctx.known_classes,
-                    ctx.namespace,
-                )),
-                VarWriteTyping::Fixed(t) => DefTyping::Uniform(TypeLattice::of(t)),
-                VarWriteTyping::Destructured => DefTyping::Uniform(TypeLattice::overdefined()),
-                VarWriteTyping::ElementsOf { container_arg } => elements_of_def_typing(
-                    ctx,
-                    &arg_refs,
-                    defs,
-                    foreach_groups.as_deref(),
-                    container_arg,
-                ),
-            }
-        }
+        // A physical array-element write can have no scalar SSA definition.
+        // Its retained memory write still contributes a value at later reads.
+        Statement::Call { .. } => evaluate_call_type_def(stmt, ctx),
 
         // `ExprEval`, `Barrier`, and structured statements that survive as
         // statements (before CFG construction in some paths) all lack a
         // resolvable result type here — treat them conservatively as
         // overdefined.
         _ => DefTyping::Uniform(TypeLattice::overdefined()),
+    }
+}
+
+fn evaluate_call_type_def<S: std::hash::BuildHasher>(
+    stmt: &Statement,
+    ctx: &WordTypingCtx<'_, S>,
+) -> DefTyping {
+    let Statement::Call {
+        command,
+        canonical_command,
+        args,
+        defs,
+        ..
+    } = stmt
+    else {
+        return DefTyping::Uniform(TypeLattice::overdefined());
+    };
+    if stmt.tokens().is_some_and(|tokens| {
+        matches!(
+            tokens.synthetic,
+            Some(crate::ir::SyntheticMarker::IterationBindings(_))
+        )
+    }) {
+        let Statement::Call { foreach_groups, .. } = stmt else {
+            unreachable!()
+        };
+        let arguments = args.iter().map(String::as_str).collect::<Vec<_>>();
+        return elements_of_def_typing(ctx, &arguments, defs, foreach_groups.as_deref(), 0);
+    }
+    if let Some(tokens) = stmt.tokens()
+        && let Some(binding) = tokens.source_binding.as_ref()
+        && let Some(normal) =
+            crate::registry_invocation::normal_transfer_invocation(ctx.registry, None, tokens)
+    {
+        if let Some((value, word)) =
+            normal.stored_value_operand(&binding.variable_context, ctx.registry)
+        {
+            return DefTyping::Uniform(value_word_type(ctx, value, Some(word)));
+        }
+        if let Some(write) = normal.container_element_write(&binding.variable_context, ctx.registry)
+        {
+            let args = write
+                .arguments
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>();
+            return DefTyping::Uniform(var_elements_effect_lattice(
+                ctx,
+                write.effect,
+                &write.target,
+                &args,
+                write.argument_offset,
+                Some(write.words),
+            ));
+        }
+    }
+    // Resolve the source spelling through the lowerer's
+    // `canonical_command` snapshot (an `interp alias` / `rename`
+    // target) so a renamed or aliased builtin — `rename set myset` /
+    // `interp alias {} myset {} set` — is typed by the *real* command's
+    // registry spec, not left as an unknown `Call` (OVERDEFINED).
+    let proven = stmt.tokens().map(|_| {
+        crate::registry_invocation::resolved_statement_invocation(ctx.registry, None, stmt)
+    });
+    if matches!(proven, Some(None)) {
+        return DefTyping::Uniform(TypeLattice::overdefined());
+    }
+    let proven = proven.flatten();
+    let canon = proven.as_ref().map_or_else(
+        || canonical_command.as_deref().unwrap_or(command),
+        |invocation| invocation.facts.canonical_command.as_str(),
+    );
+    let presented;
+    let args = if let Some(invocation) = &proven {
+        let Some(arguments) = invocation
+            .arguments
+            .iter()
+            .cloned()
+            .collect::<Option<Vec<_>>>()
+        else {
+            return DefTyping::Uniform(TypeLattice::overdefined());
+        };
+        presented = arguments;
+        presented.as_slice()
+    } else {
+        args.as_slice()
+    };
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    // A canonically-`set` store keeps its runtime `Call` shape for
+    // codegen — an aliased / renamed command is not inline-foldable,
+    // its binding may change by call time — but for the type lattice
+    // its stored cell takes the *value word's* intrep verbatim, exactly
+    // as the un-aliased [`Statement::AssignValue`] path does. Keyed off
+    // the canonical command's `Set` lowering hook (the registry's own
+    // "this is a value-passthrough store" fact), never the source
+    // spelling. Effective argv fixes the setter value position, including
+    // composed aliases. A dynamic array index has a physical store without
+    // a scalar definition, so scalar def cardinality cannot gate this fact.
+    if arg_refs.len() == 2
+        && proven.as_ref().map_or_else(
+            || {
+                ctx.registry.get(canon).and_then(|spec| spec.lowering_hook)
+                    == Some(tcl_registry::hooks::LoweringHookId::Set)
+            },
+            |invocation| {
+                invocation.facts.operation
+                    == tcl_registry::SemanticOperationId::StructuredLowering(
+                        tcl_registry::hooks::LoweringHookId::Set,
+                    )
+            },
+        )
+    {
+        return DefTyping::Uniform(value_word_type(
+            ctx,
+            arg_refs[1],
+            proven
+                .as_ref()
+                .and_then(|invocation| invocation.effective.words.get(2)),
+        ));
+    }
+
+    written_call_type(stmt, ctx, canon, &arg_refs, proven.as_ref())
+}
+
+fn written_call_type<S: std::hash::BuildHasher>(
+    stmt: &Statement,
+    ctx: &WordTypingCtx<'_, S>,
+    canon: &str,
+    arg_refs: &[&str],
+    proven: Option<&crate::registry_invocation::ResolvedStatementInvocation>,
+) -> DefTyping {
+    let Statement::Call {
+        defs,
+        foreach_groups,
+        ..
+    } = stmt
+    else {
+        return DefTyping::Uniform(TypeLattice::overdefined());
+    };
+    let resolved = tcl_registry::model::resolve_invocation_in_context(
+        ctx.registry,
+        ctx.context,
+        canon,
+        arg_refs,
+    );
+
+    // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
+    // evolves the target's container elements — the registry's
+    // `VarElementsEffect` fact, generalising the old object-only
+    // element-class harvesting to every element shape.
+    if let Some(effect) = proven.map_or_else(
+        || {
+            resolved
+                .as_ref()
+                .and_then(|resolved| resolved.semantics.var_elements_effect)
+        },
+        |invocation| invocation.facts.var_elements_effect,
+    ) {
+        let base = proven.map_or_else(
+            || {
+                usize::from(
+                    resolved
+                        .as_ref()
+                        .is_some_and(|resolved| resolved.subcommand.is_resolved()),
+                )
+            },
+            |invocation| invocation.facts.argument_offset,
+        );
+        if let Some(target) = arg_refs.get(base) {
+            return DefTyping::Uniform(var_elements_effect_lattice(
+                ctx,
+                effect,
+                target,
+                arg_refs,
+                base,
+                proven.and_then(|invocation| invocation.effective.words.get(1..)),
+            ));
+        }
+    }
+
+    // How a command types the variable(s) it *writes* is a distinct
+    // fact from the value it *returns*.  A destructuring writer
+    // (`scan`, `regexp`, `binary scan`) returns a match/convert count
+    // while writing element-wise pieces; `gets` returns the character
+    // count while writing a text line; `lassign` writes its
+    // container's *elements* positionally.  The registry declares this
+    // per command / subcommand (`VarWriteTyping`), so the compiler
+    // never keys on the command name.  Resolved through `canon`, not
+    // the source spelling, so an aliased / renamed destructuring
+    // writer (`rename lassign mylassign`) still resolves to the real
+    // command's `VarWriteTyping` (FP-SH-15).
+    let typing = proven.map_or_else(
+        || {
+            resolved
+                .as_ref()
+                .map_or(VarWriteTyping::ReturnValue, |resolved| {
+                    resolved.semantics.var_write_typing
+                })
+        },
+        |invocation| invocation.facts.var_write_typing,
+    );
+    match typing {
+        // The default typing stores the command's *return value* in the
+        // target — meaningful only for a single-target writer (`append`,
+        // `lappend`). A call that writes *several* variables under the
+        // default (no override) is not a single-value writer: the
+        // synthetic `catch {body} resultVar optionsVar` / `try …` calls
+        // carry the body's writes plus the result / options vars as defs
+        // while `catch` / `try` return an Int status code, none of which
+        // is that status. Broadcasting the return type onto all of them
+        // would mistype every such variable, so stay conservative — the
+        // old `defs.len() > 1` fallback, now scoped to the default arm
+        // rather than a blanket heuristic (a registry `Destructured` /
+        // `Fixed` override still applies at any def count).
+        VarWriteTyping::ReturnValue if defs.len() > 1 => {
+            DefTyping::Uniform(TypeLattice::overdefined())
+        }
+        VarWriteTyping::ReturnValue => DefTyping::Uniform(proven.map_or_else(
+            || {
+                return_type_for_command(
+                    ctx.registry,
+                    canon,
+                    arg_refs,
+                    ctx.known_classes,
+                    ctx.namespace,
+                )
+            },
+            |invocation| {
+                invocation
+                    .facts
+                    .return_type
+                    .map_or_else(TypeLattice::overdefined, TypeLattice::of)
+            },
+        )),
+        VarWriteTyping::Fixed(t) => DefTyping::Uniform(TypeLattice::of(t)),
+        VarWriteTyping::Destructured => DefTyping::Uniform(TypeLattice::overdefined()),
+        VarWriteTyping::ElementsOf { container_arg } => elements_of_def_typing(
+            ctx,
+            arg_refs,
+            defs,
+            foreach_groups.as_deref(),
+            container_arg,
+        ),
     }
 }
 
@@ -1337,7 +1889,7 @@ fn elements_of_def_typing<S: std::hash::BuildHasher>(
     foreach_groups: Option<&[usize]>,
     container_arg: u8,
 ) -> DefTyping {
-    let mut per_def: HashMap<String, TypeLattice> = HashMap::new();
+    let mut per_def = VariableCellTable::default();
 
     if let Some(groups) = foreach_groups {
         let mut def_cursor = 0usize;
@@ -1347,7 +1899,7 @@ fn elements_of_def_typing<S: std::hash::BuildHasher>(
             let container_shape = args.get(group).and_then(|w| container_word_shape(ctx, w));
             for (j, def) in group_defs.iter().enumerate() {
                 per_def.insert(
-                    def.clone(),
+                    ctx.variable_key(def).unwrap_or_else(|| def.clone().into()),
                     foreach_var_lattice(container_shape.as_ref(), nvars, j),
                 );
             }
@@ -1359,7 +1911,7 @@ fn elements_of_def_typing<S: std::hash::BuildHasher>(
     let container = args.get(usize::from(container_arg));
     let elements = container
         .filter(|w| is_pure_var_ref(w))
-        .and_then(|w| lookup_var_type(normalise_var_name(w), ctx.uses, ctx.types, ctx.ssa))
+        .and_then(|w| ctx.written_variable_type(w, None))
         .and_then(|t| t.elements().cloned());
     for (i, def) in defs.iter().enumerate() {
         let lattice = match &elements {
@@ -1376,7 +1928,10 @@ fn elements_of_def_typing<S: std::hash::BuildHasher>(
             }
             _ => TypeLattice::overdefined(),
         };
-        per_def.insert(def.clone(), lattice);
+        per_def.insert(
+            ctx.variable_key(def).unwrap_or_else(|| def.clone().into()),
+            lattice,
+        );
     }
     DefTyping::PerDef(per_def)
 }
@@ -1388,11 +1943,12 @@ fn container_word_shape<S: std::hash::BuildHasher>(
 ) -> Option<TypeShape> {
     let word = word.trim();
     if is_pure_var_ref(word) {
-        return lookup_var_type(normalise_var_name(word), ctx.uses, ctx.types, ctx.ssa)
+        return ctx
+            .written_variable_type(word, None)
             .and_then(|t| t.single_shape().cloned());
     }
     if word.starts_with('[') && word.ends_with(']') {
-        return value_word_type(ctx, word).single_shape().cloned();
+        return value_word_type(ctx, word, None).single_shape().cloned();
     }
     None
 }
@@ -1464,13 +2020,16 @@ fn foreach_var_lattice(container_shape: Option<&TypeShape>, nvars: usize, j: usi
 /// Returns a map from `(variable_name, ssa_version)` to inferred
 /// `TypeLattice`. Values absent from the map are implicitly `Unknown`.
 ///
-/// Every def of a name [`crate::sccp::is_externally_mutable`] considers
+/// Every def of a name [`crate::ssa::SsaSourceView::externally_mutable_by`] considers
 /// externally mutable — fully namespace-qualified, aliased via `global`/
 /// `variable`/`upvar`/traced *within this function* ([`crate::var_observability::
 /// analyse_var_observability`]), named by `extra_global_escaping` (the
 /// whole-module `global`-declaration scan for the *top-level* unit — see
 /// [`crate::var_observability::scan_module_global_names`]), or traced
 /// *anywhere in the module* (`trace_facts`) — is forced `Overdefined` here,
+/// unless the source owner retains the exact successful store's value in the
+/// same physical cell after callbacks. That receipt types this definition;
+/// later reads still require their own reached contents proof.
 /// reusing the exact predicate [`crate::sccp::sccp_with_extra_escaping`] and
 /// [`crate::optimiser::propagation`]'s O102 load-forwarding already apply to
 /// their own (separate) lattices, rather than re-deriving a third,
@@ -1512,6 +2071,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
         .profile()
         .map(crate::environment_ingress::context_for_profile);
     let ctx = StatementTypingCtx {
+        preparations: &cfg.expression_preparations,
         ssa,
         context: generation
             .as_deref()
@@ -1614,7 +2174,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
             }
 
             // Statements.
-            if type_infer_process_statements(&mut types, ssa_block, &ctx) {
+            if type_infer_process_statements(&mut types, *bn, ssa_block, &ctx) {
                 changed = true;
             }
         }
@@ -1625,6 +2185,7 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
 
 /// Shared, read-only context for [`type_infer_process_statements`].
 struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
+    preparations: &'a [crate::command_binding::SourceExpressionPreparation],
     ssa: &'a SsaFunction,
     /// See [`WordTypingCtx::context`].
     context: Option<&'a tcl_registry::model::ResolvedContext>,
@@ -1634,7 +2195,7 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     /// SCCP constants — purity evidence and constant list/index values for
     /// the element-inference helpers (see [`WordTypingCtx::values`]).
     values: &'a HashMap<ValueKey, LatticeValue>,
-    /// Names [`crate::sccp::is_externally_mutable`] should treat as
+    /// Names [`crate::ssa::SsaSourceView::externally_mutable_by`] should treat as
     /// unconditionally aliased/escaping (per-function `analyse_var_observability`
     /// union'd with the caller's whole-module `extra_global_escaping` and
     /// `trace_facts.traced_variables`).
@@ -1645,25 +2206,29 @@ struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
 }
 
 /// Evaluate each statement's defs for one block, forcing every def of a name
-/// [`crate::sccp::is_externally_mutable`] considers externally mutable to
-/// `Overdefined` regardless of what its own literal/expression would
-/// otherwise infer. Returns `true` if any lattice value changed. Extracted
+/// [`crate::ssa::SsaSourceView::externally_mutable_by`] considers externally mutable to
+/// `Overdefined` unless its exact normal-store contents receipt survives.
+/// Returns `true` if any lattice value changed. Extracted
 /// from [`propagate_types`], mirroring [`crate::sccp::sccp_process_statements`]'s
 /// shape for the (separate) constant-folding lattice.
 fn type_infer_process_statements<S: std::hash::BuildHasher>(
     types: &mut HashMap<ValueKey, TypeLattice>,
+    block: BlockId,
     ssa_block: &crate::ssa::SsaBlock,
     ctx: &StatementTypingCtx<'_, S>,
 ) -> bool {
     let mut changed = false;
-    for ssa_stmt in &ssa_block.statements {
+    for (index, ssa_stmt) in ssa_block.statements.iter().enumerate() {
         let stmt = &ssa_stmt.statement;
+        let source = crate::ssa::SsaSourceView::at_statement(ctx.ssa, block, index);
         // A barrier widens every def to OVERDEFINED (it may have mutated
         // them arbitrarily); a scope-alias declaration (`global`/`variable`/
         // `upvar`/`namespace upvar`) likewise widens its defs — the
         // imported variable's intrep is external and unknown.
         let inferred = match stmt {
-            Statement::Barrier { .. } => DefTyping::Uniform(TypeLattice::overdefined()),
+            Statement::Barrier { .. } | Statement::NativeCall { .. } => {
+                DefTyping::Uniform(TypeLattice::overdefined())
+            }
             Statement::Call {
                 command,
                 canonical_command,
@@ -1681,6 +2246,9 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             }
             _ => {
                 let word_ctx = WordTypingCtx {
+                    preparations: ctx.preparations,
+                    tokens: stmt.tokens(),
+                    source,
                     uses: &ssa_stmt.uses,
                     context: ctx.context,
                     types,
@@ -1690,22 +2258,11 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     namespace: ctx.namespace,
                     ssa: ctx.ssa,
                     numbers: ctx.numbers,
+                    active_writes: &[],
+                    normal_results: None,
                 };
                 evaluate_type_def(stmt, &word_ctx)
             }
-        };
-        // An element write's base def carries no value type of its own —
-        // it refreshes `arr` for whole-array readers only (mirrors SCCP).
-        let element_write_base = match &ssa_stmt.statement {
-            Statement::AssignConst { name, .. }
-            | Statement::AssignExpr { name, .. }
-            | Statement::AssignValue { name, .. }
-            | Statement::Incr { name, .. }
-                if name.contains('(') =>
-            {
-                ctx.ssa.var_symbol(crate::naming::normalise_var_name(name))
-            }
-            _ => None,
         };
         for (&var, &ver) in &ssa_stmt.defs {
             let key = (var, ver);
@@ -1713,12 +2270,17 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                 .get(&key)
                 .cloned()
                 .unwrap_or_else(TypeLattice::unknown);
-            let name = ctx.ssa.var_name(var);
-            let def_type = if crate::sccp::is_externally_mutable(
-                name,
+            let cell = ctx.ssa.cell_key(var);
+            let externally_mutable = source.externally_mutable_by(
+                var,
                 ctx.escaping,
                 ctx.has_dynamic_variable_trace,
-            ) || element_write_base == Some(var)
+                ctx.registry,
+            ) != Some(false);
+            let def_type = if ssa_stmt.destruction_defs.contains(&var)
+                || (externally_mutable
+                    && !source.normal_store_contents_preserved(var, ctx.registry))
+                || ctx.ssa.is_array_root_refresh_version(var, ver)
             {
                 TypeLattice::overdefined()
             } else if ssa_stmt.may_defs.contains(&var) {
@@ -1737,7 +2299,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                         let written = match &inferred {
                             DefTyping::Uniform(t) => t.clone(),
                             DefTyping::PerDef(map) => map
-                                .get(name)
+                                .get(cell)
                                 .cloned()
                                 .unwrap_or_else(TypeLattice::overdefined),
                         };
@@ -1751,7 +2313,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
                     // Positional element typing: a def the map does not
                     // name widens to Overdefined.
                     DefTyping::PerDef(map) => map
-                        .get(name)
+                        .get(cell)
                         .cloned()
                         .unwrap_or_else(TypeLattice::overdefined),
                 }
@@ -1771,9 +2333,9 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
 /// fall-through exits.
 ///
 /// `types` is the [`propagate_types`] result for the same function.
-/// SSA reaching-defs aren't tracked at terminators, so a `return $x`
-/// (or `return [expr {$x}]`) joins over *every* known version of each
-/// name — a sound over-approximation.
+/// Value returns use the terminator's reaching SSA versions and retained
+/// source invocation context. Expression-only returns currently join each
+/// name's known versions conservatively.
 ///
 /// A reachable block with no terminator is a *fall-through* exit:
 /// control runs off the end of the body and Tcl returns the result of
@@ -1793,38 +2355,61 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
     known_classes: &HashSet<String, S>,
     ssa: &SsaFunction,
 ) -> TypeLattice {
+    infer_function_return_type_with_results(cfg, sccp, types, registry, known_classes, ssa, None)
+}
+
+/// Conditional normal result inference with independently retained callee body
+/// types. Only the actual positioned handler allocation can select a result.
+pub(crate) fn infer_function_return_type_with_results<S: std::hash::BuildHasher>(
+    cfg: &CfgFunction,
+    sccp: &SccpResult,
+    types: &HashMap<ValueKey, TypeLattice>,
+    registry: &CommandRegistry,
+    known_classes: &HashSet<String, S>,
+    ssa: &SsaFunction,
+    normal_results: Option<&NormalProcedureResultTypes>,
+) -> TypeLattice {
     let namespace = function_namespace(&cfg.name);
     // The registry is the dialect-selected one, so it carries the numeral
     // grammar the return literals must be read under (see [`numbers_of`]).
     let numbers = numbers_of(registry);
-    // Collapse the versioned type map to a name-keyed map by joining
-    // every version of each name — the over-approximation noted above.
-    let mut var_types: HashMap<String, TypeLattice> = HashMap::new();
-    for ((sym, _ver), t) in types {
-        var_types
-            .entry(ssa.var_name(*sym).to_owned())
-            .and_modify(|acc| *acc = type_join(acc, t))
-            .or_insert_with(|| t.clone());
-    }
-
     let mut result: Option<TypeLattice> = None;
     for (bn, block) in &cfg.blocks {
         if !sccp.executable_blocks.contains(bn) {
             continue;
         }
         let t = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => {
+            Some(Terminator::Return {
+                value,
+                value_word,
+                tokens,
+                expr,
+                expr_base,
+                ..
+            }) => {
+                let Some(ssa_block) = ssa.blocks.get(bn) else {
+                    continue;
+                };
+                let context = WordTypingCtx {
+                    preparations: &cfg.expression_preparations,
+                    tokens: tokens.as_deref(),
+                    source: crate::ssa::SsaSourceView::at_terminator(ssa, *bn),
+                    uses: &ssa_block.exit_versions,
+                    context: None,
+                    types,
+                    values: &sccp.values,
+                    registry,
+                    known_classes,
+                    namespace: &namespace,
+                    ssa,
+                    numbers,
+                    active_writes: &[],
+                    normal_results,
+                };
                 if let Some(expr) = expr {
-                    infer_expr_type(expr, &var_types, 0, numbers)
+                    lowered_expression_result_type(&context, tokens.as_deref(), expr, *expr_base)
                 } else if let Some(value) = value {
-                    infer_return_value_type(
-                        value,
-                        &var_types,
-                        registry,
-                        known_classes,
-                        &namespace,
-                        numbers,
-                    )
+                    value_word_type(&context, value, value_word.as_ref())
                 } else {
                     // Bare `return` yields the empty string.
                     TypeLattice::of(TclType::String)
@@ -1844,44 +2429,6 @@ pub(crate) fn infer_function_return_type<S: std::hash::BuildHasher>(
     result.unwrap_or_else(TypeLattice::unknown)
 }
 
-/// Infer the type of a `return`'s textual value, following the
-/// `Statement::AssignValue` arm of [`evaluate_type_def`] but keyed on
-/// the version-collapsed `var_types` map.
-fn infer_return_value_type<S: std::hash::BuildHasher>(
-    value: &str,
-    var_types: &HashMap<String, TypeLattice>,
-    registry: &CommandRegistry,
-    known_classes: &HashSet<String, S>,
-    namespace: &str,
-    numbers: NumberSyntax,
-) -> TypeLattice {
-    let stripped = value.trim();
-    // Pure variable reference: inherit the source type.
-    if is_pure_var_ref(stripped) {
-        let name = normalise_var_name(stripped);
-        return var_types
-            .get(name)
-            .cloned()
-            .unwrap_or_else(TypeLattice::unknown);
-    }
-    // Command substitution: `[cmd ...]`.
-    if stripped.starts_with('[')
-        && stripped.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution_with_config(
-            stripped,
-            tcl_lexer::LexerConfig::for_profile(registry.profile()),
-        )
-    {
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
-    }
-    // String interpolation or other complex value.
-    if value.contains('$') || value.contains('[') {
-        return TypeLattice::of(TclType::String);
-    }
-    literal_type(value, numbers)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1891,8 +2438,73 @@ mod tests {
     use std::collections::HashSet;
     use tcl_lexer::Span;
 
+    #[test]
+    fn positional_type_facts_retain_native_cell_keys_without_display_lookup() {
+        use crate::command_binding::SourceNamespaceKey;
+        use crate::var_resolve::VariableProofRelocation;
+        use tcl_runtime_api::native_compilation::{
+            NativeInterpreterIdentity, NativeNamespaceContext,
+        };
+
+        let registry = registry();
+        let interpreter = NativeInterpreterIdentity {
+            owner: NativeInterpreterIdentity::fresh_owner(),
+            interpreter: 0,
+        };
+        let key = |token| VariableCellKey::Namespace {
+            identity: SourceNamespaceKey::Native(NativeNamespaceContext {
+                interpreter,
+                token,
+                path: tcl_core_types::ByteNamespacePath::from_segments(["N"]),
+            }),
+            simple: "x".into(),
+        };
+        let original = key(1);
+        let replacement = key(2);
+        let mut ssa = SsaFunction::trivial("::top", BlockId(0), vec!["entry".into()]);
+        ssa.intern_var("x");
+        ssa.relocate_variable_proofs(&VariableProofRelocation {
+            storage_keys: HashMap::from([("x".into(), original.clone())]),
+            ..Default::default()
+        });
+        let uses = HashMap::new();
+        let types = HashMap::new();
+        let values = HashMap::new();
+        let known_classes: HashSet<String> = HashSet::new();
+        let context = WordTypingCtx {
+            preparations: &[],
+            tokens: None,
+            source: crate::ssa::SsaSourceView::unpositioned(&ssa),
+            uses: &uses,
+            context: None,
+            types: &types,
+            values: &values,
+            registry: &registry,
+            known_classes: &known_classes,
+            namespace: "::",
+            ssa: &ssa,
+            numbers: numbers_of(&registry),
+            active_writes: &[],
+            normal_results: None,
+        };
+        let DefTyping::PerDef(facts) =
+            elements_of_def_typing(&context, &["item"], &["x".into()], Some(&[1]), 0)
+        else {
+            panic!("positional definition types");
+        };
+        assert_eq!(
+            facts.get(&original),
+            Some(&TypeLattice::of(TclType::String))
+        );
+        assert_eq!(facts.get(&replacement), None);
+        assert_eq!(facts.get(&original.compatibility_name()), None);
+        assert_eq!(facts.get("x"), None);
+    }
+
     fn registry() -> CommandRegistry {
-        CommandRegistry::build_default()
+        CommandRegistry::build_default().project_for_profile(
+            tcl_dialect::DialectProfile::find("tcl9.0").expect("native Tcl fixture"),
+        )
     }
 
     /// Evaluate one statement's def typing against empty context pieces and
@@ -1910,6 +2522,9 @@ mod tests {
         let values = HashMap::new();
         let known_classes: HashSet<String> = HashSet::new();
         let ctx = WordTypingCtx {
+            preparations: &[],
+            tokens: stmt.tokens(),
+            source: crate::ssa::SsaSourceView::unpositioned(ssa),
             uses: &uses,
             context: None,
             types: &types,
@@ -1919,6 +2534,8 @@ mod tests {
             namespace: "::",
             ssa,
             numbers: numbers_of(registry),
+            active_writes: &[],
+            normal_results: None,
         };
         match evaluate_type_def(stmt, &ctx) {
             DefTyping::Uniform(t) => t,
@@ -1931,6 +2548,8 @@ mod tests {
 
     fn empty_sccp(f: &Function, blocks: &[&str]) -> SccpResult {
         SccpResult {
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()
@@ -1957,6 +2576,7 @@ mod tests {
             uses: HashMap::new(),
             defs: defs.iter().map(|&(n, v)| (ssa.intern_var(n), v)).collect(),
             may_defs: std::collections::HashSet::new(),
+            destruction_defs: std::collections::HashSet::new(),
             quoted_uses: std::collections::HashSet::new(),
             name_only_uses: std::collections::HashSet::new(),
         }
@@ -2168,12 +2788,33 @@ mod tests {
 
         // `gets chan line` — Fixed(String): the target is the read line, a
         // String, not the character count the two-arg form returns.
-        let cu = CompilationUnit::build_for("gets $ch line", &registry(), false);
+        let cu = CompilationUnit::build_for("set ch stdin; gets $ch ::line", &registry(), false);
         let fu = cu.function("::top").unwrap();
         assert!(
-            any_known(fu, "line", TclType::String),
-            "gets target must be Known String: {:?}",
-            fu.types
+            any_known(fu, "::line", TclType::String),
+            "gets target must be Known String: {:?}; escaping {:?}; operations {:?}",
+            fu.types,
+            crate::var_observability::analyse_var_observability(&fu.cfg, &registry())
+                .escaping_var_names(),
+            fu.ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .map(|statement| (
+                    statement
+                        .defs
+                        .keys()
+                        .map(|symbol| fu.ssa.var_name(*symbol))
+                        .collect::<Vec<_>>(),
+                    &statement.may_defs,
+                    crate::registry_invocation::resolved_statement_invocation(
+                        &registry(),
+                        None,
+                        &statement.statement,
+                    )
+                    .map(|invocation| invocation.facts.operation),
+                ))
+                .collect::<Vec<_>>()
         );
 
         // `lpop listVar` — Fixed(List): the variable is left holding the
@@ -2450,6 +3091,42 @@ mod tests {
         assert!(n_is_int, "expected n to be Int (llength return type)");
     }
 
+    #[test]
+    fn normal_result_representation_does_not_require_an_opcode() {
+        use crate::compilation_unit::CompilationUnit;
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::irules());
+        let source = "when HTTP_REQUEST {set input {a b}; set size [llength $input]}";
+        let cu = CompilationUnit::build_for_profile(
+            source,
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::irules(),
+        );
+        let function = cu.function("::when::HTTP_REQUEST").expect("handler");
+        assert!(
+            function.types.iter().any(|((symbol, _), value)| {
+                function.ssa.var_name(*symbol) == "size" && value.tcl_type() == Some(TclType::Int)
+            }),
+            "successful producer: {:?}",
+            function.types
+        );
+        let shadow = CompilationUnit::build_for_profile(
+            "proc llength {args} {return arbitrary}; when HTTP_REQUEST {set input {a b}; set size [llength $input]}",
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::irules(),
+        );
+        let shadow = shadow.function("::when::HTTP_REQUEST").expect("handler");
+        assert!(
+            !shadow.types.iter().any(|((symbol, _), value)| {
+                shadow.ssa.var_name(*symbol) == "size" && value.tcl_type() == Some(TclType::Int)
+            }),
+            "custom producer: {:?}",
+            shadow.types
+        );
+    }
+
     /// A `dict set VAR k [Class new]` collection retrieved by `dict get` types
     /// the element as the class (the collection-of-objects shape).
     #[test]
@@ -2512,7 +3189,29 @@ mod tests {
             .iter()
             .filter(|((name, _), _)| fu.ssa.var_name(*name) == "d")
             .all(|((_, ver), t)| *ver < 2 || t.element_class().is_none());
-        assert!(widened, "mixed-class dict must drop its element class");
+        assert!(
+            widened,
+            "mixed-class dict must drop its element class; types {:?}; operations {:?}",
+            fu.types,
+            fu.ssa
+                .blocks
+                .iter()
+                .map(|(id, block)| (
+                    id,
+                    block
+                        .statements
+                        .iter()
+                        .enumerate()
+                        .map(|(index, statement)| (
+                            &statement.defs,
+                            &statement.uses,
+                            crate::ssa::SsaSourceView::at_statement(&fu.ssa, *id, index)
+                                .symbol("d"),
+                        ))
+                        .collect::<Vec<_>>()
+                ))
+                .collect::<Vec<_>>()
+        );
     }
 
     // expr type-inference precision
@@ -2538,6 +3237,90 @@ mod tests {
             0,
             crate::intervals::numbers_for_dialect(dialect),
         )
+    }
+
+    #[test]
+    fn decoded_expression_names_keep_literal_sigils_and_element_identity() {
+        let profile = tcl_registry::model::ingress::static_context_for("tcl8.6")
+            .commands()
+            .profile();
+        let types = HashMap::from([
+            ("b".to_owned(), TypeLattice::of(TclType::List)),
+            ("$b".to_owned(), TypeLattice::of(TclType::Int)),
+            ("a".to_owned(), TypeLattice::of(TclType::Dict)),
+            ("a(k)".to_owned(), TypeLattice::of(TclType::Double)),
+        ]);
+        for (source, expected) in [("${$b}", TclType::Int), ("${a(k)}", TclType::Double)] {
+            let expression = crate::parse_expr_for_profile(source, profile);
+            let reference = expression
+                .variable_reference(tcl_lexer::LexerConfig::from_grammar(
+                    profile.unwrap().grammar,
+                ))
+                .unwrap()
+                .unwrap();
+            assert!(reference.index.is_none());
+            let ExprNode::Var { start, end, .. } = &expression else {
+                panic!("variable");
+            };
+            let occurrence_types = HashMap::from([(
+                (source.to_owned(), *start, *end),
+                types[std::str::from_utf8(reference.name).unwrap()].clone(),
+            )]);
+            assert_eq!(
+                infer_expr_type(
+                    &expression,
+                    &occurrence_types,
+                    0,
+                    NumberSyntax::of_profile(profile)
+                )
+                .tcl_type(),
+                Some(expected),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn expression_contents_types_use_original_element_and_literal_name_reads() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (source, expected) in [
+            (
+                "proc f {} {set {$b} [expr {7<<1}]; set b [list x]; return [expr {${$b}}]}; f",
+                TclType::Int,
+            ),
+            (
+                "proc f {} {set a(k) [expr {7.5}]; return [expr {${a(k)}}]}; f",
+                TclType::Double,
+            ),
+            (
+                "proc f {} {set k k; set a(k) [expr {7.5}]; return [expr {$a($k)}]}; f",
+                TclType::Double,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for(source, registry, false);
+            assert_eq!(
+                unit.function("::f").unwrap().return_type.tcl_type(),
+                Some(expected),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn written_container_reads_keep_raw_and_braced_variable_identity() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for word in ["$items", "${items}"] {
+            let source = format!(
+                "proc f {{raw}} {{set items [list [expr {{$raw<<1}}]]; return [lindex {word} 0]}}; f 7"
+            );
+            let unit =
+                crate::compilation_unit::CompilationUnit::build_for(&source, registry, false);
+            assert_eq!(
+                unit.function("::f").unwrap().return_type.tcl_type(),
+                Some(TclType::Int),
+                "{source}"
+            );
+        }
     }
 
     #[test]
@@ -2724,24 +3507,101 @@ mod tests {
     }
 
     #[test]
-    fn scope_alias_def_widens_to_overdefined() {
-        use crate::compilation_unit::CompilationUnit;
-        // `variable counter` imports an externally-determined variable; its
-        // def must be OVERDEFINED, not the nominal return type of `variable`.
-        let cu = CompilationUnit::build_for(
-            "proc ::f {} { variable counter\n return $counter }",
+    fn scope_alias_declaration_preserves_unknown_contents() {
+        let cu = crate::compilation_unit::CompilationUnit::build_for(
+            "proc ::f {} { variable counter; set observed $counter; return $observed }",
             &registry(),
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let widened = fu.types.iter().any(|((n, _), t)| {
-            fu.ssa.var_name(*n) == "counter" && t.kind() == TypeKind::Overdefined
-        });
         assert!(
-            widened,
-            "scope-aliased 'counter' should be OVERDEFINED: {:?}",
             fu.types
+                .iter()
+                .all(|((name, _), _)| fu.ssa.var_name(*name) != "::counter"),
+            "a declaration alone cannot write namespace contents"
         );
+        assert_eq!(
+            fu.return_type.kind(),
+            TypeKind::Overdefined,
+            "an external cell's unknown contents are not the declaration's return value; actual return {}",
+            fu.return_type
+        );
+    }
+
+    #[test]
+    fn actual_traced_alias_store_preserves_only_a_closed_unchanged_value() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        for (callback, preserves_dictionary) in [
+            ("", true),
+            // A callback can coerce the same value without changing its bytes
+            // or dictionary contents. Current representation is a separate
+            // read receipt consumed by representation diagnostics.
+            ("upvar 1 dictionary destination; llength $destination", true),
+            (
+                "upvar 1 dictionary destination; set destination altered",
+                false,
+            ),
+        ] {
+            let source = format!(
+                "proc observe args {{{callback}}}; proc f {{}} {{set dictionary [dict create k 1]; upvar 0 dictionary view; trace add variable view write observe; set dictionary [dict create k 2]; llength $view}}"
+            );
+            let unit =
+                crate::compilation_unit::CompilationUnit::build_for(&source, registry, false);
+            let function = unit.function("::f").unwrap();
+            let mut writes = Vec::new();
+            for (&block, body) in &function.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    if matches!(&statement.statement, Statement::AssignValue { name, .. } if name == "dictionary")
+                    {
+                        for (&symbol, &version) in &statement.defs {
+                            writes.push((
+                                statement.statement.span().start(),
+                                function.types.get(&(symbol, version)),
+                                crate::ssa::SsaSourceView::at_statement(
+                                    &function.ssa,
+                                    block,
+                                    index,
+                                )
+                                .normal_store_contents_preserved(symbol, registry),
+                            ));
+                        }
+                    }
+                }
+            }
+            writes.sort_by_key(|(offset, _, _)| *offset);
+            assert_eq!(writes.len(), 2);
+            assert_eq!(writes[1].2, preserves_dictionary, "callback {callback:?}");
+            assert_eq!(
+                writes[1].1.unwrap().tcl_type() == Some(TclType::Dict),
+                preserves_dictionary,
+                "callback {callback:?}: {:?}",
+                writes[1].1,
+            );
+        }
+    }
+
+    #[test]
+    fn expression_types_follow_actual_alias_spellings_at_each_read() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(
+            "proc f {} {set original [expr {3.5}]; upvar 0 original view; set result [expr {$original}]; return [expr {$view}]}",
+            registry,
+            false,
+        );
+        let function = unit.function("::f").unwrap();
+        assert_eq!(function.return_type.tcl_type(), Some(TclType::Double));
+        let writes = function
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|body| &body.statements);
+        let result = writes
+            .filter(|statement| matches!(&statement.statement, Statement::AssignExpr { name, .. } if name == "result"))
+            .flat_map(|statement| &statement.defs)
+            .filter_map(|(&symbol, &version)| function.types.get(&(symbol, version)))
+            .collect::<Vec<_>>();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].tcl_type(), Some(TclType::Double));
     }
 
     #[test]
@@ -2821,9 +3681,18 @@ mod tests {
         var: &str,
     ) -> TypeLattice {
         let fu = cu.function(func).unwrap();
+        let mut symbols = HashSet::new();
+        symbols.extend(fu.ssa.var_symbol(var));
+        for (&block, cfg_block) in &fu.cfg.blocks {
+            for index in (0..cfg_block.statements.len()).chain(std::iter::once(usize::MAX)) {
+                symbols.extend(
+                    crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).symbol(var),
+                );
+            }
+        }
         let mut acc = TypeLattice::unknown();
         for ((sym, ver), t) in fu.types.iter() {
-            if *ver > 0 && fu.ssa.var_name(*sym) == var {
+            if *ver > 0 && symbols.contains(sym) {
                 acc = type_join(&acc, t);
             }
         }
@@ -3027,9 +3896,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::f").unwrap();
-        let final_is_int = fu.types.iter().any(|((sym, ver), t)| {
-            *ver == 2 && fu.ssa.var_name(*sym) == "a(x)" && t.tcl_type() == Some(TclType::Int)
-        });
+        let final_is_int = fu.return_type.tcl_type() == Some(TclType::Int);
         assert!(
             final_is_int,
             "INT ⊔ INT across the may-write stays INT: {:?}",
@@ -3042,9 +3909,7 @@ mod tests {
             false,
         );
         let fu = cu.function("::g").unwrap();
-        let widened = fu.types.iter().any(|((sym, ver), t)| {
-            *ver == 2 && fu.ssa.var_name(*sym) == "a(x)" && t.tcl_type() == Some(TclType::Int)
-        });
+        let widened = fu.return_type.tcl_type() == Some(TclType::Int);
         assert!(
             !widened,
             "INT ⊔ STRING must not stay a single INT claim: {:?}",
@@ -3058,13 +3923,30 @@ mod tests {
     /// not survive), with only object dispatch-identity flowing.
     #[test]
     fn dict_value_effects_match_oracle() {
-        let reg = tcl_registry::CommandRegistry::build_default();
+        for profile in ["tcl8.6", "tcl9.0"] {
+            assert_dict_value_effects(
+                tcl_dialect::DialectProfile::find(profile).expect("native Tcl fixture"),
+            );
+        }
+    }
+
+    fn assert_dict_value_effects(profile: &'static tcl_dialect::DialectProfile) {
+        let reg = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let elements_of = |src: &str, qname: &str, var: &str| -> Vec<Option<TclType>> {
             let cu = crate::compilation_unit::CompilationUnit::build_for(src, &reg, false);
             let fu = cu.function(qname).unwrap();
+            let mut symbols = HashSet::new();
+            symbols.extend(fu.ssa.var_symbol(var));
+            for (&block, cfg_block) in &fu.cfg.blocks {
+                for index in (0..cfg_block.statements.len()).chain(std::iter::once(usize::MAX)) {
+                    symbols.extend(
+                        crate::ssa::SsaSourceView::at_statement(&fu.ssa, block, index).symbol(var),
+                    );
+                }
+            }
             fu.types
                 .iter()
-                .filter(|((sym, ver), _)| *ver > 0 && fu.ssa.var_name(*sym) == var)
+                .filter(|((sym, ver), _)| *ver > 0 && symbols.contains(sym))
                 .map(|(_, t)| {
                     t.elements()
                         .and_then(Elements::uniform_shape)

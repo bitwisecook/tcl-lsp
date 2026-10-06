@@ -189,53 +189,30 @@ fn pure_copy_source(value: &str) -> Option<&str> {
     (!name.is_empty() && plain && !name.contains('(')).then_some(name)
 }
 
-/// Fold a `[list W1 W2 ...]` value to its space-joined string when every
-/// element is a **plain** literal word — no `$`/`[`/`{`/`"`/backslash/
-/// whitespace, so Tcl's own `list` command needs no brace/backslash
-/// quoting to represent it (tclsh9.0/8.6-verified: `[list a b]` is
-/// byte-identical to the string `"a b"` for such elements). Deliberately
-/// narrow — not a general `list`-command simulator: any element needing
-/// quoting protection
-/// (containing whitespace, braces, or another special character) bails, as
-/// does anything other than a single, whole-value `[list ...]` call.
-///
-/// Returns `(joined, first_offset, first_len)`: the joined string, plus the
-/// first element's own byte offset and length — both relative to `value`'s
-/// own start (its opening `[`) — so the caller can anchor a rename-writable
-/// span on just that one argument.
+/// Project a list-construction result selected by the retained normal handler.
+/// Lexical command text provides only the whole-word source boundary. The
+/// result owner supplies exact bytes and the first written operand's anchor.
 fn fold_literal_list_call(
-    value: &str,
+    fu: &FunctionUnit,
+    tokens: &crate::ir::CommandTokens,
     config: tcl_lexer::LexerConfig,
-) -> Option<(String, u32, u32)> {
-    let inner = value.strip_prefix('[')?.strip_suffix(']')?;
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
-    let [cmd] = cmds.as_slice() else {
-        return None;
-    };
-    if cmd.name() != "list" {
-        return None;
-    }
-    let args = cmd.args();
-    let arg_tokens = cmd.arg_tokens();
-    let singles = cmd.arg_single_token();
-    if args.is_empty() || args.len() != singles.len() || args.len() != arg_tokens.len() {
+) -> Option<(String, Span)> {
+    let binding = tokens.source_binding.as_ref()?;
+    if !matches!(
+        binding.source_origin()?.kind(),
+        crate::command_binding::SourceOriginKind::Authored(_)
+    ) {
         return None;
     }
-    let mut words = Vec::with_capacity(args.len());
-    for (word, &single) in args.iter().zip(singles) {
-        if !single
-            || word.is_empty()
-            || word.contains(['{', '}', '"', '\\', '$', '[', ']'])
-            || word.chars().any(char::is_whitespace)
-        {
-            return None;
-        }
-        words.push(word.as_str());
-    }
-    // `inner`'s own offset 0 is one byte past `value`'s opening `[`.
-    let first_offset = arg_tokens[0].span.start() + 1;
-    let first_len = u32::try_from(words[0].len()).ok()?;
-    Some((words.join(" "), first_offset, first_len))
+    let registry = fu.semantic_value_projection.retained_registry()?;
+    let word = tokens.words().get(2)?;
+    let mut nested = crate::word_subst::whole_word_command_tokens(word, config)?;
+    nested.inherit_nested_bindings(tokens);
+    let normal =
+        crate::registry_invocation::normal_representation_invocation(registry, None, &nested)?;
+    let (value, span) = normal.plain_literal_list_result()?;
+    let captured = binding.evaluated_argument_values.get(1)?.as_deref()?;
+    (captured == value).then_some((value, fu.abs_span(span)))
 }
 
 /// The contributing constant definitions for the value of `var_name` at
@@ -419,35 +396,16 @@ fn contributor_from_stmt(
                 let &src_version = stmt.uses.get(&src_sym)?;
                 return collect(fu, index, src_sym, src_version, visited, out, config);
             }
-            // A `[list W1 W2 ...]` value whose every element is a plain
-            // literal folds to the space-joined string (`set cmdD [list greetD
-            // World]; eval $cmdD`). The joined *value* has no single source
-            // span (it's
-            // synthesised from several separate argument tokens), but the
-            // first element — the actual command-dispatch anchor, the only
-            // part `settle_one_site`'s `head_expanded` narrowing ever reads
-            // — does: anchor `literal_span` there directly (skipping
-            // `command_component`'s usual "narrow a whole-value span down
-            // to its first word" step, since there is no whole-value span
-            // to narrow) so a rename can still safely rewrite just that
-            // one argument in place. The value token's own span *starts*
-            // exactly at its opening `[` (`tcl-lexer`'s `Cmd`-token span
-            // convention — the same one idx 95 already found excludes the
-            // *closing* delimiter, so `word_content_base`'s length-based
-            // delta below underflows for it and correctly declines; the
-            // *start* offset needs no such adjustment), so this reads it
-            // directly rather than reusing that helper.
+            // The actual list result owner retains bytes and source anchors.
+            // A command named list or coincidentally equal result cannot donate
+            // writable provenance from another implementation.
             if !*value_needs_backsubst
-                && let Some((joined, first_offset, first_len)) =
-                    fold_literal_list_call(value, config)
+                && let Some(tokens) = tokens
+                && let Some((joined, literal_span)) = fold_literal_list_call(fu, tokens, config)
             {
-                let literal_span = tokens.as_ref().and_then(|t| {
-                    let base = t.argv.get(2)?.start() + first_offset;
-                    Some(fu.abs_span(Span::new(base, base + first_len)))
-                });
                 out.push(ValueContributor {
                     value: joined,
-                    literal_span,
+                    literal_span: Some(literal_span),
                 });
                 return Some(());
             }
@@ -483,6 +441,59 @@ fn contributor_from_stmt(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn list_result(source: &str) -> Option<(String, Span)> {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let unit = crate::compilation_unit::CompilationUnit::build_for(source, &registry, false);
+        let function = &unit.top_level;
+        function
+            .ssa
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .find_map(|statement| {
+                let Statement::AssignValue {
+                    tokens: Some(tokens),
+                    ..
+                } = &statement.statement
+                else {
+                    return None;
+                };
+                fold_literal_list_call(function, tokens, tcl_lexer::LexerConfig::default())
+            })
+    }
+
+    #[test]
+    fn list_provenance_requires_the_actual_construction_handler() {
+        let source = "set cmd [list helper baked]";
+        let (value, span) = list_result(source).expect("native list result receipt");
+        assert_eq!(value, "helper baked");
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "helper"
+        );
+        assert!(
+            list_result("proc list {args} {return {helper baked}}; set cmd [list helper baked]")
+                .is_none()
+        );
+        assert!(list_result("proc other {args} {return {helper baked}}; interp alias {} list {} other; set cmd [list helper baked]").is_none());
+    }
+
+    #[test]
+    fn list_provenance_retains_a_renamed_native_handler() {
+        let source = "rename list nativeList; set cmd [nativeList helper baked]";
+        let (value, span) = list_result(source).expect("retained native construction identity");
+        assert_eq!(value, "helper baked");
+        assert_eq!(
+            &source[span.start() as usize..span.end() as usize],
+            "helper"
+        );
+    }
+
+    #[test]
+    fn materialised_list_results_do_not_supply_authored_edit_spans() {
+        assert!(list_result("eval \"set cmd \\[list helper baked\\]\"").is_none());
+    }
 
     #[test]
     fn first_substitution_head_uses_pre_invocation_value_only() {

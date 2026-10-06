@@ -36,7 +36,11 @@ description = "Family-B runtime-state contract (Code/Completion, handles, role t
 
 [dependencies]
 tcl-core-types = { path = "../tcl-core-types" }
+# Immutable native source bytes and their explicit input-channel policy.
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-dialect = { path = "../tcl-dialect" }
+# Shared typed byte/list failures and checked native-value access refusal.
+tcl-syntax = { path = "../tcl-syntax" }
 
 [lints]
 workspace = true

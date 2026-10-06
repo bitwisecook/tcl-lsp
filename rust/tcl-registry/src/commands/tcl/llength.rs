@@ -42,7 +42,22 @@ const FORMS: &[FormSpec] = &[FormSpec {
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
+        // Reached native value handler has no callbacks or variable-name writes.
+        successful_handler: Some(crate::native_compilation::SuccessfulHandlerSpec::Leaf),
+        native_result: Some(crate::native_result::NativeResultContract::ListLength),
         name: "llength",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            // TclCompileLlengthCmd compiles its sole operand in every C
+            // release. C 8.4 reports bad argc before any operand executes;
+            // C 8.5+ declines compilation and lets ordinary dispatch report it.
+            grammar: crate::native_compilation::NativeCompilationGrammar::CheckedArity {
+                arity: Arity::exact(1),
+                usage: "llength list",
+            },
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_llength),
         traits: Traits::FRAMELESS_RUNTIME
@@ -50,6 +65,9 @@ pub fn spec() -> CommandSpec {
             | Traits::PURE
             | Traits::CSE_CANDIDATE,
         arity: Arity::exact(1),
+        // Pinned Tcl_ListObjLength/Jim_ListLength ordinary-object conversion.
+        // C 9 abstract-list callbacks and empty shortcuts remain separate.
+        representation_effect: Some(RepresentationEffect::CoerceOrdinaryList { operand: 0 }),
         return_type: Some(TclType::Int),
         arg_types: &[(
             0,

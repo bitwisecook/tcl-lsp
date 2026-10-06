@@ -93,8 +93,20 @@ pub enum Terminator {
         condition_base: Option<u32>,
     },
 
+    /// Observed abrupt completion in the analysis projection. The original
+    /// invocation remains in the block; this terminal performs no evaluation
+    /// and does not manufacture a procedure return or execute a runtime wrapper.
+    Complete {
+        /// Shared native completion route, retaining return levels and process exit.
+        route: tcl_registry::completion_route::InvocationCompletionRoute,
+        /// Source extent of the invocation that produced this completion.
+        span: Option<Span>,
+    },
+
     /// Procedure exit.
     Return {
+        /// Original invocation carrying the returned value's nested lookups.
+        tokens: Option<Box<crate::ir::CommandTokens>>,
         /// Return value text, if any.
         value: Option<String>,
         /// Canonical source word for the return value, when lowering retained
@@ -104,6 +116,8 @@ pub enum Terminator {
         span: Option<Span>,
         /// Parsed return expression, if any.
         expr: Option<ExprNode>,
+        /// Exact expression source base, absent when decoded bytes lack an affine source mapping.
+        expr_base: Option<u32>,
         /// Whether the return value was braced.
         braced: bool,
     },
@@ -120,7 +134,7 @@ impl Terminator {
                 false_target,
                 ..
             } => vec![*true_target, *false_target],
-            Self::Return { .. } => vec![],
+            Self::Return { .. } | Self::Complete { .. } => vec![],
         }
     }
 
@@ -128,9 +142,10 @@ impl Terminator {
     #[must_use]
     pub fn span(&self) -> Option<Span> {
         match self {
-            Self::Goto { span, .. } | Self::Branch { span, .. } | Self::Return { span, .. } => {
-                *span
-            }
+            Self::Goto { span, .. }
+            | Self::Branch { span, .. }
+            | Self::Return { span, .. }
+            | Self::Complete { span, .. } => *span,
         }
     }
 }
@@ -183,6 +198,9 @@ impl Block {
 /// bottom-tested loop rewriter in codegen.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoopNode {
+    /// Actual source instance owning the condition and original loop statement.
+    /// A missing owner cannot borrow math proofs from a surrounding function.
+    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
     /// Id of the loop header/entry block.
     pub entry_block: BlockId,
     /// Source span of the original `for` statement.
@@ -209,8 +227,36 @@ pub struct InlineBodyErrorSite {
 /// A complete control-flow graph for a single procedure or top-level script.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Function {
+    /// Actual namespace owner retained from the executable body.
+    pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
+    /// Exact source instance retained independently of native admission.
+    pub executed_source: Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    /// Original function occurrences across flattened source instances;
+    /// conditional topology retains independent actual validation obligations.
+    pub implicit_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Preparation witnesses from the actual expression-entry source instances.
+    pub expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+    /// Dependencies consumed by successful transforms, retained even when the
+    /// expression which supplied them has been replaced or removed.
+    pub required_math_invocations: Vec<crate::command_binding::SourceMathInvocation>,
+    /// Whole-expression preparation consumed by a successful transform.
+    pub required_expression_preparations: Vec<crate::command_binding::SourceExpressionPreparation>,
+    /// Source instance at each observed branch/return/completion terminator.
+    pub terminator_sources:
+        HashMap<BlockId, Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>>,
+    /// Source instance at every flattened statement, including derived child bodies.
+    pub statement_sources: HashMap<
+        (BlockId, usize),
+        Option<std::sync::Arc<crate::command_binding::ExecutedScriptSource>>,
+    >,
     /// Fully qualified procedure name (e.g. `"::top"`, `"::ns::proc"`).
     pub name: String,
+    /// A proved compiler rejection precedes every executable body instruction.
+    pub native_compilation_failure:
+        Option<Box<crate::command_binding::SourceNativeCompilationFailure>>,
+    /// Target-neutral chunk admission, preserving unresolved compiler paths.
+    pub native_compilation_admission:
+        Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
     /// Id of the entry block.
     pub entry: BlockId,
     /// All blocks in the function, keyed by block id.
@@ -224,6 +270,8 @@ pub struct Function {
     /// → O107).  `(from_block, handler_block)` pairs; empty in codegen
     /// builds so the default bytecode is unchanged.
     pub exception_edges: Vec<(BlockId, BlockId)>,
+    /// Additional normal successors from proved wrapper selection alternatives.
+    pub analysis_edges: Vec<(BlockId, BlockId)>,
     /// Registry-described error contexts for inlined command bodies flattened
     /// into this function's statement stream. Codegen turns each into a
     /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
@@ -239,6 +287,9 @@ pub struct Function {
     /// Exact owning Tcl command for synthetic runtime boundaries emitted at a
     /// block. Absence means compiler-generated control, not a replay point.
     pub command_boundary_sites: HashMap<BlockId, CommandBindingSite>,
+    /// Original invocation proof owning a native expression at a Branch.
+    /// This analysis carrier never creates a runtime command replay boundary.
+    pub condition_binding_sites: HashMap<BlockId, CommandBindingSite>,
     /// Continuation block for a structured command whose inline CFG occupies a
     /// region rather than one statement or a recognised loop shape. Codegen
     /// wraps that region in one replayable `START_CMD` boundary.
@@ -273,19 +324,114 @@ pub struct Function {
 }
 
 impl Function {
+    /// Whether any retained invocation has unprojected native variable/effects.
+    /// Named-variable consumers must retain this residual alongside their sets.
+    #[must_use]
+    pub fn has_opaque_native_accesses(&self) -> bool {
+        crate::ir::statements_have_opaque_native_accesses(
+            self.blocks.values().flat_map(|block| &block.statements),
+        )
+    }
+
+    /// Exact statement edit projection; a root source cannot license a derived child.
+    #[must_use]
+    pub fn statement_source_edit_span(&self, block: BlockId, index: usize) -> Option<Span> {
+        let source = self.statement_sources.get(&(block, index))?.as_ref()?;
+        matches!(
+            source.origin.kind(),
+            crate::command_binding::SourceOriginKind::Authored(_)
+        )
+        .then(|| {
+            self.blocks
+                .get(&block)?
+                .statements
+                .get(index)
+                .and_then(Statement::source_edit_span)
+        })
+        .flatten()
+    }
+
+    /// Exact terminal edit projection under the source active when it was emitted.
+    #[must_use]
+    pub fn terminator_source_edit_span(&self, block: BlockId) -> Option<Span> {
+        let source = self.terminator_sources.get(&block)?.as_ref()?;
+        if !matches!(
+            source.origin.kind(),
+            crate::command_binding::SourceOriginKind::Authored(_)
+        ) {
+            return None;
+        }
+        match self.blocks.get(&block)?.terminator.as_ref()? {
+            Terminator::Branch { span, .. }
+            | Terminator::Goto { span, .. }
+            | Terminator::Return { span, .. }
+            | Terminator::Complete { span, .. } => *span,
+        }
+    }
+
+    /// Project an edit only when the function retains original authored bytes.
+    #[must_use]
+    pub fn source_edit_span(&self, span: Span) -> Option<Span> {
+        self.executed_source.as_ref().and_then(|source| {
+            matches!(
+                source.origin.kind(),
+                crate::command_binding::SourceOriginKind::Authored(_)
+            )
+            .then_some(span)
+        })
+    }
+
+    /// Preserve dependencies consumed by a successful transform separately
+    /// from the source-call inventory. This does not establish new call proof.
+    pub fn retain_math_invocations(
+        &mut self,
+        requirements: &[crate::command_binding::SourceMathInvocation],
+    ) {
+        for requirement in requirements {
+            if !self.required_math_invocations.contains(requirement) {
+                self.required_math_invocations.push(requirement.clone());
+            }
+        }
+    }
+
+    /// Retain whole-expression entry proofs independently of reached calls.
+    pub fn retain_expression_preparations(
+        &mut self,
+        requirements: &[crate::command_binding::SourceExpressionPreparation],
+    ) {
+        for requirement in requirements {
+            if !self.required_expression_preparations.contains(requirement) {
+                self.required_expression_preparations
+                    .push(requirement.clone());
+            }
+        }
+    }
+
     /// Create a new function with a single empty entry block.
     #[must_use]
     pub fn new(name: impl Into<String>, entry: impl Into<String>) -> Self {
         let mut f = Self {
             name: name.into(),
             entry: BlockId(0),
+            native_compilation_failure: None,
+            native_compilation_admission: None,
+            namespace_context: None,
+            executed_source: None,
+            implicit_math_invocations: Vec::new(),
+            expression_preparations: Vec::new(),
+            required_math_invocations: Vec::new(),
+            required_expression_preparations: Vec::new(),
+            statement_sources: HashMap::new(),
+            terminator_sources: HashMap::new(),
             blocks: HashMap::new(),
             loop_nodes: HashMap::new(),
             exception_edges: Vec::new(),
+            analysis_edges: Vec::new(),
             inline_body_error_sites: Vec::new(),
             command_binding_sites: Vec::new(),
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
+            condition_binding_sites: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
@@ -357,7 +503,7 @@ impl Function {
             .get(&id)
             .map(Block::successors)
             .unwrap_or_default();
-        for (from, to) in &self.exception_edges {
+        for (from, to) in self.exception_edges.iter().chain(&self.analysis_edges) {
             if *from == id && !out.contains(to) {
                 out.push(*to);
             }
@@ -386,7 +532,10 @@ impl Function {
             .blocks
             .values()
             .flat_map(|b| b.statements.iter())
-            .any(|s| matches!(s, Statement::Barrier { .. }) && s.is_executable_invocation())
+            .any(|s| {
+                matches!(s, Statement::NativeCall { .. })
+                    || (matches!(s, Statement::Barrier { .. }) && s.is_executable_invocation())
+            })
     }
 
     /// Compute the predecessor map: block → set of predecessor blocks.
@@ -571,6 +720,8 @@ mod tests {
 
     fn make_return(value: Option<&str>) -> Terminator {
         Terminator::Return {
+            expr_base: None,
+            tokens: None,
             value: value.map(String::from),
             value_word: None,
             span: None,
@@ -598,7 +749,7 @@ mod tests {
     #[test]
     fn return_successors() {
         let t = make_return(Some("1"));
-        assert!(t.successors().is_empty());
+        assert_eq!(t.successors(), [] as [crate::cfg::BlockId; 0]);
     }
 
     #[test]
@@ -717,9 +868,9 @@ mod tests {
     fn empty_block() {
         let block = Block::new("entry");
         assert_eq!(block.name, "entry");
-        assert!(block.statements.is_empty());
+        assert_eq!(block.statements, [] as [crate::ir::Statement; 0]);
         assert!(block.terminator.is_none());
-        assert!(block.successors().is_empty());
+        assert_eq!(block.successors(), [] as [crate::cfg::BlockId; 0]);
     }
 
     #[test]
@@ -741,7 +892,7 @@ mod tests {
         });
         block.terminator = Some(make_return(None));
         assert_eq!(block.statements.len(), 1);
-        assert!(block.successors().is_empty());
+        assert_eq!(block.successors(), [] as [crate::cfg::BlockId; 0]);
     }
 
     // Function tests
@@ -766,7 +917,7 @@ mod tests {
         func.blocks.get_mut(&b2).unwrap().terminator = Some(make_return(None));
 
         let preds = func.predecessors();
-        assert!(preds[&entry].is_empty());
+        assert_eq!(preds[&entry].len(), 0);
         assert_eq!(preds[&b1], HashSet::from([entry]));
         assert_eq!(preds[&b2], HashSet::from([b1]));
     }
@@ -785,7 +936,7 @@ mod tests {
         func.blocks.get_mut(&end).unwrap().terminator = Some(make_return(None));
 
         let preds = func.predecessors();
-        assert!(preds[&entry].is_empty());
+        assert_eq!(preds[&entry].len(), 0);
         assert_eq!(preds[&then], HashSet::from([entry]));
         assert_eq!(preds[&els], HashSet::from([entry]));
         assert_eq!(preds[&end], HashSet::from([then, els]));
@@ -908,6 +1059,7 @@ mod tests {
         func.loop_nodes.insert(
             for_end,
             LoopNode {
+                executed_source: None,
                 entry_block: for_header,
                 span: Span::new(0, 30),
                 for_stmt: Statement::For {

@@ -1,0 +1,7 @@
+&x 0 0 AFTER BEFORE
+&a(k) 1 - {formal parameter "&a(k)" is an array element} BEFORE
+&::alias 1 - {formal parameter "&::alias" is not a simple name} BEFORE
+&n::alias 1 - {formal parameter "&n::alias" is not a simple name} BEFORE
+elementtarget {0 AFTER BEFORE}
+emptybody {0 {}}
+default {&x DEFAULT}

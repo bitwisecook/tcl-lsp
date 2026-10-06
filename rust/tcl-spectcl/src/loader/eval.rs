@@ -228,11 +228,16 @@ const ROW_WORDS: &[&str] = &[
     "arg",
     "repeat",
     "reserved_trailing_words",
+    "option_prefix_words",
     "assigns_variable_at",
     "creates_instance_at",
     "defines_command_at",
     "body_arg_implicit_args",
     "body_kind",
+    "body_execution",
+    "procedure_definition",
+    "native_compilation",
+    "successful_handler",
     "allow_unknown_subcommands",
     "dynamic_surface",
     "unknown_members",
@@ -1753,6 +1758,9 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
         }
         PackEvalFailure::Script(message) | PackEvalFailure::Compile(message) => {
             LoadError::EvaluationFailed(message.clone())
+        }
+        PackEvalFailure::ScriptBytes(_) | PackEvalFailure::ExecutionRefusal(_) => {
+            LoadError::EvaluationFailed(failure.to_string())
         }
         PackEvalFailure::Panic(payload) => {
             LoadError::EvaluationFailed(format!("the evaluation engine crashed: {payload}"))

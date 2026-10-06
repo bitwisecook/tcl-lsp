@@ -90,7 +90,7 @@ use tcl_dialect::model::{
     DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
     LENIENT_ENVIRONMENT_ID,
 };
-use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
+use tcl_dialect::{DialectProfile, DialectProfileKey, LexerGrammar, LibraryVersionOverrides};
 
 use crate::model::assembly::{ContextRegistry, registry_for_environment_if_built};
 use crate::model::context::{KeyedVersions, ResolvedContext};
@@ -265,6 +265,13 @@ impl DocumentEnvironment {
         self.definition.point()
     }
 
+    /// The owning environment's default execution release and build. This is
+    /// independent of its authoring target set, which can cover the full ladder.
+    #[must_use]
+    pub fn default_execution_point(&self) -> Option<DialectPoint> {
+        self.definition.point()
+    }
+
     /// The grammar this environment's documents are lexed under — **the one
     /// place a document's grammar is born.** Every `LexerConfig` a unit,
     /// the analyser or an LSP provider builds for a document should come
@@ -421,12 +428,42 @@ impl DocumentEnvironment {
 /// no pack overlay) — transitional plumbing for passes that still receive
 /// a resolved [`DialectProfile`] instead of a dialect name (side-effect
 /// classification, the fixed iRules handles, the LSP providers that take a
-/// `&DialectProfile` argument). The profile's canonical name is a
-/// canonical environment id, so this is an id-keyed lookup, not a
-/// re-parse.
+/// `&DialectProfile` argument). Resolve environment placement by name while
+/// retaining the supplied execution point and every profile policy in the
+/// cache key; projected releases must not collapse onto the default release.
 #[must_use]
 pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
-    resolve_environment(profile.name).default_context_registry()
+    type ProfileContextKey = (PromotionKey, DialectProfileKey);
+    static CONTEXTS: OnceLock<Mutex<FxHashMap<ProfileContextKey, Arc<ContextRegistry>>>> =
+        OnceLock::new();
+    let environment = resolve_environment(profile.name);
+    let key = (promotion_key(&environment), profile.cache_key());
+    let cache = CONTEXTS.get_or_init(Default::default);
+    if let Some(context) = cache.lock().expect("profile context mutex").get(&key) {
+        return Arc::clone(context);
+    }
+    let base = environment.default_context_registry();
+    let context = if base.commands().profile().is_some_and(|selected| {
+        selected.cache_key() == profile.cache_key()
+            && environment.point() == profile.core_point.or(environment.point())
+    }) {
+        base
+    } else {
+        Arc::new(base.project_for_profile(profile.intern()))
+    };
+    let mut contexts = cache.lock().expect("profile context mutex");
+    Arc::clone(contexts.entry(key).or_insert(context))
+}
+
+/// A default native target only for an exact profile owned by a known
+/// environment. Custom profiles and unknown names cannot inherit the lenient
+/// environment's execution contract through name fallback.
+#[must_use]
+pub fn default_execution_point_for_profile(profile: &DialectProfile) -> Option<DialectPoint> {
+    let environment = resolve_known_environment(profile.name)?;
+    (profile.cache_key() == environment.unit_profile().cache_key())
+        .then(|| environment.default_execution_point())
+        .flatten()
 }
 
 /// The promotion key: the environment's canonical id and the three
@@ -456,6 +493,15 @@ fn roster_axis_of(environment: &DocumentEnvironment) -> u64 {
     } else {
         0
     }
+}
+
+fn promotion_key(environment: &DocumentEnvironment) -> PromotionKey {
+    (
+        environment.id().to_owned(),
+        environment.identity.generation,
+        roster_axis_of(environment),
+        crate::cache::core_surface_generation(),
+    )
 }
 
 /// Every [`PromotionKey`] whose un-overlaid generation has been promoted
@@ -489,12 +535,7 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<PromotionKey, &'static Conte
 #[must_use]
 pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     let environment = resolve_environment(name);
-    let key: PromotionKey = (
-        environment.id().to_owned(),
-        environment.identity.generation,
-        roster_axis_of(&environment),
-        crate::cache::core_surface_generation(),
-    );
+    let key = promotion_key(&environment);
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
         .lock()
@@ -520,7 +561,26 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
 /// `&'static` twin of [`context_for_profile`].
 #[must_use]
 pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextRegistry {
-    static_context_for(profile.name)
+    type ProfilePromotionKey = (PromotionKey, DialectProfileKey);
+    static PROFILES: OnceLock<Mutex<FxHashMap<ProfilePromotionKey, &'static ContextRegistry>>> =
+        OnceLock::new();
+    let key = (
+        promotion_key(&resolve_environment(profile.name)),
+        profile.cache_key(),
+    );
+    let cache = PROFILES.get_or_init(Default::default);
+    if let Some(context) = cache
+        .lock()
+        .expect("static profile context mutex")
+        .get(&key)
+    {
+        return context;
+    }
+    let handle = context_for_profile(profile);
+    let mut profiles = cache.lock().expect("static profile context mutex");
+    profiles
+        .entry(key)
+        .or_insert_with(|| Box::leak(Box::new(handle)))
 }
 
 /// The context a **document** of `name` is assisted under: the un-overlaid
@@ -541,7 +601,7 @@ pub fn static_document_context_for(name: &str) -> &'static ResolvedContext {
 /// [`static_document_context_for`] keyed by an already-resolved profile.
 #[must_use]
 pub fn static_document_context_for_profile(profile: &DialectProfile) -> &'static ResolvedContext {
-    static_document_context_for(profile.name)
+    static_context_for_profile(profile).context()
 }
 
 /// The fixed iRules generation — the environment-model face of the old
@@ -861,29 +921,31 @@ mod tests {
 }
 
 /// Profiles projected from a point, interned once per environment identity
-/// so the `&'static` interop every consumer expects holds. Bounded by the
+/// and exact execution point so the `&'static` interop holds without collapsing
+/// releases or builds that share a name. Bounded by the
 /// number of distinct environments a process resolves.
 static PROJECTED_PROFILES: OnceLock<
-    Mutex<FxHashMap<EnvironmentIdentity, &'static DialectProfile>>,
+    Mutex<FxHashMap<(EnvironmentIdentity, DialectPoint), &'static DialectProfile>>,
 > = OnceLock::new();
 
 fn projected_profile(env: &DocumentEnvironment, point: DialectPoint) -> &'static DialectProfile {
     let cell = PROJECTED_PROFILES.get_or_init(|| Mutex::new(FxHashMap::default()));
     let mut map = cell.lock().expect("projected-profile mutex poisoned");
-    if let Some(profile) = map.get(&env.identity) {
+    let key = (env.identity.clone(), point);
+    if let Some(profile) = map.get(&key) {
         return profile;
     }
     let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
     let definition = &env.definition;
     let aliases: Vec<&'static str> = definition.aliases.iter().map(|a| leak(a)).collect();
-    let profile: &'static DialectProfile =
-        Box::leak(Box::new(DialectProfile::projected_from_point(
-            leak(definition.id.as_str()),
-            Box::leak(aliases.into_boxed_slice()),
-            leak(&definition.display_name),
-            point,
-        )));
-    map.insert(env.identity.clone(), profile);
+    let profile = DialectProfile::projected_from_point(
+        leak(definition.id.as_str()),
+        Box::leak(aliases.into_boxed_slice()),
+        leak(&definition.display_name),
+        point,
+    )
+    .intern();
+    map.insert(key, profile);
     profile
 }
 
@@ -962,5 +1024,62 @@ mod point_agreement_tests {
                 "{spelling}: one interned profile per identity"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod explicit_profile_snapshot_tests {
+    use super::*;
+    use tcl_dialect::model::{BuildProfileId, Release};
+
+    #[test]
+    fn explicit_same_name_profiles_keep_their_point_and_registry_policies() {
+        for point in [
+            DialectPoint::canonical(Release::JIM_0_80),
+            DialectPoint::canonical(Release::JIM_0_84),
+            DialectPoint::new(Release::JIM_0_84, BuildProfileId::Unknown),
+        ] {
+            let registered_generation = crate::cache::core_surface_generation();
+            let profile = DialectProfile::projected_from_point("jim", &[], "Jim", point);
+            let arc = context_for_profile(&profile);
+            let static_view = static_context_for_profile(&profile);
+            assert_eq!(arc.context().environment.point(), Some(point));
+            assert_eq!(
+                static_document_context_for_profile(&profile)
+                    .environment
+                    .point(),
+                Some(point)
+            );
+            assert_eq!(
+                arc.commands().profile().unwrap().cache_key(),
+                profile.cache_key()
+            );
+            // Another test may publish a new registered core surface between
+            // these two promotions. Distinct generations correctly have distinct
+            // handles; pointer sharing is required only within the same key.
+            if registered_generation == crate::cache::core_surface_generation() {
+                assert!(std::ptr::eq(arc.as_ref(), static_view));
+            }
+        }
+        let mut profile = resolve_environment("jim").unit_profile().clone();
+        profile.grammar.numbers = tcl_dialect::NumberSyntax::Tcl90;
+        let changed = context_for_profile(&profile);
+        assert_eq!(
+            changed.commands().profile().unwrap().grammar,
+            profile.grammar
+        );
+        assert!(!Arc::ptr_eq(
+            &changed,
+            &resolve_environment("jim").default_context_registry()
+        ));
+    }
+
+    #[test]
+    fn canonical_profile_contexts_retain_the_shared_allocation() {
+        let profile = DialectProfile::find("tcl8.6").unwrap();
+        assert!(Arc::ptr_eq(
+            &context_for_profile(profile),
+            &resolve_environment(profile.name).default_context_registry()
+        ));
     }
 }

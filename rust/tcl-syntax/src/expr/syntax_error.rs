@@ -186,7 +186,7 @@ pub struct ExprSyntaxError {
     /// before the mark. Zero for every marked mode, as C sets it.
     scanned: usize,
     /// The offending text, for the two modes whose message names it.
-    word: String,
+    word: Vec<u8>,
     /// A botched-numeral hint, when the bareword looks like one — see
     /// [`NumberHint`].
     number_hint: Option<NumberHint>,
@@ -219,10 +219,40 @@ impl ExprSyntaxError {
         }
         let tokens: Vec<ExprToken> = raw.into_iter().filter(|t| !t.kind.is_skipped()).collect();
         Scan::new(
-            source,
+            source.as_bytes(),
             &tokens,
             super::parser::numbers_for(profile, resolved),
             resolved.expr_grammar_base,
+        )
+        .run()
+    }
+
+    /// Diagnose using independently retained lexical and expression grammar axes.
+    #[must_use]
+    pub fn diagnose_with_expression_grammar(
+        source: &str,
+        grammar: &tcl_dialect::LexerGrammar,
+        expr_grammar_base: Option<TclVersion>,
+        f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+    ) -> Self {
+        let (raw, has_unknown) = tcl_lexer::tokenise_expr_checked_with_expression_grammar(
+            source,
+            grammar,
+            expr_grammar_base,
+            f5_word_grammar,
+        );
+        if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
+            return error;
+        }
+        let tokens: Vec<_> = raw
+            .into_iter()
+            .filter(|token| !token.kind.is_skipped())
+            .collect();
+        Scan::new(
+            source.as_bytes(),
+            &tokens,
+            grammar.numbers,
+            expr_grammar_base,
         )
         .run()
     }
@@ -237,6 +267,111 @@ impl ExprSyntaxError {
             out.push_str(";\n");
             out.push_str(&post);
         }
+        out
+    }
+
+    /// Exact native result bytes, including opaque source excerpts.
+    #[must_use]
+    pub fn message_bytes(&self, source: &[u8]) -> Vec<u8> {
+        let mut out = match self.kind {
+            ExprSyntaxErrorKind::InvalidCharacter => {
+                let mut out = b"invalid character \"".to_vec();
+                out.extend_from_slice(nul_terminated(&self.word));
+                out.push(b'"');
+                out
+            }
+            ExprSyntaxErrorKind::InvalidBareword => {
+                let mut out = b"invalid bareword \"".to_vec();
+                append_elided(&mut out, &self.word);
+                out.push(b'"');
+                out
+            }
+            _ => self.simple_message().into_bytes(),
+        };
+        out.extend_from_slice(&self.quoted_context_bytes(source));
+        if self.kind == ExprSyntaxErrorKind::InvalidBareword {
+            out.extend_from_slice(b";\nshould be \"$");
+            append_elided(&mut out, &self.word);
+            out.extend_from_slice(b"\" or \"{");
+            append_elided(&mut out, &self.word);
+            out.extend_from_slice(b"}\" or \"");
+            append_elided(&mut out, &self.word);
+            out.extend_from_slice(b"(...)\" or ...");
+            if let Some(hint) = self.number_hint {
+                out.extend_from_slice(hint.postscript_suffix().as_bytes());
+            }
+        }
+        out
+    }
+
+    fn quoted_context_bytes(&self, source: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        let at = self.at.min(source.len());
+        let scanned = self.scanned.min(source.len() - at);
+        out.extend_from_slice(b"\nin expression \"");
+        if at < LIMIT {
+            out.extend_from_slice(nul_terminated(&source[..at]));
+        } else {
+            out.extend_from_slice(b"...");
+            out.extend_from_slice(nul_terminated(&source[at + 3 - LIMIT..at]));
+        }
+        append_elided(&mut out, &source[at..at + scanned]);
+        if self.kind.marks_position() {
+            out.extend_from_slice(MARK.as_bytes());
+        }
+        append_elided(&mut out, &source[at + scanned..]);
+        out.push(b'"');
+        out
+    }
+
+    pub(super) fn lexical_context(source: &[u8], at: usize) -> Vec<u8> {
+        Self::at(ExprSyntaxErrorKind::UnbalancedOpenParen, at, 1).quoted_context_bytes(source)
+    }
+
+    pub(super) fn lexical_character(source: &[u8], at: usize) -> Option<Self> {
+        let mut error = Self::at(ExprSyntaxErrorKind::InvalidCharacter, at, 1);
+        error.word = vec![*source.get(at)?];
+        Some(error)
+    }
+
+    /// Diagnose original byte source with the same token and syntax owners.
+    #[must_use]
+    pub fn diagnose_bytes_with_expression_grammar(
+        source: &[u8],
+        grammar: &tcl_dialect::LexerGrammar,
+        expr_grammar_base: Option<TclVersion>,
+        f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+    ) -> Self {
+        let (raw, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+            source,
+            grammar,
+            expr_grammar_base,
+            f5_word_grammar,
+        );
+        if unknown {
+            let uncovered = (0..source.len()).find(|offset| {
+                !raw.iter()
+                    .any(|token| (token.start as usize..=token.end as usize).contains(offset))
+            });
+            if let Some(at) = uncovered {
+                let mut error = Self::at(ExprSyntaxErrorKind::InvalidCharacter, at, 1);
+                error.word = vec![source[at]];
+                return error;
+            }
+        }
+        let tokens: Vec<_> = raw
+            .into_iter()
+            .filter(|token| !token.kind.is_skipped())
+            .collect();
+        Scan::new(source, &tokens, grammar.numbers, expr_grammar_base).run()
+    }
+
+    /// Exact original bytes in the native parse error-info frame.
+    #[must_use]
+    pub fn error_info_frame_bytes(source: &[u8]) -> Vec<u8> {
+        let mut out = b"\n    (parsing expression \"".to_vec();
+        append_elided(&mut out, source);
+        out.extend_from_slice(b"\")");
         out
     }
 
@@ -272,7 +407,7 @@ impl ExprSyntaxError {
             // C zeroes `scanned` wherever it sets `insertMark`, so the mark lands
             // on the position rather than after the offending lexeme.
             scanned: if kind.marks_position() { 0 } else { scanned },
-            word: String::new(),
+            word: Vec::new(),
             number_hint: None,
         }
     }
@@ -282,7 +417,7 @@ impl ExprSyntaxError {
             kind,
             at,
             scanned: word.len(),
-            word: word.to_owned(),
+            word: word.as_bytes().to_vec(),
             number_hint: None,
         }
     }
@@ -324,10 +459,13 @@ impl ExprSyntaxError {
         match self.kind {
             ExprSyntaxErrorKind::EmptyExpression => "empty expression".to_owned(),
             ExprSyntaxErrorKind::InvalidCharacter => {
-                format!("invalid character \"{}\"", self.word)
+                format!(
+                    "invalid character \"{}\"",
+                    String::from_utf8_lossy(&self.word)
+                )
             }
             ExprSyntaxErrorKind::InvalidBareword => {
-                let (word, ellipsis) = elide(self.word.as_bytes(), 0, self.word.len());
+                let (word, ellipsis) = elide(&self.word, 0, self.word.len());
                 format!("invalid bareword \"{word}{ellipsis}\"")
             }
             ExprSyntaxErrorKind::MissingOperator => format!("missing operator at {MARK}"),
@@ -355,7 +493,7 @@ impl ExprSyntaxError {
         if self.kind != ExprSyntaxErrorKind::InvalidBareword {
             return None;
         }
-        let (word, ellipsis) = elide(self.word.as_bytes(), 0, self.word.len());
+        let (word, ellipsis) = elide(&self.word, 0, self.word.len());
         let mut post = format!(
             "should be \"${word}{ellipsis}\" or \"{{{word}{ellipsis}}}\" or \"{word}{ellipsis}(...)\" or ..."
         );
@@ -387,6 +525,22 @@ impl ExprSyntaxError {
         format!(
             "\nin expression \"{head_ellipsis}{head}{lexeme}{lexeme_ellipsis}{mark}{tail}{tail_ellipsis}\""
         )
+    }
+}
+
+pub(super) fn nul_terminated(bytes: &[u8]) -> &[u8] {
+    &bytes[..bytes
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(bytes.len())]
+}
+
+fn append_elided(out: &mut Vec<u8>, bytes: &[u8]) {
+    if bytes.len() < LIMIT {
+        out.extend_from_slice(nul_terminated(bytes));
+    } else {
+        out.extend_from_slice(nul_terminated(&bytes[..LIMIT - 3]));
+        out.extend_from_slice(b"...");
     }
 }
 
@@ -433,9 +587,9 @@ enum Group {
 
 /// C's `ParseExpr` main loop, reduced to the syntax checks that decide *which*
 /// error to report.
-struct Scan<'a> {
-    source: &'a str,
-    tokens: &'a [ExprToken],
+struct Scan<'a, Text: super::ExprText = String> {
+    source: &'a [u8],
+    tokens: &'a [ExprToken<Text>],
     pos: usize,
     expecting: Expecting,
     open: Vec<Group>,
@@ -447,10 +601,10 @@ struct Scan<'a> {
     expr_grammar_base: Option<TclVersion>,
 }
 
-impl<'a> Scan<'a> {
+impl<'a, Text: super::ExprText> Scan<'a, Text> {
     fn new(
-        source: &'a str,
-        tokens: &'a [ExprToken],
+        source: &'a [u8],
+        tokens: &'a [ExprToken<Text>],
         numbers: crate::number::NumberSyntax,
         expr_grammar_base: Option<TclVersion>,
     ) -> Self {
@@ -488,7 +642,7 @@ impl<'a> Scan<'a> {
         self.at_end()
     }
 
-    fn token(&self, index: usize) -> Option<&'a ExprToken> {
+    fn token(&self, index: usize) -> Option<&'a ExprToken<Text>> {
         self.tokens.get(index)
     }
 
@@ -525,12 +679,22 @@ impl<'a> Scan<'a> {
             // hint where it can guess (`tclCompExpr.c:716-809`).
             ExprTokenType::Number
                 if !crate::number::is_expr_number(
-                    &token.text,
+                    token
+                        .text
+                        .try_text()
+                        .expect("ASCII expression grammar token"),
                     self.numbers,
                     self.expr_grammar_base,
                 ) =>
             {
-                Some(ExprSyntaxError::bad_numeral(at, &token.text, self.numbers))
+                Some(ExprSyntaxError::bad_numeral(
+                    at,
+                    token
+                        .text
+                        .try_text()
+                        .expect("ASCII expression grammar token"),
+                    self.numbers,
+                ))
             }
             ExprTokenType::Number
             | ExprTokenType::String
@@ -565,17 +729,27 @@ impl<'a> Scan<'a> {
     /// when the shared boolean owner recognises it, else C's bareword error.
     fn function_boolean_or_bareword(
         &mut self,
-        token: &ExprToken,
+        token: &ExprToken<Text>,
         at: usize,
     ) -> Option<ExprSyntaxError> {
         if self.token(self.pos).map(|t| t.kind) != Some(ExprTokenType::ParenOpen) {
-            if crate::boolean::parse_boolean_word(&token.text).is_some() {
+            if crate::boolean::parse_boolean_word(
+                token
+                    .text
+                    .try_text()
+                    .expect("ASCII expression grammar token"),
+            )
+            .is_some()
+            {
                 return self.push_operand(at);
             }
             return Some(ExprSyntaxError::naming(
                 ExprSyntaxErrorKind::InvalidBareword,
                 at,
-                &token.text,
+                token
+                    .text
+                    .try_text()
+                    .expect("ASCII expression grammar token"),
             ));
         }
         if self.expecting == Expecting::Operator {
@@ -595,9 +769,31 @@ impl<'a> Scan<'a> {
 
     /// `+`, `-`, `!`, `eq`, a dialect word operator … — unary where an operand
     /// is expected, binary where an operator is.
-    fn operator(&mut self, token: &ExprToken, at: usize) -> Option<ExprSyntaxError> {
+    fn operator(&mut self, token: &ExprToken<Text>, at: usize) -> Option<ExprSyntaxError> {
+        let word = token
+            .text
+            .try_text()
+            .expect("ASCII expression grammar token");
+        if word.bytes().all(|byte| byte.is_ascii_alphabetic())
+            && self.expr_grammar_base.is_some_and(|version| {
+                super::parser::binop_from_text(word)
+                    .and_then(|op| op.spec().expr_grammar_min_version)
+                    .is_some_and(|since| version < since)
+            })
+        {
+            return Some(ExprSyntaxError::naming(
+                ExprSyntaxErrorKind::InvalidBareword,
+                at,
+                word,
+            ));
+        }
         if self.expecting == Expecting::Operand {
-            if super::parser::is_unary_operator(&token.text) {
+            if super::parser::is_unary_operator(
+                token
+                    .text
+                    .try_text()
+                    .expect("ASCII expression grammar token"),
+            ) {
                 return None;
             }
             // A binary operator with no left operand: C reports the hole rather
@@ -608,7 +804,12 @@ impl<'a> Scan<'a> {
                 0,
             ));
         }
-        if !super::parser::is_binary_operator(&token.text) {
+        if !super::parser::is_binary_operator(
+            token
+                .text
+                .try_text()
+                .expect("ASCII expression grammar token"),
+        ) {
             // A prefix-only operator (`~`, `!`, `not`) after a complete operand:
             // C reads it as the operand of an operator that never appeared
             // (`tclCompExpr.c:1053` — the `UNARY` case's `NotOperator` check).

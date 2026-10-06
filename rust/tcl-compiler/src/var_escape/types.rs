@@ -630,7 +630,10 @@ mod tests {
         // ``Local`` vars never have a reason to surface — they
         // don't live in the frame.
         let s = ProcEscapeSummary::default();
-        assert!(s.reasons_for("any_var").is_empty());
+        assert_eq!(
+            s.reasons_for("any_var"),
+            [] as [crate::var_escape::types::EscapeReason; 0]
+        );
     }
 
     #[test]
@@ -681,7 +684,7 @@ mod tests {
         let rs = s.reasons_for("anything");
         assert_eq!(rs.len(), 1);
         assert_eq!(rs[0].kind, EscapeReasonKind::Barrier);
-        assert!(rs[0].detail.is_empty());
+        assert_eq!(rs[0].detail, "");
     }
 
     #[test]
@@ -696,7 +699,7 @@ mod tests {
     fn escape_reason_constructors() {
         let r = EscapeReason::new(EscapeReasonKind::CalleeUpvar);
         assert_eq!(r.kind, EscapeReasonKind::CalleeUpvar);
-        assert!(r.detail.is_empty());
+        assert_eq!(r.detail, "");
 
         let r2 = EscapeReason::with_detail(EscapeReasonKind::EvalReference, "eval body refs x");
         assert_eq!(r2.detail, "eval body refs x");

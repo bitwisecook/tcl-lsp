@@ -16,68 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The **per-method** method-dispatch propagation barrier.
+//! Per-method dispatch reachability for local-value propagation.
 //!
-//! `my` / `next` / object dispatch never names its callee, so the CFG
-//! builder's per-call-site upvar widening cannot model what a method
-//! dispatch does to the dispatching frame's private locals. The barrier
-//! answers instead from whole-module evidence — but, unlike its
-//! predecessor (`method_dispatch_evidence_is_incomplete`, a single
-//! module-wide switch), it bars only the methods whose dispatches can
-//! actually **reach** an invalidating fact:
+//! Original statement and nested substitution receipts select every possible
+//! execution target. Exact class allocations contribute hierarchy components;
+//! exact procedure declarations contribute transitive dispatch facts. Registry
+//! self/next and callback contracts apply only to selected implementations.
+//! Missing carriers, unknown execution alternatives, unavailable bodies and
+//! unresolved callback layouts widen reachability to every component.
 //!
-//! * A **bad** class is one defining a method (primary or retained
-//!   replacement body) that can reach its caller's frame
-//!   ([`crate::cfg_builder::upvar_info::reaches_caller_frame`]), or one the
-//!   lowering flagged unanalysable
-//!   ([`crate::ir::Module::oo_unanalysed_classes`]).
-//! * Classes are grouped into **hierarchy components** — the connected
-//!   components of the `superclass` / `mixin` relations the lowering
-//!   captured ([`crate::ir::Module::class_relations`]). Within a
-//!   component, `my` / `next` dispatch can (via the MRO of whatever the
-//!   receiver's concrete class is, including subclasses overriding a
-//!   name) land on any member class's method; across unrelated
-//!   components it cannot — an object cannot carry two unrelated
-//!   classes' methods unless some class relates them, and a module-local
-//!   relating class is visible in `class_relations` (the same
-//!   closed-world convention every other whole-module OO fact here
-//!   already uses).
-//! * A method's dispatches are classified from its statements. A relative
-//!   head in a runtime-selected receiver namespace may dispatch **anywhere**:
-//!   even `my` / `next` can be shadowed by an object-namespace command. Once
-//!   the execution namespace resolves a head exactly, a registry head carrying
-//!   the `TclOO` self-dispatch / next-chain traits targets the method's **own
-//!   component**; a head naming a module class (`D new`, `D create …`) targets
-//!   **that class's component**; a dynamic head (`$obj m`), an unresolvable
-//!   literal head (an object command created at runtime, a `link`ed bareword),
-//!   or a registry call that hands a command prefix to something else (`lsort
-//!   -command …`) may dispatch **anywhere**. Plain calls to module procs inherit
-//!   the callee proc's dispatch facts transitively — a proc that dispatches
-//!   `$obj m` on the method's behalf reaches wherever the method itself could.
-//! * Reachability closes over components: dispatching into a component
-//!   also reaches everything that component's methods dispatch to.
-//!
-//! A method is **barred** iff some bad class is reachable that way (or a
-//! dispatch may go anywhere while any bad class exists). A method that
-//! never dispatches is never barred — nothing it calls can alias its
-//! frame beyond what the per-call-site proc modelling already covers.
-//!
-//! Widening stays the governing rule where the evidence itself is
-//! incomplete: a dynamic OO definition target
-//! ([`crate::ir::OoDefinitionEvidence::dynamic_target`]) or a dynamic
-//! `superclass` word ([`crate::ir::OoDefinitionEvidence::dynamic_class_relations`])
-//! bars every method, exactly like the old module-wide switch.
-//!
-//! Known evidence limits (pre-existing, shared with the old gate): the
-//! lowering models `oo::class` / `oo::define` block bodies only — an
-//! `oo::objdefine` per-object method, or the single-member
-//! `oo::define C method m {…} {…}` spelling, contributes no body here,
-//! so a caller-frame reach hidden in one is invisible to both the old
-//! and the new gate.
+//! Hierarchy relations conservatively connect every retained candidate class.
+//! A component is invalidating when one of its methods reaches a caller frame
+//! or its implementation inventory is incomplete. A method may propagate its
+//! private locals only when its reachable components exclude those effects.
 
 use std::collections::{HashMap, HashSet};
 
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::CommandRegistry;
 
 use crate::ir::{ExecutionNamespace, Module as IrModule, Script, Statement};
 
@@ -222,10 +177,11 @@ fn method_dispatch_facts<'a>(
                     registry,
                     comp_of,
                     proc_facts,
-                    procedures: &ir.procedures,
+                    ir,
                     own_comp,
                 },
                 &mut facts,
+                &mut HashSet::new(),
                 0,
             );
         }
@@ -343,14 +299,19 @@ fn proc_dispatch_facts<'a>(
         let namespace = super::helpers::naming::namespace_from_qualified(qname);
         let mut f = DispatchFacts::default();
         let mut c: HashSet<String> = HashSet::new();
-        collect_proc_dispatches(
+        collect_dispatches(
             &proc.body,
-            registry,
-            comp_of,
-            &ir.procedures,
-            &namespace,
+            &ExecutionNamespace::exact(namespace),
+            &ScanEnv {
+                registry,
+                comp_of,
+                proc_facts: &HashMap::new(),
+                ir,
+                own_comp: None,
+            },
             &mut f,
             &mut c,
+            0,
         );
         facts.insert(qname.as_str(), f);
         callees.insert(qname.as_str(), c);
@@ -384,7 +345,7 @@ struct ScanEnv<'a> {
     registry: &'a CommandRegistry,
     comp_of: &'a HashMap<String, usize>,
     proc_facts: &'a HashMap<&'a str, DispatchFacts>,
-    procedures: &'a HashMap<String, crate::ir::Procedure>,
+    ir: &'a IrModule,
     own_comp: Option<usize>,
 }
 
@@ -398,278 +359,163 @@ fn collect_dispatches(
     execution_namespace: &ExecutionNamespace,
     env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
+    callees: &mut HashSet<String>,
     depth: u32,
 ) {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         facts.anywhere = true;
         return;
     }
-    for stmt in &script.statements {
-        if let Statement::Call { command, args, .. } = stmt {
-            let Some(namespace) = execution_namespace.for_head(command) else {
-                // Every relative head in a TclOO method resolves first in the
-                // runtime-selected receiver namespace. Even `my` / `next` can
-                // be shadowed there, so registry fallback identity is not a
-                // proof of dispatch.
-                facts.anywhere = true;
-                return;
-            };
-            classify_head(command, args, namespace, env, facts);
-        }
-        let embedded = crate::ir_helpers::evaluated_command_substitutions(stmt, env.registry);
-        if embedded.opaque {
-            facts.anywhere = true;
-            return;
-        }
-        for words in embedded.commands {
-            let Some(command) = words
-                .first()
-                .and_then(crate::ir_helpers::CommandWord::literal)
-            else {
-                facts.anywhere = true;
-                return;
-            };
-            let Some(namespace) = execution_namespace.for_head(command) else {
-                facts.anywhere = true;
-                return;
-            };
-            let args: Vec<String> = words.iter().skip(1).map(|word| word.text.clone()).collect();
-            classify_head(command, &args, namespace, env, facts);
-            if facts.anywhere {
-                return;
+    for statement in &script.statements {
+        if let Some(tokens) = script.retained_source_tokens_for_statement(statement) {
+            if matches!(statement, Statement::Call { .. }) {
+                classify_tokens(tokens, env, facts, callees);
             }
-        }
-        for (body, body_namespace) in
-            crate::ir_helpers::nested_execution_bodies(stmt, execution_namespace)
+            let config = tokens
+                .native_lexer_config(tcl_lexer::LexerConfig::for_profile(env.registry.profile()));
+            if crate::word_subst::checked_lifted_calls(tokens, config).is_none() {
+                facts.anywhere = true;
+            } else {
+                let surface = tcl_registry::model::DocumentCommandSurface::new(
+                    env.registry,
+                    env.ir.source_entry.declared_commands.as_ref(),
+                );
+                let children =
+                    crate::word_subst::lifted_calls_with_surface(Some(tokens), config, &surface);
+                for child in children {
+                    if let Some(tokens) = child.tokens.as_ref() {
+                        classify_tokens(tokens, env, facts, callees);
+                    } else {
+                        facts.anywhere = true;
+                    }
+                }
+                if crate::ir_helpers::evaluated_command_substitutions(statement, env.registry)
+                    .opaque
+                {
+                    facts.anywhere = true;
+                }
+            }
+        } else if matches!(statement, Statement::Call { .. })
+            || crate::ir_helpers::evaluated_command_substitutions(statement, env.registry).opaque
+            || !crate::ir_helpers::evaluated_command_substitutions(statement, env.registry)
+                .commands
+                .is_empty()
         {
-            collect_dispatches(body, &body_namespace, env, facts, depth + 1);
-            if facts.anywhere {
-                return;
-            }
+            facts.anywhere = true;
         }
-    }
-}
-
-/// The proc-body variant of [`collect_dispatches`]: same head
-/// classification, but proc-to-proc calls are collected as `callees` for
-/// the caller-graph fixpoint instead of resolved inline, and there is no
-/// own-component (a proc has no method frame; a `my` inside a proc body
-/// is not callable there and classifies as unresolvable → anywhere).
-fn collect_proc_dispatches(
-    script: &Script,
-    registry: &CommandRegistry,
-    comp_of: &HashMap<String, usize>,
-    procedures: &HashMap<String, crate::ir::Procedure>,
-    namespace: &str,
-    facts: &mut DispatchFacts,
-    callees: &mut HashSet<String>,
-) {
-    walk_statements(script, &mut |stmt| {
-        let Statement::Call { command, args, .. } = stmt else {
-            return;
-        };
+        for (body, namespace) in
+            crate::ir_helpers::nested_execution_bodies(statement, execution_namespace)
+        {
+            collect_dispatches(body, &namespace, env, facts, callees, depth + 1);
+        }
         if facts.anywhere {
             return;
         }
-        if crate::naming::is_dynamic_word(command) {
-            facts.anywhere = true;
-            return;
-        }
-        if let Some(comp) = class_head_component(command, namespace, comp_of) {
-            facts.comps.insert(comp);
-            return;
-        }
-        if let Some(qname) = resolve_proc(command, namespace, procedures) {
-            callees.insert(qname);
-            return;
-        }
-        classify_registry_or_unknown(command, args, registry, None, facts);
-    });
+    }
 }
 
-/// Classify one method-body call head into `facts`.
-fn classify_head(
-    command: &str,
-    args: &[String],
-    namespace: &str,
+fn classify_tokens(
+    tokens: &crate::ir::CommandTokens,
     env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
+    callees: &mut HashSet<String>,
 ) {
-    if facts.anywhere {
-        return; // already saturated
-    }
-    if crate::naming::is_dynamic_word(command) {
-        // `$obj m`, `[pick] m`, `${ns}::cmd` — the receiver is unbounded.
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        facts.anywhere = true;
+        return;
+    };
+    if binding.execution_is_unknown() || binding.execution_may_be_absent() {
         facts.anywhere = true;
         return;
     }
-    if let Some(comp) = class_head_component(command, namespace, env.comp_of) {
-        // `D new` / `D create …` — dispatches into D's hierarchy
-        // component (its constructor, and methods on the object made).
-        facts.comps.insert(comp);
+    let targets: Vec<_> = binding.execution_targets().collect();
+    if targets.is_empty() {
+        facts.anywhere = true;
         return;
     }
-    if let Some(qname) = resolve_proc(command, namespace, env.procedures) {
-        // A module proc: inherit whatever it can dispatch to.
-        if let Some(pf) = env.proc_facts.get(qname.as_str()) {
-            facts.absorb(pf);
+    for target in targets {
+        match target.kind {
+            crate::command_binding::BindingKind::Class => {
+                if let Some(component) = env.comp_of.get(&target.command) {
+                    facts.comps.insert(*component);
+                } else {
+                    facts.anywhere = true;
+                }
+            }
+            crate::command_binding::BindingKind::Proc => {
+                record_procedure(target, env, facts, callees);
+            }
+            _ if target.registry_backed => {
+                let Some(invocation) = crate::registry_invocation::resolved_tokens_invocation(
+                    env.registry,
+                    None,
+                    tokens,
+                ) else {
+                    facts.anywhere = true;
+                    continue;
+                };
+                if !invocation.facts.arg_roles_complete {
+                    facts.anywhere = true;
+                    continue;
+                }
+                if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation(
+                    env.registry,
+                    None,
+                    tokens,
+                ) {
+                    let selected = binding.lookup_command_word(&call.target);
+                    if call.unknown_runtime {
+                        facts.anywhere = true;
+                    } else if let Some(target) = selected.proved_target() {
+                        record_procedure(target, env, facts, callees);
+                    } else {
+                        facts.anywhere = true;
+                    }
+                } else if matches!(
+                    env.registry
+                        .method_dispatch_keyword(&invocation.facts.canonical_command),
+                    Some(
+                        tcl_registry::MethodDispatchKind::SelfDispatch
+                            | tcl_registry::MethodDispatchKind::NextChain
+                    )
+                ) {
+                    if let Some(component) = env.own_comp {
+                        facts.comps.insert(component);
+                    } else {
+                        facts.anywhere = true;
+                    }
+                } else if invocation.facts.effects.requires_world_barrier()
+                    || invocation
+                        .facts
+                        .arg_roles
+                        .iter()
+                        .any(|(_, role)| *role == tcl_registry::ArgRole::CommandPrefix)
+                {
+                    facts.anywhere = true;
+                }
+            }
+            _ => facts.anywhere = true,
         }
-        return;
     }
-    classify_registry_or_unknown(command, args, env.registry, env.own_comp, facts);
 }
 
-/// The shared tail of head classification: a registry command with the
-/// self-dispatch / next-chain traits targets the own component; one that
-/// hands a command prefix onward may dispatch anywhere; any other
-/// registry command dispatches nothing; an unknown literal head may be an
-/// object command created at runtime (or a `link`ed bareword) — anywhere.
-fn classify_registry_or_unknown(
-    command: &str,
-    args: &[String],
-    registry: &CommandRegistry,
-    own_comp: Option<usize>,
+fn record_procedure(
+    target: &crate::command_binding::SourceCommandTarget,
+    env: &ScanEnv<'_>,
     facts: &mut DispatchFacts,
+    callees: &mut HashSet<String>,
 ) {
-    if let Some(kind) = registry.method_dispatch_keyword(command)
-        && matches!(
-            kind,
-            tcl_registry::MethodDispatchKind::SelfDispatch
-                | tcl_registry::MethodDispatchKind::NextChain
-        )
-    {
-        match own_comp {
-            Some(c) => {
-                facts.comps.insert(c);
-            }
-            // `my` outside a known method frame — unbounded.
-            None => facts.anywhere = true,
-        }
+    let Some(procedure) = env.ir.procedures.get(&target.command).filter(|procedure| {
+        !env.ir.redefined_procedures.contains(&target.command)
+            && target.matches_authored_implementation_image(&env.ir.source, procedure.span.start())
+    }) else {
+        facts.anywhere = true;
         return;
+    };
+    callees.insert(procedure.qualified_name.clone());
+    if let Some(callee_facts) = env.proc_facts.get(procedure.qualified_name.as_str()) {
+        facts.absorb(callee_facts);
     }
-    if registry.declares_command_at(command) {
-        // A callback the command will invoke later runs with unknown frame
-        // relationships (`lsort -command cb …` invokes `cb` while the
-        // enclosing frame is live) — the callback word may name any object
-        // command, so widen.
-        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        if !registry
-            .arg_indices_for_role(command, &arg_refs, ArgRole::CommandPrefix)
-            .is_empty()
-        {
-            facts.anywhere = true;
-        }
-        return;
-    }
-    // Not the registry's, not a module proc, not a module class: possibly
-    // an object command (`D create obj; obj m`) or a `link`ed bareword.
-    facts.anywhere = true;
-}
-
-/// Resolve a call head against the module's class set: `D` / `::D` /
-/// `<ns>::D` written spellings, plus the conservative tail match (see
-/// [`hierarchy_components`]). Returns the class's component.
-fn class_head_component(
-    command: &str,
-    namespace: &str,
-    comp_of: &HashMap<String, usize>,
-) -> Option<usize> {
-    if let Some(c) = comp_of.get(command) {
-        return Some(*c);
-    }
-    let rooted = format!("::{}", command.strip_prefix("::").unwrap_or(command));
-    if let Some(c) = comp_of.get(&rooted) {
-        return Some(*c);
-    }
-    if !command.starts_with("::") {
-        let ns = namespace.trim_end_matches("::");
-        let qualified = format!("{ns}::{command}");
-        if let Some(c) = comp_of.get(&qualified) {
-            return Some(*c);
-        }
-    }
-    let tail = command.rsplit("::").next().unwrap_or(command);
-    comp_of
-        .iter()
-        .find(|(class, _)| class.rsplit("::").next() == Some(tail))
-        .map(|(_, &c)| c)
-}
-
-/// Resolve a bare / qualified call head to a module proc qname the way
-/// Tcl does (current namespace, then global — see
-/// [`crate::naming::resolve_command_with`]).
-fn resolve_proc(
-    command: &str,
-    namespace: &str,
-    procedures: &HashMap<String, crate::ir::Procedure>,
-) -> Option<String> {
-    crate::naming::resolve_command_with::<&str, _>(namespace, &[], command, |qname| {
-        procedures.contains_key(qname)
-    })
-}
-
-/// Depth-capped statement walk over a script and every structured body it
-/// carries, invoking `visit` on each statement.
-fn walk_statements(script: &Script, visit: &mut dyn FnMut(&Statement)) {
-    fn walk(script: &Script, visit: &mut dyn FnMut(&Statement), depth: u32) {
-        if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
-            return;
-        }
-        for stmt in &script.statements {
-            visit(stmt);
-            match stmt {
-                Statement::If {
-                    clauses, else_body, ..
-                } => {
-                    for c in clauses {
-                        walk(&c.body, visit, depth + 1);
-                    }
-                    if let Some(b) = else_body {
-                        walk(b, visit, depth + 1);
-                    }
-                }
-                Statement::For {
-                    init, next, body, ..
-                } => {
-                    walk(init, visit, depth + 1);
-                    walk(next, visit, depth + 1);
-                    walk(body, visit, depth + 1);
-                }
-                Statement::While { body, .. }
-                | Statement::Catch { body, .. }
-                | Statement::Foreach { body, .. }
-                | Statement::Block { body, .. } => walk(body, visit, depth + 1),
-                Statement::Try {
-                    body,
-                    handlers,
-                    finally_body,
-                    ..
-                } => {
-                    walk(body, visit, depth + 1);
-                    for h in handlers {
-                        walk(&h.body, visit, depth + 1);
-                    }
-                    if let Some(fb) = finally_body {
-                        walk(fb, visit, depth + 1);
-                    }
-                }
-                Statement::Switch {
-                    arms, default_body, ..
-                } => {
-                    for a in arms {
-                        if let Some(b) = &a.body {
-                            walk(b, visit, depth + 1);
-                        }
-                    }
-                    if let Some(b) = default_body {
-                        walk(b, visit, depth + 1);
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    walk(script, visit, 0);
 }
 
 #[cfg(test)]
@@ -697,5 +543,53 @@ mod tests {
             !barrier.allows_locals("::C::caller"),
             "receiver-namespace shadowing can redirect bare `my` to the bad class"
         );
+    }
+    #[test]
+    fn retained_dispatch_does_not_select_an_unrelated_class_tail() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let module = crate::lowering::lower_to_ir(
+            "oo::class create Bad {method mutate {name} {upvar 1 $name local; set local 1}}
+\
+             oo::class create C {method safe {} {return SAFE}}
+\
+             oo::class create Caller {method probe {} {::missing::C new; return ok}}",
+            registry,
+        );
+        assert!(!compute(&module, registry).allows_locals("::Caller::probe"));
+    }
+
+    #[test]
+    fn retained_dispatch_keeps_namespace_local_class_and_procedure_bindings() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        for helper in [
+            "namespace eval N {oo::class create C {method mutate {name} {upvar 1 $name local; set local 1}}; proc make {} {C new}}",
+            "namespace eval N {proc C {} {::Bad new}; proc make {} {C}}",
+        ] {
+            let source = format!(
+                "oo::class create Bad {{method mutate {{name}} {{upvar 1 $name local; set local 1}}}}\n\
+                 oo::class create C {{method safe {{}} {{return SAFE}}}}\n\
+                 {helper}\n\
+                 oo::class create Caller {{method probe {{}} {{::N::make; return ok}}}}"
+            );
+            let module = crate::lowering::lower_to_ir(&source, registry);
+            assert!(
+                !compute(&module, registry).allows_locals("::Caller::probe"),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn retained_dispatch_without_calls_keeps_local_values_available() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let module = crate::lowering::lower_to_ir(
+            "oo::class create Bad {method mutate {name} {upvar 1 $name local; set local 1}}
+\
+             oo::class create C {method safe {} {return SAFE}}
+\
+             C create c; c safe",
+            registry,
+        );
+        assert!(compute(&module, registry).allows_locals("::C::safe"));
     }
 }

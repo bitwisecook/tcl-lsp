@@ -362,7 +362,9 @@ fn serialise_wasm_with_options(
                         "availability": decline.as_str(),
                         "detailKind": decline.detail_kind(),
                     }),
-                    WasmSemanticDecline::SemanticPlansDisabled
+                    WasmSemanticDecline::NativeCompilationAdmissionRequired
+                    | WasmSemanticDecline::NativeCompilationSourceUnavailable
+                    | WasmSemanticDecline::SemanticPlansDisabled
                     | WasmSemanticDecline::BackendSelection(_)
                     | WasmSemanticDecline::PlanLayout(_)
                     | WasmSemanticDecline::SelectorRegistration => json!({
@@ -643,11 +645,56 @@ fn terminator_dict(
             "falseTarget": func.block_name(*false_target),
             "range": range_or_null(*span, li, source),
         }),
+        Some(Terminator::Complete { route, span }) => json!({
+            "type": "complete",
+            "completion": completion_route_dict(*route),
+            "range": range_or_null(*span, li, source),
+        }),
         Some(Terminator::Return { value, span, .. }) => json!({
             "type": "return",
             "value": value.as_ref().map(|v| preview(v, 60)),
             "range": range_or_null(*span, li, source),
         }),
+    }
+}
+
+fn completion_route_dict(
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+) -> Value {
+    use tcl_registry::completion_route::InvocationCompletionRoute as Route;
+    let detail = match route {
+        Route::Tcl(code) => json!({"kind": "tcl", "code": code.as_int()}),
+        Route::TclAlternatives(codes) => {
+            json!({"kind": "tcl-alternatives", "codes": codes.iter().map(|code| code.as_int()).collect::<Vec<_>>()})
+        }
+        Route::Return(pending) => {
+            json!({"kind": "return", "eventualCode": pending.eventual_code.as_int(), "remainingLevel": pending.remaining_level})
+        }
+        Route::Tailcall { code } => json!({"kind": "tailcall", "code": code.as_int()}),
+        Route::TailcallOrError { code } => {
+            json!({"kind": "tailcall-or-error", "code": code.as_int()})
+        }
+        Route::ProcessExit => json!({"kind": "process-exit"}),
+        Route::ReturnOrError => json!({"kind": "return-or-error"}),
+        Route::ExitOrError => json!({"kind": "exit-or-error"}),
+        Route::CatchableExitOrError => json!({"kind": "catchable-exit-or-error"}),
+        Route::Unknown => json!({"kind": "unknown"}),
+        Route::UnknownAbrupt => json!({"kind": "unknown-abrupt"}),
+    };
+    json!({"route": detail, "normalPossible": route.normal_possible(), "abruptPossible": route.abrupt_possible()})
+}
+
+fn unproved_implementation_lookup(reason: &OwnedInvocationResolutionUnresolved) -> Value {
+    match reason {
+        OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { lookup } => {
+            json!({
+                "ensemble": lookup.ensemble, "member": lookup.member, "slot": lookup.slot,
+                "command": lookup.command, "prepended": lookup.prepended,
+            })
+        }
+        OwnedInvocationResolutionUnresolved::ComputedHead { .. }
+        | OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. }
+        | OwnedInvocationResolutionUnresolved::UnprovedBinding { .. } => Value::Null,
     }
 }
 
@@ -871,6 +918,8 @@ fn world_domain_name(kind: WorldRegionKind) -> &'static str {
         WorldRegionKind::PackageState => "package-state",
         WorldRegionKind::HostCapabilities => "host-capabilities",
         WorldRegionKind::VariableStore => "variable-store",
+        WorldRegionKind::InterpreterResult => "interpreter-result",
+        WorldRegionKind::CompletionState => "completion-state",
         WorldRegionKind::ExternalResource(_) => "external-resource",
     }
 }
@@ -1019,6 +1068,7 @@ fn transition_kind_name(transition: &tcl_registry::StateTransition) -> &'static 
         tcl_registry::StateTransition::Namespace(_) => "namespace",
         tcl_registry::StateTransition::Trace(_) => "trace",
         tcl_registry::StateTransition::ObjectDispatch(_) => "object-dispatch",
+        tcl_registry::StateTransition::Package(_) => "package",
         tcl_registry::StateTransition::Widen(_) => "widen",
     }
 }
@@ -1037,6 +1087,8 @@ fn registry_world_domain_name(domain: tcl_registry::WorldStateDomain) -> String 
         tcl_registry::WorldStateDomain::PackageState => "package-state".to_owned(),
         tcl_registry::WorldStateDomain::HostCapabilities => "host-capabilities".to_owned(),
         tcl_registry::WorldStateDomain::VariableStore => "variable-store".to_owned(),
+        tcl_registry::WorldStateDomain::InterpreterResult => "interpreter-result".to_owned(),
+        tcl_registry::WorldStateDomain::CompletionState => "completion-state".to_owned(),
         tcl_registry::WorldStateDomain::LegacyExternal(target) => {
             format!("external-resource:{}", target.as_str())
         }
@@ -1129,12 +1181,14 @@ fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) ->
                     let abstention = match reason {
                         tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::ComputedHead { .. } => "computed-head",
                         tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. } => "unknown-literal-head",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnprovedBinding { .. } => "unproved-binding",
+                        tcl_compiler::registry_invocation::OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { .. } => "unproved-native-implementation-lookup",
                     };
                     json!({
                         "resolution": "unresolved",
                         "node": invoke.node.path(),
                         "completion": invoke.completion.index(),
-                        "proof": { "abstention": abstention },
+                        "proof": { "abstention": abstention, "implementationLookup": unproved_implementation_lookup(reason) },
                     })
                 }
             })
@@ -1773,6 +1827,7 @@ fn executable_instruction_kind(instruction: &ExecutableInstruction) -> &'static 
         ExecutableInstruction::JoinCompletion { .. } => "join-completion",
         ExecutableInstruction::WriteCompletionCell { .. } => "write-completion-cell",
         ExecutableInstruction::CompleteStructuredRegion(_) => "complete-structured-region",
+        ExecutableInstruction::CompleteEvaluatedRegion(_) => "complete-evaluated-region",
     }
 }
 
@@ -1780,6 +1835,7 @@ fn executable_terminator_kind(terminator: Option<&ExecutableTerminator>) -> &'st
     match terminator {
         Some(ExecutableTerminator::Goto(_)) => "goto",
         Some(ExecutableTerminator::Branch { .. }) => "branch",
+        Some(ExecutableTerminator::RegionChoice { .. }) => "region-choice",
         Some(ExecutableTerminator::CompletionSwitch { .. }) => "completion-switch",
         Some(ExecutableTerminator::ReturnCompletion(_)) => "return-completion",
         None => "missing",
@@ -1812,6 +1868,12 @@ fn invocation_resolution_label(
         tcl_compiler::executable_ir::InvocationResolution::Unresolved(
             OwnedInvocationResolutionUnresolved::UnknownLiteralHead { .. },
         ) => "unresolved-unknown-literal-head",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::UnprovedBinding { .. },
+        ) => "unresolved-unproved-binding",
+        tcl_compiler::executable_ir::InvocationResolution::Unresolved(
+            OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup { .. },
+        ) => "unresolved-unproved-native-implementation-lookup",
     }
 }
 
@@ -1916,6 +1978,10 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                         json!({
                             "node": invoke.node.path(),
                             "resolution": invocation_resolution_label(&invoke.resolution),
+                            "implementationLookup": match &invoke.resolution {
+                                InvocationResolution::Resolved(_) => Value::Null,
+                                InvocationResolution::Unresolved(reason) => unproved_implementation_lookup(reason),
+                            },
                             "range": range_dict(invoke.source.span, li, source),
                         })
                     })
@@ -1950,6 +2016,12 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
                     "complexityGuarded": snap.unit.complexity_guarded,
+                    "semanticValues": snap.unit.semantic_values().map(|facts| json!({
+                        "purpose": "known-contents-with-retained-producer-obligations",
+                        "contentsCount": facts.contents_iter().count(),
+                        "expressionCount": facts.expression_iter().count(),
+                        "licensesErasure": false,
+                    })),
                     "dynamicNames": {
                         "writes": snap.unit.dynamic_names.writes,
                         "destroys": snap.unit.dynamic_names.destroys,
@@ -2082,6 +2154,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|n| {
                     json!({
                         "name": n.name,
+                        "cell": n.cell,
                         "version": n.version,
                         "block": n.block,
                         "defKind": n.def_kind,
@@ -2099,11 +2172,13 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .map(|e| {
                     json!({
                         "fromName": e.from_name,
+                        "fromCell": e.from_cell,
                         "fromVersion": e.from_version,
                         "toBlock": e.to_block,
                         "toStatementIndex": e.to_statement_index,
                         "edgeKind": e.edge_kind.as_str(),
                         "toName": e.to_name,
+                        "toCell": e.to_cell,
                         "toVersion": e.to_version,
                     })
                 })
@@ -3326,6 +3401,73 @@ pub fn serialise_result_with_optimisations(
 mod tests {
     use super::*;
     use crate::run_pipeline;
+
+    #[test]
+    fn completion_terminator_preserves_pending_native_return() {
+        use tcl_registry::completion_route::{InvocationCompletionRoute, ReturnCompletionRoute};
+        let source = "error BOOM";
+        let result = run_pipeline(source, "tcl8.6");
+        let snapshots = result.all_snapshots();
+        let term = Terminator::Complete {
+            route: InvocationCompletionRoute::Return(ReturnCompletionRoute {
+                eventual_code: tcl_registry::completion::CompletionCode::Error,
+                remaining_level: 2,
+            }),
+            span: None,
+        };
+        let encoded = terminator_dict(
+            &snapshots[0].unit.cfg,
+            Some(&term),
+            &LineIndex::new(source),
+            source,
+        );
+        assert_eq!(encoded["type"], "complete");
+        assert_eq!(encoded["completion"]["route"]["kind"], "return");
+        assert_eq!(encoded["completion"]["route"]["eventualCode"], 1);
+        assert_eq!(encoded["completion"]["route"]["remainingLevel"], 2);
+        assert_eq!(encoded["completion"]["normalPossible"], false);
+        assert_eq!(encoded["completion"]["abruptPossible"], true);
+        assert!(block_successors(&snapshots[0].unit.cfg, Some(&term)).is_empty());
+    }
+
+    #[test]
+    fn native_lookup_decline_and_interpreter_world_domains_remain_distinct() {
+        let reason = OwnedInvocationResolutionUnresolved::UnprovedNativeImplementationLookup {
+            lookup: tcl_registry::native_compilation::NativeCompilerImplementationLookup {
+                ensemble: "::binary",
+                member: "encode",
+                slot: "::tcl::binary::encode",
+                command: "binary",
+                prepended: &["encode"],
+            },
+        };
+        let encoded = unproved_implementation_lookup(&reason);
+        assert_eq!(encoded["ensemble"], "::binary");
+        assert_eq!(encoded["member"], "encode");
+        assert_eq!(encoded["slot"], "::tcl::binary::encode");
+        assert_eq!(encoded["command"], "binary");
+        assert_eq!(encoded["prepended"], json!(["encode"]));
+        assert_eq!(
+            invocation_resolution_label(&InvocationResolution::Unresolved(reason)),
+            "unresolved-unproved-native-implementation-lookup"
+        );
+        assert_eq!(
+            world_domain_name(WorldRegionKind::InterpreterResult),
+            "interpreter-result"
+        );
+        assert_eq!(
+            world_domain_name(WorldRegionKind::CompletionState),
+            "completion-state"
+        );
+        assert_eq!(
+            registry_world_domain_name(tcl_registry::WorldStateDomain::InterpreterResult),
+            "interpreter-result"
+        );
+        assert_eq!(
+            registry_world_domain_name(tcl_registry::WorldStateDomain::CompletionState),
+            "completion-state"
+        );
+    }
 
     #[test]
     fn meta_lists_all_dialects_views_and_severities() {

@@ -99,12 +99,12 @@ mod imp {
     }
 
     /// Worker → main: a `yield` (value), the body finished (code + result), a
-    /// probe's result (code + result + its error trace, to transplant into the
-    /// caller), or an acknowledgement that an inject was queued.
+    /// probe's result (code + result, with its original error objects retained
+    /// in the serialised interpreter owner), or an acknowledgement that an inject was queued.
     pub(super) enum FromCoro {
         Yield(Vec<u8>),
         Done(Code, Vec<u8>),
-        ProbeDone(Code, Vec<u8>, crate::interp::ErrorSnapshot),
+        ProbeDone(Code, Vec<u8>),
         InjectAck,
     }
 
@@ -177,7 +177,9 @@ mod imp {
     /// run it until its first `yield` (or completion), and return that value.
     pub(super) fn create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if argv.len() < 3 {
-            return interp.set_error(b"wrong # args: should be \"coroutine name cmd ?arg ...?\"");
+            return interp.wrong_arguments_message(
+                b"wrong # args: should be \"coroutine name cmd ?arg ...?\"",
+            );
         }
         let raw = obj_bytes(argv[1]);
         let name = interp.fqn_for(&raw);
@@ -357,7 +359,8 @@ mod imp {
                 Some(ToCoro::Probe(words)) => {
                     let (code, result) = eval_words(interp, &words);
                     let snap = interp.snapshot_error();
-                    outgoing = FromCoro::ProbeDone(code, result, snap);
+                    interp.publish_coro_probe_error(snap);
+                    outgoing = FromCoro::ProbeDone(code, result);
                 }
                 // `coroinject`: remember the command; it runs on the next resume.
                 Some(ToCoro::Inject(words)) => {
@@ -489,8 +492,9 @@ mod imp {
         if let Some(entry) = interp.coros_mut().get_mut(name) {
             entry.from_coro = Some(from_coro);
         }
-        match msg {
-            Some(FromCoro::ProbeDone(code, result, snap)) => {
+        let snapshot = interp.take_coro_probe_error();
+        match (msg, snapshot) {
+            (Some(FromCoro::ProbeDone(code, result)), Some(snap)) => {
                 interp.set_result_bytes(&result);
                 if code == Code::Error {
                     interp.restore_error(snap);
@@ -595,7 +599,7 @@ fn coroutine_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(target_arch = "wasm32"))]
 fn yield_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 {
-        return interp.set_error(b"wrong # args: should be \"yield ?value?\"");
+        return interp.wrong_arguments_message(b"wrong # args: should be \"yield ?value?\"");
     }
     let value = argv.get(1).map(|&a| obj_bytes(a)).unwrap_or_default();
     imp::do_yield(interp, value)
@@ -622,8 +626,9 @@ fn coro_key(interp: &Interp, written: &[u8]) -> Vec<u8> {
 #[cfg(not(target_arch = "wasm32"))]
 fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp
-            .set_error(b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"",
+        );
     }
     let name = coro_key(interp, &obj_bytes(argv[1]));
     let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
@@ -633,8 +638,9 @@ fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(target_arch = "wasm32"))]
 fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp
-            .set_error(b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"",
+        );
     }
     let name = coro_key(interp, &obj_bytes(argv[1]));
     let words: Vec<Vec<u8>> = argv[2..].iter().map(|&a| obj_bytes(a)).collect();
@@ -648,8 +654,9 @@ fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(not(target_arch = "wasm32"))]
 fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return interp
-            .set_error(b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"",
+        );
     }
     let name = coro_key(interp, &obj_bytes(argv[1]));
     if current_coroutine() == name {
@@ -720,8 +727,9 @@ fn yieldto_cmd(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
 #[cfg(target_arch = "wasm32")]
 fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp
-            .set_error(b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"coroprobe coroName cmd ?arg1 arg2 ...?\"",
+        );
     }
     // No coroutines exist on the single-threaded wasm build, so no name is one.
     interp.set_error(b"can only inject a probe command into a coroutine")
@@ -730,8 +738,9 @@ fn coroprobe_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(target_arch = "wasm32")]
 fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
-        return interp
-            .set_error(b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"coroinject coroName cmd ?arg1 arg2 ...?\"",
+        );
     }
     interp.set_error(b"can only inject a command into a coroutine")
 }
@@ -739,8 +748,9 @@ fn coroinject_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 #[cfg(target_arch = "wasm32")]
 fn corotype_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return interp
-            .set_error(b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"");
+        return interp.wrong_arguments_message(
+            b"wrong # args: should be \"::tcl::unsupported::corotype coroName\"",
+        );
     }
     // No coroutines exist on the single-threaded wasm build, so no name is one.
     interp.set_error(b"can only get coroutine type of a coroutine")
@@ -958,6 +968,24 @@ mod tests {
         // The interpreter keeps working afterward (no frame-stack corruption).
         run(&mut i, b"proc p {a b} { expr {$a + $b} }");
         assert_eq!(run(&mut i, b"p 2 3"), b"5");
+    }
+
+    #[test]
+    fn probe_handoff_preserves_the_original_jim_trace_object() {
+        use crate::obj;
+        let interp = Interp::new();
+        let trace = obj::Owned::fresh(obj::new_string_bytes(b"TRACE\xff\0tail"));
+        let original = trace.as_ptr();
+        interp.adopt_jim_stacktrace(trace);
+        interp.publish_coro_probe_error(interp.snapshot_error());
+        interp.adopt_jim_stacktrace(obj::Owned::fresh(obj::new_string_bytes(b"OTHER")));
+        let snapshot = interp
+            .take_coro_probe_error()
+            .expect("published probe receipt");
+        assert!(interp.take_coro_probe_error().is_none());
+        interp.restore_error(snapshot);
+        assert_eq!(interp.jim_stacktrace_object().as_ptr(), original);
+        assert_eq!(interp.jim_stacktrace(), b"TRACE\xff\0tail");
     }
 
     // Needs the numeric tower: the coroutine body parks in `while`.

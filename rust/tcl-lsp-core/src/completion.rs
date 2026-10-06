@@ -428,8 +428,8 @@ fn context_aware_completions(
     // path, or `CLASS create NAME`) whose class is known, complete the
     // methods/subcommands callable on it.  Checked before the registry
     // lookup because neither `$obj` nor a bareword widget path is itself a
-    // registered command.  `receiver_instance_class` applies the same
-    // bareword-vs-`$var` gate go-to-definition/hover already use — a bare
+    // registered command. These are advisory candidates, independent of the
+    // temporal receipt required for navigation and editable references. A bare
     // name only resolves when it was actually bound by a create call
     // (`created_instance_commands`), not merely because some unrelated
     // variable of the same name happens to hold an object elsewhere.
@@ -2418,7 +2418,8 @@ fn fuzzy_command_fallback(
     // Receiver-method context — the method universe the instance branch of
     // `context_aware_completions` declined to fuzzy-match (see
     // `method_completions`) joins the ranking here, resolved with the same
-    // `$var`-vs-bareword gate that branch applies.
+    // `$var`-vs-bareword gate that branch applies. This candidate universe
+    // grants no method navigation or rename identity.
     if let Some((cmd, word_idx)) = command_context_on_line(source, line, character)
         && word_idx == 1
         && let Some((recv, is_dollar)) = dispatch_receiver_of(&cmd)

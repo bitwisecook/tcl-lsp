@@ -18,6 +18,27 @@
 
 //! Argument count constraints.
 
+/// Which invocation words an authored signature counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ArityCount {
+    /// Every word after the command and selected subcommand.
+    #[default]
+    Arguments,
+    /// Positional words after the declared leading option grammar.
+    Positionals,
+}
+
+impl ArityCount {
+    /// Stable descriptor serialisation spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Arguments => "arguments",
+            Self::Positionals => "positionals",
+        }
+    }
+}
+
 /// Argument count range for a command or subcommand.
 ///
 /// `min` and `max` are counts of arguments *after* the command name
@@ -35,6 +56,8 @@
 /// [`Self::at_least`] / [`Self::any`]) is unaffected.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arity {
+    /// Authored count axis; native compiler source-word arity is separate.
+    pub count: ArityCount,
     /// Minimum number of arguments.
     pub min: u16,
     /// Maximum number of arguments (`u16::MAX` = unlimited).
@@ -59,10 +82,20 @@ impl Arity {
     #[must_use]
     pub const fn new(min: u16, max: u16) -> Self {
         Self {
+            count: ArityCount::Arguments,
             min,
             max,
             step: 0,
             also_exact: None,
+        }
+    }
+
+    /// Count positionals after the selected descriptor's leading options.
+    #[must_use]
+    pub const fn with_positionals(self) -> Self {
+        Self {
+            count: ArityCount::Positionals,
+            ..self
         }
     }
 
@@ -91,6 +124,7 @@ impl Arity {
     #[must_use]
     pub const fn stepped(min: u16, max: u16, step: u16) -> Self {
         Self {
+            count: ArityCount::Arguments,
             min,
             max,
             step,

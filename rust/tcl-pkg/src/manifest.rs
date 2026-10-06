@@ -492,7 +492,7 @@ mod tests {
         assert_eq!(ast.name, "myapp");
         assert_eq!(ast.version, Some(Version::parse("1.0.0").unwrap()));
         assert_eq!(ast.tcl_constraint, ">=8.6");
-        assert!(ast.requires.is_empty());
+        assert_eq!(ast.requires.len(), 0);
     }
 
     #[test]
@@ -539,7 +539,7 @@ mod tests {
     #[test]
     fn dev_require_and_conflict() {
         let ast = load("package myapp\nversion 1.0.0\ndev-require tcltest 2.5\n").unwrap();
-        assert!(ast.requires.is_empty());
+        assert_eq!(ast.requires.len(), 0);
         assert_eq!(ast.dev_requires.len(), 1);
         assert!(ast.dev_requires[0].dev);
 

@@ -30,8 +30,7 @@
 use std::collections::HashMap;
 
 use tcl_registry::{
-    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, StateTransition,
-    VariableAliasTarget,
+    ArgRole, CallerFrameSelection, InvocationFacts, OwnedSubcommandResolution, VariableAliasTarget,
 };
 
 use crate::ssa::Version;
@@ -49,33 +48,38 @@ use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
 
-/// Apply every variable-cell alias declared by the registry invocation.
-/// Returns whether at least one alias transition was present.
-pub(crate) fn handle_variable_aliases(
-    facts: &InvocationFacts,
+/// Apply the purpose-limited normal alias projection without requiring a compiler hook.
+pub(crate) fn handle_normal_variable_aliases(
+    normal: &crate::registry_invocation::NormalTransferInvocation,
     state: &mut CfgState,
     defs: &HashMap<String, Version>,
-    registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    let Some(transitions) = facts.state_transitions.declared() else {
-        return false;
-    };
+    apply_variable_aliases(normal.variable_alias_transitions(), state, defs, |level| {
+        normal.variable_alias_frame_level(&CallerFrameSelection::Explicit(
+            tcl_registry::TransitionSubject::Literal(level.to_owned()),
+        ))
+    })
+}
+
+fn apply_variable_aliases<'a>(
+    aliases: impl Iterator<Item = &'a tcl_registry::VariableCellAliasTransition>,
+    state: &mut CfgState,
+    defs: &HashMap<String, Version>,
+    parse_level: impl Fn(&str) -> Option<tcl_registry::FrameLevel>,
+) -> bool {
     let mut handled = false;
-    for fact in transitions.facts() {
-        let StateTransition::VariableCellAlias(alias) = &fact.transition else {
-            continue;
-        };
+    for alias in aliases {
         handled = true;
         let Some(local) = alias.local.literal() else {
             state.escape_all_known(defs);
             continue;
         };
-        state.escape_with_reason(
+        state.escape_resolved_name_with_reason(
             local,
             defs,
             EscapeReason::with_detail(
                 EscapeReasonKind::UpvarSource,
-                format!("{} aliases {local}", facts.canonical_command),
+                format!("variable alias binds {local}"),
             ),
         );
         let VariableAliasTarget::CallerSelectedFrame { frame, variable } = &alias.target else {
@@ -87,12 +91,12 @@ pub(crate) fn handle_variable_aliases(
                 let Some(level) = level.literal() else {
                     state.record_barrier(Barrier::with_detail(
                         BarrierKind::Upvar,
-                        format!("{} has dynamic frame selection", facts.canonical_command),
+                        "variable alias has dynamic frame selection",
                     ));
                     state.record_unbounded_upvar();
                     continue;
                 };
-                tcl_registry::frame_effect::FrameLevel::parse_in(level, registry)
+                parse_level(level)
                     .is_none_or(|level| !level.is_current_frame() && !level.is_global_frame())
             }
         };

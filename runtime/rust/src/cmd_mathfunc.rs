@@ -32,9 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{
-    integer_conversion, try_dispatch_with_backend_int_width, IntWidth, IntegerConversion, NumValue,
-};
+use tcl_syntax::expr::mathfunc::{integer_conversion, IntegerConversion, NativeMathProtocol};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -66,14 +64,26 @@ pub fn install(interp: &mut Interp) {
 }
 
 /// The shared implementation behind every `::tcl::mathfunc::NAME`. The function
-/// is `argv[0]`'s simple tail (so one builtin serves all names); operands are
+/// is the installed handler identity retained by native dispatch; operands are
 /// read off the tower as [`Num`] and dispatched.
 pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let Some(identity) = interp.active_native_builtin_identity() else {
+        return interp.set_error(b"math function implementation identity is unavailable");
+    };
+    mathfunc_identity(interp, argv, &identity)
+}
+
+/// Invoke an already proved installed fixed function, independently of Tcl command names.
+pub(crate) fn mathfunc_identity(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    identity: &[u8],
+) -> Code {
     let name0 = obj_bytes(argv[0]);
-    let tail = qualifier_segments(&name0)
+    let tail = qualifier_segments(identity)
         .last()
         .copied()
-        .unwrap_or(&name0[..]);
+        .unwrap_or(identity);
     let Ok(fname) = core::str::from_utf8(tail) else {
         return interp.set_error(b"unknown math function");
     };
@@ -142,7 +152,8 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // Which width `int()` uses is the shared owner's release axis: Tcl 9.0
     // binds `int` to the same unbounded `ExprIntFunc` as `entier`, 8.4-8.6
     // keep its 64-bit window.
-    let int_width = IntWidth::for_tcl_version(interp.runtime_version());
+    let dialect = interp.native_invocation_dialect();
+    let int_width = crate::expr::int_width_for_dialect(dialect);
 
     // `wide`/`int`/`entier` on an *integer* operand work on the object directly
     // rather than through the shared dispatch, so the result keeps the operand's
@@ -154,7 +165,10 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // call, not this consumer's: `integer_conversion` carries the release
     // axis, and `tcl-vm`'s `cmd_math` reads the same function, so the two
     // engines cannot drift apart.
-    let conversion = integer_conversion(&lname, int_width);
+    let conversion = (tcl_registry::mathfunc::native_math_protocol(dialect)
+        == Some(NativeMathProtocol::Tcl))
+    .then(|| integer_conversion(&lname, int_width))
+    .flatten();
     if let Some(conversion) = conversion.filter(|_| crate::bignum::is_integer(argv[1])) {
         if conversion == IntegerConversion::Window {
             interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
@@ -166,29 +180,18 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
 
-    // Operands → Num (object-preserving: a bignum/double keeps its rep).
-    let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = argv[1..]
+    // The same dialect-selected operand conversion and result semantics serve
+    // fixed-table calls and public command handlers.
+    let operands: Vec<_> = argv[1..]
         .iter()
-        .map(|&o| crate::bignum::as_math_num(o))
+        .map(|&operand| crate::obj::Owned::retain(operand))
         .collect();
-    let Some(nums) = nums else {
-        return interp.set_error(b"argument to math function didn't have numeric value");
-    };
-
-    // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    // The shared dispatch's *typed* refusals: C reports an infinity in
-    // an integer conversion as `ARITH IOVERFLOW`, a NaN operand as `TCL VALUE
-    // DOUBLE NAN`, and only a genuine out-of-range argument as `ARITH DOMAIN` —
-    // rather than the generic domain error for all three.
-    match try_dispatch_with_backend_int_width(&lname, &nums, int_width) {
-        Ok(num) => {
-            interp.set_result(crate::bignum::math_num_to_obj(num));
+    match crate::expr::dispatch_shared_in(&lname, &operands, dialect) {
+        Ok(value) => {
+            interp.set_result(value.as_ptr());
             Code::Ok
         }
-        Err(e) => {
-            let err = crate::expr::math_func_err(e);
-            interp.error_with_code(&err.msg, err.code.as_deref().unwrap_or(b""))
-        }
+        Err(error) => interp.report_expr_error(error),
     }
 }
 
@@ -238,6 +241,19 @@ mod tests {
             counters::live_bufs()
         );
         assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
+    fn renamed_and_aliased_builtin_retains_installed_function_identity() {
+        leak_free(|interp| {
+            assert_eq!(interp.eval_str(b"rename ::tcl::mathfunc::abs savedAbs; interp alias {} ::tcl::mathfunc::abs {} savedAbs; list [savedAbs -3] [expr {abs(-7)}]"), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"3 7");
+            assert_eq!(
+                interp.eval_str(b"rename ::tcl::mathfunc::sqrt {}; rename savedAbs ::tcl::mathfunc::sqrt; expr {sqrt(-4)}"),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"4");
+        });
     }
 
     #[test]

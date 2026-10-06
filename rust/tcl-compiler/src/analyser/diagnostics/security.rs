@@ -33,7 +33,6 @@
 use super::helpers::{has_substitution, is_braced_word};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
-use crate::regex_source::regexp_pattern_index;
 use tcl_core_types::DiagCode;
 use tcl_registry::Traits;
 use tcl_registry::arg_role::ArgRole;
@@ -193,7 +192,7 @@ impl Analyser {
         {
             return;
         }
-        let fixes = self.trailing_arg_fixes(cmd_name, args, arg_tokens, "Add catch");
+        let fixes = self.trailing_arg_fixes(cmd_name, arg_tokens, "Add catch");
         let span = cmd_tok.span;
         self.result.diagnostics.push(
             crate::analyser::types::Diagnostic::new(
@@ -236,19 +235,33 @@ Consider capturing the result: catch {\u{2026}} result"
     fn trailing_arg_fixes(
         &self,
         cmd_name: &str,
-        args: &[String],
         arg_tokens: &[tcl_lexer::Token],
         title_prefix: &str,
     ) -> Vec<super::types::CodeFix> {
         let Some(registry) = self.registry.as_deref() else {
             return Vec::new();
         };
-        let Some(spec) = registry.get(cmd_name) else {
+        let context = self.analysis_context();
+        let query = context.context().authoring_query();
+        let Some(spec) = registry.get_for_surface(cmd_name, Some(query)) else {
             return Vec::new();
         };
-        let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // The declared roles of the words a caller could still append …
-        let unfilled = registry.unfilled_trailing_roles(cmd_name, &arg_strs);
+        let mut dialect = self
+            .source_analysis_entry
+            .as_ref()
+            .and_then(|entry| entry.invocation_dialect)
+            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile));
+        dialect.lexer_grammar = self.grammar();
+        dialect.word_values = self.word_rules();
+        // Unknown future values remain ordinary dynamic words in the selected grammar.
+        let unfilled = crate::registry_invocation::with_source_argument_words(
+            &self.source,
+            arg_tokens,
+            self.lexer_config(),
+            dialect,
+            |arguments| registry.unfilled_trailing_roles_words(cmd_name, arguments),
+        )
+        .unwrap_or_default();
         // … restricted to the leading run that writes variables: a slot
         // taking a value rather than a variable name is not a place to
         // splice a capture variable.
@@ -261,10 +274,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // walk: `package require` may appear anywhere in the file, so the
         // owning package's resolved version is not known until the post-walk
         // flush, by which time the fix has already been attached.
-        let documented = spec.optional_trailing_arg_names(
-            Some(self.analysis_context().context().authoring_query()),
-            None,
-        );
+        let documented = spec.optional_trailing_arg_names(Some(query), None);
         let offered = writable.min(documented.len());
         if offered == 0 {
             return Vec::new();
@@ -1156,6 +1166,7 @@ or use explicit I/O commands."
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
     ) {
         let takes_regex_pattern = self.command_takes_regex_pattern(cmd_name);
         // `switch` stays name-guarded: its patterns are glob by default and
@@ -1171,6 +1182,7 @@ or use explicit I/O commands."
             args,
             arg_tokens,
             self.lexer_config(),
+            self.regex_pattern_source_index(cmd_name, arg_tokens, cmd_tok),
         );
         if patterns.is_empty() {
             return;
@@ -1213,11 +1225,12 @@ matching time on crafted input."
         cmd_name: &str,
         args: &[String],
         arg_tokens: &[tcl_lexer::Token],
+        cmd_tok: tcl_lexer::Token,
     ) {
         if !self.command_takes_regex_pattern(cmd_name) {
             return;
         }
-        let Some(idx) = regexp_pattern_index(args) else {
+        let Some(idx) = self.regex_pattern_source_index(cmd_name, arg_tokens, cmd_tok) else {
             return;
         };
         let (Some(&tok), Some(text)) = (arg_tokens.get(idx), args.get(idx)) else {
@@ -1978,14 +1991,13 @@ fn find_regex_patterns_in_command(
     args: &[String],
     arg_tokens: &[tcl_lexer::Token],
     config: tcl_lexer::LexerConfig,
+    pattern_index: Option<usize>,
 ) -> Vec<(String, tcl_lexer::Token)> {
     if args.is_empty() || arg_tokens.is_empty() {
         return Vec::new();
     }
     if takes_regex_pattern {
-        // Skip leading flags to the pattern argument via the one canonical
-        // regex-command option-skip.
-        let Some(idx) = regexp_pattern_index(args) else {
+        let Some(idx) = pattern_index else {
             return Vec::new();
         };
         return match (args.get(idx), arg_tokens.get(idx)) {

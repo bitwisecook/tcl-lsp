@@ -368,7 +368,9 @@ pub fn classify_proc(
     summary: Option<&ProcEscapeSummary>,
     static_call_count: usize,
 ) -> InlineDecision {
-    if !summary.is_some_and(ProcEscapeSummary::safe_to_inline) {
+    if crate::native_compilation_admission::script_requires_admission(&proc.body)
+        || !summary.is_some_and(ProcEscapeSummary::safe_to_inline)
+    {
         return InlineDecision::Never;
     }
     let body_size = count_statements(&proc.body);
@@ -670,6 +672,9 @@ fn v3_script_eligible(
     summaries: &HashMap<String, ProcEscapeSummary>,
     registry: &CommandRegistry,
 ) -> bool {
+    if crate::native_compilation_admission::script_requires_admission(script) {
+        return false;
+    }
     for stmt in &script.statements {
         if matches!(stmt, Statement::Return { .. }) {
             continue;
@@ -696,10 +701,12 @@ fn build_inlinable_map(
     // The module's own dialect, resolved once here — the lowered module names
     // it, and this is the only point in the inliner's recursion that still
     // holds the module.
-    let word_rules = WordValueRules::of_dialect_name(module.dialect.as_deref());
+    let word_rules = WordValueRules::from_config(&module.lexer_config);
     let mut map = HashMap::new();
     for (qname, proc) in &module.procedures {
-        if module.redefined_procedures.contains(qname) {
+        if module.redefined_procedures.contains(qname)
+            || crate::native_compilation_admission::script_requires_admission(&proc.body)
+        {
             continue;
         }
         let count = counts.get(qname).copied().unwrap_or(0);
@@ -818,6 +825,9 @@ fn rewrite_script(
     parent_is_terminal: bool,
     caller_may_be_global_frame: bool,
 ) -> (Script, bool) {
+    if crate::native_compilation_admission::script_requires_admission(script) {
+        return (script.clone(), false);
+    }
     let mut out: Vec<Statement> = Vec::with_capacity(script.statements.len());
     let mut command_binding_sites: Vec<CommandBindingSite> =
         script.command_binding_sites.iter().cloned().collect();
@@ -1534,6 +1544,7 @@ fn splice_call_site(
         command,
         args,
         span,
+        tokens,
         ..
     } = call
     else {
@@ -1582,6 +1593,11 @@ fn splice_call_site(
             definition.name,
             definition.parameters,
             definition.body,
+        )
+        .with_namespace_context(
+            tokens
+                .as_ref()
+                .and_then(crate::registry_invocation::compiled_namespace_context),
         ),
     );
     Some(expansion)
@@ -1631,6 +1647,8 @@ fn splice_v3(
         let mut wrapped = wrap_with_irreturn_loop(&renamed_body, &result_var, span, implicit);
         if is_terminal {
             wrapped.push(Statement::Return {
+                expr_base: None,
+                tokens: None,
                 span,
                 value: Some(format!("${result_var}")),
                 value_word: None,
@@ -1866,6 +1884,11 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
                 command_binding_sites.push(CommandBindingSite {
                     span: *span,
                     binding: binding.clone(),
+                    known_namespaces: None,
+                    variable_frame: None,
+                    variable_context: None,
+                    existing_namespace_cells: None,
+                    source_tokens: None,
                 });
             }
             let v = value.clone().unwrap_or_default();

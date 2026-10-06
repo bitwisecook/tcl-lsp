@@ -160,10 +160,8 @@ const AFTER_SUBCOMMANDS: &[&[u8]] = &[b"cancel", b"idle", b"info"];
 /// command prefix (C joins them with spaces).
 fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
-        return err(
-            interp,
-            b"wrong # args: should be \"after option ?arg ...?\"",
-        );
+        return interp
+            .wrong_arguments_message(b"wrong # args: should be \"after option ?arg ...?\"");
     }
     let first = obj_bytes(argv[1]);
     let scanned = match tcl_cmd_core::prefix::scan(AFTER_SUBCOMMANDS, &first, false) {
@@ -176,7 +174,8 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     match scanned {
         b"idle" => {
             if argv.len() < 3 {
-                return err(interp, b"wrong # args: should be \"after idle script\"");
+                return interp
+                    .wrong_arguments_message(b"wrong # args: should be \"after idle script\"");
             }
             let script = join_args(&argv[2..]);
             let id = interp.events_mut().push_idle(script);
@@ -185,8 +184,7 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         b"cancel" => {
             if argv.len() < 3 {
-                return err(
-                    interp,
+                return interp.wrong_arguments_message(
                     b"wrong # args: should be \"after cancel id|command\"",
                 );
             }
@@ -238,7 +236,7 @@ fn after_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// events remain and the variable never changes (C reports nothing to wait on).
 fn vwait_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 2 {
-        return err(interp, b"wrong # args: should be \"vwait name\"");
+        return interp.wrong_arguments_message(b"wrong # args: should be \"vwait name\"");
     }
     let var = obj_bytes(argv[1]);
     let before = read_var_snapshot(interp, &var);
@@ -274,12 +272,19 @@ const UPDATE_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 /// events (C's `Tcl_UpdateObjCmd`: `TCL_IDLE_EVENTS` excludes timers).
 fn update_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 {
-        return err(interp, b"wrong # args: should be \"update ?idletasks?\"");
+        return interp.wrong_arguments_message(b"wrong # args: should be \"update ?idletasks?\"");
     }
     let idletasks = argv.len() == 2;
     if idletasks {
-        if let Err(m) = UPDATE_OPTIONS.index_of(&obj_bytes(argv[1])) {
-            return err(interp, &m);
+        if let Err(error) = interp.native_index_operand(
+            argv[1],
+            &tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend_bytes(
+                UPDATE_OPTIONS.names(),
+            ),
+            false,
+            "option",
+        ) {
+            return interp.report_cmd_error(error);
         }
     }
     interp.process_bg_errors();

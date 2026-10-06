@@ -64,7 +64,7 @@ use crate::model::family::{Family, Release};
 /// One word-shaped binary (or, for iRules' `not`, unary) expr operator,
 /// with the oldest release on its family's ladder whose lexeme table
 /// contains it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WordOperator {
     /// The operator spelling (`"eq"`, `"contains"`).
     pub spelling: &'static str,
@@ -89,7 +89,7 @@ const fn word(spelling: &'static str, since: Release) -> WordOperator {
 /// trees. The table is a per-family fact; release gating of individual
 /// operators lives in [`ExprGrammar::word_operators`] /
 /// [`ExprGrammar::symbolic_operators`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PrecedenceTable {
     rows: &'static [(&'static str, u16, u16)],
 }
@@ -115,7 +115,7 @@ impl PrecedenceTable {
 /// One expr math function with the oldest release on its family's ladder
 /// that ships it, and whether shipping it also depends on the build's
 /// math extension.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MathFunc {
     /// The function name, matched verbatim (mathfunc lookup is
     /// case-sensitive).
@@ -163,7 +163,7 @@ const fn math_ext_func(name: &'static str, since: Release) -> MathFunc {
 /// [`CoreProfile::mathfunc`](crate::model::family::CoreProfile::mathfunc)
 /// via the capability record — this type answers for the canonical build
 /// only.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MathFuncSet {
     rows: &'static [MathFunc],
     ceiling: Release,
@@ -224,7 +224,7 @@ pub enum ExprSubstitution {
 
 /// The full expr grammar of one `(family, release)` — §3.1's contract,
 /// every field data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ExprGrammar {
     /// The numeral grammar, including the special-float set.
     pub numbers: NumberSyntax,
@@ -1291,12 +1291,8 @@ mod tests {
         assert!(g.symbolic_operators.contains(&("=~", Release::JIM_0_84)));
         // Tcl and the F5 tree have no symbolic extensions beyond the
         // shared C-Tcl set.
-        assert!(
-            expr(Family::Tcl, Release::TCL_9_1)
-                .symbolic_operators
-                .is_empty()
-        );
-        assert!(EXPR_F5_TCL.symbolic_operators.is_empty());
+        assert_eq!(expr(Family::Tcl, Release::TCL_9_1).symbolic_operators, []);
+        assert_eq!(EXPR_F5_TCL.symbolic_operators, []);
     }
 
     /// Measured: `expr 1 + 2` answers 3 on `jimsh 0.76` and `0.79` and

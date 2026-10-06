@@ -131,10 +131,60 @@ const ACCESS_VALUES: &[ArgValue] = &[
     },
 ];
 
+fn discovery_file_open(arguments: InvocationArguments<'_>) -> StateTransitions {
+    let mut transitions = StateTransitions::default();
+    if !(1..=3).contains(&arguments.len())
+        || arguments
+            .literal_at(0)
+            .is_some_and(|path| path.starts_with('|'))
+    {
+        return transitions;
+    }
+    let writable = match arguments.literal_at(1) {
+        None => arguments.len() >= 2,
+        Some("r" | "rb") => false,
+        Some(mode) => !arguments
+            .dialect()
+            .map_or_else(
+                || tcl_syntax::list::split_list(mode),
+                |dialect| dialect.word_values.split_list(mode),
+            )
+            .is_ok_and(|flags| {
+                flags.iter().any(|flag| flag == "RDONLY")
+                    && flags.iter().all(|flag| {
+                        !matches!(
+                            flag.as_ref(),
+                            "CREAT" | "TRUNC" | "WRONLY" | "RDWR" | "APPEND"
+                        )
+                    })
+            }),
+    };
+    if writable {
+        transitions.push(StateTransition::Package(
+            crate::model::binding::PackageTransition::DiscoveryDependencyChanged {
+                dependency: crate::model::binding::PackageResolverDependency::Filesystem,
+            },
+        ));
+    }
+    transitions
+}
+
 /// Command spec for `open`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
+        // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NoHook,
+            operation: crate::SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
+        state_transitions: Some(StateTransitionDescriptor {
+            commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+            success_resolver: None,
+            resolver: Some(discovery_file_open),
+            ..StateTransitionDescriptor::EMPTY
+        }),
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL
@@ -180,5 +230,36 @@ pub fn spec() -> CommandSpec {
         // every argument.
         taint_code_sink_args: Some(&[0]),
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+
+    #[test]
+    fn writable_open_revokes_loader_discovery_but_read_only_does_not() {
+        let descriptor = spec()
+            .state_transitions
+            .expect("owned discovery descriptor");
+        for (words, changed) in [
+            (vec!["pkgIndex.tcl"], false),
+            (vec!["pkgIndex.tcl", "r"], false),
+            (vec!["pkgIndex.tcl", "rb"], false),
+            (vec!["pkgIndex.tcl", "RDONLY BINARY"], false),
+            (vec!["pkgIndex.tcl", "w"], true),
+            (vec!["pkgIndex.tcl", "r+"], true),
+            (vec!["pkgIndex.tcl", "RDWR CREAT"], true),
+            (vec!["|worker", "w"], false),
+        ] {
+            let facts = descriptor.resolve(InvocationArguments::literals(&words));
+            assert_eq!(!facts.facts().is_empty(), changed, "{words:?}");
+            if changed {
+                assert_eq!(
+                    facts.facts()[0].commit,
+                    StateTransitionCommit::MayCommitBeforeAbruptCompletion
+                );
+            }
+        }
     }
 }

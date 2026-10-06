@@ -182,13 +182,182 @@ pub(crate) fn try_lower_hook_with_binding(
     let resolved =
         tcl_registry::model::resolve_invocation_in_context(registry, context, cmd.name, &arg_refs)?;
     let hook = resolved.semantics.lowering_hook?;
-    let mut statement =
-        dispatch_lowering_hook(hook, cmd, aliases, registry, context, safe_on_uninit)?;
+    let statement = dispatch_lowering_hook(hook, cmd, aliases, registry, context, safe_on_uninit)?;
     let binding = CommandBindingIdentity::in_rooted_namespace(
         cmd.resolution_namespace,
         cmd.name,
         resolved.canonical_command,
+    )
+    .with_namespace_context(
+        cmd.tokens
+            .as_ref()
+            .and_then(crate::registry_invocation::compiled_namespace_context),
     );
+    Some(finish_hook_statement(statement, binding))
+}
+
+/// Lower logical structure from its retained original-invocation receipt.
+/// This path supplies analysis IR and grants no native opcode admission.
+pub(crate) fn try_lower_logical_hook_with_binding(
+    cmd: &LoweringCommand<'_>,
+    selected: &crate::registry_invocation::LogicalStructuredInvocation,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    safe_on_uninit: bool,
+) -> Option<ResolvedLowering> {
+    let statement = dispatch_lowering_hook(
+        selected.lowering_hook()?,
+        cmd,
+        aliases,
+        registry,
+        context,
+        safe_on_uninit,
+    )?;
+    let statement = attach_conditional_expression_topology(statement, cmd, registry);
+    let binding = CommandBindingIdentity::in_rooted_namespace(
+        cmd.resolution_namespace,
+        cmd.name,
+        selected.canonical_command(),
+    )
+    .with_namespace_context(
+        cmd.tokens
+            .as_ref()
+            .and_then(crate::registry_invocation::compiled_namespace_context),
+    );
+    Some(finish_hook_statement(statement, binding))
+}
+
+/// Attach checked original expression topology for analysis. Every original
+/// command-binding site remains retained; this creates no executable admission.
+fn attach_conditional_expression_topology(
+    mut statement: Statement,
+    cmd: &LoweringCommand<'_>,
+    registry: &CommandRegistry,
+) -> Statement {
+    let Some(tokens) = cmd.tokens.as_ref() else {
+        return statement;
+    };
+    if let Statement::ExprEval {
+        expr, expr_base, ..
+    } = &mut statement
+    {
+        if let Some(evaluation) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.conditional_expression_evaluation(registry, tokens))
+        {
+            *expr = evaluation.tree().clone();
+            *expr_base = Some(evaluation.source().base());
+        }
+        return statement;
+    }
+    let word = match &statement {
+        Statement::Return { expr: None, .. } => 1,
+        Statement::AssignValue { .. } => 2,
+        _ => return statement,
+    };
+    let Some(evaluation) =
+        original_nested_expression_topology(registry, tokens, word, cmd.lexer_config)
+    else {
+        return statement;
+    };
+    let expr = evaluation.tree().clone();
+    let base = Some(evaluation.source().base());
+    match statement {
+        Statement::Return {
+            ref mut expr,
+            ref mut expr_base,
+            ..
+        } => {
+            *expr = Some(evaluation.tree().clone());
+            *expr_base = base;
+            statement
+        }
+        Statement::AssignValue {
+            span,
+            name,
+            name_braced,
+            value,
+            ..
+        } => Statement::AssignExpr {
+            span,
+            name,
+            name_braced,
+            expr,
+            expr_base: base,
+            command_binding: None,
+            fallback_value: value,
+        },
+        _ => statement,
+    }
+}
+
+/// Select exactly one original command-substitution expression descriptor.
+/// The retained nested source binding owns dispatch grammar and original frame.
+fn original_nested_expression_topology(
+    registry: &CommandRegistry,
+    tokens: &crate::ir::CommandTokens,
+    index: usize,
+    config: LexerConfig,
+) -> Option<crate::command_binding::SourceConditionalExpressionEvaluation> {
+    let word = tokens.words().get(index)?;
+    if !matches!(word, crate::ir::WordExpr::CommandSubstitution { .. }) {
+        return None;
+    }
+    let mut nested =
+        crate::word_subst::nested_command_words(&word.legacy_text(), word.source(), config).ok()?;
+    let offset = nested.argv.first()?.start();
+    let binding = &tokens
+        .nested_bindings
+        .iter()
+        .find(|(site, _)| *site == offset)?
+        .1;
+    nested.source_binding = Some(binding.clone());
+    let expression = binding.conditional_expression_evaluation(registry, &nested)?;
+    expression.semantic_lookup_closed().then_some(expression)
+}
+
+/// Lower an admitted native recipe without borrowing its normal-handler facts.
+/// The caller must retain the recipe's operation guards and original replay.
+#[must_use]
+pub(crate) fn try_lower_admitted_hook_with_binding(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    safe_on_uninit: bool,
+) -> Option<ResolvedLowering> {
+    let admitted = crate::registry_invocation::admitted_native_compiler_invocation(
+        registry,
+        None,
+        cmd.tokens.as_ref()?,
+    )?;
+    let statement = dispatch_lowering_hook(
+        admitted.lowering_hook()?,
+        cmd,
+        aliases,
+        registry,
+        context,
+        safe_on_uninit,
+    )?;
+    let binding = CommandBindingIdentity::in_rooted_namespace(
+        cmd.resolution_namespace,
+        cmd.name,
+        admitted.canonical_registration_name(),
+    )
+    .with_namespace_context(
+        cmd.tokens
+            .as_ref()
+            .and_then(crate::registry_invocation::compiled_namespace_context),
+    );
+    Some(finish_hook_statement(statement, binding))
+}
+
+fn finish_hook_statement(
+    mut statement: Statement,
+    binding: CommandBindingIdentity,
+) -> ResolvedLowering {
     if let Statement::ExprEval {
         command_binding, ..
     } = &mut statement
@@ -200,7 +369,7 @@ pub(crate) fn try_lower_hook_with_binding(
         Statement::Call { .. } | Statement::Barrier { .. }
     ))
     .then_some(binding);
-    Some(ResolvedLowering { statement, binding })
+    ResolvedLowering { statement, binding }
 }
 
 /// Dispatch a typed [`LoweringHookId`] to its implementation.
@@ -220,6 +389,29 @@ pub fn dispatch_lowering_hook(
     context: Option<&tcl_registry::model::ResolvedContext>,
     safe_on_uninit: bool,
 ) -> Option<Statement> {
+    // Typed stores retain a source name, rather than the evaluated name word.
+    // A computed array index can itself retarget an alias, so retaining only
+    // the array's spelling loses both evaluation order and physical identity.
+    if matches!(
+        hook,
+        LoweringHookId::Set | LoweringHookId::Incr | LoweringHookId::AppendOrLappend
+    ) && !cmd.tokens.as_ref().map_or_else(
+        || cmd.arg_is_static_literal(0),
+        |tokens| {
+            tokens.words().get(1).is_some_and(|word| {
+                matches!(
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        cmd.lexer_config.escapes,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&cmd.lexer_config),
+                    ),
+                    crate::registry_invocation::EffectiveInvocationWord::Literal(_)
+                )
+            })
+        },
+    ) {
+        return Some(make_call(cmd));
+    }
     match hook {
         LoweringHookId::Expr => crate::lowering::hooks::control::try_lower_expr(cmd),
         LoweringHookId::Return => Some(crate::lowering::hooks::control::try_lower_return(
@@ -506,7 +698,8 @@ fn set_expr_from_command_value(
         .strip_prefix('[')
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(value);
-    let (expr_cmd, canonical_cmd, expr_arg, rel_base) = extract_single_expr_arg_with_config(
+    let (expr_cmd, canonical_cmd, expr_arg, rel_base) = extract_proved_expr_arg(
+        (cmd.tokens.as_ref(), 2),
         inner,
         aliases,
         cmd.resolution_namespace,
@@ -535,11 +728,18 @@ fn set_expr_from_command_value(
         name: name.to_owned(),
         name_braced,
         expr,
-        command_binding: Some(CommandBindingIdentity::in_rooted_namespace(
-            cmd.resolution_namespace,
-            expr_cmd,
-            canonical_cmd,
-        )),
+        command_binding: Some(
+            CommandBindingIdentity::in_rooted_namespace(
+                cmd.resolution_namespace,
+                expr_cmd,
+                canonical_cmd,
+            )
+            .with_namespace_context(
+                cmd.tokens
+                    .as_ref()
+                    .and_then(crate::registry_invocation::compiled_namespace_context),
+            ),
+        ),
         fallback_value: value.to_owned(),
         expr_base,
     })
@@ -694,49 +894,62 @@ fn lower_variable(cmd: &LoweringCommand<'_>) -> Statement {
 // upvar
 
 fn lower_upvar(cmd: &LoweringCommand<'_>) -> Option<Statement> {
-    if cmd.args.len() < 2 {
+    use tcl_registry::{InvocationArguments, InvocationDialect, InvocationWord};
+
+    let rules = tcl_syntax::word_rules::WordValueRules::from_config(&cmd.lexer_config);
+    let values: Vec<_> = cmd.tokens.as_ref().map_or_else(
+        || {
+            cmd.args
+                .iter()
+                .enumerate()
+                .map(|(index, argument)| {
+                    if cmd.arg_is_static_literal(index) {
+                        crate::registry_invocation::EffectiveInvocationWord::Literal(
+                            argument.clone(),
+                        )
+                    } else {
+                        crate::registry_invocation::EffectiveInvocationWord::Dynamic
+                    }
+                })
+                .collect()
+        },
+        |tokens| {
+            tokens
+                .words()
+                .iter()
+                .skip(1)
+                .map(|word| {
+                    crate::registry_invocation::effective_invocation_word(
+                        word,
+                        cmd.lexer_config.escapes,
+                        rules,
+                    )
+                })
+                .collect()
+        },
+    );
+    let words: Vec<InvocationWord<'_>> = values
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::as_registry_word)
+        .collect();
+    let dialect = cmd
+        .tokens
+        .as_ref()
+        .and_then(|tokens| tokens.source_binding.as_ref())
+        .and_then(|binding| binding.variable_context.invocation_dialect)
+        .or_else(|| cmd.dialect.map(InvocationDialect::of_profile));
+    let mut arguments = InvocationArguments::Structured(&words);
+    if let Some(dialect) = dialect {
+        arguments = arguments.with_dialect(dialect);
+    }
+    if tcl_registry::FrameEffectSpec::UPVAR.resolve_arguments(arguments)
+        == tcl_registry::frame_effect::FrameArgumentResolution::Invalid
+    {
         return None;
     }
-    let has_level = cmd.args[0]
-        .trim_start_matches('-')
-        .chars()
-        .all(|c| c.is_ascii_digit())
-        || cmd.args[0].starts_with('#');
-    let start = usize::from(has_level);
-    // `upvar ?level? caller local ?caller local ...?`.  A `local` is a clean
-    // def only when its `caller` target is a *literal* name: a dynamic
-    // `$name` / `[cmd]` target may resolve to a non-existent caller variable,
-    // in which case the alias is a no-op and reading `$local` errors — so the
-    // local is possibly-unset and must not be recorded as a def (read-before-set
-    // fires on an unconditional read).
-    let rest = &cmd.args[start..];
-    let mut my_vars: Vec<String> = Vec::new();
-    let mut i = 0;
-    while i + 1 < rest.len() {
-        let caller = &rest[i];
-        if !caller.starts_with('$') && !caller.starts_with('[') {
-            my_vars.push(
-                crate::naming::normalise_var_name_braced(
-                    &rest[i + 1],
-                    cmd.arg_is_braced_literal(start + i + 1),
-                )
-                .to_owned(),
-            );
-        }
-        i += 2;
-    }
-    Some(Statement::Call {
-        span: cmd.span,
-        command: cmd.name.into(),
-        canonical_command: None,
-        args: cmd.args.to_vec(),
-        defs: my_vars,
-        reads: vec![],
-        reads_own_defs: false,
-        safe_on_uninit: false,
-        tokens: cmd.tokens.clone(),
-        foreach_groups: None,
-    })
+    // A link can name an undefined source cell. It registers a binding, not
+    // a value definition; selected alias transitions own that distinction.
+    Some(make_call(cmd))
 }
 
 // Helpers
@@ -791,6 +1004,49 @@ pub(crate) fn extract_single_expr_arg(
 /// explicit [`LexerConfig`] keeps `JimTcl` expression sugar, iRules word joins,
 /// and release-sensitive expansion rules on the same resolved profile as the
 /// outer command.
+/// Extract a nested expression only after consulting its retained dispatch
+/// proof. Compatibility snapshots without any source query retain the legacy
+/// entry; queried snapshots require the exact nested command identity.
+pub(crate) fn extract_proved_expr_arg(
+    source_word: (Option<&crate::ir::CommandTokens>, usize),
+    text: &str,
+    aliases: &CommandAliasMap,
+    resolution_namespace: &str,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    config: LexerConfig,
+) -> Option<(String, String, String, Option<u32>)> {
+    let (tokens, word_index) = source_word;
+    let proved = if let Some(tokens) = tokens.filter(|tokens| tokens.source_binding.is_some()) {
+        let word = tokens.words().get(word_index)?;
+        let nested =
+            crate::word_subst::nested_command_words(&word.legacy_text(), word.source(), config)
+                .ok()?;
+        let offset = nested.argv.first()?.start();
+        let binding = tokens
+            .nested_bindings
+            .iter()
+            .find(|(site, _)| *site == offset)?
+            .1
+            .proved_handler_target()?;
+        if !binding.registry_backed || !binding.prepended.is_empty() {
+            return None;
+        }
+        Some(binding.command.as_str())
+    } else {
+        None
+    };
+    extract_single_expr_arg_with_binding(
+        text,
+        aliases,
+        resolution_namespace,
+        registry,
+        context,
+        config,
+        proved,
+    )
+}
+
 pub(crate) fn extract_single_expr_arg_with_config(
     text: &str,
     aliases: &CommandAliasMap,
@@ -798,6 +1054,26 @@ pub(crate) fn extract_single_expr_arg_with_config(
     registry: &CommandRegistry,
     context: Option<&tcl_registry::model::ResolvedContext>,
     config: LexerConfig,
+) -> Option<(String, String, String, Option<u32>)> {
+    extract_single_expr_arg_with_binding(
+        text,
+        aliases,
+        resolution_namespace,
+        registry,
+        context,
+        config,
+        None,
+    )
+}
+
+fn extract_single_expr_arg_with_binding(
+    text: &str,
+    aliases: &CommandAliasMap,
+    resolution_namespace: &str,
+    registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
+    config: LexerConfig,
+    proved_command: Option<&str>,
 ) -> Option<(String, String, String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
@@ -865,10 +1141,14 @@ pub(crate) fn extract_single_expr_arg_with_config(
         return None;
     }
     let cmd_word = &words[0];
-    let resolved_name = match resolve_alias(cmd_word, aliases, resolution_namespace) {
-        Some((target, prepended)) if prepended.is_empty() => target,
-        Some(_) => return None,
-        None => cmd_word.clone(),
+    let resolved_name = if let Some(command) = proved_command {
+        command.to_owned()
+    } else {
+        match resolve_alias(cmd_word, aliases, resolution_namespace) {
+            Some((target, prepended)) if prepended.is_empty() => target,
+            Some(_) => return None,
+            None => cmd_word.clone(),
+        }
     };
     let arg_refs = [words[1].as_str()];
     let resolved = tcl_registry::model::resolve_invocation_in_context(
@@ -1309,7 +1589,39 @@ mod tests {
         let result = lower_upvar(&cmd);
         assert!(result.is_some());
         if let Some(Statement::Call { defs, .. }) = result {
-            assert_eq!(defs, vec!["local"]);
+            assert!(
+                defs.is_empty(),
+                "an alias declaration does not write a value"
+            );
+        }
+    }
+
+    #[test]
+    fn upvar_lowering_uses_the_selected_frame_grammar() {
+        let args = vec!["0".to_owned(), "local".to_owned()];
+        let kinds = vec![ArgTokenKind::Esc; 2];
+        for version in tcl_dialect::TclVersion::ALL {
+            let cmd = LoweringCommand {
+                span: Span::new(0, 13),
+                name: "upvar",
+                resolution_namespace: "::",
+                args: &args,
+                single_token_word: &[true; 3],
+                expand_word: None,
+                tokens: None,
+                arg_kinds: &kinds,
+                dialect: tcl_dialect::DialectProfile::find(version.dialect_name()),
+                lexer_config: LexerConfig::for_dialect(version.dialect_name()),
+            };
+            let selected = lower_upvar(&cmd);
+            assert_eq!(
+                selected.is_some(),
+                version >= tcl_dialect::TclVersion::V8_6,
+                "{version:?}: pre-8.6 consumes the selector, leaving an invalid pair"
+            );
+            if let Some(Statement::Call { defs, .. }) = selected {
+                assert_eq!(defs, [] as [std::string::String; 0]);
+            }
         }
     }
 
@@ -1431,5 +1743,58 @@ mod tests {
             lexer_config: LexerConfig::default(),
         };
         assert!(try_lower_hook(&cmd, &aliases, &registry, None, false).is_none());
+    }
+    #[test]
+    fn conditional_original_expression_topology_is_analysis_only() {
+        for name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(name).unwrap();
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let source = "proc add {b c} {set temporary [expr {$b+$c}]; return [expr {$b+$c}]}";
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, registry, false, profile,
+            );
+            let body = &unit.ir_module.procedures["::add"].body;
+            assert!(
+                matches!(
+                    &body.statements[0],
+                    Statement::AssignExpr {
+                        expr: crate::expr_ast::ExprNode::Binary { .. },
+                        ..
+                    }
+                ),
+                "{name}"
+            );
+            assert!(
+                matches!(
+                    &body.statements[1],
+                    Statement::Return {
+                        expr: Some(crate::expr_ast::ExprNode::Binary { .. }),
+                        ..
+                    }
+                ),
+                "{name}"
+            );
+            for site in body.command_binding_sites.iter() {
+                let tokens = site.source_tokens.as_ref().unwrap();
+                let binding = tokens.source_binding.as_ref().unwrap();
+                assert!(binding.proved_execution_target().is_none());
+                assert!(!binding.original_invocation_completes_normally(tokens));
+                assert!(binding.original_normal_result(tokens).is_none());
+            }
+            let changed = crate::compilation_unit::CompilationUnit::build_for_profile(
+                "rename expr original; proc expr args {return custom}; proc add {b c} {return [expr {$b+$c}]}",
+                registry,
+                false,
+                profile,
+            );
+            assert!(
+                !matches!(
+                    &changed.ir_module.procedures["::add"].body.statements[0],
+                    Statement::Return { expr: Some(_), .. }
+                ),
+                "{name}"
+            );
+        }
     }
 }
