@@ -1,0 +1,62 @@
+# Additional ASCII-only runtime-parser discriminators.  The generator stores
+# each source as hex, so CRLF and physical backslash-newline bytes survive the
+# tmsh configuration layer exactly.
+# Format: id<TAB>category<TAB>source with \n, \r and \\ escapes.
+c_if_comment_eof	comments	set m before; if {1}{#do something}; set m
+c_if_comment_line	comments	set m before; if {1}{#do something\nset m after}; set m
+c_if_hash_arg	comments	list {a}#b
+c_semicolon_comment	comments	set m before; # comment\nset m after; set m
+c_comment_brace_balanced	comments	set m before; # { balanced }\nset m after; set m
+w_brace_bare	words	list {a}b
+w_brace_quote_bare	words	list {a}"b"c
+w_quote_bare	words	list "a"b
+w_repeat	words	list {a}{b}{c}
+w_empty_repeat	words	list {}{}
+w_hash_after_brace	words	list {a}#b
+w_var_gate	words	set v XX; list $v{b}
+w_braced_var_gate	words	set v XX; list ${v}{b}
+w_command_gate	words	list [list a]{b}
+w_command_name	words	{set}qq 17; set qq
+n_if_crlf	newline	set m before\r\nif {1}\r\n{set m after}\r\nset m
+n_if_lf	newline	set m before\nif {1}\n{set m after}\nset m
+n_blank_bound	newline	if {1}\n\n{set m after}
+n_comment_bound	newline	if {1}\n# boundary\n{set m after}
+n_backslash_lf	newline	set m before\nif {1}\\\n{set m after}\nset m
+n_backslash_space_lf	newline	if {1}\\ \n{set m after}
+n_list_absorb	newline	list a b\n{c}
+n_else_lf	newline	set m before\nif {0} {set m then}\nelse {set m else}\nset m
+n_elseif_lf	newline	set m before\nif {0} {set m then}\nelseif {1} {set m elseif}\nset m
+e_equals	expr	expr {"abc" equals "abc"}
+e_starts_with	expr	expr {"abcd" starts_with "ab"}
+e_ends_with	expr	expr {"abcd" ends_with "cd"}
+e_contains_true	expr	expr {"abcd" contains "bc"}
+e_contains_false	expr	expr {"abcd" contains "zz"}
+e_matches_equal	expr	expr {"abcd" matches "abcd"}
+e_matches_substring	expr	expr {"abcd" matches "bc"}
+e_matches_glob	expr	expr {"abcd" matches_glob "a*d"}
+e_matches_regex	expr	expr {"abcd" matches_regex {^a.*d$}}
+e_and	expr	expr {1 and 1}
+e_or	expr	expr {0 or 1}
+e_not	expr	expr {not 0}
+e_precedence_matches_or	expr	expr {1 or 0 matches 0}
+e_precedence_not_starts	expr	expr {not "abc" starts_with "a"}
+e_adjacent_eq	expr	expr {"a"eq"a"}
+e_invalid_function	expr	expr {SomeInvalidOperator()}
+num_leading_zero	numeral	expr {010}
+num_bad_octal	numeral	expr {09}
+num_hex	numeral	expr {0x10}
+num_binary	numeral	expr {0b101}
+num_wide	numeral	expr {9223372036854775807}
+l_index_end_plus	core	lindex {a b} end+1
+l_index_integer_plus	core	lindex {a b c} 1+1
+t_trace_old	core	set q 1; trace variable q r {list}; trace vinfo q
+t_trace_add	core	set q 1; trace add variable q read {list}
+s_switch_glued	core	switch -- a {a {set m yes} default {set m no}}; set m
+s_switch_glued_pattern	core	switch -- a {a{set m yes} default {set m no}}; set m
+p_namespace_current	environment	namespace current
+p_patchlevel	environment	info patchlevel
+p_tcl_patchlevel	environment	if {[info exists tcl_patchLevel]} {set tcl_patchLevel} else {set x UNSET}
+p_tmsh_version	environment	set c tmsh::version; catch {eval $c} v; set v
+p_exec	environment	exec /bin/true
+p_packages	environment	package names
+p_platform_keys	environment	lsort [array names tcl_platform]

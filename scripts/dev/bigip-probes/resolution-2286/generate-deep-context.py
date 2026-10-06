@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Generate byte-controlled parser probes for five BIG-IP Tcl contexts."""
+
+import argparse
+import hashlib
+import json
+import re
+from pathlib import Path
+
+
+def decode_source(text: str) -> bytes:
+    out = bytearray()
+    i = 0
+    while i < len(text):
+        if text[i] != "\\":
+            out.extend(text[i].encode("ascii"))
+            i += 1
+            continue
+        i += 1
+        if i == len(text):
+            out.append(0x5C)
+            break
+        escaped = text[i]
+        out.extend(
+            {
+                "n": b"\n",
+                "r": b"\r",
+                "\\": b"\\",
+                "{": b"{",
+                "}": b"}",
+                '"': b'"',
+            }.get(escaped, ("\\" + escaped).encode("ascii"))
+        )
+        i += 1
+    return bytes(out)
+
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--run", required=True)
+parser.add_argument("--canonical", required=True, type=Path)
+parser.add_argument("--additional", required=True, type=Path)
+parser.add_argument("--out", required=True, type=Path)
+args = parser.parse_args()
+if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,15}", args.run):
+    parser.error("invalid run")
+args.out.mkdir(parents=True, exist_ok=False)
+
+cases = []
+for path in (args.canonical, args.additional):
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        if not raw or raw.startswith("#"):
+            continue
+        case, category, source = raw.split("\t")
+        data = decode_source(source)
+        cases.append((case, category, data))
+
+prefix = f"__tcl_lsp_probe_2286_{args.run}_deep"
+rows = " \\\n".join(f"    {{{case}}} {{{category}}} {{{data.hex()}}}" for case, category, data in cases)
+body = f'''set ::probe_cases [list \\
+{rows}]
+foreach {{cid category source_hex}} $::probe_cases {{
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {{uplevel #0 $src}} value]
+    binary scan $value H* value_hex
+    EMIT "R2286DEEP|{args.run}|CTX|case=$cid|category=$category|source_hex=$source_hex|rc=$rc|value_hex=$value_hex"
+}}
+set tpl UNSET
+if {{[info exists tcl_patchLevel]}} {{ set tpl $tcl_patchLevel }}
+set tvcmd tmsh::version
+if {{[catch {{eval $tvcmd}} tv]}} {{ set tv n/a }}
+set plat [lsort [array names tcl_platform]]
+EMIT "R2286DEEP|{args.run}|CTX|REPORTED|patchlevel=[info patchlevel]|tclversion=[info tclversion]|tcl_patchLevel=$tpl|tmshversion=$tv|ncommands=[llength [info commands]]|platform_keys=$plat"
+'''
+
+
+def with_context(context: str, emit: str) -> str:
+    return body.replace("CTX", context).replace("EMIT ", emit + " ")
+
+
+files = {
+    "irule.conf": f"ltm rule /Common/{prefix}_irule {{\nwhen RULE_INIT {{\n{with_context('TmmIRule', 'log local0.')}\n}}\n}}\n",
+    "cli.conf": f"cli script /Common/{prefix}_cli {{\nproc script::run {{}} {{\n{with_context('TmshCliScript', 'puts')}\n}}\n}}\n",
+    "iapp.conf": "sys application template /Common/" + prefix + "_iapp {\n  actions {\n    definition {\n      implementation {\n" + with_context("IAppImplementation", "tmsh::log err") + "\n      }\n      presentation {\n      }\n    }\n  }\n}\n",
+    "iapp-service.conf": f"sys application service /Common/{prefix}_iapp_service {{\n  template /Common/{prefix}_iapp\n}}\n",
+    "icall.conf": "sys icall script /Common/" + prefix + "_icall {\n  definition {\n" + with_context("ICallScript", "tmsh::log err") + "\n  }\n}\nsys icall handler triggered /Common/" + prefix + "_icall_handler {\n  script /Common/" + prefix + "_icall\n  status active\n  subscriptions { only { event-name " + args.run.upper() + "_DEEP } }\n}\n",
+    "host.tcl": with_context("HostShellTcl", "puts"),
+}
+manifest = {"run": args.run, "cases": [], "fixtures": []}
+for case, category, data in cases:
+    manifest["cases"].append({"id": case, "category": category, "source_hex": data.hex(), "size": len(data)})
+for name, text in files.items():
+    data = text.encode("ascii")
+    (args.out / name).write_bytes(data)
+    manifest["fixtures"].append({"file": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+(args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+print(f"generated {len(cases)} cases in {len(files)} wrappers")
