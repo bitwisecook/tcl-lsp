@@ -2558,11 +2558,13 @@ enum ParamRole {
   unit with its parameters `Overdefined` — no call-site seeds — so it
   holds for every caller; a return that is constant under the seedless
   lattice is a constant return for all callers, which is what
-  `summarise_returns` consumes (slice 7). A value that is exact only
-  under a seed belongs to the argument-sensitive re-run, never to the
-  summary, and the re-run's seeds (`seed_params_from_args`) gain the
-  caller-frame place values for the `Name` parameters: `bump n` re-runs
-  `bump` with `v` seeded from the caller's `n`.
+  `summarise_returns` consumes (slice 7a, landed: `proc p {} {set x [string
+  range foobar 0 2]; return $x}` makes `[p]` fold to `foo` on the summary
+  path). A value that is exact only under a seed belongs to the
+  argument-sensitive re-run, never to the summary, and the re-run's seeds
+  (`seed_params_from_args`) gain the caller-frame place values for the
+  `Name` parameters: `bump n` re-runs `bump` with `v` seeded from the
+  caller's `n`.
 - **Application at a call site.** The caller's driver resolves each
   `Name` argument to a place in the frame `level` selects, applies the
   outcomes in order — a cell update's value from the re-run when the

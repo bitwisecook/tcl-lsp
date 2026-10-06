@@ -32,12 +32,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tcl_compiler::analyses::{ConstValue, LatticeValue};
 use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::interprocedural::{ConstantReturn, ProcSummary};
 use tcl_compiler::intervals::{Interval, compute_intervals_with, numbers_for_dialect};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir_with_dialect;
 use tcl_compiler::optimiser::Optimisation;
 use tcl_compiler::optimiser::manager::{
-    optimise_raw, optimise_source_multipass, optimise_with_dialect,
+    optimise_raw, optimise_source_multipass, optimise_unit, optimise_with_dialect,
 };
 use tcl_compiler::static_loops::{
     DEFAULT_MAX_STATIC_LOOP_ITERS, LoopSemantics, StaticEnv, StaticValue, summarise_for_statement,
@@ -123,6 +124,24 @@ fn rewrites_of(source: &str, dialect: &str) -> Vec<Optimisation> {
 fn unit_of(source: &str, dialect: &str) -> CompilationUnit {
     let registry = static_context_for(dialect).commands();
     CompilationUnit::build_for_dialect(source, registry, false, dialect)
+}
+
+/// The compilation unit of `source` under `dialect` with its procedure
+/// summaries, as the optimiser and the explorer build it.
+fn summarised_unit(source: &str, dialect: &str) -> CompilationUnit {
+    let registry = static_context_for(dialect).commands();
+    let profile = resolve_environment(dialect).analyser_profile();
+    unit_of(source, dialect).with_interprocedural(registry, Some(profile))
+}
+
+/// The summary of `proc` in `source` under `dialect`.
+fn summary_of(source: &str, dialect: &str, proc: &str) -> ProcSummary {
+    summarised_unit(source, dialect)
+        .interproc
+        .expect("the summaries")
+        .procedures
+        .remove(proc)
+        .expect("the procedure's summary")
 }
 
 /// The shared lattice's value for `var`'s version `version` in `proc`.
@@ -8245,4 +8264,191 @@ fn a_return_inside_a_statement_kept_whole_stops_the_fold() {
         }
         prints_under_every_release(source, printed);
     }
+}
+
+/// Slice 7a's exit witness: the argument-independent O103 folds a procedure
+/// whose return is a computed constant. `p`'s return is no literal, but its
+/// seedless lattice — the procedure run with its parameters unknown — holds
+/// `x` at `foo` where it returns, so the summary says `p` returns `foo` for
+/// every caller. The summary path is asked before the re-run and answers on
+/// its own: without `p`'s unit, which the re-run needs, `[p]` still folds to
+/// `foo`, and the bare call `p` draws the summary path's hint. A return that
+/// reads a parameter stays `UsesParam` with no constant; and `r`'s value,
+/// exact only under the literal its one caller passes, which the unit's
+/// seeded lattice holds, never enters the summary (R7). tclsh 8.4 to 9.1
+/// print what each program prints, before and after `tcl opt`.
+#[test]
+fn o103_summary_path_folds_a_computed_return() {
+    let source = "proc p {} {set x [string range foobar 0 2]; return $x}\nputs [p]\n";
+    let bare = "proc p {} {set x [string range foobar 0 2]; return $x}\np\n";
+    let uses = "proc q {a} {return [expr {$a + 1}]}\nputs [q 5]\n";
+    let seeded = "proc r {a} {set x [string range $a 0 2]; return $x}\nputs [r foobar]\n";
+    for dialect in DIALECTS {
+        let summary = summary_of(source, dialect, "::p");
+        assert!(summary.can_fold_static_calls, "{dialect}: {summary:?}");
+        assert_eq!(
+            summary.constant_return,
+            Some(ConstantReturn::Str("foo".to_owned())),
+            "{dialect}"
+        );
+
+        let registry = static_context_for(dialect).commands();
+        let profile = resolve_environment(dialect).analyser_profile();
+        let mut unit = summarised_unit(source, dialect);
+        unit.procedures.remove("::p");
+        let folds = optimise_unit(&unit, registry, Some(profile));
+        assert!(
+            folds.iter().any(|fold| fold.code == DiagCode::O103
+                && !fold.hint_only
+                && fold.replacement == "foo"),
+            "{dialect}: {folds:?}"
+        );
+        assert!(
+            rewrites_of(bare, dialect)
+                .iter()
+                .any(|fold| fold.code == DiagCode::O103
+                    && fold.hint_only
+                    && fold.replacement == "foo"),
+            "{dialect}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(rewritten.contains("puts foo"), "{dialect}\n{rewritten}");
+
+        let summary = summary_of(uses, dialect, "::q");
+        assert!(!summary.returns_constant, "{dialect}: {summary:?}");
+        assert_eq!(summary.return_depends_on_params, ["a"], "{dialect}");
+
+        assert_eq!(
+            last_value(seeded, dialect, "::r", "x"),
+            text("foo"),
+            "{dialect}"
+        );
+        let summary = summary_of(seeded, dialect, "::r");
+        assert!(
+            !summary.returns_constant && summary.constant_return.is_none(),
+            "{dialect}: {summary:?}"
+        );
+    }
+    prints_under_every_release(source, "foo\n");
+    prints_under_every_release(uses, "6\n");
+    prints_under_every_release(seeded, "foo\n");
+}
+
+/// What a summary says a procedure returns is the value it returns, byte
+/// for byte, and O103 spells it so (#2388). A literal word is read through
+/// the exact value ingress and kept as written — `1.0`, `1.00`, `1e3`,
+/// `007`, `true` and ` 5` had become `1`, `1`, `1000`, `7`, `1` and `5`; a
+/// braced `$a` is the text `$a`, no passthrough of `a`, and a braced `$x` no
+/// read of `x`; and an `expr` literal operand is its own value only as a
+/// canonical decimal integer, the expression route deciding `0x10`, `010`,
+/// `true` and `1e3`, which the summary had taken as written. The re-run reads
+/// a return word the same way: `return " 5"` had folded `[p 1]` to `5`. Each
+/// program prints what tclsh 8.4 to 9.1 print, before and after `tcl opt`;
+/// for the braced `$x`, O100 still rewrites the body's `return {$x}` (#2391),
+/// and `[p]`, the one call, folds to the text.
+#[test]
+fn the_summary_returns_the_value_exactly() {
+    let literals = [
+        ("1.0", Some(ConstantReturn::Float(1.0)), "1.0"),
+        ("1.00", Some(ConstantReturn::Str("1.00".to_owned())), "1.00"),
+        ("1e3", Some(ConstantReturn::Str("1e3".to_owned())), "1e3"),
+        ("007", Some(ConstantReturn::Str("007".to_owned())), "007"),
+        ("true", Some(ConstantReturn::Bool(true)), "true"),
+        ("{$a}", Some(ConstantReturn::Str("$a".to_owned())), "$a"),
+    ];
+    for (word, constant, printed) in literals {
+        let source = format!("proc p {{a}} {{return {word}}}\nputs [p 1]\n");
+        for dialect in DIALECTS {
+            let summary = summary_of(&source, dialect, "::p");
+            assert_eq!(summary.constant_return, constant, "{dialect}: {word}");
+            assert_eq!(summary.return_passthrough_param, None, "{dialect}: {word}");
+        }
+        prints_under_every_release(&source, &format!("{printed}\n"));
+    }
+    let padded = "proc p {} {return \" 5\"}\nset y [p]\nputs <$y>\n";
+    let arg_sensitive =
+        "proc p {a} {if {$a} {return \" 5\"} else {return [expr {$a}]}}\nset y [p 1]\nputs <$y>\n";
+    for source in [padded, arg_sensitive] {
+        for dialect in DIALECTS {
+            assert!(
+                rewrites_of(source, dialect)
+                    .iter()
+                    .any(|fold| fold.code == DiagCode::O103 && fold.replacement == "{ 5}"),
+                "{dialect}: {source}"
+            );
+        }
+        prints_under_every_release(source, "< 5>\n");
+    }
+    let braced_read = "proc p {} {set x 5; return {$x}}\nputs [p]\n";
+    for dialect in DIALECTS {
+        assert!(
+            rewrites_of(braced_read, dialect)
+                .iter()
+                .any(|fold| fold.code == DiagCode::O103 && fold.replacement == "{$x}"),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(braced_read, "$x\n");
+    for (operand, printed) in [("0x10", "16"), ("true", "true"), ("1e3", "1000.0")] {
+        let source = format!("proc p {{}} {{return [expr {{{operand}}}]}}\nputs [p]\n");
+        prints_under_every_release(&source, &format!("{printed}\n"));
+    }
+    let octal = "proc p {} {return [expr {010}]}\nputs [p]\n";
+    for (series, tclsh) in releases_on_path() {
+        let printed = if series < "9.0" { "8\n" } else { "10\n" };
+        let (rewritten, _) = optimised(octal, &dialect_of(series));
+        for program in [octal, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((true, printed.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+/// A rewrite spells a value with whitespace about an integer in braces: the
+/// word renderer had taken ` 5` for the integer 5 and spelled it bare, so
+/// `puts $x` became `puts  5`, `return $y` became `return  7` and `set z [q]`
+/// became `set z  7`, each printing the number without its space (#2392).
+/// tclsh 8.4 to 9.1 print what the program prints, before and after `tcl
+/// opt`.
+#[test]
+fn a_padded_value_is_braced_where_a_rewrite_spells_it() {
+    let source = "set x \" 5\"\nputs <$x>\nputs $x\nproc q {} {set y \" 7\"; return $y}\n\
+                  puts \"<[q]>\"\nset z [q]\nputs <$z>\n";
+    for dialect in DIALECTS {
+        let (rewritten, _) = optimised(source, dialect);
+        for bare in ["puts  5", "return  7", "set z  7"] {
+            assert!(!rewritten.contains(bare), "{dialect}: {bare}\n{rewritten}");
+        }
+    }
+    prints_under_every_release(source, "< 5>\n 5\n< 7>\n< 7>\n");
+}
+
+/// Where the seedless run is made its answer is the summary's, and a run
+/// that proves no one value leaves the summary no constant whatever the
+/// return words say: `p`'s loop ends only by raising, so its `return 5` is
+/// never reached. The words had made the summary `const(5)` and `tcl opt`
+/// rewrote `[p]` to `5`, so the program printed 5 where tclsh 8.4 to 9.1
+/// print `divide by zero` — the case of #2390 where the lattice proves no
+/// exit. The program prints what tclsh prints, before and after `tcl opt`.
+#[test]
+fn a_run_that_proves_no_value_leaves_no_constant() {
+    let source =
+        "proc p {} {while {1} {set x [expr {1/0}]}; return 5}\ncatch {set y [p]} m\nputs $m\n";
+    for dialect in DIALECTS {
+        let summary = summary_of(source, dialect, "::p");
+        assert!(
+            !summary.returns_constant && summary.constant_return.is_none(),
+            "{dialect}: {summary:?}"
+        );
+        assert!(
+            !rewrites_of(source, dialect)
+                .iter()
+                .any(|fold| fold.code == DiagCode::O103),
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(source, "divide by zero\n");
 }

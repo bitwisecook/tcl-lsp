@@ -1392,3 +1392,39 @@ fn the_eleven_loop_witnesses() {
         }
     }
 }
+
+/// Slice 7a's exit witness through the shipped binary: `tcl opt --profile
+/// full` folds `[p]` to `foo` — `p`'s return computed, the constant read
+/// from its seedless lattice — and `tcl explore --show interproc` prints the
+/// summary that answers it, foldable with the return shape `const('foo')`.
+/// The original and the optimised program print `foo` under each release's
+/// tclsh.
+#[test]
+fn o103_summary_path_folds_a_computed_return() {
+    let source = "proc p {} {set x [string range foobar 0 2]; return $x}\nputs [p]\n";
+    let tclshs = tclshs_from("8.4");
+    for series in RELEASES {
+        let optimised = statements_of(&opt_under(source, series));
+        assert!(optimised.contains("puts foo"), "tcl{series}: {optimised}");
+        for (_, tclsh) in tclshs.iter().filter(|(found, _)| *found == series) {
+            for text in [source, optimised.as_str()] {
+                assert_eq!(
+                    run_tclsh(tclsh, text),
+                    Some((true, "foo\n".to_owned())),
+                    "tclsh{series}:\n{text}"
+                );
+            }
+        }
+    }
+    let summary = run_tcl(&[
+        "explore",
+        "--source",
+        source,
+        "--show",
+        "interproc",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(summary.contains("foldable: yes"), "{summary}");
+    assert!(summary.contains("return shape: const('foo')"), "{summary}");
+}

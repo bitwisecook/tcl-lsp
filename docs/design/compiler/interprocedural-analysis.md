@@ -6,9 +6,11 @@ summaries decide whether ICIP (O103) folds a call.
 
 `build_interprocedural_analysis` builds a `ProcSummary` for each procedure by
 first collecting per-procedure scratch facts (`LocalFacts`), then running
-fixpoints over the call graph to propagate purity and effects.  Summaries are
-consumed by ICIP (O103), the elimination passes, unused-proc detection (O124),
-and taint analysis.
+fixpoints over the call graph to propagate purity and effects, and — from a
+compilation unit, which holds each procedure's flow graph and SSA — reading
+each pure procedure's return from its own lattice, run with no call-site
+seed.  Summaries are consumed by ICIP (O103), the elimination passes,
+unused-proc detection (O124), and taint analysis.
 
 Source: `rust/tcl-compiler/src/interprocedural.rs`
 
@@ -18,7 +20,16 @@ Source: `rust/tcl-compiler/src/interprocedural.rs`
 pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&str>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    object_types: ObjectTypeMap<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+    declared: Option<&tcl_registry::model::DeclaredSurface>,
+) -> InterproceduralAnalysis
+
+pub(crate) fn build_interprocedural_analysis_for_unit(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> InterproceduralAnalysis
@@ -34,7 +45,13 @@ records:
   `eval` / `uplevel` / `interp eval` / `namespace eval`)
 - Local purity, global writes, unknown calls
 - Local effect regions (reads/writes)
-- One `ReturnKind` per `return` statement
+- One `ReturnKind` per `return` statement, read from its word: a literal
+  through the exact value ingress (`recorded_word_value`, then
+  `ExactValue::from_literal`: a braced word is its content, a bare or quoted
+  one its escapes decoded, nothing trimmed), `$param` a passthrough, and
+  `return [expr {…}]` a literal only where the operand is a canonical decimal
+  integer or a fixed string — `0x10`, `010` and `true` are values the
+  expression route decides
 
 **Step 2 — Closures and fixpoints:**
 
@@ -45,6 +62,29 @@ records:
 - `fixpoint_effects` unions each procedure's local effect regions with its
   transitive callees'.
 
+**Step 2b — The seedless returns (`seedless_returns`):**
+
+Each pure procedure's own lattice is run again with its parameters unknown —
+no call-site seed ([interprocedural-call-site-seeding.md](interprocedural-call-site-seeding.md)),
+so a value exact only under the literal every caller passes never enters a
+summary — under the whole-module trust a rewrite folds under, and read at
+every way the procedure returns (`exit_value`): each executable `return`, a
+literal word through the exact ingress, a `$name` as the version there holds
+it, an `expr` on the shared expression route; and a fall-through to the end
+of the body through its last command. Every exit must give the one value,
+and no statement the flow graph keeps whole may run a `return` of its own
+(#2393). The stage follows the purity fixpoint, which decides whose returns
+may fold, and reads no summary: the lattice driver takes a call to a
+procedure of the module for a command it cannot see, so one stage is the
+fixed point, and a return that passes through a recursive call is computed.
+The bottom-up composition and its cycle bound arrive with slice 13: VT13.1
+composes a callee's summary into its caller's, and VT13.2's driver is the
+first lattice to read one. Only the compilation unit's entry
+(`build_interprocedural_analysis_for_unit`, which `with_interprocedural` and
+the optimiser call) has the lattices to run, and a procedure the complexity
+guard stopped is not run; `build_interprocedural_analysis`, from IR alone,
+answers from the return shapes, as does every procedure no run was made for.
+
 **Step 3 — Materialisation (`materialise_summaries`):**
 
 `writes_global` and `has_unknown_calls` are OR-ed across the whole transitive
@@ -53,10 +93,19 @@ a callee still reports `true`.  `has_barrier` is **not** widened this way — it
 stays the procedure's own local fact, which is why O124's dynamic-dispatch
 guard checks `has_barrier` on every reachable proc individually rather than
 just on the event handlers.  `summarise_returns` collapses the `ReturnKind`
-list into `(returns_constant, constant_return, return_passthrough_param,
-return_depends_on_params)`: a constant return needs *every* return to be the
-same literal, a passthrough needs every return to be `$param` for the same
-parameter, and anything else contributes to `return_depends_on_params`.
+list and the seedless run's answer into `(returns_constant, constant_return,
+return_passthrough_param, return_depends_on_params)`. Where the seedless run
+was made, the constant is its answer: the one value every exit gives, or
+none — and then the shapes say only a passthrough and the parameters the
+value depends on, never a constant (a procedure whose loop ends only by
+raising reaches no exit, so `return 5` after it is no constant). Without a run, a constant return needs
+*every* return to be the same literal. A passthrough needs every return to be
+`$param` for the same parameter, and anything else contributes to
+`return_depends_on_params`. `constant_return` is the typed projection of the
+exact value, an integer, a double or a boolean only where
+`ConstantReturn::text` spells that value back byte for byte: `1.0` is a
+double, and `1.00`, `1e3`, `007`, `TRUE` and ` 5` are strings, so O103 spells
+a folded call exactly as the procedure returns it.
 
 **Step 4 — Method summaries** (`build_method_summaries`, below).
 
@@ -106,8 +155,9 @@ proc main {a b} {
 ```
 
 `::helper`: no calls, no barrier, `pure: true`; its single return is
-`UsesParam(["x"])`, so `returns_constant: false`,
-`return_depends_on_params: ["x"]`, and `can_fold_static_calls: false`.
+`UsesParam(["x"])`, and its seedless run cannot read `$x * 2` with `x`
+unknown, so `returns_constant: false`, `return_depends_on_params: ["x"]`, and
+`can_fold_static_calls: false`.
 
 `::main` calls `::helper` (pure) and `puts` (a `FileIo` write, whose coarse
 region is `EffectRegion::NONE`) → `pure: false`.
@@ -115,6 +165,21 @@ region is `EffectRegion::NONE`) → `pure: false`.
 When the optimiser meets `[helper 21]` it takes the `summary.pure` fallback,
 evaluates the body with `x = 21` → `42`, and O103 fires.  A `[helper $n]` with
 no constant for `n` folds neither way.
+
+A return need not be a literal to be the same for every caller:
+
+```tcl
+proc prefix {} {
+    set x [string range foobar 0 2]
+    return $x
+}
+puts [prefix]
+```
+
+`::prefix`'s seedless run holds `x` at `foo` where it returns, so its summary
+is `returns_constant: true`, `constant_return: Str("foo")` and
+`can_fold_static_calls: true`; O103's summary path folds `[prefix]` to `foo`,
+and the explorer's interprocedural view shows `return shape: const('foo')`.
 
 ### TclOO method summaries (`MethodSummary`)
 

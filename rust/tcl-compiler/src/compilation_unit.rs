@@ -2205,14 +2205,12 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-            &self.ir_module,
+        let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
+            &self,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
-            Some(&self.declared_commands),
-            &self.cfg_module,
         );
 
         // Re-run taint with the new summary + dialect. We borrow
@@ -2282,14 +2280,12 @@ impl CompilationUnit {
             tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
-        let interproc = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-            &self.ir_module,
+        let interproc = crate::interprocedural::build_interprocedural_analysis_for_unit(
+            &self,
             registry,
             dialect,
             crate::interprocedural::ObjectTypeMap(&object_types),
             &identities,
-            Some(&self.declared_commands),
-            &self.cfg_module,
         );
 
         // Top level is built fresh (no offset-0 lattice key), so its taint

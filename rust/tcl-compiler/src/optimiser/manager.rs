@@ -797,14 +797,12 @@ pub fn optimise_raw_for_profile(
         tcl_lexer::LexerConfig::for_profile(dialect),
         registry,
     );
-    let ia = crate::interprocedural::build_interprocedural_analysis_with_cfg(
-        &cu.ir_module,
+    let ia = crate::interprocedural::build_interprocedural_analysis_for_unit(
+        &cu,
         registry,
         dialect,
         crate::interprocedural::ObjectTypeMap(&object_types),
         &identities,
-        Some(&cu.declared_commands),
-        &cu.cfg_module,
     );
     cu.interproc = Some(ia);
     let mut ctx = build_pass_context(&cu, registry, dialect);

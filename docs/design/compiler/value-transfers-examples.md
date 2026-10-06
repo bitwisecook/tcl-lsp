@@ -161,8 +161,10 @@ set x [label]              ;# today: O104 folds the body's chain to `set s abcde
 
 Under the contracts the argument-sensitive path re-runs SCCP on the callee
 with the cell update present and folds `[label]` to `abcdef`; the
-argument-independent summary path needs `summarise_returns` over a seedless
-lattice (slice 7).
+argument-independent summary path reads `label`'s seedless lattice since
+slice 7a, which holds `s` at `abcdef` where it returns. Both paths fold only a
+pure callee, and the purity scan takes `append`'s write for an effect
+whatever variable it names, so `[label]` is folded on neither yet.
 
 ### O104 · fold string build chains
 

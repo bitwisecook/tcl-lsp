@@ -6,6 +6,12 @@ callee's own [SCCP](../../GLOSSARY.md#sccp) run as `param_constants`. The
 fold that follows feeds `I230`, the optimiser's `O101` constant-condition
 suggestion, and `O107`'s unreachable-code suggestion.
 
+The seed is the procedure's own lattice's alone. What the interprocedural
+summary says a procedure returns is read from a run with no seed
+([interprocedural-analysis.md](interprocedural-analysis.md) § *Step 2b*), so a
+value exact only because every caller passes the same literal never becomes
+the procedure's constant return, which O103 applies to every call.
+
 The whole contract of that seed is one sentence: **it is sound only if the
 scan enumerated every caller.** A caller the scan fails to attribute does
 not merely go uncounted — it vanishes from the "every caller agrees"

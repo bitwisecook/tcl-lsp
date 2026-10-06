@@ -1020,8 +1020,8 @@ fn constant_return_float_literal() {
 
 #[test]
 fn constant_return_bool_literal() {
-    // `return true` classifies as a Bool constant (literal_to_constant_return
-    // maps the lower-cased text).
+    // `return true` classifies as a Bool constant: `true` and `false`, as
+    // written, are the spellings a boolean's text gives back.
     // tclsh (8.6, 9.0): `proc f {} { return true }; f` → "true".
     let ia = interproc("proc ::f {} { return true }\n");
     let s = ia.procedures.get("::f").unwrap();
@@ -1057,6 +1057,43 @@ fn constant_return_quoted_and_braced_multiword() {
             Some(ConstantReturn::Str("a b c".into())),
             "value for {src}"
         );
+    }
+}
+
+#[test]
+fn the_shapes_read_a_literal_return_exactly() {
+    // Where no seedless run is made, a return's literal word is its value
+    // through the exact ingress, nothing trimmed and a braced word never a
+    // read, and an `expr` literal operand is its own value only as a
+    // canonical decimal integer, the rest the expression route's (#2388).
+    // tclsh 8.4 to 9.1: `return " 5"` gives ` 5`, `return 007` gives `007`,
+    // `return {$a}` the text `$a`; `[expr {0x10}]` gives 16 and `[expr
+    // {true}]` gives `true`.
+    let cases = [
+        (
+            "proc ::f {a} { return \" 5\" }\n",
+            Some(ConstantReturn::Str(" 5".into())),
+        ),
+        (
+            "proc ::f {a} { return 007 }\n",
+            Some(ConstantReturn::Str("007".into())),
+        ),
+        (
+            "proc ::f {a} { return {$a} }\n",
+            Some(ConstantReturn::Str("$a".into())),
+        ),
+        (
+            "proc ::f {} { return [expr {5}] }\n",
+            Some(ConstantReturn::Int(5)),
+        ),
+        ("proc ::f {} { return [expr {0x10}] }\n", None),
+        ("proc ::f {} { return [expr {true}] }\n", None),
+    ];
+    for (source, constant) in cases {
+        let ia = interproc(source);
+        let s = ia.procedures.get("::f").unwrap();
+        assert_eq!(s.constant_return, constant, "{source}");
+        assert_eq!(s.return_passthrough_param, None, "{source}");
     }
 }
 

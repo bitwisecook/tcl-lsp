@@ -145,9 +145,13 @@ checkpoint compiling.
   through the registry's routes, and states what the loop leaves on its exit
   edges, so the branch after it decides for I230 as for O101, W230 bounds its
   counter and the argument-sensitive O103 re-run folds a callee that counts;
-  W240–W242 and IRULE5003 read the iteration plan) have landed; the slices
-  after them are planned item by item in the tracking document's § *Plan for
-  slices 2–13*.
+  W240–W242 and IRULE5003 read the iteration plan), and slice 7a (seedless
+  return summaries: each pure procedure's own lattice, run with no call-site
+  seed and read at every exit through the exact value ingress, gives its
+  summary's constant return, so O103's summary path folds a computed constant
+  and spells every folded value exactly as the procedure returns it) have
+  landed; the slices after them are planned item by item in the tracking
+  document's § *Plan for slices 2–13*.
 - [value-transfers-review-12.md](value-transfers-review-12.md) — the
   adversarial review of slice 12 (bounded-loop enumeration), kept with the
   lane while its fixes land.

@@ -1606,8 +1606,9 @@ fn walk_statement(
 /// reachable `return` agrees on it.
 ///
 /// Seeds the parameters as version-0 lattice constants, re-runs SCCP over
-/// the callee's CFG, then resolves a single constant from all reachable
-/// `return` terminators. Used for the argument-sensitive O103 fold
+/// the callee's CFG, then reads the one exact value every reachable exit
+/// gives ([`crate::interprocedural::exit_value`], the reading the summary's
+/// seedless run shares). Used for the argument-sensitive O103 fold
 /// (`[::math::add 2 4]` → `6`) that the summary's argument-independent
 /// `constant_return` cannot express.
 ///
@@ -1625,7 +1626,7 @@ fn evaluate_proc_with_constants(
     params: &[String],
     args: &[ConstValue],
     policy: FoldPolicy,
-) -> Option<ConstValue> {
+) -> Option<tcl_registry::value_transfer::ExactValue> {
     let seed = seed_params_from_args(params, args, ctx.dialect)?;
     let registry: &CommandRegistry = ctx
         .registry
@@ -1665,13 +1666,16 @@ fn evaluate_proc_with_constants(
             ..ctx.rewrite_folds()
         }),
     );
-    resolve_return_constant(
+    crate::interprocedural::exit_value(
         callee,
         &result,
-        policy,
-        ctx.dialect
-            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
-        ctx.rewrite_folds(),
+        crate::interprocedural::ExitReading {
+            policy,
+            grammar: ctx
+                .dialect
+                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+            folds: ctx.rewrite_folds(),
+        },
     )
 }
 
@@ -1736,289 +1740,6 @@ fn const_value_text(cv: &ConstValue) -> String {
         ConstValue::Bool(b) => i64::from(*b).to_string(),
         ConstValue::String(s) => s.clone(),
     }
-}
-
-/// Resolve the constant return value of `fu` under a computed SCCP `result`.
-///
-/// Every reachable *exit* must fold to the **same** constant — an explicit
-/// `return` terminator, **or** a reachable fall-through to the function's
-/// implicit exit (a block with no terminator: Tcl's "the result of the last
-/// command executed" rule for a proc that runs off the end of its body
-/// without a `return` on that path). Ignoring the fall-through case would let
-/// a proc with `if {…} { return K }` plus a trailing unconditional statement
-/// fold to `K` even when the fall-through path is *also* reachable and
-/// produces a different value — a miscompile, not just a missed optimisation
-/// (confirmed against tclsh 9.0.4: a proc whose
-/// `if` condition itself isn't foldable, e.g. it depends on another call's
-/// result, leaves both the `return` and the fall-through paths executable
-/// under SCCP). A void return, an unfoldable return/tail, or disagreeing
-/// exits — return-vs-return **or** return-vs-fall-through — yield `None`, and
-/// so does a statement of an executable block that may itself run a `return`
-/// ([`crate::interprocedural::statement_may_return`]).
-fn resolve_return_constant(
-    fu: &FunctionUnit,
-    result: &crate::sccp::SccpResult,
-    policy: FoldPolicy,
-    grammar: tcl_dialect::LexerGrammar,
-    folds: crate::sccp::BuiltinFoldInputs<'_>,
-) -> Option<ConstValue> {
-    use crate::cfg::Terminator;
-    // A `return` run inside a statement the flow graph keeps whole — an
-    // opaque `switch`'s arm — leaves the procedure where no exit block
-    // stands for it, so the exits cannot say what the procedure returns
-    // (#2393).
-    if fu.cfg.blocks.iter().any(|(bn, block)| {
-        result.executable_blocks.contains(bn)
-            && block
-                .statements
-                .iter()
-                .any(|stmt| crate::interprocedural::statement_may_return(stmt, 0))
-    }) {
-        return None;
-    }
-    let fold = ExprFold {
-        policy,
-        grammar,
-        folds,
-    };
-    let preds = fu.cfg.predecessors();
-    let mut found: Option<ConstValue> = None;
-    for (bn, block) in &fu.cfg.blocks {
-        if !result.executable_blocks.contains(bn) {
-            continue;
-        }
-        let folded = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => {
-                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, fold)?
-            }
-            None => resolve_fallthrough_value(fu, *bn, result, &preds, fold)?,
-            Some(_) => continue, // Goto / Branch — not an exit point
-        };
-        match &found {
-            None => found = Some(folded),
-            Some(prev) if *prev == folded => {}
-            Some(_) => return None, // reachable exits disagree
-        }
-    }
-    found
-}
-
-/// Resolve the value Tcl's implicit-return rule leaves behind when control
-/// falls through block `bn` — the function's synthesised exit sink (a
-/// reachable block with no terminator).
-///
-/// Trusts ONLY the narrow, unambiguous shape: `bn` has exactly one
-/// executable predecessor, and that predecessor's OWN last statement is a
-/// recognised value-producing tail (see [`fold_tail_statement_under_lattice`]).
-/// Deliberately does NOT walk through an empty predecessor to whatever
-/// precedes *it*: an empty block reached via a control-flow edge is not
-/// "no Tcl command ran here" — it is frequently the empty **body** of a
-/// real command (`if {$c} {}`, or the implicit `""` an `if` with no
-/// `else` produces when the condition is false), whose own result is the
-/// empty string, not whatever ran before the branch. Block shape alone
-/// can't soundly distinguish that from a genuine structural join, so any
-/// empty predecessor — or more than one live predecessor at all — bails
-/// to `None` rather than risk inheriting a stale prior value. (A more
-/// permissive, recursive version of this function shipped briefly and
-/// mis-folded `proc f {c} { set x 1; if {$c} {} }`'s `[f 0]` to `1`
-/// instead of the correct `""` — confirmed against tclsh 9.0.4 — by
-/// walking straight through the empty `if`-body block back to the
-/// preceding `set x 1`.)
-fn resolve_fallthrough_value(
-    fu: &FunctionUnit,
-    bn: crate::cfg::BlockId,
-    result: &crate::sccp::SccpResult,
-    preds: &std::collections::HashMap<
-        crate::cfg::BlockId,
-        std::collections::HashSet<crate::cfg::BlockId>,
-    >,
-    fold: ExprFold<'_>,
-) -> Option<ConstValue> {
-    let mut executable_preds = preds
-        .get(&bn)
-        .into_iter()
-        .flatten()
-        .filter(|p| result.executable_blocks.contains(p));
-    let pred = executable_preds.next()?;
-    if executable_preds.next().is_some() {
-        return None; // more than one live predecessor — ambiguous, bail
-    }
-    let block = fu.cfg.blocks.get(pred)?;
-    let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result, fold)
-}
-
-/// Resolve the value Tcl's "result of the last executed command" rule
-/// leaves behind when `stmt` is the last statement of a block that falls
-/// through to the function's implicit exit — a trailing `set` / `incr`
-/// implicitly returns exactly like `return $name` would (Tcl's `set` and
-/// `incr` both return the value they just assigned), a trailing call whose
-/// resolved plan is a cell update (`append`, `lappend`) returns the cell's
-/// new value the same way, and a trailing bare `expr` implicitly returns
-/// exactly like `return [expr {…}]` would. `None` for any other statement
-/// shape (a bare command call whose own result this analysis doesn't
-/// track, …) — the caller simply won't fold that path, never mis-folds it.
-fn fold_tail_statement_under_lattice(
-    fu: &FunctionUnit,
-    bn: crate::cfg::BlockId,
-    stmt: &Statement,
-    result: &crate::sccp::SccpResult,
-    fold: ExprFold<'_>,
-) -> Option<ConstValue> {
-    let registry = fold.folds.registry;
-    match stmt {
-        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, fold),
-        Statement::AssignConst { name, .. }
-        | Statement::AssignExpr { name, .. }
-        | Statement::AssignValue { name, .. }
-        | Statement::Incr { name, .. } => fold_var_ref_under_lattice(fu, bn, name, result),
-        // A cell update's result is the value it wrote: the registry's
-        // declared plan names the target, and the lattice at the block's
-        // exit holds what it wrote.
-        Statement::Call {
-            command,
-            canonical_command,
-            args,
-            ..
-        } => {
-            let head = canonical_command.as_deref().unwrap_or(command);
-            let (_, target) = crate::value_transfer::resolved_cell_update(registry, head, args)?;
-            let name = args.get(target.0)?;
-            fold_var_ref_under_lattice(fu, bn, name, result)
-        }
-        _ => None,
-    }
-}
-
-/// Fold one `return` value/expr under the SCCP lattice for block `bn`.
-/// Handles `return [expr {…}]` (evaluated under the block-exit env),
-/// `return $var` (a lattice constant), and a bare literal return.
-fn fold_return_under_lattice(
-    fu: &FunctionUnit,
-    bn: crate::cfg::BlockId,
-    value: Option<&str>,
-    expr: Option<&crate::expr_ast::ExprNode>,
-    result: &crate::sccp::SccpResult,
-    fold: ExprFold<'_>,
-) -> Option<ConstValue> {
-    let value = value?.trim();
-
-    // Path 1 — bare literal return (no substitution metacharacters).
-    if !value.contains(['$', '[', ']', '\\', '"', '{', '}']) {
-        return Some(crate::sccp::parse_literal_value(value));
-    }
-
-    // Path 2 — a simple `$var` return.
-    if let Some(name) = simple_var_ref(value) {
-        return fold_var_ref_under_lattice(fu, bn, name, result);
-    }
-
-    // Path 3 — `return [expr {…}]`.
-    fold_expr_under_lattice(fu, bn, expr?, result, fold)
-}
-
-/// Resolve a simple `$name` variable reference to its SCCP-proved constant
-/// at block `bn`'s *exit* version — the value the variable holds
-/// immediately after `bn`'s own statements have run. This MUST use the
-/// exit version precisely: a loop-carried var (`return $total` after a
-/// `foreach`) is a phi whose exit value is Overdefined, even though an
-/// earlier `set total 0` left a stale Const(0) under another version.
-/// Reading the precise version is what makes us bail on `sum_list` /
-/// `fibonacci` instead of mis-folding to the pre-loop value. The value is
-/// the one the version holds at `bn` ([`crate::sccp::SccpResult::value_at`]),
-/// so the state an enumerated loop leaves, in force past it, is read.
-///
-/// Shared by [`fold_return_under_lattice`]'s Path 2 (`return $var`) and
-/// [`fold_tail_statement_under_lattice`]'s fall-through case (a trailing
-/// `set`/`incr` implicitly returns the value it just assigned — Tcl's
-/// "result of the last command" rule makes it behave exactly like
-/// `return $name`).
-fn fold_var_ref_under_lattice(
-    fu: &FunctionUnit,
-    bn: crate::cfg::BlockId,
-    name: &str,
-    result: &crate::sccp::SccpResult,
-) -> Option<ConstValue> {
-    let sym = fu.ssa.var_symbol(name)?;
-    let ver = fu
-        .ssa
-        .blocks
-        .get(&bn)
-        .and_then(|b| b.exit_versions.get(&sym).copied())
-        .unwrap_or(0);
-    match result.value_at(bn, (sym, ver)) {
-        Some(LatticeValue::Const(c)) if result.materialises((sym, ver)) => Some(c.clone()),
-        _ => None,
-    }
-}
-
-/// Evaluate `expr` under the SCCP lattice for block `bn`'s exit
-/// environment. Built FLOW-SENSITIVELY: bind each variable the expr
-/// references at *this block's exit version* (the precise state reaching
-/// this point), and only when that version is a lattice constant at `bn`
-/// ([`crate::sccp::SccpResult::value_at`]). A variable absent from
-/// `exit_versions` (a never-reassigned parameter) falls back to version 0,
-/// where interproc-seeded param constants live.
-///
-/// The flow-INsensitive alternative ("every Const lattice entry,
-/// preferring the newest version, then overlay exit versions") miscompiled:
-/// for `set x 0; foreach v {…} { set x $v }; return [expr {$x + 1}]`, `x`'s
-/// exit version is a non-Const loop phi, so the overlay didn't override,
-/// and the stale pre-loop `(x,1)=Const(0)` leaked in — folding to `1`
-/// where tclsh returns `3`. Reading the exit version (Overdefined here)
-/// leaves `x` unbound so the route declines, matching
-/// [`fold_var_ref_under_lattice`]'s `sum_list`/`fibonacci` precision.
-///
-/// The expression runs on the shared expression route
-/// ([`crate::value_transfer::evaluate_expression_detached`]) under the
-/// rewrite's whole-module trust, so a return fold proves what the lattice
-/// proves: no rebound math function, no function the target lacks, no value
-/// past the target's integer tower.
-///
-/// Shared by [`fold_return_under_lattice`]'s Path 3 (`return [expr {…}]`)
-/// and [`fold_tail_statement_under_lattice`]'s fall-through case (a
-/// trailing bare `expr` implicitly returns its value).
-fn fold_expr_under_lattice(
-    fu: &FunctionUnit,
-    bn: crate::cfg::BlockId,
-    expr: &crate::expr_ast::ExprNode,
-    result: &crate::sccp::SccpResult,
-    ExprFold {
-        policy,
-        grammar,
-        folds,
-    }: ExprFold<'_>,
-) -> Option<ConstValue> {
-    let mut constants: std::collections::HashMap<String, tcl_registry::value_transfer::ExactValue> =
-        std::collections::HashMap::new();
-    if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
-        for name in crate::var_refs::vars_in_expr(expr, grammar) {
-            let Some(sym) = fu.ssa.var_symbol(&name) else {
-                continue;
-            };
-            let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
-            if let Some(LatticeValue::Const(c)) = result.value_at(bn, (sym, ver)) {
-                constants.insert(
-                    fu.ssa.var_name(sym).to_owned(),
-                    crate::value_transfer::const_to_exact(c),
-                );
-            }
-        }
-    }
-    let value =
-        crate::value_transfer::evaluate_expression_detached(expr, &constants, folds, policy)?;
-    Some(crate::value_transfer::exact_to_const(&value))
-}
-
-/// What a return or tail fold evaluates an expression under.
-#[derive(Clone, Copy)]
-struct ExprFold<'a> {
-    /// The value semantics.
-    policy: FoldPolicy,
-    /// The grammar the expression's variable references are read with.
-    grammar: tcl_dialect::LexerGrammar,
-    /// The rewrite's registry, mutation facts and whole-module trust.
-    folds: crate::sccp::BuiltinFoldInputs<'a>,
 }
 
 /// Parse the static (constant) argument words of a `[proc arg…]` command
@@ -2099,8 +1820,6 @@ fn try_fold_static_proc_call(
     tokens: Option<&CommandTokens>,
     namespace: &str,
 ) {
-    use crate::interprocedural::ConstantReturn;
-
     let Some(ia) = cu.interproc.as_ref() else {
         return;
     };
@@ -2147,19 +1866,10 @@ fn try_fold_static_proc_call(
     let Some(cr) = &summary.constant_return else {
         return;
     };
-    let replacement = match cr {
-        ConstantReturn::Int(i) => i.to_string(),
-        ConstantReturn::Float(f) => f.to_string(),
-        ConstantReturn::Bool(true) => "1".to_owned(),
-        ConstantReturn::Bool(false) => "0".to_owned(),
-        ConstantReturn::Str(s) => {
-            if is_value_safe_bare_word(s) {
-                s.clone()
-            } else {
-                return;
-            }
-        }
-    };
+    let replacement = cr.text();
+    if !is_value_safe_bare_word(&replacement) {
+        return;
+    }
     // The span here covers the whole Statement::Call — applying
     // the literal replacement would turn `::answer` into a
     // command named `42`, which is invalid Tcl. Targeting
@@ -2563,8 +2273,6 @@ fn try_o103_proc_fold(
     namespace: &str,
     constants: &std::collections::HashMap<String, String>,
 ) -> Option<(String, String)> {
-    use crate::interprocedural::ConstantReturn;
-
     let ia = cu.interproc.as_ref()?;
     let head = parse_cmd_subst_head(inner)?;
     let qname = resolve_proc_qname(head, namespace, ia)?;
@@ -2579,35 +2287,19 @@ fn try_o103_proc_fold(
     if !ctx.command_mutations.trusts_proc_binding(&qname) {
         return None;
     }
-    let render_const = |cv: &ConstValue| match cv {
-        ConstValue::Int(i) => i.to_string(),
-        // Tcl's canonical double spelling: `proc p {} {return [expr {1.0 *
-        // 3}]}; puts [p]` prints `3.0` under tclsh 8.4 to 9.1, where Rust's
-        // `3` made the folded call print `3`.
-        ConstValue::Float(f) => tcl_syntax::number::format_double(*f),
-        ConstValue::Bool(b) => i64::from(*b).to_string(),
-        ConstValue::String(s) => render_propagation_word(s),
-    };
     let args = parse_static_call_args(ctx, inner, 1, constants);
     let replacement = if summary.can_fold_static_calls
         && let Some(cr) = &summary.constant_return
         && summary_answers(&summary.params, args.as_ref().map(Vec::len))
     {
-        // Argument-independent constant return from the summary.
-        match cr {
-            ConstantReturn::Int(i) => i.to_string(),
-            ConstantReturn::Float(f) => f.to_string(),
-            ConstantReturn::Bool(true) => "1".to_owned(),
-            ConstantReturn::Bool(false) => "0".to_owned(),
-            // A multi-word string return folds too, list-quoted as a single
-            // word via the canonical quoter (the cmd-sub is one argument word)
-            // — `set msg {a b}; return $msg` in the callee does not block it.
-            ConstantReturn::Str(s) => render_propagation_word(s),
-        }
+        // Argument-independent: the summary's value, spelled as the procedure
+        // returns it and list-quoted where it is not one bare word, the
+        // substitution being one argument word.
+        render_propagation_word(&cr.text())
     } else if summary.pure
         && let Some(callee) = cu.procedures.get(&qname)
         && let Some(args) = &args
-        && let Some(cv) = evaluate_proc_with_constants(
+        && let Some(value) = evaluate_proc_with_constants(
             ctx,
             callee,
             &summary.params,
@@ -2621,7 +2313,7 @@ fn try_o103_proc_fold(
     {
         // Argument-sensitive: re-run SCCP on the pure callee with the call's
         // constant arguments bound and fold the constant return.
-        render_const(&cv)
+        render_propagation_word(value.as_str().ok()?)
     } else {
         return None;
     };
@@ -3140,7 +2832,7 @@ fn is_value_safe_bare_word(value: &str) -> bool {
     if value.is_empty() {
         return false;
     }
-    if value.trim().parse::<i64>().is_ok() {
+    if value.parse::<i64>().is_ok() {
         return true;
     }
     is_safe_word(value)
@@ -3642,7 +3334,8 @@ mod tests {
         // `x` is overwritten by the loop, so its exit version at the return is
         // a non-Const phi (Overdefined). `::f` is pure but has no
         // argument-independent constant return, so `[::f]` reaches the
-        // argument-sensitive fold's `fold_return_under_lattice` Path 3. That
+        // argument-sensitive fold's reading of a returned `expr`
+        // (`interprocedural::exit_value`). That
         // fold must NOT leak the pre-loop `set x 0`: tclsh returns 3 (x ends
         // at 2), so folding `[::f]` to 1 would be a miscompile.
         use tcl_registry::CommandRegistry;
@@ -4577,7 +4270,7 @@ mod tests {
         // `return 1` branch AND the fall-through `expr {99}` stay executable.
         // tclsh 9.0.4 ground truth: `g 5` calls `helper 5` (== 6), `6 > 100` is
         // false, so `g 5` falls through and returns `99` — NOT `1`. Before the
-        // fall-through fix, `resolve_return_constant` silently ignored the
+        // fall-through fix, the return reading silently ignored the
         // reachable non-`Return` exit and confidently (wrongly) folded to the
         // `return 1` branch's value — a real miscompile, not just an
         // over-eager fold.

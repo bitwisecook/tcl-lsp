@@ -26,6 +26,7 @@
 use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
+use tcl_registry::value_transfer::ExactValue;
 
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::naming::{normalise_var_name, split_array_name};
@@ -131,6 +132,19 @@ impl ConstantReturn {
             Self::Float(f) => ("float", f.to_string()),
             Self::Bool(b) => ("bool", if *b { "1".into() } else { "0".into() }),
             Self::Str(s) => ("str", s.clone()),
+        }
+    }
+
+    /// The value's text, as the procedure returns it: the summary keeps an
+    /// integer, a double or a boolean only where this spells the value byte
+    /// for byte, so a fold spells the value exactly.
+    #[must_use]
+    pub fn text(&self) -> String {
+        match self {
+            Self::Int(i) => i.to_string(),
+            Self::Float(f) => tcl_syntax::number::format_double(*f),
+            Self::Bool(b) => b.to_string(),
+            Self::Str(s) => s.clone(),
         }
     }
 }
@@ -646,9 +660,10 @@ pub fn build_interprocedural_analysis(
 }
 
 /// Build interprocedural summaries while reusing an already-built module CFG.
-/// This is the production companion to [`build_interprocedural_analysis`]; it
-/// avoids preparing command-binding context and rebuilding the same CFG solely
-/// to recover instance-backed global writes.
+/// It avoids preparing command-binding context and rebuilding the same CFG
+/// solely to recover instance-backed global writes. No seedless run is made,
+/// so the return shapes answer; a compilation unit's summaries are
+/// [`build_interprocedural_analysis_for_unit`]'s.
 pub(crate) fn build_interprocedural_analysis_with_cfg(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
@@ -665,8 +680,56 @@ pub(crate) fn build_interprocedural_analysis_with_cfg(
         object_types,
         identities,
         declared,
-        Some(cfg_module),
+        Some(ModuleUnits {
+            cfg: cfg_module,
+            seedless: None,
+        }),
     )
+}
+
+/// Build the summaries of a compilation unit's procedures, each pure one's
+/// return read from its own seedless lattice ([`seedless_returns`]): the
+/// unit holds every procedure's flow graph and SSA and the module's command
+/// trust, which [`build_interprocedural_analysis`], from IR alone, has not.
+#[must_use]
+pub(crate) fn build_interprocedural_analysis_for_unit(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    object_types: ObjectTypeMap<'_>,
+    identities: &crate::realm::CommandBindingRealm,
+) -> InterproceduralAnalysis {
+    build_interprocedural_analysis_inner(
+        &cu.ir_module,
+        registry,
+        dialect,
+        object_types,
+        identities,
+        Some(&cu.declared_commands),
+        Some(ModuleUnits {
+            cfg: &cu.cfg_module,
+            seedless: Some(SeedlessUnits {
+                procedures: &cu.procedures,
+                mutations: &cu.command_mutations,
+            }),
+        }),
+    )
+}
+
+/// What a summary build reads beyond the IR: the module's flow graphs, and
+/// the procedures' analyses a seedless run needs where the caller has them.
+#[derive(Clone, Copy)]
+struct ModuleUnits<'a> {
+    cfg: &'a crate::cfg::CfgModule,
+    seedless: Option<SeedlessUnits<'a>>,
+}
+
+/// A compilation unit's per-procedure analyses and the module's command
+/// trust: what [`seedless_returns`] runs each procedure's lattice over.
+#[derive(Clone, Copy)]
+struct SeedlessUnits<'a> {
+    procedures: &'a HashMap<String, crate::compilation_unit::FunctionUnit>,
+    mutations: &'a crate::command_binding::ModuleCommandMutations,
 }
 
 fn build_interprocedural_analysis_inner(
@@ -676,7 +739,7 @@ fn build_interprocedural_analysis_inner(
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
     declared: Option<&tcl_registry::model::DeclaredSurface>,
-    cfg_module: Option<&crate::cfg::CfgModule>,
+    units: Option<ModuleUnits<'_>>,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.0;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
@@ -693,14 +756,18 @@ fn build_interprocedural_analysis_inner(
     let transitive_calls = compute_all_transitive_calls(&known, &local);
     let pure = fixpoint_pure(&local);
     let (effect_reads, effect_writes) = fixpoint_effects(&local);
+    let seedless = units
+        .and_then(|units| units.seedless)
+        .map(|units| seedless_returns(ir_module, units, &pure, registry, dialect))
+        .unwrap_or_default();
 
     let procedures = materialise_summaries(
         ir_module,
         &local,
         &transitive_calls,
         &pure,
-        &effect_reads,
-        &effect_writes,
+        (&effect_reads, &effect_writes),
+        &seedless,
     );
 
     // Summarise TclOO method bodies into `MethodSummary` entries
@@ -723,15 +790,10 @@ fn build_interprocedural_analysis_inner(
     );
 
     let global_instance_classes = global_instance_classes(ir_module, registry);
-    let tainted_global_writes = cfg_module.map_or_else(
+    let tainted_global_writes = units.map_or_else(
         || tainted_global_writes(ir_module, registry, &global_instance_classes),
-        |cfg_module| {
-            tainted_global_writes_from_cfg(
-                ir_module,
-                cfg_module,
-                registry,
-                &global_instance_classes,
-            )
+        |units| {
+            tainted_global_writes_from_cfg(ir_module, units.cfg, registry, &global_instance_classes)
         },
     );
 
@@ -1174,7 +1236,7 @@ fn build_method_summaries(
         calls.sort();
         let direct_calls = calls.clone();
         let (returns_constant, constant_return, passthrough, depends) =
-            summarise_returns(&facts.returns);
+            summarise_returns(&facts.returns, SeedlessAnswer::NotRun);
 
         out.insert(
             mqname.clone(),
@@ -1552,8 +1614,11 @@ fn materialise_summaries(
     local: &HashMap<String, LocalFacts>,
     transitive_calls: &HashMap<String, HashSet<String>>,
     pure: &HashMap<String, bool>,
-    effect_reads: &HashMap<String, EffectRegion>,
-    effect_writes: &HashMap<String, EffectRegion>,
+    (effect_reads, effect_writes): (
+        &HashMap<String, EffectRegion>,
+        &HashMap<String, EffectRegion>,
+    ),
+    seedless: &HashMap<String, Option<ExactValue>>,
 ) -> HashMap<String, ProcSummary> {
     let mut procedures: HashMap<String, ProcSummary> = HashMap::with_capacity(local.len());
     for (qname, facts) in local {
@@ -1584,7 +1649,7 @@ fn materialise_summaries(
         let has_unknown_calls = transitive_flag(|f| f.has_unknown_calls);
 
         let (returns_constant, constant_return, passthrough, depends) =
-            summarise_returns(&facts.returns);
+            summarise_returns(&facts.returns, SeedlessAnswer::of(seedless, qname));
         // A proc is foldable at a call site when its return is
         // fully determined by the static call — that means pure
         // AND (constant return OR passthrough of a param).
@@ -1662,11 +1727,14 @@ struct LocalFacts {
     upvar_aliases: HashMap<String, String>,
 }
 
-/// Classification of a single return statement's shape.
+/// One way a procedure returns, as the summary reads it: a `return`, or the
+/// fall-through when the body can reach its end.
 #[derive(Debug, Clone, PartialEq)]
-enum ReturnKind {
-    /// `return LITERAL` with a safe-looking literal.
-    Literal(String),
+pub(crate) enum ReturnKind {
+    /// A value every caller gets: the return's literal word through the
+    /// exact value ingress, or what the procedure's seedless lattice proves
+    /// there.
+    Literal(ExactValue),
     /// `return $param` — a passthrough of a known parameter.
     Passthrough(String),
     /// `return [expr {$param}]` or any return that references a
@@ -2235,8 +2303,19 @@ fn scan_statement(
                 scan_value_substitutions(amount, ctx, facts, 0);
             }
         }
-        Statement::Return { value, expr, .. } => {
-            let kind = classify_return(value.as_deref(), expr.as_ref(), params);
+        Statement::Return {
+            value,
+            expr,
+            braced,
+            ..
+        } => {
+            let kind = classify_return(
+                value.as_deref(),
+                *braced,
+                expr.as_ref(),
+                params,
+                &tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+            );
             facts.returns.push(kind);
             // For a return, scan `[cmd …]` substitutions in the return
             // value (`return [add $x $x]`) for call-graph edges.
@@ -2779,54 +2858,36 @@ fn finalise_param_traits(
     out
 }
 
-/// Classify a single `Statement::Return` shape for
-/// interprocedural summary purposes.
+/// Classify a single `Statement::Return` by its word, for the summary's
+/// return shapes: a literal is its value through the exact value ingress —
+/// a braced word its content, a bare or quoted one its escapes decoded,
+/// nothing trimmed — `$param` a passthrough, and `return [expr {…}]` as
+/// [`classify_return_expr`] reads it.
 fn classify_return(
     value: Option<&str>,
+    braced: bool,
     expr: Option<&crate::expr_ast::ExprNode>,
     params: &HashSet<String>,
+    config: &tcl_lexer::LexerConfig,
 ) -> ReturnKind {
     // Prefer the structured `expr` when the return was `return
     // [expr {…}]` or similar — the AST gives precise information.
     if let Some(node) = expr {
         return classify_return_expr(node, params);
     }
-
     let Some(raw) = value else {
         return ReturnKind::Other;
     };
-    let v = raw.trim();
-    if v.is_empty() {
-        return ReturnKind::Other;
-    }
-    // Pure literal — integer, bare word, or quoted string.
-    if v.parse::<i64>().is_ok() || is_bare_word(v) {
-        return ReturnKind::Literal(v.to_owned());
-    }
-    if let Some(inside) = v.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
-        && !inside.contains(['$', '[', '\\'])
-    {
-        return ReturnKind::Literal(inside.to_owned());
-    }
-    if let Some(inside) = v.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
-        return ReturnKind::Literal(inside.to_owned());
-    }
-    // A substitution-free value — including a
-    // multi-word string whose delimiters the lowerer already stripped
-    // (`return {a b c}` / `return "a b c"` both lower to the value
-    // `a b c`) — is a literal constant return.  Gated on no `$` / `[` /
-    // `\` so a `$param` passthrough or a command substitution still
-    // falls through to its own classification below.
-    if !v.contains(['$', '[', '\\']) {
-        return ReturnKind::Literal(v.to_owned());
+    if let Some(text) = crate::value_transfer::recorded_word_value(raw, braced, config) {
+        return ReturnKind::Literal(ExactValue::from_literal(&text));
     }
     // Passthrough of `$param`.
-    if let Some(name) = v.strip_prefix('$')
+    if let Some(name) = raw.strip_prefix('$')
         && params.contains(name)
     {
         return ReturnKind::Passthrough(name.to_owned());
     }
-    if let Some(name) = v.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
+    if let Some(name) = raw.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
         && params.contains(name)
     {
         return ReturnKind::Passthrough(name.to_owned());
@@ -2837,8 +2898,16 @@ fn classify_return(
 fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<String>) -> ReturnKind {
     use crate::expr_ast::ExprNode;
 
+    // A literal operand is the expression's value only where it is a
+    // canonical decimal integer: `0x10` is 16, `010` is 8 or 10 by release,
+    // and `true` stays `true`, which the expression route decides.
     if let ExprNode::Literal { text, .. } = node {
-        return ReturnKind::Literal(text.clone());
+        let value = ExactValue::from_literal(text);
+        return if value.as_int().is_some() {
+            ReturnKind::Literal(value)
+        } else {
+            ReturnKind::Other
+        };
     }
     if let ExprNode::String { text, .. } = node {
         // The operand's text is its value only when it is fixed: a `"…"` one
@@ -2847,7 +2916,7 @@ fn classify_return_expr(node: &crate::expr_ast::ExprNode, params: &HashSet<Strin
         // a `{…}` one folds its backslash-newlines, so `{a\<newline> b}` is
         // `a b`, not the raw bytes (#2227, found in review).
         return tcl_syntax::expr::fixed_string_operand(text).map_or(ReturnKind::Other, |value| {
-            ReturnKind::Literal(value.to_owned())
+            ReturnKind::Literal(ExactValue::from_literal(value))
         });
     }
     if let ExprNode::Var { name, .. } = node
@@ -2906,13 +2975,6 @@ fn walk_collect_param_refs(
         }
         _ => {}
     }
-}
-
-fn is_bare_word(text: &str) -> bool {
-    !text.is_empty()
-        && text.bytes().all(|b| {
-            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'/' | b':' | b'+' | b'-')
-        })
 }
 
 /// True when `text` could be a plain procedure name — rejects
@@ -3022,31 +3084,61 @@ fn script_may_return(script: &crate::ir::Script, depth: u32) -> bool {
             .any(|stmt| statement_may_return(stmt, depth))
 }
 
-/// Derive the return-value summary fields from a proc's
-/// collected [`ReturnKind`] list. Returns `(returns_constant,
+/// What a procedure's seedless run says it returns, as
+/// [`summarise_returns`] reads it.
+#[derive(Clone, Copy)]
+enum SeedlessAnswer<'a> {
+    /// No run was made: the return shapes answer.
+    NotRun,
+    /// The one value every exit gives.
+    Value(&'a ExactValue),
+    /// The run proved no one value.
+    NoValue,
+}
+
+impl<'a> SeedlessAnswer<'a> {
+    /// The answer [`seedless_returns`] recorded for `qname`.
+    fn of(seedless: &'a HashMap<String, Option<ExactValue>>, qname: &str) -> Self {
+        match seedless.get(qname) {
+            None => Self::NotRun,
+            Some(Some(value)) => Self::Value(value),
+            Some(None) => Self::NoValue,
+        }
+    }
+}
+
+/// Derive the return-value summary fields from a proc's collected
+/// [`ReturnKind`] list and its seedless run's answer: `(returns_constant,
 /// constant_return, passthrough_param, depends_on_params)`.
+///
+/// Where a run was made its answer is the constant, and where it proved no
+/// one value the shapes answer only a passthrough and the parameters the
+/// value depends on, never a constant, since a value the run could not prove
+/// may be one it rules out. With no run, every return the same literal is
+/// the constant.
 fn summarise_returns(
     returns: &[ReturnKind],
+    answer: SeedlessAnswer<'_>,
 ) -> (bool, Option<ConstantReturn>, Option<String>, Vec<String>) {
-    if returns.is_empty() {
-        return (false, None, None, Vec::new());
-    }
-    // Constant-return: every return must be a Literal with the
-    // same text.
-    if let ReturnKind::Literal(first) = &returns[0]
-        && returns
-            .iter()
-            .all(|r| matches!(r, ReturnKind::Literal(v) if v == first))
-    {
-        return (
-            true,
-            Some(literal_to_constant_return(first)),
-            None,
-            Vec::new(),
-        );
+    let constant = match answer {
+        SeedlessAnswer::Value(value) => Some(value),
+        SeedlessAnswer::NoValue => None,
+        SeedlessAnswer::NotRun => match returns.first() {
+            Some(ReturnKind::Literal(first))
+                if returns
+                    .iter()
+                    .all(|r| matches!(r, ReturnKind::Literal(v) if v.bytes == first.bytes)) =>
+            {
+                Some(first)
+            }
+            _ => None,
+        },
+    };
+    if let Some(constant) = constant.and_then(constant_return_of) {
+        return (true, Some(constant), None, Vec::new());
     }
     // Passthrough: every return is Passthrough of the same param.
-    if let ReturnKind::Passthrough(first) = &returns[0]
+    if let Some(ReturnKind::Passthrough(first)) = returns.first()
         && returns
             .iter()
             .all(|r| matches!(r, ReturnKind::Passthrough(v) if v == first))
@@ -3068,22 +3160,30 @@ fn summarise_returns(
     (false, None, None, depends)
 }
 
-fn literal_to_constant_return(text: &str) -> ConstantReturn {
-    let t = text.trim();
-    if let Ok(i) = t.parse::<i64>() {
-        return ConstantReturn::Int(i);
+/// The typed form of an exact return value, chosen so that
+/// [`ConstantReturn::text`] spells it back byte for byte: an integer only
+/// for its canonical decimal, a double only for the spelling Tcl prints it
+/// with, a boolean only for `true` or `false` as written, and the text
+/// otherwise — `007`, `1.00`, `1e3`, `TRUE` and ` 5` are text. `None` for
+/// bytes that are not text.
+fn constant_return_of(value: &ExactValue) -> Option<ConstantReturn> {
+    let text = value.as_str().ok()?;
+    if let Ok(int) = text.parse::<i64>()
+        && int.to_string() == text
+    {
+        return Some(ConstantReturn::Int(int));
     }
-    if let Ok(f) = t.parse::<f64>() {
-        return ConstantReturn::Float(f);
+    if let Ok(double) = text.parse::<f64>()
+        && double.is_finite()
+        && tcl_syntax::number::format_double(double) == text
+    {
+        return Some(ConstantReturn::Float(double));
     }
-    let lower = t.to_ascii_lowercase();
-    if lower == "true" {
-        ConstantReturn::Bool(true)
-    } else if lower == "false" {
-        ConstantReturn::Bool(false)
-    } else {
-        ConstantReturn::Str(t.to_owned())
-    }
+    // Rust's boolean grammar is exactly `true` and `false`.
+    Some(text.parse::<bool>().map_or_else(
+        |_| ConstantReturn::Str(text.to_owned()),
+        ConstantReturn::Bool,
+    ))
 }
 
 fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> HashSet<String> {
@@ -3105,6 +3205,341 @@ fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> 
         }
     }
     visited
+}
+
+/// The summaries' second stage: each pure procedure's own lattice, run with
+/// its parameters unknown — no call-site seed, so a value exact only under
+/// the literal every caller passes never enters a summary — under the
+/// whole-module trust a rewrite folds under, and read at every way it
+/// returns ([`exit_value`]). `None` for a procedure whose exits prove no
+/// one value. It follows the purity fixpoint, which decides whose returns
+/// may fold at all, and reads no summary: the driver takes a call to a
+/// procedure of the module for a command it cannot see, so one stage is the
+/// fixed point, and a return that passes through a recursive call is
+/// computed.
+fn seedless_returns(
+    ir_module: &crate::ir::Module,
+    units: SeedlessUnits<'_>,
+    pure: &HashMap<String, bool>,
+    registry: &tcl_registry::CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> HashMap<String, Option<ExactValue>> {
+    let policy = crate::tcl_expr_eval::FoldPolicy::for_profile(
+        dialect.and_then(crate::tcl_expr_eval::leading_zero_is_octal),
+        dialect,
+    );
+    let reading = ExitReading {
+        policy,
+        grammar: dialect.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+        folds: crate::sccp::BuiltinFoldInputs {
+            registry,
+            mutations: units.mutations,
+            dialect,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::WholeModule,
+            proven_pure_parameters: false,
+        },
+    };
+    let trace = crate::sccp::TraceInputs {
+        registry,
+        traced_variables: &ir_module.traced_variables,
+        has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+        deferred_writes: &ir_module.deferred_writes,
+        analysis_context: None,
+        existence: None,
+    };
+    units
+        .procedures
+        .iter()
+        .filter(|(qname, fu)| pure.get(*qname).copied().unwrap_or(false) && !fu.complexity_guarded)
+        .map(|(qname, fu)| {
+            let result = crate::sccp::sccp_with_builtin_folds(
+                &fu.cfg,
+                &fu.ssa,
+                None,
+                policy,
+                &HashSet::new(),
+                trace,
+                Some(reading.folds),
+            );
+            (qname.clone(), exit_value(fu, &result, reading))
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
+// The value a procedure returns, read under a lattice
+
+/// What an exit's value is read under: the expression route's value
+/// semantics, the grammar the return's word and an expression's variables
+/// are read with, and the rewrite's registry, mutation facts and
+/// whole-module trust.
+#[derive(Clone, Copy)]
+pub(crate) struct ExitReading<'a> {
+    /// The value semantics.
+    pub(crate) policy: crate::tcl_expr_eval::FoldPolicy,
+    /// The document's grammar.
+    pub(crate) grammar: tcl_dialect::LexerGrammar,
+    /// The registry, mutation facts and trust stance an expression is
+    /// evaluated under.
+    pub(crate) folds: crate::sccp::BuiltinFoldInputs<'a>,
+}
+
+/// The one value every way `fu` returns gives under `result`, or `None`.
+///
+/// Every reachable exit must give the same value: an explicit `return`,
+/// **or** a reachable fall-through to the function's implicit exit (a block
+/// with no terminator: Tcl's "the result of the last command executed" rule
+/// for a proc that runs off the end of its body without a `return` on that
+/// path). Ignoring the fall-through would let a proc with `if {…} { return K
+/// }` plus a trailing statement fold to `K` when the fall-through path is
+/// also reachable and gives something else — a miscompile, not just a missed
+/// optimisation (confirmed against tclsh 9.0.4: a proc whose `if` condition
+/// is not foldable leaves both paths executable). A void return, an exit
+/// that does not fold, two exits that disagree, or a statement of an
+/// executable block that may itself run a `return` ([`statement_may_return`],
+/// #2393) give `None`.
+///
+/// The one reading O103's argument-sensitive re-run and the summary's
+/// seedless run share. A literal word is read through the exact value
+/// ingress — a braced word its content, a bare or quoted one its escapes
+/// decoded, nothing trimmed — so `return " 5"` is the two-character string.
+pub(crate) fn exit_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    result: &crate::sccp::SccpResult,
+    reading: ExitReading<'_>,
+) -> Option<ExactValue> {
+    use crate::cfg::Terminator;
+    if fu.cfg.blocks.iter().any(|(bn, block)| {
+        result.executable_blocks.contains(bn)
+            && block
+                .statements
+                .iter()
+                .any(|stmt| statement_may_return(stmt, 0))
+    }) {
+        return None;
+    }
+    let preds = fu.cfg.predecessors();
+    let mut found: Option<ExactValue> = None;
+    for (bn, block) in &fu.cfg.blocks {
+        if !result.executable_blocks.contains(bn) {
+            continue;
+        }
+        let value = match &block.terminator {
+            Some(Terminator::Return {
+                value,
+                braced,
+                expr,
+                ..
+            }) => return_value(
+                fu,
+                *bn,
+                (value.as_deref(), *braced, expr.as_ref()),
+                result,
+                reading,
+            )?,
+            None => fallthrough_value(fu, *bn, result, &preds, reading)?,
+            Some(_) => continue, // Goto / Branch — not an exit point
+        };
+        match &found {
+            None => found = Some(value),
+            Some(prev) if prev.bytes == value.bytes => {}
+            Some(_) => return None, // reachable exits disagree
+        }
+    }
+    found
+}
+
+/// The value a `return`'s word gives at block `bn`: a literal through the
+/// exact ingress, `$name` as the version there holds it, an `expr` on the
+/// shared expression route; a bare `return` (no word) gives none.
+fn return_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    bn: crate::cfg::BlockId,
+    (value, braced, expr): (Option<&str>, bool, Option<&crate::expr_ast::ExprNode>),
+    result: &crate::sccp::SccpResult,
+    reading: ExitReading<'_>,
+) -> Option<ExactValue> {
+    let word = value?;
+    if let Some(node) = expr {
+        return expr_value(fu, bn, node, result, reading);
+    }
+    let config = tcl_lexer::LexerConfig::from_grammar(reading.grammar);
+    if let Some(text) = crate::value_transfer::recorded_word_value(word, braced, &config) {
+        return Some(ExactValue::from_literal(&text));
+    }
+    var_value(
+        fu,
+        bn,
+        crate::value_shapes::whole_word_scalar_var_name(word)?,
+        result,
+    )
+}
+
+/// The value Tcl's implicit-return rule leaves when control falls through
+/// block `bn` — the function's synthesised exit sink (a reachable block
+/// with no terminator).
+///
+/// Trusts ONLY the narrow, unambiguous shape: `bn` has exactly one
+/// executable predecessor, and that predecessor's OWN last statement is a
+/// recognised value-producing tail (see [`tail_value`]). Deliberately does
+/// NOT walk through an empty predecessor to whatever precedes *it*: an empty
+/// block reached via a control-flow edge is not "no Tcl command ran here" —
+/// it is frequently the empty **body** of a real command (`if {$c} {}`, or
+/// the implicit `""` an `if` with no `else` produces when the condition is
+/// false), whose own result is the empty string, not whatever ran before the
+/// branch. Block shape alone can't soundly distinguish that from a genuine
+/// structural join, so any empty predecessor — or more than one live
+/// predecessor at all — bails to `None` rather than risk inheriting a stale
+/// prior value. (A more permissive, recursive version shipped briefly and
+/// mis-folded `proc f {c} { set x 1; if {$c} {} }`'s `[f 0]` to `1` instead
+/// of the correct `""` — confirmed against tclsh 9.0.4 — by walking straight
+/// through the empty `if`-body block back to the preceding `set x 1`.)
+fn fallthrough_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    bn: crate::cfg::BlockId,
+    result: &crate::sccp::SccpResult,
+    preds: &HashMap<crate::cfg::BlockId, HashSet<crate::cfg::BlockId>>,
+    reading: ExitReading<'_>,
+) -> Option<ExactValue> {
+    let mut executable_preds = preds
+        .get(&bn)
+        .into_iter()
+        .flatten()
+        .filter(|p| result.executable_blocks.contains(p));
+    let pred = executable_preds.next()?;
+    if executable_preds.next().is_some() {
+        return None; // more than one live predecessor — ambiguous, bail
+    }
+    let block = fu.cfg.blocks.get(pred)?;
+    let last = block.statements.last()?;
+    tail_value(fu, *pred, last, result, reading)
+}
+
+/// The value Tcl's "result of the last executed command" rule leaves when
+/// `stmt` is the last statement of a block that falls through to the
+/// function's implicit exit — a trailing `set` / `incr` implicitly returns
+/// exactly like `return $name` would (Tcl's `set` and `incr` both return the
+/// value they just assigned), a trailing call whose resolved plan is a cell
+/// update (`append`, `lappend`) returns the cell's new value the same way,
+/// and a trailing bare `expr` implicitly returns exactly like `return [expr
+/// {…}]` would. `None` for any other statement shape (a bare command call
+/// whose own result this analysis doesn't track, …) — the caller simply
+/// won't fold that path, never mis-folds it.
+fn tail_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    bn: crate::cfg::BlockId,
+    stmt: &crate::ir::Statement,
+    result: &crate::sccp::SccpResult,
+    reading: ExitReading<'_>,
+) -> Option<ExactValue> {
+    use crate::ir::Statement;
+    match stmt {
+        Statement::ExprEval { expr, .. } => expr_value(fu, bn, expr, result, reading),
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::AssignValue { name, .. }
+        | Statement::Incr { name, .. } => var_value(fu, bn, name, result),
+        // A cell update's result is the value it wrote: the registry's
+        // declared plan names the target, and the lattice at the block's
+        // exit holds what it wrote.
+        Statement::Call {
+            command,
+            canonical_command,
+            args,
+            ..
+        } => {
+            let head = canonical_command.as_deref().unwrap_or(command);
+            let (_, target) =
+                crate::value_transfer::resolved_cell_update(reading.folds.registry, head, args)?;
+            var_value(fu, bn, args.get(target.0)?, result)
+        }
+        _ => None,
+    }
+}
+
+/// The value `name` holds at block `bn`'s *exit* version — immediately
+/// after `bn`'s own statements have run. This MUST use the exit version
+/// precisely: a loop-carried var (`return $total` after a `foreach`) is a
+/// phi whose exit value is Overdefined, even though an earlier `set total 0`
+/// left a stale Const(0) under another version. Reading the precise version
+/// is what makes the reading bail on `sum_list` / `fibonacci` instead of
+/// mis-folding to the pre-loop value. The value is the one the version holds
+/// at `bn` ([`crate::sccp::SccpResult::value_at`]), so the state an
+/// enumerated loop leaves, in force past it, is read; a value a route
+/// constructed rather than read from the source is never one
+/// ([`crate::sccp::SccpResult::materialises`]).
+fn var_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    bn: crate::cfg::BlockId,
+    name: &str,
+    result: &crate::sccp::SccpResult,
+) -> Option<ExactValue> {
+    let sym = fu.ssa.var_symbol(name)?;
+    let ver = fu
+        .ssa
+        .blocks
+        .get(&bn)
+        .and_then(|b| b.exit_versions.get(&sym).copied())
+        .unwrap_or(0);
+    match result.value_at(bn, (sym, ver)) {
+        Some(crate::analyses::LatticeValue::Const(c)) if result.materialises((sym, ver)) => {
+            Some(crate::value_transfer::const_to_exact(c))
+        }
+        _ => None,
+    }
+}
+
+/// `expr` evaluated under the lattice for block `bn`'s exit environment.
+/// Built FLOW-SENSITIVELY: each variable the expression references is bound
+/// at *this block's exit version* (the precise state reaching this point),
+/// and only when that version is a lattice constant at `bn`
+/// ([`crate::sccp::SccpResult::value_at`]). A variable absent from
+/// `exit_versions` (a never-reassigned parameter) falls back to version 0,
+/// where a seeded parameter's constant lives.
+///
+/// The flow-INsensitive alternative ("every Const lattice entry, preferring
+/// the newest version, then overlay exit versions") miscompiled: for `set x
+/// 0; foreach v {…} { set x $v }; return [expr {$x + 1}]`, `x`'s exit
+/// version is a non-Const loop phi, so the overlay didn't override, and the
+/// stale pre-loop `(x,1)=Const(0)` leaked in — folding to `1` where tclsh
+/// returns `3`. Reading the exit version (Overdefined here) leaves `x`
+/// unbound so the route declines, as [`var_value`] does.
+///
+/// The expression runs on the shared expression route
+/// ([`crate::value_transfer::evaluate_expression_detached`]) under the
+/// rewrite's whole-module trust, so a return fold proves what the lattice
+/// proves: no rebound math function, no function the target lacks, no value
+/// past the target's integer tower.
+fn expr_value(
+    fu: &crate::compilation_unit::FunctionUnit,
+    bn: crate::cfg::BlockId,
+    expr: &crate::expr_ast::ExprNode,
+    result: &crate::sccp::SccpResult,
+    reading: ExitReading<'_>,
+) -> Option<ExactValue> {
+    let mut constants: HashMap<String, ExactValue> = HashMap::new();
+    if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
+        for name in crate::var_refs::vars_in_expr(expr, reading.grammar) {
+            let Some(sym) = fu.ssa.var_symbol(&name) else {
+                continue;
+            };
+            let ver = ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
+            if let Some(crate::analyses::LatticeValue::Const(c)) = result.value_at(bn, (sym, ver)) {
+                constants.insert(
+                    fu.ssa.var_name(sym).to_owned(),
+                    crate::value_transfer::const_to_exact(c),
+                );
+            }
+        }
+    }
+    crate::value_transfer::evaluate_expression_detached(
+        expr,
+        &constants,
+        reading.folds,
+        reading.policy,
+    )
 }
 
 use crate::side_effects::classify_side_effects_in;

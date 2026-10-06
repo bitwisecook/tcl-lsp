@@ -20,7 +20,14 @@ word written bare or quoted that the W241 scans did not read. Its review
 asked for rework, done in its own commits (§ *Slice 12* › *Record
 (2026-10-05): review fixes for slice 12*, D285 onward): what writes a loop's
 counter is the unit's answer, a loop states only what it defines, and the
-notes say what the loop checks read.
+notes say what the loop checks read. Slice 7a, seedless return summaries, has
+landed (§ *Status (2026-10-06): slice 7a landed*; § *Slice 7a* › *Record
+(2026-10-05): slice 7a*, read with D287 to D294), in four commits: a lattice
+double spelled as Tcl spells it, the lane's own; the summary path folding only
+a call the re-run could make (#2389); a return inside a statement kept whole
+stopping the return fold (#2393); and the slice, each pure procedure's own
+lattice, run with no call-site seed and read at every exit through the exact
+value ingress, giving its summary's constant return (#2388, #2392).
 
 ## Goal
 
@@ -1186,6 +1193,55 @@ bound or a step the solver proves rather than a literal does not seed W241
 (`set n 10; while {$i < $n} {incr i -1}`); and the `summarise_*` entry points
 keep `StaticValue` and `StaticEnv` at their boundary (D276).
 
+## Status (2026-10-06): slice 7a landed
+
+One implementer ran the slice in four commits at the coordinator's rulings:
+`1dbbd9a9` (a lattice double spelled as Tcl spells it, the lane's own from
+slice 1), `dd166c18` (the summary path folds only a call the re-run could
+make, #2389), `d4ca2bcb` (a return inside a statement kept whole stops the
+return fold, #2393), and this commit, `wip(value-transfers): slice 7a —
+seedless return summaries` (VT7a.1 and VT7a.2, closing #2388 and #2392). The
+decisions are D287 to D294 in § *Decisions taken*, the records § *Plan for
+slices 2–13* › *Slice 7a* › *Record (2026-10-05): slice 7a*.
+
+Behaviour changes, as the plan's landing message states them: O103's summary
+path folds a procedure whose return is a computed constant — `proc p {}
+{set x [string range foobar 0 2]; return $x}; puts [p]` folds to `puts foo`
+on the summary path, its summary `const('foo')` in the explorer and its bare
+call drawing the hint. Beyond them: a folded call is spelled exactly as the
+procedure returns it (`1.0`, `true`, `007`, `{ 5}`), on both O103 paths;
+`return {$a}` is the text `$a`, no passthrough; an `expr` literal operand is
+the expression route's value; a padded integer is braced wherever a rewrite
+spells it; a procedure whose run reaches no exit has no constant return,
+so `[p]` for `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` is no
+longer folded to `5`; a call whose words substitute, or whose count the
+procedure does not accept, is not folded to the summary's constant; a
+`return` in an opaque `switch` arm stops the return fold; and a computed
+double reads as Tcl spells it.
+
+Things the plan did not say. The staged fixed point is one stage after the
+purity fixpoint, since no lattice reads a summary before slice 13 (D290); the
+return reading is one function both O103 paths share, and `classify_return`
+keeps the shapes for where no run is made (D291); `ConstantReturn` is a
+lossless projection (D292); and a run's "no constant" overrides the shapes
+(D293).
+
+Green at the landing: the record's Measured paragraph states what had run
+when the device's latest failure brought the commit forward — `make
+rust-check` whole, `dialect-drift`'s 8 sites, the compiler suite's unit tests
+and the new and touched tests under tclsh 8.4 to 9.1 — with the suites one
+crate at a time and the corpus differential still running.
+
+Left open, each with its program: a `return` inside a command substitution
+is no exit either reading sees (#2394); neither O103 path proves the callee
+completes normally where an exit is reachable (#2390); O100 rewrites `return
+{$x}` as a read of `x` (#2391); 8.4's twelve-digit doubles (#2395). What
+slice 13 starts from: the seedless `ReturnKind` (`pub(crate)`,
+`Literal(ExactValue)`) that `TransferSummary::result` names, `exit_value` as
+the one reading of a procedure's exits, and the one seedless stage, which
+VT13.1's bottom-up composition and cycle bound replace once the caller's
+driver applies a callee's summary (VT13.2).
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -1319,7 +1375,7 @@ replaces it. Later items build on the shapes in the *Wins* column.
 | `scan_defined_and_unset` | `scan_defined_and_unbound` (`sccp.rs:962`) | code | renamed in slice 1 |
 | `ConstantBranch` "stored once with its kind" | no kind field (`sccp.rs:175`) | page, added by VT5.12 | |
 | `EdgeRefinement { key: ValueKey, … }`, `LoopEnumeration`, `TransferSummary`, `ParamRole` | absent | page; they live in `tcl-compiler` (`sccp.rs`, `static_loops.rs`, `interprocedural.rs`), whose `ValueKey`, `PlaceRef` projection and `ReturnKind` they name | the registry never names SSA identities |
-| `ReturnKind` (`Literal`, `Passthrough(param)`, computed) | private `enum ReturnKind { Literal, Passthrough, UsesParam, Other }` (`interprocedural.rs:1650`) | code, made `pub(crate)` in VT13.1 | |
+| `ReturnKind` (`Literal`, `Passthrough(param)`, computed) | private `enum ReturnKind { Literal, Passthrough, UsesParam, Other }` (`interprocedural.rs:1650`) | code, made `pub(crate)` in VT7a.1, `Literal` carrying the `ExactValue` (D291) | the seedless run's answer, where one is made, is the computed result |
 | `AnalysisContext` (interface page) | two values: the registry's `AnalysisContext` (`context.rs`) and the compiler's memo component `AnalysisContextKey` (`value_transfer.rs`) | code | the key is hashable; the context is what evaluators read |
 | the loop simulator's `Incr` arm (ledger: retires in slice 12) | runs the registry's route through `exec_cell_update_in_env` already | code | slice 12 deletes the arm's remaining shape, not arithmetic |
 
@@ -9144,6 +9200,124 @@ witness (`tcl-compiler` 10187). Mutations, each reverted: the
 walk not reading a `switch`'s arms, and the reading not asking it at all,
 each fail `a_return_inside_a_statement_kept_whole_stops_the_fold`.
 
+##### The slice: seedless return summaries
+
+`wip(value-transfers): slice 7a — seedless return summaries` holds VT7a.1 and
+VT7a.2, with the plan's message (D290 to D294).
+
+- **The seedless stage (VT7a.1, D290).** After the purity and effect
+  fixpoints, `seedless_returns` runs each pure procedure's own lattice again
+  with its parameters unknown — no call-site seed — under the whole-module
+  trust a rewrite folds under (`FoldTrust::WholeModule`, as O103's re-run),
+  and reads it at every exit (`exit_value`). Its answer is the summary's
+  constant: `proc p {} {set x [string range foobar 0 2]; return $x}` is
+  `const('foo')`, foldable, and `[p]` folds on the summary path. The stage
+  needs the unit's flow graphs and SSA, so `with_interprocedural`,
+  `with_interprocedural_memoized` and `optimise_raw_for_profile` build through
+  `build_interprocedural_analysis_for_unit`; `build_interprocedural_analysis`,
+  from IR alone, and the analyser's call-by-name fallback answer from the
+  shapes, as does a procedure the complexity guard stopped, which is not
+  run.
+- **One reading, exact (VT7a.1, D291).** `resolve_return_constant` and its
+  helpers moved from `propagation.rs` into `interprocedural.rs` as
+  `exit_value`, the one reading the summary and the argument-sensitive re-run
+  share, answering an `ExactValue`: a literal word through
+  `recorded_word_value` and `ExactValue::from_literal`, nothing trimmed, a
+  braced word never a variable read; a `$name` through the shared
+  whole-word reader (`whole_word_scalar_var_name`); the exits compared by
+  their bytes. `ReturnKind` is `pub(crate)` and `Literal` carries the
+  `ExactValue`.
+- **The typed constant, lossless (D292).** `ConstantReturn` is the summary's
+  projection of the exact value, an integer, a double or a boolean only where
+  `ConstantReturn::text` spells it back byte for byte, and O103 renders
+  `text()` on both of its forms: `return 1.0`, `true`, `007` and `" 5"` fold
+  to `1.0`, `true`, `007` and `{ 5}` where they folded to `1`, `1`, `7` and
+  `5` (#2388).
+- **The shapes where no run is made (D293).** `classify_return` reads a
+  return's word through the exact ingress, so `return {$a}` is the text
+  `$a`, no passthrough of `a`; an `expr` literal operand is its own value only
+  as a canonical decimal integer (`0x10`, `010` and `true` are the expression
+  route's); and where the run was made and proved no constant, the shapes say
+  only a passthrough and the parameters the value depends on (#2388). The
+  last is seen where the run reaches no exit: for `proc p {} {while {1} {set
+  x [expr {1/0}]}; return 5}` the words had said `const(5)`, and `catch {set
+  y [p]} m; puts $m` printed 5 after `tcl opt` where tclsh 8.4 to 9.1 print
+  `divide by zero` — #2390's case where the lattice proves no exit; the
+  others, where an exit is reachable, stay #2390's.
+- **The renderer (D294).** `is_value_safe_bare_word` no longer trims, so a
+  value with whitespace about an integer is braced wherever O100, O102 or
+  O103 spell it (#2392).
+- **The witnesses (VT7a.2).** `o103_summary_path_folds_a_computed_return`
+  (`value_transfer_witnesses.rs`, new: `p`'s summary `const('foo')` and
+  foldable under the five dialects, `[p]` folding to `foo` with `p`'s unit
+  taken away, so on the summary path alone, the bare `p` drawing the hint,
+  `q`'s `[expr {$a + 1}]` depending on `a` with no constant, and `r`'s `foo`,
+  which the unit's seeded lattice holds, no constant in the summary (R7);
+  each program printing what tclsh 8.4 to 9.1 print, before and after `tcl
+  opt`) and its CLI twin in `value_transfers_cli.rs` (`tcl opt --profile
+  full` prints `puts foo` and `tcl explore --show interproc` the summary,
+  `foldable: yes` and `return shape: const('foo')`);
+  `the_summary_returns_the_value_exactly` (new, #2388: the literal words, the
+  padded value on both paths, the braced read, and the `expr` operands
+  `0x10`, `true`, `1e3` and, per release, `010`) and
+  `the_shapes_read_a_literal_return_exactly` (`inlining_interproc_residual.rs`,
+  new: the shapes where no run is made);
+  `a_run_that_proves_no_value_leaves_no_constant` (new: the loop that ends
+  only by raising, no constant and no O103 under the five dialects, the
+  program printing `divide by zero` under tclsh 8.4 to 9.1 before and after
+  `tcl opt`); and `a_padded_value_is_braced_where_a_rewrite_spells_it` (new,
+  #2392).
+  `o103_folds_implicit_return_proc_cmd_subst` and
+  `o103_folds_arg_sensitive_passthrough_cmd_subst` are byte-identical and
+  pass.
+
+R1: `interprocedural.rs`'s new code spells no command — its one string
+literal, `${`, is the variable syntax the old classifier read too, and a
+trailing cell update is the registry's (`resolved_cell_update`). R2: no new
+`#[allow]` (clippy's `option_option` on the run's answer is the
+`SeedlessAnswer` enum). R4: no new source file. R5: the plan's identifiers
+stand (`summarise_returns`, `classify_return`, `ReturnKind`, the witness);
+the new ones are D290's and D291's. R6: no existing test's expectation
+moves — three tests' comments name the moved reading or the projection — and
+the two anchors are byte-identical. R7: `q`'s `6` and `r`'s `foo`, exact
+only under their one caller's literal, never enter a summary.
+
+Measured, and committed at the coordinator's standing ruling while the
+device fails reads again (new `I/O error, dev vda` lines through 01:34Z): a
+read of every file the lane uses found 552 files under `tmp/tcl9.0.4`
+unreadable — its `library/tzdata`, six `library/encoding` tables, two
+`tests/*.test` files and build products — and 84 and 156 build products
+(`unix/*.o`, `libtcl*.a`) under `tmp/tcl8.4.20` and `tmp/tcl8.5.19`; every
+tracked file, the corpus and each tclsh binary still read, and tclsh 9.0.4
+runs from the library its binary carries. `make rust-check` passed whole and
+`dialect-drift` reports its 8 sites, H's 8; the compiler suite's unit tests
+passed — 6735, 2 ignored — and its integration tests and the other crates'
+suites were running; the new and touched tests passed under tclsh 8.4 to 9.1
+(the lane's seven witnesses in `value_transfer_witnesses.rs`, the CLI twin,
+`inlining_interproc_residual.rs`, `optimiser.rs`, and the unit tests of O103,
+propagation and the summaries). Over the corpus, `tcl diag` and `tcl opt
+--profile full` print under H's binary what they print under C's for every
+one of the 1120 files, and under this commit's binary what they print under
+H's for each of the first 230 files compared; the rest of the comparison was
+running at the commit.
+
+Mutations, each reverted to the byte: the stage's map left empty fails
+`o103_summary_path_folds_a_computed_return` (`p` not foldable); the unit's
+seeded lattice read in place of the seedless run, the same test at R7 (`q`'s
+summary `const(6)`, its one caller's `5` folded in); the shared reading
+trimming a literal word, `the_summary_returns_the_value_exactly` (the padded
+fold); the renderer trimming, `a_padded_value_is_braced_where_a_rewrite_spells_it`
+(`puts  5`); the projection taking `007` for the integer 7,
+`the_summary_returns_the_value_exactly`; the shapes taking any `expr` literal
+operand as written, `the_shapes_read_a_literal_return_exactly` (`0x10` as
+text); the shapes trimming the word, the same test (` 5` as 5); and a run's
+"no value" falling to the shapes, `a_run_that_proves_no_value_leaves_no_constant`
+(`const(5)`). The last first survived
+`a_return_inside_a_statement_kept_whole_stops_the_fold` — where every exit's
+word is the same literal the shapes' constant is right — and the program
+that kills it is the new witness's. The first two and the last were run
+again on the committed tree after clippy's fix, with the same results.
+
 ### Slice 13 — proc-level transfer summaries
 
 #### Goal and exit
@@ -12338,6 +12512,11 @@ Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10
 - **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axis — 8.4's twelve-digit `tcl_precision` — is not modelled here (#2395).
 - **D288 — O103's argument-independent fold answers only a call its re-run could make** (#2389, at the coordinator's ruling, ahead of slice 7a). The summary's constant says what the procedure returns, not what evaluating the call's words does: a word that substitutes runs before the call and may raise or write, and a count the parameters do not accept raises. The fold takes the re-run's own test, read once for both paths — every word after the head literal, as `parse_static_call_args` reads them, and a count `arity_from_names(params)` accepts — and the bare-statement hint, which has the lowering's words, their literal kinds. The parameters are read by name, as the re-run reads them: a call that leaves a defaulted parameter out folds on neither path.
 - **D289 — The return reading stops at a statement that may run a `return` of its own** (#2393, at the coordinator's ruling, ahead of slice 7a). The exits the reading reads are the flow graph's `return` terminators and its fall-through; a statement the flow graph keeps whole runs its scripts inside one block, and a `return` there leaves the procedure from that statement. The reading declines when an executable block holds one whose IR scripts can run a `return` — the IR's statement variants decide, with no command spelling, and a `catch` body is not read, since `catch` absorbs the `return`. A `return` in a command substitution's script is no IR statement and stays #2394's.
+- **D290 — The seedless lattice runs once per pure procedure, after the fixpoints** (VT7a.1; the coordinator's ruling on the plan's staged fixed point, P1). The plan has `summarise_returns` run each callee's lattice "in a staged fixed point over the call graph, bottom-up, a cycle bounded by `MAX_INTERPROCEDURAL_WALK_DEPTH` and answering computed". No lattice in the tree reads a `ProcSummary` — the unit's are built before the summaries, the re-run reads none, and the driver takes a call to a procedure of the module for a command it cannot see until slice 13's VT13.2 applies a callee's summary at the call — so each seedless run depends on no summary and the summaries on the runs: one stage after the purity fixpoint, which decides whose returns may fold, is the fixed point, and a return that passes through a recursive call is computed by construction. The bottom-up composition and its cycle bound arrive with VT13.1, which composes a callee's summary into its caller's, before VT13.2's driver reads one; no iteration machinery is built without a consumer. The run is under the rewrite's whole-module trust, with no existence rung, as the re-run's is, and only for a pure procedure, the summary path's precondition.
+- **D291 — One reading of a return's value under a lattice, exact, shared by the summary and the re-run** (VT7a.1; P2, at the coordinator's ruling). The plan has `classify_return` read "the lattice value at the return through the exact ingress"; the reading of every exit under a lattice is `exit_value`, moved from `propagation.rs`, which the summary's seedless run and O103's argument-sensitive re-run both call (R5: `classify_return` keeps its name for the word's shape, the summary's answer where no run is made, and the passthrough and depends kinds). A literal word is read through `recorded_word_value` and `ExactValue::from_literal`, so the re-run no longer trims (`return " 5"` had folded `[p 1]` to `5`) or reads a braced `$x` as `x` (#2388's O103 half; O100's is #2391); a lattice double is spelled by `format_double` (D287).
+- **D292 — `ConstantReturn` is a lossless projection, rendered back exactly** (P2). The summary's typed constant is an integer only for its canonical decimal, a double only for the spelling `format_double` gives it, a boolean only for `true` or `false` as written, and text otherwise; `ConstantReturn::text` spells each back, and both O103 forms render it, so the lsp-db's hashable projection carries the exact value through its round trip unchanged. Every test of the shapes keeps its answer (`inlining_interproc_residual.rs`: `return 3.5` a double, `return true` a boolean, `return hello` and `"a b c"` text, a method's `return 7` an integer).
+- **D293 — An `expr` literal operand is its own value only as a canonical decimal integer, and a run's "no constant" overrides the shapes** (K, at the coordinator's ruling, #2388's family). The expression route decides `0x10` (16), `010` (8 or 10 by release) and `true`; the shapes, which stand where no run is made, take a literal operand as the value only where its text is that value under every release, and a fixed string operand as before (#2227). Where a run was made and proved no constant, the shapes answer only the passthrough and depends kinds: the run is the authority wherever it is made, and a run that reaches no exit — `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` — proves the procedure returns nothing, where the words had said `const(5)` and O103 folded `[p]` to `5` (tclsh raises `divide by zero`; the case of #2390 the lattice decides, the rest staying open).
+- **D294 — The word renderer braces a padded integer** (G, #2392, at the coordinator's ruling). `is_value_safe_bare_word` took ` 5` for the integer 5 and spelled it bare, so O102, O100 and O103 printed the number without its space; it parses the value as it stands.
 
 ### Open questions for the owner
 

@@ -42,6 +42,18 @@ proc total {n} { set t 0; for {set i 0} {$i < $n} {incr i} {incr t 2}; return $t
 set r [total 3]   ;# becomes set r 6
 ```
 
+A procedure whose return is computed, not written as a literal, folds when it
+computes the same value for every caller: the analyser runs it with its
+parameters unknown and reads what each `return` gives.
+
+```tcl
+proc prefix {} { set x [string range foobar 0 2]; return $x }
+puts [prefix]     ;# becomes puts foo
+```
+
+The folded value is spelled exactly as the procedure returns it: `return 1.0`
+folds to `1.0`, `return 007` to `007`, and `return " 5"` to `{ 5}`.
+
 ## Safety conditions
 
 - Skipped when the proc has observable side effects.
@@ -52,6 +64,8 @@ set r [total 3]   ;# becomes set r 6
 - Skipped when a `return` runs inside a command the analyser keeps whole — an
   arm of `switch -glob` or `switch -regexp` — since the value that `return`
   gives is not read.
+- Skipped when the analyser proves the procedure reaches none of its
+  `return`s, as after a loop that ends only by raising.
 - Skipped when the proc's bare name is anywhere `rename`d over, `rename`d away, or shadowed by an `interp alias` — the call site can no longer be trusted to run that proc's body.
 - A proc with no explicit `return` still folds when it falls through: the value is whatever Tcl's "result of the last command executed" rule would leave (the `double` example above relies on exactly this).
 
