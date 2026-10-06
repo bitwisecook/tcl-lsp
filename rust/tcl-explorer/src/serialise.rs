@@ -2761,6 +2761,9 @@ pub fn serialise_interproc(
             "hasBarrier": s.has_barrier,
             "hasUnknownCalls": s.has_unknown_calls,
             "writesGlobal": s.writes_global,
+            // What a call does to its caller's places, or nothing where a
+            // call to the procedure is a barrier.
+            "transfer": interproc.transfers.describe(qname, &s.params),
             // The caller-uniform-literal SCCP seed this procedure was
             // analysed under — the fact that explains a folded condition on
             // a parameter (and, by its absence, an indirect call site the

@@ -2134,6 +2134,7 @@ mod tests {
             query_places: Vec::new(),
             existence_guards: Vec::new(),
             loop_enumerations: Vec::new(),
+            reads_module: false,
             values: HashMap::new(),
             executable_blocks: blocks
                 .iter()

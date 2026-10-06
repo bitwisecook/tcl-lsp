@@ -476,6 +476,25 @@ pub trait AnalysisInputs {
     /// A math function with the binding evidence for what the analysed
     /// program calls.
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason>;
+    /// The default of `parameter` in the procedure a call here reaches by
+    /// the name `procedure`, where the analyser proves which definition that
+    /// is. The default answers that no procedure is proven.
+    fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        let _ = (procedure, parameter);
+        ParameterDefault::Unknown
+    }
     /// The immutable identity every answer is memoised under.
     fn context(&self) -> &AnalysisContext;
+}
+
+/// What the analyser proves of a procedure parameter's default
+/// ([`AnalysisInputs::parameter_default`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParameterDefault {
+    /// The parameter has this default.
+    Value(ExactValue),
+    /// The parameter has no default.
+    None,
+    /// The procedure, or the parameter, is not one the analyser proves.
+    Unknown,
 }

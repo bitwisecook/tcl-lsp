@@ -58,18 +58,20 @@ mod publication;
 pub mod reference_body;
 pub mod regex;
 pub mod route;
+pub mod scope_alias;
 pub mod selection;
 pub mod template;
 pub mod unbind;
 
 pub use answers::{
-    Binder, BinderName, BindingKind, BodyPlan, CaseArms, CompletionOutcome, CompletionPath,
-    CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue, ExactValueOrUnavailable,
-    Existence, ExistenceOutcome, ExistenceTransfer, ExitRule, FactBounds, HandlerMatch,
-    HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, ListGroup, NumericValue,
-    PlanAnswer, RangeModel, Reconcile, RepresentationEvidence, RouteIdentity, ScriptRegion,
-    SegmentFacts, SelectionContract, SelectionFact, StoreOutcome, TaintTransfer, TemplateWordPlan,
-    TransferAnswer, TypeFacts, ValueShape, VariableRead, validate_outcome,
+    AliasFrame, Binder, BinderName, BindingKind, BodyPlan, CaseArms, CompletionOutcome,
+    CompletionPath, CompletionProtocol, DependencyEvidence, EvalAnswer, ExactValue,
+    ExactValueOrUnavailable, Existence, ExistenceOutcome, ExistenceTransfer, ExitRule, FactBounds,
+    HandlerMatch, HandlerPlan, InvocationOutcome, IterableKind, IterationPlan, ListGroup,
+    NumericValue, PlanAnswer, RangeModel, Reconcile, RepresentationEvidence, RouteIdentity,
+    ScopeAliasPlan, ScriptRegion, SegmentFacts, SelectionContract, SelectionFact, StoreOutcome,
+    TaintTransfer, TemplateWordPlan, TransferAnswer, TypeFacts, ValueShape, VariableRead,
+    validate_outcome,
 };
 pub use const_ops::{ConstOps, ConstValue, Needs, Representation, TargetSemantics, WorkUnits};
 pub use context::{AnalysisContext, BindingEvidence, BindingIdentity, Budget, EvaluatorGeneration};
@@ -84,7 +86,7 @@ pub use declared::{
 pub use decline::{AnalysisTier, Axis, BudgetLimit, DeclineReason, NoRouteReason};
 pub use inputs::{
     AnalysisInputs, BodyRegion, DomainFact, EvaluationState, FactDomain, FactView,
-    InvocationLayout, NestedPolicy, OperandId, OperandView, PlaceKind, PlaceRef,
+    InvocationLayout, NestedPolicy, OperandId, OperandView, ParameterDefault, PlaceKind, PlaceRef,
     ResolvedInvocationView, TargetId, ValueIdentity, WordPart, WordStructure, WrittenPlace,
     written_in,
 };

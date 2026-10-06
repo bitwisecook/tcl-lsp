@@ -86,6 +86,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
         ..SideEffect::DEFAULT
     }],
     surface: Some(SpecSurface::TCL86_PLUS),
+    semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::MY_VARIABLE),
     ..SubCommand::DEFAULT
 }];
 

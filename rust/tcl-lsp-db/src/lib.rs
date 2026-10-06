@@ -2190,6 +2190,20 @@ pub(crate) fn memoised_compilation_unit(
     build_unit_with_keys(db, source, options).0
 }
 
+/// `qname`'s offset-0 lattice key, when the unit reads its lattice from the
+/// memo: a lattice that read another procedure of the module was built
+/// afresh for the unit (`SccpResult::reads_module`), and every reader of the
+/// memo — the checks, the rewrites, the taint cascade — takes the unit's.
+fn memo_key<'db>(
+    db: &'db dyn TclDb,
+    keys: &HashMap<String, FnLatticeKey<'db>>,
+    qname: &str,
+) -> Option<FnLatticeKey<'db>> {
+    keys.get(qname)
+        .copied()
+        .filter(|&key| !function_lattice(db, key).sccp.reads_module)
+}
+
 /// `memoised_compilation_unit` that also returns the per-procedure
 /// [`FnLatticeKey`] map built during lowering (qname → offset-0 baseline key).
 ///
@@ -2331,7 +2345,7 @@ fn build_unit_with_keys<'db>(
         registry,
         dialect_opt,
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
-            let key = *lattice_keys.get(qname)?;
+            let key = memo_key(db, &lattice_keys, qname)?;
             let summary_key = taint_summary_key(db, ia, qname, dialect_key);
             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
             // is span-free (the offset rebase never touches it), so the unit can
@@ -2801,9 +2815,9 @@ pub fn proc_taint_solve<'db>(
         &cu,
         registry,
         dialect_opt,
-        &mut |qname, params, fu, known, summaries| match lattice_keys.get(qname) {
+        &mut |qname, params, fu, known, summaries| match memo_key(db, &lattice_keys, qname) {
             // Memoised path: the proc has an offset-0 baseline key.
-            Some(&lattice_key) => {
+            Some(lattice_key) => {
                 let body_source = cu
                     .ir_module
                     .procedures
@@ -2822,7 +2836,8 @@ pub fn proc_taint_solve<'db>(
                 (*proc_summary_cascade(db, lattice_key, deps_key)).clone()
             }
             // Fallback (a proc without a memoised lattice — e.g. an unanalysable
-            // body): run the real inference directly, exactly as the bare solve.
+            // body — or whose lattice read another procedure): run the real
+            // inference directly, exactly as the bare solve.
             None => tcl_compiler::taint_interproc::infer_proc_summary(
                 qname,
                 params,
@@ -2845,8 +2860,8 @@ pub fn proc_taint_solve<'db>(
     // (no offset add).
     let mut fn_checks: Vec<CompilerCheck> = Vec::new();
     for fu in cu.analysable_functions() {
-        match lattice_keys.get(&fu.name) {
-            Some(&key) => {
+        match memo_key(db, &lattice_keys, &fu.name) {
+            Some(key) => {
                 let body_offset = cu
                     .ir_module
                     .procedures
@@ -2859,9 +2874,10 @@ pub fn proc_taint_solve<'db>(
                 );
             }
             None => {
-                // The built unit's fallback fus (complexity-guarded / top level)
-                // carry **absolute** spans already (`base_offset == 0`), so the
-                // per-function checks need no rebase.
+                // The built unit's fallback fus (complexity-guarded / top level,
+                // or built afresh) carry **absolute** spans already
+                // (`base_offset == 0`), so the per-function checks need no
+                // rebase.
                 for d in tcl_compiler::compiler_checks::function_nontaint_checks(
                     fu,
                     registry,
@@ -3245,6 +3261,7 @@ pub fn function_optimisations<'db>(
         // document of its own to carry stub declarations.
         caller_scope: tcl_compiler::compilation_unit::UnitCallerScope::default(),
         declared_commands: tcl_registry::model::DeclaredSurface::new(),
+        transfers: tcl_compiler::interprocedural::TransferSummaries::default(),
     };
     Arc::new(tcl_compiler::optimiser::optimise_unit_raw(
         &cu,
@@ -3284,8 +3301,9 @@ fn module_has_trace_facts(module: &tcl_compiler::ir::Module) -> bool {
 /// top-level body's raw optimisations are computed on a top-level-only unit (small,
 /// not memoised), and the whole-module [`finalise_optimisations`] runs once over the
 /// assembled set.  Otherwise (iRules / command mutations / a complexity-guarded
-/// proc without a key) it falls back to the whole-module [`optimise_unit`] — always
-/// byte-identical, guarded by the `compiler_check` random-edit + corpus fuzzers.
+/// proc without a key / a memoised lattice that read another procedure) it falls
+/// back to the whole-module [`optimise_unit`] — always byte-identical, guarded by
+/// the `compiler_check` random-edit + corpus fuzzers.
 fn solve_optimisations<'db>(
     db: &'db dyn TclDb,
     cu: &CompilationUnit,
@@ -3312,11 +3330,17 @@ fn solve_optimisations<'db>(
             .values()
             .any(|s| s.pure && !(s.can_fold_static_calls && s.constant_return.is_some()))
     });
+    // A memoised lattice that read another procedure is not the unit's: the
+    // unit built that procedure afresh (`SccpResult::reads_module`).
+    let reads_module = lattice_keys
+        .values()
+        .any(|&key| function_lattice(db, key).sccp.reads_module);
     if is_irules
         || !cu.methods.is_empty()
         || mutations != tcl_compiler::command_binding::ModuleCommandMutations::default()
         || has_arg_sensitive_target
         || !every_proc_keyed
+        || reads_module
         || module_has_trace_facts(&cu.ir_module)
     {
         return tcl_compiler::optimiser::optimise_unit(cu, registry, dialect_opt);
@@ -3449,6 +3473,7 @@ fn top_level_only_unit(
         connection_scope: None,
         caller_scope: cu.caller_scope.clone(),
         declared_commands: cu.declared_commands.clone(),
+        transfers: cu.transfers.clone(),
     }
 }
 

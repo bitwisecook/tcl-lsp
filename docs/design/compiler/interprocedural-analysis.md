@@ -82,9 +82,10 @@ and no statement the flow graph keeps whole may run a `return` of its own
 may fold, and reads no summary: the lattice driver takes a call to a
 procedure of the module for a command it cannot see, so one stage is the
 fixed point, and a return that passes through a recursive call is computed.
-The bottom-up composition and its cycle bound arrive with slice 13: VT13.1
-composes a callee's summary into its caller's, and VT13.2's driver is the
-first lattice to read one. Only the compilation unit's entry
+The bottom-up composition and its cycle bound belong to the transfer
+summaries (§ *Transfer summaries* below), whose own runs read their callees'
+summaries; a caller's lattice reads one from slice 13's second checkpoint.
+Only the compilation unit's entry
 (`build_interprocedural_analysis_for_unit`, which `with_interprocedural` and
 the optimiser call) has the lattices to run, and a procedure the complexity
 guard stopped is not run; `build_interprocedural_analysis`, from IR alone,
@@ -113,6 +114,62 @@ double, and `1.00`, `1e3`, `007`, `TRUE` and ` 5` are strings, so O103 spells
 a folded call exactly as the procedure returns it.
 
 **Step 4 — Method summaries** (`build_method_summaries`, below).
+
+### Transfer summaries (`TransferSummary`)
+
+What a call to a procedure does to its caller's places, beside its
+`ProcSummary` (`interprocedural/transfer.rs`): a role per parameter — a
+value, unused, or the name of a place in the frame a level selects, with the
+outcomes the body applies to it — the global and namespace places it may
+write, its return shape, the completion codes a call may end with, the world
+effects of what it runs, and the procedure bindings the answer rests on.
+`CompilationUnit::build_with` computes every procedure's before it builds
+the procedure units (`ModuleProcedures`), so a caller's lattice can read
+one, and keeps them on the unit (`CompilationUnit::transfers`);
+`InterproceduralAnalysis::transfers` carries the unit's, each with the
+return shape its `ProcSummary` states. The explorer's interprocedural view
+prints each as a `transfer` line.
+
+- **Roles.** A parameter whose value names a caller place the body links a
+  local to — `upvar 1 $name v`, read from the procedure's frame-effect
+  summary (`UpvarInfo::param_targets`) — has a `Name` role at level 1. Its
+  outcomes come from two runs of the body, the local owned by the run and
+  entering bound, then unbound (`sccp::CallerPlaces`), read at every normal
+  exit: bound in both is a bind, unbound in both an unbind, a place the
+  body never redefines is left, a bound entry that stays bound beside an
+  unbound one that may not is a may-bind, and anything else leaves the place
+  may-bound whatever it held (`Unbind` then `MayBind`). A local linked more
+  than once, read or written before it is linked, or reached as an array
+  element takes that last answer. Any other parameter is a value, or unused
+  where the body's text never names it.
+- **Composition.** A summary's own runs read their callees' summaries: a
+  call to a procedure of the module passing a linked local as a `Name`
+  argument gives the place the step the callee's outcomes compose to
+  (`sccp::ModuleRun::composes`). Procedures are summarised callees first,
+  over the strongly connected sets of the module's call graph; a cycle is
+  solved from its procedures never completing, round by round, until no
+  role changes, and one that does not settle within
+  `MAX_INTERPROCEDURAL_WALK_DEPTH` rounds answers may-bound for every `Name`
+  place, any completion and a computed result.
+- **Barriers.** A procedure has no summary — a call to it is a barrier —
+  when it reaches code the module cannot see (an unseen-call, global-frame
+  script, opaque caller-frame or arm-writes marker, a barrier statement, a
+  head neither the registry nor the module names), reaches a frame other
+  than its caller's, links a local to a place whose name it computes,
+  computes a variable name, is too large to analyse, or calls a procedure
+  that has none; and a module that may rebind a builtin summarises nothing.
+  A call to a procedure defined later in the file carries the unseen-call
+  marker, so its caller has no summary
+  ([precision-limitations.md](precision-limitations.md)).
+- **Invalidation.** The summaries' revision hashes every procedure's name,
+  parameter list and body, the redefinitions and the command-trust snapshot,
+  and rides `AnalysisContext::seeds_revision` in every run that holds the
+  module's procedures. A lattice that read another procedure is never served
+  from the per-procedure memo ([compilation-unit-contracts.md](compilation-unit-contracts.md)).
+
+The same view answers `info default`: the parameter default of a procedure
+of the module the name resolves to from the calling function's namespace,
+where its binding stands (`ModuleProcedures::parameter_default`).
 
 ### Constant-folding eligibility
 

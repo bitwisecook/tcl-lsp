@@ -783,3 +783,89 @@ fn the_seven_ordered_state_witnesses() {
         }
     }
 }
+
+/// A lattice that reads another procedure of the module rests on more than
+/// its own body, so the memoised path builds it as the direct one does, and
+/// a `rename` or a redefinition anywhere in the module withdraws what it
+/// read: `info default f b v` writes `f`'s default for `b`, 5, on both
+/// paths, and nothing once `f` is renamed away, redefined, or its default
+/// edited to 7 — then 7 — as tclsh 8.4 to 9.1 report (`rename` leaves `f`
+/// no procedure, and `info default` of one raises).
+#[test]
+fn a_rename_invalidates_every_summary() {
+    use salsa::Setter as _;
+    let body = "proc f {a {b 5}} {}\nproc p {} {info default f b v; return $v}\n";
+    let mut db = TclDatabase::default();
+    let file = SourceFile::new(&db, body.to_owned(), "tcl8.6".to_owned(), None);
+    let int = |value: i64| Some(LatticeValue::Const(ConstValue::Int(value)));
+    for (edit, want) in [
+        (body.to_owned(), int(5)),
+        (
+            format!("{body}rename f g\n"),
+            Some(LatticeValue::Overdefined),
+        ),
+        (
+            format!("{body}proc f {{a {{b 6}}}} {{}}\n"),
+            Some(LatticeValue::Overdefined),
+        ),
+        (body.replace("{b 5}", "{b 7}"), int(7)),
+        (body.to_owned(), int(5)),
+    ] {
+        file.set_text(&mut db).to(edit.clone());
+        let (memoised, direct) = both_paths(&db, file);
+        assert_eq!(
+            lattice_of(&memoised, "::p"),
+            lattice_of(&direct, "::p"),
+            "{edit}"
+        );
+        for (path, unit) in [("memoised", &*memoised), ("direct", &direct)] {
+            assert_eq!(value_at(unit, "::p", "v", 1), want, "{path}: {edit}");
+        }
+    }
+}
+
+/// The memoised checks and optimisations read a procedure's lattice from
+/// its per-procedure memo, which holds none of the module's other
+/// procedures; a lattice that read one is the unit's own instead. `info
+/// default f b v` writes 5 in `g`, so its `if` is decided — the constant
+/// branch the checks report, and O112 — on the memoised path as on the
+/// uncached one, where tclsh 8.4 to 9.1 print `five`.
+#[test]
+fn a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites() {
+    let source = "proc f {a {b 5}} {return 0}\n\
+        proc g {} {info default f b v; if {$v == 5} {return five}; return other}\n\
+        puts [g]\n";
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+    let got = compiler_check_diagnostics(
+        &db,
+        file,
+        AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        ),
+    );
+    let want =
+        compiler_check_diagnostics_uncached(source, db.registry("tcl8.6"), "tcl8.6", None, None);
+    assert!(
+        want.checks.iter().any(|check| check.code == DiagCode::O100),
+        "{:?}",
+        want.checks
+    );
+    assert!(
+        want.optimisations
+            .iter()
+            .any(|opt| opt.code == DiagCode::O112),
+        "{:?}",
+        want.optimisations
+    );
+    assert_eq!(got.checks, want.checks);
+    assert_eq!(got.optimisations, want.optimisations);
+}

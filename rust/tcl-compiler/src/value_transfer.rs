@@ -51,10 +51,10 @@ use tcl_registry::value_transfer::{
     ExactValue, ExactValueOrUnavailable, Existence, ExistenceOutcome, ExitRule, FactBounds,
     FactDomain, FactView, InvocationLayout, InvocationOutcome, IterableKind, IterationPlan,
     LanguageProfileId, LiftedAnswer, LoopStep, NestedPolicy, NumericValue, OperandId, OperandView,
-    PlaceKind, PlaceRef, PlanAnswer, RepresentationEvidence, ResolvedInvocationView, RouteIdentity,
-    SelectionFact, StoreOutcome, TargetId, TargetSemantics, TransferAnswer, TypeFacts,
-    ValueIdentity, ValueShape, WordPart, WordStructure, WrittenPlace, evaluate_lifted,
-    validate_outcome, written_in,
+    ParameterDefault, PlaceKind, PlaceRef, PlanAnswer, RepresentationEvidence,
+    ResolvedInvocationView, RouteIdentity, SelectionFact, StoreOutcome, TargetId, TargetSemantics,
+    TransferAnswer, TypeFacts, ValueIdentity, ValueShape, WordPart, WordStructure, WrittenPlace,
+    evaluate_lifted, validate_outcome, written_in,
 };
 use tcl_registry::{
     ArgRole, CommandRegistry, FrameLevel, InvocationWord, InvocationWordKind, InvocationWords,
@@ -550,6 +550,17 @@ pub(crate) struct LatticeDriver<'a> {
     /// exit of the block before a flattened `catch` body. An existence read
     /// while it is set answers from it ([`Self::existence_fact`]).
     body_entry: RefCell<Option<Vec<Existence>>>,
+    /// The module's procedures, when the run's caller holds them.
+    module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
+    /// Whether a call to a procedure of the module takes the existence its
+    /// transfer summary states ([`crate::sccp::ModuleRun::composes`]).
+    composes: bool,
+    /// The function the run analyses, by qualified name: where a procedure
+    /// name it spells is looked up from.
+    function: &'a str,
+    /// Whether the run read the module's procedures, or would have read them
+    /// had its caller held them ([`crate::sccp::SccpResult::reads_module`]).
+    reads_module: Cell<bool>,
 }
 
 /// The lattice value of one member-wise evaluation: the constant `pick`
@@ -1046,7 +1057,97 @@ impl<'a> LatticeDriver<'a> {
             existence_initial_global: trace.existence.is_some_and(|entry| entry.initial_global),
             catch_ends: RefCell::new(HashMap::new()),
             body_entry: RefCell::new(None),
+            module: None,
+            composes: false,
+            function: "::",
+            reads_module: Cell::new(false),
         }
+    }
+
+    /// Say which function the run analyses and what it reads of the module
+    /// ([`crate::sccp::ModuleRun`]). The module's summary revision rides the
+    /// context's seeds revision.
+    pub(crate) fn in_module(mut self, function: &'a str, run: crate::sccp::ModuleRun<'a>) -> Self {
+        self.function = function;
+        self.module = run.procedures;
+        self.composes = run.composes && run.procedures.is_some();
+        self.context.seeds_revision = run
+            .procedures
+            .map_or(0, crate::interprocedural::ModuleProcedures::revision);
+        self
+    }
+
+    /// The trust a procedure binding is read under: the rewrite stance's
+    /// whole-module trust, or the shared lattice's observed bindings.
+    fn procedure_trust(&self) -> FoldTrust {
+        self.folds
+            .map_or(FoldTrust::WholeModule, |folds| folds.trust)
+    }
+
+    /// The default `info default` reads for `procedure`'s `parameter`
+    /// ([`crate::interprocedural::ModuleProcedures::parameter_default`]):
+    /// unknown in a run whose caller holds no module view, which records
+    /// that it would have read one.
+    pub(crate) fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        self.reads_module.set(true);
+        self.module.map_or(ParameterDefault::Unknown, |module| {
+            module.parameter_default(
+                self.function,
+                (procedure, parameter),
+                self.procedure_trust(),
+            )
+        })
+    }
+
+    /// A call to a procedure of the module in a run that composes summaries:
+    /// each place a `Name` argument names takes the existence the callee's
+    /// summary states, and no value. `None` leaves the call to the generic
+    /// answer: a run that composes none, a head naming no procedure of the
+    /// module whose binding stands, or a callee whose summary does not
+    /// answer the call.
+    fn procedure_call(
+        &self,
+        head: &str,
+        cooked: &[ArgWord<'_>],
+        defs: &[(String, ValueKey)],
+    ) -> Option<DefValues> {
+        let module = self.module.filter(|_| self.composes)?;
+        let callee = module.resolve(head, self.function, self.procedure_trust())?;
+        self.reads_module.set(true);
+        if cooked
+            .iter()
+            .any(|word| word.kind == InvocationWordKind::Expanded)
+        {
+            return None;
+        }
+        let words: Vec<Option<&str>> = cooked
+            .iter()
+            .map(|word| (word.kind == InvocationWordKind::Literal).then_some(word.text.as_ref()))
+            .collect();
+        let places = match module.call_transfer(&callee, &words)? {
+            crate::interprocedural::CallTransfer::Never => {
+                return Some(DefValues::PerDef(
+                    defs.iter()
+                        .map(|(_, key)| DefAnswer {
+                            existence: ExistenceStep::PENDING,
+                            ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
+                        })
+                        .collect(),
+                ));
+            }
+            crate::interprocedural::CallTransfer::Places(places) => places,
+        };
+        Some(DefValues::PerDef(
+            defs.iter()
+                .map(|(name, key)| DefAnswer {
+                    existence: places
+                        .iter()
+                        .find(|(place, _)| place == name)
+                        .map_or(ExistenceStep::UNKNOWN, |(_, step)| *step),
+                    ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
+                })
+                .collect(),
+        ))
     }
 
     /// Whether a typed assignment (`AssignConst`, `AssignValue`,
@@ -1647,6 +1748,7 @@ impl<'a> LatticeDriver<'a> {
             folded_types: self.take_folded_types(),
             preserved: self.take_preserved(),
             raised: self.take_raised(),
+            reads_module: self.reads_module.get(),
             ..crate::sccp::SccpResult::default()
         }
     }
@@ -2584,6 +2686,16 @@ impl<'a> LatticeDriver<'a> {
             return DefValues::PerDef(widened(&defs));
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
+        if foreach_groups.is_none()
+            && let Statement::Call { command, .. } = &stmt_ssa.statement
+            && let Some(answer) = self.procedure_call(
+                command,
+                &call_arguments(args, tokens.as_ref(), &self.lexer_config),
+                &defs,
+            )
+        {
+            return answer;
+        }
         if !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return DefValues::PerDef(widened(&defs));
@@ -5151,6 +5263,10 @@ impl<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher> AnalysisInputs
         self.driver.math_function(name)
     }
 
+    fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        self.driver.parameter_default(procedure, parameter)
+    }
+
     fn context(&self) -> &AnalysisContext {
         &self.driver.context
     }
@@ -5646,6 +5762,10 @@ impl AnalysisInputs for StateInputs<'_> {
 
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
         self.driver.math_function(name)
+    }
+
+    fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        self.driver.parameter_default(procedure, parameter)
     }
 
     fn context(&self) -> &AnalysisContext {

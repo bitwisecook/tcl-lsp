@@ -61,6 +61,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "CompilationUnit::transfers",
+        view: Some("interproc"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "CompilationUnit::connection_scope",
         view: Some("connectionScope"),
         exclusion: None,
@@ -249,6 +254,7 @@ durable_inventory!(
     connection_scope,
     caller_scope,
     declared_commands,
+    transfers,
 );
 
 /// Exhaustive field witness. Adding a field to either durable compiler type

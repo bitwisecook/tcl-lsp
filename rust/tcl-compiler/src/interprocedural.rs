@@ -32,6 +32,11 @@ use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
+mod transfer;
+
+pub use transfer::TransferSummaries;
+pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures};
+
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`collect_instance_var_writes`; the mutually-recursive
 /// `scan_script`/`scan_statement`/`scan_control_flow_statement` trio;
@@ -262,6 +267,9 @@ pub struct InterproceduralAnalysis {
     /// registry-declared instance-option configuration, closed transitively
     /// over the internal call graph.
     pub tainted_global_writes: HashMap<String, HashSet<String>>,
+    /// Each procedure's transfer summary: what a call does to its caller's
+    /// places. A compilation unit's build computes them.
+    pub transfers: TransferSummaries,
 }
 
 /// A command-name → `(params, param_traits)` lookup, keyed by the bare leaf
@@ -712,6 +720,7 @@ pub(crate) fn build_interprocedural_analysis_for_unit(
             seedless: Some(SeedlessUnits {
                 procedures: &cu.procedures,
                 mutations: &cu.command_mutations,
+                transfers: &cu.transfers,
             }),
         }),
     )
@@ -731,6 +740,8 @@ struct ModuleUnits<'a> {
 struct SeedlessUnits<'a> {
     procedures: &'a HashMap<String, crate::compilation_unit::FunctionUnit>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
+    /// The transfer summaries the unit's build computed.
+    transfers: &'a TransferSummaries,
 }
 
 fn build_interprocedural_analysis_inner(
@@ -798,11 +809,48 @@ fn build_interprocedural_analysis_inner(
         },
     );
 
+    // The unit's transfer summaries, each with the return shape its
+    // procedure's summary derives.
+    let transfers = units
+        .and_then(|units| units.seedless)
+        .map(|units| {
+            units
+                .transfers
+                .0
+                .iter()
+                .map(|(qname, transfer)| {
+                    let mut transfer = transfer.clone();
+                    if let Some(summary) = procedures.get(qname) {
+                        transfer.result = return_shape(summary);
+                    }
+                    (qname.clone(), transfer)
+                })
+                .collect()
+        })
+        .map(TransferSummaries)
+        .unwrap_or_default();
+
     InterproceduralAnalysis {
         procedures,
         methods,
         global_instance_classes,
         tainted_global_writes,
+        transfers,
+    }
+}
+
+/// The return shape a procedure's summary states: its constant, the
+/// parameter it passes through, the parameters its value reads, or a
+/// computed value.
+fn return_shape(summary: &ProcSummary) -> ReturnKind {
+    if let Some(constant) = &summary.constant_return {
+        ReturnKind::Literal(ExactValue::from_literal(&constant.text()))
+    } else if let Some(param) = &summary.return_passthrough_param {
+        ReturnKind::Passthrough(param.clone())
+    } else if summary.return_depends_on_params.is_empty() {
+        ReturnKind::Other
+    } else {
+        ReturnKind::UsesParam(summary.return_depends_on_params.clone())
     }
 }
 

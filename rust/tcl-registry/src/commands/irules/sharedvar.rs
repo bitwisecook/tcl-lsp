@@ -44,6 +44,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         arg_roles: &[(0, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::SHAREDVAR),
         ..CommandSpec::DEFAULT
     }
 }

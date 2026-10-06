@@ -9678,6 +9678,121 @@ by slice 2).
 | `[rec 4]` folds on the argument-sensitive path | the seven witnesses |
 | `global`, `variable`, `my variable`, `sharedvar`, `info default` have semantics | `KNOWN_GAPS` |
 
+#### Record (2026-10-06): slice 13
+
+The slice lands in the plan's three commits. The decisions are D296 onward in
+§ *Decisions taken*, in the paragraph headed *Taken in slice 13*.
+
+##### Transfer summaries
+
+`wip(value-transfers): slice 13 — transfer summaries`, VT13.1, VT13.5 and
+VT13.6, at the coordinator's rulings on five departures from the plan's text
+(D296 to D301); D302 is the binders' own.
+
+Every procedure of a unit has a `TransferSummary` beside its `ProcSummary`
+(`interprocedural/transfer.rs`): each parameter's role — a value, unused, or
+the name of a place one frame up with the outcomes the body applies to it —
+the outer places it may write, its return shape, its completion domain, the
+world effects of what it runs and the procedure bindings the answer rests on.
+`CompilationUnit::build_with` computes them before the procedure units
+(D298), each strongly connected set of the call graph after the sets it
+calls; a place's outcomes are read from two runs of the body, the place bound
+on entry and then unbound, and are the step its updates compose to (D297); a
+cycle is solved from its procedures never completing, and one that does not
+settle within `MAX_INTERPROCEDURAL_WALK_DEPTH` rounds leaves every place it
+names may-bound whatever it held, with any completion and a computed result
+(D296). A procedure that reaches what its summary cannot name has none, and
+neither has a caller of it (D299). The Explorer prints each summary beside the
+procedure's (`interproc` view, the `transfer` line and JSON field).
+
+`global`, `variable`, `my variable` and `sharedvar` declare their scope-alias
+plan with the route `none (declared)` (D302), and `info default` has the
+registry-owned route `parameter-default` (D300): the five `KNOWN_GAPS` rows
+go, and SpecTcl's catalogue of the native evaluators names the new one
+(`value_transfer_tables_cover_their_catalogues` failed without it). Under
+tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 alike, for `proc f {a {b 5} {c
+{}}} {}`: `info default f a v` is 0 and binds `v` to the empty string; `info
+default f b w` is 1 and binds `w` to 5; `info default f c x` is 1 and binds
+`x` to the empty string; `info default nosuch a y` raises `"nosuch" isn't a
+procedure` and `info default f zz q` raises `procedure "f" doesn't have an
+argument "zz"`, neither binding its variable; in a namespace holding its own
+`f`, `info default f b v` reads that `f`'s default (7), and `ns::f` names it
+from the global namespace; after `rename f g`, `info default f b x` raises
+`"f" isn't a procedure` and `info default g b y` is 1 with 5; and through
+`interp alias {} h {} g`, `info default h b z` raises `"h" isn't a
+procedure`. The declaration's note states the resolution rule.
+
+The summaries' revision — every procedure's name, parameters and body, the
+redefinitions and the command-trust snapshot — rides the context's seeds
+revision in every run holding the module's procedures, and a lattice that
+read another procedure, or would have where its caller held none, is built
+fresh instead of taken from the per-procedure memo (D301): by the unit build,
+and by the editor's memoised checks, rewrites and taint cascade, which read
+that memo too and take the unit's lattice for such a procedure through one
+helper (`memo_key` in `tcl-lsp-db`), so `proc g {} {info default f b v; if
+{$v == 5} {return five}; return other}` draws its O100 and O112 in the
+editor as the unit build gives them.
+
+Two precision limits follow from D299, recorded in `precision-limitations.md`:
+a call to a procedure defined later in the file carries the unseen-call
+marker, so its caller has no summary and mutual recursion never summarises
+while self-recursion does; and a module that may rebind a builtin summarises
+nothing.
+
+Tests: `summaries_compose_through_two_callees`, `a_barrier_has_no_summary`,
+`a_cycle_that_does_not_converge_is_may_bind` and
+`a_rename_or_a_redefinition_moves_the_revision` (`interprocedural/transfer.rs`,
+new); `a_rename_invalidates_every_summary` and
+`a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites`
+(`value_transfer_parity.rs`, new); `the_binders_state_their_scope_alias_plan`
+and `info_default_writes_the_default_the_analysis_proves` (`tcl-registry`'s
+`value_transfers.rs`, new), with the five routes' stamps pinned. R1: the new
+code spells no command — `transfer.rs`'s string literals render a summary
+for the Explorer or are the namespace separator, and the binders' plans and
+the `info default` evaluator are the registry's own declarations. R2: no new
+`#[allow]`. R4: the two new files, `interprocedural/transfer.rs` (a module
+of the plan's `interprocedural.rs`) and the registry's
+`value_transfer/scope_alias.rs`, carry the licence header. R5: the plan's
+`TransferSummary` and `ParamRole` stand as written; the new names are D297's
+`CallerPlaces`, D298's `ModuleProcedures` and D301's
+`SccpResult::reads_module`. R6: no existing test's expectation moves, and the
+two O103 anchors are byte-identical. R7: a procedure reaching an unknown
+callee, a body the walk cannot name or a binding that does not stand has no
+summary, and a cycle that does not settle is may-bound.
+
+Measured, on the commit's tree: `make rust-check` passed whole and
+`dialect-drift` reports its 8 sites, the parent's 8. The suites one crate at a
+time, each pruned after, passed whole, the witnesses comparing under the
+five reference releases on `PATH`: `tcl-compiler` 10199 passed, 6 ignored
+(the parent's 10195 and the four new unit tests); `tcl-registry` 1430 (1428
+and the two new tests); `tcl-explorer` 113; `tcl-lsp-db` 141, 5 ignored (139
+and the two new tests); `tcl-lsp-core --lib` 2353; `tcl-cli` 207; `xtask`
+275; `tcl-spectcl` 476, 1 ignored; `tcl-cmd-core` 143. Over the corpus —
+every `.tcl` file of tcllib 2.0's modules (794), and every `.tcl` and `.irul`
+file of `samples/` (137) and `editors/vscode/` (189), 1120 in all — `tcl
+diag` and `tcl opt --profile full` (`--dialect tcl8.6`, `f5-irules` for an
+`.irul`) print under this commit's binary what they print under one built at
+its parent, standard output, standard error and exit status alike, for each
+of the first 392 files compared; the rest of the comparison was running at
+the commit, made at the coordinator's direction, and is recorded with the
+next commit.
+
+Mutations, each reverted and the tree restored byte for byte: a cycle taken
+as settled whatever its rounds (`settled` starting true) fails
+`a_cycle_that_does_not_converge_is_may_bind` (`up` keeps the one round's
+may-bind where any outcome is due); a place bound at every exit read as
+may-bound fails `summaries_compose_through_two_callees` (`bump`'s
+`MayBind(Scalar)` under 8.4); the unit build taking a memo hit that read the
+module fails `a_rename_invalidates_every_summary` (the memoised `v`
+overdefined where the direct build proves 5); and, in `tcl-lsp-db`, the
+checks taking the memoised lattice of a procedure that read the module, and
+the rewrites keeping the memoised path for one, each fail
+`a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites` (no
+O100 at `g`'s `if`, and no O112), run before the three readers' filter
+moved into `memo_key`. The second first survived: with `f`'s body empty,
+the rewrites took the whole-module path for another reason, `f` being a
+target of the argument-sensitive re-run, so the test's `f` returns 0.
+
 ### Slice 7 — broader execution and runtime consumers
 
 #### Goal and exit
@@ -12642,6 +12757,16 @@ Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10
 - **D293 — An `expr` literal operand is its own value only as a canonical decimal integer, and a run's "no constant" overrides the shapes** (K, at the coordinator's ruling, #2388's family). The expression route decides `0x10` (16), `010` (8 or 10 by release) and `true`; the shapes, which stand where no run is made, take a literal operand as the value only where its text is that value under every release, and a fixed string operand as before (#2227). Where a run was made and proved no constant, the shapes answer only the passthrough and depends kinds: the run is the authority wherever it is made, and a run that reaches no exit — `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` — proves the procedure returns nothing, where the words had said `const(5)` and O103 folded `[p]` to `5` (tclsh raises `divide by zero`; the case of #2390 the lattice decides, the rest staying open, with the no-exit case on a procedure the complexity guard stopped, where no run is made).
 - **D294 — The word renderer braces a padded integer** (G, #2392, at the coordinator's ruling). `is_value_safe_bare_word` took ` 5` for the integer 5 and spelled it bare, so O102, O100 and O103 printed the number without its space; it parses the value as it stands.
 - **D295 — A call holding a script word, and a barrier, may run a `return`** (N2 of the slice 7a review, at the coordinator's ruling; amending D289). D289's rule decided by statement variant and answered no for every call, which held for a script a call runs only where the command made the procedure impure or a barrier. A loop over a qualified variable does neither: the flow graph keeps `foreach ::x {1} {return 1}` as a plain call holding its body word, the scan calls the procedure pure, and both O103 paths read the exits past it, so `[p]`, `[q 5]` and an `lmap ::z` loop's `[r]` folded to `2`, `2` and `4` where tclsh prints 1, 5 and 3 — the gap in D289's rule, closed here. `statement_may_return` reads the registry the reading carries: a call may run a `return` when the registry gives one of its words the Body role (on `canonical_command_or_source`), and a barrier, whose code is unseen, may, so the rule holds without the purity scan. Two calls are left out, neither by a command's spelling: the header the flow graph synthesises for a loop it lowers (`foreach_groups`), which holds only the list words — the registry reads the last of three or more as a body — while the body is lowered into the blocks after it; and a call whose registry plan absorbs every completion of its body (`CompletionProtocol::CatchAll`, asked through `resolved_body_absorbs_completion`), the `catch` the flow graph keeps as a call when its body holds control flow or a block terminator, whose body D289 leaves unread. A loop's plan absorbs `break` and `continue` alone and `try`'s handlers only the completions they select, so both may return. A document stub's Body role is not seen: the reading carries the catalogue's registry, and the re-run's context no declared surface.
+
+Taken in slice 13, proc-level transfer summaries (§ *Slice 13* › *Record (2026-10-06): slice 13* has the witnesses):
+
+- **D296 — A cycle that does not settle leaves every `Name` place may-bound whatever it held** (VT13.1; the coordinator's ruling on the plan's "`MayBind` for every `Name` place"). `ExistenceOutcome::MayBind` joins the prior fact with a binding (`Existence::after`), so a place bound before the call stays bound, and a recursion that unsets the place contradicts it. The plan meant the binding unknown, and the two outcomes `Unbind` then `MayBind(Either)`, which compose to `Set(MayBound)`, say that. Completion `Any` and a computed result are as the plan has them. A cycle is solved from its procedures never completing, round by round over its strongly connected set until no role changes, so the bound is met only by a cycle that does not settle within `MAX_INTERPROCEDURAL_WALK_DEPTH` rounds; `a_cycle_that_does_not_converge_is_may_bind` gives a self-recursive procedure one round.
+- **D297 — A place's outcomes are read from two runs, and are the step its updates compose to** (VT13.1; the coordinator's ruling). One run with the linked local may-bound on entry cannot tell a may-write from a write that may also unbind; two runs, the local owned by the run and entering bound and then unbound (`CallerPlaces`), read at every normal exit, can: bound in both is a bind, unbound in both an unbind, a local never redefined is left, bound-and-may-unbound a may-bind, and anything else the may-bound answer of D296. A call in the body to another procedure of the module that passes the local as a `Name` argument takes that callee's composed step there, so the summaries compose bottom-up over the call graph. A place's outcomes are therefore the composition, not one entry per update: the plan's "`twice`'s `Name` outcome is two `bump` updates" reads as one `Bind(Scalar)`, and the value the two updates leave is the argument-sensitive re-run's.
+- **D298 — The summaries are computed in the unit build, before the procedure units** (VT13.1; the coordinator's ruling). A caller's lattice applies a callee's summary from slice 13's second checkpoint, and the units are built before the interprocedural analysis, so `CompilationUnit::build_with` computes every summary (`ModuleProcedures`, `interprocedural/transfer.rs`) from the flow graphs, the frame-effect and global-write summaries the CFG context already holds and the module's command trust, and keeps them on the unit; `InterproceduralAnalysis::transfers` copies them with the return shape the `ProcSummary` states. A procedure with `Name` roles is the only one whose summary runs a lattice — its SSA built for the runs — so a module with no `upvar` of a parameter pays a walk of its flow graphs.
+- **D299 — A procedure that reaches what its summary cannot name has none** (VT13.1; the coordinator's ruling, as this checkpoint's conservative set). The plan's barrier — an unknown callee, a `has_unknown_calls` body, a suspect binding — is read from the flow graph the summary's runs read: an unseen-call, global-frame script, opaque caller-frame or arm-writes marker, a barrier statement, a structured statement kept whole, a head neither the registry nor the module names, an alias to a place whose name is computed, a computed variable name, a frame other than the caller's (`UpvarInfo`), a body the complexity guard stops, or a call to a procedure with no summary; a binding stands under the shared lattice's trust (`ProcBindingTrustProjection` and `ModuleCommandMutations::observed_proc_binding`) and no redefinition. Two consequences are precision limits, recorded in `precision-limitations.md`: the flow graph gives a call to a procedure defined later in the file the unseen-call marker, so its caller has no summary and mutual recursion never summarises while self-recursion does; and a module that may rebind a builtin summarises nothing, since a typed statement holds no call the walk could follow.
+- **D300 — `info default` writes its variable on every normal completion** (VT13.5; the coordinator's ruling on the plan's `MayWrite`). Under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 the variable is written with the default and the result is 1, or with the empty string and the result 0 for a parameter with none; a procedure or a parameter that does not exist raises before anything is written. So the declaration is `Write(default)` where the analysis proves the procedure and the parameter, and otherwise `WriteUnavailable(Bound(Scalar))` beside an unavailable boolean result — never a may-write. The procedure is named from the calling function's namespace and must be a procedure of the module whose binding stands; `info default` follows no `interp alias`, and after `rename f g` answers for `g` and raises for `f`.
+- **D301 — A lattice that read another procedure is built fresh, and the summaries' revision rides the seeds revision** (VT13.6; the coordinator's ruling). Keying every per-procedure memo on a module-wide summary revision would re-key each procedure's lattice on any procedure's edit and lose the reuse the memo exists for. A run marks that it read the module's procedures, or would have where its caller holds none (`SccpResult::reads_module`: a parameter default asked for, a callee's summary looked up), and the unit build discards such a memo hit and builds the lattice with the module's procedures in hand, beside the fresh build of a procedure carrying module-derived instance-option writes; the editor's memoised checks, rewrites and taint cascade, which read the per-procedure memo too, take the unit's lattice for such a procedure (`a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites`). The revision — every procedure's name, parameter list and body, the redefinitions, the command-trust snapshot — rides `AnalysisContext::seeds_revision` in every run that holds the module's procedures, so a `rename` or a redefinition anywhere moves it.
+- **D302 — The scope-alias binders state a plan and no route** (VT13.5). `global`, `variable`, `my variable` and `sharedvar` each declare `PlanAnswer::ScopeAlias`, naming the operands the resolver gives the `VarWrite` role and where the cells live, with the route `none (declared)`: a linked local's existence and value are its cell's, which another frame, the object or the connection holds, so it enters may-bound with no value, which the escaping treatment of an aliased name already gives the lattice. The five `KNOWN_GAPS` rows go; the inventory shows each with its declaration, and `info default` with the registry-owned route `parameter-default`.
 
 ### Open questions for the owner
 

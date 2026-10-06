@@ -396,6 +396,9 @@ pub enum NativeEvalId {
     /// `catch`: a closed script run under the protected policy, the code it
     /// completes with, and the variables that receive it.
     CatchProtected,
+    /// `info default`: a procedure parameter's default written to the
+    /// variable, where the analyser proves the procedure and the parameter.
+    ParameterDefault,
 }
 
 impl NativeEvalId {
@@ -429,6 +432,7 @@ impl NativeEvalId {
         Self::BreakComplete,
         Self::ContinueComplete,
         Self::CatchProtected,
+        Self::ParameterDefault,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -463,6 +467,7 @@ impl NativeEvalId {
             Self::BreakComplete => "break-complete",
             Self::ContinueComplete => "continue-complete",
             Self::CatchProtected => "catch-protected",
+            Self::ParameterDefault => "parameter-default",
         }
     }
 
@@ -497,7 +502,8 @@ impl NativeEvalId {
             | Self::ReturnComplete
             | Self::BreakComplete
             | Self::ContinueComplete
-            | Self::CatchProtected => EvaluatorOwner::Registry,
+            | Self::CatchProtected
+            | Self::ParameterDefault => EvaluatorOwner::Registry,
         }
     }
 }

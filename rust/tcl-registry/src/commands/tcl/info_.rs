@@ -505,6 +505,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `procname` is an introspected proc (a command reference); `varname`
         // is written.
         arg_roles: &[(0, ArgRole::CommandName), (2, ArgRole::VarWrite)],
+        semantics: SemanticsDeclaration::Declared(
+            &crate::value_transfer::scope_alias::INFO_DEFAULT,
+        ),
         ..SubCommand::DEFAULT
     },
     SubCommand {

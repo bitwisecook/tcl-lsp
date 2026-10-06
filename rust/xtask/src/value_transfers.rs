@@ -988,27 +988,6 @@ fn target_roles(
 /// semantics, `append` and `lappend` derive theirs, and `const`, `lset`,
 /// `ledit` and `lpop` wait for the existence rung and the new list cores.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    // Slice 13, proc-level transfer summaries and the binders they carry.
-    (
-        "global",
-        "slice 13 — the binder's `Name` outcome with its frame level",
-    ),
-    (
-        "variable",
-        "slice 13 — the binder's `Name` outcome with its frame level",
-    ),
-    (
-        "my variable",
-        "slice 13 — the binder's `Name` outcome with its frame level",
-    ),
-    (
-        "sharedvar",
-        "slice 13 — the iRules connection-scoped binder, a `Name` outcome",
-    ),
-    (
-        "info default",
-        "slice 13 — the parameter default the transfer summary carries",
-    ),
     // Slice 7, broader execution: the list cell updates over new shared
     // cores, then tcllib and the Tcl-level library procedures moving to
     // SpecTcl with a declared implementation.

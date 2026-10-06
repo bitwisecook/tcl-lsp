@@ -1113,6 +1113,13 @@ fn build_interproc(d: &Value) -> Vec<ViewNode> {
             if !seeds.is_empty() {
                 detail.push(det("param constants", seeds));
             }
+            detail.push(det(
+                "transfer",
+                p["transfer"].as_str().map_or_else(
+                    || "none — a call is a barrier".to_owned(),
+                    ToOwned::to_owned,
+                ),
+            ));
             detail.push(det("flags", flags(p)));
             out.push(ViewNode::leaf(
                 format!("{} arity={}", s(p, "name"), s(p, "arity")),

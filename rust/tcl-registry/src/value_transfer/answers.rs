@@ -91,11 +91,55 @@ pub enum PlanAnswer {
     /// A template word — the final argument of a substituting command with
     /// the kinds that run over it.
     TemplateWord(TemplateWordPlan),
+    /// Locals linked to cells another frame holds: produced for `global`,
+    /// `variable`, `my variable` and `sharedvar`
+    /// ([`super::scope_alias::ScopeAliasSemantics`]). Each local enters
+    /// may-bound and with no value.
+    ScopeAlias(ScopeAliasPlan),
     /// An ordinary argv invocation with no structure of its own.
     NoStructure,
     /// The structure is declared unsupported or cannot be read for this
     /// call: the generic conservative shape is kept.
     Declined(DeclineReason),
+}
+
+/// The locals a scope-alias declaration links, and the cells it links them
+/// to: each local's existence and value are its cell's, which another frame,
+/// the object or the connection holds, so it enters may-bound at the
+/// declaration and holds no value the analysis can prove.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeAliasPlan {
+    /// The operands naming the linked locals, in order.
+    pub locals: Vec<OperandId>,
+    /// Where the linked cells live.
+    pub frame: AliasFrame,
+}
+
+/// Where a scope-alias declaration's cells live.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AliasFrame {
+    /// The global namespace (`global`).
+    Global,
+    /// The current namespace, or the one a qualified name names
+    /// (`variable`).
+    Namespace,
+    /// The current object's namespace (`my variable`).
+    Object,
+    /// The connection both sides of a virtual server share (`sharedvar`).
+    Connection,
+}
+
+impl AliasFrame {
+    /// Stable spelling for the inventory and the Explorer.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Global => "global",
+            Self::Namespace => "namespace",
+            Self::Object => "object",
+            Self::Connection => "connection",
+        }
+    }
 }
 
 /// What a bound place is. `array exists` distinguishes them; a parameter is

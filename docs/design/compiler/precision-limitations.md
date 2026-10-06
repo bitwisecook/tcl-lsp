@@ -316,3 +316,45 @@ correctness payoff (every procedure without a trailing `return`, which
 idiomatic Tcl leans on heavily) disproportionate to how the case was
 found — auditing existence-read positions for slice 8. Tracked as #2264;
 not assigned to a slice.
+
+## Open — a procedure that calls one defined after it has no transfer summary
+
+A procedure's transfer summary (`interprocedural/transfer.rs`, slice 13)
+says what a call to it does to its caller's places; a caller's lattice
+applies it, and without one the call widens every place it may write. A
+procedure has none when it reaches code the module cannot see, and the flow
+graph marks a call to a procedure the file defines *later* as exactly that:
+the source-order timeline gives the call the unseen-call marker
+(`SyntheticMarker::UnseenCall`), since at the definition the callee is not
+yet bound. So in
+
+```tcl
+proc twice {name} {upvar 1 $name w; bump w; bump w}
+proc bump {name} {upvar 1 $name v; incr v}
+```
+
+`twice` has no summary, where with `bump` defined first it has one, its
+place bound afterwards; mutual recursion therefore never summarises, while
+a procedure that calls itself does. The answer is sound — the call keeps
+the widening every call to unseen code has — and only precision is lost.
+
+Why it has not been done: the marker is the flow graph's source-order rule
+for every caller, not the summary's, and a procedure body runs after the
+whole file in the ordinary case; reading a forward call as a call to the
+procedure the file defines is a change to that rule, with its own witnesses.
+Not assigned to a slice.
+
+## Open — a module that rebinds any builtin summarises no procedure
+
+A module that rebinds a builtin — a `proc` named like one, a `rename` or an
+alias onto one, or a rebinding whose subject the scan cannot name — has no
+transfer summaries at all (`ModuleCommandMutations::rebinds_builtins`). The
+flow graph lowers a builtin to a typed statement (`set`, `incr`, `expr`) with
+no call in it, so a call to the module's replacement there is invisible to
+the summary's call walk, which could then miss a frame the replacement
+reaches. Every call to a procedure of such a module keeps the widening.
+
+Why it has not been done: telling which typed statements a rebinding moves
+is the lowering's question, answered per command; the conservative rule
+holds until a rebinding module motivates the precise one. Not assigned to a
+slice.

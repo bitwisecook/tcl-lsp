@@ -383,6 +383,11 @@ pub struct SccpResult {
     /// from (`docs/design/compiler/value-transfers.md` § *Bounded-loop
     /// enumeration*), in the order of the blocks they leave to.
     pub loop_enumerations: Vec<EnumeratedLoop>,
+    /// Whether the run read the module's procedures — a parameter default
+    /// `info default` names, or a callee's transfer summary — or would have
+    /// read them had its caller held them: a lattice built without the
+    /// module's procedures then answers less than one built with them.
+    pub reads_module: bool,
 }
 
 /// A loop the solver ran to its exit over the exact state it starts from,
@@ -753,6 +758,21 @@ pub struct ExistenceEntry<'a> {
     /// The document's lexer configuration, under which the per-statement
     /// computed-name scan re-reads the words the lowering read.
     pub config: tcl_lexer::LexerConfig,
+    /// The locals a procedure links to its caller's places, with the fact
+    /// they enter with: set only for the runs that compute a procedure's
+    /// transfer summary ([`CallerPlaces`]).
+    pub caller_places: Option<&'a CallerPlaces>,
+}
+
+/// The locals a procedure links to its caller's places, and the fact each
+/// enters with in one run of its transfer summary: the summary reads the
+/// procedure's exits once with the places bound and once with them unbound.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CallerPlaces {
+    /// The linked locals.
+    pub names: HashSet<String>,
+    /// The fact each holds once linked.
+    pub entry: Existence,
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -826,8 +846,55 @@ pub fn sccp_with_builtin_folds(
         extra_escaping,
         trace,
         folds,
+        module: ModuleRun::NONE,
     };
     drive(|round| solve(&inputs, round))
+}
+
+/// What a run reads of the module beyond one function: its procedures,
+/// which a call to one of them reaches, and the names the run owns although
+/// the function aliases them.
+#[derive(Clone, Copy)]
+pub(crate) struct ModuleRun<'a> {
+    /// The module's procedures, where the caller holds them.
+    pub(crate) procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
+    /// Names the function links to a caller's place which the run treats as
+    /// its own locals: a procedure's run for its transfer summary, which
+    /// states what it does to the place. A name a trace or a callback script
+    /// may reach stays externally mutable.
+    pub(crate) owned: Option<&'a HashSet<String>>,
+    /// Whether a call to a procedure of the module takes the existence its
+    /// transfer summary states for the places it names: a summary's own run,
+    /// which composes its callees' summaries.
+    pub(crate) composes: bool,
+}
+
+impl<'a> ModuleRun<'a> {
+    /// A run that reads nothing of the module.
+    pub(crate) const NONE: Self = Self {
+        procedures: None,
+        owned: None,
+        composes: false,
+    };
+
+    /// A run that reads the module's procedures where they are given, and
+    /// owns no aliased name.
+    pub(crate) const fn reading(
+        procedures: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
+    ) -> Self {
+        Self {
+            procedures,
+            owned: None,
+            composes: false,
+        }
+    }
+}
+
+/// [`sccp_with_builtin_folds`] over `inputs`, which say what the run reads
+/// of the module ([`ModuleRun`]).
+#[must_use]
+pub(crate) fn sccp_in_module(inputs: &SolveInputs<'_>) -> SccpResult {
+    drive(|round| solve(inputs, round))
 }
 
 /// The solver's rounds over `solve`, one run of the solver each. A loop the
@@ -864,14 +931,24 @@ fn drive(mut solve: impl FnMut(&Round) -> Solved) -> SccpResult {
 
 /// The inputs of one solver run.
 #[derive(Clone, Copy)]
-struct SolveInputs<'a> {
-    cfg: &'a CfgFunction,
-    ssa: &'a SsaFunction,
-    param_constants: Option<&'a HashMap<(String, crate::ssa::Version), LatticeValue>>,
-    policy: FoldPolicy,
-    extra_escaping: &'a HashSet<String>,
-    trace: TraceInputs<'a>,
-    folds: Option<BuiltinFoldInputs<'a>>,
+pub(crate) struct SolveInputs<'a> {
+    pub(crate) cfg: &'a CfgFunction,
+    pub(crate) ssa: &'a SsaFunction,
+    pub(crate) param_constants: Option<&'a HashMap<(String, crate::ssa::Version), LatticeValue>>,
+    pub(crate) policy: FoldPolicy,
+    pub(crate) extra_escaping: &'a HashSet<String>,
+    pub(crate) trace: TraceInputs<'a>,
+    pub(crate) folds: Option<BuiltinFoldInputs<'a>>,
+    pub(crate) module: ModuleRun<'a>,
+}
+
+impl<'a> SolveInputs<'a> {
+    /// The run's driver over `trace` and the escaping set, reading what the
+    /// run reads of the module.
+    fn driver(&self, trace: TraceInputs<'a>, escaping: &HashSet<String>) -> LatticeDriver<'a> {
+        LatticeDriver::new(trace, self.folds, self.policy, escaping)
+            .in_module(&self.cfg.name, self.module)
+    }
 }
 
 /// Which run of the solver this is.
@@ -903,7 +980,7 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
         policy,
         extra_escaping,
         trace,
-        folds,
+        ..
     } = *inputs;
     let trace = trace.with_callback_writes_as_traces();
     let preds = compute_predecessors(cfg);
@@ -915,11 +992,11 @@ fn solve(inputs: &SolveInputs<'_>, round: &Round) -> Solved {
         .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
     seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
-    let escaping = escaping_names(cfg, &trace, extra_escaping);
+    let escaping = escaping_names(cfg, &trace, extra_escaping, inputs.module.owned);
     // Every command-specific answer below comes from the registry's
     // declaration for the resolved invocation, through one driver whose
     // context is this run's identity.
-    let driver = LatticeDriver::new(trace, folds, policy, &escaping);
+    let driver = inputs.driver(trace, &escaping);
     driver.catch_ends(cfg);
     // What every branch edge's condition proves, in every domain, read
     // under the document's grammar.
@@ -1092,14 +1169,20 @@ fn settled_result(
 /// `traced_variables` fact — which also catches a trace installed by a
 /// *called* proc, which the single-`CfgFunction` view cannot see — and by the
 /// names a callback script of the module writes (`deferred_writes`), whose
-/// write no statement of this function shows.
+/// write no statement of this function shows. A name the run owns
+/// ([`ModuleRun::owned`]) is the run's own local, save one a trace or a
+/// callback script may reach.
 fn escaping_names(
     cfg: &CfgFunction,
     trace: &TraceInputs<'_>,
     extra_escaping: &HashSet<String>,
+    owned: Option<&HashSet<String>>,
 ) -> HashSet<String> {
     let mut escaping = crate::var_observability::analyse_var_observability(cfg, trace.registry)
         .escaping_var_names();
+    if let Some(owned) = owned {
+        escaping.retain(|name| !owned.contains(name));
+    }
     escaping.extend(extra_escaping.iter().cloned());
     trace.extend_module_escaping(&mut escaping);
     escaping
@@ -2695,7 +2778,10 @@ fn entry_fact(
         // absent.
         let held_elsewhere = entry.params.iter().any(|param| param == base)
             || linked(base)
-            || special(base).is_some();
+            || special(base).is_some()
+            || entry
+                .caller_places
+                .is_some_and(|places| places.names.contains(base));
         return if held_elsewhere {
             Existence::MayBound
         } else {
@@ -2704,6 +2790,12 @@ fn entry_fact(
     }
     if entry.params.iter().any(|param| param == name) {
         return Existence::Bound(BindingKind::Scalar);
+    }
+    if let Some(places) = entry
+        .caller_places
+        .filter(|places| places.names.contains(name))
+    {
+        return places.entry;
     }
     if linked(name) {
         return Existence::MayBound;

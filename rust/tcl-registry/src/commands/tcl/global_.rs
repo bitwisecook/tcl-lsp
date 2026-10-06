@@ -160,6 +160,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(GLOBAL_TRANSITIONS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::GLOBAL),
         ..CommandSpec::DEFAULT
     }
 }

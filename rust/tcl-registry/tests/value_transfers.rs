@@ -39,7 +39,7 @@ use tcl_registry::value_transfer::{
     ConstOps, ConstValue, DeclarationScope, DeclineReason, DerivedSemantics, EvalAnswer, EvalRoute,
     EvaluationState, EvaluatorOwner, ExactValue, ExactValueOrUnavailable, FactDomain, FactView,
     InvocationLayout, LiftedAnswer, NativeEvalId, Needs, NoRouteReason, NumericValue, OperandId,
-    OperandView, PlaceRef, PlanAnswer, ResolvedInvocationView, ResolvedSemantics,
+    OperandView, ParameterDefault, PlaceRef, PlanAnswer, ResolvedInvocationView, ResolvedSemantics,
     SemanticsDeclaration, SemanticsOrigin, StoreOutcome, TargetId, TransferAnswer, ValueIdentity,
     WordPart, WordStructure, evaluate_lifted, resolve_semantics,
 };
@@ -102,6 +102,7 @@ struct TestInputs<'a> {
     structures: BTreeMap<usize, WordStructure>,
     bodies: BTreeMap<usize, BodyRegion>,
     nested: Option<NestedService<'a>>,
+    defaults: BTreeMap<(String, String), ParameterDefault>,
     context: AnalysisContext,
 }
 
@@ -122,6 +123,7 @@ impl<'a> TestInputs<'a> {
             structures: BTreeMap::new(),
             bodies: BTreeMap::new(),
             nested: None,
+            defaults: BTreeMap::new(),
             context: AnalysisContext::detached(None),
         }
     }
@@ -194,6 +196,13 @@ impl AnalysisInputs for TestInputs<'_> {
 
     fn math_function(&self, _name: &str) -> Result<BindingIdentity, DeclineReason> {
         Err(DeclineReason::Unsupported)
+    }
+
+    fn parameter_default(&self, procedure: &str, parameter: &str) -> ParameterDefault {
+        self.defaults
+            .get(&(procedure.to_owned(), parameter.to_owned()))
+            .cloned()
+            .unwrap_or(ParameterDefault::Unknown)
     }
 
     fn context(&self) -> &AnalysisContext {
@@ -2837,6 +2846,129 @@ fn the_resolver_projects_the_declaration_state() {
 
 /// Every route stamp `reg` carries — `(spelling, route, owner)` — over each
 /// command's resolved declaration and each subcommand that declares its own.
+/// The binders that link a local to a cell another frame holds state that
+/// plan and no value: `global`, `variable`, `my variable` and `sharedvar`
+/// each name the locals they link — the operands the resolver gives the
+/// `VarWrite` role, so `variable`'s values are not among them — and where
+/// the cells live, and none has a route.
+#[test]
+fn the_binders_state_their_scope_alias_plan() {
+    use tcl_registry::value_transfer::scope_alias::{GLOBAL, MY_VARIABLE, SHAREDVAR, VARIABLE};
+    use tcl_registry::value_transfer::{AliasFrame, ScopeAliasPlan};
+    for (semantics, frame) in [
+        (&GLOBAL, AliasFrame::Global),
+        (&VARIABLE, AliasFrame::Namespace),
+        (&MY_VARIABLE, AliasFrame::Object),
+        (&SHAREDVAR, AliasFrame::Connection),
+    ] {
+        let inputs = TestInputs::new(
+            "variable",
+            vec![
+                literal("a", Some(ArgRole::VarWrite)),
+                literal("1", None),
+                literal("b", Some(ArgRole::VarWrite)),
+            ],
+        );
+        assert_eq!(
+            semantics.structure(&inputs),
+            PlanAnswer::ScopeAlias(ScopeAliasPlan {
+                locals: vec![OperandId(0), OperandId(2)],
+                frame,
+            }),
+            "{}",
+            semantics.identity
+        );
+        assert_eq!(
+            semantics.route(),
+            EvalRoute::None {
+                reason: NoRouteReason::Declared
+            }
+        );
+        assert_eq!(
+            semantics.evaluate(&inputs, &mut Budget::evaluation()),
+            EvalAnswer::Declined(DeclineReason::NoRoute(NoRouteReason::Declared))
+        );
+    }
+}
+
+/// `info default procname arg varname` writes the variable on every normal
+/// completion — the parameter's default and the result 1, or the empty
+/// string and the result 0 for a parameter with none — as tclsh 8.4 to 9.1
+/// do; where the analysis proves neither the procedure nor the parameter,
+/// the variable is still written, with a value the source does not give,
+/// and the result is an unknown boolean.
+#[test]
+fn info_default_writes_the_default_the_analysis_proves() {
+    use tcl_registry::value_transfer::scope_alias::INFO_DEFAULT;
+    let inputs = |defaults: &[((&str, &str), ParameterDefault)]| {
+        let mut inputs = TestInputs::new(
+            "info",
+            vec![
+                literal("default", None),
+                literal("f", None),
+                literal("b", None),
+                literal("v", Some(ArgRole::VarWrite)),
+            ],
+        );
+        inputs.view.argument_offset = 1;
+        inputs.defaults = defaults
+            .iter()
+            .map(|((procedure, parameter), default)| {
+                (
+                    ((*procedure).to_owned(), (*parameter).to_owned()),
+                    default.clone(),
+                )
+            })
+            .collect();
+        inputs
+    };
+    let target = TargetId(OperandId(3));
+    let run = |defaults: &[((&str, &str), ParameterDefault)]| {
+        evaluated(INFO_DEFAULT.evaluate(&inputs(defaults), &mut Budget::evaluation()))
+            .expect("info default evaluates")
+    };
+    let five = ExactValue::from_literal("5");
+    let outcome = run(&[(("f", "b"), ParameterDefault::Value(five.clone()))]);
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal("1"))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target,
+            value: five
+        }]
+    );
+    let outcome = run(&[(("f", "b"), ParameterDefault::None)]);
+    assert_eq!(
+        outcome.result,
+        ExactValueOrUnavailable::Exact(ExactValue::from_literal("0"))
+    );
+    assert_eq!(
+        outcome.ordered_stores,
+        [StoreOutcome::Write {
+            target,
+            value: ExactValue::from_literal("")
+        }]
+    );
+    let outcome = run(&[]);
+    assert!(matches!(
+        outcome.result,
+        ExactValueOrUnavailable::Unavailable(_)
+    ));
+    assert!(matches!(
+        outcome.ordered_stores.as_slice(),
+        [StoreOutcome::WriteUnavailable { target: written, .. }] if *written == target
+    ));
+    assert_eq!(
+        INFO_DEFAULT.route(),
+        EvalRoute::Direct {
+            id: NativeEvalId::ParameterDefault
+        }
+    );
+}
+
 fn route_stamps(reg: &CommandRegistry) -> BTreeSet<(String, &'static str, &'static str)> {
     let mut stamps: BTreeSet<(String, &'static str, &'static str)> = BTreeSet::new();
     for name in reg.command_names() {
@@ -2899,18 +3031,22 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("foreach_in_collection", "none:declared", "-"),
         ("format", "direct:format-template", "registry"),
         ("gets", "none:declared", "-"),
+        ("global", "none:declared", "-"),
         ("incr", "direct:cell-increment", "registry"),
+        ("info default", "direct:parameter-default", "registry"),
         ("lappend", "direct:cell-list-append", "registry"),
         ("lassign", "direct:list-assign", "registry"),
         ("list", "direct:list-of-args", "registry"),
         ("llength", "direct:list-length", "registry"),
         ("lmap", "none:unauthored", "-"),
+        ("my variable", "none:declared", "-"),
         ("regexp", "direct:regexp-match", "registry"),
         ("regsub", "direct:regsub-substitute", "registry"),
         ("remove_from_collection", "none:declared", "-"),
         ("return", "direct:return-complete", "registry"),
         ("scan", "direct:scan-format", "registry"),
         ("set", "direct:cell-write", "registry"),
+        ("sharedvar", "none:declared", "-"),
         ("string length", "direct:string-length", "registry"),
         ("string range", "direct:string-range", "registry"),
         ("subst", "none:unauthored", "-"),
@@ -2922,6 +3058,7 @@ fn pinned_route_stamps() -> BTreeSet<(String, &'static str, &'static str)> {
         ("trace vdelete", "none:callback", "-"),
         ("try", "none:unauthored", "-"),
         ("unset", "direct:variable-unset", "registry"),
+        ("variable", "none:declared", "-"),
         ("vwait", "none:declared", "-"),
         ("while", "none:unauthored", "-"),
     ]
@@ -3041,6 +3178,7 @@ fn route_label(route: EvalRoute) -> &'static str {
             NativeEvalId::BreakComplete => "direct:break-complete",
             NativeEvalId::ContinueComplete => "direct:continue-complete",
             NativeEvalId::CatchProtected => "direct:catch-protected",
+            NativeEvalId::ParameterDefault => "direct:parameter-default",
         },
         EvalRoute::Expression { .. } => "expression:tcl.expr",
         EvalRoute::Implementation(_) => "implementation",

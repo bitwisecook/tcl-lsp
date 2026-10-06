@@ -193,6 +193,7 @@ pub fn spec() -> CommandSpec {
         // until value writes are transition-modelled, leave its world
         // declaration open rather than falsely claiming `EMPTY`.
         state_transitions: Some(VARIABLE_TRANSITIONS),
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::scope_alias::VARIABLE),
         ..CommandSpec::DEFAULT
     }
 }

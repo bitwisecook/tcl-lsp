@@ -299,7 +299,20 @@ that worker's generation), so a separate, coarser `EvaluatorEpoch` salsa
 singleton — bumped on a plan publish or a quarantine — re-keys every
 memoised lattice the database holds when either happens. The context is
 interned and carried by the existing query infrastructure, not
-duplicated into uncoordinated keys.
+duplicated into uncoordinated keys. A lattice that reads another procedure
+of the module — the default `info default` names, a callee's transfer
+summary (§ *Proc-level transfer summaries*) — rests on more than the body
+its key holds: it marks the read (`SccpResult::reads_module`, set wherever
+the driver could have read the module's procedures, also in the memoised
+build, which holds none), and the unit build discards such a memo hit and
+builds the lattice with the module's procedures in hand, as it already
+builds fresh a procedure whose flow graph carries module-derived
+instance-option writes; the memoised checks, rewrites and taint cascade
+read the unit's lattice for such a procedure too. The summaries' revision — every procedure's name,
+parameter list and body, the redefinitions, and the command-trust snapshot
+— rides `AnalysisContext::seeds_revision` in each run that holds the
+module's procedures, so a `rename` or a redefinition anywhere in the module
+moves it.
 
 ## The interface
 
@@ -2556,7 +2569,13 @@ enum ParamRole {
 
 - **The seedless lattice.** The summary is computed from the callee's
   unit with its parameters `Overdefined` — no call-site seeds — so it
-  holds for every caller; a return that is constant under the seedless
+  holds for every caller. A `Name` parameter's outcomes come from two runs
+  of the body, the linked local entering bound and then unbound, read at
+  every normal exit, a call in the body to another procedure of the module
+  taking that callee's outcomes on the place it names; a place's outcomes
+  are the step its updates compose to, so `twice`'s is one bind, the
+  composition of its two `bump` updates, and the value the place ends with
+  is the re-run's; a return that is constant under the seedless
   lattice is a constant return for all callers, which is what
   `summarise_returns` consumes (slice 7a, landed: `proc p {} {set x [string
   range foobar 0 2]; return $x}` makes `[p]` fold to `foo` on the summary
@@ -2575,13 +2594,16 @@ enum ParamRole {
   approximates today for every caller local an `upvar` callee could name.
 - **Context limits.** One summary per procedure, context-insensitive;
   summaries compose bottom-up over the call graph, so `twice`'s `Name`
-  outcome is the composition of two `bump` cell updates; a cycle resolves
-  by the staged fixed point the evaluation page requires of
-  `summarise_returns`, and a cycle that does not converge within
-  `MAX_INTERPROCEDURAL_WALK_DEPTH` yields `MayBind` for every `Name`
-  place, `Any` completion, and a computed result. An unknown callee, a
-  `has_unknown_calls` body, or a callee reached through a suspect binding
-  is a barrier at the call site.
+  outcome is the composition of two `bump` cell updates; a cycle is
+  solved from its procedures never completing, round by round, and a
+  cycle that does not settle within `MAX_INTERPROCEDURAL_WALK_DEPTH`
+  leaves every `Name` place may-bound whatever it held — `Unbind` then
+  `MayBind`, since `MayBind` alone keeps a bound place bound, which a
+  recursion that unsets the place contradicts — with `Any` completion and
+  a computed result. A procedure that reaches code the module cannot see
+  or a frame other than its caller's, computes a variable name, or calls
+  such a procedure has no summary, and a call to it, or through a suspect
+  binding, is a barrier at the call site.
 - **Invalidation.** A summary depends on the callee's body, its bindings
   (`ModuleCommandMutations`), its callees' summaries, the seeds'
   revision, and the pack revision; the analysis context carries the

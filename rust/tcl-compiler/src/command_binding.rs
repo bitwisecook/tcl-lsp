@@ -4408,10 +4408,25 @@ impl ModuleCommandMutations {
     /// `rename otherProc thisName` or `interp alias {} thisName {} other`.
     #[must_use]
     pub fn trusts_proc_binding(&self, proc_name: &str) -> bool {
-        if self.dynamic || self.import_shadowed(proc_name) {
-            return false;
-        }
-        !self.rebound.contains(&nqn(proc_name))
+        !self.dynamic && self.observed_proc_binding(proc_name)
+    }
+
+    /// Whether the module may rebind any builtin: a shadowing `proc`, a
+    /// `rename` or alias onto a builtin's name, or a rebinding whose subject
+    /// this scan could not name.
+    #[must_use]
+    pub fn rebinds_builtins(&self) -> bool {
+        !self.names.is_empty() || self.rebinding_subjects != RebindingSubjects::AllNameable
+    }
+
+    /// The **named-subject** half of [`Self::trusts_proc_binding`], as
+    /// [`Self::observed_binding_is_the_builtin`] is of [`Self::trusts`]: no
+    /// `rename` or alias in the module names `proc_name`, and it sits in no
+    /// namespace whose resolution this scan could not enumerate. Omits the
+    /// unbounded `dynamic` top, which one unresolved command head raises.
+    #[must_use]
+    pub fn observed_proc_binding(&self, proc_name: &str) -> bool {
+        !self.import_shadowed(proc_name) && !self.rebound.contains(&nqn(proc_name))
     }
 }
 

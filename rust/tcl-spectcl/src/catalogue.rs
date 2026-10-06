@@ -535,6 +535,10 @@ pub const NATIVE_EVAL_IDS: &[Variant] = &[
         "CatchProtected",
         "the protected script's completion behind catch",
     ),
+    v(
+        "ParameterDefault",
+        "the parameter default behind info default",
+    ),
 ];
 
 /// [`tcl_registry::value_transfer::LanguageProfileId::ALL`] — `evaluate
