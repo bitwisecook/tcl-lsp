@@ -79,11 +79,11 @@ def main():
         )
         rows.append(f"{filename}\t{object_name}")
 
-    provider_body = '''proc identify {expected} {
+    provider_body = """proc identify {expected} {
     set command [binary format H* 6e616d6573706163652063757272656e74]
     set current [eval $command]
     return [list $expected $current [info level 0]]
-}'''
+}"""
     provider_cases = {
         "provider_common_root": "common_root",
         "provider_common_a": "common_a",
@@ -243,10 +243,10 @@ when HTTP_RESPONSE {{
     emit(
         "unicode_dynamic",
         objects["dynamic_unicode"],
-        f'''when HTTP_REQUEST {{
+        f"""when HTTP_REQUEST {{
     set unit [TMM::cmp_unit]
     set request [HTTP::header value X-R2286-Request]
-    foreach item [list {' '.join(dynamic_rows)}] {{
+    foreach item [list {" ".join(dynamic_rows)}] {{
         set label [lindex $item 0]
         set source_hex [lindex $item 1]
         set value [binary format H* $source_hex]
@@ -257,7 +257,7 @@ when HTTP_RESPONSE {{
 }}
 when HTTP_RESPONSE {{
     HTTP::header insert X-R2286-TMM [TMM::cmp_unit]
-}}''',
+}}""",
         "runtime-materialized UTF-8 log payloads with exact byte and character evidence",
     )
 

@@ -57,7 +57,9 @@ class Handler(BaseHTTPRequestHandler):
                 digest.update(chunk)
                 remaining -= len(chunk)
         body = (
-            json.dumps({"name": args.name, "size": length, "sha256": digest.hexdigest()})
+            json.dumps(
+                {"name": args.name, "size": length, "sha256": digest.hexdigest()}
+            )
             + "\n"
         ).encode()
         self.send_response(201)

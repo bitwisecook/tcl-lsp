@@ -35,10 +35,20 @@ def main() -> None:
         object_name = f"/Common/{prefix}_{case}"
         (args.out / filename).write_bytes(data)
         (args.out / (filename + ".hex")).write_text(data.hex() + "\n", encoding="ascii")
-        fixtures.append({"case": case, "object": object_name, "file": filename, "sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "line_endings": "lf", "purpose": purpose})
+        fixtures.append(
+            {
+                "case": case,
+                "object": object_name,
+                "file": filename,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": len(data),
+                "line_endings": "lf",
+                "purpose": purpose,
+            }
+        )
         rows.append(f"{filename}\t{object_name}")
 
-    dynamic = f'''ltm rule /Common/{prefix}_dynamic_embedded_nul {{
+    dynamic = f"""ltm rule /Common/{prefix}_dynamic_embedded_nul {{
 when HTTP_REQUEST {{
     set u "[TMM::cmp_group]:[TMM::cmp_unit]"
     set name [binary format H* 410042]
@@ -51,24 +61,39 @@ when HTTP_REQUEST {{
     HTTP::respond 200 content "$out_hex\\n" X-R2286-TMM $u Connection close
 }}
 }}
-'''.encode("ascii")
-    emit("dynamic_embedded_nul", dynamic, "runtime materialization and use of the byte sequence 41 00 42")
+""".encode("ascii")
+    emit(
+        "dynamic_embedded_nul",
+        dynamic,
+        "runtime materialization and use of the byte sequence 41 00 42",
+    )
 
     literal = (
-        f'''ltm rule /Common/{prefix}_literal_embedded_nul {{
+        f"""ltm rule /Common/{prefix}_literal_embedded_nul {{
 when HTTP_REQUEST {{
-    set x "A'''.encode("ascii")
+    set x "A""".encode("ascii")
         + b"\x00"
-        + f'''B"
+        + f"""B"
     HTTP::respond 200 content "$x\\n" Connection close
 }}
 }}
-'''.encode("ascii")
+""".encode("ascii")
     )
-    emit("literal_embedded_nul", literal, "literal 00 byte between ASCII A and B in the config source")
+    emit(
+        "literal_embedded_nul",
+        literal,
+        "literal 00 byte between ASCII A and B in the config source",
+    )
 
-    manifest = {"run": args.run, "kind": "additional_embedded_nul_controls", "expected_appliance_results": "UNMEASURED", "fixtures": fixtures}
-    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="ascii")
+    manifest = {
+        "run": args.run,
+        "kind": "additional_embedded_nul_controls",
+        "expected_appliance_results": "UNMEASURED",
+        "fixtures": fixtures,
+    }
+    (args.out / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="ascii"
+    )
     (args.out / "rules.tsv").write_text("\n".join(rows) + "\n", encoding="ascii")
 
 

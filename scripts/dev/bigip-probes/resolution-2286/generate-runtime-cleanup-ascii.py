@@ -19,7 +19,23 @@ from pathlib import Path
 
 
 def quote(value: str) -> str:
-    return '"' + value.translate(str.maketrans({"\\": "\\\\", '"': '\\"', "$": "\\$", "[": "\\[", "]": "\\]", "{": "\\{", "}": "\\}"})) + '"'
+    return (
+        '"'
+        + value.translate(
+            str.maketrans(
+                {
+                    "\\": "\\\\",
+                    '"': '\\"',
+                    "$": "\\$",
+                    "[": "\\[",
+                    "]": "\\]",
+                    "{": "\\{",
+                    "}": "\\}",
+                }
+            )
+        )
+        + '"'
+    )
 
 
 def main() -> None:
@@ -36,18 +52,47 @@ def main() -> None:
     object_name = f"/Common/{ns}_runtime_cleanup_ascii"
     variables = ["::" + prefix + x for x in ["g", "events", "x", "arr"]]
     variables += ["static::" + prefix + x for x in ["events", "x"]]
-    variables += ["static::" + ns + "_cell", "::" + ns + "_cell", "static::" + ns + "_collision"]
-    commands = [prefix + x for x in ["p", "read", "inner", "outer", "one", "alias", "moved", "trace", "failure", "test", "literal", "pick", "mark"]]
+    variables += [
+        "static::" + ns + "_cell",
+        "::" + ns + "_cell",
+        "static::" + ns + "_collision",
+    ]
+    commands = [
+        prefix + x
+        for x in [
+            "p",
+            "read",
+            "inner",
+            "outer",
+            "one",
+            "alias",
+            "moved",
+            "trace",
+            "failure",
+            "test",
+            "literal",
+            "pick",
+            "mark",
+        ]
+    ]
     namespaces = ["::" + ns, "::" + ns + "_consumer", "::" + ns + "_provider"]
 
     lines = ["set outcomes {}"]
     for name in variables:
-        lines.append(f"lappend outcomes [list unset {name} [catch {{unset {name}}} e] $e]")
+        lines.append(
+            f"lappend outcomes [list unset {name} [catch {{unset {name}}} e] $e]"
+        )
     for name in commands:
-        lines.append(f"lappend outcomes [list rename {name} [catch {{rename {name} {{}}}} e] $e]")
+        lines.append(
+            f"lappend outcomes [list rename {name} [catch {{rename {name} {{}}}} e] $e]"
+        )
     for name in namespaces:
-        lines.append(f"lappend outcomes [list namespace {name} [catch {{namespace delete {name}}} e] $e]")
-    lines.append(f"lappend outcomes [list package [catch {{package forget {prefix}package}} e] $e]")
+        lines.append(
+            f"lappend outcomes [list namespace {name} [catch {{namespace delete {name}}} e] $e]"
+        )
+    lines.append(
+        f"lappend outcomes [list package [catch {{package forget {prefix}package}} e] $e]"
+    )
     lines.append("set outcomes")
     payload = "\n".join(lines)
     body = f"""ltm rule {object_name} {{
@@ -68,11 +113,24 @@ when HTTP_REQUEST {{
     manifest = {
         "run": args.run,
         "kind": "additional_ascii_runtime_cleanup",
-        "fixtures": [{"case": "runtime_cleanup_ascii", "object": object_name, "file": filename, "sha256": digest, "size": len(body), "line_endings": "lf"}],
+        "fixtures": [
+            {
+                "case": "runtime_cleanup_ascii",
+                "object": object_name,
+                "file": filename,
+                "sha256": digest,
+                "size": len(body),
+                "line_endings": "lf",
+            }
+        ],
         "excluded": "Unicode-name cleanup is excluded because those supplied outer iRules reject at load on the tested appliance.",
     }
-    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="ascii")
-    (args.out / "rules.tsv").write_text(f"{filename}\t{object_name}\n", encoding="ascii")
+    (args.out / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="ascii"
+    )
+    (args.out / "rules.tsv").write_text(
+        f"{filename}\t{object_name}\n", encoding="ascii"
+    )
 
 
 if __name__ == "__main__":

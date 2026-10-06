@@ -59,34 +59,34 @@ def main():
 
     emit(
         "ascii_binary",
-        f'''when HTTP_REQUEST {{
+        f"""when HTTP_REQUEST {{
     set x "A|e"
     binary scan $x H* hx
     log local0. "R2286|{args.run}|ascii_binary|hex=$hx"
     HTTP::respond 200 content "$hx\\n" Connection close
-}}''',
+}}""",
         "ASCII control for the binary scan form used by rejected supplied fixtures",
     )
     emit(
         "unicode_precomposed",
-        f'''when HTTP_REQUEST {{
+        f"""when HTTP_REQUEST {{
     set x "\u00e9"
     log local0. "R2286|{args.run}|unicode_precomposed|value=$x"
     HTTP::respond 200 content "$x\\n" Connection close
-}}''',
+}}""",
         "literal precomposed U+00E9 without binary scan",
     )
     emit(
         "unicode_decomposed",
-        f'''when HTTP_REQUEST {{
+        f"""when HTTP_REQUEST {{
     set x "e\u0301"
     log local0. "R2286|{args.run}|unicode_decomposed|value=$x"
     HTTP::respond 200 content "$x\\n" Connection close
-}}''',
+}}""",
         "literal U+0065 U+0301 without binary scan",
     )
 
-    physical = f'''when HTTP_REQUEST {{
+    physical = f"""when HTTP_REQUEST {{
     set brace {{A\\
   B}}
     set quote "A\\
@@ -95,7 +95,7 @@ def main():
     set out [list $brace $quote $literal]
     log local0. "R2286|{args.run}|physical_ascii|value=$out"
     HTTP::respond 200 content "$out\\n" Connection close
-}}'''
+}}"""
     emit(
         "physical_ascii_lf",
         physical,

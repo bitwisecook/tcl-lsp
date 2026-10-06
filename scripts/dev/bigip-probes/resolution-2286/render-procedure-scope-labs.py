@@ -45,7 +45,7 @@ common_virtual = f"/Common/{prefix}_vs"
 common_node = f"/Common/{prefix}_node"
 partition_pool = f"/{partition}/{prefix}_pool"
 partition_virtual = f"/{partition}/{prefix}_vs"
-text = f'''ltm pool {common_pool} {{
+text = f"""ltm pool {common_pool} {{
     members {{ {common_node}:{args.backend_port} {{ address {backend} }} }}
 }}
 ltm virtual {common_virtual} {{
@@ -73,7 +73,7 @@ ltm virtual {partition_virtual} {{
     source-address-translation {{ type automap }}
     cmp-enabled yes
 }}
-'''.encode("ascii")
+""".encode("ascii")
 args.out.write_bytes(text)
 print(
     json.dumps(

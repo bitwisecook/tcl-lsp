@@ -53,17 +53,45 @@ class Handler(BaseHTTPRequestHandler):
             raw = args.out_dir / f"traffic-{label}.jsonl"
             summary = args.out_dir / f"coverage-{label}.json"
             command = [
-                "python3", str(args.traffic), "--vip", args.vip, "--port", str(args.vip_port),
-                "--run", f"{args.run}-{label}", "--source-ip", args.source_ip,
-                "--source-port-start", str(source_port), "--requests", str(requests),
-                "--path", path, "--out", str(raw),
+                "python3",
+                str(args.traffic),
+                "--vip",
+                args.vip,
+                "--port",
+                str(args.vip_port),
+                "--run",
+                f"{args.run}-{label}",
+                "--source-ip",
+                args.source_ip,
+                "--source-port-start",
+                str(source_port),
+                "--requests",
+                str(requests),
+                "--path",
+                path,
+                "--out",
+                str(raw),
             ]
             if expected:
                 command.extend(["--expect-units", expected])
-            result = subprocess.run(command, text=True, capture_output=True, timeout=requests * 9 + 10, check=False)
+            result = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                timeout=requests * 9 + 10,
+                check=False,
+            )
             summary.write_text(result.stdout, encoding="utf-8")
-            record = {"label": label, "command": command, "returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
-            (args.out_dir / f"trigger-{label}.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            record = {
+                "label": label,
+                "command": command,
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            }
+            (args.out_dir / f"trigger-{label}.json").write_text(
+                json.dumps(record, indent=2) + "\n", encoding="utf-8"
+            )
             body = (json.dumps(record, sort_keys=True) + "\n").encode()
             self.send_response(200 if result.returncode == 0 else 500)
         except (KeyError, ValueError) as error:
