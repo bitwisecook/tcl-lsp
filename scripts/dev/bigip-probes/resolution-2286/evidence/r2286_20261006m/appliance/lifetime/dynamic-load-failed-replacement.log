@@ -1,0 +1,5 @@
+Loading configuration...
+  /var/tmp/r2286m-fixtures-v4/provider-failed-replacement.conf
+01070151:3: Rule [/R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider] error: /R2286_r2286m/lifetime/__tcl_lsp_2286_r2286m_provider:4: error: [parse error: missing close-bracket][[list FAILED]
+
+Unexpected Error: Loading configuration process failed.

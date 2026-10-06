@@ -1,0 +1,20 @@
+nul_counted_last object_rc=0 log_bytes=77
+nul_plain_last object_rc=0 log_bytes=75
+nul_plain_unset_first object_rc=0 log_bytes=82
+nul_array_root object_rc=0 log_bytes=75
+nul_array_index object_rc=0 log_bytes=76
+unicode_format_forward object_rc=0 log_bytes=83
+unicode_format_reverse object_rc=0 log_bytes=83
+unicode_bytes_forward object_rc=0 log_bytes=82
+unicode_bytes_reverse object_rc=0 log_bytes=82
+lexical_format_unbraced object_rc=0 log_bytes=84
+lexical_format_braced object_rc=0 log_bytes=82
+lexical_bytes_unbraced object_rc=0 log_bytes=83
+lexical_bytes_braced object_rc=0 log_bytes=81
+commands_format object_rc=0 log_bytes=76
+commands_bytes object_rc=0 log_bytes=75
+expressions object_rc=0 log_bytes=72
+backend object_rc=0 log_bytes=68
+caller object_rc=0 log_bytes=67
+provider-old-literal retry_load_rc=1 object_rc=1 log_bytes=336
+provider-new-literal retry_load_rc=1 object_rc=1 log_bytes=336

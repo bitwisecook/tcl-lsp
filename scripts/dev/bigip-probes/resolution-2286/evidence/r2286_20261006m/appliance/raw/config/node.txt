@@ -1,0 +1,3 @@
+ltm node __tcl_lsp_2286_r2286m_node {
+    address 192.168.9.80
+}
