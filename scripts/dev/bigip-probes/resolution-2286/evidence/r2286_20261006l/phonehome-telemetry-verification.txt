@@ -1,0 +1,56 @@
+Tue Oct  6 14:27:43 UTC 2026
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    frequency weekly
+}
+sys service f5_update_checker {
+    Boot off
+    Default yes
+}
+f5_update_checker     down, No action required
+Couldn't find service: telemd
+MAILTO=""
+1-59/10 * * * * /usr/bin/diskmonitor
+0 */4 * * * /usr/bin/diskwearoutstat
+35 11 * * * /usr/bin/updatecheck -a   
+0 */6 * * * /usr/bin/coreexpiration
+3 * * * * /usr/bin/copy_rrd save
+TELEMD_PGREP
+PHONEHOME_PGREP
+ACTIVE_PATHS
+ls: cannot access /usr/bin/phonehome_upload: No such file or directory
+ls: cannot access /usr/bin/telemd: No such file or directory
+DISABLED_PATHS
+-rw-rw-r--. 1 root root 2149208 Jul 14 04:50 /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9
+-rw-rw-r--. 1 root root 2149208 Aug 26 04:43 /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9.20261006T120352Z.3090
+-rw-r--r--. 1 root root  495516 Jul 14 05:00 /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb
+-rw-r--r--. 1 root root  495516 Aug 26 04:43 /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb.20261006T120352Z.3090
+ac58f563574cef896197cd2a4e16979b2001234eb4a9b5d70341901a96990b72  /config/phonehome-disabled/enforce.sh
+20260802T193829Z BIG-IP phone-home executables disabled successfully
+20260802T193944Z beginning BIG-IP phone-home disable
+20260802T193944Z root crontab contains no phonehome_upload entry
+20260802T193944Z telemd is not registered with BigStart
+20260802T193944Z phone-home executable paths are already absent; /usr remount not needed
+20260802T193944Z BIG-IP phone-home executables disabled successfully
+20261006T120352Z.3090 enforcing BIG-IP phone-home disable after boot
+Couldn't find service: telemd
+Couldn't find service: telemd
+20261006T120352Z.3090 moved /usr/bin/phonehome_upload to /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9.20261006T120352Z.3090 and removed execute permission
+20261006T120352Z.3090 moved /usr/bin/telemd to /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb.20261006T120352Z.3090 and removed execute permission
+20261006T120352Z.3090 BIG-IP phone-home executable paths disabled
+#
+# NOTE: 
+# This file will be installed in /config/startup and it will 
+# be called by /etc/rc.local. 
+#
+# - /config/startup is for customer config additions and 
+#   will be saved in UCS
+#
+# - /etc/rc.local should *not* be used by customers and 
+#   can/will be changed by F5 
+#
+
+/config/phonehome-disabled/enforce.sh
+TARGET SOURCE                             FSTYPE OPTIONS
+/usr   /dev/mapper/vg--db--vda-set.1._usr ext4   ro,noatime,seclabel,discard,data=ordered

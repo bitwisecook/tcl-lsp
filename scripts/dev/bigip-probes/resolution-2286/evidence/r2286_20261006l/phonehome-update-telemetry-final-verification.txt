@@ -1,0 +1,67 @@
+Tue Oct  6 14:31:25 UTC 2026
+SOFTWARE_UPDATE
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    frequency weekly
+}
+UPDATE_SERVICE_CONFIG
+sys service f5_update_checker {
+    Boot off
+    Default yes
+}
+UPDATE_SERVICE_STATUS
+f5_update_checker     down, No action required
+TELEMETRY_SERVICE
+Couldn't find service: telemd
+ROOT_CRONTAB
+MAILTO=""
+1-59/10 * * * * /usr/bin/diskmonitor
+0 */4 * * * /usr/bin/diskwearoutstat
+0 */6 * * * /usr/bin/coreexpiration
+3 * * * * /usr/bin/copy_rrd save
+PIDS
+ACTIVE_PATHS
+ls: cannot access /usr/bin/phonehome_upload: No such file or directory
+ls: cannot access /usr/bin/telemd: No such file or directory
+ls: cannot access /usr/bin/updatecheck: No such file or directory
+DISABLED_PATHS
+-rw-rw-r--. 1 root root 2149208 Jul 14 04:50 /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9
+-rw-rw-r--. 1 root root 2149208 Aug 26 04:43 /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9.20261006T120352Z.3090
+-rw-r--r--. 1 root root  495516 Jul 14 05:00 /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb
+-rw-r--r--. 1 root root  495516 Aug 26 04:43 /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb.20261006T120352Z.3090
+-rw-r--r--. 1 root root   27490 Aug  5  2025 /usr/bin/updatecheck.disabled.32a337dad3f601a5110e49be331e1cd2649502053079dd5856991136f027eb6a.20261006T143117Z.13980
+ENFORCER
+e82a3bc1630008ea6469b09ea3b8fc9500b2e5ea81c988a335d953996acba351  /config/phonehome-disabled/enforce.sh
+STARTUP
+# - /etc/rc.local should *not* be used by customers and 
+#   can/will be changed by F5 
+#
+
+/config/phonehome-disabled/enforce.sh
+DISABLE_LOG
+20261006T120352Z.3090 enforcing BIG-IP phone-home disable after boot
+Couldn't find service: telemd
+Couldn't find service: telemd
+20261006T120352Z.3090 moved /usr/bin/phonehome_upload to /usr/bin/phonehome_upload.disabled.5ee77978005972ab879299f5a09d39529c85ceb33d341c6e3a430d1eb9cd31f9.20261006T120352Z.3090 and removed execute permission
+20261006T120352Z.3090 moved /usr/bin/telemd to /usr/bin/telemd.disabled.1b21ea2c4b5d195fac531388b4a97e5b1d2bb63e27dab94143ff7fb671ce91bb.20261006T120352Z.3090 and removed execute permission
+20261006T120352Z.3090 BIG-IP phone-home executable paths disabled
+20261006T143117Z.13980 enforcing BIG-IP update-check, phone-home, and telemetry disable after boot
+Couldn't find service: telemd
+Couldn't find service: telemd
+20261006T143117Z.13980 moved /usr/bin/updatecheck to /usr/bin/updatecheck.disabled.32a337dad3f601a5110e49be331e1cd2649502053079dd5856991136f027eb6a.20261006T143117Z.13980 and removed execute permission
+20261006T143117Z.13980 BIG-IP update-check, phone-home, and telemetry executable paths disabled
+USR_MOUNT
+TARGET SOURCE                             FSTYPE OPTIONS
+/usr   /dev/mapper/vg--db--vda-set.1._usr ext4   ro,noatime,seclabel,discard,data=ordered
+
+Residual-path inspection before final disable:
+
+/usr/bin/updatecheck: Perl script, ASCII text executable
+my $logServerMsg = "PHONEHOME: Update Server unavailable";
+my $service_name = 'callhome.f5.com';
+my $url = '/soa/softwareupdate/';
+
+Persistent previous-script backup:
+
+/config/phonehome-disabled/enforce.sh.pre-updatecheck-20261006T1430Z

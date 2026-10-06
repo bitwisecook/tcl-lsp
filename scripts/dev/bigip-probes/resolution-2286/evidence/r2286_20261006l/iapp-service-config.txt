@@ -1,0 +1,16 @@
+sys application service __tcl_lsp_probe_2286_r2286l_deep_iapp_service {
+    description none
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    lists none
+    metadata none
+    partition Common
+    strict-updates enabled
+    tables none
+    template __tcl_lsp_probe_2286_r2286l_deep_iapp
+    template-modified no
+    template-prerequisite-errors none
+    traffic-group traffic-group-1
+    variables none
+}

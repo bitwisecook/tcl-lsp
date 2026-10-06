@@ -1,0 +1,262 @@
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_0 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {g_if_control} {grammar} {6966207b317d207b736574203a3a6d2034327d3b20736574203a3a6d} \
+    {g_if_chain} {grammar} {6966207b317d7b736574203a3a6d2034337d3b20736574203a3a6d} \
+    {g_list_chain} {grammar} {6c697374207b617d7b627d} \
+    {g_set_chain} {grammar} {736574207a71207b617d7b627d} \
+    {g_cmd_glued} {grammar} {69667b317d7b736574203a3a6d2034347d} \
+    {g_expansion} {grammar} {6c697374207b2a7d7b6120627d} \
+    {g_quote_chain} {grammar} {6c6973742022612262} \
+    {g_dollarbrace} {grammar} {736574207a7a2058583b206c69737420247b7a7a7d62} \
+    {n_if_nextline} {newline} {6966207b317d0a7b736574203a3a6d2034357d0a736574203a3a6d} \
+    {n_while_nextline} {newline} {736574206e20310a7768696c65207b246e203c2033307d0a7b0a736574206e2033310a7d0a736574206e}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=0|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_1 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {n_else_nextline} {newline} {736574206f206e6f0a6966207b307d207b736574206f207468656e7d0a656c7365207b736574206f20656c73657d0a736574206f} \
+    {n_list_absorb} {newline} {6c697374206120620a7b637d} \
+    {n_blank_breaks} {newline} {6966207b317d0a0a7b736574203a3a6d2034367d} \
+    {n_comment_breaks} {newline} {6966207b317d0a2320630a7b736574203a3a6d2034377d} \
+    {e_starts_with} {expr} {65787072207b2261626322207374617274735f77697468202261227d} \
+    {e_contains} {expr} {65787072207b226162632220636f6e7461696e73202262227d} \
+    {e_matches} {expr} {65787072207b2261626322206d6174636865732022616263227d} \
+    {e_and_word} {expr} {65787072207b3120616e6420317d} \
+    {e_adjacent_eq} {expr} {65787072207b22612265712261227d} \
+    {num_octal} {numeral} {65787072207b3031307d}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=1|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_2 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {num_hex} {numeral} {65787072207b307831307d} \
+    {num_binary} {numeral} {65787072207b30623130317d} \
+    {num_exp} {numeral} {65787072207b3165337d} \
+    {s_dict} {surface} {6469637420736574206420612031} \
+    {s_lassign} {surface} {6c61737369676e207b3120327d20702071} \
+    {s_lmap} {surface} {6c6d61702069207b3120327d207b73657420697d} \
+    {s_try} {surface} {747279207b736574207820317d} \
+    {s_throw} {surface} {7468726f77207b4120427d206d7367} \
+    {s_apply} {surface} {6170706c79207b7b7d207b72657475726e20317d7d} \
+    {s_package} {surface} {7061636b616765206e616d6573}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=2|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_3 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {s_interp} {surface} {696e7465727020616c6961736573} \
+    {s_namespace} {surface} {6e616d6573706163652063757272656e74} \
+    {s_exec} {surface} {65786563202f62696e2f74727565} \
+    {s_after} {surface} {61667465722031} \
+    {c_if_comment_eof} {comments} {736574206d206265666f72653b206966207b317d7b23646f20736f6d657468696e677d3b20736574206d} \
+    {c_if_comment_line} {comments} {736574206d206265666f72653b206966207b317d7b23646f20736f6d657468696e670a736574206d2061667465727d3b20736574206d} \
+    {c_if_hash_arg} {comments} {6c697374207b617d2362} \
+    {c_semicolon_comment} {comments} {736574206d206265666f72653b202320636f6d6d656e740a736574206d2061667465723b20736574206d} \
+    {c_comment_brace_balanced} {comments} {736574206d206265666f72653b2023207b2062616c616e636564207d0a736574206d2061667465723b20736574206d} \
+    {w_brace_bare} {words} {6c697374207b617d62}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=3|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_4 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {w_brace_quote_bare} {words} {6c697374207b617d22622263} \
+    {w_quote_bare} {words} {6c6973742022612262} \
+    {w_repeat} {words} {6c697374207b617d7b627d7b637d} \
+    {w_empty_repeat} {words} {6c697374207b7d7b7d} \
+    {w_hash_after_brace} {words} {6c697374207b617d2362} \
+    {w_var_gate} {words} {73657420762058583b206c6973742024767b627d} \
+    {w_braced_var_gate} {words} {73657420762058583b206c69737420247b767d7b627d} \
+    {w_command_gate} {words} {6c697374205b6c69737420615d7b627d} \
+    {w_command_name} {words} {7b7365747d71712031373b20736574207171} \
+    {n_if_crlf} {newline} {736574206d206265666f72650d0a6966207b317d0d0a7b736574206d2061667465727d0d0a736574206d}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=4|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_5 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {n_if_lf} {newline} {736574206d206265666f72650a6966207b317d0a7b736574206d2061667465727d0a736574206d} \
+    {n_blank_bound} {newline} {6966207b317d0a0a7b736574206d2061667465727d} \
+    {n_comment_bound} {newline} {6966207b317d0a2320626f756e646172790a7b736574206d2061667465727d} \
+    {n_backslash_lf} {newline} {736574206d206265666f72650a6966207b317d5c0a7b736574206d2061667465727d0a736574206d} \
+    {n_backslash_space_lf} {newline} {6966207b317d5c200a7b736574206d2061667465727d} \
+    {x_n_list_absorb} {newline} {6c697374206120620a7b637d} \
+    {n_else_lf} {newline} {736574206d206265666f72650a6966207b307d207b736574206d207468656e7d0a656c7365207b736574206d20656c73657d0a736574206d} \
+    {n_elseif_lf} {newline} {736574206d206265666f72650a6966207b307d207b736574206d207468656e7d0a656c73656966207b317d207b736574206d20656c736569667d0a736574206d} \
+    {e_equals} {expr} {65787072207b226162632220657175616c732022616263227d} \
+    {x_e_starts_with} {expr} {65787072207b226162636422207374617274735f7769746820226162227d}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=5|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_6 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {e_ends_with} {expr} {65787072207b22616263642220656e64735f7769746820226364227d} \
+    {e_contains_true} {expr} {65787072207b22616263642220636f6e7461696e7320226263227d} \
+    {e_contains_false} {expr} {65787072207b22616263642220636f6e7461696e7320227a7a227d} \
+    {e_matches_equal} {expr} {65787072207b226162636422206d617463686573202261626364227d} \
+    {e_matches_substring} {expr} {65787072207b226162636422206d61746368657320226263227d} \
+    {e_matches_glob} {expr} {65787072207b226162636422206d6174636865735f676c6f622022612a64227d} \
+    {e_matches_regex} {expr} {65787072207b226162636422206d6174636865735f7265676578207b5e612e2a64247d7d} \
+    {e_and} {expr} {65787072207b3120616e6420317d} \
+    {e_or} {expr} {65787072207b30206f7220317d} \
+    {e_not} {expr} {65787072207b6e6f7420307d}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=6|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_7 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {e_precedence_matches_or} {expr} {65787072207b31206f722030206d61746368657320307d} \
+    {e_precedence_not_starts} {expr} {65787072207b6e6f74202261626322207374617274735f77697468202261227d} \
+    {x_e_adjacent_eq} {expr} {65787072207b22612265712261227d} \
+    {e_invalid_function} {expr} {65787072207b536f6d65496e76616c69644f70657261746f7228297d} \
+    {num_leading_zero} {numeral} {65787072207b3031307d} \
+    {num_bad_octal} {numeral} {65787072207b30397d} \
+    {x_num_hex} {numeral} {65787072207b307831307d} \
+    {x_num_binary} {numeral} {65787072207b30623130317d} \
+    {num_wide} {numeral} {65787072207b393232333337323033363835343737353830377d} \
+    {l_index_end_plus} {core} {6c696e646578207b6120627d20656e642b31}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=7|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_8 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {l_index_integer_plus} {core} {6c696e646578207b61206220637d20312b31} \
+    {t_trace_old} {core} {736574207120313b207472616365207661726961626c6520712072207b6c6973747d3b2074726163652076696e666f2071} \
+    {t_trace_add} {core} {736574207120313b20747261636520616464207661726961626c6520712072656164207b6c6973747d} \
+    {s_switch_glued} {core} {737769746368202d2d2061207b61207b736574206d207965737d2064656661756c74207b736574206d206e6f7d7d3b20736574206d} \
+    {s_switch_glued_pattern} {core} {737769746368202d2d2061207b617b736574206d207965737d2064656661756c74207b736574206d206e6f7d7d3b20736574206d} \
+    {p_namespace_current} {environment} {6e616d6573706163652063757272656e74} \
+    {p_patchlevel} {environment} {696e666f2070617463686c6576656c} \
+    {p_tcl_patchlevel} {environment} {6966207b5b696e666f206578697374732074636c5f70617463684c6576656c5d7d207b7365742074636c5f70617463684c6576656c7d20656c7365207b736574207820554e5345547d} \
+    {p_tmsh_version} {environment} {736574206320746d73683a3a76657273696f6e3b206361746368207b6576616c2024637d20763b207365742076} \
+    {p_exec} {environment} {65786563202f62696e2f74727565}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=8|[join $acc ;]"
+
+}
+}
+ltm rule __tcl_lsp_probe_2286_r2286l_deep_irule_9 {
+    app-service none
+    partition Common
+when RULE_INIT {
+set probe_cases [list \
+    {p_packages} {environment} {7061636b616765206e616d6573} \
+    {p_platform_keys} {environment} {6c736f7274205b6172726179206e616d65732074636c5f706c6174666f726d5d}]
+set acc {}
+foreach {cid category source_hex} $probe_cases {
+    set src [binary format H* $source_hex]
+    set ::m unset
+    set rc [catch {uplevel #0 $src} value]
+    binary scan $value H* value_hex
+    lappend acc "$cid,$rc,[string range $value_hex 0 119]"
+}
+log local0. "R2286DEEP|r2286l|TmmIRule|chunk=9|[join $acc ;]"
+
+}
+}

@@ -1,0 +1,344 @@
+modify_status=0
+ltm virtual /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs {
+    acmev2-challenge disabled
+    address-status yes
+    app-cloud-security-services none
+    app-service none
+    auth none
+    auto-lasthop default
+    bwc-policy none
+    clone-pools none
+    cmp-enabled yes
+    connection-limit 0
+    creation-time 1969-12-31:16:00:00
+    description none
+    destination 192.168.9.24:18088
+    enabled
+    ephemeral-auth-access-config none
+    eviction-protected disabled
+    fallback-persistence none
+    flow-eviction-policy none
+    gtm-score 0
+    ip-protocol tcp
+    last-hop-pool none
+    last-modified-time 2026-10-06:07:12:45
+    mask 255.255.255.255
+    metadata none
+    mirror disabled
+    mobile-app-tunnel disabled
+    nat64 disabled
+    parent-name none
+    partition R2286_r2286i
+    per-flow-request-access-policy none
+    persist none
+    policies none
+    pool /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool
+    profiles {
+        http {
+            context all
+        }
+        tcp {
+            context all
+        }
+    }
+    rate-class none
+    rate-limit disabled
+    rate-limit-dst-mask 0
+    rate-limit-mode object
+    rate-limit-src-mask 0
+    related-rules none
+    rules {
+        /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller
+    }
+    security-log-profiles none
+    serverssl-use-sni disabled
+    service-down-immediate-action none
+    service-policy none
+    source 0.0.0.0/0
+    source-address-translation {
+        pool none
+        type automap
+    }
+    source-port preserve
+    syn-cookie-status not-activated
+    traffic-classes none
+    traffic-matching-criteria none
+    translate-address enabled
+    translate-port enabled
+    transparent-nexthop none
+    urldb-feed-policy none
+    vlans none
+    vlans-disabled
+    vs-index 11
+}
+
+------------------------------------------------------------------
+Ltm::Virtual Server: /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs
+------------------------------------------------------------------
+Status                         
+  Availability     : unknown   
+  State            : enabled   
+  Reason           : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
+  CMP              : enabled   
+  CMP Mode         : all-cpus  
+  Destination      : 192.168.9.24:18088
+                               
+Traffic                             ClientSide  Ephemeral  General
+  Bits In                               516.3K          0        -
+  Bits Out                              783.7K          0        -
+  Packets In                               771          0        -
+  Packets Out                              771          0        -
+  Current Connections                        0          0        -
+  Maximum Connections                      128          0        -
+  Total Connections                        128          0        -
+  Evicted Connections                        0          0        -
+  Slow Connections Killed                    0          0        -
+  Min Conn Duration/msec                     -          -     8.0K
+  Max Conn Duration/msec                     -          -     8.0K
+  Mean Conn Duration/msec                    -          -     8.0K
+  Total Requests                             -          -      128
+                               
+SYN Cookies                    
+  Status                         not-activated
+  Hardware SYN Cookie Instances              0
+  Software SYN Cookie Instances              0
+  Current SYN Cache                          0
+  SYN Cache Overflow                         0
+  Total Software                             0
+  Total Software Accepted                    0
+  Total Software Rejected                    0
+  Total Hardware                             0
+  Total Hardware Accepted                    0
+                               
+Message Routing Framework                   In        Out
+  Message                                    0          0
+  Request                                    0          0
+  Response                                   0          0
+                               
+CPU Usage Ratio (%)            
+  Last 5 Seconds                             0
+  Last 1 Minute                              0
+  Last 5 Minutes                             0
+
+  ----------------------------------------------------------------------------------
+  | Ltm::Pool: /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool
+  ----------------------------------------------------------------------------------
+  | Status                                                   
+  |   Availability           : unknown                       
+  |   State                  : enabled                       
+  |   Reason                 : The children pool member(s) either don't have service checking enabled, or service check results are not available yet
+  |   Monitor                : none                          
+  |   Minimum Active Members : 0                             
+  |   Priority Groups        : 0/0/0 (highest/current/lowest)
+  |   Current Active Members : 0                             
+  |   Available Members      : 1                             
+  |   Total Members          : 1                             
+  |   Total Requests         : 128                           
+  |   Current Sessions       : 0                             
+  |                                                          
+  | Traffic                                                    ServerSide
+  |   Bits In                                                      556.3K
+  |   Bits Out                                                     712.8K
+  |   Packets In                                                      768
+  |   Packets Out                                                     640
+  |   Current Connections                                               0
+  |   Maximum Connections                                               4
+  |   Total Connections                                               128
+  |                                                          
+  | Connection Queue                                                 Pool  Pool and members
+  |   Number of connections queued now                                  0                 0
+  |   Number of connections serviced                                    0                 0
+  |   Queue head entry age (ms)                                         0                 0
+  |   Maximum queue entry age ever (ms)                                 0                 0
+  |   Maximum queue entry age recently (ms)                             0                 0
+  |   Average queue entry age (ms)                                      0                 0
+  |                                                          
+  | Message Routing Framework                                          In               Out
+  |   Message                                                           0                 0
+  |   Request                                                           0                 0
+  |   Response                                                          0                 0
+
+     --------------------------------------------------------------
+     | Ltm::Pool Member: __tcl_lsp_probe_2286_r2286i_node:18084
+     --------------------------------------------------------------
+     | Status                                 
+     |   Availability   : unknown             
+     |   State          : enabled             
+     |   Reason         : Pool member does not have service checking enabled
+     |   Monitor        : none                
+     |   Monitor Status : unchecked           
+     |   Session Status : enabled             
+     |   Pool Name      : /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_pool
+     |   IP Address     : 192.168.9.80        
+     |                                        
+     | Traffic                                  ServerSide  General
+     |   Bits In                                    556.3K        -
+     |   Bits Out                                   712.8K        -
+     |   Packets In                                    768        -
+     |   Packets Out                                   640        -
+     |   Current Connections                             0        -
+     |   Maximum Connections                             4        -
+     |   Total Connections                             128        -
+     |   Total Requests                                  -      128
+     |   Current Sessions                                -        0
+     |                                        
+     | Connection Queue                       
+     |   Number of connections queued now                0
+     |   Number of connections serviced                  0
+     |   Queue head entry age (ms)                       0
+     |   Maximum queue entry age ever (ms)               0
+     |   Maximum queue entry age recently (ms)           0
+     |   Average queue entry age (ms)                    0
+     |                                        
+     | Message Routing Framework                        In      Out
+     |   Message                                         0        0
+     |   Request                                         0        0
+     |   Response                                        0        0
+
+        ------------------------------------------------------------
+        | Ltm::Node: __tcl_lsp_probe_2286_r2286i_node (192.168.9.80)
+        ------------------------------------------------------------
+        | Status               
+        |   Availability   : unknown
+        |   State          : enabled
+        |   Reason         :   
+        |   Monitor        : none
+        |   Monitor Status : unchecked
+        |   Session Status : enabled
+        |                      
+        | Traffic                ServerSide  General
+        |   Bits In                    1.6M        -
+        |   Bits Out                   2.1M        -
+        |   Packets In                 2.3K        -
+        |   Packets Out                1.9K        -
+        |   Current Connections           0        -
+        |   Maximum Connections           8        -
+        |   Total Connections           384        -
+        |   Total Requests                -      384
+        |   Current Sessions              -        0
+
+  -------------------------------------------------------------------------
+  | Ltm::HTTP Profile: http  
+  -------------------------------------------------------------------------
+  | Virtual Server Name        /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs
+  |                          
+  | Requests                 
+  |   GET                                                               128
+  |   POST                                                                0
+  |   Version 0.9                                                         0
+  |   Version 1.0                                                         0
+  |   Version 1.1                                                       128
+  |   Version 2.0                                                         0
+  |   Version 3.0                                                         0
+  |   Maximum Per Connection                                              1
+  |   Total                                                             128
+  |                          
+  | Responses                
+  |   Successful                                                        128
+  |   Redirection                                                         0
+  |   Client-Errors                                                       0
+  |   Server-Errors                                                       0
+  |   Version 0.9                                                         0
+  |   Version 1.0                                                         0
+  |   Version 1.1                                                       128
+  |   Version 2.0                                                         0
+  |   Version 3.0                                                         0
+  |                          
+  | Response Size            
+  |   Under 1K                                                          128
+  |   Under 4K                                                            0
+  |   Under 16K                                                           0
+  |   Under 32K                                                           0
+  |   Under 64K                                                           0
+  |   Under 128K                                                          0
+  |   Under 512K                                                          0
+  |   Under 2M                                                            0
+  |   Over 2M                                                             0
+  |                          
+  | Miscellaneous            
+  |   Set-Cookie Insertions                                               0
+  |   Proxy requests                                                      0
+  |   Proxy CONNECT requests                                              0
+  | Passthrough Reasons      
+  |   iRule                                                               0
+  |   CONNECT                                                             0
+  |   Web Sockets                                                         0
+  |   Oversize Client Headers                                             0
+  |   Excess Client Headers                                               0
+  |   Oversize Server Headers                                             0
+  |   Excess Server Headers                                               0
+  |   Unknown Method                                                      0
+  |   Pipelining Data                                                     0
+  |   Invalid Headers                                                     0
+
+  --------------------------------------------------------------------------------
+  | Ltm::TCP Profile: tcp           
+  --------------------------------------------------------------------------------
+  | Virtual Server Name               /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_vs
+  |                                 
+  | Connections                     
+  |   Open                                                                       0
+  |   Current in CLOSE-WAIT/LAST-ACK                                             0
+  |   Current in FIN-WAIT-1/CLOSING                                              0
+  |   Current in FIN-WAIT-2                                                      0
+  |   Current in TIME-WAIT                                                       0
+  |   Accepted                                                                 128
+  |   Not Accepted                                                               0
+  |   Established                                                              128
+  |   Failed                                                                     0
+  |   Expired                                                                    0
+  |   Abandoned                                                                  0
+  |                                 
+  | Miscellaneous                   
+  |   Received Reset                                                             3
+  |   Bad Checksum Datagrams                                                     0
+  |   Malformed Segments                                                         0
+  |   Out-of-Order Segments                                                      0
+  |   Received SYN Cookies                                                       0
+  |   Received Bad SYN Cookies                                                   0
+  |   SYN-Cache Overflow                                                         0
+  |   Retransmitted Segments                                                     0
+
+  --------------------------------------------------------------------------------
+  | Ltm::Rule Event: /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller:HTTP_REQUEST
+  --------------------------------------------------------------------------------
+  | Priority                    500
+  | Executions             
+  |   Total                     128
+  |   Failures                    0
+  |   Aborts                      0
+  | CPU Cycles on Executing
+  |   Average                306.6K
+  |   Maximum                  1.8M
+  |   Minimum                160.7K
+
+  ---------------------------------------------------------------------------------
+  | Ltm::Rule Event: /R2286_r2286i/__tcl_lsp_probe_2286_r2286i_caller:HTTP_RESPONSE
+  ---------------------------------------------------------------------------------
+  | Priority                   500
+  | Executions             
+  |   Total                    128
+  |   Failures                   0
+  |   Aborts                     0
+  | CPU Cycles on Executing
+  |   Average                 6.8K
+  |   Maximum                12.4K
+  |   Minimum                 1.1K
+
+  ---------------------------------------------------
+  | Ltm::Virtual Address: 192.168.9.24 (192.168.9.24)
+  ---------------------------------------------------
+  | Status               
+  |   Availability : unknown
+  |   State        : enabled
+  |   Reason       : The children virtual server(s) either don't have service checking enabled, or service check results are not available yet
+  |                      
+  | Traffic                ClientSide
+  |   Bits In                    1.0M
+  |   Bits Out                   1.6M
+  |   Packets In                 1.6K
+  |   Packets Out                1.6K
+  |   Current Connections         128
+  |   Maximum Connections         256
+  |   Total Connections           384
+

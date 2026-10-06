@@ -1,0 +1,93 @@
+
+Sys::Version
+Main Package 
+  Product      BIG-IP
+  Version      21.1.0.1
+  Build        0.0.26
+  Edition      Point Release 1
+  Date         Tue Jul 14 05:03:24 PDT 2026
+  FIPS Module  Cryptographic Module for BIG-IP
+
+Failover active for 0d 02:46:47
+
+---------------------------
+Sys::TMM: 0.0      
+---------------------------
+Global             
+  TMM Process Id      28022
+  Running TMM Id          0
+  TMM Count               1
+  CPU Id                  0
+                   
+Memory (bytes)     
+  Total               13.5G
+  Used               396.6M
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds          0
+  Last 1 Minute           0
+  Last 5 Minutes          0
+
+--------------------------
+Sys::TMM: 0.1      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         1
+  TMM Count              1
+  CPU Id                 1
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+--------------------------
+Sys::TMM: 0.2      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         2
+  TMM Count              1
+  CPU Id                 2
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+--------------------------
+Sys::TMM: 0.3      
+--------------------------
+Global             
+  TMM Process Id     28022
+  Running TMM Id         3
+  TMM Count              1
+  CPU Id                 3
+                   
+Memory (bytes)     
+  Total                  0
+  Used                   0
+                   
+CPU Usage Ratio (%)
+  Last 5 Seconds         0
+  Last 1 Minute          0
+  Last 5 Minutes         0
+
+auth partition Common {
+    description "Repository for system objects and shared objects."
+}
+sys folder Drafts {
+    device-group none
+    inherited-devicegroup true
+    inherited-traffic-group true
+    traffic-group traffic-group-1
+}
