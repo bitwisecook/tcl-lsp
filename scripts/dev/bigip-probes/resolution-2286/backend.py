@@ -21,6 +21,7 @@ class Handler(BaseHTTPRequestHandler):
             "client": self.client_address,
             "path": self.path,
             "probe_id": self.headers.get("X-R2286-Request"),
+            "scope": self.headers.get("X-R2286-Scope"),
             "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
         body = (json.dumps(value, sort_keys=True) + "\n").encode("utf-8")
