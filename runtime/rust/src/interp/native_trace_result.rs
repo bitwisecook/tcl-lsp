@@ -101,7 +101,7 @@ impl Interp {
             } else {
                 obj::reset_native_c_result(current);
             }
-            self.exc.borrow_mut().already_logged = false;
+            self.reset_native_global_error_episode();
         }
         if let Some(state) = saved.interpreter {
             self.return_code.set(state.code);

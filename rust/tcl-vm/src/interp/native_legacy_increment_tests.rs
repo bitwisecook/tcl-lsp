@@ -75,7 +75,8 @@ fn physical_state(original: Option<&Value>, dialect: InvocationDialect) -> Strin
         original.native_object_reference_count()
     );
     if let Some(integer) = integer {
-        result.push_str(&format!(",{integer}"));
+        use std::fmt::Write;
+        write!(result, ",{integer}").expect("writing into a String");
     }
     result
 }
@@ -91,80 +92,101 @@ fn current(vm: &Vm) -> Option<&Value> {
 
 fn unhex(hex: &str) -> Vec<u8> {
     hex.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
 
+const INCREMENT_FIXTURES: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!("../../tests/data/native_legacy_increment/8.4.20.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../tests/data/native_legacy_increment/8.5.19.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../tests/data/native_legacy_increment/8.6.18.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../tests/data/native_legacy_increment/9.0.4.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../tests/data/native_legacy_increment/9.1.0.tsv"),
+    ),
+    (
+        "jim",
+        include_str!("../../tests/data/native_legacy_increment/Jim.tsv"),
+    ),
+];
+
+const INCREMENT_SHAPES: [(usize, usize); 15] = [
+    (0, 10),
+    (1, 10),
+    (2, 10),
+    (3, 10),
+    (4, 10),
+    (5, 10),
+    (0, 8),
+    (0, 9),
+    (0, 7),
+    (0, 6),
+    (6, 6),
+    (12, 6),
+    (12, 10),
+    (0, 11),
+    (6, 10),
+];
+
+fn increment_fixture_host(engine: &str) -> Option<Rc<tcl_host_native::NativeHost>> {
+    if engine == "tcl8.4" {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let formatter =
+            tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(&root)
+                .expect("explicit pinned C84 native updater capability");
+        Some(Rc::new(
+            tcl_host_native::NativeHost::new().with_integer_formatter(formatter),
+        ))
+    } else {
+        None
+    }
+}
+
+fn selected_increment_host(
+    host: &Option<Rc<tcl_host_native::NativeHost>>,
+) -> Rc<dyn tcl_platform::Host> {
+    match host {
+        Some(host) => host.clone(),
+        None => Rc::new(tcl_host_native::NativeHost::new()),
+    }
+}
+
+fn increment_window_field<'a>(fields: &[&'a str], key: &str) -> &'a str {
+    fields
+        .iter()
+        .find_map(|field| field.strip_prefix(key))
+        .unwrap()
+}
+
 #[test]
 fn native_increment_commands_match_180_original_object_controls() {
-    let engines = [
-        (
-            "tcl8.4",
-            include_str!("../../tests/data/native_legacy_increment/8.4.20.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_legacy_increment/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_legacy_increment/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_legacy_increment/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_legacy_increment/9.1.0.tsv"),
-        ),
-        (
-            "jim",
-            include_str!("../../tests/data/native_legacy_increment/Jim.tsv"),
-        ),
-    ];
-    let shapes = [
-        (0, 10),
-        (1, 10),
-        (2, 10),
-        (3, 10),
-        (4, 10),
-        (5, 10),
-        (0, 8),
-        (0, 9),
-        (0, 7),
-        (0, 6),
-        (6, 6),
-        (12, 6),
-        (12, 10),
-        (0, 11),
-        (6, 10),
-    ];
+    let engines = INCREMENT_FIXTURES;
+    let shapes = INCREMENT_SHAPES;
     let mut compared = 0;
     for (engine, observations) in engines {
         let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-        let host = if engine == "tcl8.4" {
-            let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-            let formatter =
-                tcl_test_support::native_integer_formatter::load_pinned_c84_integer_formatter(
-                    &root,
-                )
-                .expect("explicit pinned C84 native updater capability");
-            Some(Rc::new(
-                tcl_host_native::NativeHost::new().with_integer_formatter(formatter),
-            ))
-        } else {
-            None
-        };
+        let host = increment_fixture_host(engine);
         for row in observations.lines() {
             // The native probe constructs a fresh interpreter for each row.
             // In particular, a previous Jim error must not suppress this
             // invocation's first error-stack capture.
-            let selected_host: Rc<dyn tcl_platform::Host> = match &host {
-                Some(host) => host.clone(),
-                None => Rc::new(tcl_host_native::NativeHost::new()),
-            };
+            let selected_host = selected_increment_host(&host);
             let mut vm = crate::native_fixture::core_with_host(profile, selected_host);
             let dialect = vm.native_invocation_dialect();
             let fields = row.split('\t').collect::<Vec<_>>();
@@ -183,12 +205,7 @@ fn native_increment_commands_match_180_original_object_controls() {
                 Value::new_native_string_bytes(b"x".as_slice()),
                 shape(shapes[index].1, dialect).unwrap(),
             ];
-            let value = |key: &str| {
-                fields
-                    .iter()
-                    .find_map(|field| field.strip_prefix(key))
-                    .unwrap()
-            };
+            let value = |key: &str| increment_window_field(&fields, key);
             assert_eq!(
                 physical_state(current(&vm), dialect),
                 value("before-current="),
@@ -271,7 +288,9 @@ fn jim_safe_integer_expression_matches_54_original_native_objects() {
         }
         encoded
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }

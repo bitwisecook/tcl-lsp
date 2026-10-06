@@ -94,6 +94,72 @@ pub fn compile_native_namespace_upvar(
     Ok(result)
 }
 
+/// Compile the C8.6+ private worker over original operands after the selected member.
+/// The caller retains the original map and compiler registration independently.
+///
+/// # Errors
+/// Returns parser projection or original operand geometry obligations.
+pub fn compile_native_namespace_upvar_worker(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    context: NativeCompilationContext,
+) -> Result<NativeNamespaceBindingCompilation, NativeNamespaceBindingUnavailable> {
+    let mut result = NativeNamespaceBindingCompilation {
+        kind: NativeNamespaceBindingKind::Upvar,
+        namespace: None,
+        outcome: NativeNamespaceBindingOutcome::Generic,
+        bindings: Vec::new(),
+        visits: Vec::new(),
+    };
+    if operand_from == 0 || operand_from > words.original_words().len() {
+        return Err(NativeNamespaceBindingUnavailable::OperandGeometry);
+    }
+    if version < TclVersion::V8_6
+        || context.mode == NativeCompilationMode::Direct
+        || context.frame == NativeCompilationFrame::ScriptCode
+    {
+        return Ok(result);
+    }
+    if context.mode != NativeCompilationMode::BytecodeObject
+        || context.frame != NativeCompilationFrame::ProcedureCode
+    {
+        result.outcome = NativeNamespaceBindingOutcome::Unknown;
+        return Ok(result);
+    }
+    let projected = project_native_compiler_words(words, version)
+        .map_err(NativeNamespaceBindingUnavailable::Projection)?;
+    if projected
+        .iter()
+        .any(|word| word.shape == NativeCompilationWordShape::Expanded)
+    {
+        return Ok(result);
+    }
+    let operands: Vec<_> = projected.iter().skip(operand_from).collect();
+    if operands.len() < 3
+        || operands.len() % 2 != 1
+        || (version == TclVersion::V9_1 && u32::try_from(operands.len() + 1).is_err())
+    {
+        return Ok(result);
+    }
+    let namespace = operands[0].operand.clone();
+    result.namespace = Some(namespace.clone());
+    result
+        .visits
+        .push(NativeNamespaceBindingVisit::Word(namespace));
+    for pair in operands[1..].as_chunks::<2>().0 {
+        let other = pair[0].operand.clone();
+        result
+            .visits
+            .push(NativeNamespaceBindingVisit::Word(other.clone()));
+        if !prepare_local_pair(&mut result, pair[1], other, version) {
+            return Ok(result);
+        }
+    }
+    result.outcome = NativeNamespaceBindingOutcome::Inline;
+    Ok(result)
+}
+
 fn prepare_local_pair(
     result: &mut NativeNamespaceBindingCompilation,
     local: &NativeProjectedCompilerWord,
@@ -254,5 +320,100 @@ mod tests {
         );
         assert_eq!(direct.outcome, NativeNamespaceBindingOutcome::Generic);
         assert!(direct.namespace.is_none());
+    }
+    #[test]
+    fn original_modern_namespace_upvar_matches_45_native_compiler_frontiers() {
+        for (label, version, rows) in [
+            (
+                "tcl8.6",
+                TclVersion::V8_6,
+                include_str!("../tests/data/native_namespace_upvar_compilation/8.6.18.tsv"),
+            ),
+            (
+                "tcl9.0",
+                TclVersion::V9_0,
+                include_str!("../tests/data/native_namespace_upvar_compilation/9.0.4.tsv"),
+            ),
+            (
+                "tcl9.1",
+                TclVersion::V9_1,
+                include_str!("../tests/data/native_namespace_upvar_compilation/9.1.0.tsv"),
+            ),
+        ] {
+            let profile = tcl_dialect::DialectProfile::find(label).unwrap();
+            let mut count = 0;
+            for row in rows.lines().skip(1) {
+                let fields: Vec<_> = row.split('\t').collect();
+                let index: usize = fields[0].parse().unwrap();
+                let (case, source) = inputs::CASES[index];
+                let command = native_script_words_in(
+                    SourceImage::native(source),
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap()
+                .commands
+                .remove(0);
+                let words =
+                    NativeCompilerWords::capture(&command.words, NativeStringProtocol::C(version))
+                        .unwrap();
+                let selected =
+                    compile_native_namespace_upvar_worker(&words, 2, version, context()).unwrap();
+                let native_count: usize = fields[1].parse().unwrap();
+                assert_eq!(
+                    selected.outcome == NativeNamespaceBindingOutcome::Inline,
+                    native_count != 0,
+                    "{label}/{case}"
+                );
+                if native_count != 0 {
+                    assert_eq!(selected.bindings.len(), native_count, "{label}/{case}");
+                    assert!(selected.namespace.is_some());
+                }
+                count += 1;
+            }
+            assert_eq!(count, 15);
+        }
+    }
+
+    #[test]
+    fn modern_namespace_upvar_keeps_original_partial_visits_and_missing_context() {
+        let source = inputs::CASES[10].1;
+        let command = native_script_words_in(
+            SourceImage::native(source),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            LexerConfig::default(),
+        )
+        .unwrap()
+        .commands
+        .remove(0);
+        let words =
+            NativeCompilerWords::capture(&command.words, NativeStringProtocol::C(TclVersion::V8_6))
+                .unwrap();
+        let selected =
+            compile_native_namespace_upvar_worker(&words, 2, TclVersion::V8_6, context()).unwrap();
+        assert_eq!(selected.outcome, NativeNamespaceBindingOutcome::Generic);
+        assert_eq!(selected.bindings.len(), 1);
+        assert_eq!(
+            selected.visits,
+            vec![
+                NativeNamespaceBindingVisit::Word(NativeCompilerWordOperand::Original(2)),
+                NativeNamespaceBindingVisit::Word(NativeCompilerWordOperand::Original(3)),
+                NativeNamespaceBindingVisit::DeclareLocal(b"good".to_vec()),
+                NativeNamespaceBindingVisit::Word(NativeCompilerWordOperand::Original(5)),
+                NativeNamespaceBindingVisit::DeclareLocal(b"bad".to_vec()),
+            ]
+        );
+        let missing = compile_native_namespace_upvar_worker(
+            &words,
+            2,
+            TclVersion::V8_6,
+            NativeCompilationContext {
+                frame: NativeCompilationFrame::Unknown,
+                ..context()
+            },
+        )
+        .unwrap();
+        assert_eq!(missing.outcome, NativeNamespaceBindingOutcome::Unknown);
+        assert!(missing.visits.is_empty());
     }
 }

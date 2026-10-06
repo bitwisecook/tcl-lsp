@@ -138,6 +138,66 @@ impl Vm {
         Ok(result.into_value())
     }
 
+    pub(super) fn unset_original_jim_dictionary_name(
+        &mut self,
+        original: &Value,
+    ) -> Result<(), Completion<Value>> {
+        let (name, key) = self.original_jim_dictionary_children(original)?;
+        if let Some(root) = self.read_original_jim_update(name.value())? {
+            // The real dictionary getter supplies this interpreter context to
+            // the SAME stored object before its native conversion or COW test.
+            // A variable may contain a fresh result with no previous Source.
+            let context = self
+                .native_jim_object_context()
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            root.value()
+                .bind_native_jim_context(&context)
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+
+            let outcome = (|| -> Result<Option<Value>, tcl_syntax::value::ValueError> {
+                // The getter's lifetime view adds no native pin: duplication
+                // observes only the actual variable and alias owners.
+                let mut working = root
+                    .value()
+                    .prepare_native_dictionary(NativeStringProtocol::Jim084)?;
+                if working.remove_member(key.value())? {
+                    Ok(Some(working.into_value()))
+                } else {
+                    Ok(None)
+                }
+            })();
+            match outcome {
+                Ok(Some(working)) => {
+                    drop(self.store_original_named_variable(name.value(), working)?);
+                    return Ok(());
+                }
+                Err(error) if error.native_access_refusal().is_some() => {
+                    return Err(crate::command::completion_from_cmd_error(
+                        self,
+                        error.into(),
+                    ));
+                }
+                Ok(None) | Err(_) => {}
+            }
+        }
+        // JimDictSugarSet retries the SAME parent with JIM_NONE, even when
+        // conversion or member removal failed on a malformed existing value.
+        let parent_exists = self.read_original_jim_update(name.value())?.is_some();
+        let bytes = self
+            .native_name_operand_bytes(original)
+            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+        let recipe = self
+            .actual_native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .expect("selected Jim original unset");
+        let message = recipe
+            .dictionary_unset_error(&bytes, parent_exists)
+            .map_err(|error| {
+                self.refuse_host_command(format!("Jim unset diagnostic: {error:?}"))
+            })?;
+        Err(super::err(message))
+    }
+
     pub(crate) fn increment_original_jim_name(
         &mut self,
         original: &Value,
@@ -177,6 +237,47 @@ impl Vm {
 mod tests {
     use super::*;
     use std::fmt::Write;
+    use tcl_core_types::NameBytes;
+
+    #[test]
+    fn original_dictionary_unset_matches_nine_native_jim_controls() {
+        fn decode(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for row in
+            include_str!("../../../tcl-syntax/tests/data/native_jim_unset/windows.tsv").lines()
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let completion = vm
+                .try_eval_source_bytes(&decode(fields[1]))
+                .unwrap_or_else(|error| panic!("original Jim unset {}: {error:?}", fields[0]));
+            assert_eq!(
+                completion.code.as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}",
+                fields[0]
+            );
+            assert_eq!(
+                tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &completion.result)
+                    .unwrap()
+                    .as_ref(),
+                decode(fields[3]),
+                "{}",
+                fields[0]
+            );
+            assert!(vm.refused_completion().is_none(), "{}", fields[0]);
+            compared += 1;
+        }
+        assert_eq!(compared, 9);
+    }
     fn current_root(vm: &Vm) -> &Value {
         let selected = vm.resolve_var_from_bytes(b"d", vm.current_level()).unwrap();
         match vm.var_arena.get(selected.id.unwrap()).unwrap().state() {

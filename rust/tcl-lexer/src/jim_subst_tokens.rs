@@ -62,7 +62,10 @@ mod tests {
                             .map(|n| n.parse().unwrap())
                             .collect()
                     })
-                    .filter(|row: &Vec<u32>| row[0] == case as u32 && row[1] == u32::from(flags))
+                    .filter(|row: &Vec<u32>| {
+                        row[0] == u32::try_from(case).expect("fixture case index")
+                            && row[1] == u32::from(flags)
+                    })
                     .collect();
                 assert_eq!(
                     roster.tokens.len(),

@@ -1334,9 +1334,94 @@ mod native_rmw_fixture_tests {
     fn unhex(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0);
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
+    }
+
+    fn compare_dictionary_process(
+        suite: &str,
+        engine: &str,
+        process: DictionaryProcess<'_>,
+        compared: &mut usize,
+    ) {
+        let DictionaryProcess {
+            name,
+            code,
+            result,
+            source,
+            profile,
+        } = process;
+        let receipt_start = std::time::Instant::now();
+        tcl_test_support::oracle_row_progress(suite, engine, name, None);
+        tcl_test_support::oracle_phase_progress(suite, engine, name, "vm-new-start", receipt_start);
+        let mut vm = Vm::new();
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "vm-new-complete",
+            receipt_start,
+        );
+        vm.set_dialect_profile(profile);
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "profile-complete",
+            receipt_start,
+        );
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "compiler-complete",
+            receipt_start,
+        );
+        let completion = vm
+            .try_eval_source_bytes(source)
+            .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "eval-complete",
+            receipt_start,
+        );
+        assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
+        let actual = vm.native_string_bytes(&completion.result).unwrap();
+        assert_eq!(actual.as_ref(), result, "{engine}/{name}");
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "assertions-complete",
+            receipt_start,
+        );
+        drop(vm);
+        tcl_test_support::oracle_phase_progress(
+            suite,
+            engine,
+            name,
+            "vm-drop-complete",
+            receipt_start,
+        );
+        *compared += 1;
+        tcl_test_support::oracle_row_progress(suite, engine, name, Some(*compared));
+    }
+
+    #[derive(Clone, Copy)]
+    struct DictionaryProcess<'a> {
+        name: &'a str,
+        code: i64,
+        result: &'a [u8],
+        source: &'a [u8],
+        profile: &'static tcl_dialect::DialectProfile,
     }
 
     #[test]
@@ -1387,75 +1472,17 @@ mod native_rmw_fixture_tests {
                 let code: i64 = fields.next().unwrap().parse().unwrap();
                 let result = unhex(fields.next().unwrap());
                 let source = unhex(sources[name]);
-                let receipt_start = std::time::Instant::now();
-                tcl_test_support::oracle_row_progress("dictionary-body329", engine, name, None);
-                tcl_test_support::oracle_phase_progress(
+                compare_dictionary_process(
                     "dictionary-body329",
                     engine,
-                    name,
-                    "vm-new-start",
-                    receipt_start,
-                );
-                let mut vm = Vm::new();
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "vm-new-complete",
-                    receipt_start,
-                );
-                vm.set_dialect_profile(profile);
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "profile-complete",
-                    receipt_start,
-                );
-                vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "compiler-complete",
-                    receipt_start,
-                );
-                let completion = vm
-                    .try_eval_source_bytes(&source)
-                    .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "eval-complete",
-                    receipt_start,
-                );
-                assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
-                let actual = vm.native_string_bytes(&completion.result).unwrap();
-                assert_eq!(actual.as_ref(), result.as_slice(), "{engine}/{name}");
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "assertions-complete",
-                    receipt_start,
-                );
-                drop(vm);
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    "vm-drop-complete",
-                    receipt_start,
-                );
-                compared += 1;
-                tcl_test_support::oracle_row_progress(
-                    "dictionary-body329",
-                    engine,
-                    name,
-                    Some(compared),
+                    DictionaryProcess {
+                        name,
+                        code,
+                        result: &result,
+                        source: &source,
+                        profile,
+                    },
+                    &mut compared,
                 );
             }
         }
@@ -1511,75 +1538,17 @@ mod native_rmw_fixture_tests {
                 let code: i64 = fields.next().unwrap().parse().unwrap();
                 let result = unhex(fields.next().unwrap());
                 let source = unhex(sources[name]);
-                let receipt_start = std::time::Instant::now();
-                tcl_test_support::oracle_row_progress("dictionary-rmw345", engine, name, None);
-                tcl_test_support::oracle_phase_progress(
+                compare_dictionary_process(
                     "dictionary-rmw345",
                     engine,
-                    name,
-                    "vm-new-start",
-                    receipt_start,
-                );
-                let mut vm = Vm::new();
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "vm-new-complete",
-                    receipt_start,
-                );
-                vm.set_dialect_profile(profile);
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "profile-complete",
-                    receipt_start,
-                );
-                vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "compiler-complete",
-                    receipt_start,
-                );
-                let completion = vm
-                    .try_eval_source_bytes(&source)
-                    .unwrap_or_else(|error| panic!("{engine}/{name}: {error:?}"));
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "eval-complete",
-                    receipt_start,
-                );
-                assert_eq!(completion.code.as_int(), code, "{engine}/{name}");
-                let actual = vm.native_string_bytes(&completion.result).unwrap();
-                assert_eq!(actual.as_ref(), result.as_slice(), "{engine}/{name}");
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "assertions-complete",
-                    receipt_start,
-                );
-                drop(vm);
-                tcl_test_support::oracle_phase_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    "vm-drop-complete",
-                    receipt_start,
-                );
-                compared += 1;
-                tcl_test_support::oracle_row_progress(
-                    "dictionary-rmw345",
-                    engine,
-                    name,
-                    Some(compared),
+                    DictionaryProcess {
+                        name,
+                        code,
+                        result: &result,
+                        source: &source,
+                        profile,
+                    },
+                    &mut compared,
                 );
             }
         }

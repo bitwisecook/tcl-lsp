@@ -1580,6 +1580,7 @@ impl<'r> Lowerer<'r> {
             bindings
                 .executed_script_namespace_context(&source)
                 .or_else(|| bindings.compiled_script_namespace_context(&source))
+                .or_else(|| bindings.declared_script_namespace_context(&source))
         });
         self.lower_original_body(source, namespace.as_ref())
     }

@@ -493,6 +493,10 @@ pub struct ResolveContext {
     pub contents_kinds: VariableCellTable<RootContentsKind>,
     /// An unenumerated write can affect a cell absent from the named inventory.
     pub contents_world: ContentsWorld,
+    /// Closure of the newly entered activation's private contents, independent
+    /// of unknown incoming namespace values. Only the actual frame-entry owner
+    /// issues this axis; callbacks and unresolved writes withdraw it.
+    pub(crate) activation_contents_world: Option<ContentsWorld>,
     /// Namespace-scoped contents clobbers without enumerated cell names.
     pub contents_unknown_namespaces: VariableNamespaceSet,
     /// Physical array roots affected by stores or deletions to an unknown element.
@@ -1263,6 +1267,7 @@ fn restore_selected_bindings(parent: &ResolveContext, child: &ResolveContext) ->
                 current.ns_vars.clone_from(&frame.ns_vars);
                 current.upvar_aliases.clone_from(&frame.upvar_aliases);
                 current.dynamic_bindings = frame.dynamic_bindings;
+                current.activation_contents_world = frame.activation_contents_world;
                 break;
             }
             candidate = frame.caller.as_deref();
@@ -1343,6 +1348,7 @@ impl Hash for ResolveContext {
         self.contents_presence_slots.hash(state);
         self.contents_kinds.hash(state);
         self.contents_world.hash(state);
+        self.activation_contents_world.hash(state);
         self.contents_unknown_namespaces.hash(state);
         self.contents_unknown_arrays.hash(state);
         self.closed_array_roots.hash(state);
@@ -1405,6 +1411,7 @@ impl Default for ResolveContext {
             contents_presence_slots: VariableCellTable::default(),
             contents_kinds: VariableCellTable::default(),
             contents_world: ContentsWorld::Tracked,
+            activation_contents_world: None,
             contents_unknown_namespaces: VariableNamespaceSet::default(),
             contents_unknown_arrays: VariableCellSet::default(),
             closed_array_roots: VariableCellSet::default(),
@@ -1725,6 +1732,13 @@ impl ResolveContext {
             return selected;
         }
         selected.caller = Some(std::sync::Arc::new(self.clone()));
+        if matches!(
+            frame.layout(),
+            VariableExecutionFrame::Procedure { .. }
+                | VariableExecutionFrame::ReceiverMethod { .. }
+        ) {
+            selected.activation_contents_world = Some(ContentsWorld::Tracked);
+        }
         selected.constant_values.clone_from(&self.constant_values);
         selected
             .closed_literal_contents
@@ -1857,7 +1871,7 @@ impl ResolveContext {
             return ContentsOrigin::Unknown;
         };
         self.contents_origins.get(&key).cloned().unwrap_or_else(|| {
-            if self.contents_world.is_unknown()
+            if self.contents_world_unknown_for_key(&key)
                 || self.array_contents_unknown(&key)
                 || self
                     .contents_unknown_namespaces
@@ -1969,6 +1983,7 @@ impl ResolveContext {
             self.closed_array_roots.clear();
             self.namespace_cells.closed_namespaces.clear();
             self.contents_world = ContentsWorld::Unknown;
+            self.withdraw_activation_contents_closure();
             for origin in self.contents_origins.values_mut() {
                 *origin = ContentsOrigin::Unknown;
             }
@@ -1980,6 +1995,7 @@ impl ResolveContext {
             self.namespace_cells.closed_namespaces.clear();
             let Some(namespace) = self.namespace_footprint(place) else {
                 self.contents_world = ContentsWorld::Unknown;
+                self.withdraw_activation_contents_closure();
                 for origin in self.contents_origins.values_mut() {
                     *origin = ContentsOrigin::Unknown;
                 }
@@ -2007,6 +2023,7 @@ impl ResolveContext {
         {
             let Some(root) = physical_array_key(place) else {
                 self.contents_world = ContentsWorld::Unknown;
+                self.withdraw_activation_contents_closure();
                 return;
             };
             self.contents_unknown_arrays.insert(root.clone());
@@ -2178,7 +2195,7 @@ impl ResolveContext {
         {
             return ContentsPresence::Undefined;
         }
-        if self.contents_world.is_unknown()
+        if self.contents_world_unknown_for_key(&key)
             || self.array_contents_unknown(&key)
             || self
                 .contents_unknown_namespaces
@@ -2194,6 +2211,8 @@ impl ResolveContext {
             place.cell.as_ref().map(|cell| &cell.owner),
             Some(CellOwner::Activation(identity)) if self.activation.as_ref() == Some(identity)
         ) && place.index.is_none()
+            && !self.dynamic_bindings
+            && !self.unknown_bindings.contains(&cell_key(place))
         {
             return ContentsPresence::Undefined;
         }
@@ -3094,8 +3113,24 @@ impl ResolveContext {
             .any(|root| key.is_member_of(root))
     }
 
+    fn contents_world_unknown_for_key(&self, key: &VariableCellKey) -> bool {
+        if let VariableCellKey::Activation { identity, .. } = key.root()
+            && self.activation.as_ref() == Some(identity)
+            && let Some(world) = self.activation_contents_world
+        {
+            return world.is_unknown();
+        }
+        self.contents_world.is_unknown()
+    }
+
+    fn withdraw_activation_contents_closure(&mut self) {
+        if self.activation_contents_world.is_some() {
+            self.activation_contents_world = Some(ContentsWorld::Unknown);
+        }
+    }
+
     fn incoming_contents_origin(&self, key: &VariableCellKey) -> ContentsOrigin {
-        if self.contents_world.is_unknown()
+        if self.contents_world_unknown_for_key(key)
             || self.array_contents_unknown(key)
             || self
                 .contents_unknown_namespaces
@@ -3133,6 +3168,13 @@ impl ResolveContext {
         self.closed_array_roots
             .retain(|key| other.closed_array_roots.contains(key));
         self.contents_world = self.contents_world.joined(other.contents_world);
+        self.activation_contents_world = match (
+            self.activation_contents_world,
+            other.activation_contents_world,
+        ) {
+            (Some(left), Some(right)) => Some(left.joined(right)),
+            _ => None,
+        };
         self.contents_unknown_namespaces
             .extend(other.contents_unknown_namespaces.iter().cloned());
         self.contents_unknown_arrays
@@ -3366,6 +3408,7 @@ impl ResolveContext {
         self.retain_literal_values(|_| false);
         self.invalidate_shared_representations();
         self.contents_world = ContentsWorld::Unknown;
+        self.withdraw_activation_contents_closure();
         self.contents_kinds.clear();
         for origin in self.contents_origins.values_mut() {
             *origin = ContentsOrigin::Unknown;
@@ -4604,6 +4647,93 @@ mod tests {
 
     fn ctx() -> ResolveContext {
         ResolveContext::default()
+    }
+
+    fn called_frame_with_unknown_namespace_contents(identity: &str) -> ResolveContext {
+        let mut incoming = ResolveContext::for_namespace("::");
+        incoming.contents_world = ContentsWorld::Unknown;
+        incoming.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".to_owned(),
+            identity: identity.to_owned(),
+        })
+    }
+
+    #[test]
+    fn fresh_called_activation_closure_is_independent_of_incoming_namespace_contents() {
+        let registry = registry();
+        let state = called_frame_with_unknown_namespace_contents("actual-call");
+        let local = resolve_literal_place("missing", &state, false, &registry);
+        let global = resolve_literal_place("::missing", &state, false, &registry);
+        assert_eq!(state.contents_presence(&local), ContentsPresence::Undefined);
+        assert_eq!(state.contents_presence(&global), ContentsPresence::Unknown);
+        let preview =
+            ResolveContext::for_namespace("::").in_frame(&VariableExecutionFrame::Procedure {
+                namespace: "::".to_owned(),
+                identity: "unentered-frame".to_owned(),
+            });
+        assert!(preview.activation_contents_world.is_none());
+    }
+
+    #[test]
+    fn called_activation_closure_withdraws_on_unknown_writes_callbacks_aliases_and_joins() {
+        let registry = registry();
+        let state = called_frame_with_unknown_namespace_contents("actual-call");
+        let mut withdrawn = state.clone();
+        withdrawn.record_contents_write(&crate::place::unknown_top(), 0, true);
+        let local = resolve_literal_place("missing", &withdrawn, false, &registry);
+        assert_eq!(
+            withdrawn.contents_presence(&local),
+            ContentsPresence::Unknown
+        );
+        let mut callback = state.clone();
+        callback.widen();
+        let local = resolve_literal_place("missing", &callback, false, &registry);
+        assert_eq!(
+            callback.contents_presence(&local),
+            ContentsPresence::Unknown
+        );
+        let mut mixed = state.clone();
+        mixed.join(&callback);
+        let local = resolve_literal_place("missing", &mixed, false, &registry);
+        assert_eq!(mixed.contents_presence(&local), ContentsPresence::Unknown);
+        let mut different_frame = state.clone();
+        different_frame.join(&called_frame_with_unknown_namespace_contents("other-call"));
+        let local = resolve_literal_place("missing", &different_frame, false, &registry);
+        assert_eq!(
+            different_frame.contents_presence(&local),
+            ContentsPresence::Unknown
+        );
+        let mut alias = state;
+        alias.globals.insert("missing".to_owned());
+        let global_alias = resolve_literal_place("missing", &alias, false, &registry);
+        assert_eq!(
+            alias.contents_presence(&global_alias),
+            ContentsPresence::Unknown
+        );
+    }
+
+    #[test]
+    fn called_activation_closure_restores_only_its_exact_selected_frame() {
+        let registry = registry();
+        let parent = called_frame_with_unknown_namespace_contents("parent-call");
+        let child = parent.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".to_owned(),
+            identity: "child-call".to_owned(),
+        });
+        let restored = restore_execution_frame(&parent, &child);
+        let local = resolve_literal_place("missing", &restored, false, &registry);
+        assert_eq!(
+            restored.contents_presence(&local),
+            ContentsPresence::Undefined
+        );
+        let mut selected_callback = parent.clone();
+        selected_callback.widen();
+        let restored = restore_execution_frame(&parent, &selected_callback);
+        let local = resolve_literal_place("missing", &restored, false, &registry);
+        assert_eq!(
+            restored.contents_presence(&local),
+            ContentsPresence::Unknown
+        );
     }
 
     #[test]

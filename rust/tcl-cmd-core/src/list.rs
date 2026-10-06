@@ -119,12 +119,15 @@ fn lindex_specs<O: ValueOps>(
         if let Some(i) = usize::try_from(i).ok().filter(|&i| i < elems.len()) {
             cur = elems[i].clone();
         } else {
-            // Out of range yields the empty result, but a *malformed* later
-            // index is still an error — C parses every index before navigating,
-            // so `lindex {} end foo` reports `bad index "foo"` (lindex-17.0).
-            // The format check is length-independent.
-            for rest in &specs[k + 1..] {
-                index::resolve_for_ops(ops, rest, 0)?;
+            // C84 stops at an out-of-range index. Later C releases validate
+            // remaining index formats even though navigation returns empty.
+            if !ops
+                .index_syntax()
+                .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Tcl84)
+            {
+                for rest in &specs[k + 1..] {
+                    index::resolve_for_ops(ops, rest, 0)?;
+                }
             }
             return Ok(ops.empty());
         }

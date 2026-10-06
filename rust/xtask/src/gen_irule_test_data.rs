@@ -273,6 +273,24 @@ fn render_user_surface(commands: &BTreeSet<String>) -> String {
     for command in commands {
         let _ = writeln!(out, "        {command}");
     }
+    out.push_str("    }\n    variable _gen_runtime_compiler_refused {\n");
+    for command in tcl_registry::irules_policy::IRULES_COMPILER_REFUSED {
+        let _ = writeln!(out, "        {command}");
+    }
+    out.push_str("    }\n    variable _gen_runtime_namespace_members {\n");
+    let registry = crate::environment::store_for_dialect("tcl8.4");
+    let context = crate::environment::context_for_dialect("tcl8.4");
+    let spec = context
+        .resolve_spec(registry, "namespace")
+        .expect("core namespace descriptor");
+    for sub in spec.subcommands {
+        if spec
+            .resolve_subcommand_for_dialect(sub.name, Some(context.authoring_query()))
+            .is_some()
+        {
+            let _ = writeln!(out, "        {}", sub.name);
+        }
+    }
     out.push_str("    }\n}\n");
     out
 }

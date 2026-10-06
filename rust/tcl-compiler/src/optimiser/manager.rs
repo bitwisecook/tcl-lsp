@@ -1166,14 +1166,42 @@ mod tests {
         );
     }
 
+    fn native_existence_optimisations(source: &str) -> Vec<Optimisation> {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(
+                crate::environment_ingress::captured_native_entry(profile),
+            )),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
+        let unit = CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        );
+        optimise_unit(&unit, registry, Some(profile))
+    }
+
     #[test]
     fn info_exists_fold_surfaces_o101() {
         // A provably-constant `info exists`
         // guard (never-defined non-param folds false; a parameter folds
         // true) surfaces as an O101 constant-branch fold.
-        let never = optimise(
-            "proc f {a} { if {[info exists b]} { puts hi } }",
-            &registry(),
+        let never = native_existence_optimisations(
+            "proc f {a} { if {[info exists b]} { puts hi } }; f VALUE",
         );
         assert!(
             never
@@ -1181,9 +1209,8 @@ mod tests {
                 .any(|o| o.code == DiagCode::O101 && o.replacement == "{0}"),
             "never-defined `info exists` should fold to {{0}}, got {never:?}",
         );
-        let param = optimise(
-            "proc f {a} { if {[info exists a]} { puts hi } }",
-            &registry(),
+        let param = native_existence_optimisations(
+            "proc f {a} { if {[info exists a]} { puts hi } }; f VALUE",
         );
         assert!(
             param
@@ -1191,6 +1218,47 @@ mod tests {
                 .any(|o| o.code == DiagCode::O101 && o.replacement == "{1}"),
             "parameter `info exists` should fold to {{1}}, got {param:?}",
         );
+    }
+
+    #[test]
+    fn info_exists_rewrite_requires_actual_selected_entry() {
+        let declaration = "proc f {a} {if {[info exists a]} {puts hi}}";
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let unknown = crate::command_binding::SourceAnalysisEntry {
+            unknown_entry: true,
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            ..Default::default()
+        };
+        let unit = CompilationUnit::build_with_source_entry(
+            &format!("{declaration}; f VALUE"),
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &unknown,
+        );
+        assert!(
+            optimise_unit(&unit, registry, Some(profile))
+                .iter()
+                .all(|rewrite| rewrite.code != DiagCode::O101)
+        );
+        for source in [
+            declaration.to_owned(),
+            format!("rename info {{}}; proc info args {{return UNKNOWN}}; {declaration}; f VALUE"),
+            format!("{declaration}; mystery; f VALUE"),
+        ] {
+            assert!(
+                native_existence_optimisations(&source)
+                    .iter()
+                    .all(|rewrite| rewrite.code != DiagCode::O101),
+                "unentered or unselected existence query: {source}"
+            );
+        }
     }
 
     #[test]

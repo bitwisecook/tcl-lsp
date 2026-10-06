@@ -211,11 +211,9 @@ impl Vm {
         let Some(command) = self.native_command_from_original(original)? else {
             return Ok(None);
         };
-        let command = if follow_imports {
-            self.command_origin(command).unwrap_or(command)
-        } else {
-            command
-        };
+        if follow_imports {
+            return tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some);
+        }
         self.command_name_bytes(command)
             .map(Some)
             .ok_or(ValueError::CommandProtocolUnavailable(
@@ -472,8 +470,10 @@ impl Vm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::ok;
     use tcl_bytecode::LiteralTable;
     use tcl_dialect::TclVersion;
+    use tcl_runtime_api::Completion;
 
     fn command(vm: &mut Vm, name: &[u8]) -> String {
         fn handler(_: &mut Vm, _: &[Value]) -> Completion<Value> {
@@ -546,31 +546,33 @@ mod tests {
         }
     }
 
+    const COMMAND_ACTION_FIXTURES: [(TclVersion, &str); 5] = [
+        (
+            TclVersion::V8_4,
+            include_str!("../../tests/data/native_literal_pools/command-actions/8.4.20.txt"),
+        ),
+        (
+            TclVersion::V8_5,
+            include_str!("../../tests/data/native_literal_pools/command-actions/8.5.19.txt"),
+        ),
+        (
+            TclVersion::V8_6,
+            include_str!("../../tests/data/native_literal_pools/command-actions/8.6.18.txt"),
+        ),
+        (
+            TclVersion::V9_0,
+            include_str!("../../tests/data/native_literal_pools/command-actions/9.0.4.txt"),
+        ),
+        (
+            TclVersion::V9_1,
+            include_str!("../../tests/data/native_literal_pools/command-actions/9.1.0.txt"),
+        ),
+    ];
+
     #[test]
     fn ordered_literal_actions_match_sixty_original_native_observations() {
         use crate::literal_pool::NativeLiteralPool;
-        let fixtures = [
-            (
-                TclVersion::V8_4,
-                include_str!("../../tests/data/native_literal_pools/command-actions/8.4.20.txt"),
-            ),
-            (
-                TclVersion::V8_5,
-                include_str!("../../tests/data/native_literal_pools/command-actions/8.5.19.txt"),
-            ),
-            (
-                TclVersion::V8_6,
-                include_str!("../../tests/data/native_literal_pools/command-actions/8.6.18.txt"),
-            ),
-            (
-                TclVersion::V9_0,
-                include_str!("../../tests/data/native_literal_pools/command-actions/9.0.4.txt"),
-            ),
-            (
-                TclVersion::V9_1,
-                include_str!("../../tests/data/native_literal_pools/command-actions/9.1.0.txt"),
-            ),
-        ];
+        let fixtures = COMMAND_ACTION_FIXTURES;
         let mut checked = 0;
         for (version, fixture) in fixtures {
             let rows: Vec<_> = fixture

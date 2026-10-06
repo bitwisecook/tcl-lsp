@@ -74,7 +74,7 @@ fn check(source: &str, expected: &str) {
 #[test]
 fn caller_write() {
     check(
-        r#"proc inner {} {uplevel 1 {yield HELLO;set x AFTER}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C]"#,
+        r"proc inner {} {uplevel 1 {yield HELLO;set x AFTER}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C]",
         "HELLO AFTER",
     );
 }
@@ -82,7 +82,7 @@ fn caller_write() {
 #[test]
 fn selected_proc_upvar() {
     check(
-        r#"proc step {} {upvar 1 x link;yield HELLO;set link AFTER};proc inner {} {uplevel 1 {step}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C]"#,
+        r"proc step {} {upvar 1 x link;yield HELLO;set link AFTER};proc inner {} {uplevel 1 {step}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C]",
         "HELLO AFTER",
     );
 }
@@ -90,7 +90,7 @@ fn selected_proc_upvar() {
 #[test]
 fn hidden_link() {
     check(
-        r#"proc inner {} {upvar 1 x link;uplevel 1 {yield HELLO;set x AFTER};list $link [info level]};proc outer {} {set x BEFORE;list [inner] $x};list [coroutine C outer] [C]"#,
+        r"proc inner {} {upvar 1 x link;uplevel 1 {yield HELLO;set x AFTER};list $link [info level]};proc outer {} {set x BEFORE;list [inner] $x};list [coroutine C outer] [C]",
         "HELLO {{AFTER 2} AFTER}",
     );
 }
@@ -98,7 +98,7 @@ fn hidden_link() {
 #[test]
 fn selected_namespace() {
     check(
-        r#"namespace eval N {proc inner {} {uplevel 1 {yield HELLO;set x AFTER;helper}};proc helper {} {set ::called N};proc outer {} {set x BEFORE;inner;list $x $::called [namespace current]}};list [coroutine C N::outer] [C]"#,
+        r"namespace eval N {proc inner {} {uplevel 1 {yield HELLO;set x AFTER;helper}};proc helper {} {set ::called N};proc outer {} {set x BEFORE;inner;list $x $::called [namespace current]}};list [coroutine C N::outer] [C]",
         "HELLO {AFTER N ::N}",
     );
 }
@@ -106,7 +106,7 @@ fn selected_namespace() {
 #[test]
 fn global_target() {
     check(
-        r#"proc inner {} {set x LOCAL;uplevel #0 {yield HELLO;set x GLOBAL};list $x $::x [info level]};list [coroutine C inner] [C]"#,
+        r"proc inner {} {set x LOCAL;uplevel #0 {yield HELLO;set x GLOBAL};list $x $::x [info level]};list [coroutine C inner] [C]",
         "HELLO {LOCAL GLOBAL 1}",
     );
 }
@@ -114,7 +114,7 @@ fn global_target() {
 #[test]
 fn error_restores_caller() {
     check(
-        r#"proc inner {} {set x INNER;set code [catch {uplevel 1 {yield HELLO;set x AFTER;error BOOM}} value];list $code $value $x [info level]};proc outer {} {set x BEFORE;list [inner] $x};list [coroutine C outer] [C]"#,
+        r"proc inner {} {set x INNER;set code [catch {uplevel 1 {yield HELLO;set x AFTER;error BOOM}} value];list $code $value $x [info level]};proc outer {} {set x BEFORE;list [inner] $x};list [coroutine C outer] [C]",
         "HELLO {{1 BOOM INNER 2} AFTER}",
     );
 }
@@ -122,7 +122,7 @@ fn error_restores_caller() {
 #[test]
 fn return_restores_caller() {
     check(
-        r#"proc inner {} {uplevel 1 {yield HELLO;return DONE};error UNREACHED};proc outer {} {set x OUTER;list [inner] $x};list [coroutine C outer] [C]"#,
+        r"proc inner {} {uplevel 1 {yield HELLO;return DONE};error UNREACHED};proc outer {} {set x OUTER;list [inner] $x};list [coroutine C outer] [C]",
         "HELLO {DONE OUTER}",
     );
 }
@@ -130,7 +130,7 @@ fn return_restores_caller() {
 #[test]
 fn nested_selection() {
     check(
-        r#"proc deep {} {uplevel #0 {yield HELLO;set ::g GLOBAL}};proc inner {} {uplevel 1 {deep;set x AFTER}};proc outer {} {set x BEFORE;inner;list $x $::g};list [coroutine C outer] [C]"#,
+        r"proc deep {} {uplevel #0 {yield HELLO;set ::g GLOBAL}};proc inner {} {uplevel 1 {deep;set x AFTER}};proc outer {} {set x BEFORE;inner;list $x $::g};list [coroutine C outer] [C]",
         "HELLO {AFTER GLOBAL}",
     );
 }
@@ -138,7 +138,7 @@ fn nested_selection() {
 #[test]
 fn twice_yield() {
     check(
-        r#"proc inner {} {uplevel 1 {set x ONE;yield $x;set x TWO;yield $x;set x THREE}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C] [C]"#,
+        r"proc inner {} {uplevel 1 {set x ONE;yield $x;set x TWO;yield $x;set x THREE}};proc outer {} {set x BEFORE;inner;set x};list [coroutine C outer] [C] [C]",
         "ONE TWO THREE",
     );
 }
@@ -146,7 +146,7 @@ fn twice_yield() {
 #[test]
 fn delete_hidden_owners() {
     check(
-        r#"set events {};proc gone {tag args} {lappend ::events $tag};proc inner {} {set b INNER;trace add variable b unset {gone inner};uplevel 1 {yield HELLO;set a AFTER}};proc outer {} {set a OUTER;trace add variable a unset {gone outer};inner};set first [coroutine C outer];rename C {};list $first $events [info commands C]"#,
+        r"set events {};proc gone {tag args} {lappend ::events $tag};proc inner {} {set b INNER;trace add variable b unset {gone inner};uplevel 1 {yield HELLO;set a AFTER}};proc outer {} {set a OUTER;trace add variable a unset {gone outer};inner};set first [coroutine C outer];rename C {};list $first $events [info commands C]",
         "HELLO {inner outer} {}",
     );
 }
@@ -154,7 +154,7 @@ fn delete_hidden_owners() {
 #[test]
 fn delete_nested_owners() {
     check(
-        r#"set events {};proc gone {tag args} {lappend ::events $tag};proc deep {} {set c DEEP;trace add variable c unset {gone deep};uplevel #0 {yield HELLO}};proc inner {} {set b INNER;trace add variable b unset {gone inner};uplevel 1 {deep}};proc outer {} {set a OUTER;trace add variable a unset {gone outer};inner};set first [coroutine C outer];rename C {};list $first $events [info commands C]"#,
+        r"set events {};proc gone {tag args} {lappend ::events $tag};proc deep {} {set c DEEP;trace add variable c unset {gone deep};uplevel #0 {yield HELLO}};proc inner {} {set b INNER;trace add variable b unset {gone inner};uplevel 1 {deep}};proc outer {} {set a OUTER;trace add variable a unset {gone outer};inner};set first [coroutine C outer];rename C {};list $first $events [info commands C]",
         "HELLO {deep inner outer} {}",
     );
 }
@@ -162,7 +162,7 @@ fn delete_nested_owners() {
 #[test]
 fn two_coroutines() {
     check(
-        r#"proc inner {tag} {uplevel 1 {yield READY;incr x};set tag};proc outer {n} {set x $n;inner $n;set x};set a [coroutine A outer 10];set b [coroutine B outer 20];list $a $b [A] [B]"#,
+        r"proc inner {tag} {uplevel 1 {yield READY;incr x};set tag};proc outer {n} {set x $n;inner $n;set x};set a [coroutine A outer 10];set b [coroutine B outer 20];list $a $b [A] [B]",
         "READY READY 11 21",
     );
 }
@@ -170,7 +170,7 @@ fn two_coroutines() {
 #[test]
 fn shifted_error_stack_survives_suspension() {
     check(
-        r#"proc inner {} {catch {uplevel 1 {yield HELLO;error BOOM}} result options;set stack [dict get $options -errorstack];list $result [lrange $stack 0 3]};proc outer {} {inner};list [coroutine C outer] [C]"#,
+        r"proc inner {} {catch {uplevel 1 {yield HELLO;error BOOM}} result options;set stack [dict get $options -errorstack];list $result [lrange $stack 0 3]};proc outer {} {inner};list [coroutine C outer] [C]",
         "HELLO {BOOM {INNER {returnImm BOOM {}} UP 1}}",
     );
 }
@@ -178,7 +178,7 @@ fn shifted_error_stack_survives_suspension() {
 #[test]
 fn selected_namespace_token_survives_namespace_deletion() {
     check(
-        r#"namespace eval N {proc inner {} {uplevel 1 {yield HELLO;set x AFTER}};proc outer {} {set x BEFORE;inner;set x}};set first [coroutine C N::outer];namespace delete N;list $first [C] [namespace exists N]"#,
+        r"namespace eval N {proc inner {} {uplevel 1 {yield HELLO;set x AFTER}};proc outer {} {set x BEFORE;inner;set x}};set first [coroutine C N::outer];namespace delete N;list $first [C] [namespace exists N]",
         "HELLO AFTER 0",
     );
 }

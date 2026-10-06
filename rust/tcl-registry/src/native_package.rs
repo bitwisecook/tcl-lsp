@@ -29,6 +29,45 @@ pub enum NativePackageProtocol {
     Jim084,
 }
 
+/// Explicit authored package database capability, independent of the host table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthoredPackageProvider {
+    /// The Tcl 8.4 command grammar and an isolated authored database.
+    Tcl84Core,
+}
+
+impl AuthoredPackageProvider {
+    /// Pure dispatcher grammar; this issues no native object or compiler receipt.
+    #[must_use]
+    pub const fn grammar(self) -> NativePackageProtocol {
+        match self {
+            Self::Tcl84Core => NativePackageProtocol::C(TclVersion::V8_4),
+        }
+    }
+
+    /// Select an original member with the authored grammar's counted-word extent.
+    /// No native index cache is constructed.
+    ///
+    /// # Errors
+    /// Returns the authored ambiguity or unknown-member diagnostic.
+    pub fn select_member(self, original: &[u8]) -> Result<&'static str, Vec<u8>> {
+        let words = self
+            .grammar()
+            .c_members()
+            .expect("authored C package grammar");
+        select_authored_keyword(original, words).map(|index| words[index])
+    }
+}
+
+/// Pure authored keyword selection, without a native table or index header.
+///
+/// # Errors
+/// Returns the shared prefix owner's ambiguity or unknown-word diagnostic.
+pub fn select_authored_keyword(original: &[u8], words: &[&str]) -> Result<usize, Vec<u8>> {
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", words)
+        .index_of(tcl_core_types::c_string_extent(original))
+}
+
 /// Outcome of Jim's package subcommand table scan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageMemberSelection {
@@ -456,5 +495,55 @@ mod tests {
             NativePackageProtocol::C(tcl_dialect::TclVersion::V9_1).jim_dispatch(b"-help", None),
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod authored_tests {
+    use super::*;
+
+    #[test]
+    fn authored_package_selection_uses_tcl84_prefixes_without_native_index_authority() {
+        let provider = AuthoredPackageProvider::Tcl84Core;
+        assert_eq!(provider.select_member(b"req"), Ok("require"));
+        assert_eq!(provider.select_member(b"prov"), Ok("provide"));
+        assert_eq!(provider.select_member(b"req\0suffix"), Ok("require"));
+        assert!(
+            provider
+                .select_member(b"pr")
+                .unwrap_err()
+                .starts_with(b"ambiguous option")
+        );
+        assert!(
+            provider
+                .select_member(b"files")
+                .unwrap_err()
+                .starts_with(b"bad option")
+        );
+        assert!(provider.select_member(b"prefer").is_err());
+        let namespace = [
+            "children",
+            "code",
+            "current",
+            "delete",
+            "eval",
+            "exists",
+            "export",
+            "forget",
+            "import",
+            "inscope",
+            "origin",
+            "parent",
+            "qualifiers",
+            "tail",
+            "which",
+        ];
+        assert!(
+            select_authored_keyword(b"e", &namespace)
+                .unwrap_err()
+                .starts_with(b"ambiguous option")
+        );
+        assert_eq!(select_authored_keyword(b"cur", &namespace), Ok(2));
+        assert!(select_authored_keyword(b"path", &namespace).is_err());
     }
 }

@@ -118,19 +118,19 @@ fn native_control_conditions_and_expression_requests_suspend() {
     // command dispatch; expressions never call a potentially shadowed expr.
     let cases = [
         (
-            r#"proc g {} {set w while; set i 0; $w {[yield condition]} {yield body; incr i}; return $i}; list [coroutine c g] [c 1] [c] [c 0]"#,
+            r"proc g {} {set w while; set i 0; $w {[yield condition]} {yield body; incr i}; return $i}; list [coroutine c g] [c 1] [c] [c 0]",
             "condition body condition 1",
         ),
         (
-            r#"proc h {} {set f for; $f {set i 0} {[yield test]} {incr i} {yield $i}; return $i}; list [coroutine c h] [c 1] [c] [c 0]"#,
+            r"proc h {} {set f for; $f {set i 0} {[yield test]} {incr i} {yield $i}; return $i}; list [coroutine c h] [c 1] [c] [c 0]",
             "test 0 test 1",
         ),
         (
-            r#"proc k {} {set f if; $f {[yield first]} {return yes} elseif {[yield second]} {return later} else {return no}}; list [coroutine c k] [c 0] [c 1]"#,
+            r"proc k {} {set f if; $f {[yield first]} {return yes} elseif {[yield second]} {return later} else {return no}}; list [coroutine c k] [c 0] [c 1]",
             "first second later",
         ),
         (
-            r#"proc tcl::mathfunc::pause {x} {yield math; return $x}; proc e {} {set exprcmd expr; $exprcmd {pause(6) + [yield command]}}; list [coroutine c e] [c] [c 4]"#,
+            r"proc tcl::mathfunc::pause {x} {yield math; return $x}; proc e {} {set exprcmd expr; $exprcmd {pause(6) + [yield command]}}; list [coroutine c e] [c] [c 4]",
             "math command 10",
         ),
         (
@@ -161,11 +161,11 @@ fn expression_array_indices_and_nested_subst_suspend_without_replaying() {
             "1",
         ),
         (
-            r#"set ::a(k) VALUE; proc r {} {set s subst; $s {$::a([yield SUBST])}}; list [coroutine c r] [c k]"#,
+            r"set ::a(k) VALUE; proc r {} {set s subst; $s {$::a([yield SUBST])}}; list [coroutine c r] [c k]",
             "SUBST VALUE",
         ),
         (
-            r#"proc bad {} {return -code break}; set e expr; list [catch {$e {$::a([bad])}} msg] $msg"#,
+            r"proc bad {} {return -code break}; set e expr; list [catch {$e {$::a([bad])}} msg] $msg",
             "3 {}",
         ),
         (

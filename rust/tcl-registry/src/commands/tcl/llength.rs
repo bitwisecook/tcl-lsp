@@ -51,11 +51,8 @@ pub fn spec() -> CommandSpec {
             // TclCompileLlengthCmd compiles its sole operand in every C
             // release. C 8.4 reports bad argc before any operand executes;
             // C 8.5+ declines compilation and lets ordinary dispatch report it.
-            grammar: crate::native_compilation::NativeCompilationGrammar::CheckedArity {
-                arity: Arity::exact(1),
-                usage: "llength list",
-            },
-            operation: crate::SemanticOperationId::Invoke,
+            grammar: crate::native_compilation::NativeCompilationGrammar::ListLength,
+            operation: crate::SemanticOperationId::Intrinsic(crate::IntrinsicId::ListLength),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),

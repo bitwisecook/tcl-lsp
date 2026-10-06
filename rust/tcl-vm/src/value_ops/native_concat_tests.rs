@@ -30,6 +30,19 @@ fn original(vm: &mut Vm, input: Input) -> Value {
         }
     }
 }
+fn states(values: &[Value], version: Option<tcl_dialect::TclVersion>) -> String {
+    values
+        .iter()
+        .map(|value| {
+            state(
+                &value.native_object_snapshot(),
+                value.native_object_reference_count(),
+                version,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";")
+}
 #[test]
 fn original_concat_matches_all_twenty_native_windows_per_engine() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
@@ -48,17 +61,7 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
                     value.native_list_backing_in(protocol).unwrap()
                 } else { None }
             }).collect();
-            let before = values
-                .iter()
-                .map(|value| {
-                    state(
-                        value.native_object_snapshot(),
-                        value.native_object_reference_count(),
-                        protocol.tcl_version(),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(";");
+            let before = states(&values, protocol.tcl_version());
             assert_eq!(
                 before,
                 row(engine, case, "before")[3],
@@ -68,7 +71,7 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
             let expected = row(engine, case, "result");
             assert_eq!(
                 state(
-                    result.native_object_snapshot(),
+                    &result.native_object_snapshot(),
                     result.native_object_reference_count(),
                     protocol.tcl_version()
                 ),
@@ -114,17 +117,7 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
                 expected[6],
                 "{engine}/{case} children"
             );
-            let after = values
-                .iter()
-                .map(|value| {
-                    state(
-                        value.native_object_snapshot(),
-                        value.native_object_reference_count(),
-                        protocol.tcl_version(),
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(";");
+            let after = states(&values, protocol.tcl_version());
             assert_eq!(
                 after,
                 row(engine, case, "after")[3],
@@ -169,7 +162,7 @@ fn compiled_concat_preserves_all_eight_original_c_result_headers() {
             let version = vm.actual_native_invocation_dialect().tcl_version;
             assert_eq!(
                 state(
-                    result.result.native_object_snapshot(),
+                    &result.result.native_object_snapshot(),
                     result.result.native_object_reference_count(),
                     version
                 ),

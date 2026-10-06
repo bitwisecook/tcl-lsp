@@ -314,6 +314,31 @@ impl ProcDef {
     }
 }
 
+impl ProcDef {
+    pub(crate) fn retain_native_compiled_names(
+        &self,
+        names: Vec<Option<tcl_core_types::NameBytes>>,
+    ) {
+        *self.native_resources.compiled_names.borrow_mut() = Some(names);
+    }
+
+    pub(crate) fn native_compiled_name(
+        &self,
+        index: usize,
+    ) -> Result<Vec<u8>, tcl_syntax::native_string::NativeStringUnavailable> {
+        let unavailable = tcl_syntax::native_string::NativeStringUnavailable::StringUpdater;
+        if self.native_resources.roles.is_retired() {
+            return Err(unavailable);
+        }
+        let names = self.native_resources.compiled_names.borrow();
+        let names = names.as_ref().ok_or(unavailable)?;
+        Ok(names
+            .get(index)
+            .and_then(Option::as_ref)
+            .map_or_else(Vec::new, |name| name.as_bytes().to_vec()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,30 +516,5 @@ mod tests {
                 .native_object_reference_count(),
             1
         );
-    }
-}
-
-impl ProcDef {
-    pub(crate) fn retain_native_compiled_names(
-        &self,
-        names: Vec<Option<tcl_core_types::NameBytes>>,
-    ) {
-        *self.native_resources.compiled_names.borrow_mut() = Some(names);
-    }
-
-    pub(crate) fn native_compiled_name(
-        &self,
-        index: usize,
-    ) -> Result<Vec<u8>, tcl_syntax::native_string::NativeStringUnavailable> {
-        let unavailable = tcl_syntax::native_string::NativeStringUnavailable::StringUpdater;
-        if self.native_resources.roles.is_retired() {
-            return Err(unavailable);
-        }
-        let names = self.native_resources.compiled_names.borrow();
-        let names = names.as_ref().ok_or(unavailable)?;
-        Ok(names
-            .get(index)
-            .and_then(Option::as_ref)
-            .map_or_else(Vec::new, |name| name.as_bytes().to_vec()))
     }
 }

@@ -1356,15 +1356,7 @@ namespace eval ::orch {
         # Switch
         set _tmm_current $tmm_id
 
-        # If RULE_INIT has not been attempted in this worker lifetime, fire it
-        variable _tmm_init_done
-        if {![lindex $_tmm_init_done $tmm_id]} {
-            lset _tmm_init_done $tmm_id 1
-            catch {::itest::fire_event RULE_INIT}
-        }
-
-        # Mark RULE_INIT as done for the orchestrator (so run_http_request
-        # doesn't re-fire it -- tmm_select handles per-TMM RULE_INIT)
+        # Rule creation owns initialization; selecting a flow does not reload rules.
         variable _init_done
         set _init_done 1
 

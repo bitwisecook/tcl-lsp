@@ -534,14 +534,45 @@ impl CfgBuilder<'_> {
     }
 
     fn region_process_exit_block(&self, name: &str) -> bool {
-        self.blocks
-            .get(name)
-            .and_then(|block| block.statements.last())
-            .is_some_and(|statement| {
-                super::always_exits_process(
-                    statement,
-                    self.registry,
-                    &self.embedded_head_resolver(),
+        self.blocks.get(name).is_some_and(|block| {
+            matches!(
+                block.terminator,
+                Some(Terminator::Complete {
+                    route: tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit,
+                    ..
+                })
+            )
+        })
+    }
+
+    // Conditional completion routing is confined to faithful analytical
+    // regions. Original literal words and a closed declaration lookup can
+    // describe terminal control flow without proving physical completion.
+    fn region_statement_exits_process(&self, statement: &Statement) -> bool {
+        if super::always_exits_process(statement, self.registry, &self.embedded_head_resolver()) {
+            return true;
+        }
+        if self.plain_command_dispatch || !self.faithful_exceptions {
+            return false;
+        }
+        let Some(tokens) = statement.tokens() else {
+            return false;
+        };
+        let config = tokens.native_lexer_config(self.config);
+        let rules = tcl_syntax::word_rules::WordValueRules::from_config(&config);
+        if tokens.words().iter().any(|word| {
+            !matches!(
+                crate::registry_invocation::effective_invocation_word(word, config.escapes, rules),
+                crate::registry_invocation::EffectiveInvocationWord::Literal(_)
+            )
+        }) {
+            return false;
+        }
+        crate::registry_invocation::logical_structured_invocation(self.registry, tokens, None)
+            .is_some_and(|invocation| {
+                matches!(
+                    invocation.conditional_completion_route(self.registry),
+                    tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit
                 )
             })
     }
@@ -695,11 +726,7 @@ impl CfgBuilder<'_> {
         let mut current = Some(entry.to_owned());
         for statement in &script.statements {
             let Some(before) = current.take() else { break };
-            let process_exit = super::always_exits_process(
-                statement,
-                self.registry,
-                &self.embedded_head_resolver(),
-            );
+            let process_exit = self.region_statement_exits_process(statement);
             // A failure can occur before an operation commits or after a trace
             // observes its writes. Keep both states instead of inventing defs.
             if let Some(target) = abrupt.filter(|_| !process_exit) {
@@ -766,12 +793,20 @@ impl CfgBuilder<'_> {
 mod tests {
     use super::*;
     use crate::execution_region::RegionSelection;
-    use crate::lowering::lower_to_ir;
     use crate::ssa::build_ssa;
     use tcl_registry::CommandRegistry;
 
     fn caller_body(source: &str, registry: &CommandRegistry) -> Script {
-        lower_to_ir(&format!("proc p {{}} {{{source}}}"), registry)
+        let profile = registry.profile().expect("native caller fixture profile");
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..Default::default()
+        });
+        crate::lowering::lower_to_ir_with(lowerer, &format!("proc p {{}} {{{source}}}; p"))
             .procedures
             .remove("::p")
             .expect("real procedure caller frame")
@@ -815,6 +850,45 @@ mod tests {
         fixture_with_continuation(setup, body, cleanup, selection, "")
     }
 
+    fn trusted_lifecycle_body(source: &str, registry: &CommandRegistry, trust: bool) -> Script {
+        let profile = registry
+            .profile()
+            .expect("selected lifecycle fixture profile");
+        let provider = crate::lowering::stock_body_provider_loader(
+            tcl_registry::body_execution::TCLTEST_STOCK_PROVIDER,
+            Some("2.5.11"),
+        )
+        .expect("audited stock provider");
+        let providers = if trust { vec![provider] } else { Vec::new() };
+        let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            trusted_package_loaders: &providers,
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: crate::environment_ingress::authoring_native_compilation(),
+            ..crate::command_binding::SourceAnalysisOptions::default()
+        });
+        let mut module = crate::lowering::lower_to_ir_with(lowerer, source);
+        if let Some(procedure) = module.procedures.remove("::p") {
+            return procedure.body;
+        }
+        let original = module
+            .procedure_implementation_bodies
+            .iter()
+            .find(|body| body.command == "::p")
+            .expect("original procedure declaration retained");
+        let label = module
+            .original_declaration_body_units
+            .iter()
+            .find(|(_, allocation)| *allocation == &original.allocation)
+            .map(|(label, _)| label.clone())
+            .expect("original declaration body unit");
+        module
+            .body_units
+            .remove(&label)
+            .expect("retained body")
+            .body
+    }
+
     fn fixture_with_continuation(
         setup: &str,
         body: &str,
@@ -828,15 +902,20 @@ mod tests {
         let source = format!(
             "package require tcltest\nproc p {{}} {{tcltest::test name description -setup {{{setup}}} -body {{{body}}} -cleanup {{{cleanup}}}; {continuation}}}"
         );
-        let mut script = lower_to_ir(&source, &registry)
-            .procedures
-            .remove("::p")
-            .expect("real procedure caller frame")
-            .body;
+        let mut script = trusted_lifecycle_body(&source, &registry, true);
         let region = script.statements[0]
             .tokens_mut()
             .and_then(|tokens| tokens.evaluated_body.as_deref_mut())
             .expect("stock provider must produce a shared source-point lifecycle");
+        assert!(region.dependencies.iter().any(|dependency| matches!(
+            dependency,
+            crate::execution_region::ExecutionRegionDependency::ConditionalDispatch { .. }
+        )));
+        assert!(region.dependencies.iter().all(|dependency| !matches!(
+            dependency,
+            crate::execution_region::ExecutionRegionDependency::Dispatch(_)
+                | crate::execution_region::ExecutionRegionDependency::PhaseDispatch { .. }
+        )));
         region.selection = selection;
         region.repetition = crate::execution_region::RegionRepetition::Once;
         (registry, script)
@@ -853,7 +932,8 @@ mod tests {
         let reads = read_versions(&ssa, "x");
         assert!(
             !reads.is_empty(),
-            "phase body read is missing from SSA: {ssa:#?}"
+            "phase body read is missing from SSA (blocks={})",
+            ssa.blocks.len()
         );
         assert!(reads.iter().all(|version| *version != 0));
     }
@@ -891,6 +971,32 @@ mod tests {
     }
 
     #[test]
+    fn captured_lifecycle_requires_trusted_original_provider() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        for (source, trust) in [
+            (
+                "package require tcltest; proc p {} {tcltest::test name description -body {return 1}}",
+                false,
+            ),
+            (
+                "package require tcltest; proc ::tcltest::set args {}; proc p {} {tcltest::test name description -body {return 1}}",
+                true,
+            ),
+        ] {
+            let script = trusted_lifecycle_body(source, &registry, trust);
+            assert!(
+                script
+                    .statements
+                    .iter()
+                    .filter_map(Statement::tokens)
+                    .all(|tokens| tokens.evaluated_body().is_none()),
+                "missing or replaced provider dependency: {source}"
+            );
+        }
+    }
+
+    #[test]
     fn captured_return_routes_to_cleanup_without_leaving_procedure() {
         let (registry, script) = fixture_with_continuation(
             "set x 1",
@@ -921,6 +1027,35 @@ mod tests {
                 )
         );
         assert!(ssa.var_symbol("cleaned").is_some());
+    }
+
+    #[test]
+    fn conditional_completion_does_not_borrow_changed_or_unknown_exit_lookup() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        for prefix in [
+            "proc exit args {return CUSTOM}; ",
+            "rename [mystery] exit; ",
+        ] {
+            let source = format!(
+                "package require tcltest; {prefix}proc p {{}} {{tcltest::test name description -body {{exit 0}}}}"
+            );
+            let script = trusted_lifecycle_body(&source, &registry, true);
+            let cfg = CfgBuilder::new(true, &registry)
+                .with_faithful_exceptions()
+                .build_function("::p", &script);
+            assert!(
+                cfg.blocks.values().all(|block| !matches!(
+                    block.terminator,
+                    Some(Terminator::Complete {
+                        route:
+                            tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit,
+                        ..
+                    })
+                )),
+                "lookup={prefix}"
+            );
+        }
     }
 
     #[test]
@@ -964,7 +1099,8 @@ mod tests {
             assert_ne!(
                 read_versions(&ssa, name),
                 [] as [u32; 0],
-                "missing {name} read: {ssa:#?}"
+                "missing {name} read (blocks={})",
+                ssa.blocks.len()
             );
         }
     }

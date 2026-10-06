@@ -155,13 +155,24 @@ impl Vm {
             .native_name_operand_bytes(original)
             .map_err(|error| self.refuse_host_command(error.to_string()))?;
         if self.uses_native_jim_lookup() {
+            if Self::is_original_jim_dictionary_name(original, &bytes) {
+                return match self.unset_original_jim_dictionary_name(original) {
+                    Err(_) if !complain && self.refused_completion().is_none() => Ok(()),
+                    result => result,
+                };
+            }
             self.install_original_jim_variable(original, &bytes)
                 .map_err(|error| self.refuse_host_command(error.to_string()))?;
             if let Some((target, level)) = self.original_jim_alias_target(original) {
                 let frame = self.select_execution_frame(level).map_err(super::err)?;
                 let result = self.unset_original_named_variable(target.value(), complain);
                 self.restore_execution_frame(frame);
-                return result;
+                return match result {
+                    Err(_) if self.refused_completion().is_none() => {
+                        Err(self.variable_access_error_bytes("unset", &bytes, "no such variable"))
+                    }
+                    result => result,
+                };
             }
         }
         self.unset_one_bytes(&bytes, complain)
@@ -216,7 +227,9 @@ mod tests {
     fn decode(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0);
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }

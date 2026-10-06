@@ -90,9 +90,11 @@ The Rust modules are:
    namespace frame. Each CMP worker owns a real child interpreter, including
    `::static::`, global cells, aliases, arrays, traces and user command tables.
    Worker selection never snapshots user values. The declarations are published
-   to every worker, then `RULE_INIT` executes independently when that worker is
-   first selected. Initialisation may produce different values in each worker;
-   publishing the same script is not a value-copy operation. Full orchestrator
+   to every worker. Creating a rule executes that rule's `RULE_INIT` handlers
+   across the configured worker roster before loading returns. Rule recreation
+   executes only the recreated owner's initialisers. Worker selection does not
+   rerun initialisation. Static names share each worker's namespace across rule
+   owners, so the last initialisation store wins. Full orchestrator
    reset retires the multi-worker interpreters and clears their initialisation
    markers. Reusing a worker index creates a new interpreter lifetime. The mock
    `table` and data groups share parent-orchestrator
@@ -138,8 +140,9 @@ The Rust modules are:
    one. The simulator manages one active connection at a time. Selecting a worker
    starts a new connection and retires the previously selected connection frame
    when that frame is next reset. Explicit `fire_event RULE_INIT` can fire a
-   handler again; automatic worker selection tracks one initialisation attempt
-   per worker lifetime. Inspect handler results when testing failed initialisation.
+   handler again. Automatic initialisation belongs to rule creation, including
+   library rules without attached events. Inspect handler results when testing
+   failed initialisation.
 
    `LiveSession` explicitly installs an authored timer simulator. Scripted
    `after milliseconds ?-periodic? script` callbacks retain their original
@@ -173,6 +176,19 @@ The Rust modules are:
    and the host dialect explicitly. Framework completion capture can therefore
    use host `catch`/`return` options while user event commands retain the selected
    TMM grammar. An alias spelling alone never grants this capability.
+
+   `LiveSession` installs the authored Tcl 8.4 parser, numeric model and separate
+   core math-function provider for user expressions. The orchestrator uses a
+   explicitly installed Tcl 9.0 native core. Host activation restores the user expression
+   policy on return; a logical dialect label alone does not install native
+   commands or compiler registrations.
+
+   Every worker interpreter owns its authored random stream and lazy double
+   formatter. Their initial seed of one and precision of twelve are reproducible
+   simulator choices. Precision changes affect doubles without an existing
+   String representation; an already rendered value retains its String.
+   Recreating a worker creates fresh state. These initialisation choices are
+   independent of BIG-IP measurements.
 
    Native `if`, `while`, `for`, expression command substitutions, quoted
    expression strings, math-function calls and array-index substitutions retain
@@ -357,10 +373,38 @@ Use the built-in `:sh` command:
 
 ## Multi-TMM simulation
 
-On real BIG-IP, each TMM core maintains its own copy of `static::`
-variables (RULE_INIT fires independently per TMM).  The `table` command
-is CMP-shared across all TMMs.  This is a common source of bugs: a
-static variable updated on one TMM is stale on others.
+The simulator gives each worker its own `static::` cells. Rule creation runs
+that rule's `RULE_INIT` across the configured roster. Names in `::static` share
+storage across rule owners within a worker, and creation order determines the
+last writer. Recreating a named rule removes only its declarations and handlers,
+then runs only its initialisers. An event write, unset or recreation affects the
+executing worker; `configure_static` explicitly broadcasts a configuration store.
+Worker selection does not initialise rules. The mock `table` shares state across
+workers.
+
+This authored lifecycle matches the measured BIG-IP 21.1.0.1 build 0.0.26
+single-group, four-TMM controls. The measurement does not establish behaviour
+for other builds, blades or worker groups. Ordinary-global CMP demotion is
+measured platform behaviour; the simulator does not schedule or demote flows
+from that observation. The
+[BIG-IP resolution probes](../../../scripts/dev/bigip-probes/resolution-2286/README.md)
+record actual worker coverage rather than inferring it from request counts.
+
+`LiveSession` installs a separate authored Tcl84 package capability. Logical
+package selectors, abbreviations, loaders, unknown handlers and mutations use
+an isolated table per interpreter. Host initialization selects the physical
+package table and restores the logical dispatch policy afterwards. The logical
+table starts with `Tcl 8.4`; it grants no appliance ABI, native package header or
+compiler authority. External Tcl hosts require an explicit equivalent provider.
+
+Build-specific original loader checks are opt-in. The measured profile rejects
+literal source NUL and treats non-ASCII source outside its accepted domain;
+the two observed Unicode spellings do not prove a universal Unicode rejection.
+ASCII LF and CRLF source remain accepted. Runtime-generated NUL values and names
+remain separate from the original loader policy. Literal compiler-refused
+commands use the shared load-phase diagnostics; dynamic evaluation sees the
+measured runtime surface. Namespace selectors use the Tcl84 member roster,
+including prefix ambiguity, and exclude `namespace path`.
 
 Enable multi-TMM mode with `-tmm_count`.  Write the test for the
 *desired* behaviour — if the iRule has a CMP bug, the test fails:
@@ -419,14 +463,14 @@ passing and failing tests side by side.
 
 | Scope | Per-TMM? | Reset | Real BIG-IP equivalent |
 |-------|----------|-------|----------------------|
-| `static::` | Yes | RULE_INIT per TMM | Per-TMM memory |
+| `static::` | Yes; shared across rule owners | Rule creation/recreation initialisation | Per-TMM memory |
 | `table` | No (CMP shared) | `reset_all` | Shared session DB |
 | `data groups` | No (shared config) | `reset_all` | Config partition |
 | `connection` | Per-TMM (one conn per TMM select) | `tmm_select` | CMP connection affinity |
 
 ### API
 
-- `::orch::tmm_select N` — switch to TMM N (fires RULE_INIT on first use)
+- `::orch::tmm_select N` — switch to TMM N without rerunning rule initialisers
 - `::orch::tmm_get_static N varname` — read a static var from TMM N
 - `::orch::tmm_ids` — list all TMM indices
 - `::orch::tmm_current` — current TMM index

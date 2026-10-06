@@ -736,11 +736,43 @@ pub fn nested_command_words(
     // offset it sits at, so the word model reads `inner` and still reports
     // document spans (`SourceMap::with_base` is that sub-lexing contract).
     let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
-    let tokens = CommandTokens::from_segmented(&sm, config, segment);
+    let mut tokens = CommandTokens::from_segmented(&sm, config, segment);
+    if source.provenance != Provenance::Source {
+        for word in &mut tokens.word_exprs {
+            retain_nested_provenance(word, &source.provenance);
+        }
+    }
     if tokens.word_exprs.is_empty() {
         return Err(NestedWordsDecline::NoWords);
     }
     Ok(tokens)
+}
+
+fn retain_nested_provenance(word: &mut WordExpr, provenance: &Provenance) {
+    let source = match word {
+        WordExpr::Template { parts, source } => {
+            for part in parts {
+                let site = match part {
+                    WordPart::Text { source, .. }
+                    | WordPart::Variable { source, .. }
+                    | WordPart::CommandSubstitution { source, .. }
+                    | WordPart::Opaque { source, .. } => source,
+                };
+                site.provenance.clone_from(provenance);
+            }
+            source
+        }
+        WordExpr::Expand { source, word } => {
+            retain_nested_provenance(word, provenance);
+            source
+        }
+        WordExpr::Literal { source, .. }
+        | WordExpr::BracedLiteral { source, .. }
+        | WordExpr::Variable { source, .. }
+        | WordExpr::CommandSubstitution { source, .. }
+        | WordExpr::Opaque { source, .. } => source,
+    };
+    source.provenance.clone_from(provenance);
 }
 
 /// Recover the structured words for a value word that consists solely of one
@@ -1566,6 +1598,52 @@ mod tests {
 
     /// The value emitter needs the exact inner word forms for a whole nested
     /// substitution, while a braced outer word must still decline.
+    #[test]
+    fn unpositioned_nested_words_preserve_their_source_provenance() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+            let spelling = r#"[f "$x[child]" [child]]"#;
+            let site = SourceSite::opaque(Span::new(400, 424));
+            let tokens = nested_command_words(spelling, &site, config).unwrap();
+            assert!(
+                tokens
+                    .words()
+                    .iter()
+                    .all(|word| word.source().provenance == Provenance::Opaque),
+                "{engine}"
+            );
+            let WordExpr::Template { parts, .. } = &tokens.words()[1] else {
+                panic!("{engine}: quoted template")
+            };
+            for part in parts {
+                let source = match part {
+                    WordPart::Text { source, .. }
+                    | WordPart::Variable { source, .. }
+                    | WordPart::CommandSubstitution { source, .. }
+                    | WordPart::Opaque { source, .. } => source,
+                };
+                assert_eq!(source.provenance, Provenance::Opaque, "{engine}");
+            }
+            let child = whole_word_command_tokens(&tokens.words()[2], config).unwrap();
+            assert_eq!(
+                child.words()[0].source().provenance,
+                Provenance::Opaque,
+                "{engine}"
+            );
+            let original =
+                nested_command_words(spelling, &SourceSite::source(site.span), config).unwrap();
+            assert!(
+                original
+                    .words()
+                    .iter()
+                    .all(|word| word.source().provenance == Provenance::Source),
+                "{engine}"
+            );
+            assert_eq!(original.words()[0].source().span.start(), 401, "{engine}");
+        }
+    }
+
     #[test]
     fn whole_word_command_tokens_preserve_nested_word_forms() {
         let reg = registry();

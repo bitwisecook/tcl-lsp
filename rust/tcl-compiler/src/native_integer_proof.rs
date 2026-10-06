@@ -1031,6 +1031,36 @@ mod tests {
     use crate::common_aot_plan::CommonAotEnvironment;
     use tcl_registry::model::semantic::SemanticContext;
 
+    fn native_unit(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+        registry: &CommandRegistry,
+    ) -> CompilationUnit {
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(
+                crate::environment_ingress::captured_native_entry(dialect),
+            )),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(dialect)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
+        CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+                dialect: Some(dialect),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        )
+    }
+
     fn prove(
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
@@ -1038,7 +1068,7 @@ mod tests {
         policy: NativeIntegerPolicy,
     ) -> NativeIntegerProof {
         let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
-        let unit = CompilationUnit::build_for_profile(source, registry, false, dialect);
+        let unit = native_unit(source, dialect, registry);
         let plan = CommonAotProofPlan::build(
             &unit,
             registry,
@@ -1076,11 +1106,10 @@ mod tests {
     fn native_integer_consumer_retains_implicit_math_validation_obligation() {
         let dialect = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
-        let mut unit = CompilationUnit::build_for_profile(
+        let mut unit = native_unit(
             "expr {abs(-3)}\nproc add {b c} {return [expr {$b+$c}]}\nadd 2 4",
-            registry,
-            false,
             dialect,
+            registry,
         );
         let proof = unit
             .ir_module
@@ -1220,6 +1249,57 @@ mod tests {
                 panic!("distinct activations must retain a logical input proof: {operand:?}");
             };
             assert!(incoming.cells.len() >= 2);
+        }
+    }
+
+    #[test]
+    fn native_integer_requires_entry_call_and_selected_expression_handler() {
+        let dialect = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
+        let missing_entry = CompilationUnit::build_for_profile(
+            &format!("{ADD_BODY}add 1 2"),
+            registry,
+            false,
+            dialect,
+        );
+        let missing_plan = CommonAotProofPlan::build(
+            &missing_entry,
+            registry,
+            Some(SemanticContext::for_profile(dialect)),
+            enabled(),
+            CommonAotEnvironment::Hosted,
+        );
+        let NativeIntegerProof::Analysed(decisions) = prove_native_integer_adds(
+            &missing_entry,
+            "::add",
+            registry,
+            enabled(),
+            checked_i64(),
+            &missing_plan,
+        ) else {
+            panic!("expected analysed missing-entry refusal")
+        };
+        assert!(
+            decisions
+                .iter()
+                .all(|decision| !matches!(decision, NativeAddDecision::Proven(_)))
+        );
+        for source in [
+            ADD_BODY.to_owned(),
+            format!("rename expr {{}}; proc expr args {{return CUSTOM}}; {ADD_BODY}add 1 2"),
+            format!("{ADD_BODY}set target [mystery]; $target 1 2"),
+        ] {
+            let NativeIntegerProof::Analysed(decisions) =
+                prove(&source, dialect, enabled(), checked_i64())
+            else {
+                panic!("expected analysed selected-entry refusal: {source}")
+            };
+            assert!(
+                decisions
+                    .iter()
+                    .all(|decision| !matches!(decision, NativeAddDecision::Proven(_))),
+                "{source}: {decisions:?}"
+            );
         }
     }
 

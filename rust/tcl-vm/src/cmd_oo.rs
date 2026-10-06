@@ -4013,35 +4013,39 @@ mod native_byte_name_tests {
                 tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
             );
             assert_eq!(miss.code, Code::Error);
-            let raw_name = Value::from_native_string_bytes(b"N\0z".as_slice());
-            let created = vm.invoke_command_value_at(
-                ROOT_NS,
-                &class,
-                &[Value::string("create"), raw_name.clone()],
-                &[],
-                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-            );
-            assert_eq!(created.code, Code::Ok);
-            assert_eq!(created.result.string_bytes().as_ref(), b"::N");
-            let invocation = vm.invoke_command_value_at(
-                ROOT_NS,
-                &raw_name,
-                &[],
-                &[],
-                tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-            );
-            assert_eq!(invocation.code, Code::Error);
-            // C9 uses native list quoting for usage; the original input remains counted.
-            assert_eq!(raw_name.string_bytes().as_ref(), b"N\0z");
-            assert!(
-                invocation
-                    .result
-                    .string_bytes()
-                    .as_ref()
-                    .windows(3)
-                    .any(|part| part == b"N\0z")
-            );
+            assert_counted_object_usage(&mut vm, &class);
         }
+    }
+
+    fn assert_counted_object_usage(vm: &mut Vm, class: &Value) {
+        let raw_name = Value::from_native_string_bytes(b"N\0z".as_slice());
+        let created = vm.invoke_command_value_at(
+            ROOT_NS,
+            class,
+            &[Value::string("create"), raw_name.clone()],
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        );
+        assert_eq!(created.code, Code::Ok);
+        assert_eq!(created.result.string_bytes().as_ref(), b"::N");
+        let invocation = vm.invoke_command_value_at(
+            ROOT_NS,
+            &raw_name,
+            &[],
+            &[],
+            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+        );
+        assert_eq!(invocation.code, Code::Error);
+        // C9 uses native list quoting for usage; the original input remains counted.
+        assert_eq!(raw_name.string_bytes().as_ref(), b"N\0z");
+        assert!(
+            invocation
+                .result
+                .string_bytes()
+                .as_ref()
+                .windows(3)
+                .any(|part| part == b"N\0z")
+        );
     }
 
     fn vm_class_root(vm: &Vm) -> OoId {
@@ -4124,11 +4128,16 @@ mod original_call_argv_tests {
                     .collect();
                 let result = vm.invoke_host_original_object_vector(&head, &arguments);
                 assert_eq!(result.code, Code::Error);
-                assert_eq!(observed.borrow().as_slice(), &[expected.clone()]);
+                assert_eq!(
+                    observed.borrow().as_slice(),
+                    std::slice::from_ref(&expected)
+                );
                 let stack = vm.error_stack_value();
                 let flat = stack.as_list().unwrap();
                 let calls: Vec<_> = flat
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .filter(|pair| pair[0].string_bytes().as_ref() == b"CALL")
                     .map(|pair| {
                         pair[1]
@@ -4188,7 +4197,9 @@ mod original_call_argv_tests {
                 stack
                     .as_list()
                     .unwrap()
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .all(|pair| pair[0].string_bytes().as_ref() != b"CALL")
             );
         }

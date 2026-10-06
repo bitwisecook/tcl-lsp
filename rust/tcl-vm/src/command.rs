@@ -2016,7 +2016,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(bytes) => bytes,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
-    if let Err(completion) = validate_procedure_publication_name(vm, &written, dialect) {
+    if let Err(completion) = validate_procedure_publication_name(vm, &written) {
         return completion;
     }
     let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
@@ -2043,7 +2043,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
     let namespace = vm.namespace_path_for_token(ns_id);
-    let native_header = match procedure_header_compilation(vm, params, body_text, dialect) {
+    let native_header = match procedure_header_compilation(vm, params, &body) {
         Ok(header) => header,
         Err(completion) => return completion,
     };
@@ -2079,8 +2079,8 @@ fn procedure_header_compilation(
     vm: &mut Vm,
     params: &Value,
     body_text: &Value,
-    dialect: tcl_registry::InvocationDialect,
 ) -> Result<tcl_dialect::NativeProcedureHeaderCompilation, Completion<Value>> {
+    let dialect = vm.actual_native_invocation_dialect();
     let mut native_header = tcl_registry::native_procedure::procedure_header_compilation_bytes(
         dialect,
         None,
@@ -2088,7 +2088,15 @@ fn procedure_header_compilation(
         Some(false),
     );
     if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
-        let parameter_bytes = match vm.native_name_operand_bytes(params) {
+        let Some(protocol) = dialect.native_string_protocol() else {
+            return Err(vm.refuse_host_command(
+                "native procedure header string producer is unavailable".into(),
+            ));
+        };
+        let parameter_bytes = match params.native_string_bytes_with_integer_formatter(
+            protocol,
+            vm.host().native_integer_formatter(),
+        ) {
             Ok(bytes) => bytes,
             Err(error) => return Err(vm.refuse_host_command(error.to_string())),
         };
@@ -2099,11 +2107,6 @@ fn procedure_header_compilation(
             Some(false),
         );
         if native_header == tcl_dialect::NativeProcedureHeaderCompilation::Unknown {
-            let Some(protocol) = dialect.native_string_protocol() else {
-                return Err(vm.refuse_host_command(
-                    "native procedure header string producer is unavailable".into(),
-                ));
-            };
             let body_bytes = match body_text.native_string_bytes(protocol) {
                 Ok(bytes) => bytes,
                 Err(error) => return Err(vm.refuse_host_command(error.to_string())),
@@ -2122,7 +2125,6 @@ fn procedure_header_compilation(
 fn validate_procedure_publication_name(
     vm: &mut Vm,
     written: &[u8],
-    dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), Completion<Value>> {
     match vm.native_procedure_holder_exists(written) {
         Ok(true) => {}
@@ -2157,23 +2159,18 @@ fn validate_procedure_publication_name(
             Ok(slot) => slot,
             Err(error) => return Err(vm.refuse_host_command(error.to_string())),
         };
-        match tcl_registry::native_procedure::procedure_name_creation_error(
-            dialect,
+        match tcl_registry::native_procedure::procedure_name_creation_error_for_policy(
+            policy,
             slot.namespace.as_segments().is_empty(),
             slot.simple.as_bytes(),
         ) {
-            Some(Ok(())) => {}
-            Some(Err(message)) => {
-                return Err(completion_from_cmd_error(
-                    vm,
-                    tcl_cmd_core::CmdError::new_bytes(message)
-                        .with_native_string_result(policy.recipe().string_protocol()),
-                ));
-            }
-            None => {
-                return Err(
-                    vm.refuse_host_command("procedure name validation is unavailable".into())
-                );
+            Ok(()) => {}
+            Err(message) => {
+                let mut error = tcl_cmd_core::CmdError::new_bytes(message);
+                if policy.authority() == tcl_syntax::naming::NamePolicyAuthority::Native {
+                    error = error.with_native_string_result(policy.recipe().string_protocol());
+                }
+                return Err(completion_from_cmd_error(vm, error));
             }
         }
     }
@@ -2904,6 +2901,11 @@ impl Vm {
         if comp.code != Code::Error {
             return;
         }
+        if let Some(original) = opt_get(&comp.options, "-errorcode") {
+            // This is an explicit frozen-completion restoration, not a fresh
+            // primitive conversion or an inferred code from diagnostic bytes.
+            self.restore_guest_error_code(original);
+        }
         let original = opt_get(&comp.options, "-errorinfo").unwrap_or_else(|| comp.result.clone());
         let info = original.string_bytes();
         self.seed_error_info_original(&original, &info);
@@ -3591,12 +3593,76 @@ mod tests {
     use tcl_syntax::value::ValueOps;
 
     #[test]
+    fn physical_procedure_capture_and_header_remain_separate_from_authored_names() {
+        use super::{Value, Vm};
+        use std::rc::Rc;
+        use tcl_dialect::NativeProcedureHeaderCompilation as Header;
+        let host = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        let authored = tcl_dialect::DialectProfile::irules();
+        let mut vm = Vm::with_native_core(
+            Box::new(Vec::<u8>::new()),
+            Rc::new(crate::host_native::NativeHost::new()),
+            host,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        vm.set_dialect_profile(authored);
+        assert!(vm.set_command_surface_profile(host));
+        assert!(vm.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4,)
+        ));
+        let parameters = Value::new_native_string_bytes(b"args".as_slice());
+        let original = Value::new_native_string_bytes(b"\0".as_slice());
+        let alias = original.clone();
+        let captured = vm
+            .capture_procedure_declaration_body(&parameters, &original)
+            .unwrap();
+        assert_ne!(
+            captured.native_object_identity(),
+            original.native_object_identity()
+        );
+        assert_eq!(captured.string_bytes().as_ref(), b"\0");
+        assert_eq!(
+            alias.native_object_identity(),
+            original.native_object_identity()
+        );
+        // These exact original headers are independently recorded in the
+        // native_procedure_headers corpus (case 7 of each selected release).
+        let native = include_str!("../../tcl-syntax/tests/data/native_procedure_headers/9.0.4.txt");
+        assert!(native.lines().nth(7).unwrap().ends_with("header=0"));
+        assert_eq!(
+            super::procedure_header_compilation(&mut vm, &parameters, &captured).unwrap(),
+            Header::Absent
+        );
+        assert_eq!(
+            tcl_registry::native_procedure::procedure_header_compilation_bytes(
+                tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_4),
+                Some(b"args"),
+                Some(b"\0"),
+                Some(false),
+            ),
+            Header::NoOp,
+        );
+        let mut missing = Vm::new();
+        missing.set_dialect_profile(authored);
+        assert!(!missing.set_native_engine_profile(authored));
+        assert!(
+            missing
+                .capture_procedure_declaration_body(&parameters, &original)
+                .is_err()
+        );
+        assert!(super::procedure_header_compilation(&mut missing, &parameters, &original).is_err());
+    }
+
+    #[test]
     fn c84_procedure_parse_failures_match_7_native_original_object_completions() {
         use super::{Value, Vm};
         let decode = |text: &str| {
             assert_eq!(text.len() % 2, 0);
             text.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect::<Vec<_>>()
         };
@@ -3650,10 +3716,21 @@ mod tests {
         assert_eq!(compared, 7);
     }
 
+    fn procedure_definition_object_state(value: &super::Value) -> (&'static str, usize) {
+        use tcl_syntax::native_object::NativeObjectCacheSnapshot;
+        let snapshot = value.native_object_snapshot();
+        let kind = match snapshot.cache {
+            NativeObjectCacheSnapshot::None => "none",
+            NativeObjectCacheSnapshot::List { .. } => "list",
+            NativeObjectCacheSnapshot::ByteArray { .. } => "bytearray",
+            other => panic!("unexpected definition cache {other:?}"),
+        };
+        (kind, usize::from(snapshot.resident.is_some()))
+    }
+
     #[test]
     fn procedure_body_capture_matches_58_native_definition_windows() {
         use super::{Command, Value, Vm};
-        use tcl_syntax::native_object::NativeObjectCacheSnapshot;
         let engines = [
             (
                 "tcl8.4",
@@ -3680,16 +3757,6 @@ mod tests {
                 include_str!("../tests/data/native_procedure_body_capture/Jim.tsv"),
             ),
         ];
-        let state = |value: &Value| {
-            let snapshot = value.native_object_snapshot();
-            let kind = match snapshot.cache {
-                NativeObjectCacheSnapshot::None => "none",
-                NativeObjectCacheSnapshot::List { .. } => "list",
-                NativeObjectCacheSnapshot::ByteArray { .. } => "bytearray",
-                other => panic!("unexpected definition cache {other:?}"),
-            };
-            (kind, usize::from(snapshot.resident.is_some()))
-        };
         let mut compared = 0;
         for (engine, fixture) in engines {
             for row in fixture.lines() {
@@ -3727,7 +3794,7 @@ mod tests {
                 ];
                 let _alias = (refs == 2).then(|| argv[2].clone());
                 assert_eq!(argv[2].native_object_reference_count(), refs);
-                let before = state(&argv[2]);
+                let before = procedure_definition_object_state(&argv[2]);
                 let completion = super::cmd_proc(&mut vm, &argv);
                 assert_eq!(
                     completion.code,
@@ -3735,12 +3802,12 @@ mod tests {
                     "{engine}: {row}"
                 );
                 let original_refs = argv[2].native_object_reference_count();
-                let after = state(&argv[2]);
+                let after = procedure_definition_object_state(&argv[2]);
                 let Some(Command::Proc(proc)) = vm.lookup_command("p") else {
                     panic!("missing native declaration")
                 };
                 assert!(proc.body.is_none());
-                let stored = state(&proc.body_src);
+                let stored = procedure_definition_object_state(&proc.body_src);
                 let actual = vec![
                     kind.to_string(),
                     refs.to_string(),
@@ -3812,7 +3879,7 @@ mod tests {
                     tcl_syntax::list::split_native_list_bytes(line.as_bytes(), protocol)
                         .unwrap()
                         .into_iter()
-                        .map(|word| word.into_owned())
+                        .map(std::borrow::Cow::into_owned)
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
@@ -3864,26 +3931,6 @@ mod tests {
 
     #[test]
     fn original_frame_selectors_match_native_cache_and_failure_order() {
-        use super::OriginalFrameLevel;
-        use tcl_registry::frame_effect::{NativeFrameLevelFailure, NativeFrameLevelResolution};
-        use tcl_syntax::number::Number;
-        use tcl_syntax::scalar_getter::NativeScalarCache;
-        fn field<'a>(line: &'a str, name: &str) -> &'a str {
-            let marker = format!("\"{name}\":\"");
-            line.split_once(&marker)
-                .unwrap()
-                .1
-                .split('"')
-                .next()
-                .unwrap()
-        }
-        fn unhex(value: &str) -> Vec<u8> {
-            value
-                .as_bytes()
-                .chunks_exact(2)
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect()
-        }
         let fixtures = [
             (
                 tcl_dialect::TclVersion::V8_4,
@@ -3938,7 +3985,6 @@ mod tests {
                 include_str!("../../tcl-syntax/tests/data/native_frame_levels/jim0.84.jsonl"),
             )));
         for (dialect, fixture) in fixtures {
-            let version = dialect;
             let protocol = dialect.native_frame_level_protocol().unwrap();
             let jim_inputs: [&[u8]; 18] = [
                 b"1",
@@ -3966,83 +4012,114 @@ mod tests {
                 &inputs[..]
             };
             for (case, line) in fixture.lines().enumerate() {
-                let original = if case < inputs.len() {
-                    crate::Value::from_string_bytes(inputs[case])
-                } else if case == inputs.len() {
-                    crate::Value::int(1)
-                } else {
-                    crate::Value::native_double(
-                        if case == inputs.len() + 1 {
-                            1.0
-                        } else {
-                            f64::NAN
-                        },
-                        dialect,
-                    )
-                };
-                let alias = original.clone();
-                let outcome = protocol
-                    .resolve_leading_object(
-                        2,
-                        &mut OriginalFrameLevel {
-                            value: &original,
-                            dialect,
-                        },
-                    )
-                    .unwrap();
-                let expected = unhex(field(line, "result"));
-                match outcome {
-                    Ok(NativeFrameLevelResolution {
-                        explicit: true,
-                        target,
-                    }) => {
-                        assert!(line.contains("\"code\":0"), "{version:?} {case}");
-                        assert_eq!(
-                            expected,
-                            target.to_string().as_bytes(),
-                            "{version:?} {case}"
-                        );
-                    }
-                    Ok(NativeFrameLevelResolution {
-                        explicit: false, ..
-                    }) => {
-                        assert!(line.contains("\"code\":1"), "{version:?} {case}");
-                        assert!(
-                            expected.starts_with(b"invalid command name"),
-                            "{version:?} {case}"
-                        );
-                    }
-                    Err(NativeFrameLevelFailure::Primitive(record)) => {
-                        assert_eq!(expected, record.eval_message_bytes(), "{version:?} {case}");
-                    }
-                    Err(NativeFrameLevelFailure::BadLevel { name, .. }) => {
-                        let mut actual = b"bad level \"".to_vec();
-                        actual.extend_from_slice(&name);
-                        actual.push(b'"');
-                        assert_eq!(expected, actual, "{version:?} {case}");
-                    }
-                }
-                let actual_cache = if alias.native_frame_level_cache().is_some() {
-                    "levelReference"
-                } else {
-                    match alias.native_scalar_cache() {
-                        Some(NativeScalarCache::Number(Number::Int(_))) => "integer",
-                        Some(NativeScalarCache::Number(Number::Double(_) | Number::Nan { .. })) => {
-                            "double"
-                        }
-                        None => "string",
-                        other => panic!("unexpected frame cache {other:?}"),
-                    }
-                };
-                let expected_cache = match field(line, "after") {
-                    "int" | "wideInt" => "integer",
-                    other => other,
-                };
-                assert_eq!(actual_cache, expected_cache, "{version:?} {case}");
+                assert_original_frame_selector(dialect, inputs, case, line);
                 count += 1;
             }
         }
         assert_eq!(count, 101);
+    }
+
+    fn native_frame_field<'a>(line: &'a str, name: &str) -> &'a str {
+        let marker = format!("\"{name}\":\"");
+        line.split_once(&marker)
+            .unwrap()
+            .1
+            .split('"')
+            .next()
+            .unwrap()
+    }
+
+    fn decode_native_frame_hex(value: &str) -> Vec<u8> {
+        value
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    fn assert_original_frame_selector(
+        dialect: tcl_registry::InvocationDialect,
+        inputs: &[&[u8]],
+        case: usize,
+        line: &str,
+    ) {
+        use super::OriginalFrameLevel;
+        use tcl_registry::frame_effect::{NativeFrameLevelFailure, NativeFrameLevelResolution};
+        use tcl_syntax::number::Number;
+        use tcl_syntax::scalar_getter::NativeScalarCache;
+        let version = dialect;
+        let protocol = dialect.native_frame_level_protocol().unwrap();
+        let original = match case.cmp(&inputs.len()) {
+            std::cmp::Ordering::Less => crate::Value::from_string_bytes(inputs[case]),
+            std::cmp::Ordering::Equal => crate::Value::int(1),
+            std::cmp::Ordering::Greater => crate::Value::native_double(
+                if case == inputs.len() + 1 {
+                    1.0
+                } else {
+                    f64::NAN
+                },
+                dialect,
+            ),
+        };
+        let alias = original.clone();
+        let outcome = protocol
+            .resolve_leading_object(
+                2,
+                &mut OriginalFrameLevel {
+                    value: &original,
+                    dialect,
+                },
+            )
+            .unwrap();
+        let expected = decode_native_frame_hex(native_frame_field(line, "result"));
+        match outcome {
+            Ok(NativeFrameLevelResolution {
+                explicit: true,
+                target,
+            }) => {
+                assert!(line.contains("\"code\":0"), "{version:?} {case}");
+                assert_eq!(
+                    expected,
+                    target.to_string().as_bytes(),
+                    "{version:?} {case}"
+                );
+            }
+            Ok(NativeFrameLevelResolution {
+                explicit: false, ..
+            }) => {
+                assert!(line.contains("\"code\":1"), "{version:?} {case}");
+                assert!(
+                    expected.starts_with(b"invalid command name"),
+                    "{version:?} {case}"
+                );
+            }
+            Err(NativeFrameLevelFailure::Primitive(record)) => {
+                assert_eq!(expected, record.eval_message_bytes(), "{version:?} {case}");
+            }
+            Err(NativeFrameLevelFailure::BadLevel { name, .. }) => {
+                let mut actual = b"bad level \"".to_vec();
+                actual.extend_from_slice(&name);
+                actual.push(b'"');
+                assert_eq!(expected, actual, "{version:?} {case}");
+            }
+        }
+        let actual_cache = if alias.native_frame_level_cache().is_some() {
+            "levelReference"
+        } else {
+            match alias.native_scalar_cache() {
+                Some(NativeScalarCache::Number(Number::Int(_))) => "integer",
+                Some(NativeScalarCache::Number(Number::Double(_) | Number::Nan { .. })) => "double",
+                None => "string",
+                other => panic!("unexpected frame cache {other:?}"),
+            }
+        };
+        let expected_cache = match native_frame_field(line, "after") {
+            "int" | "wideInt" => "integer",
+            other => other,
+        };
+        assert_eq!(actual_cache, expected_cache, "{version:?} {case}");
     }
 
     #[test]
@@ -4160,18 +4237,22 @@ mod tests {
         let mut vm = crate::Vm::new();
         vm.set_dialect_profile(modern);
         assert_eq!(
-            vm.try_invoke_command("expr", &[source.clone()])
-                .unwrap()
-                .result
-                .to_str()
-                .as_ref(),
+            {
+                let invocation_argument = source.clone();
+                vm.try_invoke_command("expr", std::slice::from_ref(&invocation_argument))
+            }
+            .unwrap()
+            .result
+            .to_str()
+            .as_ref(),
             "8"
         );
         vm.set_dialect_profile(restricted);
-        let NativeExecutionError::ExpressionRefusal(failure) = vm
-            .try_invoke_command("expr", &[source.clone()])
-            .unwrap_err()
-        else {
+        let NativeExecutionError::ExpressionRefusal(failure) = {
+            let invocation_argument = source.clone();
+            vm.try_invoke_command("expr", std::slice::from_ref(&invocation_argument))
+        }
+        .unwrap_err() else {
             panic!("operator syntax needs an expression provider");
         };
         assert_eq!(
@@ -4540,7 +4621,11 @@ mod tests {
             ));
             let result = Value::new_native_string_bytes(&b"\xff\0TAIL"[..]);
             let script = Value::list(vec![Value::string("return"), result.clone()]);
-            let completion = vm.try_invoke_command("eval", &[script.clone()]).unwrap();
+            let completion = {
+                let invocation_argument = script.clone();
+                vm.try_invoke_command("eval", std::slice::from_ref(&invocation_argument))
+            }
+            .unwrap();
             assert_eq!(completion.code, Code::Return, "{dialect}");
             assert_eq!(
                 completion.result.native_object_identity(),

@@ -612,224 +612,6 @@ pub(super) fn configure_all(vm: &mut Vm, target: OoId) -> Completion<Value> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn instance() -> Vm {
-        let profile = crate::environment::profile_for_dialect("tcl9.1");
-        let mut vm = Vm::with_native_core(
-            Box::new(std::io::sink()),
-            Rc::new(crate::host_native::NativeHost::new()),
-            profile,
-            tcl_registry::special_vars::NativeBootstrapInputs::default(),
-        )
-        .unwrap();
-        vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
-        let result=vm.eval_source("oo::configurable create C {property yellow -get {return Y}; property zinc -get {return Z}}; C create o").unwrap();
-        assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
-        vm
-    }
-    #[test]
-    fn property_headers_and_temporary_tables_retain_original_members() {
-        let mut vm = instance();
-        let id = resolve_object_value(&mut vm, &Value::string("o"))
-            .unwrap()
-            .unwrap();
-        let header = vm.native_all_property_header(id, false, false).unwrap();
-        let original_id = header.value().native_object_identity();
-        let strings = vm
-            .actual_native_invocation_dialect()
-            .native_property_lookup_protocol()
-            .unwrap()
-            .strings();
-        let names = header.value().native_object_list_elements(strings).unwrap();
-        let first_id = names[0].native_object_identity();
-        let refs = names[0].native_object_reference_count();
-        let copy = header.value().native_list_copy(strings).unwrap();
-        let copied = copy.native_object_list_elements(strings).unwrap();
-        assert_ne!(copy.native_object_identity(), original_id);
-        assert_eq!(copied[0].native_object_identity(), first_id);
-        assert_eq!(copied[0].native_object_reference_count(), refs);
-        let mut table = None;
-        let caller = Value::new_native_string_bytes(b"-y".as_slice());
-        assert_eq!(
-            lookup_property(&mut vm, id, &caller, false, &mut table, true)
-                .unwrap()
-                .value()
-                .string_bytes()
-                .as_ref(),
-            b"-yellow"
-        );
-        assert_eq!(
-            caller.native_object_snapshot().cache,
-            tcl_syntax::native_object::NativeObjectCacheSnapshot::None
-        );
-        assert!(table.is_some());
-        let retained = vm.native_all_property_header(id, false, false).unwrap();
-        assert_eq!(retained.value().native_object_identity(), original_id);
-    }
-    #[test]
-    fn opaque_property_lookup_uses_original_accessor_members() {
-        let mut vm = instance();
-        let class = resolve_object_value(&mut vm, &Value::string("C"))
-            .unwrap()
-            .unwrap();
-        let target = resolve_object_value(&mut vm, &Value::string("o"))
-            .unwrap()
-            .unwrap();
-        for name in [b"x\xff".as_slice(), b"x\0tail".as_slice()] {
-            let definition = [
-                Value::new_native_string_bytes(name),
-                Value::string("-get"),
-                Value::string("return RAW"),
-            ];
-            let result = define_original_properties(&mut vm, true, class, &definition);
-            assert_eq!(result.code, Code::Ok);
-            let mut dashed = b"-".to_vec();
-            dashed.extend_from_slice(name);
-            let caller = Value::new_native_string_bytes(dashed);
-            let result = configure_native(&mut vm, target, std::slice::from_ref(&caller));
-            assert_eq!(result.code, Code::Ok);
-            assert_eq!(result.result.string_bytes().as_ref(), b"RAW");
-            assert_eq!(
-                caller.native_object_snapshot().cache,
-                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
-            );
-            let mut table = None;
-            let selected =
-                lookup_property(&mut vm, target, &caller, false, &mut table, false).unwrap();
-            assert!(selected.value().native_property_name_is_cached());
-        }
-        let rows = include_str!("../../tests/data/native_property_opaque/native.tsv");
-        assert_eq!(rows, "opaque-0\tRAW\tnone\nopaque-1\tRAW\tnone\n");
-    }
-    #[test]
-    fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
-        let mut vm = instance();
-        let class = resolve_object_value(&mut vm, &Value::string("C"))
-            .unwrap()
-            .unwrap();
-        let target = resolve_object_value(&mut vm, &Value::string("o"))
-            .unwrap()
-            .unwrap();
-        let recipe = vm
-            .actual_native_invocation_dialect()
-            .native_property_lookup_protocol()
-            .unwrap();
-        for name in [b"p".as_slice(), b"x\xff".as_slice(), b"x\0tail".as_slice()] {
-            let declaration = Value::new_native_string_bytes(name);
-            let result = define_original_properties(
-                &mut vm,
-                true,
-                class,
-                std::slice::from_ref(&declaration),
-            );
-            assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
-            drop(result);
-            let mut canonical = b"-".to_vec();
-            canonical.extend_from_slice(tcl_core_types::c_string_extent(name));
-            let (reader, writer) = recipe.accessor_names(&canonical);
-            for key in [reader, writer] {
-                let key = vm
-                    .oo
-                    .intern_method_key(tcl_core_types::NameBytes::from(key));
-                let method = vm.oo.classes[&class].methods.get(&key).unwrap();
-                assert_eq!(
-                    method
-                        .property
-                        .as_ref()
-                        .unwrap()
-                        .original
-                        .native_object_identity(),
-                    declaration.native_object_identity()
-                );
-            }
-            assert_eq!(declaration.native_object_reference_count(), 3);
-            let mut query = b"-".to_vec();
-            query.extend_from_slice(name);
-            let query = Value::new_native_string_bytes(query);
-            let supplied = Value::new_native_string_bytes(b"RAW".as_slice());
-            let arguments = [
-                query.native_lifetime_lease().into_value(),
-                supplied.native_lifetime_lease().into_value(),
-            ];
-            let written = configure_native(&mut vm, target, &arguments);
-            assert_eq!(written.code, Code::Ok, "{}", written.result.to_str());
-            assert!(written.result.string_bytes().is_empty());
-            drop(written);
-            let read = configure_native(&mut vm, target, std::slice::from_ref(&query));
-            assert_eq!(read.code, Code::Ok, "{}", read.result.to_str());
-            assert_eq!(
-                read.result.native_object_identity(),
-                supplied.native_object_identity()
-            );
-            assert_eq!(declaration.native_object_reference_count(), 3);
-            assert_eq!(
-                declaration.native_object_snapshot().cache,
-                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
-            );
-            assert_eq!(
-                query.native_object_snapshot().cache,
-                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
-            );
-        }
-        let rows = include_str!("../../tests/data/native_property_clientdata/native.tsv");
-        assert_eq!(rows.lines().count(), 9);
-        for index in 0..3 {
-            assert!(rows.contains(&format!("decl-{index}\t1\t1\t3\tnone\n")));
-            assert!(rows.contains(&format!("write-{index}\t3\tnone\t1\n")));
-            assert!(rows.contains(&format!("read-{index}\t3\tnone\t1\tnone\n")));
-        }
-    }
-    #[test]
-    fn property_epochs_follow_mutations_before_definition_failure() {
-        let mut vm = instance();
-        let id = resolve_object_value(&mut vm, &Value::string("o"))
-            .unwrap()
-            .unwrap();
-        let class = resolve_object_value(&mut vm, &Value::string("C"))
-            .unwrap()
-            .unwrap();
-        let header = vm.native_all_property_header(id, false, false).unwrap();
-        let old = header.value().native_object_identity();
-        let epoch = vm.oo.property_foundation_epoch;
-        vm.native_property_method_created(id, false);
-        assert_eq!(vm.oo.property_foundation_epoch, epoch);
-        assert_eq!(
-            vm.native_all_property_header(id, false, false)
-                .unwrap()
-                .value()
-                .native_object_identity(),
-            old
-        );
-        let result = vm
-            .eval_source("catch {oo::define C {::oo::define::method live {} {return};error LATE}}")
-            .unwrap();
-        assert_eq!(result.code, Code::Ok);
-        assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
-        assert_eq!(
-            vm.oo.property_caches[&(id, false)]
-                .readable
-                .as_ref()
-                .unwrap()
-                .native_object_identity(),
-            old
-        );
-        assert_ne!(
-            vm.native_all_property_header(id, false, false)
-                .unwrap()
-                .value()
-                .native_object_identity(),
-            old
-        );
-        let epoch = vm.oo.property_foundation_epoch;
-        vm.native_property_structure_changed(class, true);
-        assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
-    }
-}
-
 /// Actual GetterType/SetterType clientData. Native method records share this
 /// allocation during invocation; a new cloned declaration duplicates its role.
 pub(super) struct NativePropertyAccessor {
@@ -1193,4 +975,223 @@ pub(super) fn define_original_properties(
         }
     }
     ok(Value::empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cmd_oo::resolve_object_value;
+    fn instance() -> Vm {
+        let profile = crate::environment::profile_for_dialect("tcl9.1");
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::sink()),
+            Rc::new(crate::host_native::NativeHost::new()),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let result=vm.eval_source("oo::configurable create C {property yellow -get {return Y}; property zinc -get {return Z}}; C create o").unwrap();
+        assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
+        vm
+    }
+    #[test]
+    fn property_headers_and_temporary_tables_retain_original_members() {
+        let mut vm = instance();
+        let id = resolve_object_value(&mut vm, &Value::string("o"))
+            .unwrap()
+            .unwrap();
+        let header = vm.native_all_property_header(id, false, false).unwrap();
+        let original_id = header.value().native_object_identity();
+        let strings = vm
+            .actual_native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .unwrap()
+            .strings();
+        let names = header.value().native_object_list_elements(strings).unwrap();
+        let first_id = names[0].native_object_identity();
+        let refs = names[0].native_object_reference_count();
+        let copy = header.value().native_list_copy(strings).unwrap();
+        let copied = copy.native_object_list_elements(strings).unwrap();
+        assert_ne!(copy.native_object_identity(), original_id);
+        assert_eq!(copied[0].native_object_identity(), first_id);
+        assert_eq!(copied[0].native_object_reference_count(), refs);
+        let mut table = None;
+        let caller = Value::new_native_string_bytes(b"-y".as_slice());
+        assert_eq!(
+            lookup_property(&mut vm, id, &caller, false, &mut table, true)
+                .unwrap()
+                .value()
+                .string_bytes()
+                .as_ref(),
+            b"-yellow"
+        );
+        assert_eq!(
+            caller.native_object_snapshot().cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+        );
+        assert!(table.is_some());
+        let retained = vm.native_all_property_header(id, false, false).unwrap();
+        assert_eq!(retained.value().native_object_identity(), original_id);
+    }
+    #[test]
+    fn opaque_property_lookup_uses_original_accessor_members() {
+        let mut vm = instance();
+        let class = resolve_object_value(&mut vm, &Value::string("C"))
+            .unwrap()
+            .unwrap();
+        let target = resolve_object_value(&mut vm, &Value::string("o"))
+            .unwrap()
+            .unwrap();
+        for name in [b"x\xff".as_slice(), b"x\0tail".as_slice()] {
+            let definition = [
+                Value::new_native_string_bytes(name),
+                Value::string("-get"),
+                Value::string("return RAW"),
+            ];
+            let result = define_original_properties(&mut vm, true, class, &definition);
+            assert_eq!(result.code, Code::Ok);
+            let mut dashed = b"-".to_vec();
+            dashed.extend_from_slice(name);
+            let caller = Value::new_native_string_bytes(dashed);
+            let result = configure_native(&mut vm, target, std::slice::from_ref(&caller));
+            assert_eq!(result.code, Code::Ok);
+            assert_eq!(result.result.string_bytes().as_ref(), b"RAW");
+            assert_eq!(
+                caller.native_object_snapshot().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+            );
+            let mut table = None;
+            let selected =
+                lookup_property(&mut vm, target, &caller, false, &mut table, false).unwrap();
+            assert!(selected.value().native_property_name_is_cached());
+        }
+        let rows = include_str!("../../tests/data/native_property_opaque/native.tsv");
+        assert_eq!(rows, "opaque-0\tRAW\tnone\nopaque-1\tRAW\tnone\n");
+    }
+    #[test]
+    fn default_property_methods_retain_original_clientdata_and_leave_its_primary() {
+        let mut vm = instance();
+        let class = resolve_object_value(&mut vm, &Value::string("C"))
+            .unwrap()
+            .unwrap();
+        let target = resolve_object_value(&mut vm, &Value::string("o"))
+            .unwrap()
+            .unwrap();
+        let recipe = vm
+            .actual_native_invocation_dialect()
+            .native_property_lookup_protocol()
+            .unwrap();
+        for name in [b"p".as_slice(), b"x\xff".as_slice(), b"x\0tail".as_slice()] {
+            let declaration = Value::new_native_string_bytes(name);
+            let result = define_original_properties(
+                &mut vm,
+                true,
+                class,
+                std::slice::from_ref(&declaration),
+            );
+            assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
+            drop(result);
+            let mut canonical = b"-".to_vec();
+            canonical.extend_from_slice(tcl_core_types::c_string_extent(name));
+            let (reader, writer) = recipe.accessor_names(&canonical);
+            for key in [reader, writer] {
+                let key = vm
+                    .oo
+                    .intern_method_key(tcl_core_types::NameBytes::from(key));
+                let method = vm.oo.classes[&class].methods.get(&key).unwrap();
+                assert_eq!(
+                    method
+                        .property
+                        .as_ref()
+                        .unwrap()
+                        .original
+                        .native_object_identity(),
+                    declaration.native_object_identity()
+                );
+            }
+            assert_eq!(declaration.native_object_reference_count(), 3);
+            let mut query = b"-".to_vec();
+            query.extend_from_slice(name);
+            let query = Value::new_native_string_bytes(query);
+            let supplied = Value::new_native_string_bytes(b"RAW".as_slice());
+            let arguments = [
+                query.native_lifetime_lease().into_value(),
+                supplied.native_lifetime_lease().into_value(),
+            ];
+            let written = configure_native(&mut vm, target, &arguments);
+            assert_eq!(written.code, Code::Ok, "{}", written.result.to_str());
+            assert!(written.result.string_bytes().is_empty());
+            drop(written);
+            let read = configure_native(&mut vm, target, std::slice::from_ref(&query));
+            assert_eq!(read.code, Code::Ok, "{}", read.result.to_str());
+            assert_eq!(
+                read.result.native_object_identity(),
+                supplied.native_object_identity()
+            );
+            assert_eq!(declaration.native_object_reference_count(), 3);
+            assert_eq!(
+                declaration.native_object_snapshot().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+            );
+            assert_eq!(
+                query.native_object_snapshot().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::None
+            );
+        }
+        let rows = include_str!("../../tests/data/native_property_clientdata/native.tsv");
+        assert_eq!(rows.lines().count(), 9);
+        for index in 0..3 {
+            assert!(rows.contains(&format!("decl-{index}\t1\t1\t3\tnone\n")));
+            assert!(rows.contains(&format!("write-{index}\t3\tnone\t1\n")));
+            assert!(rows.contains(&format!("read-{index}\t3\tnone\t1\tnone\n")));
+        }
+    }
+    #[test]
+    fn property_epochs_follow_mutations_before_definition_failure() {
+        let mut vm = instance();
+        let id = resolve_object_value(&mut vm, &Value::string("o"))
+            .unwrap()
+            .unwrap();
+        let class = resolve_object_value(&mut vm, &Value::string("C"))
+            .unwrap()
+            .unwrap();
+        let header = vm.native_all_property_header(id, false, false).unwrap();
+        let old = header.value().native_object_identity();
+        let epoch = vm.oo.property_foundation_epoch;
+        vm.native_property_method_created(id, false);
+        assert_eq!(vm.oo.property_foundation_epoch, epoch);
+        assert_eq!(
+            vm.native_all_property_header(id, false, false)
+                .unwrap()
+                .value()
+                .native_object_identity(),
+            old
+        );
+        let result = vm
+            .eval_source("catch {oo::define C {::oo::define::method live {} {return};error LATE}}")
+            .unwrap();
+        assert_eq!(result.code, Code::Ok);
+        assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
+        assert_eq!(
+            vm.oo.property_caches[&(id, false)]
+                .readable
+                .as_ref()
+                .unwrap()
+                .native_object_identity(),
+            old
+        );
+        assert_ne!(
+            vm.native_all_property_header(id, false, false)
+                .unwrap()
+                .value()
+                .native_object_identity(),
+            old
+        );
+        let epoch = vm.oo.property_foundation_epoch;
+        vm.native_property_structure_changed(class, true);
+        assert_eq!(vm.oo.property_foundation_epoch, epoch + 1);
+    }
 }

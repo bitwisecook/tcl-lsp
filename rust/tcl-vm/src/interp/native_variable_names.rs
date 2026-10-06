@@ -1110,6 +1110,8 @@ impl Vm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cell::RefCell;
+    use tcl_core_types::VarId;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
 
     fn actual(version: &str) -> Vm {
@@ -1173,7 +1175,9 @@ mod tests {
     fn original_unset_execution_matches_85_native_completion_windows() {
         fn unhex(text: &str) -> Vec<u8> {
             text.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }
@@ -1233,7 +1237,9 @@ mod tests {
     fn original_unset_options_match_66_native_results() {
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }
@@ -1275,7 +1281,18 @@ mod tests {
                 let profile =
                     tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
                 let mut vm = crate::native_fixture::interpreter(profile);
-                let completion = vm.try_eval_source(&observed).unwrap();
+                if engine == "jim" {
+                    let empty = vm.try_eval_source("unset").unwrap();
+                    assert_eq!(empty.code, tcl_runtime_api::Code::Ok);
+                    assert_eq!(empty.result.to_str().as_ref(), "");
+                    assert!(vm.refused_completion().is_none());
+                    // jimsh's binary observer is a distribution extension;
+                    // it is independent of the native core issuer under test.
+                    crate::cmd_binary::register(&mut vm);
+                }
+                let completion = vm.try_eval_source(&observed).unwrap_or_else(|error| {
+                    panic!("{engine}/{} original unset observer: {error:?}", columns[0])
+                });
                 assert_eq!(
                     completion.code,
                     tcl_runtime_api::Code::Ok,
@@ -1299,7 +1316,9 @@ mod tests {
     fn original_unset_traces_and_operand_order_match_36_native_results() {
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }
@@ -1385,7 +1404,7 @@ mod tests {
                 rows.borrow_mut().push(format!(
                     "before{case}|{kind}|{}",
                     local.native_object_reference_count(),
-                ))
+                ));
             });
             alias_canonical_row("before", case, &local);
             let target = Value::new_native_string_bytes(b"x".as_slice());
@@ -1397,7 +1416,7 @@ mod tests {
                 rows.borrow_mut().push(format!(
                     "after{case}|0|{kind}|{}",
                     local.native_object_reference_count(),
-                ))
+                ));
             });
         }
         crate::interp::ok(Value::empty())
@@ -1417,7 +1436,7 @@ mod tests {
                 "{}|{}",
                 argv[0].native_object_type_name(),
                 String::from_utf8(bytes.to_vec()).unwrap(),
-            ))
+            ));
         });
         crate::interp::ok(Value::empty())
     }
@@ -1476,7 +1495,7 @@ mod tests {
                         "{label}|{}|{}",
                         completion.code.as_int(),
                         String::from_utf8(completion.result.string_bytes().to_vec()).unwrap(),
-                    ))
+                    ));
                 });
                 assert!(vm.refused_completion().is_none(), "{engine}");
             }
@@ -1876,12 +1895,16 @@ mod tests {
             assert_eq!(
                 rows.borrow().as_slice(),
                 expected.lines().collect::<Vec<_>>()
-            )
+            );
         });
     }
 
     fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        bytes.iter().fold(String::new(), |mut output, byte| {
+            use std::fmt::Write;
+            write!(output, "{byte:02x}").expect("writing into a String");
+            output
+        })
     }
     fn observe(version: &str, case: &str, phase: &str, original: &Value) -> String {
         let snapshot = original.native_object_snapshot();
@@ -1902,72 +1925,72 @@ mod tests {
         )
     }
 
+    use tcl_runtime_api::native_variable_trace::{
+        NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+    };
+    struct ElementCallbackWindows {
+        version: &'static str,
+        key_k: crate::value::NativeObjectLifetimeLease,
+        key_j: crate::value::NativeObjectLifetimeLease,
+        old_k: VarId,
+        old_j: VarId,
+        object_table: bool,
+        rows: Rc<RefCell<Vec<String>>>,
+        sequence: Rc<RefCell<usize>>,
+    }
+    impl ElementCallbackWindows {
+        fn record(&self, vm: &Vm, phase: &str) {
+            let (dead_k, defined_k, refs_k) = vm
+                .var_arena
+                .observe_native_element(self.old_k, self.object_table);
+            let (dead_j, defined_j, refs_j) = vm
+                .var_arena
+                .observe_native_element(self.old_j, self.object_table);
+            let current_k = vm
+                .resolve_var_from_bytes(b"arr(k)", 0)
+                .and_then(|resolved| resolved.id)
+                .is_some();
+            let current_j = vm
+                .resolve_var_from_bytes(b"arr(j)", 0)
+                .and_then(|resolved| resolved.id)
+                .is_some();
+            let key_k = self.key_k.value().native_object_reference_count();
+            let key_j = self.key_j.value().native_object_reference_count();
+            self.rows.borrow_mut().push(format!("{}|window|{phase}|{key_k}|{key_j}|{dead_k}|{dead_j}|{defined_k}|{defined_j}|{refs_k}|{refs_j}|{}|{}", self.version, i32::from(current_k), i32::from(current_j)));
+        }
+    }
+    impl NativeVariableObserver<Vm> for ElementCallbackWindows {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            vm: &mut Vm,
+            access: NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            let phase = if access.name2.is_empty() {
+                "root".to_owned()
+            } else {
+                *self.sequence.borrow_mut() += 1;
+                format!(
+                    "element{}-{}",
+                    *self.sequence.borrow(),
+                    std::str::from_utf8(access.name2).unwrap()
+                )
+            };
+            self.record(vm, &phase);
+            // Raw C84 flags do not donate a value or an existence result.
+            if !access.name2.is_empty() {
+                assert!(
+                    !vm.exists_var_bytes_from(if access.name2 == b"k" { b"ak" } else { b"aj" }, 0)
+                );
+            }
+            Ok(())
+        }
+    }
+
     #[test]
     fn cpp_table_and_var_roles_match_all_25_original_callback_windows() {
         use std::cell::RefCell;
         use tcl_core_types::VarId;
-        use tcl_runtime_api::native_variable_trace::{
-            NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-        };
-        struct Windows {
-            version: &'static str,
-            key_k: crate::value::NativeObjectLifetimeLease,
-            key_j: crate::value::NativeObjectLifetimeLease,
-            old_k: VarId,
-            old_j: VarId,
-            object_table: bool,
-            rows: Rc<RefCell<Vec<String>>>,
-            sequence: Rc<RefCell<usize>>,
-        }
-        impl Windows {
-            fn record(&self, vm: &Vm, phase: &str) {
-                let (dead_k, defined_k, refs_k) = vm
-                    .var_arena
-                    .observe_native_element(self.old_k, self.object_table);
-                let (dead_j, defined_j, refs_j) = vm
-                    .var_arena
-                    .observe_native_element(self.old_j, self.object_table);
-                let current_k = vm
-                    .resolve_var_from_bytes(b"arr(k)", 0)
-                    .and_then(|resolved| resolved.id)
-                    .is_some();
-                let current_j = vm
-                    .resolve_var_from_bytes(b"arr(j)", 0)
-                    .and_then(|resolved| resolved.id)
-                    .is_some();
-                let key_k = self.key_k.value().native_object_reference_count();
-                let key_j = self.key_j.value().native_object_reference_count();
-                self.rows.borrow_mut().push(format!("{}|window|{phase}|{key_k}|{key_j}|{dead_k}|{dead_j}|{defined_k}|{defined_j}|{refs_k}|{refs_j}|{}|{}", self.version, i32::from(current_k), i32::from(current_j)));
-            }
-        }
-        impl NativeVariableObserver<Vm> for Windows {
-            type Error = tcl_cmd_core::CmdError;
-            fn observe(
-                &self,
-                vm: &mut Vm,
-                access: NativeVariableTraceAccess<'_>,
-            ) -> Result<(), Self::Error> {
-                let phase = if access.name2.is_empty() {
-                    "root".to_owned()
-                } else {
-                    *self.sequence.borrow_mut() += 1;
-                    format!(
-                        "element{}-{}",
-                        *self.sequence.borrow(),
-                        std::str::from_utf8(access.name2).unwrap()
-                    )
-                };
-                self.record(vm, &phase);
-                // Raw C84 flags do not donate a value or an existence result.
-                if !access.name2.is_empty() {
-                    assert!(!vm.exists_var_bytes_from(
-                        if access.name2 == b"k" { b"ak" } else { b"aj" },
-                        0
-                    ));
-                }
-                Ok(())
-            }
-        }
         let rows = Rc::new(RefCell::new(Vec::new()));
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),
@@ -2022,7 +2045,7 @@ mod tests {
                 &Value::new_native_string_bytes(b"aj".as_slice()),
             )
             .unwrap();
-            let windows = Rc::new(Windows {
+            let windows = Rc::new(ElementCallbackWindows {
                 version,
                 key_k: key_k.native_lifetime_lease(),
                 key_j: key_j.native_lifetime_lease(),

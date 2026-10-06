@@ -1,0 +1,152 @@
+[
+  {
+    "version": "8.4.20",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.4.20"
+    ],
+    "source_sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+    "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "bd0fa65d6d8203327a08ac4a7bfcad0f46b61169f118a0d4a46c21b10b5ab257",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.4.20"
+    ],
+    "returncode": 0,
+    "stdout_hex": "6d697373696e67092d31092d31096e6f6e650931093109300930093009300a66697273742d6672616d6509310931096e6f6e650931093109300930093009300a726574697265642d6672616d65092d31092d31096e6f6e650931093109300930093009300a7265706c6163656d656e742d6672616d6509310931096e6f6e650931093109300930093009300a6f746865722d696e74657270726574657209310931096e6f6e650931093109300930093009300a6475706c69636174652d61667465722d6f726967696e616c2d72656c6561736509310931096e6f6e650931093109300930093009300a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "8.5.19",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.5.19"
+    ],
+    "source_sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+    "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "header_sha256": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "9e61f6642791564d6ce8ac6c9c116b0a67aa96047897c6f2a147a357d3564f87",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.5.19"
+    ],
+    "returncode": 0,
+    "stdout_hex": "6d697373696e67092d31092d31096c6576656c5265666572656e63650931093109300930093009300a66697273742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a726574697265642d6672616d65092d31092d31096c6576656c5265666572656e63650931093109300930093009300a7265706c6163656d656e742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a6f746865722d696e74657270726574657209310931096c6576656c5265666572656e63650931093109300930093009300a6475706c69636174652d61667465722d6f726967696e616c2d72656c6561736509310931096c6576656c5265666572656e63650931093109300930093009300a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "8.6.18",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.6.18"
+    ],
+    "source_sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "header_sha256": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "99da56f6ad2e3c6b12ef18c9f4ef23faa65728f050415154659f99b2b37303b9",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-8.6.18"
+    ],
+    "returncode": 0,
+    "stdout_hex": "6d697373696e67092d31092d31096c6576656c5265666572656e63650931093109300930093009300a66697273742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a726574697265642d6672616d65092d31092d31096c6576656c5265666572656e63650931093109300930093009300a7265706c6163656d656e742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a6f746865722d696e74657270726574657209310931096c6576656c5265666572656e63650931093109300930093009300a6475706c69636174652d61667465722d6f726967696e616c2d72656c6561736509310931096c6576656c5265666572656e63650931093109300930093009300a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.0.4",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-9.0.4"
+    ],
+    "source_sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "header_sha256": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "7a7cb57adc705adba367d662e15622596f519e08a02562b9f04204518e46837b",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-9.0.4"
+    ],
+    "returncode": 0,
+    "stdout_hex": "6d697373696e67092d31092d31096c6576656c5265666572656e63650931093109300930093009300a66697273742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a726574697265642d6672616d65092d31092d31096c6576656c5265666572656e63650931093109300930093009300a7265706c6163656d656e742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a6f746865722d696e74657270726574657209310931096c6576656c5265666572656e63650931093109300930093009300a6475706c69636174652d61667465722d6f726967696e616c2d72656c6561736509310931096c6576656c5265666572656e63650931093109300930093009300a",
+    "stderr_hex": ""
+  },
+  {
+    "version": "9.1.0",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-9.1.0"
+    ],
+    "source_sha256": "68d3b6f998be2fc11e441346ea40593edf5e48e64fabe4748d6d5b85b084e2bb",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "header_sha256": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+    "compile_returncode": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "binary_sha256": "ffc9f8a32d92a4eaf77e5c800b8f2cc6227fe0568e326070907b3945cc790ef2",
+    "argv": [
+      "/workspace/.proofs/2286-adapter-frame-reference-native/probe-9.1.0"
+    ],
+    "returncode": 0,
+    "stdout_hex": "6d697373696e67092d31092d31096c6576656c5265666572656e63650931093109300930093009300a66697273742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a726574697265642d6672616d65092d31092d31096c6576656c5265666572656e63650931093109300930093009300a7265706c6163656d656e742d6672616d6509310931096c6576656c5265666572656e63650931093109300930093009300a6f746865722d696e74657270726574657209310931096c6576656c5265666572656e63650931093109300930093009300a6475706c69636174652d61667465722d6f726967696e616c2d72656c6561736509310931096c6576656c5265666572656e63650931093109300930093009300a",
+    "stderr_hex": ""
+  }
+]

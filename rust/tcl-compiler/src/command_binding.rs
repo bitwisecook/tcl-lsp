@@ -73,6 +73,7 @@ mod conditional_body;
 mod declaration_flow;
 pub(crate) use declaration_flow::DeclarationFlowReport;
 mod declaration_layout;
+mod declaration_preview;
 mod expression_operand_advice;
 mod formal_call_advice;
 mod lifecycle_advice;
@@ -1037,6 +1038,7 @@ struct ClassDefinitionReceipt {
     dispatcher: Option<tcl_registry::definer::DefinitionDispatcher>,
     dispatcher_methods: Arc<BTreeSet<String>>,
     instance_methods: Option<Arc<BTreeSet<String>>>,
+    instance_variables: Option<Arc<BTreeSet<String>>>,
     constructor_entry: Option<Arc<SourceConstructorEntry>>,
     destructor_entry: Option<Arc<SourceConstructorEntry>>,
     lifecycle_entries_closed: bool,
@@ -5104,6 +5106,7 @@ impl SourceCommandBindings {
             }
         }
         self.analyse_called_declaration_results(incoming, config, registry);
+        self.retain_uninstalled_declaration_body_layouts(registry);
     }
 
     fn analyse_called_declaration_results(
@@ -7228,6 +7231,7 @@ impl SourceCommandBindings {
                 return opaque_source_invocation(state);
             }
         }
+        state.bind_called_receiver_variables(&mut called, body, context.registry);
         source_representation::retain_value_formals(
             &mut called,
             &body.parameters,
@@ -8349,7 +8353,13 @@ impl SourceCommandBindings {
         let mut head = boxed_source_branch(state);
         loop {
             let before = head.clone();
-            let iteration = self.walk_lifecycle_iteration(invocation, &mut head, context);
+            // A transfer may publish into its mutable input, including an
+            // early unknown-provider path. Keep the loop predecessor intact
+            // so differing issuance histories meet at the back edge rather
+            // than comparing a newly issued stamp with itself.
+            let mut iteration_state = head.clone();
+            let iteration =
+                self.walk_lifecycle_iteration(invocation, &mut iteration_state, context);
             outcomes.join(&iteration);
             if let Some(normal) = iteration.normal {
                 head.join(&normal);
@@ -10432,7 +10442,9 @@ impl ModuleCommandBindings {
                                 .is_some_and(|target| {
                                     target.registry_backed
                                         && target.prepended.is_empty()
-                                        && target.command == *command
+                                        && target
+                                            .registry_identity()
+                                            .is_some_and(|identity| nqn(identity) == nqn(command))
                                         && target.implementation_generation == 0
                                 })
                     })

@@ -478,6 +478,18 @@ impl ValueOps for Vm {
         self.native_invocation_dialect().index_syntax()
     }
 
+    fn index_error_string_protocol(
+        &self,
+    ) -> Result<Option<tcl_syntax::native_string::NativeStringProtocol>, ValueError> {
+        let materialization = self
+            .actual_native_invocation_dialect()
+            .native_string_materialization(None)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native index error String producer",
+            ))?;
+        Ok((!materialization.protocol().is_jim084()).then_some(materialization.protocol()))
+    }
+
     fn eval_index_expression(&mut self, source: &str) -> Result<i64, ValueError> {
         use tcl_registry::runtime_expr_validation::{
             ExpressionPreparationProof, prepare_expression_witness,
@@ -486,7 +498,14 @@ impl ValueOps for Vm {
         use tcl_syntax::expr::eval::{ExprEvalRequest, ExprEvalState, ExprEvalStep};
         let dialect = self.native_invocation_dialect();
         let context = dialect.expression_parse_context(Some(self.source_profile()));
-        let expression = if requires_fixed_function_preparation(&context) {
+        let expression = if self.authored_math_provider().is_some() {
+            self.prepare_expression(source).map_err(|error| {
+                error.native_access_refusal().map_or_else(
+                    || ValueError::NotInteger(source.to_owned()),
+                    ValueError::from,
+                )
+            })?
+        } else if requires_fixed_function_preparation(&context) {
             let table = self.native_fixed_math_prerequisite();
             match prepare_expression_witness(source, &context, table.as_ref()) {
                 ExpressionPreparationProof::Prepared(prepared) => prepared.tree().clone(),
@@ -521,6 +540,24 @@ impl ValueOps for Vm {
             match step {
                 ExprEvalStep::Complete(value) => return self.as_int(&value),
                 ExprEvalStep::Request(ExprEvalRequest::Call { function, args, .. }) => {
+                    if self.authored_math_provider().is_some() {
+                        let completion =
+                            crate::cmd_math::invoke_authored_function(self, &function, &args);
+                        if completion.code != tcl_core_types::Code::Ok {
+                            return Err(ValueError::NotInteger(source.to_owned()));
+                        }
+                        evaluation.resume(completion.result);
+                        continue;
+                    }
+                    if tcl_registry::native_expression_program::expression_function_dispatch(
+                        self.expression_evaluation_policy().as_ref(),
+                        self.actual_native_invocation_dialect(),
+                    ) != Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable)
+                    {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "expression fixed-function evaluation policy",
+                        ));
+                    }
                     let tcl_registry::expr_surface::MathFunctionCallTarget::FixedBuiltin(spec) =
                         surface.math_function_call_target(&function)
                     else {

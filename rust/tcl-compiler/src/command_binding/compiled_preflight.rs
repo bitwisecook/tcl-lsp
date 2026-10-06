@@ -390,16 +390,31 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         }
-        let Some(segments) = crate::segmenter::segment_commands_image_with_offset_and_config(
-            image,
-            base,
+        let Ok(plan) = tcl_lexer::native_script_words_in(
+            image.clone(),
+            tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?),
             context.config,
         ) else {
             self.require_provider();
             return None;
         };
+        // The checked native plan owns the syntax cut. The structural view may
+        // retain the failed command, but it must not select its incomplete argv.
+        let mut config = context.config;
+        config.strict_quoting = false;
+        let Some(segments) =
+            crate::segmenter::segment_commands_image_with_offset_and_config(image, base, config)
+        else {
+            self.require_provider();
+            return None;
+        };
         let map = tcl_lexer::SourceMap::from_image(image).with_base(base, 0, 0);
-        for segment in segments {
+        for (index, segment) in segments.into_iter().enumerate() {
+            if let Some(tail) = plan.fatal_tail.as_ref()
+                && index == tail.cut.command
+            {
+                return self.script_parse_failure(image, base, tail);
+            }
             let tokens = CommandTokens::from_segmented(&map, context.config, &segment);
             let failure = self.command(tokens.words(), segment.span.start(), context);
             self.record_compiler_invocation(tokens.words(), segment.span.start(), context);
@@ -411,6 +426,58 @@ impl CompilerTraversal<'_> {
             }
         }
         None
+    }
+
+    fn script_parse_failure(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        tail: &tcl_lexer::NativeScriptWordCut,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let Some(storage) = self
+            .state
+            .baseline
+            .compilation_dialect()
+            .and_then(tcl_registry::InvocationDialect::native_bytecode_storage_protocol)
+        else {
+            self.require_provider();
+            return None;
+        };
+        // Modern compilers retain a runtime Syntax instruction. C84 instead
+        // rejects this compilation before any command in its chunk executes.
+        if storage.recipe().retains_parse_failure() {
+            return None;
+        }
+        let offset = base.checked_add(tail.command_start)?;
+        let command = tcl_syntax::native_parse_context::c84_compilation_command_extent(
+            image.bytes(),
+            tail.command_start as usize,
+            tail.cut.term as usize,
+        )
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .map(str::to_owned);
+        let original = self.chunk.source.source_image();
+        let lines = tcl_lexer::LineIndex::from_bytes(original.bytes());
+        let mut failure = self.failure_at(
+            offset,
+            tcl_registry::native_compilation::NativeCompilationFailure {
+                message: Some(tail.cut.message.to_owned()),
+                error_code: Some("NONE".to_owned()),
+                error_info: None,
+            },
+            Vec::new(),
+        );
+        failure.contexts.push(SourceNativeCompilationContext {
+            invocation: failure.invocation.clone(),
+            command,
+            before_context: std::mem::take(&mut self.before_next_context),
+            after_context: Vec::new(),
+            line_in_chunk: lines
+                .line_at(offset)
+                .checked_sub(lines.line_at(self.chunk.offset))
+                .and_then(|line| line.checked_add(1)),
+        });
+        Some(failure)
     }
 
     #[inline(never)]
@@ -561,9 +628,9 @@ impl CompilerTraversal<'_> {
                 }
             });
         }
-        let (invocation, facts) = self.command_facts(&target, &arguments, context)?;
-        let Some(spec) = facts.native_compilation else {
-            self.require_provider();
+        let (invocation, mut facts) = self.command_facts(&target, &arguments, context)?;
+        let Some(spec) = self.original_compilation_spec(words, head, offset, &mut facts, context)
+        else {
             return self.substitutions(words, context);
         };
         let (shapes, selection, preparation) =
@@ -627,6 +694,27 @@ impl CompilerTraversal<'_> {
                 .push(self.command_dependency(&target, head, context));
         }
         Some(failure)
+    }
+
+    fn original_compilation_spec(
+        &mut self,
+        words: &[WordExpr],
+        head: &str,
+        offset: u32,
+        facts: &mut tcl_registry::InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<tcl_registry::native_compilation::NativeCompilationSpec> {
+        let Some((spec, argument_offset)) =
+            super::compiled_invocation::original_registration_descriptor(
+                words, head, offset, facts, self.state, context,
+            )
+        else {
+            self.require_provider();
+            return None;
+        };
+        // Compiler operand coordinates remain independent of runtime members.
+        facts.argument_offset = argument_offset;
+        Some(spec)
     }
 
     fn original_head_has_compilation(&mut self, words: &[WordExpr]) -> bool {
@@ -1845,6 +1933,7 @@ mod tests {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
         let source = format!("if {{$flag}} {{{body}}}");
         let compilation = tcl_registry::native_compilation::NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
@@ -1856,6 +1945,7 @@ mod tests {
             config,
             &registry,
             SourceAnalysisOptions {
+                native_entry: Some(&entry),
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: compilation,
                 ..Default::default()
@@ -1869,7 +1959,12 @@ mod tests {
             original,
             tcl_registry::native_compilation::NativeCompilationSelection::Unknown
         );
-        let context = original_child_context(compilation, config, &registry, offset);
+        let namespace = super::super::SourceNamespaceKey::from_native_entry(&entry).unwrap();
+        let frame = crate::var_resolve::VariableExecutionFrame::Global
+            .with_namespace_identity(namespace.clone());
+        let context = original_child_context(compilation, config, &registry, offset, &frame);
+
+        assert_authored_child_context_is_unknown(&analysed, body, context);
         for same_source in [true, false] {
             let mut inventory = analysed.clone();
             let mut late = analysed.final_state.as_ref().clone();
@@ -1907,7 +2002,10 @@ mod tests {
                 // An actual new compilation of the enclosing command with a
                 // missing parent slot cannot borrow the old child's recipe.
                 let mut reentry = analysed.final_state.as_ref().clone();
-                reentry.remove("::if".to_owned());
+                reentry.remove(super::super::SourceCommandKey::slot(
+                    namespace.clone(),
+                    "if".into(),
+                ));
                 inventory.walk_source(
                     &source,
                     0,
@@ -1927,12 +2025,41 @@ mod tests {
         }
     }
 
-    fn original_child_context(
+    fn assert_authored_child_context_is_unknown(
+        analysed: &SourceCommandBindings,
+        body: &str,
+        context: SourceExecutionContext<'_>,
+    ) {
+        // An authored presentation of the same namespace cannot stand in for
+        // the original native entry, even when the source image is unchanged.
+        let mut inventory = analysed.clone();
+        let mut state = analysed.final_state.as_ref().clone();
+        state.mark_opaque_binding_mutation();
+        inventory.walk_source(
+            body,
+            context.invocation_offset,
+            &mut state,
+            &SourceExecutionContext {
+                frame: &crate::var_resolve::VariableExecutionFrame::Global,
+                namespace_key: None,
+                ..context
+            },
+        );
+        let binding = inventory.invocation_at_source("set", context.invocation_offset);
+        assert_eq!(
+            binding.native_compilation_admission_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+        );
+        assert!(binding.proved_execution_target().is_none());
+    }
+
+    fn original_child_context<'a>(
         compilation: tcl_registry::native_compilation::NativeCompilationContext,
         config: tcl_lexer::LexerConfig,
-        registry: &tcl_registry::CommandRegistry,
+        registry: &'a tcl_registry::CommandRegistry,
         offset: u32,
-    ) -> SourceExecutionContext<'_> {
+        frame: &'a crate::var_resolve::VariableExecutionFrame,
+    ) -> SourceExecutionContext<'a> {
         SourceExecutionContext {
             realm: tcl_dialect::model::InvocationRealm::RuleLoader,
             compilation,
@@ -1942,7 +2069,7 @@ mod tests {
             config,
             registry,
             depth: 0,
-            frame: &crate::var_resolve::VariableExecutionFrame::Global,
+            frame,
             invocation_offset: offset,
             variable_read_owner: None,
             written_arguments: None,
@@ -1951,7 +2078,7 @@ mod tests {
             written_objects: None,
             written_method_prefixes: None,
             written_variable_reads: None,
-            namespace_key: None,
+            namespace_key: frame.namespace_identity(),
             expression_source: None,
         }
     }

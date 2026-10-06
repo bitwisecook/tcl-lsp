@@ -35,6 +35,10 @@ mod native_each;
 #[path = "exec/native_fixed_math_tests.rs"]
 mod native_fixed_math_tests;
 #[cfg(test)]
+#[path = "exec/native_list_index_tests.rs"]
+mod native_list_index_tests;
+mod native_scalar;
+#[cfg(test)]
 #[path = "exec/native_try_tests.rs"]
 mod native_try_tests;
 #[cfg(test)]
@@ -3569,12 +3573,15 @@ impl Vm {
         args: Vec<Value>,
     ) -> Result<Completion<Value>, Box<Tick>> {
         use tcl_syntax::expr::ExprOps;
-        let surface =
-            tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(self.runtime_version());
-        if matches!(
-            surface.math_function_call_target(function),
-            tcl_registry::expr_surface::MathFunctionCallTarget::CommandTable
-        ) {
+        let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
+            self.expression_evaluation_policy().as_ref(),
+            self.actual_native_invocation_dialect(),
+        );
+        if dispatch.is_none() {
+            return Ok(self
+                .refuse_host_command("expression function dispatch policy is unavailable".into()));
+        }
+        if dispatch == Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable) {
             let name = tcl_registry::mathfunc::qualified_name(function)
                 .trim_start_matches("::")
                 .to_owned();
@@ -4652,6 +4659,16 @@ impl Vm {
                 };
                 f.stack.push(value);
             }
+            Op::LIST_LENGTH if instr.native_switch_version.is_some() => {
+                let original = pop(f);
+                let result = try_core!(self.execute_native_scalar_length(
+                    &original,
+                    tcl_registry::native_scalar_compilation::NativeScalarOperation::ListLength,
+                    instr.native_switch_version.unwrap(),
+                ));
+                drop(original);
+                f.stack.push(result);
+            }
             Op::LIST_LENGTH => {
                 let l = pop(f);
                 match l.as_list() {
@@ -4683,14 +4700,43 @@ impl Vm {
             }
             Op::LIST_INDEX_IMM => {
                 let l = pop(f);
-                let items = match l.as_list() {
-                    Ok(i) => i,
-                    Err(e) => {
-                        return Tick::Return(crate::command::completion_from_tcl_error(self, e));
+                let items = if instr.native_list_index.is_some() {
+                    let result = self
+                        .actual_native_invocation_dialect()
+                        .native_string_protocol()
+                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                            "compiled List index protocol",
+                        ))
+                        .and_then(|protocol| self.native_object_list_elements_in(&l, protocol));
+                    match result {
+                        Ok(items) => items,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self,
+                                error.into(),
+                            ));
+                        }
+                    }
+                } else {
+                    match l.as_list() {
+                        Ok(items) => items,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_tcl_error(
+                                self, error,
+                            ));
+                        }
                     }
                 };
-                let i = imm_index(imm0(instr), items.len());
-                f.stack.push(get_at(&items, i));
+                if let Some(index) = instr.native_list_index {
+                    f.stack.push(
+                        index
+                            .resolve(items.len())
+                            .map_or_else(Value::empty, |index| items[index].clone()),
+                    );
+                } else {
+                    let i = imm_index(imm0(instr), items.len());
+                    f.stack.push(get_at(&items, i));
+                }
             }
             Op::LIST_RANGE_IMM => {
                 let l = pop(f);
@@ -5500,6 +5546,16 @@ impl Vm {
             }
 
             // String ops (inline; char-based, mirroring the reference VM)
+            Op::STR_LEN if instr.native_switch_version.is_some() => {
+                let original = pop(f);
+                let result = try_core!(self.execute_native_scalar_length(
+                    &original,
+                    tcl_registry::native_scalar_compilation::NativeScalarOperation::StringLength,
+                    instr.native_switch_version.unwrap(),
+                ));
+                drop(original);
+                f.stack.push(result);
+            }
             Op::STR_LEN => {
                 let value = pop(f);
                 match tcl_cmd_core::string::length(self, &value) {
@@ -8754,12 +8810,14 @@ mod tests {
                     fields[3].strip_prefix("after=").unwrap(),
                     "{engine}/{row}"
                 );
-                let info = vm
-                    .error_info_value()
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
+                let info = vm.error_info_value().unwrap_or_default().iter().fold(
+                    String::new(),
+                    |mut text, byte| {
+                        use std::fmt::Write as _;
+                        write!(&mut text, "{byte:02x}").unwrap();
+                        text
+                    },
+                );
                 assert_eq!(
                     info,
                     fields[5].strip_prefix("info=").unwrap(),
@@ -8880,7 +8938,9 @@ mod tests {
         }
         fn unhex(text: &str) -> Vec<u8> {
             text.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }

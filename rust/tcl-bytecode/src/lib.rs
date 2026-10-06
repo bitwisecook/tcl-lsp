@@ -1320,6 +1320,8 @@ pub struct Instruction {
     /// Authenticated original foreach auxiliary layout. These physical slots
     /// are compiler output, independent of textual loop-variable names.
     pub native_each: Option<std::sync::Arc<NativeEachAuxiliary>>,
+    /// Original C list-index immediate encoding, independent of `INDEX_END`.
+    pub native_list_index: Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>,
     /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
     /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
     /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
@@ -1406,6 +1408,7 @@ impl Instruction {
             source_span: None,
             foreach_vars: None,
             native_each: None,
+            native_list_index: None,
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,

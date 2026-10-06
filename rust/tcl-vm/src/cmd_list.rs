@@ -607,7 +607,9 @@ fn cmd_split(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 mod tests {
     use super::*;
 
-    struct ObserveTwice(std::rc::Rc<std::cell::RefCell<Vec<Vec<(String, usize)>>>>);
+    type CallbackObservations = std::rc::Rc<std::cell::RefCell<Vec<Vec<(String, usize)>>>>;
+
+    struct ObserveTwice(CallbackObservations);
 
     impl crate::command::NativeCommand for ObserveTwice {
         fn invoke(&self, _vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -625,16 +627,112 @@ mod tests {
         }
     }
 
+    fn lsearch_fixture_bytes(text: &str) -> Vec<u8> {
+        text.as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect::<Vec<_>>()
+    }
+
+    fn assert_lsearch_result_header(
+        case: usize,
+        lines: &[&str],
+        vm: &Vm,
+        result: &Completion<Value>,
+    ) {
+        let expected_code: i32 = lines
+            .iter()
+            .find_map(|line| line.strip_prefix("code\t"))
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(
+            result.code.as_int(),
+            i64::from(expected_code),
+            "case {case}"
+        );
+        assert!(vm.refused_completion().is_none(), "case {case}");
+        let expected: Vec<_> = lines
+            .iter()
+            .find_map(|line| line.strip_prefix("result\t"))
+            .unwrap()
+            .split('\t')
+            .collect();
+        assert_eq!(
+            result.result.native_object_type_name(),
+            expected[0],
+            "case {case}"
+        );
+        assert_eq!(
+            result.result.resident_string_bytes().is_some(),
+            expected[1] == "1",
+            "case {case}"
+        );
+        assert_eq!(
+            result.result.native_object_reference_count(),
+            expected[2].parse::<usize>().unwrap(),
+            "case {case} original result refs"
+        );
+    }
+
+    fn assert_lsearch_arguments_and_callbacks(
+        case: usize,
+        lines: &[&str],
+        originals: &[Value],
+        callbacks: &CallbackObservations,
+    ) {
+        for line in lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("argument\t"))
+        {
+            let fields: Vec<_> = line.split('\t').collect();
+            let value = &originals[fields[0].parse::<usize>().unwrap() - 1];
+            assert_eq!(
+                value.native_object_type_name(),
+                fields[1],
+                "case {case} argument {}",
+                fields[0]
+            );
+            assert_eq!(
+                value.resident_string_bytes().is_some(),
+                fields[2] == "1",
+                "case {case} argument {}",
+                fields[0]
+            );
+            assert_eq!(
+                value.native_object_reference_count(),
+                fields[3].parse::<usize>().unwrap(),
+                "case {case} argument {}",
+                fields[0]
+            );
+        }
+        let native_callbacks: Vec<_> = lines
+            .iter()
+            .filter_map(|line| line.strip_prefix("callback\t"))
+            .map(|line| {
+                line.split('\t')
+                    .skip(2)
+                    .map(|field| {
+                        let (kind, refs) = field.split_once(':').unwrap();
+                        (kind.to_owned(), refs.parse::<usize>().unwrap())
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        assert_eq!(
+            *callbacks.borrow(),
+            native_callbacks,
+            "case {case} callback original children"
+        );
+    }
+
     #[test]
     fn jim_lsearch_preserves_all_24_original_native_option_and_callback_controls() {
         use tcl_runtime_api::Code;
         let rows = include_str!("../../tcl-cmd-core/tests/data/native_jim_lsearch/rows.txt");
-        let hex = |text: &str| {
-            text.as_bytes()
-                .chunks_exact(2)
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect::<Vec<_>>()
-        };
+
         let mut count = 0;
         for record in rows.split("case\t").skip(1) {
             let lines: Vec<_> = record.lines().collect();
@@ -675,7 +773,7 @@ mod tests {
             let originals: Vec<_> = lines[1]
                 .split('\t')
                 .skip(1)
-                .map(|word| Value::new_native_string_bytes(hex(word)))
+                .map(|word| Value::new_native_string_bytes(lsearch_fixture_bytes(word)))
                 .collect();
             let args: Vec<_> = originals
                 .iter()
@@ -683,86 +781,14 @@ mod tests {
                 .collect();
             let head = Value::new_native_string_bytes(b"lsearch".as_slice());
             let result = vm.invoke_host_original_object_vector(&head, &args);
-            let expected_code: i32 = lines
-                .iter()
-                .find_map(|line| line.strip_prefix("code\t"))
-                .unwrap()
-                .parse()
-                .unwrap();
-            assert_eq!(
-                result.code.as_int(),
-                i64::from(expected_code),
-                "case {case}"
+            assert_lsearch_result_header(case, &lines, &vm, &result);
+            assert_lsearch_arguments_and_callbacks(case, &lines, &originals, &callbacks);
+            let expected_bytes = lsearch_fixture_bytes(
+                lines
+                    .iter()
+                    .find_map(|line| line.strip_prefix("bytes\t"))
+                    .unwrap(),
             );
-            assert!(vm.refused_completion().is_none(), "case {case}");
-            let expected: Vec<_> = lines
-                .iter()
-                .find_map(|line| line.strip_prefix("result\t"))
-                .unwrap()
-                .split('\t')
-                .collect();
-            assert_eq!(
-                result.result.native_object_type_name(),
-                expected[0],
-                "case {case}"
-            );
-            assert_eq!(
-                result.result.resident_string_bytes().is_some(),
-                expected[1] == "1",
-                "case {case}"
-            );
-            assert_eq!(
-                result.result.native_object_reference_count(),
-                expected[2].parse::<usize>().unwrap(),
-                "case {case} original result refs"
-            );
-            for line in lines
-                .iter()
-                .filter_map(|line| line.strip_prefix("argument\t"))
-            {
-                let fields: Vec<_> = line.split('\t').collect();
-                let value = &originals[fields[0].parse::<usize>().unwrap() - 1];
-                assert_eq!(
-                    value.native_object_type_name(),
-                    fields[1],
-                    "case {case} argument {}",
-                    fields[0]
-                );
-                assert_eq!(
-                    value.resident_string_bytes().is_some(),
-                    fields[2] == "1",
-                    "case {case} argument {}",
-                    fields[0]
-                );
-                assert_eq!(
-                    value.native_object_reference_count(),
-                    fields[3].parse::<usize>().unwrap(),
-                    "case {case} argument {}",
-                    fields[0]
-                );
-            }
-            let native_callbacks: Vec<_> = lines
-                .iter()
-                .filter_map(|line| line.strip_prefix("callback\t"))
-                .map(|line| {
-                    line.split('\t')
-                        .skip(2)
-                        .map(|field| {
-                            let (kind, refs) = field.split_once(':').unwrap();
-                            (kind.to_owned(), refs.parse::<usize>().unwrap())
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect();
-            assert_eq!(
-                *callbacks.borrow(),
-                native_callbacks,
-                "case {case} callback original children"
-            );
-            let expected_bytes = hex(lines
-                .iter()
-                .find_map(|line| line.strip_prefix("bytes\t"))
-                .unwrap());
             assert_eq!(
                 result.result.string_bytes().as_ref(),
                 expected_bytes,

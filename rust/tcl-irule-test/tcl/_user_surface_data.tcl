@@ -244,4 +244,38 @@ namespace eval ::tmm {
         ::|
         ::~
     }
+    variable _gen_runtime_compiler_refused {
+        eof
+        fblocked
+        fcopy
+        flush
+        gets
+        interp
+        namespace
+        package
+        pid
+        rename
+        seek
+        tell
+        time
+        update
+        vwait
+    }
+    variable _gen_runtime_namespace_members {
+        children
+        code
+        current
+        delete
+        eval
+        exists
+        export
+        forget
+        import
+        inscope
+        origin
+        parent
+        qualifiers
+        tail
+        which
+    }
 }

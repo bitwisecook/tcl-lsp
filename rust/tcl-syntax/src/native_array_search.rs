@@ -148,6 +148,7 @@ impl NativeArraySearchProtocol {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     #[test]
     fn native_original_handle_cache_and_failures_match_sixty_five_c_rows() {
         let inputs: &[&[u8]] = &[
@@ -228,7 +229,10 @@ mod tests {
                     || b"1".to_vec(),
                     |failure| protocol.failure_message(failure, bytes, b"a"),
                 );
-                let hex: String = result.iter().map(|byte| format!("{byte:02x}")).collect();
+                let hex: String = result.iter().fold(String::new(), |mut output, byte| {
+                    write!(output, "{byte:02x}").unwrap();
+                    output
+                });
                 assert_eq!(hex, fields[5], "{version:?}: {line}");
                 assert_eq!(
                     usize::from(failure.is_some()),

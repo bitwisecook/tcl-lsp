@@ -972,7 +972,7 @@ namespace eval ::state {
 # ── static:: namespace ────────────────────────────────────────────
 #
 # iRules use `set static::varname value` to set variables that persist
-# across all connections (RULE_INIT fires once per device load).
+# across connections in a worker; loaded rules share each worker's namespace.
 # We provide the namespace so these variables resolve normally.
 
 namespace eval ::static {}

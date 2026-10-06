@@ -86,6 +86,7 @@ impl Value {
                 | IntRep::Bool(_)
                 | IntRep::WordBoolean { .. }
                 | IntRep::NativeArraySearch { .. }
+                | IntRep::FrameLevel { .. }
                 | IntRep::NativeInstructionName(_)
         )
     }

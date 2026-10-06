@@ -323,7 +323,9 @@ mod tests {
 
     fn bytes(hex: &str) -> Vec<u8> {
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let digit = |byte| match byte {
                     b'0'..=b'9' => byte - b'0',
@@ -374,7 +376,7 @@ mod tests {
             }
             let observed = bytes(row[4]);
             let expected: Vec<_> = observed.split(|byte| *byte == b' ').collect();
-            assert_eq!(table.keys(), expected, "{}", line);
+            assert_eq!(table.keys(), expected, "{line}");
             controls += 1;
         }
         assert_eq!(controls, 320);

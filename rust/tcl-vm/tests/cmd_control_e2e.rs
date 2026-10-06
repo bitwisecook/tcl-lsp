@@ -90,7 +90,7 @@ fn run(src: &str) -> (bool, String, String) {
 
 #[test]
 fn runtime_loop_break_after_an_inner_compiled_loop_exits_the_outer_loop() {
-    let source = r#"
+    let source = r"
 interp alias {} scan_loop {} while
 set pos 0
 set len 2
@@ -99,7 +99,7 @@ scan_loop {$pos < $len} {
     if {$pos >= $len} {break}
 }
 set pos
-"#;
+";
     let (ok, result, _) = run(source);
     assert!(ok, "{result}");
     assert_eq!(result, "2");
@@ -107,7 +107,7 @@ set pos
 
 #[test]
 fn runtime_loop_continue_after_an_inner_compiled_loop_resumes_the_outer_loop() {
-    let source = r#"
+    let source = r"
 interp alias {} scan_loop {} while
 set n 0
 scan_loop {$n < 2} {
@@ -118,7 +118,7 @@ scan_loop {$n < 2} {
     error UNREACHABLE
 }
 set n
-"#;
+";
     let (ok, result, _) = run(source);
     assert!(ok, "{result}");
     assert_eq!(result, "2");
@@ -2132,7 +2132,7 @@ fn deeply_nested_dynamic_if_uses_retained_vm_continuations() {
 
 #[test]
 fn dynamic_controls_preserve_the_configured_procedure_recursion_limit() {
-    let source = r#"
+    let source = r"
 interp recursionlimit {} 40
 proc walk {n} {
     set c if
@@ -2140,7 +2140,7 @@ proc walk {n} {
 }
 catch {walk 100} message
 set message
-"#;
+";
     // Real C Tcl 8.4–9.1 all reject this invocation with the same message.
     let (ok, result, _) = run(source);
     assert!(ok, "{result}");

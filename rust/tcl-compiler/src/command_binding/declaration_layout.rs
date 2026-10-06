@@ -21,6 +21,7 @@ use super::{
 pub(super) enum OriginalDiagnosticFrameEntry {
     Body(Arc<SourceConditionalBodyEntry>),
     DeclaredReceiver(Arc<super::SourceDeclaredReceiverBodyEntry>),
+    DeclaredProcedure(Arc<super::declaration_preview::DeclaredProcedureBody>),
     RootScript {
         source: super::ExecutedScriptSource,
         frame: crate::var_resolve::VariableExecutionFrame,
@@ -36,6 +37,7 @@ impl OriginalDiagnosticFrameEntry {
         let namespace = match self {
             Self::Body(body) => body.namespace_context(),
             Self::DeclaredReceiver(_) => None,
+            Self::DeclaredProcedure(body) => Some(&body.namespace),
             Self::RootScript { namespace, .. } => Some(namespace),
         };
         SourceCommandBindings::context_owns_frame(context, self.frame(), namespace)
@@ -45,6 +47,7 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => body.source(),
             Self::DeclaredReceiver(body) => body.source(),
+            Self::DeclaredProcedure(body) => &body.source,
             Self::RootScript { source, .. } => source,
         }
     }
@@ -53,6 +56,7 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => body.frame(),
             Self::DeclaredReceiver(body) => body.preview_frame(),
+            Self::DeclaredProcedure(body) => &body.frame,
             Self::RootScript { frame, .. } => frame,
         }
     }
@@ -61,6 +65,7 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => body.parameters(),
             Self::DeclaredReceiver(body) => body.parameters(),
+            Self::DeclaredProcedure(body) => &body.parameters,
             Self::RootScript { .. } => &[],
         }
     }
@@ -85,6 +90,7 @@ impl OriginalDiagnosticFrameEntry {
         match self {
             Self::Body(body) => bindings.original_body_owns_frame(body, frame),
             Self::DeclaredReceiver(body) => body.preview_frame() == frame,
+            Self::DeclaredProcedure(body) => &body.frame == frame,
             Self::RootScript {
                 frame: expected, ..
             } => expected == frame,
@@ -94,7 +100,7 @@ impl OriginalDiagnosticFrameEntry {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DeclarationLayoutObservation {
-    issuer: DeclarationLayoutIssuer,
+    pub(super) issuer: DeclarationLayoutIssuer,
     pub(super) entry: Arc<OriginalDiagnosticFrameEntry>,
     pub(super) snapshot: Arc<SourceLookupSnapshot>,
     pub(super) namespace: super::SourceNamespaceKey,
@@ -103,7 +109,7 @@ pub(super) struct DeclarationLayoutObservation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum DeclarationLayoutIssuer {
+pub(super) enum DeclarationLayoutIssuer {
     OriginalDeclaration,
     EnteredActivation,
 }

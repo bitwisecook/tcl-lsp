@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use super::*;
+use std::fmt::Write as _;
 
 mod error_tests;
 
@@ -148,8 +149,9 @@ fn value_bits(value: NativeScalarGetterValue) -> u64 {
 fn cache_kind(cache: Option<&NativeScalarCache>) -> &'static str {
     match cache {
         None => "string",
-        Some(NativeScalarCache::Number(Number::Int(_))) => "integer",
-        Some(NativeScalarCache::Tcl84Long(_)) => "integer",
+        Some(NativeScalarCache::Number(Number::Int(_)) | NativeScalarCache::Tcl84Long(_)) => {
+            "integer"
+        }
         Some(NativeScalarCache::Number(Number::Big { .. })) => "bignum",
         Some(NativeScalarCache::Number(Number::Double(_) | Number::Nan { .. })) => "double",
         Some(NativeScalarCache::WordBoolean(_)) => "boolean",
@@ -329,7 +331,10 @@ fn original_storage_materializes_before_numeric_extent_selection() {
                 NativeScalarStringStorage::RawString
             };
             let bytes = recipe.materialize(storage, cases[at]).unwrap();
-            let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+            let hex: String = bytes.iter().fold(String::new(), |mut output, byte| {
+                write!(output, "{byte:02x}").unwrap();
+                output
+            });
             assert_eq!(hex, field(line, "input"));
             for (kind, key) in [
                 (NativeScalarGetterKind::Wide, "widecode"),
@@ -421,6 +426,118 @@ fn retained_native_range_state_affects_fresh_boundaries_and_not_cached_integers(
     assert_eq!(count, 8);
 }
 
+fn primitive_int_unhex(text: &str) -> Vec<u8> {
+    if text == "-" {
+        return Vec::new();
+    }
+    text.as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| {
+            let text = core::str::from_utf8(pair).unwrap();
+            u8::from_str_radix(text, 16).unwrap()
+        })
+        .collect()
+}
+
+fn assert_primitive_int_row(
+    protocol: NativeScalarGetterProtocol,
+    version: TclVersion,
+    row: &str,
+    inputs: &[&[u8]],
+) {
+    let fields: Vec<_> = row.split('\t').collect();
+    let case: usize = fields[0].parse().unwrap();
+    let prior = match case {
+        11 => Some(NativeScalarCache::Number(Number::Double(1.0))),
+        12 => Some(NativeScalarCache::Number(Number::Int(1))),
+        // The native fixture constructs Tcl_NewDoubleObj(NAN), not
+        // a parsed NaN spelling. Preserve that actual cache category.
+        13 => Some(NativeScalarCache::Number(Number::Double(f64::NAN))),
+        _ => None,
+    };
+    let original = inputs.get(case).copied().unwrap_or_else(|| match case {
+        11 => b"1.0",
+        12 => b"1",
+        _ if version == TclVersion::V8_4 => b"nan",
+        _ => b"NaN",
+    });
+    let conversion = prior
+        .as_ref()
+        .and_then(|cache| protocol.cached_conversion(NativeScalarGetterKind::Int, cache))
+        .or_else(|| protocol.fresh_conversion(NativeScalarGetterKind::Int, original))
+        .unwrap();
+    let effective_cache = conversion.cache().or(prior.as_ref());
+    if case == 13 {
+        assert!(
+            conversion.cache().is_none(),
+            "{version:?}: unchanged NaN cache"
+        );
+        let Some(NativeScalarCache::Number(Number::Double(value))) = effective_cache else {
+            panic!("{version:?}: native Double NaN cache was replaced");
+        };
+        assert_eq!(value.to_bits(), f64::NAN.to_bits());
+    }
+    if case == 12 {
+        // Tcl_NewWideIntObj(1) retains C8.4's wideInt storage.
+        assert!(
+            conversion.cache().is_none(),
+            "{version:?}: unchanged integer cache"
+        );
+    }
+    let cache_type = match effective_cache {
+        Some(NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_))) => {
+            "integer"
+        }
+        Some(NativeScalarCache::Number(Number::Big { .. })) => "bignum",
+        Some(NativeScalarCache::Number(Number::Double(_) | Number::Nan { .. })) => "double",
+        _ => "string",
+    };
+    assert_eq!(
+        cache_type,
+        native_cache_kind(fields[3]),
+        "{version:?} case{case}: cache category"
+    );
+    if fields[3] == "int" && version == TclVersion::V8_4 {
+        assert!(matches!(
+            effective_cache,
+            Some(NativeScalarCache::Tcl84Long(_))
+        ));
+    } else if matches!(fields[3], "int" | "wideInt") {
+        assert!(matches!(
+            effective_cache,
+            Some(NativeScalarCache::Number(Number::Int(_)))
+        ));
+    }
+    if fields[1] == "0" {
+        assert_eq!(
+            conversion.outcome(),
+            Ok(NativeScalarGetterValue::Wide(fields[2].parse().unwrap())),
+            "{version:?} case{case}"
+        );
+    } else {
+        let failure = conversion.outcome().unwrap_err();
+        let record = protocol
+            .failure_presentation(NativeScalarGetterKind::Int, failure, original)
+            .unwrap();
+        assert_eq!(
+            record.message_bytes(),
+            primitive_int_unhex(fields[4]),
+            "{version:?} case{case}: message"
+        );
+        let code = match record.error_code_update() {
+            NativeScalarGetterErrorCode::Unchanged => b"SEEDED CODE".to_vec(),
+            NativeScalarGetterErrorCode::Set(code) => code.clone(),
+        };
+        assert_eq!(
+            code,
+            primitive_int_unhex(fields[5]),
+            "{version:?} case{case}: error-code update"
+        );
+    }
+}
+
 #[test]
 fn primitive_int_retains_native_width_cache_and_error_stage() {
     let rows = [
@@ -443,110 +560,11 @@ fn primitive_int_retains_native_width_cache_and_error_stage() {
         b"0x1",
         b"bad",
     ];
-    let unhex = |text: &str| -> Vec<u8> {
-        if text == "-" {
-            return Vec::new();
-        }
-        text.as_bytes()
-            .chunks_exact(2)
-            .map(|pair| {
-                let text = core::str::from_utf8(pair).unwrap();
-                u8::from_str_radix(text, 16).unwrap()
-            })
-            .collect()
-    };
     let mut checked = 0;
     for (version, rows) in VERSIONS.into_iter().zip(rows) {
         let protocol = NativeScalarGetterProtocol::for_tcl_version(version);
         for row in rows.lines() {
-            let fields: Vec<_> = row.split('\t').collect();
-            let case: usize = fields[0].parse().unwrap();
-            let prior = match case {
-                11 => Some(NativeScalarCache::Number(Number::Double(1.0))),
-                12 => Some(NativeScalarCache::Number(Number::Int(1))),
-                // The native fixture constructs Tcl_NewDoubleObj(NAN), not
-                // a parsed NaN spelling. Preserve that actual cache category.
-                13 => Some(NativeScalarCache::Number(Number::Double(f64::NAN))),
-                _ => None,
-            };
-            let original = inputs.get(case).copied().unwrap_or_else(|| match case {
-                11 => b"1.0",
-                12 => b"1",
-                _ if version == TclVersion::V8_4 => b"nan",
-                _ => b"NaN",
-            });
-            let conversion = prior
-                .as_ref()
-                .and_then(|cache| protocol.cached_conversion(NativeScalarGetterKind::Int, cache))
-                .or_else(|| protocol.fresh_conversion(NativeScalarGetterKind::Int, original))
-                .unwrap();
-            let effective_cache = conversion.cache().or(prior.as_ref());
-            if case == 13 {
-                assert!(
-                    conversion.cache().is_none(),
-                    "{version:?}: unchanged NaN cache"
-                );
-                let Some(NativeScalarCache::Number(Number::Double(value))) = effective_cache else {
-                    panic!("{version:?}: native Double NaN cache was replaced");
-                };
-                assert_eq!(value.to_bits(), f64::NAN.to_bits());
-            }
-            if case == 12 {
-                // Tcl_NewWideIntObj(1) retains C8.4's wideInt storage.
-                assert!(
-                    conversion.cache().is_none(),
-                    "{version:?}: unchanged integer cache"
-                );
-            }
-            let cache_type = match effective_cache {
-                Some(NativeScalarCache::Tcl84Long(_)) => "integer",
-                Some(NativeScalarCache::Number(Number::Int(_))) => "integer",
-                Some(NativeScalarCache::Number(Number::Big { .. })) => "bignum",
-                Some(NativeScalarCache::Number(Number::Double(_) | Number::Nan { .. })) => "double",
-                _ => "string",
-            };
-            assert_eq!(
-                cache_type,
-                native_cache_kind(fields[3]),
-                "{version:?} case{case}: cache category"
-            );
-            if fields[3] == "int" && version == TclVersion::V8_4 {
-                assert!(matches!(
-                    effective_cache,
-                    Some(NativeScalarCache::Tcl84Long(_))
-                ));
-            } else if matches!(fields[3], "int" | "wideInt") {
-                assert!(matches!(
-                    effective_cache,
-                    Some(NativeScalarCache::Number(Number::Int(_)))
-                ));
-            }
-            if fields[1] == "0" {
-                assert_eq!(
-                    conversion.outcome(),
-                    Ok(NativeScalarGetterValue::Wide(fields[2].parse().unwrap())),
-                    "{version:?} case{case}"
-                );
-            } else {
-                let failure = conversion.outcome().unwrap_err();
-                let record = protocol
-                    .failure_presentation(NativeScalarGetterKind::Int, failure, original)
-                    .unwrap();
-                assert_eq!(
-                    record.message_bytes(),
-                    unhex(fields[4]),
-                    "{version:?} case{case}: message"
-                );
-                let code = match record.error_code_update() {
-                    NativeScalarGetterErrorCode::Unchanged => b"SEEDED CODE".to_vec(),
-                    NativeScalarGetterErrorCode::Set(code) => code.clone(),
-                };
-                assert_eq!(
-                    code,
-                    unhex(fields[5]),
-                    "{version:?} case{case}: error-code update"
-                );
-            }
+            assert_primitive_int_row(protocol, version, row, &inputs);
             checked += 1;
         }
     }
@@ -655,13 +673,15 @@ fn legacy_long_and_wide_retain_distinct_native_primary_caches() {
         assert_eq!(conversion.outcome().is_ok(), fields[10] == "0", "{line}");
         match conversion.outcome() {
             Ok(NativeScalarGetterValue::Wide(value)) => {
-                assert_eq!(value.to_string(), fields[8], "{line}")
+                assert_eq!(value.to_string(), fields[8], "{line}");
             }
             Err(failure) => {
                 let presentation = protocol.failure_presentation(kind, failure, bytes).unwrap();
                 let expected: Vec<_> = fields[9]
                     .as_bytes()
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|pair| {
                         u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap()
                     })

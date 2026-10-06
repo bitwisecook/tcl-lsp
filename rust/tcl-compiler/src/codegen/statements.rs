@@ -37,6 +37,8 @@ mod native_each;
 mod native_error;
 #[path = "native_namespace_upvar.rs"]
 mod native_namespace_upvar;
+#[path = "statements/native_scalar.rs"]
+mod native_scalar;
 #[path = "statements/native_string.rs"]
 mod native_string;
 #[path = "native_switch.rs"]
@@ -126,6 +128,7 @@ enum NativeEmissionTask {
     Command(tcl_lexer::NativeScriptCommandWords),
     RestoreSource(NativeEmissionSource),
     Operation(Op, Vec<Operand>),
+    NativeListIndex(tcl_syntax::native_compiled_index::NativeCompiledListIndex),
     ErrorReturn,
     SwitchOperation(Op, Vec<Operand>, tcl_dialect::TclVersion),
     SwitchTable(
@@ -1699,6 +1702,7 @@ impl CodegenCtx<'_> {
                 | Task::PrivateList(..)
                 | Task::ErrorReturn
                 | Task::Operation(..)
+                | Task::NativeListIndex(..)
                 | Task::Literal(..)
                 | Task::PrivateReturnOptions(..)
                 | Task::PoolLiteral(..)
@@ -1785,6 +1789,11 @@ impl CodegenCtx<'_> {
             Task::ErrorReturn => self.emit_native_error_return(""),
             Task::Operation(op, operands) => {
                 self.emit(op, operands);
+            }
+            Task::NativeListIndex(index) => {
+                let instruction =
+                    self.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(index.encoded())]);
+                self.instructions[instruction].native_list_index = Some(index);
             }
             Task::Literal(bytes) => {
                 self.push_lit_bytes_exact(&bytes);
@@ -2627,7 +2636,7 @@ impl CodegenCtx<'_> {
                 };
             }
             NativeInstructionPlan::Expression(recipe) => {
-                let Some(tasks) = Self::native_expression_tasks(command, recipe) else {
+                let Some(tasks) = self.native_expression_tasks(command, recipe) else {
                     return false;
                 };
                 *operations = tasks;
@@ -2649,6 +2658,12 @@ impl CodegenCtx<'_> {
                 return Self::append_native_string_match_tasks(
                     command, recipe, version, operations,
                 );
+            }
+            NativeInstructionPlan::ListIndex(recipe) => {
+                return Self::append_native_list_index_tasks(command, recipe, operations);
+            }
+            NativeInstructionPlan::Scalar(recipe) => {
+                return Self::append_native_scalar_tasks(command, recipe, version, operations);
             }
             NativeInstructionPlan::TclOoHelper(recipe) => {
                 return Self::append_native_tcloo_tasks(command, version, recipe, operations);
@@ -2701,6 +2716,32 @@ impl CodegenCtx<'_> {
         };
         operations.push(Task::Operation(opcode, vec![Operand::Imm(count)]));
 
+        true
+    }
+
+    fn append_native_list_index_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_list_index_compilation::NativeListIndexInstruction,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_list_index_compilation::NativeListIndexOperation as Operation;
+        for operand in recipe.operands {
+            let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
+                return false;
+            };
+            operations.push(task);
+        }
+        operations.push(match recipe.operation {
+            Operation::Immediate(index) => Task::NativeListIndex(index),
+            Operation::Single => Task::Operation(Op::LIST_INDEX, vec![]),
+            Operation::Multi(count) => Task::Operation(
+                Op::LINDEX_MULTI,
+                vec![Operand::Imm(
+                    i32::try_from(count).expect("native list-index operand count"),
+                )],
+            ),
+        });
         true
     }
 
@@ -3352,6 +3393,9 @@ impl CodegenCtx<'_> {
 #[cfg(test)]
 #[path = "native_concat_tests.rs"]
 mod native_concat_tests;
+#[cfg(test)]
+#[path = "native_list_index_tests.rs"]
+mod native_list_index_tests;
 
 #[cfg(test)]
 #[path = "native_variable_preparation_tests.rs"]

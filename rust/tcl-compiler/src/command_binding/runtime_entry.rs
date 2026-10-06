@@ -645,6 +645,7 @@ mod tests {
             epoch: 3,
             profile: tcl_dialect::DialectProfile::plain_tcl().cache_key(),
             invocation_policy: Some(tcl_dialect::DialectProfile::plain_tcl().cache_key()),
+            expression_policy: None,
             execution_point: tcl_registry::InvocationDialect::for_version(
                 tcl_dialect::TclVersion::V9_0,
             )

@@ -126,6 +126,12 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::DictionaryLookup(dictionary) => {
                 self.original_operands(words, dictionary.operands.iter().cloned(), context)
             }
+            NativeInstructionPlan::ListIndex(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::Scalar(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
             NativeInstructionPlan::Expression(expression) => {
                 if let Some(program) = &expression.program {
                     self.original_expression(
@@ -264,6 +270,12 @@ impl CompilerTraversal<'_> {
         } = preparations;
         for step in steps {
             let failure = match step {
+                NativeControlPreparationStep::BooleanProbe(probe) => {
+                    if !self.original_boolean_probe_geometry(words, offset, probe, context) {
+                        self.require_provider();
+                    }
+                    None
+                }
                 NativeControlPreparationStep::Word(operand) => {
                     self.original_operand(words, operand, context)
                 }
@@ -294,39 +306,14 @@ impl CompilerTraversal<'_> {
                     span,
                     context: body_context,
                     ..
-                } => {
-                    let Some(compilation) = entered_context(*body_context, context.compilation)
-                    else {
-                        self.require_provider();
-                        return None;
-                    };
-                    let children = self.compiled_children.clone();
-                    let fallbacks = self.snapshot.generic_fallbacks.clone();
-                    let before_context = self.before_next_context.clone();
-                    if self
-                        .original_script(
-                            words,
-                            offset,
-                            *span,
-                            context,
-                            compilation,
-                            !generic && rejection.is_none(),
-                        )
-                        .is_some()
-                    {
-                        self.compiled_children = children;
-                        self.snapshot.generic_fallbacks = fallbacks;
-                        self.before_next_context = before_context;
-                        self.snapshot
-                            .generic_fallbacks
-                            .insert(CommandAllocationSite {
-                                source: Arc::clone(&self.chunk.source),
-                                offset,
-                            });
-                        return self.substitutions(words, context);
-                    }
-                    None
-                }
+                } => self.original_speculative_script(
+                    words,
+                    offset,
+                    *span,
+                    *body_context,
+                    context,
+                    !generic && rejection.is_none(),
+                ),
                 NativeControlPreparationStep::Expression(operand) => {
                     let Some(program) = recipe.expression_program(operand) else {
                         self.require_provider();
@@ -352,11 +339,126 @@ impl CompilerTraversal<'_> {
         if let Some(rejection) = rejection {
             return Some(self.failure_at(offset, rejection.clone(), Vec::new()));
         }
+        if !self.original_boolean_probes_evaluable(words, offset, steps, context) {
+            self.require_provider();
+        }
         if generic {
             self.substitutions(words, context)
         } else {
             None
         }
+    }
+
+    fn original_speculative_script(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        span: tcl_lexer::Span,
+        body_context: tcl_registry::native_compilation::NativeCompiledBodyContext,
+        context: SourceExecutionContext<'_>,
+        publish: bool,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let Some(compilation) = entered_context(body_context, context.compilation) else {
+            self.require_provider();
+            return None;
+        };
+        let children = self.compiled_children.clone();
+        let fallbacks = self.snapshot.generic_fallbacks.clone();
+        let before_context = self.before_next_context.clone();
+        if self
+            .original_script(words, offset, span, context, compilation, publish)
+            .is_some()
+        {
+            self.compiled_children = children;
+            self.snapshot.generic_fallbacks = fallbacks;
+            self.before_next_context = before_context;
+            self.snapshot
+                .generic_fallbacks
+                .insert(CommandAllocationSite {
+                    source: Arc::clone(&self.chunk.source),
+                    offset,
+                });
+            return self.substitutions(words, context);
+        }
+        None
+    }
+
+    fn original_boolean_probe_geometry(
+        &self,
+        words: &[WordExpr],
+        offset: u32,
+        probe: &tcl_registry::native_control_compilation::NativeControlBooleanProbe,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        let Some(entry) = self.state.baseline.native_entry.as_deref() else {
+            return false;
+        };
+        let Some(version) = entry
+            .execution_point
+            .and_then(tcl_dialect::model::DialectPoint::tcl_version)
+        else {
+            return false;
+        };
+        let Some(protocol) = entry.source_string_protocol else {
+            return false;
+        };
+        let Some(original) = crate::registry_invocation::original_native_compiler_words(
+            self.chunk.source.source_image(),
+            words,
+            offset,
+            context.config,
+        ) else {
+            return false;
+        };
+        tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+            .is_ok_and(|captured| probe.matches_original(&captured, version))
+    }
+
+    fn original_boolean_probes_evaluable(
+        &self,
+        words: &[WordExpr],
+        offset: u32,
+        steps: &[NativeControlPreparationStep],
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        if !steps
+            .iter()
+            .any(|step| matches!(step, NativeControlPreparationStep::BooleanProbe(_)))
+        {
+            return true;
+        }
+        let Some(entry) = self.state.baseline.native_entry.as_deref() else {
+            return false;
+        };
+        let Some(point) = entry.execution_point else {
+            return false;
+        };
+        let Some(protocol) = entry.source_string_protocol else {
+            return false;
+        };
+        let Some(original) = crate::registry_invocation::original_native_compiler_words(
+            self.chunk.source.source_image(),
+            words,
+            offset,
+            context.config,
+        ) else {
+            return false;
+        };
+        let Ok(captured) =
+            tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+        else {
+            return false;
+        };
+        let policy = entry
+            .expression_policy
+            .as_ref()
+            .filter(|policy| entry.invocation_policy == Some(policy.profile));
+        tcl_registry::native_expression_program::control_boolean_probes_match(
+            steps,
+            &captured,
+            policy,
+            tcl_registry::InvocationDialect::of_point(point),
+        )
     }
 
     fn append_body_error_context(
@@ -515,6 +617,18 @@ impl CompilerTraversal<'_> {
                 }
                 return Some(failure);
             }
+        }
+        let evaluation_known = self
+            .state
+            .baseline
+            .native_entry
+            .as_ref()
+            .is_some_and(|entry| {
+                tcl_registry::native_expression_program::expression_program_emission(program, entry)
+                != tcl_registry::native_expression_program::ExpressionProgramEmission::Unavailable
+            });
+        if !evaluation_known {
+            self.require_provider();
         }
         None
     }

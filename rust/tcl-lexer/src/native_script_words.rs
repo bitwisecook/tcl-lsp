@@ -207,8 +207,10 @@ mod tests {
     #[test]
     fn child_region_keeps_expansion_closers_and_bom_as_data() {
         let image = SourceImage::native(b"[\xef\xbb\xbf {*}[list \xff]]".as_slice());
-        let mut config = LexerConfig::default();
-        config.leading_bom = LeadingBom::Skip;
+        let config = LexerConfig {
+            leading_bom: LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
         let plan = native_script_words_in(
             image.clone(),
             Span::new(1, u32::try_from(image.len()).unwrap() - 1),

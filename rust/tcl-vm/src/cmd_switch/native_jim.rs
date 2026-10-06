@@ -157,10 +157,50 @@ mod tests {
     fn hex(text: &str) -> Vec<u8> {
         assert!(text.len().is_multiple_of(2));
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
+    fn install_case_matcher(
+        vm: &mut Vm,
+        index: usize,
+        list: crate::value::NativeObjectLifetimeLease,
+        calls: &Rc<Cell<usize>>,
+    ) {
+        let count = Rc::clone(calls);
+        register_matcher(vm, move |vm, _| {
+            count.set(count.get() + 1);
+            if index == 30
+                && let Err(error) = list.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString) {
+                    return crate::command::completion_from_cmd_error(vm,error.into());
+                }
+            if index == 31 && count.get() == 1 {
+                let count = Rc::clone(&count);
+                register_matcher(vm, move |_, _| {
+                    count.set(count.get() + 1);
+                    ok(Value::int(1))
+                });
+                return ok(Value::int(0));
+            }
+            if index == 27 {
+                return ok(Value::int(0));
+            }
+            if index == 28 {
+                return ok(Value::new_native_string_bytes(b"NONNUMERIC".as_slice()));
+            }
+            if index == 29 {
+                return Completion::new(
+                    tcl_runtime_api::Code::Error,
+                    Value::new_native_string_bytes(b"CALLBACK_ERROR".as_slice()),
+                    Value::empty(),
+                );
+            }
+            ok(Value::int(1))
+        });
+    }
+
     #[test]
     fn switch_matches_all_192_original_native_option_and_callback_results() {
         let cases = include_str!("../../../tcl-cmd-core/tests/data/native_jim_switch/cases.tsv");
@@ -208,37 +248,7 @@ mod tests {
                     .collect();
                 let list = original.last().unwrap().native_lifetime_lease();
                 let calls = Rc::new(Cell::new(0));
-                let count = Rc::clone(&calls);
-                register_matcher(&mut vm, move |vm, _| {
-                    count.set(count.get() + 1);
-                    if index == 30 {
-                        if let Err(error) = list.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString) {
-                            return crate::command::completion_from_cmd_error(vm,error.into());
-                        }
-                    }
-                    if index == 31 && count.get() == 1 {
-                        let count = Rc::clone(&count);
-                        register_matcher(vm, move |_, _| {
-                            count.set(count.get() + 1);
-                            ok(Value::int(1))
-                        });
-                        return ok(Value::int(0));
-                    }
-                    if index == 27 {
-                        return ok(Value::int(0));
-                    }
-                    if index == 28 {
-                        return ok(Value::new_native_string_bytes(b"NONNUMERIC".as_slice()));
-                    }
-                    if index == 29 {
-                        return Completion::new(
-                            tcl_runtime_api::Code::Error,
-                            Value::new_native_string_bytes(b"CALLBACK_ERROR".as_slice()),
-                            Value::empty(),
-                        );
-                    }
-                    ok(Value::int(1))
-                });
+                install_case_matcher(&mut vm, index, list, &calls);
                 let args: Vec<_> = original[1..]
                     .iter()
                     .map(|value| value.native_lifetime_lease().into_value())
@@ -277,45 +287,109 @@ mod tests {
                     case[0]
                 );
                 if profile == "jim" {
-                    for object in rows
-                        .lines()
-                        .filter(|line| line.starts_with(&format!("OBJECT\t{index}\t")))
-                    {
-                        let object: Vec<_> = object.split('\t').collect();
-                        let value = &original[object[2].parse::<usize>().unwrap()];
-                        let expected = if object[3] == "NULL" {
-                            "none"
-                        } else {
-                            object[3]
-                        };
-                        assert_eq!(
-                            value.native_object_type_name(),
-                            expected,
-                            "{profile} {} original {}",
-                            case[0],
-                            object[2]
-                        );
-                        assert_eq!(
-                            value.native_object_reference_count(),
-                            object[4].parse::<usize>().unwrap(),
-                            "{profile} {} original {} references",
-                            case[0],
-                            object[2]
-                        );
-                        assert_eq!(
-                            value.resident_string_bytes().is_some(),
-                            object[5] == "1",
-                            "{profile} {} original {} resident",
-                            case[0],
-                            object[2]
-                        );
-                    }
+                    assert_jim_original_objects(profile, rows, index, case[0], &original);
                 }
                 compared += 1;
             }
         }
         assert_eq!(compared, 192);
     }
+    fn assert_jim_original_objects(
+        profile: &str,
+        rows: &str,
+        index: usize,
+        case: &str,
+        original: &[Value],
+    ) {
+        for object in rows
+            .lines()
+            .filter(|line| line.starts_with(&format!("OBJECT\t{index}\t")))
+        {
+            let object: Vec<_> = object.split('\t').collect();
+            let value = &original[object[2].parse::<usize>().unwrap()];
+            let expected = if object[3] == "NULL" {
+                "none"
+            } else {
+                object[3]
+            };
+            assert_eq!(
+                value.native_object_type_name(),
+                expected,
+                "{profile} {} original {}",
+                case,
+                object[2]
+            );
+            assert_eq!(
+                value.native_object_reference_count(),
+                object[4].parse::<usize>().unwrap(),
+                "{profile} {} original {} references",
+                case,
+                object[2]
+            );
+            assert_eq!(
+                value.resident_string_bytes().is_some(),
+                object[5] == "1",
+                "{profile} {} original {} resident",
+                case,
+                object[2]
+            );
+        }
+    }
+
+    fn install_refetch_matcher(
+        vm: &mut Vm,
+        outcome: usize,
+        original: crate::value::NativeObjectLifetimeLease,
+        observer: Rc<std::cell::RefCell<Option<Value>>>,
+        captured: Rc<std::cell::RefCell<Vec<String>>>,
+    ) {
+        register_matcher(vm, move |vm, args| {
+            let items = original
+                .value()
+                .native_object_list_elements(NativeStringProtocol::Jim084)
+                .unwrap();
+            let body = items.elements().unwrap()[1].clone();
+            let pattern = &args[args.len() - 2];
+            captured.borrow_mut().push(format!(
+                "BEFORE\t{outcome}\t{}\t{}\t{}\t{}\t{}\t{}",
+                original.value().native_object_reference_count(),
+                body.native_object_type_name(),
+                body.native_object_reference_count(),
+                pattern.native_object_type_name(),
+                pattern.native_object_reference_count(),
+                usize::from(
+                    pattern.native_object_identity()
+                        == items.elements().unwrap()[0].native_object_identity()
+                )
+            ));
+            *observer.borrow_mut() = Some(body);
+            drop(items);
+            original.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
+            let old = observer.borrow();
+            let body = old.as_ref().unwrap();
+            captured.borrow_mut().push(format!(
+                "AFTER_SHIMMER\t{outcome}\t{}\t{}\t{}\t{}\t{}",
+                original.value().native_object_type_name(),
+                body.native_object_type_name(),
+                body.native_object_reference_count(),
+                pattern.native_object_type_name(),
+                pattern.native_object_reference_count()
+            ));
+            if outcome == 1 {
+                return Completion::new(
+                    tcl_runtime_api::Code::Error,
+                    Value::new_native_string_bytes(b"FAILED".as_slice()),
+                    Value::empty(),
+                );
+            }
+            if outcome == 2 {
+                return ok(Value::new_native_string_bytes(b"NONNUMERIC".as_slice()));
+            }
+            let _ = vm;
+            ok(Value::int(1))
+        });
+    }
+
     #[test]
     fn same_case_list_is_refetched_in_all_12_native_ownership_windows() {
         use std::cell::RefCell;
@@ -336,53 +410,9 @@ mod tests {
             let original = root.native_lifetime_lease();
             let old = Rc::new(RefCell::new(None::<Value>));
             let observer = Rc::clone(&old);
-            let observed = Rc::new(RefCell::new(Vec::new()));
-            let captured = Rc::clone(&observed);
-            register_matcher(&mut vm, move |vm, args| {
-                let items = original
-                    .value()
-                    .native_object_list_elements(NativeStringProtocol::Jim084)
-                    .unwrap();
-                let body = items.elements().unwrap()[1].clone();
-                let pattern = &args[args.len() - 2];
-                captured.borrow_mut().push(format!(
-                    "BEFORE\t{outcome}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    original.value().native_object_reference_count(),
-                    body.native_object_type_name(),
-                    body.native_object_reference_count(),
-                    pattern.native_object_type_name(),
-                    pattern.native_object_reference_count(),
-                    usize::from(
-                        pattern.native_object_identity()
-                            == items.elements().unwrap()[0].native_object_identity()
-                    )
-                ));
-                *observer.borrow_mut() = Some(body);
-                drop(items);
-                original.value().native_character_count_with_protocol(NativeStringProtocol::Jim084,tcl_registry::native_string_length::NativeStringLengthRepresentation::JimCachedString).unwrap();
-                let old = observer.borrow();
-                let body = old.as_ref().unwrap();
-                captured.borrow_mut().push(format!(
-                    "AFTER_SHIMMER\t{outcome}\t{}\t{}\t{}\t{}\t{}",
-                    original.value().native_object_type_name(),
-                    body.native_object_type_name(),
-                    body.native_object_reference_count(),
-                    pattern.native_object_type_name(),
-                    pattern.native_object_reference_count()
-                ));
-                if outcome == 1 {
-                    return Completion::new(
-                        tcl_runtime_api::Code::Error,
-                        Value::new_native_string_bytes(b"FAILED".as_slice()),
-                        Value::empty(),
-                    );
-                }
-                if outcome == 2 {
-                    return ok(Value::new_native_string_bytes(b"NONNUMERIC".as_slice()));
-                }
-                let _ = vm;
-                ok(Value::int(1))
-            });
+            let transcript = Rc::new(RefCell::new(Vec::new()));
+            let captured = Rc::clone(&transcript);
+            install_refetch_matcher(&mut vm, outcome, original, observer, captured);
             let head = Value::new_native_string_bytes(b"switch".as_slice());
             let args = [
                 Value::new_native_string_bytes(b"-command".as_slice()),
@@ -396,7 +426,7 @@ mod tests {
                 "outcome={outcome}: {:?}",
                 vm.execution_refusal
             );
-            windows.extend(observed.borrow().iter().cloned());
+            windows.extend(transcript.borrow().iter().cloned());
             let items = root
                 .native_object_list_elements(NativeStringProtocol::Jim084)
                 .unwrap();

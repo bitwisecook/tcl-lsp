@@ -1,0 +1,3 @@
+malformed-argument 1 {missing close-brace}
+malformed-required-argument 1 {missing close-brace}
+unknown-before-malformed 1 {missing close-brace}

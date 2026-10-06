@@ -66,6 +66,8 @@ pub(crate) struct NativeCompilerCacheEpoch(pub(crate) u64);
 /// Scoped host activation changes this receipt without changing source grammar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct NativeCompilerPolicy {
+    pub(crate) expression_evaluation:
+        Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
     pub(crate) eval_object_provider:
         Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
     pub(crate) source_word_provider:

@@ -30,6 +30,13 @@ pub enum NativeErrorLogProtocol {
 }
 
 impl NativeErrorLogProtocol {
+    /// `Tcl_ResetResult` clears the active global error episode in C8.4.
+    /// The global variable headers remain owned by their existing cells.
+    #[must_use]
+    pub const fn resets_global_error_episode(self) -> bool {
+        matches!(self, Self::C(tcl_dialect::TclVersion::V8_4))
+    }
+
     /// Original word updater selected by the actual logging engine.
     #[must_use]
     pub const fn string_protocol(self) -> NativeStringProtocol {
@@ -104,6 +111,29 @@ impl InvocationDialect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn global_error_episode_reset_requires_the_actual_c84_protocol() {
+        for name in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            let profile = crate::model::resolve_environment(name).unit_profile();
+            let dialect = InvocationDialect::of_profile(profile);
+            assert_eq!(
+                dialect
+                    .native_error_log_protocol()
+                    .is_some_and(NativeErrorLogProtocol::resets_global_error_episode),
+                name == "tcl8.4",
+                "{name}",
+            );
+        }
+    }
 
     #[test]
     fn command_excerpts_match_actual_c_api_byte_formatters() {

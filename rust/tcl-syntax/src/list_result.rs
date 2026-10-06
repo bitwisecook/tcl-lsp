@@ -173,7 +173,9 @@ mod tests {
         use NativeListResultSerialization as Policy;
         let decode = |hex: &str| {
             hex.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| {
                     let byte = std::str::from_utf8(pair).unwrap();
                     u8::from_str_radix(byte, 16).unwrap()

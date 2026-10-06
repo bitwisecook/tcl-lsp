@@ -518,6 +518,7 @@ fn unset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     message.extend_from_slice(b"\": no such variable");
                     return interp.set_error(&message);
                 }
+                Err(_) if nocomplain && !interp.host_refusal_pending() => continue,
                 Err(code) => return code,
             }
         }
@@ -814,6 +815,17 @@ impl crate::expr::ExprCtx for InterpExprCtx<'_> {
         name: &str,
         args: &[crate::obj::Owned],
     ) -> Result<crate::obj::Owned, crate::expr_error::ExprError> {
+        tcl_registry::native_expression_program::expression_function_dispatch(
+            self.interp.expression_evaluation_policy().as_ref(),
+            self.interp.native_invocation_dialect(),
+        )
+        .ok_or_else(|| {
+            crate::expr_error::ExprError::host_refusal(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "expression function dispatch policy",
+                ),
+            )
+        })?;
         // Tcl 8.4 uses its closed C function table; later releases route through
         // the open command table so overridden/renamed `::tcl::mathfunc::NAME`
         // entries win. The registry owns that distinction. Args are passed as

@@ -254,6 +254,11 @@ pub(super) mod tests {
             epoch: 0,
             profile: profile.cache_key(),
             invocation_policy: Some(profile.cache_key()),
+            expression_policy: dialect.execution_point().and_then(|point| {
+                tcl_registry::native_expression_program::native_expression_evaluation_policy(
+                    profile, point,
+                )
+            }),
             execution_point: dialect.execution_point(),
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(
                 dialect.execution_point().unwrap(),

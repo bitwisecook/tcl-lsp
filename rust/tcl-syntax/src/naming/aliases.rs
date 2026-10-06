@@ -144,6 +144,7 @@ mod tests {
 
     #[test]
     fn local_alias_names_match_original_native_declarations() {
+        use std::fmt::Write as _;
         let script = include_bytes!("../../tests/data/native_alias_names/probe.tcl");
         let expected = |protocol| {
             let mut output = String::new();
@@ -158,7 +159,6 @@ mod tests {
                 } else {
                     variable_local_name_bytes(protocol, name)
                 };
-                use std::fmt::Write as _;
                 writeln!(output, "{label}:0:{}", std::str::from_utf8(&local).unwrap()).unwrap();
             }
             output.trim().to_owned()

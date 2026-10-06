@@ -1185,6 +1185,10 @@ mod tests {
             epoch: 4,
             profile: profile.cache_key(),
             invocation_policy: Some(profile.cache_key()),
+            expression_policy:
+                tcl_registry::native_expression_program::native_expression_evaluation_policy(
+                    profile, point,
+                ),
             execution_point: Some(point),
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:
@@ -1417,6 +1421,7 @@ mod tests {
             epoch: 4,
             profile: profile.cache_key(),
             invocation_policy: Some(profile.cache_key()),
+            expression_policy: None,
             execution_point: tcl_registry::InvocationDialect::of_profile(profile).core_point,
             name_protocol: tcl_registry::InvocationDialect::of_profile(profile)
                 .core_point

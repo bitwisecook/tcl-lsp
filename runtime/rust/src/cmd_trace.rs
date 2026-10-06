@@ -44,6 +44,8 @@
 //! registry declares for the emulated release rather than a fixed list.
 
 use tcl_cmd_core::trace as core_trace;
+use tcl_runtime_api::Namespaces;
+use tcl_syntax::value::ValueOps;
 
 use crate::frame::VarError;
 use crate::interp::{new_string, obj_bytes, Code, Interp};
@@ -493,11 +495,30 @@ fn cmd_trace_add_remove(
         Ok(f) => f,
         Err(c) => return c,
     };
-    let name = obj_bytes(argv[3]);
+    let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_variable_trace_protocol()
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command trace protocol")
+                .into(),
+        );
+    };
+    // Native command/execution trace registration reaches the prefix getter first.
+    let command = match interp.native_string_bytes(&argv[5]) {
+        Ok(command) => command,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let name = match interp.native_string_bytes(&argv[3]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     // Both add and remove require the command to exist (C's `Tcl_TraceCommand`
     // / `Tcl_FindCommand` with `TCL_LEAVE_ERR_MSG`).
-    let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
-        return interp.unknown_command(&name);
+    let fqn = match checked_command_trace_key(interp, &name) {
+        Ok(Some(fqn)) => fqn,
+        Ok(None) => return interp.unknown_command(&name),
+        Err(code) => return code,
     };
     // Inside a rename's callbacks the vacating name reaches the destination's
     // list: C hangs the traces off the shared `Command`, not off either hash
@@ -507,7 +528,6 @@ fn cmd_trace_add_remove(
     let Some(generation) = token else {
         return interp.unknown_command(&name);
     };
-    let command = obj_bytes(argv[5]);
     if is_add {
         // The trace belongs to the token standing at `fqn` now, not to the
         // name (C hangs it off `cmdPtr->tracePtr`).
@@ -524,7 +544,7 @@ fn cmd_trace_add_remove(
             token,
             name: fqn,
             ops: flags,
-            command,
+            command: command.to_vec(),
         });
         drop(traces);
         if first_execution {
@@ -537,7 +557,10 @@ fn cmd_trace_add_remove(
         // is the newest registration — so among duplicates the newest goes.
         // Our Vec is oldest-first, hence `rposition`.
         let pos = interp.traces.borrow().cmd_traces.iter().rposition(|t| {
-            t.name == fqn && t.token == token && t.ops == flags && t.command == command
+            t.name == fqn
+                && t.token == token
+                && t.ops == flags
+                && protocol.command_prefix_matches(&t.command, &command)
         });
         if let Some(i) = pos {
             let mut traces = interp.traces.borrow_mut();
@@ -573,6 +596,24 @@ fn note_execution_trace_boundary(interp: &Interp, generation: u64) {
         .note_native_compiler_mutation(None, NativeCompilerCacheMutation::ExecutionTrace { hook });
 }
 
+fn checked_command_trace_key(interp: &mut Interp, name: &[u8]) -> Result<Option<Vec<u8>>, Code> {
+    let command = interp
+        .find_command_bytes_checked(Namespaces::current(interp), name)
+        .map_err(|error| interp.report_cmd_error(error.into()))?;
+    command
+        .map(|command| {
+            interp.command_name_bytes(command).ok_or_else(|| {
+                interp.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "command trace reporting token",
+                    )
+                    .into(),
+                )
+            })
+        })
+        .transpose()
+}
+
 /// `trace info command|execution name` — the matching traces, most-recent
 /// first, each a `{opList command}` pair. Ops printed in C's fixed order.
 fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Code {
@@ -587,9 +628,23 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
         usage.extend_from_slice(b" name");
         return interp.wrong_args(&usage);
     }
-    let name = obj_bytes(argv[3]);
-    let Some(fqn) = interp.resolve_cmd_fqn(&name) else {
-        return interp.unknown_command(&name);
+    let Some(protocol) = interp
+        .native_invocation_dialect()
+        .native_variable_trace_protocol()
+    else {
+        return interp.report_cmd_error(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable("command trace protocol")
+                .into(),
+        );
+    };
+    let name = match interp.native_string_bytes(&argv[3]) {
+        Ok(name) => name,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    let fqn = match checked_command_trace_key(interp, &name) {
+        Ok(Some(fqn)) => fqn,
+        Ok(None) => return interp.unknown_command(&name),
+        Err(code) => return code,
     };
     // As in `cmd_trace_add_remove`: a rename's vacating name answers with the
     // destination's list, because C keeps one list on the shared `Command`.
@@ -617,7 +672,7 @@ fn cmd_trace_info(interp: &mut Interp, argv: &[*mut TclObj], category: u8) -> Co
             .map(|(_, label)| new_string(label))
             .collect();
         let ops_list = interp.new_list_object(&op_objs);
-        let cmd = new_string(&t.command);
+        let cmd = new_string(protocol.command_prefix_report(&t.command));
         entries.push(interp.new_list_object(&[ops_list, cmd]));
     }
     interp.set_result(interp.new_list_object(&entries));
@@ -885,6 +940,9 @@ fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.set_result(interp.new_list_object(&entries));
     Code::Ok
 }
+
+#[cfg(test)]
+mod native_command_tests;
 
 #[cfg(test)]
 mod tests {

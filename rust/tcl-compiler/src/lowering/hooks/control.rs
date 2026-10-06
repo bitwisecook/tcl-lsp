@@ -26,8 +26,8 @@
 //! list.
 //!
 //! `return ?value?` lowers to [`Statement::Return`] when the call
-//! is the simple `return` or `return value` shape. `return -code`
-//! / `return -level` and other option-bearing forms emit a
+//! is the simple `return` or `return value` shape. A lone `-code` is also
+//! result data; option/value pairs and other multiword forms emit a
 //! [`Statement::Barrier`] so downstream passes do not assume a
 //! particular value slot, and `{*}` expansion does the same.
 //! When the value is a `[expr {…}]` command substitution (or one
@@ -121,7 +121,7 @@ pub fn try_lower_return(
             tokens: cmd.tokens.clone(),
         };
     }
-    if cmd.args.len() > 1 || (!cmd.args.is_empty() && cmd.args[0].starts_with('-')) {
+    if cmd.args.len() > 1 {
         return Statement::Barrier {
             span: cmd.span,
             reason: "return with options".into(),
@@ -264,16 +264,29 @@ mod tests {
         CommandRegistry::build_default()
     }
 
+    fn native_return_module(source: &str) -> crate::ir::Module {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let mut lowerer = crate::lowering::Lowerer::new(registry).with_dialect(Some(profile));
+        lowerer.set_source_analysis_options(crate::command_binding::SourceAnalysisOptions {
+            native_entry: Some(&entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        crate::lowering::lower_to_ir_with(lowerer, source)
+    }
+
     // expr — end-to-end via lower_to_ir
 
     #[test]
     fn nested_return_expression_retains_original_parser_source_base() {
-        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        let source = "proc p {} {return [expr {abs(-3)}]}";
-        let module = crate::lowering::lower_to_ir_with(
-            crate::lowering::Lowerer::new(registry).with_dialect(registry.profile()),
-            source,
-        );
+        let source = "proc p {} {return [expr {abs(-3)}]}; p";
+        let module = native_return_module(source);
         let statement = module.procedures["::p"].body.statements.first().unwrap();
         let Statement::Return {
             expr: Some(_),
@@ -281,7 +294,10 @@ mod tests {
             ..
         } = statement
         else {
-            panic!("missing exact returned expression: {statement:#?}");
+            panic!(
+                "missing exact returned expression: {:?}",
+                std::mem::discriminant(statement)
+            );
         };
         assert_eq!(
             source.get(*base as usize..*base as usize + 7),
@@ -381,13 +397,41 @@ mod tests {
     fn return_with_expr_substitution_attaches_expr() {
         // `return [expr {$x + 1}]` should attach the parsed expression
         // so codegen can emit the value directly without re-eval.
-        let m = lower_to_ir("return [expr {$x + 1}]", &reg());
-        match &m.top_level.statements[0] {
+        let m = native_return_module("proc p {x} {return [expr {$x + 1}]}; p 1");
+        match &m.procedures["::p"].body.statements[0] {
             Statement::Return { expr, .. } => {
                 assert!(expr.is_some(), "expected expr attached, got None");
             }
-            other => panic!("expected Return, got {other:?}"),
+            other => panic!("expected Return, got {:?}", std::mem::discriminant(other)),
         }
+    }
+
+    #[test]
+    fn unentered_or_failed_return_value_does_not_gain_executable_expression_metadata() {
+        for source in [
+            "proc p {x} {return [expr {$x + 1}]}",
+            "proc p {} {return [expr {$missing + 1}]}; p",
+            "proc p {x} {return [expr {$x + 1}]}; mystery; p 1",
+        ] {
+            let module = native_return_module(source);
+            let body = &module.procedures["::p"].body;
+            assert!(body.implicit_math_invocations.is_empty());
+            assert!(body.expression_preparations.is_empty());
+            assert!(body.statements.iter().all(|statement| {
+                statement
+                    .tokens()
+                    .and_then(|tokens| tokens.source_binding.as_ref())
+                    .is_none_or(|binding| binding.proved_execution_target().is_none())
+            }));
+        }
+    }
+
+    #[test]
+    fn sole_return_option_spelling_is_original_result_data() {
+        let module = lower_to_ir("return -code", &reg());
+        assert!(
+            matches!(&module.top_level.statements[0], Statement::Return { value: Some(value), .. } if value == "-code")
+        );
     }
 
     #[test]
@@ -406,15 +450,40 @@ mod tests {
 
     #[test]
     fn return_with_expansion_emits_barrier() {
-        let m = lower_to_ir("return {*}$args", &reg());
-        match &m.top_level.statements[0] {
-            Statement::Barrier {
-                reason, command, ..
-            } => {
-                assert_eq!(reason, "return with expansion");
-                assert_eq!(command, "return");
-            }
-            other => panic!("expected Barrier, got {other:?}"),
+        // Native evaluation reads args before dispatch. An absent operand
+        // reaches no Return handler; successful expansion still lacks the
+        // original one-to-one slots required by structured Return lowering.
+        for (source, entered) in [
+            ("return {*}$args", false),
+            ("set args {42}; return {*}$args", true),
+        ] {
+            let module = native_return_module(source);
+            let statement = module.top_level.statements.last().unwrap();
+            let Statement::Call {
+                command,
+                tokens: Some(tokens),
+                ..
+            } = statement
+            else {
+                panic!(
+                    "expanded Return must retain generic original argv: {:?}",
+                    std::mem::discriminant(statement)
+                );
+            };
+            assert_eq!(command, "return");
+            assert!(matches!(
+                tokens.words().get(1),
+                Some(crate::ir::WordExpr::Expand { .. })
+            ));
+            assert_eq!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .proved_execution_target()
+                    .is_some(),
+                entered
+            );
         }
     }
 

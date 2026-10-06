@@ -1,6 +1,6 @@
 //! C error globals observe separately retained private interpreter objects.
 
-use super::{Local, Value, VarId, Vm};
+use super::{InterpState, Local, Value, VarId, Vm};
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueOps;
 
@@ -15,10 +15,52 @@ pub(super) struct NativeErrorTraceState {
 }
 
 impl Vm {
-    pub(super) fn uses_c84_global_error_info(&self) -> bool {
-        let dialect = self.actual_native_invocation_dialect();
-        dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4)
-            && dialect.native_error_log_protocol().is_some()
+    /// Publish a command completion through the callback-capable receiver.
+    pub(crate) fn publish_native_interp_completion(
+        &mut self,
+        mut completion: tcl_core_types::Completion<Value>,
+    ) -> Result<tcl_core_types::Completion<Value>, tcl_syntax::value::ValueError> {
+        completion.result = self
+            .adopt_native_interp_result(completion.result)?
+            .into_value();
+        self.receive_guest_error_metadata(&completion);
+        Ok(completion)
+    }
+
+    /// Restore the carried original code at the selected native storage owner.
+    pub(crate) fn restore_guest_error_code(&mut self, original: Value) {
+        let original = if self.uses_c84_global_error_info() {
+            // Tcl_SetObjErrorCode stores the SAME global header before setting
+            // ERROR_CODE_SET; C8.4 has no separate private error-code object.
+            let _ = self.set_var_bytes(b"::errorCode", original.clone());
+            let metadata = original.native_lifetime_lease();
+            drop(original);
+            metadata.into_value()
+        } else {
+            original
+        };
+        self.native_errors.primitive_error_code = Some(original);
+    }
+
+    /// Receive transported error fields before command logging supplies defaults.
+    /// A reached primitive's already retained original code remains authoritative.
+    pub(super) fn receive_guest_error_metadata(
+        &mut self,
+        completion: &tcl_core_types::Completion<Value>,
+    ) {
+        if completion.code != tcl_core_types::Code::Error
+            || completion.option_origin != tcl_core_types::CompletionOptionOrigin::ErrorMetadata
+            || self.native_errors.primitive_error_code.is_some()
+            || self
+                .actual_native_invocation_dialect()
+                .native_error_log_protocol()
+                .is_none()
+        {
+            return;
+        }
+        if let Some(original) = crate::command::opt_get(&completion.options, "-errorcode") {
+            self.restore_guest_error_code(original);
+        }
     }
 
     /// Publish a reached C9.1 compiler error through its actual `ResetResult`
@@ -485,12 +527,171 @@ impl Vm {
     }
 }
 
+impl InterpState {
+    pub(super) fn uses_c84_global_error_info(&self) -> bool {
+        self.actual_native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some_and(
+                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+            )
+    }
+
+    /// Reset C8.4's active error flags without mutating its global cells.
+    pub(super) fn reset_native_global_error_episode(&mut self) {
+        if self.uses_c84_global_error_info() {
+            self.native_errors.error_info = None;
+            self.native_errors.native_error_info_len = 0;
+            self.native_errors.native_error_result = None;
+            self.native_errors.native_error_legacy_copy = false;
+            self.native_errors.primitive_error_code = None;
+            self.native_errors.error_logged = false;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::rc::Rc;
     use tcl_registry::special_vars::NativeBootstrapInputs;
     use tcl_runtime_api::{Code, Completion};
+
+    fn check_repeated_error_episode(
+        vm: &mut Vm,
+        head: &Value,
+        original: &Value,
+        fields: &[&str],
+        profile: &str,
+    ) {
+        let completion = vm.invoke_host_original_object_vector(head, &[]);
+        assert_eq!(
+            completion.code,
+            Code::from_int(fields[8].parse().unwrap()),
+            "{profile}"
+        );
+        assert_eq!(
+            completion.result.string_bytes().as_ref() == b"X",
+            fields[10] == "1",
+            "{profile}"
+        );
+        drop(completion);
+        assert!(
+            vm.execution_refusal.is_none(),
+            "{profile}: {:?}",
+            vm.execution_refusal
+        );
+        let current = vm.read_var_traced_bytes(b"::errorInfo").unwrap().unwrap();
+        assert_eq!(
+            !current.is_same_object(original),
+            fields[9] == "1",
+            "{profile}"
+        );
+        assert_eq!(
+            !current
+                .string_bytes()
+                .windows(b"FIRST_ERROR_LONG".len())
+                .any(|bytes| bytes == b"FIRST_ERROR_LONG"),
+            fields[11] == "1",
+            "{profile}"
+        );
+        drop(current);
+        assert_eq!(
+            vm.invoke_host_original_object_vector(head, &[]).code,
+            Code::from_int(fields[12].parse().unwrap()),
+            "{profile}"
+        );
+        assert!(
+            vm.execution_refusal.is_none(),
+            "{profile}: {:?}",
+            vm.execution_refusal
+        );
+        let current = vm.read_var_traced_bytes(b"::errorInfo").unwrap().unwrap();
+        assert_eq!(
+            !current
+                .string_bytes()
+                .windows(b"FIRST_ERROR_LONG".len())
+                .any(|bytes| bytes == b"FIRST_ERROR_LONG"),
+            fields[13] == "1",
+            "{profile}"
+        );
+    }
+
+    #[test]
+    fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
+        let observations = include_str!(
+            "../../../tcl-registry/tests/data/native_error_variables/reset-episodes.tsv"
+        );
+        for (version, profile) in [
+            ("8.4.20", "tcl8.4"),
+            ("8.5.19", "tcl8.5"),
+            ("8.6.18", "tcl8.6"),
+            ("9.0.4", "tcl9.0"),
+            ("9.1.0", "tcl9.1"),
+        ] {
+            let row = observations
+                .lines()
+                .find(|row| row.starts_with(version))
+                .unwrap();
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let mut vm = native_vm(profile);
+            assert_eq!(
+                vm.eval_source("proc p {} {error FIRST_ERROR_LONG}")
+                    .unwrap()
+                    .code,
+                Code::from_int(fields[1].parse().unwrap()),
+                "{profile}"
+            );
+            let head = Value::new_native_string_bytes(b"p".as_slice());
+            assert_eq!(
+                vm.invoke_host_original_object_vector(&head, &[]).code,
+                Code::from_int(fields[2].parse().unwrap()),
+                "{profile}"
+            );
+            assert!(
+                vm.execution_refusal.is_none(),
+                "{profile}: {:?}",
+                vm.execution_refusal
+            );
+            // Tcl_GetVar2Ex reaches the native read trace which lends the
+            // private C8.5+ header to its public variable cell.
+            let original = vm.read_var_traced_bytes(b"::errorInfo").unwrap().unwrap();
+            if vm.uses_c84_global_error_info() {
+                vm.reset_native_jim_result().unwrap();
+                assert_eq!(
+                    vm.read_var_traced_bytes(b"::errorInfo")
+                        .unwrap()
+                        .unwrap()
+                        .is_same_object(&original),
+                    fields[3] == "1"
+                );
+                assert_eq!(
+                    original.native_object_reference_count(),
+                    fields[4].parse::<usize>().unwrap()
+                );
+                assert!(!vm.native_errors.native_error_legacy_copy);
+                assert_eq!(vm.native_errors.native_error_info_len, 0);
+            }
+            assert_eq!(
+                vm.eval_source("proc p {} {error X}").unwrap().code,
+                Code::from_int(fields[5].parse().unwrap()),
+                "{profile}"
+            );
+            assert_eq!(
+                vm.read_var_traced_bytes(b"::errorInfo")
+                    .unwrap()
+                    .unwrap()
+                    .is_same_object(&original),
+                fields[6] == "1",
+                "{profile}"
+            );
+            assert_eq!(
+                original.native_object_reference_count(),
+                fields[7].parse::<usize>().unwrap(),
+                "{profile}"
+            );
+            check_repeated_error_episode(&mut vm, &head, &original, &fields, profile);
+        }
+    }
 
     #[test]
     fn syntax_compiler_reset_publishes_original_without_a_global_literal_owner() {
@@ -739,7 +940,7 @@ mod tests {
                     *seen.borrow(),
                     [b"::errorInfo".to_vec(), b"::errorCode".to_vec()],
                     "{profile}"
-                )
+                );
             });
             assert!(vm.native_errors.native_error_info.is_none());
             assert!(vm.native_errors.primitive_error_code.is_none());

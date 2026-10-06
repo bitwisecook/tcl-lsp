@@ -72,14 +72,23 @@ fn run(script: &str) -> Vec<u8> {
     // On a non-OK completion, append the message so the host sees the failure.
     let trailer = match vm.eval_source(script) {
         Ok(comp) if comp.code.is_ok() => None,
-        Ok(comp) => Some(comp.result.to_str().to_string()),
-        Err(e) => Some(e.message),
+        Ok(comp) => Some(tcl_vm::TclError::from_completion(comp)),
+        Err(error) => Some(error),
     };
     let mut out = buf.borrow().clone();
-    if let Some(msg) = trailer {
-        out.extend_from_slice(msg.as_bytes());
+    if let Some(error) = trailer {
+        append_failure(&mut out, &error);
     }
     out
+}
+
+/// Guest messages cross this byte-valued boundary unchanged. Host refusals
+/// receive terminal presentation without entering the guest completion channel.
+fn append_failure(out: &mut Vec<u8>, error: &tcl_vm::TclError) {
+    match error.message_bytes() {
+        Ok(message) => out.extend_from_slice(&message),
+        Err(host) => out.extend_from_slice(host.to_string().as_bytes()),
+    }
 }
 
 /// Hand a heap buffer to the host as a packed `(ptr << 32) | len` (wasm32
@@ -134,4 +143,31 @@ pub unsafe extern "C" fn tcl_eval(ptr: *const u8, len: usize) -> u64 {
         String::from_utf8_lossy(bytes).into_owned()
     };
     into_packed(run(&script))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::append_failure;
+    use tcl_vm::TclError;
+
+    #[test]
+    fn terminal_guest_message_retains_counted_non_unicode_bytes() {
+        let error = TclError::new(b"message\0\xFF");
+        let mut output = b"earlier output\n".to_vec();
+        append_failure(&mut output, &error);
+        assert_eq!(output, b"earlier output\nmessage\0\xFF");
+        assert!(error.guest_completion().is_some());
+    }
+
+    #[test]
+    fn terminal_host_refusal_does_not_become_a_guest_completion() {
+        let guest = TclError::new(b"\xFF");
+        let refusal = guest.message_unicode().unwrap_err();
+        let expected = refusal.to_string().into_bytes();
+        let error = TclError::from(refusal);
+        let mut output = Vec::new();
+        append_failure(&mut output, &error);
+        assert_eq!(output, expected);
+        assert!(error.guest_completion().is_none());
+    }
 }

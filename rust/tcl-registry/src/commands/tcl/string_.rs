@@ -1047,7 +1047,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // C84 TclCompileStringCmd; C85+ TclCompileStringEqualCmd, with
         // C86+ TclCompileEnsemble's private-name fallback on refused forms.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::StringEqual,
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
             operation: SemanticOperationId::Intrinsic(IntrinsicId::StringEqual),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),
@@ -1404,7 +1406,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "length",
         // C84's monolithic TclCompileStringCmd; C85+ TclCompileStringLenCmd.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::StringLength,
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
             operation: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),

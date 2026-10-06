@@ -393,7 +393,10 @@ mod tests {
                 source.extend_from_slice(b"x\xff[child]");
                 source.extend(std::iter::repeat_n(b')', 2000));
                 let image = SourceImage::native(source);
-                let span = Span::new(0, image.len() as u32);
+                let span = Span::new(
+                    0,
+                    u32::try_from(image.len()).expect("fixture source extent"),
+                );
                 let arena = ExecutablePartArena::decompose(
                     image,
                     span,
@@ -435,7 +438,10 @@ mod tests {
     #[test]
     fn flat_parts_keep_decoded_text_separate_from_raw_component_extents() {
         let image = SourceImage::native(b"pre\\t${\xff}-$a(k\\n)[child]".as_slice());
-        let span = Span::new(0, image.len() as u32);
+        let span = Span::new(
+            0,
+            u32::try_from(image.len()).expect("fixture source extent"),
+        );
         let arena = ExecutablePartArena::decompose(
             image,
             span,
@@ -478,7 +484,10 @@ mod tests {
     #[test]
     fn template_variable_grammar_retains_jim_missing_braced_closer_independently() {
         let image = SourceImage::native(b"${name".as_slice());
-        let span = Span::new(0, image.len() as u32);
+        let span = Span::new(
+            0,
+            u32::try_from(image.len()).expect("fixture source extent"),
+        );
         let config = LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("jim")));
         let template = ExecutablePartArena::decompose_template(
             image.clone(),
@@ -507,7 +516,10 @@ mod tests {
     #[test]
     fn syntax_errors_and_unavailable_geometry_remain_distinct() {
         let image = SourceImage::native(b"[side]$a(".as_slice());
-        let span = Span::new(0, image.len() as u32);
+        let span = Span::new(
+            0,
+            u32::try_from(image.len()).expect("fixture source extent"),
+        );
         let arena = ExecutablePartArena::decompose(
             image.clone(),
             span,

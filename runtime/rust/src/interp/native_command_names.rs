@@ -10,6 +10,27 @@ use tcl_runtime_api::native_command_name::{NativeCommandNameCache, NativeCommand
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Interp {
+    /// Resolve the same original command object before reporting its imported origin.
+    /// The reporting query consumes the selected token without a second name lookup.
+    pub(crate) fn native_namespace_origin(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<Option<Vec<u8>>, ValueError> {
+        let Some((command, token)) = self.resolve_original_command(original)? else {
+            return Ok(None);
+        };
+        // A lookup worker clone is not an invocation or an origin-reporting owner.
+        drop(command);
+        let token = token.ok_or(ValueError::CommandProtocolUnavailable(
+            "original command origin token",
+        ))?;
+        let (name, _) = self.raw_command_location_by_generation(token).ok_or(
+            ValueError::CommandProtocolUnavailable("original command origin placement"),
+        )?;
+        let command = tcl_runtime_api::CommandId(self.intern_cmd(&name, token));
+        tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some)
+    }
+
     /// Observe the actual current reference context and original node identity.
     /// This grants no worker ownership or name-derived cache authority.
     #[cfg(test)]
@@ -185,6 +206,95 @@ mod tests {
 
     fn head(bytes: &[u8]) -> obj::Owned {
         obj::Owned::fresh(obj::new_string_bytes(bytes))
+    }
+
+    fn native_interpreter(version: TclVersion) -> Interp {
+        Interp::with_native_core(
+            super::super::default_host(),
+            crate::environment::profile_for_dialect(version.dialect_profile_name()),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn original_namespace_origin_tracks_native_import_renames_and_replacement() {
+        for version in TclVersion::ALL {
+            let mut interp = native_interpreter(version);
+            assert_eq!(
+                interp.eval_str(b"namespace eval src {proc p {} {return SOURCE};namespace export p};namespace eval mid {namespace import ::src::p;namespace export p};namespace eval dest {namespace import ::mid::p}"),
+                Code::Ok,
+            );
+            let original = head(b"::dest::p");
+            assert_eq!(
+                interp.native_namespace_origin(original.as_ptr()).unwrap(),
+                Some(b"::src::p".to_vec())
+            );
+            let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
+            assert_eq!(interp.eval_str(b"rename ::src::p ::src::q"), Code::Ok);
+            assert_eq!(
+                interp.native_namespace_origin(original.as_ptr()).unwrap(),
+                Some(b"::src::q".to_vec())
+            );
+            assert_eq!(
+                obj::native_command_name_cache(original.as_ptr())
+                    .unwrap()
+                    .token,
+                cache.token
+            );
+            assert_eq!(
+                interp.eval_str(b"rename ::dest::p {};proc ::dest::p {} {return NEW}"),
+                Code::Ok
+            );
+            assert_eq!(
+                interp.native_namespace_origin(original.as_ptr()).unwrap(),
+                Some(b"::dest::p".to_vec())
+            );
+            assert_ne!(
+                obj::native_command_name_cache(original.as_ptr())
+                    .unwrap()
+                    .token,
+                cache.token
+            );
+            assert_eq!(obj::bytes_of(original.as_ptr()), b"::dest::p");
+        }
+    }
+
+    #[test]
+    fn original_namespace_origin_uses_current_stringless_cache_and_refuses_stale_cache() {
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let mut interp = native_interpreter(version);
+            assert_eq!(interp.eval_str(b"proc p {} {return P}"), Code::Ok);
+            let original = head(b"p");
+            assert_eq!(
+                interp.native_namespace_origin(original.as_ptr()).unwrap(),
+                Some(b"::p".to_vec())
+            );
+            let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
+            obj::invalidate_string(original.as_ptr());
+            let references = unsafe { (*original.as_ptr()).ref_count };
+            assert_eq!(
+                interp.native_namespace_origin(original.as_ptr()).unwrap(),
+                Some(b"::p".to_vec())
+            );
+            assert!(!obj::has_string_rep(original.as_ptr()));
+            assert_eq!(unsafe { (*original.as_ptr()).ref_count }, references);
+            assert_eq!(
+                obj::native_command_name_cache(original.as_ptr()),
+                Some(cache)
+            );
+            assert_eq!(
+                interp.eval_str(b"rename p {};proc p {} {return REPLACED}"),
+                Code::Ok
+            );
+            assert!(interp.native_namespace_origin(original.as_ptr()).is_err());
+            assert!(!obj::has_string_rep(original.as_ptr()));
+        }
     }
 
     #[test]

@@ -685,6 +685,8 @@ fn cmd_reset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
+    use tcl_runtime_api::VarStore;
     use tcl_runtime_api::{Code, GLOBAL_FRAME};
 
     fn vm() -> Vm {
@@ -740,6 +742,75 @@ mod tests {
             assert!(result.is_ok(), "{source}: {:?}", result.result);
             result.result.to_str().to_string()
         })
+    }
+
+    #[test]
+    fn rule_owners_share_static_cells_but_events_and_globals_keep_worker_ownership() {
+        let mut vm = vm();
+        let workers = ["zero", "one", "two", "three"].map(|name| worker(&mut vm, name));
+        for (owner, value) in [("/Common/A", "INIT_A"), ("/Common/B", "INIT_B")] {
+            for selected in workers {
+                vm.in_interp(selected, |vm| {
+                    assert!(
+                        eval(
+                            vm,
+                            &format!("::tmm::_timer_context_enter RULE_INIT {owner}")
+                        )
+                        .is_ok()
+                    );
+                    assert!(
+                        eval(
+                            vm,
+                            &format!("set ::static::collision {value}; set ::ordinary {value}")
+                        )
+                        .is_ok()
+                    );
+                    assert!(eval(vm, "::tmm::_timer_context_leave").is_ok());
+                });
+            }
+        }
+        for selected in workers {
+            assert_eq!(
+                query(&mut vm, selected, "list $::static::collision $::ordinary"),
+                "INIT_B INIT_B"
+            );
+        }
+        vm.in_interp(workers[2], |vm| {
+            assert!(eval(vm, "::tmm::_timer_context_enter HTTP_REQUEST /Common/A").is_ok());
+            assert!(
+                eval(
+                    vm,
+                    "unset ::static::collision; set ::static::collision EVENT; set ::ordinary LOCAL"
+                )
+                .is_ok()
+            );
+            assert!(eval(vm, "::tmm::_timer_context_leave").is_ok());
+        });
+        for (index, selected) in workers.into_iter().enumerate() {
+            assert_eq!(
+                query(&mut vm, selected, "list $::static::collision $::ordinary"),
+                if index == 2 {
+                    "EVENT LOCAL"
+                } else {
+                    "INIT_B INIT_B"
+                }
+            );
+        }
+        vm.in_interp(workers[0], |vm| {
+            assert!(eval(vm, "::tmm::_timer_context_enter RULE_INIT /Common/A").is_ok());
+            assert!(eval(vm, "set ::static::collision INIT_A").is_ok());
+            assert!(eval(vm, "::tmm::_timer_context_leave").is_ok());
+        });
+        for (index, selected) in workers.into_iter().enumerate() {
+            assert_eq!(
+                query(&mut vm, selected, "list $::static::collision $::ordinary"),
+                if index == 2 {
+                    "INIT_A LOCAL"
+                } else {
+                    "INIT_A INIT_B"
+                }
+            );
+        }
     }
 
     #[test]
@@ -999,37 +1070,36 @@ mod tests {
         let retired = vm.in_interp(a, |vm| vm.authored_static_compilation_context().unwrap());
         assert!(retired.recipients.is_empty());
     }
-    #[test]
-    fn direct_native_recipient_observers_invalidate_original_static_receipts() {
-        use std::cell::Cell;
-        use tcl_runtime_api::{
-            native_compilation::NativeVariableObserverPresence as Presence,
-            native_variable_trace::{
-                NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
-            },
-        };
+    use std::cell::Cell;
+    use tcl_runtime_api::{
+        native_compilation::NativeVariableObserverPresence as Presence,
+        native_variable_trace::{
+            NativeVariableObserver, NativeVariableTraceAccess, NativeVariableTraceOperation,
+        },
+    };
 
-        struct Observe {
-            recipient: InterpId,
-            calls: Rc<Cell<usize>>,
+    struct DirectRecipientObserver {
+        recipient: InterpId,
+        calls: Rc<Cell<usize>>,
+    }
+    impl NativeVariableObserver<Vm> for DirectRecipientObserver {
+        type Error = tcl_cmd_core::CmdError;
+        fn observe(
+            &self,
+            runtime: &mut Vm,
+            access: NativeVariableTraceAccess<'_>,
+        ) -> Result<(), Self::Error> {
+            assert_eq!(runtime.cur_interp(), self.recipient);
+            assert_eq!(access.operation, NativeVariableTraceOperation::Write);
+            self.calls.set(self.calls.get() + 1);
+            Ok(())
         }
-        impl NativeVariableObserver<Vm> for Observe {
-            type Error = tcl_cmd_core::CmdError;
-            fn observe(
-                &self,
-                runtime: &mut Vm,
-                access: NativeVariableTraceAccess<'_>,
-            ) -> Result<(), Self::Error> {
-                assert_eq!(runtime.cur_interp(), self.recipient);
-                assert_eq!(access.operation, NativeVariableTraceOperation::Write);
-                self.calls.set(self.calls.get() + 1);
-                Ok(())
-            }
-        }
+    }
 
-        let mut vm = vm();
-        let source = worker(&mut vm, "source");
-        let recipient = worker(&mut vm, "recipient");
+    fn enter_rule_init_without_static_observers(
+        vm: &mut Vm,
+        source: InterpId,
+    ) -> tcl_runtime_api::authored_tmm::AuthoredTmmStaticCompilationContext {
         let unknown = vm.in_interp(source, |vm| {
             vm.authored_static_compilation_context().unwrap()
         });
@@ -1046,9 +1116,18 @@ mod tests {
         });
         assert_eq!(absent.outward_observers, Presence::Absent);
 
+        absent
+    }
+
+    #[test]
+    fn direct_native_recipient_observers_invalidate_original_static_receipts() {
+        let mut vm = vm();
+        let source = worker(&mut vm, "source");
+        let recipient = worker(&mut vm, "recipient");
+        let absent = enter_rule_init_without_static_observers(&mut vm, source);
         let name = Value::new_native_string_bytes(b"::static::n".as_slice());
         let calls = Rc::new(Cell::new(0));
-        let observer = Rc::new(Observe {
+        let observer = Rc::new(DirectRecipientObserver {
             recipient,
             calls: Rc::clone(&calls),
         });
@@ -1060,20 +1139,20 @@ mod tests {
             )
             .unwrap()
         });
-        let observed = vm.in_interp(source, |vm| {
+        let receipt = vm.in_interp(source, |vm| {
             vm.authored_static_compilation_context().unwrap()
         });
-        assert_eq!(observed.outward_observers, Presence::Present);
+        assert_eq!(receipt.outward_observers, Presence::Present);
         assert_eq!(
             query(&mut vm, recipient, "trace info variable ::static::n"),
             ""
         );
         assert_ne!(
             absent.recipients[0].observer_epoch,
-            observed.recipients[0].observer_epoch
+            receipt.recipients[0].observer_epoch
         );
         assert_eq!(
-            observed,
+            receipt,
             vm.in_interp(source, |vm| vm
                 .authored_static_compilation_context()
                 .unwrap())
@@ -1099,7 +1178,7 @@ mod tests {
         });
         assert_eq!(retired.outward_observers, Presence::Absent);
         assert_ne!(
-            observed.recipients[0].observer_epoch,
+            receipt.recipients[0].observer_epoch,
             retired.recipients[0].observer_epoch
         );
         let replacement = vm.in_interp(recipient, |vm| {
@@ -1111,7 +1190,7 @@ mod tests {
             vm.authored_static_compilation_context().unwrap()
         });
         assert_eq!(replaced.outward_observers, Presence::Present);
-        assert_ne!(observed, replaced);
+        assert_ne!(receipt, replaced);
         assert!(
             vm.in_interp(source, |vm| eval(vm, "set ::static::n SECOND"))
                 .is_ok()

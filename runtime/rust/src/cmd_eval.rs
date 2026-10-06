@@ -33,6 +33,10 @@ use tcl_syntax::scalar_getter::{
 };
 use tcl_syntax::value::ValueError;
 
+#[cfg(test)]
+#[path = "cmd_eval/native_frame_reference_tests.rs"]
+mod native_frame_reference_tests;
+
 /// Register `eval` and `uplevel`.
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"eval", eval_cmd);

@@ -8,19 +8,30 @@ use tcl_syntax::value::ValueError;
 
 impl Vm {
     pub(crate) fn record_package_entry(&mut self, name: &[u8]) {
-        let recipe = self
-            .native_invocation_dialect()
-            .native_package_protocol()
-            .and_then(|protocol| {
-                tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(Some(0))
-                    .and_then(|abi| protocol.hash_recipe(abi))
-            });
-        self.package_state.package_entry_order.select_recipe(recipe);
-        self.package_state.package_entry_order.insert(name);
+        if self.package_table_is_authored() {
+            let state = self
+                .authored_packages
+                .as_mut()
+                .expect("selected authored table");
+            if !state.order.iter().any(|key| key.as_bytes() == name) {
+                state.order.push(NameBytes::from(name));
+            }
+            return;
+        }
+        let recipe = self.selected_package_protocol().and_then(|protocol| {
+            tcl_runtime_api::native_hash_abi::supported_backend_hash_abi(Some(0))
+                .and_then(|abi| protocol.hash_recipe(abi))
+        });
+        self.selected_package_state_mut()
+            .package_entry_order
+            .select_recipe(recipe);
+        self.selected_package_state_mut()
+            .package_entry_order
+            .insert(name);
     }
 
     pub(crate) fn package_file_inventory_active(&self) -> bool {
-        self.package_state.package_file_inventory_active
+        self.selected_package_state().package_file_inventory_active
     }
 
     #[cfg(test)]
@@ -30,7 +41,7 @@ impl Vm {
         callback: impl FnOnce(&Value) -> R,
     ) -> R {
         callback(
-            self.package_state
+            self.selected_package_state()
                 .package_files
                 .get(name)
                 .expect("retained package file header"),
@@ -38,7 +49,7 @@ impl Vm {
     }
 
     pub(crate) fn package_file_object(&self, name: &[u8]) -> Value {
-        self.package_state
+        self.selected_package_state()
             .package_files
             .get(name)
             .cloned()
@@ -47,14 +58,14 @@ impl Vm {
 
     pub(crate) fn begin_package_initialization(&mut self) -> bool {
         let Some(name) = self
-            .native_invocation_dialect()
-            .native_package_protocol()
+            .selected_package_protocol()
             .and_then(tcl_registry::native_package::NativePackageProtocol::initialization_package)
         else {
             return false;
         };
-        self.package_state.package_file_inventory_active = true;
-        self.package_state
+        self.selected_package_state_mut()
+            .package_file_inventory_active = true;
+        self.selected_package_state_mut()
             .package_file_scopes
             .push(NameBytes::from(name));
         true
@@ -62,26 +73,26 @@ impl Vm {
 
     pub(crate) fn end_package_initialization(&mut self, entered: bool) {
         if entered {
-            self.package_state.package_file_scopes.pop();
+            self.selected_package_state_mut().package_file_scopes.pop();
         }
     }
 
     pub(crate) fn take_package_file_scope(&mut self) -> Vec<NameBytes> {
-        std::mem::take(&mut self.package_state.package_file_scopes)
+        std::mem::take(&mut self.selected_package_state_mut().package_file_scopes)
     }
 
     pub(crate) fn restore_package_file_scope(&mut self, scope: Vec<NameBytes>) {
-        self.package_state.package_file_scopes = scope;
+        self.selected_package_state_mut().package_file_scopes = scope;
     }
 
     pub(crate) fn enter_package_source_path(&mut self, path: &[u8]) {
-        self.package_state
+        self.selected_package_state_mut()
             .package_source_paths
             .push(tcl_core_types::c_string_extent(path).to_vec());
     }
 
     pub(crate) fn leave_package_source_path(&mut self) {
-        self.package_state.package_source_paths.pop();
+        self.selected_package_state_mut().package_source_paths.pop();
     }
 
     pub(crate) fn record_package_loader_origin(
@@ -90,7 +101,7 @@ impl Vm {
         version: &NameBytes,
     ) -> Result<(), ValueError> {
         let origin = self
-            .package_state
+            .selected_package_state()
             .package_loader_origins
             .get(&(name.clone(), version.clone()))
             .cloned();
@@ -102,13 +113,17 @@ impl Vm {
 
     pub(crate) fn record_package_source_file(&mut self, filename: &[u8]) -> Result<(), ValueError> {
         if !self
-            .native_invocation_dialect()
-            .native_package_protocol()
+            .selected_package_protocol()
             .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
         {
             return Ok(());
         }
-        let Some(name) = self.package_state.package_file_scopes.last().cloned() else {
+        let Some(name) = self
+            .selected_package_state()
+            .package_file_scopes
+            .last()
+            .cloned()
+        else {
             return Ok(());
         };
         let strings = self
@@ -118,7 +133,7 @@ impl Vm {
                 "package file string producer",
             ))?;
         let header = self
-            .package_state
+            .selected_package_state_mut()
             .package_files
             .entry(name)
             .or_insert_with(|| Value::native_list_constructor(Vec::new(), strings));

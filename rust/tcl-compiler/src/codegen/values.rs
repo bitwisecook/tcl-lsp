@@ -48,6 +48,11 @@ impl CodegenCtx<'_> {
         &mut self,
         words: &[tcl_lexer::NativeWord],
     ) -> Option<usize> {
+        // DIRECT source evaluates fresh original words; it owns no native
+        // compiler literal registration or command-name priming action.
+        if self.plain_command_dispatch {
+            return None;
+        }
         let entry = self.native_entry?;
         if entry.execution_point?.tcl_version().is_none()
             || entry.name_protocol?.authority() != tcl_syntax::naming::NamePolicyAuthority::Native
@@ -1134,6 +1139,56 @@ mod tests {
     }
 
     #[test]
+    fn original_c84_direct_source_preserves_words_without_compiler_pool_actions() {
+        use tcl_runtime_api::{CompileService, ScriptCompileTargetBytes};
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let source = tcl_runtime_api::SourceImage::native(
+            b"list [info level] [info exists local]".as_slice(),
+        );
+        let module = service
+            .compile_plain_script_bytes_with_entry(
+                ScriptCompileTargetBytes {
+                    source: &source,
+                    namespace: &tcl_runtime_api::ByteNamespacePath::root(),
+                },
+                profile,
+                &entry,
+            )
+            .unwrap();
+        let function = &module.top_level;
+        assert!(function.plain_command_dispatch);
+        assert!(function.validate_native_compilation_entry().is_ok());
+        assert!(
+            function
+                .literals
+                .native_actions()
+                .iter()
+                .all(|action| { matches!(action, tcl_bytecode::NativeLiteralAction::Register(_)) })
+        );
+        for head in [b"list".as_slice(), b"info"] {
+            assert!(
+                function
+                    .literals
+                    .entries()
+                    .iter()
+                    .any(|literal| literal.bytes() == head)
+            );
+        }
+        assert_eq!(
+            function
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4)
+                })
+                .count(),
+            3
+        );
+    }
+
+    #[test]
     fn native_decoded_literals_are_exact_bytes_and_never_replayed_as_source() {
         let environment = tcl_registry::model::ingress::resolve_environment("jim");
         let context = environment.default_context_registry();
@@ -1569,6 +1624,10 @@ mod tests {
             epoch: 0,
             profile: profile.cache_key(),
             invocation_policy: Some(profile.cache_key()),
+            expression_policy:
+                tcl_registry::native_expression_program::native_expression_evaluation_policy(
+                    profile, point,
+                ),
             execution_point: Some(point),
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:

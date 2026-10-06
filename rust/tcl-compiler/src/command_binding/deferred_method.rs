@@ -617,6 +617,14 @@ impl ModuleCommandBindings {
             {
                 Arc::make_mut(local).extend(base.iter().cloned());
             }
+            entries.instance_variables = entries
+                .instance_variables
+                .take()
+                .zip(inherited.instance_variables)
+                .map(|(mut local, base)| {
+                    Arc::make_mut(&mut local).extend(base.iter().cloned());
+                    local
+                });
             let local = Arc::make_mut(&mut entries.receiver_method_entries);
             for (key, entry) in inherited.receiver_method_entries.iter() {
                 if key.0 == SourceMethodReceiver::Instance
@@ -698,6 +706,7 @@ impl ModuleCommandBindings {
                 implementation_generation: created.implementation_generation,
                 dispatcher: None,
                 instance_methods: entries.instance_methods,
+                instance_variables: entries.instance_variables,
                 dispatcher_methods: Arc::default(),
                 constructor_entry: entries.constructor_entry,
                 destructor_entry: entries.destructor_entry,
@@ -712,6 +721,7 @@ impl ModuleCommandBindings {
 
 struct RetainedClassEntries {
     instance_methods: Option<Arc<super::BTreeSet<String>>>,
+    instance_variables: Option<Arc<super::BTreeSet<String>>>,
     constructor_entry: Option<Arc<super::SourceConstructorEntry>>,
     destructor_entry: Option<Arc<super::SourceConstructorEntry>>,
     lifecycle_entries_closed: bool,
@@ -952,6 +962,7 @@ fn retained_class_entries(
     RetainedClassEntries {
         inherited_classes: Arc::default(),
         instance_methods: closed_instance_methods(grammar, map, segments, dialect, context),
+        instance_variables: retained_instance_variables(grammar, map, segments, dialect, context),
         constructor_entry: lifecycle.constructor,
         destructor_entry: lifecycle.destructor,
         lifecycle_entries_closed,
@@ -959,6 +970,38 @@ fn retained_class_entries(
             grammar, definition, map, segments, dialect, parameters, context,
         ),
     }
+}
+
+// These names come from the admitted instance-side definition members, not
+// from method source or the reported class command spelling.
+fn retained_instance_variables(
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    map: &tcl_lexer::SourceMap<'_>,
+    segments: &[crate::segmenter::SegmentedCommand],
+    dialect: Option<tcl_registry::InvocationDialect>,
+    context: SourceExecutionContext<'_>,
+) -> Option<Arc<super::BTreeSet<String>>> {
+    let mut names = Vec::new();
+    for segment in segments {
+        let words = crate::ir::CommandTokens::from_segmented(map, context.config, segment);
+        let values = source_effective_words(words.words(), dialect, None);
+        let member = grammar.member(values.first()?.as_registry_word().literal()?)?;
+        if !member.all_args_var {
+            continue;
+        }
+        let arguments = values
+            .iter()
+            .skip(1)
+            .map(|word| word.as_registry_word().literal().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()?;
+        if let Some(slot) = member.slot {
+            slot.split_call(&arguments)?;
+            slot.apply(&mut names, &arguments);
+        } else {
+            names.extend(arguments);
+        }
+    }
+    Some(Arc::new(names.into_iter().collect()))
 }
 
 fn retained_method_entries(
@@ -1546,7 +1589,10 @@ fn original_definition_member_target(
         .filter(|target| {
             target.registry_backed
                 && target.prepended.is_empty()
-                && target.command == lookup.implementation
+                && target.registry_identity().is_some_and(|identity| {
+                    crate::naming::normalise_qualified_name(identity)
+                        == crate::naming::normalise_qualified_name(&lookup.implementation)
+                })
                 && target.implementation_generation == 0
                 && !state.tainted_object_dispatch.contains("*")
                 && !state.tainted_object_dispatch.contains(&target.command)
@@ -1634,6 +1680,42 @@ mod tests {
     use super::SourceCommandBindings;
     use crate::command_binding::SourceAnalysisOptions;
     use tcl_registry::CommandRegistry;
+
+    #[test]
+    fn native_default_constructor_uses_captured_worker_identity_and_rejects_replacement() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        for (prefix, expected) in [
+            ("", true),
+            ("rename ::oo::object {}; proc ::oo::object args {}; ", false),
+        ] {
+            let source =
+                format!("{prefix}oo::class create C {{method m {{p}} {{::return $p}}}}; C new");
+            let bindings = SourceCommandBindings::analyse_with_options(
+                &source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                registry,
+                SourceAnalysisOptions {
+                    native_entry: Some(&entry),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            let offset = u32::try_from(source.rfind("C new").unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("C", offset);
+            assert_eq!(
+                binding.proved_class_definition_factory().is_some(),
+                expected,
+                "{source}"
+            );
+        }
+    }
 
     #[test]
     fn visibility_metadata_keeps_original_entries_and_definition_order() {

@@ -74,6 +74,7 @@ pub mod naming;
 /// Native array-search handle conversion and failure presentation.
 pub mod native_array_search;
 pub mod native_bytecode;
+pub mod native_compiled_index;
 pub mod native_equality;
 pub mod native_glob;
 pub mod native_instruction_name;

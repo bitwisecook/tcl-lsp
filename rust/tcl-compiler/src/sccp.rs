@@ -4269,13 +4269,43 @@ mod tests {
 
     /// A literal body resolves its actual selected-frame mutation; a dynamic
     /// body retains unknown contents and presence on its reached continuation.
+    fn native_existence_unit(
+        source: &str,
+        registry: &CommandRegistry,
+    ) -> crate::compilation_unit::CompilationUnit {
+        let profile = registry.profile().expect("selected native fixture profile");
+        let entry = crate::command_binding::SourceAnalysisEntry {
+            native_entry: Some(std::sync::Arc::new(
+                crate::environment_ingress::captured_native_entry(profile),
+            )),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+            native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+                mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                ..Default::default()
+            },
+            ..crate::command_binding::SourceAnalysisEntry::default()
+        };
+        crate::compilation_unit::CompilationUnit::build_with_source_entry(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &entry,
+        )
+    }
+
     #[test]
     fn existence_fold_resolves_literal_upframe_and_declines_dynamic_body() {
-        let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for(
-            "proc f {} { uplevel 0 { set created 1 }; if {[info exists created]} { return yes } else { return no } }",
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let cu = native_existence_unit(
+            "proc f {} { uplevel 0 { set created 1 }; if {[info exists created]} { return yes } else { return no } }; f",
             &registry,
-            false,
         );
         let f = cu.function("::f").expect("procedure analysed");
         assert!(
@@ -4291,10 +4321,9 @@ mod tests {
             "the literal selected-frame store creates the queried cell: {:?}",
             f.sccp.constant_branches,
         );
-        let dynamic = crate::compilation_unit::CompilationUnit::build_for(
-            "proc f {script} {uplevel 0 $script; if {[info exists created]} {return yes} else {return no}}",
+        let dynamic = native_existence_unit(
+            "proc f {script} {uplevel 0 $script; if {[info exists created]} {return yes} else {return no}}; f [mystery]",
             &registry,
-            false,
         );
         assert!(
             dynamic
@@ -4313,11 +4342,11 @@ mod tests {
         // aliases that frame's parameter and unsets it, so Tcl observes the else
         // branch. The no-uplevel twin proves the branch is otherwise foldable;
         // this tests the resolved mutation rather than a whole-function barrier.
-        let registry = CommandRegistry::build_default();
-        let stable = crate::compilation_unit::CompilationUnit::build_for(
-            "proc f {local} { if {[info exists local]} { return yes } else { return no } }",
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        let stable = native_existence_unit(
+            "proc f {local} { if {[info exists local]} { return yes } else { return no } }; f VALUE",
             &registry,
-            false,
         );
         assert!(
             !stable
@@ -4329,10 +4358,9 @@ mod tests {
             "the unmutated control must be foldable"
         );
 
-        let mutated = crate::compilation_unit::CompilationUnit::build_for(
-            "proc f {local} { uplevel 0 { uplevel 0 { upvar 0 local alias; unset alias } }; if {[info exists local]} { return yes } else { return no } }",
+        let mutated = native_existence_unit(
+            "proc f {local} { uplevel 0 { uplevel 0 { upvar 0 local alias; unset alias } }; if {[info exists local]} { return yes } else { return no } }; f VALUE",
             &registry,
-            false,
         );
         let f = mutated.function("::f").expect("mutated procedure analysed");
         let outer = f
@@ -4358,6 +4386,52 @@ mod tests {
             "the literal alias unset removes the selected local: {branches:?}",
         );
         assert!(branches.iter().all(|branch| !branch.value));
+    }
+
+    #[test]
+    fn existence_folding_requires_actual_entry_and_selected_query() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let declaration = "proc f {local} {if {[info exists local]} {return yes} else {return no}}";
+        let missing_entry = crate::compilation_unit::CompilationUnit::build_with_source_entry(
+            &format!("{declaration}; f VALUE"),
+            crate::compilation_unit::UnitBuildOptions {
+                registry: &registry,
+                defer_top_level: false,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            &crate::command_binding::SourceAnalysisEntry {
+                unknown_entry: true,
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                ..Default::default()
+            },
+        );
+        assert!(
+            missing_entry
+                .function("::f")
+                .unwrap()
+                .sccp
+                .constant_branches
+                .is_empty()
+        );
+        for source in [
+            declaration.to_owned(),
+            format!("rename info {{}}; proc info args {{return UNKNOWN}}; {declaration}; f VALUE"),
+            format!("{declaration}; mystery; f VALUE"),
+        ] {
+            let unit = native_existence_unit(&source, &registry);
+            assert!(
+                unit.function("::f")
+                    .unwrap()
+                    .sccp
+                    .constant_branches
+                    .is_empty(),
+                "unentered or unselected query must not fold: {source}"
+            );
+        }
     }
 
     #[test]

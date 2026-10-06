@@ -258,7 +258,10 @@ mod physical_tests {
             let image = tcl_lexer::SourceImage::native(source.as_slice());
             let script = tcl_lexer::native_script_words_in(
                 image.clone(),
-                tcl_lexer::Span::new(0, image.len() as u32),
+                tcl_lexer::Span::new(
+                    0,
+                    u32::try_from(image.len()).expect("fixture source fits source offsets"),
+                ),
                 tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             )
             .unwrap();
@@ -297,6 +300,90 @@ mod physical_tests {
         }
     }
 
+    struct StorageWindows<'a> {
+        data: &'a str,
+        name: &'a str,
+        case: usize,
+    }
+
+    impl StorageWindows<'_> {
+        fn check(&self, window: &str, root: Option<&Value>, words: &[Value], compared: &mut usize) {
+            let Self { data, name, case } = *self;
+            for line in data.lines() {
+                let row = line.split('\t').collect::<Vec<_>>();
+                if row[0] != name || row[1].parse::<usize>().unwrap() != case || row[2] != window {
+                    continue;
+                }
+                let arg = row[3].parse::<i32>().unwrap();
+                let value = if arg >= 0 {
+                    &words[usize::try_from(arg).expect("nonnegative native argument")]
+                } else if arg == -1 {
+                    root.unwrap()
+                } else {
+                    panic!("separate retained member")
+                };
+                let snapshot = value.native_object_snapshot();
+                assert_eq!(tag(value), row[4], "{name}/{case}/{window}/{arg}");
+                assert_eq!(
+                    snapshot.resident.is_some(),
+                    row[5] == "1",
+                    "{name}/{case}/{window}/{arg}"
+                );
+                assert_eq!(
+                    snapshot
+                        .resident
+                        .as_ref()
+                        .map_or(-1, |bytes| i64::try_from(bytes.len())
+                            .expect("fixture byte length fits native observer")),
+                    row[6].parse::<i64>().unwrap(),
+                    "{name}/{case}/{window}/{arg}"
+                );
+                assert_eq!(
+                    value.native_object_reference_count(),
+                    row[7].parse::<usize>().unwrap(),
+                    "{name}/{case}/{window}/{arg}"
+                );
+                *compared += 1;
+            }
+        }
+
+        fn check_retained_errorcode(&self, root: &Value, compared: &mut usize) {
+            let Self { data, name, case } = *self;
+            root.with_cached_dictionary_representation(|pairs, _| {
+                if let Some((_, value)) = pairs.iter().find(|(key, _)| {
+                    key.resident_string_bytes()
+                        .is_some_and(|bytes| bytes.as_ref() == b"-errorcode")
+                }) {
+                    let row = data
+                        .lines()
+                        .find(|line| {
+                            let fields = line.split('\t').collect::<Vec<_>>();
+                            fields[0] == name
+                                && fields[1].parse::<usize>().unwrap() == case
+                                && fields[2] == "retained-errorcode"
+                        })
+                        .unwrap()
+                        .split('\t')
+                        .collect::<Vec<_>>();
+                    let snapshot = value.native_object_snapshot();
+                    assert_eq!(tag(value), row[4]);
+                    assert_eq!(snapshot.resident.is_some(), row[5] == "1");
+                    assert_eq!(
+                        i64::try_from(snapshot.resident.unwrap().len())
+                            .expect("fixture byte length fits native observer"),
+                        row[6].parse::<i64>().unwrap()
+                    );
+                    assert_eq!(
+                        value.native_object_reference_count(),
+                        row[7].parse::<usize>().unwrap()
+                    );
+                    *compared += 1;
+                }
+            })
+            .unwrap();
+        }
+    }
+
     #[test]
     fn private_return_options_factory_preserves_136_native_storage_windows() {
         let data = include_str!("../../tcl-registry/tests/data/return-private-storage136.tsv");
@@ -316,7 +403,10 @@ mod physical_tests {
                 let image = tcl_lexer::SourceImage::native(*source);
                 let script = tcl_lexer::native_script_words_in(
                     image.clone(),
-                    tcl_lexer::Span::new(0, image.len() as u32),
+                    tcl_lexer::Span::new(
+                        0,
+                        u32::try_from(image.len()).expect("fixture source fits source offsets"),
+                    ),
                     tcl_lexer::LexerConfig::from_grammar(profile.grammar),
                 )
                 .unwrap();
@@ -331,48 +421,8 @@ mod physical_tests {
                         known_word(&ops, &capture.known_word_literal(index).unwrap()).unwrap()
                     })
                     .collect::<Vec<_>>();
-                let check =
-                    |window: &str, root: Option<&Value>, words: &[Value], compared: &mut usize| {
-                        for line in data.lines() {
-                            let row = line.split('\t').collect::<Vec<_>>();
-                            if row[0] != name
-                                || row[1].parse::<usize>().unwrap() != case
-                                || row[2] != window
-                            {
-                                continue;
-                            }
-                            let arg = row[3].parse::<i32>().unwrap();
-                            let value = if arg >= 0 {
-                                &words[arg as usize]
-                            } else if arg == -1 {
-                                root.unwrap()
-                            } else {
-                                panic!("separate retained member")
-                            };
-                            let snapshot = value.native_object_snapshot();
-                            assert_eq!(tag(value), row[4], "{name}/{case}/{window}/{arg}");
-                            assert_eq!(
-                                snapshot.resident.is_some(),
-                                row[5] == "1",
-                                "{name}/{case}/{window}/{arg}"
-                            );
-                            assert_eq!(
-                                snapshot
-                                    .resident
-                                    .as_ref()
-                                    .map_or(-1, |bytes| bytes.len() as i64),
-                                row[6].parse::<i64>().unwrap(),
-                                "{name}/{case}/{window}/{arg}"
-                            );
-                            assert_eq!(
-                                value.native_object_reference_count(),
-                                row[7].parse::<usize>().unwrap(),
-                                "{name}/{case}/{window}/{arg}"
-                            );
-                            *compared += 1;
-                        }
-                    };
-                check("known-word", None, &originals, &mut compared);
+                let windows = StorageWindows { data, name, case };
+                windows.check("known-word", None, &originals, &mut compared);
                 let protocol = ops.dialect.return_options_protocol().unwrap();
                 let merged = native_return_merge::merge(&mut ops, protocol, &originals).unwrap();
                 let control = data
@@ -391,46 +441,16 @@ mod physical_tests {
                 assert_eq!(merged.size, control[5].parse::<usize>().unwrap());
                 compared += 1;
                 let root = merged.options.into_native_unowned_lifetime();
-                check(
+                windows.check(
                     "merged-before-words-drop",
                     Some(&root),
                     &originals,
                     &mut compared,
                 );
-                check("word-after-merge", Some(&root), &originals, &mut compared);
+                windows.check("word-after-merge", Some(&root), &originals, &mut compared);
                 drop(originals);
-                check("merged-after-words-drop", Some(&root), &[], &mut compared);
-                root.with_cached_dictionary_representation(|pairs, _| {
-                    if let Some((_, value)) = pairs.iter().find(|(key, _)| {
-                        key.resident_string_bytes()
-                            .is_some_and(|bytes| bytes.as_ref() == b"-errorcode")
-                    }) {
-                        let row = data
-                            .lines()
-                            .find(|line| {
-                                let fields = line.split('\t').collect::<Vec<_>>();
-                                fields[0] == name
-                                    && fields[1].parse::<usize>().unwrap() == case
-                                    && fields[2] == "retained-errorcode"
-                            })
-                            .unwrap()
-                            .split('\t')
-                            .collect::<Vec<_>>();
-                        let snapshot = value.native_object_snapshot();
-                        assert_eq!(tag(value), row[4]);
-                        assert_eq!(snapshot.resident.is_some(), row[5] == "1");
-                        assert_eq!(
-                            snapshot.resident.unwrap().len() as i64,
-                            row[6].parse::<i64>().unwrap()
-                        );
-                        assert_eq!(
-                            value.native_object_reference_count(),
-                            row[7].parse::<usize>().unwrap()
-                        );
-                        compared += 1;
-                    }
-                })
-                .unwrap();
+                windows.check("merged-after-words-drop", Some(&root), &[], &mut compared);
+                windows.check_retained_errorcode(&root, &mut compared);
             }
         }
         assert_eq!(compared, 136);
@@ -444,7 +464,9 @@ mod execution_tests {
     use tcl_core_types::Code;
     fn bytes(hex: &str) -> Vec<u8> {
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }

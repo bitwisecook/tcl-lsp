@@ -687,6 +687,8 @@ pub enum NativeCompilationGrammar {
     /// C8.5's monolithic namespace compiler only attempts original upvar syntax.
     /// Other namespace operations decline before preparing any operands.
     NamespaceLegacy,
+    /// C8.6+ original private namespace-upvar worker compiler.
+    NamespaceUpvarBindings,
     /// A procedure-only hook from this release; script frames decline the hook.
     /// Procedure grammar remains unmodelled and cannot license an opcode.
     ProcedureHookFrom(TclVersion),
@@ -739,12 +741,14 @@ pub enum NativeCompilationGrammar {
     /// fallback for dynamic operands or an already-scoped prefix.
     NamespaceCode,
     /// Native string equality; unsupported options use a private invocation from 8.6.
-    StringEqual,
+    StringEqual(crate::native_scalar_compilation::NativeScalarScope),
     /// C8.4+ string length accepts one evaluated operand; refused modern
     /// public forms retain the selected private worker invocation.
-    StringLength,
+    StringLength(crate::native_scalar_compilation::NativeScalarScope),
     /// Original C string-match hook and its actual registration operand scope.
     StringMatch(crate::native_string_compilation::NativeStringMatchScope),
+    /// C8.4+ list length, with authentic C8.4 compile-time arity rejection.
+    ListLength,
     /// C8.4+ list extraction with one list operand and any index operands.
     ListIndex,
     /// C 8.6+ list range with compile-time, immediately encodable indices.
@@ -1553,12 +1557,14 @@ impl NativeCompilationSpec {
                     | crate::native_dictionary::NativeDictionaryCommand::GetWithDefault
             ),
             NativeCompilationGrammar::VariableLoadStore
+            | NativeCompilationGrammar::ListIndex
             | NativeCompilationGrammar::LiteralUnset
             | NativeCompilationGrammar::ArgumentConcatFrom(_)
             | NativeCompilationGrammar::Uplevel
             | NativeCompilationGrammar::GlobalBindings
             | NativeCompilationGrammar::NamespaceVariableBindings
             | NativeCompilationGrammar::NamespaceLegacy
+            | NativeCompilationGrammar::NamespaceUpvarBindings
             | NativeCompilationGrammar::Switch
             | NativeCompilationGrammar::Conditional
             | NativeCompilationGrammar::WhileLoop
@@ -1569,8 +1575,32 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::Expression
             | NativeCompilationGrammar::Return
             | NativeCompilationGrammar::StringMatch(_)
+            | NativeCompilationGrammar::StringEqual(_)
+            | NativeCompilationGrammar::StringLength(_)
+            | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Error => true,
             _ => false,
+        }
+    }
+
+    /// Original scalar opcode and its actual registration operand layout.
+    #[must_use]
+    pub const fn scalar_compilation(
+        self,
+    ) -> Option<(
+        crate::native_scalar_compilation::NativeScalarOperation,
+        crate::native_scalar_compilation::NativeScalarScope,
+    )> {
+        use crate::native_scalar_compilation::{
+            NativeScalarOperation as Operation, NativeScalarScope as Scope,
+        };
+        match self.grammar {
+            NativeCompilationGrammar::StringEqual(scope) => Some((Operation::StringEqual, scope)),
+            NativeCompilationGrammar::StringLength(scope) => Some((Operation::StringLength, scope)),
+            NativeCompilationGrammar::ListLength => {
+                Some((Operation::ListLength, Scope::PrivateOperands))
+            }
+            _ => None,
         }
     }
 
@@ -1711,7 +1741,10 @@ impl NativeCompilationSpec {
     ) -> Option<crate::native_namespace_binding_compilation::NativeNamespaceBindingKind> {
         use crate::native_namespace_binding_compilation::NativeNamespaceBindingKind;
         match self.grammar {
-            NativeCompilationGrammar::NamespaceLegacy => Some(NativeNamespaceBindingKind::Upvar),
+            NativeCompilationGrammar::NamespaceLegacy
+            | NativeCompilationGrammar::NamespaceUpvarBindings => {
+                Some(NativeNamespaceBindingKind::Upvar)
+            }
             NativeCompilationGrammar::GlobalBindings => Some(NativeNamespaceBindingKind::Global),
             NativeCompilationGrammar::NamespaceVariableBindings => {
                 Some(NativeNamespaceBindingKind::Variable)
@@ -1754,6 +1787,7 @@ impl NativeCompilationSpec {
         let version = dialect.tcl_version?;
         Some(match self.grammar {
             NativeCompilationGrammar::NoHook => false,
+            NativeCompilationGrammar::NamespaceUpvarBindings => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Dictionary { command, .. } => version >= command.hook_from(),
             NativeCompilationGrammar::HookFrom(first)
             | NativeCompilationGrammar::ProcedureHookFrom(first)
@@ -1807,6 +1841,19 @@ impl NativeCompilationSpec {
                     .is_some_and(|version| version >= TclVersion::V8_6))
             .then_some(*lookup);
         }
+        if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
+            return (dialect.family() == Some(Family::Tcl)
+                && dialect
+                    .tcl_version
+                    .is_some_and(|version| version >= TclVersion::V8_6))
+            .then_some(NativeCompilerImplementationLookup {
+                ensemble: "::namespace",
+                member: "upvar",
+                slot: "::tcl::namespace::upvar",
+                command: "namespace",
+                prepended: &["upvar"],
+            });
+        }
         if matches!(
             self.grammar,
             NativeCompilationGrammar::NamespaceCurrent
@@ -1825,17 +1872,23 @@ impl NativeCompilationSpec {
         }
         if matches!(
             self.grammar,
-            NativeCompilationGrammar::StringEqual | NativeCompilationGrammar::StringLength
+            NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            )
         ) {
             return (dialect.family() == Some(Family::Tcl)
                 && dialect
                     .tcl_version
                     .is_some_and(|version| version >= TclVersion::V8_5))
-            .then_some(if self.grammar == NativeCompilationGrammar::StringLength {
-                STRING_LENGTH_IMPLEMENTATION
-            } else {
-                STRING_EQUAL_IMPLEMENTATION
-            });
+            .then_some(
+                if matches!(self.grammar, NativeCompilationGrammar::StringLength(_)) {
+                    STRING_LENGTH_IMPLEMENTATION
+                } else {
+                    STRING_EQUAL_IMPLEMENTATION
+                },
+            );
         }
         if self.grammar
             == NativeCompilationGrammar::StringMatch(
@@ -2090,6 +2143,25 @@ impl NativeCompilationSpec {
             );
         }
 
+        if let Some((operation, scope)) = self.scalar_compilation() {
+            return crate::native_scalar_compilation::select_original(
+                words,
+                operand_from,
+                operation,
+                scope,
+                version,
+                self.operation,
+            );
+        }
+
+        if self.grammar == NativeCompilationGrammar::NamespaceUpvarBindings {
+            return match crate::native_namespace_upvar_compilation::compile_native_namespace_upvar_worker(
+                words, operand_from, version, context,
+            ) {
+                Ok(recipe) => self.namespace_binding_selection(recipe.outcome),
+                Err(_) => Selection::Unknown,
+            };
+        }
         if self.grammar == NativeCompilationGrammar::NamespaceLegacy {
             return self.select_original_namespace_legacy(words, operand_from, version, context);
         }
@@ -2528,6 +2600,7 @@ impl NativeCompilationSpec {
         }
         let usage = match self.grammar {
             NativeCompilationGrammar::CheckedArity { usage, .. } => Some(usage),
+            NativeCompilationGrammar::ListLength => Some("llength list"),
             NativeCompilationGrammar::VariableLoadStore => Some("set varName ?newValue?"),
             NativeCompilationGrammar::Increment => Some("incr varName ?increment?"),
             NativeCompilationGrammar::VariableAppend(NativeAppendKind::String) => {
@@ -2877,6 +2950,7 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::CheckedArity { arity, .. } => {
                 u16::try_from(shapes.len()).is_ok_and(|count| arity.accepts(count))
             }
+            NativeCompilationGrammar::ListLength => shapes.len() == 1,
             NativeCompilationGrammar::VariableLoadStore | NativeCompilationGrammar::Increment => {
                 matches!(shapes.len(), 1 | 2)
             }
@@ -3041,6 +3115,14 @@ impl NativeCompilationSpec {
                 substitution_template_compiler_grammar(words, shapes, version, self.operation)
             }
             NativeCompilationGrammar::HookFrom(first) => unmodelled_hook_selection(version, first),
+            NativeCompilationGrammar::NamespaceUpvarBindings => {
+                if version < TclVersion::V8_6 || context.frame == NativeCompilationFrame::ScriptCode
+                {
+                    Selection::Generic
+                } else {
+                    Selection::Unknown
+                }
+            }
             NativeCompilationGrammar::NamespaceLegacy => {
                 if version < TclVersion::V8_5 || context.frame == NativeCompilationFrame::ScriptCode
                 {
@@ -3096,12 +3178,13 @@ impl NativeCompilationSpec {
             NativeCompilationGrammar::InfoCommands => {
                 info_commands_grammar(words, shapes, version, self.operation)
             }
-            NativeCompilationGrammar::StringEqual => string_member_arity_grammar(
+            NativeCompilationGrammar::StringEqual(scope) => string_member_arity_grammar(
                 words,
                 shapes,
                 version,
                 self.operation,
                 &STRING_EQUAL_IMPLEMENTATION,
+                scope,
                 2,
             ),
             NativeCompilationGrammar::StringMatch(scope) => {
@@ -3128,12 +3211,13 @@ impl NativeCompilationSpec {
                     from,
                 )
             }
-            NativeCompilationGrammar::StringLength => string_member_arity_grammar(
+            NativeCompilationGrammar::StringLength(scope) => string_member_arity_grammar(
                 words,
                 shapes,
                 version,
                 self.operation,
                 &STRING_LENGTH_IMPLEMENTATION,
+                scope,
                 1,
             ),
             NativeCompilationGrammar::ListRange => {
@@ -4101,12 +4185,11 @@ fn string_member_arity_grammar(
     version: TclVersion,
     operation: SemanticOperationId,
     lookup: &'static NativeCompilerImplementationLookup,
+    scope: crate::native_scalar_compilation::NativeScalarScope,
     arity: usize,
 ) -> NativeCompilationSelection {
     use NativeCompilationSelection as Selection;
-    let private = words.head_literal().is_some_and(|head| {
-        head.strip_prefix("::").unwrap_or(head) == lookup.slot.strip_prefix("::").unwrap()
-    });
+    let private = scope == crate::native_scalar_compilation::NativeScalarScope::PrivateOperands;
     let from = usize::from(!private);
     if !private {
         let Some(shape) = shapes.first() else {
@@ -4266,9 +4349,6 @@ fn upvar_grammar(
     version: TclVersion,
     context: NativeCompilationContext,
 ) -> Result<bool, NativeCompilationSelection> {
-    use crate::frame_effect::{
-        FrameArgLayout, FrameArgumentResolution, FrameLevel, FrameLevelWord,
-    };
     use NativeCompilationSelection as Selection;
     if version == TclVersion::V8_4 || context.frame == NativeCompilationFrame::ScriptCode {
         return Err(Selection::Generic);
@@ -4279,35 +4359,11 @@ fn upvar_grammar(
     if shapes.len() < 2 || !literal_shape(shapes[0]) {
         return Err(Selection::Generic);
     }
-    // TclCompileUpvarCmd probes the literal leading word even on releases
-    // whose runtime upvar grammar uses argument-count parity.
-    let grammar = crate::FrameEffectSpec {
-        level_word: FrameLevelWord::LeadingProbe,
-        layout: FrameArgLayout::AliasPairs,
-    };
     let arguments = words
         .arguments()
         .with_dialect(InvocationDialect::for_version(version));
-    let width = match grammar.resolve_arguments(arguments) {
-        FrameArgumentResolution::Valid {
-            level_word_len,
-            level,
-        } => {
-            if level_word_len != 0
-                && !matches!(
-                    level,
-                    FrameLevel::Relative(0 | 1) | FrameLevel::Absolute(0 | 1)
-                )
-            {
-                // TclObjGetFrame's conversion also depends on the actual
-                // compiler invocation stack, which this context does not prove.
-                return Err(Selection::Unknown);
-            }
-            level_word_len
-        }
-        FrameArgumentResolution::Invalid => return Err(Selection::Generic),
-        FrameArgumentResolution::Unknown => return Err(Selection::Unknown),
-    };
+    let first = arguments.literal_at(0).ok_or(Selection::Unknown)?;
+    let width = original_upvar_level_width(first, shapes.len(), version)?;
     for index in (width + 1..shapes.len()).step_by(2) {
         if !literal_shape(shapes[index]) {
             return Err(Selection::Generic);
@@ -4322,6 +4378,52 @@ fn upvar_grammar(
         }
     }
     Ok(true)
+}
+
+/// Compile-time leading-word probe shared by the original upvar recipe and
+/// grammar selector. This does not select a runtime frame or install a cache.
+///
+/// # Errors
+/// Returns native decline or unavailable invocation-stack evidence.
+pub fn original_upvar_level_width(
+    first: &str,
+    count: usize,
+    version: TclVersion,
+) -> Result<usize, NativeCompilationSelection> {
+    use crate::frame_effect::{
+        FrameArgLayout, FrameArgumentResolution, FrameLevel, FrameLevelWord,
+    };
+    use NativeCompilationSelection as Selection;
+    let mut operands = vec![crate::InvocationWord::Dynamic; count];
+    let Some(leading) = operands.first_mut() else {
+        return Err(Selection::Generic);
+    };
+    *leading = crate::InvocationWord::Literal(first);
+    let grammar = crate::FrameEffectSpec {
+        level_word: FrameLevelWord::LeadingProbe,
+        layout: FrameArgLayout::AliasPairs,
+    };
+    let arguments = InvocationWords::structured(crate::InvocationWord::Dynamic, &operands)
+        .arguments()
+        .with_dialect(InvocationDialect::for_version(version));
+    match grammar.resolve_arguments(arguments) {
+        FrameArgumentResolution::Valid {
+            level_word_len,
+            level,
+        } => {
+            if level_word_len != 0
+                && !matches!(
+                    level,
+                    FrameLevel::Relative(0 | 1) | FrameLevel::Absolute(0 | 1)
+                )
+            {
+                return Err(Selection::Unknown);
+            }
+            Ok(level_word_len)
+        }
+        FrameArgumentResolution::Invalid => Err(Selection::Generic),
+        FrameArgumentResolution::Unknown => Err(Selection::Unknown),
+    }
 }
 
 fn gated_arity_grammar(
@@ -4523,7 +4625,7 @@ mod tests {
             for (member, body) in [
                 ("eval", NativeBodyCompilation::ScriptObject),
                 ("inscope", NativeBodyCompilation::ScriptObject),
-                ("ensemble", NativeBodyCompilation::Inherit),
+                ("ensemble", NativeBodyCompilation::Direct),
             ] {
                 let public = namespace
                     .resolve_subcommand_for_dialect(member, registry.own_surface_query())
@@ -4935,7 +5037,9 @@ mod tests {
     #[test]
     fn string_equal_retains_raw_member_and_versioned_private_fallback() {
         let spec = NativeCompilationSpec {
-            grammar: NativeCompilationGrammar::StringEqual,
+            grammar: NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
             operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringEqual),
             body: NativeBodyCompilation::Inherit,
         };
@@ -4981,7 +5085,9 @@ mod tests {
     #[test]
     fn string_length_requires_exact_member_shape_and_retains_native_arity_fallback() {
         let spec = NativeCompilationSpec {
-            grammar: NativeCompilationGrammar::StringLength,
+            grammar: NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
             operation: SemanticOperationId::Intrinsic(crate::IntrinsicId::StringLength),
             body: NativeBodyCompilation::Inherit,
         };

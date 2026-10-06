@@ -34,12 +34,12 @@ fn completion_transport_borrows_the_original_result_role() {
         drop(retained);
         let list = Value::list(vec![completion.result]);
         vm.with_native_interp_result(|result| {
-            assert_eq!(result.native_object_reference_count(), 2)
+            assert_eq!(result.native_object_reference_count(), 2);
         })
         .unwrap();
         drop(list);
         vm.with_native_interp_result(|result| {
-            assert_eq!(result.native_object_reference_count(), 1)
+            assert_eq!(result.native_object_reference_count(), 1);
         })
         .unwrap();
     }

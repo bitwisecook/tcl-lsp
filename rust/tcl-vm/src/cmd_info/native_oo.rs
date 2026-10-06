@@ -213,6 +213,27 @@ mod tests {
     }
 
     #[test]
+    fn string_nested_operand_geometry_preserves_quoted_options_and_repeated_calls() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let source = r#"proc pick {x} {incr ::count; return $x}; set ::count 0; list [string match "*" [pick word]] [string equal -nocase [pick X] [pick x]] [string equal [pick x] [pick x]] [string length "[pick abc]"] $::count"#;
+            let result = vm.eval_source(source).unwrap();
+            assert_eq!(
+                result.code,
+                Code::Ok,
+                "{engine}: {}",
+                result.result.to_str()
+            );
+            assert_eq!(
+                result.result.string_bytes().as_ref(),
+                b"1 1 1 3 6",
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
     fn original_tcloo_info_bootstrap_preserves_private_ensemble_targets() {
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();

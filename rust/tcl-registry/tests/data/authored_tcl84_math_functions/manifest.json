@@ -1,0 +1,84 @@
+{
+  "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+  "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+  "timeout_seconds": 60,
+  "global_slots": 2,
+  "code": 0,
+  "stderr": "",
+  "cases": [
+    [
+      "abs-octal",
+      "abs(077)"
+    ],
+    [
+      "sqrt",
+      "sqrt(9)"
+    ],
+    [
+      "pow",
+      "pow(2,3)"
+    ],
+    [
+      "int-window",
+      "int(4294967297)"
+    ],
+    [
+      "wide",
+      "wide(4294967297)"
+    ],
+    [
+      "double",
+      "double(077)"
+    ],
+    [
+      "round",
+      "round(2.5)"
+    ],
+    [
+      "domain",
+      "sqrt(-1)"
+    ],
+    [
+      "unknown",
+      "future([set ::effect ENTERED])"
+    ],
+    [
+      "few",
+      "pow([set ::effect ENTERED])"
+    ],
+    [
+      "many",
+      "abs([set ::effect FIRST],[set ::effect SECOND])"
+    ],
+    [
+      "effect",
+      "abs([set ::effect -7])"
+    ],
+    [
+      "lazy",
+      "0 && abs([set ::effect ENTERED])"
+    ],
+    [
+      "lazy-unknown",
+      "0 && future([set ::effect ENTERED])"
+    ],
+    [
+      "newer",
+      "entier(2.0)"
+    ],
+    [
+      "renamed-public",
+      "abs(-4)"
+    ]
+  ],
+  "source_sha256": "7d8fe3c2e0765f78cb6d1b5eabbc35b3888b8ac2dc9b6196437bc573ab1a787a",
+  "headers": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclInt.h": "f51c8e66c562de424b84a35a04b6b86d9a135ef7d4ca891b35c3b0586bc0ce1a"
+  },
+  "implementation_sources": {
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCompExpr.c": "c4138e547b833c39d0c6da3bb4042fc7a7052a6146a2e7635aedcd53ac492514",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclExecute.c": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77"
+  },
+  "libraries": {}
+}

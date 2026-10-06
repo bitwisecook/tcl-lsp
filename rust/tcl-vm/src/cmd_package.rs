@@ -39,7 +39,13 @@ pub(crate) fn register(vm: &mut Vm) {
 }
 
 fn name_key(vm: &mut Vm, operand: &Value) -> Result<NameBytes, Completion<Value>> {
-    let Some(protocol) = vm.actual_native_invocation_dialect().native_name_protocol() else {
+    let Some(protocol) = (if vm.package_table_is_authored() {
+        Some(tcl_syntax::naming::NativeNameProtocol::C(
+            tcl_dialect::TclVersion::V8_4,
+        ))
+    } else {
+        vm.actual_native_invocation_dialect().native_name_protocol()
+    }) else {
         return Err(vm.refuse_host_command("package name policy is unavailable".to_owned()));
     };
     let bytes = package_operand_bytes(vm, operand)?;
@@ -49,8 +55,7 @@ fn name_key(vm: &mut Vm, operand: &Value) -> Result<NameBytes, Completion<Value>
 fn package_protocol(
     vm: &mut Vm,
 ) -> Result<tcl_registry::native_package::NativePackageProtocol, Completion<Value>> {
-    vm.actual_native_invocation_dialect()
-        .native_package_protocol()
+    vm.selected_package_protocol()
         .ok_or_else(|| vm.refuse_host_command("package object protocol is unavailable".to_owned()))
 }
 
@@ -101,7 +106,20 @@ fn package_wrong_args(vm: &mut Vm, member: &str) -> Completion<Value> {
         .arguments
         .as_ref()
         .map(crate::NativeListItems::lifetime_view);
-    let words = original.as_ref().map(|words| &words[..words.len().min(2)]);
+    let authored_words = original
+        .as_ref()
+        .filter(|_| vm.package_table_is_authored())
+        .and_then(|words| {
+            words.first().map(|head| {
+                vec![
+                    head.native_lifetime_lease().into_value(),
+                    Value::string(member),
+                ]
+            })
+        });
+    let words = authored_words
+        .as_deref()
+        .or_else(|| original.as_ref().map(|words| &words[..words.len().min(2)]));
     let mut usage = if let Some(words) = words {
         match vm.native_argument_usage_header(words) {
             Ok(bytes) => bytes,
@@ -166,6 +184,30 @@ pub(crate) fn provide_core_packages(vm: &mut Vm) {
 }
 
 fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    vm.with_package_table(false, |vm| dispatch_package(vm, args))
+}
+
+pub(crate) fn cmd_authored_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    if vm.authored_package_provider().is_none() {
+        return vm.refuse_host_command("authored package provider is unavailable".into());
+    }
+    let Some((_original_head, operands)) = args.split_first() else {
+        return vm
+            .refuse_host_command("authored package original invocation is unavailable".into());
+    };
+    let view = crate::NativeListItems::invocation_view(std::rc::Rc::new(
+        args.iter()
+            .map(|word| word.native_lifetime_lease().into_value())
+            .collect(),
+    ));
+    let previous = vm.native_invocation.arguments.replace(view);
+    let authored = vm.active_native_profile.is_none();
+    let completion = vm.with_package_table(authored, |vm| dispatch_package(vm, operands));
+    vm.native_invocation.arguments = previous;
+    completion
+}
+
+fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
         Err(completion) => return completion,
@@ -179,7 +221,18 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let options = protocol.c_members().expect("selected C package table");
     let table =
         tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
-    let sub = match vm.native_index_from_original(sub, &table, false, "option") {
+    let selection = if vm.package_table_is_authored() {
+        let bytes = match package_operand_bytes(vm, sub) {
+            Ok(bytes) => bytes,
+            Err(completion) => return completion,
+        };
+        Ok(tcl_registry::native_package::select_authored_keyword(
+            &bytes, options,
+        ))
+    } else {
+        vm.native_index_from_original(sub, &table, false, "option")
+    };
+    let sub = match selection {
         Ok(Ok(index)) => options[index],
         Ok(Err(message)) => {
             let word = match package_word(vm, sub) {
@@ -1467,14 +1520,14 @@ mod tests {
                 "Jim",
                 tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
             )));
-        let script = r#"namespace eval S {proc p {} {return ONE}; namespace export *}; namespace eval D {namespace import ::S::*; namespace export *}; namespace eval E {namespace import ::D::*}; namespace eval S {proc p {} {return TWO}}; set result [list [D::p] [E::p] [namespace origin E::p]]; rename S::p S::moved; lappend result [catch {D::p} value] [catch {namespace origin E::p} value]; proc S::p {} {return THREE}; lappend result [D::p] [E::p]; rename S::moved {}; lappend result [llength [info commands D::p]] [llength [info commands E::p]]; set result"#;
+        let script = r"namespace eval S {proc p {} {return ONE}; namespace export *}; namespace eval D {namespace import ::S::*; namespace export *}; namespace eval E {namespace import ::D::*}; namespace eval S {proc p {} {return TWO}}; set result [list [D::p] [E::p] [namespace origin E::p]]; rename S::p S::moved; lappend result [catch {D::p} value] [catch {namespace origin E::p} value]; proc S::p {} {return THREE}; lappend result [D::p] [E::p]; rename S::moved {}; lappend result [llength [info commands D::p]] [llength [info commands E::p]]; set result";
         for profile in TclVersion::ALL
             .into_iter()
             .map(|release| {
                 tcl_dialect::DialectProfile::find(release.dialect_profile_name())
                     .expect("C profile")
             })
-            .chain(std::iter::once(&*jim))
+            .chain(std::iter::once(jim))
         {
             let mut vm = vm();
             vm.set_dialect_profile(profile);
@@ -1507,7 +1560,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result"#).expect("source");
+        let result = vm.eval_source(r"namespace eval S {proc p {} {return SOURCE}}; namespace eval D {proc p {} {return DESTINATION}; namespace import -force ::S::*; set imported [namespace import]}; rename S::p {}; set result [list [llength [info commands D::p]] [catch {D::p}] [catch {namespace origin D::p}] [namespace eval D {namespace import ::missing::*}] [namespace eval D {namespace export}]]; proc S::p {} {return REVIVED}; lappend result [D::p] [namespace origin D::p] [catch {namespace path}]; set result").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "1 1 1 {} {} REVIVED ::S::p 1");
     }
@@ -1522,7 +1575,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe"#).expect("source");
+        let result = vm.eval_source(r"set ::x GLOBAL; namespace eval ::N {proc observe {} {set x LOCAL; set child [interp]; $child alias readX set x; $child alias where namespace current; set result [list [$child eval {readX}] [$child eval {where}]]; $child delete; return $result}}; ::N::observe").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "LOCAL ::N");
     }
@@ -1537,7 +1590,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result"#).expect("source");
+        let result = vm.eval_source(r"namespace eval ::N {proc probe {} {return PARENT}}; package provide Isolated 2.0; set child [interp]; $child eval {namespace eval ::N {proc probe {} {return CHILD}}}; set result [list [::N::probe] [$child eval {::N::probe}] [$child eval {catch {package require Isolated}}]]; $child delete; set result").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "PARENT CHILD 1");
     }
@@ -1585,7 +1638,7 @@ mod tests {
                 );
                 "11 12 11 12"
             };
-            let result = vm.eval_source(r#"namespace eval N {namespace eval R {variable x 4; variable a; set a(k) 5}; proc outer {} {inner::scalar; inner::array; list $R::x $R::a(k) $::N::R::x $::N::R::a(k)}; namespace eval inner {namespace eval R {variable x 99; variable a; set a(k) 98}; proc scalar {} {upvar 1 R::x alias; set alias 11}; proc array {} {upvar 1 R::a(k) alias; set alias 12}}}; N::outer"#).expect("source");
+            let result = vm.eval_source(r"namespace eval N {namespace eval R {variable x 4; variable a; set a(k) 5}; proc outer {} {inner::scalar; inner::array; list $R::x $R::a(k) $::N::R::x $::N::R::a(k)}; namespace eval inner {namespace eval R {variable x 99; variable a; set a(k) 98}; proc scalar {} {upvar 1 R::x alias; set alias 11}; proc array {} {upvar 1 R::a(k) alias; set alias 12}}}; N::outer").expect("source");
             assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
             assert_eq!(&*result.result.to_str(), expected, "{dialect}");
             let result = vm
@@ -1641,7 +1694,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]"#).expect("source");
+        let result = vm.eval_source(r"namespace eval N {set ephemeral 5; variable v 7; list $ephemeral $v [info locals] [info vars]}; list [info exists ::N::ephemeral] [set ::N::v]").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "0 7");
     }
@@ -1656,7 +1709,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"namespace eval N {variable R::x 9; proc p {} {set R::x 10; list $R::x $::N::R::x}}; N::p"#).expect("source");
+        let result = vm.eval_source(r"namespace eval N {variable R::x 9; proc p {} {set R::x 10; list $R::x $::N::R::x}}; N::p").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "10 9");
     }
@@ -1671,7 +1724,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"set ::Missing::x 3; set ::N:::x 4; set ::N::x 5; list $::::Missing::x $::N:::x $::N::x"#).expect("source");
+        let result = vm.eval_source(r"set ::Missing::x 3; set ::N:::x 4; set ::N::x 5; list $::::Missing::x $::N:::x $::N::x").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "3 4 5");
     }
@@ -1687,7 +1740,7 @@ mod tests {
         let mut vm = vm();
         vm.set_dialect_profile(profile);
         let result = vm
-            .eval_source(r#"namespace eval :: {set ephemeralRoot 11}; info exists ::ephemeralRoot"#)
+            .eval_source(r"namespace eval :: {set ephemeralRoot 11}; info exists ::ephemeralRoot")
             .expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "0");
@@ -1703,7 +1756,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"proc inner {} {upvar 1 R::x link; set link 12}; proc outer {} {set R::x 3; inner; set R::x}; outer"#).expect("source");
+        let result = vm.eval_source(r"proc inner {} {upvar 1 R::x link; set link 12}; proc outer {} {set R::x 3; inner; set R::x}; outer").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "12");
     }
@@ -1718,7 +1771,7 @@ mod tests {
         )));
         let mut vm = vm();
         vm.set_dialect_profile(profile);
-        let result = vm.eval_source(r#"namespace eval N {variable R:::v 6; incr v}; list [set ::N::R:::v] [info exists ::N::R::v]"#).expect("source");
+        let result = vm.eval_source(r"namespace eval N {variable R:::v 6; incr v}; list [set ::N::R:::v] [info exists ::N::R::v]").expect("source");
         assert_eq!(result.code, Code::Ok, "{}", result.result.to_str());
         assert_eq!(&*result.result.to_str(), "7 0");
     }
@@ -2165,7 +2218,9 @@ mod tests {
         fn decode(text: &str) -> Vec<u8> {
             assert!(text.len().is_multiple_of(2));
             text.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }
@@ -2230,13 +2285,6 @@ mod tests {
 
     #[test]
     fn package_completion_matches_all_six_native_84_controls() {
-        let jim: &'static tcl_dialect::DialectProfile =
-            Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
-                "jim",
-                &[],
-                "Jim",
-                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
-            )));
         const FIXTURES: [&str; 6] = [
             include_str!("../../tcl-registry/tests/data/native_package_ordinary/8.4.20.tsv"),
             include_str!("../../tcl-registry/tests/data/native_package_ordinary/8.5.19.tsv"),
@@ -2272,13 +2320,22 @@ mod tests {
         fn unhex(text: &str) -> Vec<u8> {
             assert_eq!(text.len() % 2, 0);
             text.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| {
                     let digits = std::str::from_utf8(pair).unwrap();
                     u8::from_str_radix(digits, 16).unwrap()
                 })
                 .collect()
         }
+        let jim: &'static tcl_dialect::DialectProfile =
+            Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+                "jim",
+                &[],
+                "Jim",
+                tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_84),
+            )));
         let mut compared = 0;
         for (engine, fixture) in FIXTURES.into_iter().enumerate() {
             for row in fixture.lines() {

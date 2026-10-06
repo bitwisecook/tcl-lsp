@@ -19,8 +19,8 @@
 //! M16.3 — command traces (`rename`/`delete`) and execution traces
 //! (`enter`/`leave`/`enterstep`/`leavestep`) fire with C-faithful shapes.
 //!
-//! Every vector's stdout is compared against the bytecode VM **and** — when
-//! installed — real `tclsh8.6` / `tclsh9.0` (identical output on both), so
+//! Every vector's stdout is compared against the matching physical-core VM and
+//! both pinned C8.6/C9.0 engines through the shared strict oracle runner, so
 //! the shapes cannot drift from C Tcl: fully-qualified names in command
 //! traces, `{cmd-string op}` / `{cmd-string code result op}` argument forms,
 //! an enter-trace error aborting the command, a leave-trace error replacing
@@ -31,72 +31,16 @@
 //! `unset` reports — since this is the file that owns the differential harness
 //! those shapes have to be pinned against.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+mod common;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen;
-use tcl_compiler::codegen::codegen_module;
+use std::rc::Rc;
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
+use tcl_dialect::TclVersion;
+use tcl_test_support::{JimCapability, require_jimsh, required_tclshs};
 use tcl_vm::{Code, Completion, NativeCommand, Value, Vm};
 
-#[derive(Clone, Default)]
-struct Capture(Rc<RefCell<Vec<u8>>>);
-
-impl std::io::Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.borrow_mut().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Run `src` in the VM; the script's `puts` output is returned.
-fn vm_output(src: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
-
-    let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let _ = vm.run_module(&asm);
-    String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
-}
-
-/// Run `src` under a real tclsh, or `None` when that binary isn't available.
-fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
-    use std::io::Write as _;
-    let mut candidates: Vec<String> = Vec::new();
-    if let Ok(explicit) = std::env::var(bin_env) {
-        candidates.push(explicit);
-    }
-    candidates.extend(names.iter().map(ToString::to_string));
-    for name in candidates {
-        let Ok(mut child) = std::process::Command::new(&name)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
-        else {
-            continue;
-        };
-        child
-            .stdin
-            .as_mut()
-            .expect("stdin")
-            .write_all(src.as_bytes())
-            .expect("write");
-        let out = child.wait_with_output().expect("run");
-        if out.status.success() {
-            return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
-        }
-    }
-    None
+fn vm_output(source: &str) -> String {
+    common::vm_output(source, "tcl9.0")
 }
 
 struct Vector {
@@ -957,8 +901,15 @@ fn step_traces_observe_inlined_commands_too() {
 
 #[test]
 fn vm_matches_the_pinned_trace_vectors() {
-    for v in VECTORS {
-        assert_eq!(vm_output(v.script), v.want, "{}", v.name);
+    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+        for vector in VECTORS {
+            assert_eq!(
+                common::vm_output(vector.script, version.dialect_name()),
+                vector.want,
+                "{version:?}: {}",
+                vector.name
+            );
+        }
     }
 }
 
@@ -999,8 +950,15 @@ impl NativeCommand for NativeTarget {
 /// before the generic name is re-resolved.
 #[test]
 fn native_invoke_uses_the_post_enter_trace_owner_snapshot() {
-    let mut vm = Vm::new();
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+    let mut vm = Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("actual C9.0 core before native callback registration");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     vm.register_native_command("target", Rc::new(NativeTarget));
     let setup = vm
         .eval_source(
@@ -1037,19 +995,48 @@ fn native_invoke_uses_the_post_enter_trace_owner_snapshot() {
 /// The table itself is pinned to C Tcl (8.6 and 9.0 agree on every shape).
 #[test]
 fn vectors_match_real_tclsh() {
-    let mut ran = 0;
-    for v in VECTORS {
-        for (env, names) in [
-            ("TCL_LSP_TCLSH86", &["tclsh8.6"][..]),
-            ("TCL_LSP_TCLSH90", &["tclsh9.0"][..]),
-        ] {
-            if let Some(got) = tclsh_output(env, names, v.script) {
-                assert_eq!(got, v.want, "[{env}] {}", v.name);
-                ran += 1;
-            }
+    let oracles = required_tclshs(&[TclVersion::V8_6, TclVersion::V9_0])
+        .expect("both pinned command-trace engines");
+    for oracle in oracles {
+        for vector in VECTORS {
+            assert_eq!(
+                common::oracle_output(&oracle.path, vector.script),
+                vector.want,
+                "{}: {}",
+                oracle.patchlevel,
+                vector.name
+            );
         }
     }
-    if ran == 0 {
-        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
+}
+
+#[test]
+fn command_trace_rename_and_retirement_match_all_five_native_engines() {
+    const SOURCE: &str = "set log {}\nproc cb {old new op} {lappend ::log [list $old $new $op]}\nproc p {} {return OLD}\ntrace add command p {rename delete} cb\nrename p moved\nrename moved {}\nputs $log\n";
+    const EXPECTED: &str = "{::p ::moved rename} {::moved {} delete}";
+    for oracle in required_tclshs(&TclVersion::ALL).expect("all five pinned command-trace engines")
+    {
+        assert_eq!(
+            common::oracle_output(&oracle.path, SOURCE),
+            EXPECTED,
+            "{}",
+            oracle.patchlevel
+        );
+        assert_eq!(
+            common::vm_output(SOURCE, oracle.version.dialect_name()),
+            EXPECTED,
+            "{:?}",
+            oracle.version
+        );
     }
+}
+
+#[test]
+fn jim_command_traces_are_explicitly_unsupported() {
+    let oracle = require_jimsh().expect("pinned Jim command-trace surface");
+    assert!(!oracle.supports(JimCapability::CommandTrace));
+    let source = "puts [catch {trace add command p delete list} message]\nputs $message\n";
+    let expected = "1\ninvalid command name \"trace\"";
+    assert_eq!(common::oracle_output(&oracle.path, source), expected);
+    assert_eq!(common::vm_output(source, "jim"), expected);
 }

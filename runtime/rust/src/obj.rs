@@ -1178,6 +1178,21 @@ pub(crate) fn native_object_snapshot(
             version: name.version(),
             opcode: name.opcode(),
         }
+    } else if core::ptr::eq(kind, &NATIVE_FRAME_LEVEL_TYPE) {
+        let stored = allocation_cache::<NativeFrameLevelRep>(value).ok_or(
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "native frame cache allocation",
+            ),
+        )?;
+        let (relative, level) = match stored.cache {
+            tcl_registry::NativeFrameLevelCache::Relative(level) => (true, level),
+            tcl_registry::NativeFrameLevelCache::Absolute(level) => (false, level),
+        };
+        Cache::FrameReference {
+            version: stored.version,
+            relative,
+            level,
+        }
     } else if let Some((cache, version)) = native_index::cache(value) {
         Cache::Index {
             version,
@@ -1370,33 +1385,10 @@ struct NativeFrameLevelRep {
     version: tcl_dialect::TclVersion,
 }
 
-extern "C" fn frame_level_free(value: *mut TclObj) {
-    // SAFETY: this exact descriptor owns the allocated frame-cache record.
-    unsafe {
-        drop(Box::from_raw(
-            internal_rep(value) as usize as *mut NativeFrameLevelRep
-        ));
-    }
-}
-
-extern "C" fn frame_level_dup(source: *mut TclObj, target: *mut TclObj) {
-    // SAFETY: the live source descriptor owns the immutable cache record.
-    let source = unsafe { &*(internal_rep(source) as usize as *const NativeFrameLevelRep) };
-    let copy = Box::new(NativeFrameLevelRep {
-        cache: source.cache,
-        version: source.version,
-    });
-    change_type(
-        target,
-        &NATIVE_FRAME_LEVEL_TYPE,
-        Box::into_raw(copy) as usize as u64,
-    );
-}
-
 static NATIVE_FRAME_LEVEL_TYPE: TclObjType = TclObjType {
     name: c"levelReference".as_ptr(),
-    free_int_rep_proc: Some(frame_level_free),
-    dup_int_rep_proc: Some(frame_level_dup),
+    free_int_rep_proc: None,
+    dup_int_rep_proc: None,
     update_string_proc: None,
     set_from_any_proc: None,
 };
@@ -1573,14 +1565,16 @@ pub(crate) fn native_frame_level_cache_in(
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
+    check_native_liveness(value)?;
     if !core::ptr::eq(obj_type_ptr(value), &NATIVE_FRAME_LEVEL_TYPE) {
         return Ok(None);
     }
     let protocol = dialect
         .native_frame_level_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
-    // SAFETY: the exact descriptor owns this live cache record.
-    let stored = unsafe { &*(internal_rep(value) as usize as *const NativeFrameLevelRep) };
+    let stored = allocation_cache::<NativeFrameLevelRep>(value).ok_or(
+        ValueError::CommandProtocolUnavailable("native frame cache allocation"),
+    )?;
     if protocol.tcl_version() != Some(stored.version) || !protocol.accepts_cache(stored.cache) {
         return Err(ValueError::CommandProtocolUnavailable(
             "native frame cache origin",
@@ -1596,6 +1590,7 @@ pub(crate) fn install_native_frame_level_cache(
     dialect: tcl_registry::InvocationDialect,
 ) -> Result<(), tcl_syntax::value::ValueError> {
     use tcl_syntax::value::ValueError;
+    check_native_liveness(value)?;
     let protocol = dialect
         .native_frame_level_protocol()
         .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
@@ -1607,12 +1602,12 @@ pub(crate) fn install_native_frame_level_cache(
             "native frame cache storage",
         ));
     }
-    let stored = Box::new(NativeFrameLevelRep { cache, version });
-    change_type(
-        value,
-        &NATIVE_FRAME_LEVEL_TYPE,
-        Box::into_raw(stored) as usize as u64,
-    );
+    // Native levelReference has NULL hooks and retains a parsed integer, not
+    // a frame pointer. The sole allocation owner copies/retires this receipt
+    // independently of native descriptor hooks, just as its inline payload.
+    let stored = Rc::new(NativeFrameLevelRep { cache, version });
+    change_type(value, &NATIVE_FRAME_LEVEL_TYPE, 0);
+    set_allocation_cache(value, stored);
     Ok(())
 }
 

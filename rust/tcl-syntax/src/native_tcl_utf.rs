@@ -423,7 +423,9 @@ mod tests {
                 let expected = (columns[2] != "-").then(|| {
                     columns[2]
                         .as_bytes()
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|hex| {
                             u8::from_str_radix(std::str::from_utf8(hex).unwrap(), 16).unwrap()
                         })
@@ -475,9 +477,32 @@ mod tests {
     }
     fn unhex(text: &str) -> Vec<u8> {
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
+    }
+
+    fn assert_reader_accesses(
+        policy: NativeTclUtf,
+        bytes: &[u8],
+        previous: Option<u32>,
+        expected: TclUtfUnit,
+        accesses: &[usize],
+    ) {
+        let mut requested = Vec::new();
+        assert_eq!(
+            policy.decode_unit_with(
+                |index| {
+                    requested.push(index);
+                    bytes.get(index).copied()
+                },
+                previous
+            ),
+            Some(expected)
+        );
+        assert_eq!(requested, accesses);
     }
 
     #[test]
@@ -564,18 +589,7 @@ mod tests {
                 vec![0, 1, 2, 3],
             ),
         ] {
-            let mut requested = Vec::new();
-            assert_eq!(
-                policy.decode_unit_with(
-                    |index| {
-                        requested.push(index);
-                        bytes.get(index).copied()
-                    },
-                    previous
-                ),
-                Some(expected)
-            );
-            assert_eq!(requested, accesses);
+            assert_reader_accesses(policy, bytes, previous, expected, &accesses);
         }
         let bytes = b"k\0z";
         let units: Vec<_> = (0..bytes.len())

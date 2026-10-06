@@ -121,24 +121,31 @@ mod tests {
                     continue;
                 }
                 let case = fields[1].parse::<usize>().unwrap();
-                let definition = [
-                    b"proc".as_slice(),
-                    b"p",
-                    b"pattern subject flag",
-                    cases[case],
-                ]
-                .map(|bytes| obj::Owned::fresh(new_string(bytes)));
+                // The native probe defines each procedure through Tcl_EvalEx,
+                // then invokes it through Tcl_EvalObjv on the original arguments.
+                let mut definition = b"proc p {pattern subject flag} {".to_vec();
+                definition.extend_from_slice(cases[case]);
+                definition.push(b'}');
                 assert_eq!(
-                    interp.eval_original_object_vector(
-                        &definition.each_ref().map(obj::Owned::as_ptr)
-                    ),
+                    interp.eval_str(&definition),
                     Code::Ok,
-                    "{version}/{case} definition"
+                    "{version}/{case} definition: {:?}",
+                    interp.native_access_refusal(),
+                );
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{version}/{case} native definition: {:?}",
+                    interp.native_access_refusal(),
                 );
                 let original = [b"p".as_slice(), b"*", b"A", b"-n"]
                     .map(|bytes| obj::Owned::fresh(new_string(bytes)));
                 let argv = original.each_ref().map(obj::Owned::as_ptr);
                 let code = interp.eval_original_object_vector(&argv);
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{version}/{case} native invocation: {:?}",
+                    interp.native_access_refusal(),
+                );
                 assert_eq!(
                     code,
                     Code::from_int(fields[2].parse().unwrap()),
@@ -196,6 +203,44 @@ mod tests {
         }
         assert_eq!(executed, 60);
         assert_eq!(compared, 33);
+    }
+
+    #[test]
+    fn original_match_artifact_preserves_renamed_registration_and_withdraws_replaced_target() {
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = super::super::tests::interpreter(profile);
+            assert_eq!(
+                interp.eval_str(b"rename string saved; proc p {x} {saved match * $x}; p A"),
+                Code::Ok,
+                "{profile}"
+            );
+            assert_eq!(interp.result_bytes(), b"1", "{profile}");
+            let procedure = interp.proc_def(b"p").unwrap();
+            let artifact = cache(procedure.body.as_ptr()).expect("same renamed original compiler");
+            assert!(
+                artifact.scripts.values().any(|script| script
+                    .commands
+                    .iter()
+                    .any(|command| matches!(command.operation, Operation::StringMatch(_)))),
+                "{profile}"
+            );
+            assert_eq!(
+                interp.eval_str(b"proc saved args {return REPLACED}; p A"),
+                Code::Ok,
+                "{profile}"
+            );
+            assert_eq!(interp.result_bytes(), b"REPLACED", "{profile}");
+            let current = interp.proc_def(b"p").unwrap();
+            if let Some(artifact) = cache(current.body.as_ptr()) {
+                assert!(
+                    artifact.scripts.values().all(|script| script
+                        .commands
+                        .iter()
+                        .all(|command| !matches!(command.operation, Operation::StringMatch(_)))),
+                    "{profile}: replacement cannot donate the original matcher"
+                );
+            }
+        }
     }
 
     #[test]

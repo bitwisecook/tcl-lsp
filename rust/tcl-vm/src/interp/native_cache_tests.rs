@@ -22,6 +22,18 @@ fn invoke(vm: &mut Vm, command: &str, arguments: &[&str]) -> Code {
     vm.invoke_command(command, &words).code
 }
 
+fn native_epoch_baseline(reports: &str) -> u64 {
+    reports
+        .lines()
+        .nth(1)
+        .unwrap()
+        .split('\t')
+        .nth(2)
+        .unwrap()
+        .parse::<u64>()
+        .unwrap()
+}
+
 #[test]
 fn nested_info_compilation_retains_original_maps_and_late_worker_binding() {
     use tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite;
@@ -139,68 +151,128 @@ fn file_worker_runtime_headers_match_all_190_original_native_snapshots() {
     assert_eq!(checked, 190);
 }
 
+const IMPORTED_COMPILER_FIXTURES: [(&str, &str); 5] = [
+    (
+        "tcl8.4",
+        include_str!("../../tests/data/native_import_hook_copy/8.4.20.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../tests/data/native_import_hook_copy/8.5.19.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../tests/data/native_import_hook_copy/8.6.18.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../tests/data/native_import_hook_copy/9.0.4.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../tests/data/native_import_hook_copy/9.1.0.tsv"),
+    ),
+];
+
+fn check_imported_compiler_snapshot(vm: &Vm, engine: &str, fields: &[&str]) {
+    let event = fields[0];
+    let hooks = [
+        raw_hook(vm, "N::e"),
+        raw_hook(vm, "old"),
+        raw_hook(vm, "fresh"),
+    ];
+    for (column, actual) in hooks.into_iter().enumerate() {
+        assert_eq!(
+            actual,
+            fields[column + 3].parse::<i32>().unwrap(),
+            "{engine} {event}: raw hook {column}"
+        );
+    }
+    for name in ["old", "fresh"] {
+        if raw_hook(vm, name) < 0 {
+            continue;
+        }
+        let binding = vm
+            .native_compiler_binding_at_lookup(u64::from(ROOT_NS.0), &NameBytes::from(name))
+            .expect("actual imported compiler lookup row");
+        assert_eq!(
+            binding.token,
+            vm.visible_command_generation(name).unwrap(),
+            "{engine} {event}: original imported token"
+        );
+        assert_eq!(
+            binding.slot.simple.as_bytes(),
+            name.as_bytes(),
+            "{engine} {event}: original imported slot"
+        );
+        assert_eq!(
+            binding.compiler_hook,
+            vm.native_hook_at_sidecar(&CommandSidecarKey::visible(name)),
+            "{engine} {event}: copied compiler function"
+        );
+        assert!(
+            matches!(
+                binding.implementation,
+                tcl_runtime_api::native_compilation::NativeCommandImplementation::Imported { .. }
+            ),
+            "{engine} {event}: separate callable origin"
+        );
+    }
+    for (column, imported) in [hooks[1], hooks[2]].into_iter().enumerate() {
+        let same = if hooks[0] < 0 || imported < 0 {
+            -1
+        } else {
+            i32::from(hooks[0] == imported)
+        };
+        assert_eq!(
+            same,
+            fields[column + 6].parse::<i32>().unwrap(),
+            "{engine} {event}: compiler function copy {column}"
+        );
+    }
+}
+
+type ImportedSourceEnsemble = Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, NameBytes>>;
+
+fn imported_source_ensemble(
+    vm: &mut Vm,
+    engine: &str,
+    namespace: NsId,
+) -> Option<ImportedSourceEnsemble> {
+    if engine == "tcl8.4" {
+        assert_eq!(invoke(vm, "proc", &["N::e", "", "return SOURCE"]), Code::Ok);
+        None
+    } else {
+        let token = Rc::new(tcl_cmd_core::ensemble::EnsembleToken::new(
+            EnsembleDef {
+                originals: crate::command::native_ensemble_objects::NativeEnsembleObjects::default(
+                ),
+                native: None,
+                namespace,
+                map: vec![(NameBytes::from("x"), vec![Some(NameBytes::from("::list"))])],
+                subcommands: None,
+                prefixes: true,
+                parameters: Vec::new(),
+                unknown: None,
+            },
+            NameBytes::from("::N::e"),
+        ));
+        vm.register_namespace_ensemble("N::e", &token);
+        Some(token)
+    }
+}
+
 #[test]
 fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
-    let engines = [
-        (
-            "tcl8.4",
-            include_str!("../../tests/data/native_import_hook_copy/8.4.20.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tests/data/native_import_hook_copy/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tests/data/native_import_hook_copy/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tests/data/native_import_hook_copy/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tests/data/native_import_hook_copy/9.1.0.tsv"),
-        ),
-    ];
+    let engines = IMPORTED_COMPILER_FIXTURES;
     let mut completed = 0;
     for (engine, reports) in engines {
         let mut vm = native_vm(engine);
         vm.declare_namespace_exports("N", &["e"]);
         let namespace = vm.namespace_id_from_written(ROOT_NS, "N").unwrap();
-        let ensemble = if engine == "tcl8.4" {
-            assert_eq!(
-                invoke(&mut vm, "proc", &["N::e", "", "return SOURCE"]),
-                Code::Ok
-            );
-            None
-        } else {
-            let token = Rc::new(tcl_cmd_core::ensemble::EnsembleToken::new(
-                EnsembleDef {
-                    originals: Default::default(),
-                    native: None,
-                    namespace,
-                    map: vec![(NameBytes::from("x"), vec![Some(NameBytes::from("::list"))])],
-                    subcommands: None,
-                    prefixes: true,
-                    parameters: Vec::new(),
-                    unknown: None,
-                },
-                NameBytes::from("::N::e"),
-            ));
-            vm.register_namespace_ensemble("N::e", &token);
-            Some(token)
-        };
+        let ensemble = imported_source_ensemble(&mut vm, engine, namespace);
         let mut baseline = None;
-        let native_baseline = reports
-            .lines()
-            .nth(1)
-            .unwrap()
-            .split('\t')
-            .nth(2)
-            .unwrap()
-            .parse::<u64>()
-            .unwrap();
+        let native_baseline = native_epoch_baseline(reports);
         for row in reports.lines().skip(1) {
             let fields = row.split('\t').collect::<Vec<_>>();
             let event = fields[0];
@@ -270,54 +342,7 @@ fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
                 fields[2].parse::<u64>().unwrap() - native_baseline,
                 "{engine} {event}: compiler epoch"
             );
-            let hooks = [
-                raw_hook(&vm, "N::e"),
-                raw_hook(&vm, "old"),
-                raw_hook(&vm, "fresh"),
-            ];
-            for (column, actual) in hooks.into_iter().enumerate() {
-                assert_eq!(
-                    actual,
-                    fields[column + 3].parse::<i32>().unwrap(),
-                    "{engine} {event}: raw hook {column}"
-                );
-            }
-            for name in ["old", "fresh"] {
-                if raw_hook(&vm, name) < 0 {
-                    continue;
-                }
-                let binding = vm
-                    .native_compiler_binding_at_lookup(u64::from(ROOT_NS.0), &NameBytes::from(name))
-                    .expect("actual imported compiler lookup row");
-                assert_eq!(
-                    binding.token,
-                    vm.visible_command_generation(name).unwrap(),
-                    "{engine} {event}: original imported token"
-                );
-                assert_eq!(
-                    binding.slot.simple.as_bytes(),
-                    name.as_bytes(),
-                    "{engine} {event}: original imported slot"
-                );
-                assert_eq!(
-                    binding.compiler_hook,
-                    vm.native_hook_at_sidecar(&CommandSidecarKey::visible(name)),
-                    "{engine} {event}: copied compiler function"
-                );
-                assert!(matches!(binding.implementation, tcl_runtime_api::native_compilation::NativeCommandImplementation::Imported { .. }), "{engine} {event}: separate callable origin");
-            }
-            for (column, imported) in [hooks[1], hooks[2]].into_iter().enumerate() {
-                let same = if hooks[0] < 0 || imported < 0 {
-                    -1
-                } else {
-                    i32::from(hooks[0] == imported)
-                };
-                assert_eq!(
-                    same,
-                    fields[column + 6].parse::<i32>().unwrap(),
-                    "{engine} {event}: compiler function copy {column}"
-                );
-            }
+            check_imported_compiler_snapshot(&vm, engine, &fields);
             completed += 1;
         }
     }
@@ -326,6 +351,10 @@ fn imported_compiler_attachments_match_all_57_original_native_snapshots() {
 
 #[test]
 fn imported_builtin_keeps_its_raw_compiler_after_origin_handler_replacement() {
+    fn replacement(_vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
+        crate::interp::ok(Value::string("REPLACED"))
+    }
+
     let mut vm = native_vm("tcl8.6");
     vm.declare_namespace_exports("N", &["set"]);
     assert_eq!(invoke(&mut vm, "rename", &["set", "N::set"]), Code::Ok);
@@ -335,9 +364,6 @@ fn imported_builtin_keeps_its_raw_compiler_after_origin_handler_replacement() {
         .unwrap();
     assert_eq!(original.compiler_hook, Hook::Present);
     assert_eq!(original.compiler.as_ref().unwrap().registry_identity, "set");
-    fn replacement(_vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
-        crate::interp::ok(Value::string("REPLACED"))
-    }
     vm.register_command("N::set", Command::Builtin(replacement));
     let current = vm
         .native_compiler_binding_at_lookup(u64::from(ROOT_NS.0), &NameBytes::from("set"))
@@ -355,7 +381,7 @@ fn imported_builtin_keeps_its_raw_compiler_after_origin_handler_replacement() {
 #[test]
 fn operation_sites_keep_raw_imported_compilers_and_replay_failed_prerequisites() {
     use std::sync::Arc;
-    use tcl_bytecode::{FunctionAsm, Instruction, NativeOperationSelectionSite, Op, Operand};
+    use tcl_bytecode::{Instruction, NativeOperationSelectionSite, Op, Operand};
     use tcl_runtime_api::native_compilation::{
         NativeCommandCompilerPrerequisite, NativeCompilerSelectionPrerequisite,
     };
@@ -461,6 +487,10 @@ fn operation_sites_keep_raw_imported_compilers_and_replay_failed_prerequisites()
 
 #[test]
 fn imported_compiler_failure_retains_raw_registration_before_any_body_store() {
+    fn replacement(_vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
+        crate::interp::ok(Value::string("REPLACED"))
+    }
+
     let mut vm = native_vm("tcl8.4");
     vm.set_compiler(Box::new(
         tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
@@ -468,9 +498,6 @@ fn imported_compiler_failure_retains_raw_registration_before_any_body_store() {
     vm.declare_namespace_exports("N", &["set"]);
     assert_eq!(invoke(&mut vm, "rename", &["set", "N::set"]), Code::Ok);
     vm.import_commands(b"::N::set", false).unwrap();
-    fn replacement(_vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
-        crate::interp::ok(Value::string("REPLACED"))
-    }
     vm.register_command("N::set", Command::Builtin(replacement));
     let body = Value::string("set earlier 1; set x extra bad");
     let unit = vm
@@ -535,7 +562,7 @@ fn emitted_array_operation_retains_actual_ensemble_compiler() {
             .instructions
             .iter()
             .flat_map(|instruction| &instruction.native_operation_selections)
-            .filter_map(|site| site.compiler_selection_prerequisite())
+            .filter_map(tcl_bytecode::NativeOperationSelectionSite::compiler_selection_prerequisite)
             .find(|required| matches!(
                 required,
                 tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Ensemble(_)
@@ -554,10 +581,62 @@ fn emitted_array_operation_retains_actual_ensemble_compiler() {
     }
 }
 
+fn ensemble_operation_asm(
+    required: std::sync::Arc<
+        tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite,
+    >,
+    worker: tcl_runtime_api::CommandBindingIdentity,
+    guard: tcl_runtime_api::CommandBindingGuard,
+    require_worker: bool,
+) -> tcl_bytecode::FunctionAsm {
+    let mut asm = tcl_bytecode::FunctionAsm::default();
+    let literal = asm.literals.intern("VALUE");
+    let mut first = tcl_bytecode::Instruction::new(
+        tcl_bytecode::Op::PUSH1,
+        vec![tcl_bytecode::Operand::Imm(i32::try_from(literal).unwrap())],
+    );
+    first.offset = 0;
+    first
+        .native_operation_selections
+        .push(tcl_bytecode::NativeOperationSelectionSite {
+            compiler_prerequisite: Some(required),
+            requirements: if require_worker {
+                vec![worker]
+            } else {
+                Vec::new()
+            },
+            guard,
+            end: "end".into(),
+            source: tcl_lexer::SourceImage::document("array set state {}"),
+            span: tcl_lexer::Span::new(0, 18),
+            namespace: tcl_runtime_api::ByteNamespacePath::root(),
+            namespace_context: None,
+        });
+    let mut done = tcl_bytecode::Instruction::new(tcl_bytecode::Op::DONE, Vec::new());
+    done.offset = 2;
+    asm.instructions = vec![first, done];
+    asm.labels.insert("end".into(), 3);
+    assert_eq!(asm.validate_native_compilation_entry(), Ok(()));
+    let mut mismatched_guard = asm.clone();
+    mismatched_guard.instructions[0].native_operation_selections[0].guard = match guard {
+        tcl_runtime_api::CommandBindingGuard::ChunkEntry => {
+            tcl_runtime_api::CommandBindingGuard::BeforeArguments
+        }
+        tcl_runtime_api::CommandBindingGuard::BeforeArguments => {
+            tcl_runtime_api::CommandBindingGuard::ChunkEntry
+        }
+    };
+    assert!(
+        mismatched_guard
+            .validate_native_compilation_entry()
+            .is_err()
+    );
+    asm
+}
+
 #[test]
 fn ensemble_operation_checks_configuration_and_independent_worker_binding() {
     use std::sync::Arc;
-    use tcl_bytecode::{FunctionAsm, Instruction, NativeOperationSelectionSite, Op, Operand};
     use tcl_runtime_api::native_compilation::{
         NativeCommandCompilerPrerequisite, NativeCompilerSelectionPrerequisite,
     };
@@ -631,44 +710,7 @@ fn ensemble_operation_checks_configuration_and_independent_worker_binding() {
                 token.configure(configuration);
                 assert!(!vm.native_compiler_selection_prerequisite_matches(&typed));
             }
-            let mut asm = FunctionAsm::default();
-            let literal = asm.literals.intern("VALUE");
-            let mut first = Instruction::new(
-                Op::PUSH1,
-                vec![Operand::Imm(i32::try_from(literal).unwrap())],
-            );
-            first.offset = 0;
-            first
-                .native_operation_selections
-                .push(NativeOperationSelectionSite {
-                    compiler_prerequisite: Some(required),
-                    requirements: if require_worker {
-                        vec![worker]
-                    } else {
-                        Vec::new()
-                    },
-                    guard,
-                    end: "end".into(),
-                    source: tcl_lexer::SourceImage::document("array set state {}"),
-                    span: tcl_lexer::Span::new(0, 18),
-                    namespace: tcl_runtime_api::ByteNamespacePath::root(),
-                    namespace_context: None,
-                });
-            let mut done = Instruction::new(Op::DONE, Vec::new());
-            done.offset = 2;
-            asm.instructions = vec![first, done];
-            asm.labels.insert("end".into(), 3);
-            assert_eq!(asm.validate_native_compilation_entry(), Ok(()));
-            let mut mismatched_guard = asm.clone();
-            mismatched_guard.instructions[0].native_operation_selections[0].guard = match guard {
-                CommandBindingGuard::ChunkEntry => CommandBindingGuard::BeforeArguments,
-                CommandBindingGuard::BeforeArguments => CommandBindingGuard::ChunkEntry,
-            };
-            assert!(
-                mismatched_guard
-                    .validate_native_compilation_entry()
-                    .is_err()
-            );
+            let asm = ensemble_operation_asm(required, worker, guard, require_worker);
             let unit = vm.compiled_unit(Rc::new(asm), vm.source_namespace_path());
             let completion = vm.run_compiled_unit(unit);
             assert_eq!(
@@ -685,91 +727,87 @@ fn ensemble_operation_checks_configuration_and_independent_worker_binding() {
     }
 }
 
+const COMPILER_EPOCH_FIXTURES: [(&str, &str); 5] = [
+    (
+        "tcl8.4",
+        include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.4.20.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.5.19.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.6.18.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/9.0.4.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/9.1.0.tsv"),
+    ),
+];
+
+fn apply_compiler_epoch_event(vm: &mut Vm, namespace: &mut Option<NsId>, event: &str) -> Code {
+    match event {
+        "initial" => Code::Ok,
+        "namespace_create" | "namespace_recreate" => {
+            *namespace = Some(vm.activate_namespace_operand(b"N").unwrap());
+            Code::Ok
+        }
+        "plain_create" => invoke(vm, "proc", &["p", "", "return P"]),
+        "plain_rename" => invoke(vm, "rename", &["p", "q"]),
+        "plain_delete" => invoke(vm, "rename", &["q", ""]),
+        "compiled_shadow" => invoke(vm, "proc", &["N::set", "", "return LOCAL"]),
+        "shadow_delete" => invoke(vm, "rename", &["N::set", ""]),
+        "compiled_rename" => invoke(vm, "rename", &["set", "stamp_saved_set"]),
+        "replacement_plain" => invoke(vm, "proc", &["set", "args", "return REPLACEMENT"]),
+        "replacement_delete" => invoke(vm, "rename", &["set", ""]),
+        "compiled_restore" => invoke(vm, "rename", &["stamp_saved_set", "set"]),
+        "compiled_hide" => {
+            vm.hide_command("set", "set").unwrap();
+            Code::Ok
+        }
+        "compiled_expose" => {
+            vm.expose_own_command("set", "set").unwrap();
+            Code::Ok
+        }
+        "namespace_path" | "same_path" | "clear_path" => {
+            let path = if event == "clear_path" {
+                Vec::new()
+            } else {
+                vec![vm.activate_namespace_operand(b"M").unwrap()]
+            };
+            vm.push_ns_eval_token_frame(namespace.unwrap(), Vec::new());
+            vm.ns_path_set(path);
+            vm.pop_call_frame();
+            vm.pop_ns();
+            Code::Ok
+        }
+        "namespace_delete" => {
+            assert!(vm.delete_namespace_operand(b"N").unwrap());
+            *namespace = None;
+            Code::Ok
+        }
+        _ => panic!("unhandled native event {event}"),
+    }
+}
+
 #[test]
 fn compiler_and_resolver_epochs_match_all_87_original_native_mutation_rows() {
-    let engines = [
-        (
-            "tcl8.4",
-            include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.4.20.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../../../runtime/rust/tests/data/native_compiler_epochs/9.1.0.tsv"),
-        ),
-    ];
+    let engines = COMPILER_EPOCH_FIXTURES;
     let mut completed = 0;
     for (engine, reports) in engines {
         let mut vm = native_vm(engine);
         let baseline = vm.native_cache_stamp(ROOT_NS).interpreter_epoch.0;
-        let native_baseline = reports
-            .lines()
-            .nth(1)
-            .unwrap()
-            .split('\t')
-            .nth(2)
-            .unwrap()
-            .parse::<u64>()
-            .unwrap();
+        let native_baseline = native_epoch_baseline(reports);
         let mut namespace = None;
         for row in reports.lines().skip(1) {
             let fields = row.split('\t').collect::<Vec<_>>();
             let event = fields[0];
-            let code = match event {
-                "initial" => Code::Ok,
-                "namespace_create" | "namespace_recreate" => {
-                    namespace = Some(vm.activate_namespace_operand(b"N").unwrap());
-                    Code::Ok
-                }
-                "plain_create" => invoke(&mut vm, "proc", &["p", "", "return P"]),
-                "plain_rename" => invoke(&mut vm, "rename", &["p", "q"]),
-                "plain_delete" => invoke(&mut vm, "rename", &["q", ""]),
-                "compiled_shadow" => invoke(&mut vm, "proc", &["N::set", "", "return LOCAL"]),
-                "shadow_delete" => invoke(&mut vm, "rename", &["N::set", ""]),
-                "compiled_rename" => invoke(&mut vm, "rename", &["set", "stamp_saved_set"]),
-                "replacement_plain" => {
-                    invoke(&mut vm, "proc", &["set", "args", "return REPLACEMENT"])
-                }
-                "replacement_delete" => invoke(&mut vm, "rename", &["set", ""]),
-                "compiled_restore" => invoke(&mut vm, "rename", &["stamp_saved_set", "set"]),
-                "compiled_hide" => {
-                    vm.hide_command("set", "set").unwrap();
-                    Code::Ok
-                }
-                "compiled_expose" => {
-                    vm.expose_own_command("set", "set").unwrap();
-                    Code::Ok
-                }
-                "namespace_path" | "same_path" | "clear_path" => {
-                    let path = if event == "clear_path" {
-                        Vec::new()
-                    } else {
-                        vec![vm.activate_namespace_operand(b"M").unwrap()]
-                    };
-                    vm.push_ns_eval_token_frame(namespace.unwrap(), Vec::new());
-                    vm.ns_path_set(path);
-                    vm.pop_call_frame();
-                    vm.pop_ns();
-                    Code::Ok
-                }
-                "namespace_delete" => {
-                    assert!(vm.delete_namespace_operand(b"N").unwrap());
-                    namespace = None;
-                    Code::Ok
-                }
-                _ => panic!("unhandled native event {event}"),
-            };
+            let code = apply_compiler_epoch_event(&mut vm, &mut namespace, event);
             assert_eq!(
                 code,
                 Code::from_int(fields[1].parse().unwrap()),

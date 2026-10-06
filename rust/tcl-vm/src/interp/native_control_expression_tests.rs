@@ -7,7 +7,9 @@ use tcl_syntax::value::ValueOps;
 
 fn decode(hex: &str) -> Vec<u8> {
     hex.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
@@ -226,28 +228,30 @@ fn compiled_expression_storage_matches_40_original_native_windows() {
     );
 }
 
+const SYNTAX_CONTEXT_FIXTURES: [(&str, &str); 3] = [
+    (
+        "8.6.18",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/syntax-context-8.6.18.tsv"
+        ),
+    ),
+    (
+        "9.0.4",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/syntax-context-9.0.4.tsv"
+        ),
+    ),
+    (
+        "9.1.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/syntax-context-9.1.0.tsv"
+        ),
+    ),
+];
+
 #[test]
 fn compiled_syntax_context_retains_same_native_message_and_options() {
-    for (version, table) in [
-        (
-            "8.6.18",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/syntax-context-8.6.18.tsv"
-            ),
-        ),
-        (
-            "9.0.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/syntax-context-9.0.4.tsv"
-            ),
-        ),
-        (
-            "9.1.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/syntax-context-9.1.0.tsv"
-            ),
-        ),
-    ] {
+    for (version, table) in SYNTAX_CONTEXT_FIXTURES {
         let mut vm = interpreter(version);
         let _definition = define(&mut vm, b"expr {$x ? (1/0) : (1+2)}");
         let head = Value::new_native_string_bytes(b"p".as_slice());
@@ -350,6 +354,27 @@ fn folded_logical_literal_ownership_matches_eight_native_collisions() {
     );
 }
 
+const RETURN_CONTEXT_FIXTURES: [(&str, &str); 3] = [
+    (
+        "8.6.18",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/return-context-8.6.18.tsv"
+        ),
+    ),
+    (
+        "9.0.4",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/return-context-9.0.4.tsv"
+        ),
+    ),
+    (
+        "9.1.0",
+        include_str!(
+            "../../../tcl-registry/tests/data/native_control_expression/return-context-9.1.0.tsv"
+        ),
+    ),
+];
+
 #[test]
 fn compiled_return_context_retains_original_operands_without_annotation() {
     let sources = [
@@ -357,26 +382,7 @@ fn compiled_return_context_retains_original_operands_without_annotation() {
         b"return -level 0 -code error [set y BODY]",
         b"error BODY",
     ];
-    for (version, table) in [
-        (
-            "8.6.18",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/return-context-8.6.18.tsv"
-            ),
-        ),
-        (
-            "9.0.4",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/return-context-9.0.4.tsv"
-            ),
-        ),
-        (
-            "9.1.0",
-            include_str!(
-                "../../../tcl-registry/tests/data/native_control_expression/return-context-9.1.0.tsv"
-            ),
-        ),
-    ] {
+    for (version, table) in RETURN_CONTEXT_FIXTURES {
         for (case, source) in sources.iter().enumerate() {
             let mut vm = interpreter(version);
             let _definition = define(&mut vm, source);

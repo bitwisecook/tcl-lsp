@@ -5,9 +5,42 @@ use crate::native_compilation::NativeCompiledBodyContext;
 use crate::native_compiler_word_projection::NativeCompilerWordOperand;
 use tcl_lexer::Span;
 
+/// Original literal predicate observed by the native compiler before pruning.
+/// Retaining this metadata allocates no native header or executable operand.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeControlBooleanProbe {
+    /// Exact original compiler operand, including parser expansion provenance.
+    pub operand: NativeCompilerWordOperand,
+    /// Complete compile-known original value supplied to the fresh Boolean probe.
+    pub literal: Vec<u8>,
+    /// Actual compiler decision, independently checked against evaluation policy.
+    pub value: bool,
+}
+
+impl NativeControlBooleanProbe {
+    /// Match the original projected operand and value without generated source.
+    #[must_use]
+    pub fn matches_original(
+        &self,
+        words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+        version: tcl_dialect::TclVersion,
+    ) -> bool {
+        crate::native_compiler_word_projection::project_native_compiler_words(words, version)
+            .is_ok_and(|words| {
+                words.iter().any(|word| {
+                    word.operand == self.operand
+                        && word.literal.as_deref() == Some(self.literal.as_slice())
+                })
+            })
+    }
+}
+
 /// A compiler visit, distinct from execution and native handler authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeControlPreparationStep {
+    /// Retain an original predicate decision at this position. This produces
+    /// no literal, local, child visit, getter side effect or runtime header.
+    BooleanProbe(NativeControlBooleanProbe),
     /// Reserve a named native scalar local at this exact visit.
     DeclareLocal(Vec<u8>),
     /// Reserve one native anonymous compiler temporary.

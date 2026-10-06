@@ -161,6 +161,70 @@ impl Interp {
         Ok(())
     }
 
+    pub(super) fn unset_native_jim_dictionary_sugar(
+        &mut self,
+        original: *mut TclObj,
+    ) -> Result<bool, Code> {
+        let context = self
+            .native_jim_object_context()
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        native_substitution::ensure_dictionary_substitution(original, &context)
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let (name, key) =
+            native_substitution::with_dictionary_substitution(original, |name, key| (name, key))
+                .expect("installed original tuple");
+        let existing = self.read_original_named_variable_for_update(name)?;
+        if let Some(existing) = existing {
+            let outcome = (|| -> Result<Option<Owned>, tcl_syntax::value::ValueError> {
+                // Jim_SetDictKeysVector duplicates before dictionary conversion,
+                // and publishes the working root only after removal succeeds.
+                let mut root = crate::dict::PreparedNativeDictionary::prepare(
+                    Some(existing),
+                    NativeStringProtocol::Jim084,
+                )?;
+                if root.remove_member(key)? {
+                    Ok(Some(root.into_value()))
+                } else {
+                    Ok(None)
+                }
+            })();
+            match outcome {
+                Ok(Some(root)) => {
+                    self.assign_original_named_variable(name, root.as_ptr())?;
+                    self.set_result_bytes(b"");
+                    return Ok(true);
+                }
+                Err(error) if error.native_access_refusal().is_some() => {
+                    return Err(self.report_cmd_error(error.into()));
+                }
+                Ok(None) | Err(_) => {}
+            }
+        }
+        // Native retries the SAME retained parent with JIM_NONE after failure.
+        let parent_exists = self
+            .read_original_named_variable_for_update(name)?
+            .is_some();
+        use tcl_syntax::value::ValueOps;
+        let bytes = self
+            .native_string_bytes(&original)
+            .map_err(|error| self.report_cmd_error(error.into()))?;
+        let recipe = self
+            .native_invocation_dialect()
+            .native_jim_lookup_protocol()
+            .expect("selected Jim original unset");
+        let message = recipe
+            .dictionary_unset_error(&bytes, parent_exists)
+            .map_err(|_| {
+                self.report_cmd_error(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "Jim original unset diagnostic",
+                    )
+                    .into(),
+                )
+            })?;
+        Err(self.set_error(&message))
+    }
+
     pub(crate) fn increment_native_jim_original(
         &mut self,
         original: *mut TclObj,
@@ -195,6 +259,41 @@ impl Interp {
 mod tests {
     use super::*;
     use std::fmt::Write;
+
+    #[test]
+    fn original_dictionary_unset_matches_nine_native_jim_controls() {
+        fn decode(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for row in
+            include_str!("../../../../rust/tcl-syntax/tests/data/native_jim_unset/windows.tsv")
+                .lines()
+        {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let mut interp = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect("jim"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.eval_str(&decode(fields[1])).as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}",
+                fields[0]
+            );
+            assert_eq!(interp.result_bytes(), decode(fields[3]), "{}", fields[0]);
+            assert!(!interp.host_refusal_pending(), "{}", fields[0]);
+            compared += 1;
+        }
+        assert_eq!(compared, 9);
+    }
     fn kind(value: *mut TclObj) -> String {
         let descriptor = obj::obj_type_ptr(value);
         if descriptor.is_null() {

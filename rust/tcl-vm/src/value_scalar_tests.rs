@@ -146,6 +146,49 @@ fn frame_cache_keeps_signed_relative_failures_and_actual_release() {
         Some(NativeScalarCache::Number(Number::Int(1)))
     );
 }
+
+#[test]
+fn frame_reference_duplication_preserves_payload_without_native_owner_hooks() {
+    use tcl_registry::NativeFrameLevelCache as Cache;
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let dialect = tcl_registry::InvocationDialect::for_version(version);
+        let original = Value::new_native_string_bytes(b"#1".as_slice());
+        original
+            .install_native_frame_level_cache(Cache::Absolute(1), dialect)
+            .unwrap();
+        assert!(!original.native_primary_has_free_hook());
+        let duplicate = original.duplicate_native_object_in(NativeStringProtocol::C(version));
+        assert!(!original.is_same_object(&duplicate));
+        assert_eq!(original.native_object_reference_count(), 1);
+        assert_eq!(duplicate.native_object_reference_count(), 1);
+        drop(original);
+        assert_eq!(
+            duplicate.native_frame_level_cache_in(dialect),
+            Ok(Some(Cache::Absolute(1)))
+        );
+        assert!(matches!(duplicate.native_object_snapshot().cache,
+            tcl_syntax::native_object::NativeObjectCacheSnapshot::FrameReference {
+                version: original_version, relative: false, level: 1,
+            } if original_version == version));
+        assert_eq!(
+            duplicate
+                .native_string_bytes(NativeStringProtocol::C(version))
+                .unwrap()
+                .as_ref(),
+            b"#1"
+        );
+        assert!(
+            duplicate
+                .native_string_bytes(NativeStringProtocol::Jim084)
+                .is_err()
+        );
+    }
+}
 const WIDE: [&str; 5] = [
     include_str!("../../tcl-syntax/tests/data/native_scalar_getters/wide-8.4.txt"),
     include_str!("../../tcl-syntax/tests/data/native_scalar_getters/wide-8.5.txt"),
@@ -172,8 +215,9 @@ fn field<'a>(line: &'a str, key: &str) -> &'a str {
 fn cache_kind(value: &Value) -> &'static str {
     match value.native_scalar_cache() {
         None => "string",
-        Some(NativeScalarCache::Tcl84Long(_)) => "integer",
-        Some(NativeScalarCache::Number(Number::Int(_))) => "integer",
+        Some(NativeScalarCache::Tcl84Long(_) | NativeScalarCache::Number(Number::Int(_))) => {
+            "integer"
+        }
         Some(NativeScalarCache::Number(Number::Big { .. })) => "bignum",
         Some(NativeScalarCache::Number(_)) => "double",
         Some(NativeScalarCache::WordBoolean(_)) => "boolean",
@@ -338,7 +382,9 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
         }
         field
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
@@ -367,7 +413,7 @@ fn primitive_int_matches_native_width_cache_and_failure_on_original_objects() {
             );
             match result {
                 Ok(Returned::Wide(integer)) => {
-                    assert_eq!(integer, fields[2].parse::<i64>().unwrap(), "{line}")
+                    assert_eq!(integer, fields[2].parse::<i64>().unwrap(), "{line}");
                 }
                 Err(ValueError::NativeScalarGetter(error)) => {
                     assert_eq!(error.getter_kind(), Kind::Int);

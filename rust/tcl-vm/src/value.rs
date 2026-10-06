@@ -87,6 +87,13 @@ pub(crate) struct DoubleFormatContext {
 }
 
 impl DoubleFormatContext {
+    pub(crate) fn authored_tcl84(precision: Rc<Cell<u8>>) -> Self {
+        Self {
+            policy: tcl_dialect::DoubleStringPolicy::Tcl84Precision,
+            precision,
+        }
+    }
+
     pub(crate) fn for_dialect(dialect: tcl_registry::InvocationDialect) -> Option<Self> {
         let policy = dialect.double_string_policy()?;
         let key = DoubleEngineKey {
@@ -1870,6 +1877,11 @@ impl Value {
         if !self.native_object_is_live() {
             return Err(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater);
         }
+        if matches!(&*self.0.intrep.borrow(), IntRep::FrameLevel { version, .. }
+            if protocol != NativeStringProtocol::C(*version))
+        {
+            return Err(tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable);
+        }
         if self
             .native_instruction_name()
             .is_some_and(|name| protocol != NativeStringProtocol::C(name.version()))
@@ -2633,6 +2645,7 @@ impl Value {
             IntRep::JimIndex(_) => "index",
             IntRep::NativePropertyName(_) => "tcl::oo property name",
             IntRep::NativeInstructionName(_) => "instname",
+            IntRep::FrameLevel { .. } => "levelReference",
             IntRep::NativeMethodName(_) => "TclOO method name",
             IntRep::JimSource(_) => "source",
             IntRep::JimScript(_) => "script",
@@ -2907,6 +2920,17 @@ impl Value {
                 version: name.version(),
                 opcode: name.opcode(),
             },
+            IntRep::FrameLevel { cache, version } => {
+                let (relative, level) = match cache {
+                    tcl_registry::NativeFrameLevelCache::Relative(level) => (true, *level),
+                    tcl_registry::NativeFrameLevelCache::Absolute(level) => (false, *level),
+                };
+                Cache::FrameReference {
+                    version: *version,
+                    relative,
+                    level,
+                }
+            }
             IntRep::NativeIndex { cache, version } => Cache::Index {
                 version: *version,
                 index: cache.index(),
@@ -3427,6 +3451,9 @@ impl Value {
     /// Inspect the original native level-reference cache without string access.
     #[must_use]
     pub fn native_frame_level_cache(&self) -> Option<tcl_registry::NativeFrameLevelCache> {
+        if !self.native_object_is_live() {
+            return None;
+        }
         match *self.0.intrep.borrow() {
             IntRep::FrameLevel { cache, .. } => Some(cache),
             _ => None,
@@ -3441,6 +3468,7 @@ impl Value {
         &self,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<Option<tcl_registry::NativeFrameLevelCache>, tcl_syntax::value::ValueError> {
+        self.check_native_header()?;
         let protocol = dialect
             .native_frame_level_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
@@ -3466,6 +3494,7 @@ impl Value {
         cache: tcl_registry::NativeFrameLevelCache,
         dialect: tcl_registry::InvocationDialect,
     ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_native_header()?;
         let protocol = dialect
             .native_frame_level_protocol()
             .ok_or(ValueError::CommandProtocolUnavailable("native frame cache"))?;
@@ -3715,6 +3744,14 @@ impl Value {
 
     pub(crate) fn native_double(f: f64, dialect: tcl_registry::InvocationDialect) -> Self {
         Self::double(f).with_native_double_format(dialect)
+    }
+
+    pub(crate) fn with_authored_double_format(self, context: DoubleFormatContext) -> Self {
+        if self.0.string.borrow().is_none() && matches!(*self.0.intrep.borrow(), IntRep::Double(_))
+        {
+            *self.0.double_format.borrow_mut() = Some(context);
+        }
+        self
     }
 
     /// Observe object lifetime without adding an owning native reference.
@@ -5581,7 +5618,11 @@ mod tests {
                 assert!(
                     matches!(object.number_representation(), Some(Number::Double(actual)) if actual.to_bits() == bits[case])
                 );
-                let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+                let hex: String = bytes.iter().fold(String::new(), |mut output, byte| {
+                    use std::fmt::Write as _;
+                    write!(output, "{byte:02x}").unwrap();
+                    output
+                });
                 assert_eq!(hex, expected, "{protocol:?}/{case}");
                 observations += 1;
             }
@@ -5602,7 +5643,7 @@ mod tests {
         for (version, fixture) in tcl_dialect::TclVersion::ALL.into_iter().zip(fixtures) {
             let protocol = NativeStringProtocol::C(version);
             let rows: Vec<_> = fixture.lines().collect();
-            for pair in rows.chunks_exact(2) {
+            for pair in rows.as_chunks::<2>().0 {
                 let before_fields: Vec<_> = pair[0].split('\t').collect();
                 let after_fields: Vec<_> = pair[1].split('\t').collect();
                 let mode: usize = before_fields[0].parse().unwrap();
@@ -5695,6 +5736,40 @@ mod tests {
         }
     }
 
+    fn compound_updater_original(
+        case: u8,
+        protocol: NativeStringProtocol,
+        source_context: Option<&Rc<NativeJimObjectContext>>,
+    ) -> Value {
+        let string = |bytes: &[u8]| Value::new_native_string_bytes(bytes);
+        let list = |items| Value::native_list_constructor(items, protocol);
+        let dict = || {
+            Value::dict(vec![(string(b"#key"), string(b"a\"b"))])
+                .with_native_compound_string_protocol(protocol)
+                .unwrap()
+        };
+        match case {
+            0 => list(vec![string(b"#first"), string(b"#later")]),
+            1 => list(vec![string(b"a\"b"), string(b"]")]),
+            2 => list(vec![string(b"A\0\xff"), string(b"\\\n")]),
+            3 => list(vec![
+                list(vec![Value::int(17), string(b"a\"b")]),
+                string(b"#later"),
+            ]),
+            4 => dict(),
+            5 => list(vec![dict(), string(b"#later")]),
+            6 => {
+                let value = string(b"ORIGINAL");
+                if let Some(context) = source_context {
+                    value.bind_native_jim_context(context).unwrap();
+                }
+                drop(value.native_object_list_elements(protocol).unwrap());
+                value
+            }
+            _ => unreachable!(),
+        }
+    }
+
     #[test]
     fn compound_updater_matches_all_six_native_original_object_fixtures() {
         use super::*;
@@ -5733,33 +5808,7 @@ mod tests {
                     continue;
                 }
                 let case: u8 = fields[0].parse().unwrap();
-                let string = |bytes: &[u8]| Value::new_native_string_bytes(bytes);
-                let list = |items| Value::native_list_constructor(items, protocol);
-                let dict = || {
-                    Value::dict(vec![(string(b"#key"), string(b"a\"b"))])
-                        .with_native_compound_string_protocol(protocol)
-                        .unwrap()
-                };
-                let root = match case {
-                    0 => list(vec![string(b"#first"), string(b"#later")]),
-                    1 => list(vec![string(b"a\"b"), string(b"]")]),
-                    2 => list(vec![string(b"A\0\xff"), string(b"\\\n")]),
-                    3 => list(vec![
-                        list(vec![Value::int(17), string(b"a\"b")]),
-                        string(b"#later"),
-                    ]),
-                    4 => dict(),
-                    5 => list(vec![dict(), string(b"#later")]),
-                    6 => {
-                        let value = string(b"ORIGINAL");
-                        if let Some(context) = &source_context {
-                            value.bind_native_jim_context(context).unwrap();
-                        }
-                        drop(value.native_object_list_elements(protocol).unwrap());
-                        value
-                    }
-                    _ => unreachable!(),
-                };
+                let root = compound_updater_original(case, protocol, source_context.as_ref());
                 let state = || {
                     let primary = root.0.intrep.borrow();
                     let describe = |kind, child: &Value| {
@@ -5795,10 +5844,11 @@ mod tests {
                 assert_eq!(before.3, fields[4] == "1");
                 assert_eq!(before.4, fields[10].parse::<usize>().unwrap());
                 let bytes = root.native_string_bytes(protocol).unwrap();
-                let hex = bytes
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect::<String>();
+                let hex = bytes.iter().fold(String::new(), |mut output, byte| {
+                    use std::fmt::Write as _;
+                    write!(output, "{byte:02x}").unwrap();
+                    output
+                });
                 assert_eq!(hex, fields[5], "{protocol:?}: {row}");
                 let after = state();
                 assert_eq!(after.0, fields[6]);
@@ -6112,7 +6162,7 @@ mod tests {
         }
         // Modern C's short-string bypass retains a converted object too.
         let dialect = InvocationDialect::for_version(TclVersion::V9_0);
-        let value = Value::byte_array(&[b'a'][..]);
+        let value = Value::byte_array(&b"a"[..]);
         assert_eq!(&*value.to_str(), "a");
         assert_eq!(
             value.native_character_count(
@@ -6231,8 +6281,7 @@ mod tests {
             err.message_unicode()
                 .expect("Unicode fixture error")
                 .contains("Not a Number"),
-            "NaN must be the C domain error, got: {:?}",
-            err
+            "NaN must be the C domain error, got: {err:?}"
         );
         assert!(Value::string("o").as_bool().is_err(), "ambiguous prefix");
     }

@@ -74,6 +74,9 @@ impl Interp {
         let bytes = self
             .native_string_bytes(&original)
             .map_err(|error| self.report_cmd_error(error.into()))?;
+        if self.is_native_jim_dictionary_name(original, &bytes) {
+            return self.unset_native_jim_dictionary_sugar(original);
+        }
         self.install_original_jim_variable(original, &bytes)
             .map_err(|error| self.report_cmd_error(error.into()))?;
         let target = self
@@ -100,7 +103,12 @@ impl Interp {
             let result = self.unset_original_jim_variable(target.name.as_ptr());
             self.current_ns.set(saved_namespace);
             self.frames.borrow_mut().set_active_level(saved);
-            return result;
+            // Jim_UnsetVariable invokes linked targets with JIM_NONE. Its
+            // enclosing original alias supplies the eventual diagnostic.
+            return match result {
+                Err(_) if !self.host_refusal_pending() => Ok(false),
+                result => result,
+            };
         }
         let (root, element) = self
             .variable_name_parts(&bytes)

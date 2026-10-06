@@ -266,7 +266,9 @@ mod tests {
                 let bits = match value {
                     NativeScalarGetterValue::Wide(value) => value.cast_unsigned(),
                     NativeScalarGetterValue::Double(value) => value.to_bits(),
-                    _ => panic!("unexpected numeric getter result"),
+                    NativeScalarGetterValue::Boolean(_) => {
+                        panic!("unexpected numeric getter result")
+                    }
                 };
                 assert_eq!(format!("{bits:016x}"), row[4], "{line}");
             }

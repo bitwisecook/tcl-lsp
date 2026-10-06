@@ -3044,7 +3044,7 @@ mod tests {
             writes,
             [
                 ("first".into(), "a".into()),
-                ("second".into(), "".into()),
+                ("second".into(), String::new()),
                 ("first".into(), "a".into())
             ]
         );

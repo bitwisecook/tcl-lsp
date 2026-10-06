@@ -340,6 +340,17 @@ mod tests {
     fn byte_guest_error_survives_command_logging_and_catch_publication() {
         let mut vm = Vm::new();
         let completion = crate::command::err_with_code(b"guest \xff\0tail", b"RAW \xfe\0code");
+        let original_result = completion.result.native_lifetime_lease();
+        let original_options = completion.options.native_lifetime_lease();
+        let original_code = opt_get(&completion.options, "-errorcode").unwrap();
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(completion.result.is_same_object(original_result.value()));
+        assert!(completion.options.is_same_object(original_options.value()));
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original_code)
+        );
         vm.log_command_info("raw_failure", completion.result.string_bytes(), 1);
         let snapshot = vm.completion_options_snapshot(&completion);
         assert!(
@@ -364,6 +375,105 @@ mod tests {
                 .starts_with(b"guest \xff\0tail")
         );
         assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn guest_error_receiver_preserves_the_original_primitive_code_owner() {
+        let mut vm = Vm::new();
+        let original = vm.apply_primitive_error_code(
+            tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(b"TCL VALUE INTEGER".to_vec()),
+        );
+        let references = original.native_object_reference_count();
+        let completion = crate::command::err_with_code(b"integer required", b"TCL VALUE INTEGER");
+        let rebuilt = opt_get(&completion.options, "-errorcode").unwrap();
+        assert!(!rebuilt.is_same_object(&original));
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original)
+        );
+        assert_eq!(original.native_object_reference_count(), references);
+        assert_eq!(completion.code, Code::Error);
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn guest_error_receiver_does_not_invent_missing_code_metadata() {
+        let mut vm = Vm::new();
+        let completion = Completion::new_error_metadata(
+            Code::Error,
+            Value::from_string_bytes(b"guest error".as_slice()),
+            crate::command::options_dict(Code::Error, 0, &[]),
+        );
+        let options = completion.options.native_lifetime_lease();
+        let completion = vm.publish_native_interp_completion(completion).unwrap();
+        assert!(completion.options.is_same_object(options.value()));
+        assert!(vm.native_return_error_code().is_none());
+        assert!(opt_get(&completion.options, "-errorcode").is_none());
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn frozen_guest_completion_restores_the_same_error_code_object() {
+        let mut vm = Vm::new();
+        let completion = crate::command::err_with_code(b"original message", b"RAW \xfe\0code");
+        let original = opt_get(&completion.options, "-errorcode").unwrap();
+        vm.apply_primitive_error_code(tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(
+            b"FINALLY OTHER".to_vec(),
+        ));
+        vm.restore_completion_error_state(&completion);
+        assert!(
+            vm.native_return_error_code()
+                .unwrap()
+                .is_same_object(&original)
+        );
+        assert_eq!(
+            vm.native_return_error_code()
+                .unwrap()
+                .string_bytes()
+                .as_ref(),
+            b"RAW \xfe\0code"
+        );
+        assert!(vm.refused_completion().is_none());
+    }
+
+    #[test]
+    fn frozen_guest_code_restoration_uses_original_storage_in_six_engines() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let mut vm = Vm::with_native_core(
+                Box::new(std::io::sink()),
+                std::rc::Rc::new(crate::host_native::NativeHost::new()),
+                profile,
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let completion = crate::command::err_with_code(b"original message", b"RAW \xfe\0code");
+            let original = opt_get(&completion.options, "-errorcode").unwrap();
+            vm.restore_completion_error_state(&completion);
+            assert!(
+                vm.native_return_error_code()
+                    .unwrap()
+                    .is_same_object(&original),
+                "{engine}"
+            );
+            if engine == "tcl8.4" {
+                assert!(
+                    vm.get_var("::errorCode").unwrap().is_same_object(&original),
+                    "{engine}"
+                );
+            }
+            assert_eq!(
+                vm.native_return_error_code()
+                    .unwrap()
+                    .string_bytes()
+                    .as_ref(),
+                b"RAW \xfe\0code",
+                "{engine}"
+            );
+            assert!(vm.refused_completion().is_none(), "{engine}");
+        }
     }
 
     #[test]

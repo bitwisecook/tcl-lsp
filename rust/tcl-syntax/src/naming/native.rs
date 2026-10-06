@@ -2266,11 +2266,46 @@ mod tests {
         );
     }
 
+    fn assert_constant_variable_diagnostics(protocol: NativeNameProtocol) {
+        use NativeVariableDiagnosticOperation::{Unset, Write};
+        use NativeVariableDiagnosticReason::Constant;
+        use NativeVariableFailureSite::{ValueUnset, ValueWrite};
+        let write = report_native_variable_diagnostic_at(
+            protocol,
+            Write,
+            Constant,
+            ValueWrite,
+            NativeVariableInputForm::Combined(b"k\0z"),
+        )
+        .unwrap();
+        let unset = report_native_variable_diagnostic_at(
+            protocol,
+            Unset,
+            Constant,
+            ValueUnset,
+            NativeVariableInputForm::Combined(b"k\0z"),
+        )
+        .unwrap();
+        assert_eq!(write.name, b"k");
+        assert_eq!(
+            write.error_code,
+            Some(vec![
+                b"TCL".to_vec(),
+                b"WRITE".to_vec(),
+                b"VARNAME".to_vec()
+            ])
+        );
+        assert_eq!(
+            unset.error_code,
+            Some(vec![b"TCL".to_vec(), b"UNSET".to_vec(), b"CONST".to_vec()])
+        );
+    }
+
     #[test]
     fn variable_diagnostics_retain_original_input_and_actual_failure_site() {
-        use NativeVariableDiagnosticOperation::{Read, Unset, Write};
-        use NativeVariableDiagnosticReason::{Constant, NoSuchElement, NotArray};
-        use NativeVariableFailureSite::{NameLookup, ValueRead, ValueUnset, ValueWrite};
+        use NativeVariableDiagnosticOperation::{Read, Unset};
+        use NativeVariableDiagnosticReason::{NoSuchElement, NotArray};
+        use NativeVariableFailureSite::{NameLookup, ValueRead};
         for version in VERSIONS {
             let protocol = NativeNameProtocol::C(version);
             let input = NativeVariableInputForm::Combined(b"a(k\0z)");
@@ -2336,35 +2371,7 @@ mod tests {
             .unwrap();
             assert_eq!(separate.name, b"a(k)");
             if version >= TclVersion::V9_0 {
-                let write = report_native_variable_diagnostic_at(
-                    protocol,
-                    Write,
-                    Constant,
-                    ValueWrite,
-                    NativeVariableInputForm::Combined(b"k\0z"),
-                )
-                .unwrap();
-                let unset = report_native_variable_diagnostic_at(
-                    protocol,
-                    Unset,
-                    Constant,
-                    ValueUnset,
-                    NativeVariableInputForm::Combined(b"k\0z"),
-                )
-                .unwrap();
-                assert_eq!(write.name, b"k");
-                assert_eq!(
-                    write.error_code,
-                    Some(vec![
-                        b"TCL".to_vec(),
-                        b"WRITE".to_vec(),
-                        b"VARNAME".to_vec()
-                    ])
-                );
-                assert_eq!(
-                    unset.error_code,
-                    Some(vec![b"TCL".to_vec(), b"UNSET".to_vec(), b"CONST".to_vec()])
-                );
+                assert_constant_variable_diagnostics(protocol);
             }
         }
         let jim = NativeNameProtocol::Jim084;

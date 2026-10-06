@@ -254,7 +254,7 @@ impl Vm {
         if !self
             .actual_native_invocation_dialect()
             .native_string_protocol()
-            .is_some_and(|protocol| protocol.is_jim084())
+            .is_some_and(tcl_syntax::native_string::NativeStringProtocol::is_jim084)
         {
             return self.refuse_host_command("original Jim substitution issuer".into());
         }

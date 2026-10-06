@@ -1205,6 +1205,7 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Write as _;
     #[test]
     fn nonfinite_double_spelling_matches_every_native_engine() {
         use tcl_dialect::DoubleStringPolicy;
@@ -1252,7 +1253,10 @@ mod tests {
                     policy,
                     policy.format(policy.default_precision()).unwrap(),
                 );
-                let hex: String = rendered.bytes().map(|byte| format!("{byte:02x}")).collect();
+                let hex: String = rendered.bytes().fold(String::new(), |mut output, byte| {
+                    write!(output, "{byte:02x}").unwrap();
+                    output
+                });
                 assert_eq!(hex, expected, "{policy:?}/{case}");
                 observations += 1;
             }

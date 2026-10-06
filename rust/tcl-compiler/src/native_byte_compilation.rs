@@ -302,7 +302,12 @@ fn registered_command_plan(
         return Err(NativeByteCommandUnavailable::Dependencies);
     }
     let spec = registry
-        .native_compilation_for_registration(&compiler.registry_identity, dialect)
+        .native_compilation_for_original_registration(
+            &compiler.registry_identity,
+            captured,
+            1,
+            dialect,
+        )
         .ok_or(NativeByteCommandUnavailable::Recipe)?;
     let dependencies = spec
         .implementation_prerequisites(dialect)
@@ -598,6 +603,65 @@ mod tests {
     }
 
     #[test]
+    fn original_monolithic_match_retains_real_hook_and_registration_guards() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        let source = b"string match * $subject";
+        let parsed = native_script_words_in(
+            SourceImage::native(source.as_slice()),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            LexerConfig::from_grammar(profile.grammar),
+        )
+        .unwrap();
+        let context = NativeCompilationContext {
+            mode: NativeCompilationMode::BytecodeObject,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ProcedureCode,
+            ..Default::default()
+        };
+        let plan = native_byte_command_plan(&parsed.commands[0].words, &entry, &registry, context)
+            .unwrap();
+        let NativeByteCommandPlan::Registered(selected) = plan else {
+            panic!("original monolithic StringMatch compiler");
+        };
+        assert!(matches!(
+            selected.spec.grammar,
+            NativeCompilationGrammar::StringMatch(
+                tcl_registry::native_string_compilation::NativeStringMatchScope::PublicMember
+            )
+        ));
+        assert_eq!(
+            selected.binding.compiler_hook,
+            NativeCompilerHookPresence::Present
+        );
+        let original = entry
+            .lookup_command_bytes(entry.current_namespace, b"string")
+            .unwrap()
+            .unwrap();
+        assert_eq!(selected.binding.token, original.token);
+        assert_eq!(selected.binding.compiler, original.compiler);
+        for presence in [
+            NativeCompilerHookPresence::Absent,
+            NativeCompilerHookPresence::Unknown,
+        ] {
+            let mut changed = entry.clone();
+            changed
+                .commands
+                .iter_mut()
+                .find(|binding| binding.token == original.token)
+                .unwrap()
+                .compiler_hook = presence;
+            let plan =
+                native_byte_command_plan(&parsed.commands[0].words, &changed, &registry, context);
+            if presence == NativeCompilerHookPresence::Absent {
+                assert_eq!(plan.unwrap(), NativeByteCommandPlan::Generic);
+            } else {
+                assert!(plan.is_err());
+            }
+        }
+    }
+
+    #[test]
     fn registered_concat_uses_shared_recipe_and_original_worker_authority() {
         let context = NativeCompilationContext {
             mode: NativeCompilationMode::BytecodeObject,
@@ -844,6 +908,10 @@ mod tests {
             epoch: 3,
             profile: profile.cache_key(),
             invocation_policy: Some(profile.cache_key()),
+            expression_policy:
+                tcl_registry::native_expression_program::native_expression_evaluation_policy(
+                    profile, point,
+                ),
             execution_point: Some(point),
             name_protocol: tcl_syntax::naming::NamePolicyProtocol::for_native_point(point),
             compiled_variable_protocol:

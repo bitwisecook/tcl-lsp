@@ -217,14 +217,14 @@ impl NativeCommand for Observe {
         let observed = vm
             .get_var_bytes(b"v")
             .map(|value| value.native_lifetime_lease());
-        if self.0.physical {
-            if let Err(error) = self.0.snapshot(
+        if self.0.physical
+            && let Err(error) = self.0.snapshot(
                 vm,
                 "body",
                 observed.as_ref().map(NativeObjectLifetimeLease::value),
-            ) {
-                return crate::command::completion_from_cmd_error(vm, error.into());
-            }
+            )
+        {
+            return crate::command::completion_from_cmd_error(vm, error.into());
         }
         if self.0.shimmer && !self.0.entered.replace(true) {
             for root in [&self.0.roots[1], &self.0.roots[0]] {
@@ -232,14 +232,14 @@ impl NativeCommand for Observe {
                     return crate::command::completion_from_cmd_error(vm, error.into());
                 }
             }
-            if self.0.physical {
-                if let Err(error) = self.0.snapshot(
+            if self.0.physical
+                && let Err(error) = self.0.snapshot(
                     vm,
                     "shimmer",
                     observed.as_ref().map(NativeObjectLifetimeLease::value),
-                ) {
-                    return crate::command::completion_from_cmd_error(vm, error.into());
-                }
+                )
+            {
+                return crate::command::completion_from_cmd_error(vm, error.into());
             }
         }
         crate::interp::ok(Value::new_native_string_bytes(b"BODY".as_slice()))
@@ -248,10 +248,37 @@ impl NativeCommand for Observe {
 fn unhex(bytes: &str) -> Vec<u8> {
     bytes
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
+fn compare_each_physical_windows(
+    observer: &Observer,
+    fixture: &str,
+    engine: &str,
+    case: usize,
+    shimmer: bool,
+) -> usize {
+    let prefix = format!("S\t{case}\t");
+    let expected = fixture
+        .lines()
+        .filter(|row| row.starts_with(&prefix))
+        .collect::<Vec<_>>();
+    let actual = observer.rows.borrow();
+    assert_eq!(
+        actual.len(),
+        expected.len(),
+        "{engine}/{case}/shimmer={shimmer}"
+    );
+    let windows = expected.len();
+    for (actual, expected) in actual.iter().zip(expected) {
+        assert_eq!(actual, expected, "{engine}/{case}/shimmer={shimmer}");
+    }
+    windows
+}
+
 fn run(physical: bool) -> (usize, usize) {
     let mut completions = 0;
     let mut windows = 0;
@@ -282,14 +309,14 @@ fn run(physical: bool) -> (usize, usize) {
                     rows: RefCell::new(Vec::new()),
                 });
                 vm.register_native_command("observe", Rc::new(Observe(Rc::clone(&observer))));
-                let _native_observer = if engine != "jim" {
+                let _native_observer = if engine == "jim" {
+                    None
+                } else {
                     Some(vm.add_native_variable_observer(
                         &Value::new_native_string_bytes(b"v".as_slice()),
                         &[tcl_runtime_api::native_variable_trace::NativeVariableTraceOperation::Write],
                         observer.clone(),
                     ).expect("actual direct native variable observer"))
-                } else {
-                    None
                 };
                 if physical {
                     observer
@@ -329,21 +356,8 @@ fn run(physical: bool) -> (usize, usize) {
                 );
                 completions += 1;
                 if physical {
-                    let prefix = format!("S\t{case}\t");
-                    let expected = fixture
-                        .lines()
-                        .filter(|row| row.starts_with(&prefix))
-                        .collect::<Vec<_>>();
-                    let actual = observer.rows.borrow();
-                    assert_eq!(
-                        actual.len(),
-                        expected.len(),
-                        "{engine}/{case}/shimmer={shimmer}"
-                    );
-                    for (actual, expected) in actual.iter().zip(expected) {
-                        assert_eq!(actual, expected, "{engine}/{case}/shimmer={shimmer}");
-                        windows += 1;
-                    }
+                    windows +=
+                        compare_each_physical_windows(&observer, fixture, engine, case, shimmer);
                 }
                 tcl_test_support::oracle_phase_progress(
                     "generic-each-loop",

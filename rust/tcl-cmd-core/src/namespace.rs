@@ -791,8 +791,19 @@ pub fn origin_bytes_checked<O: Namespaces + ?Sized>(
             tcl_syntax::value::ValueError::CommandProtocolUnavailable("command origin reporting"),
         );
     }
+    origin_from_command_checked(ops, command).map(Some)
+}
+
+/// Report the original command from an already resolved, retained command token.
+/// This performs no command-name lookup or original-object String conversion.
+///
+/// # Errors
+/// Refuses when the selected original token cannot report its current full name.
+pub fn origin_from_command_checked<O: Namespaces + ?Sized>(
+    ops: &O,
+    command: tcl_runtime_api::CommandId,
+) -> Result<Vec<u8>, tcl_syntax::value::ValueError> {
     ops.command_name_bytes(ops.command_origin(command).unwrap_or(command))
-        .map(Some)
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "command origin reporting",
         ))
@@ -1375,7 +1386,9 @@ mod native_dispatch_diagnostic_tests {
             };
             let expected: Vec<_> = fields[2]
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|digits| u8::from_str_radix(std::str::from_utf8(digits).unwrap(), 16).unwrap())
                 .collect();
             assert_eq!(

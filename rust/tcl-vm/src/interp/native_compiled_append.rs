@@ -269,7 +269,9 @@ mod tests {
     fn registered_append_instructions_match_43_native_callback_controls() {
         fn decode(hex: &str) -> Vec<u8> {
             hex.as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect()
         }

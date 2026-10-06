@@ -1,0 +1,15 @@
+0	0	int	0	2	none	1	0	31	loadScalar1,loadScalar1,streq,done
+1	0	int	1	2	none	1	0	31	loadScalar1,loadScalar1,streq,done
+2	0	int	1	2	none	1	0	31	loadScalar1,loadScalar1,streq,done
+3	0	int	0	1	none	1	0	30	push1,push1,push1,loadScalar1,loadScalar1,invokeStk1,done
+4	0	int	0	1	string	1	0	33	loadScalar1,strlen,done
+5	0	int	0	1	string	1	0	33	loadScalar1,strlen,done
+6	0	int	0	1	string	1	0	33	loadScalar1,strlen,done
+7	0	int	0	1	list	1	0	32	loadScalar1,listLength,done
+8	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422	push1,invokeStk1,done
+9	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422	push1,loadScalar1,loadScalar1,invokeStk1,done
+10	0	int	0	1	string	1	0	33	loadScalar1,strlen,done
+11	0	int	1	2	none	1	0	31	loadScalar1,loadScalar1,streq,done
+12	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c6420626520226c6c656e677468206c69737422	push1,push1,push1,invokeStk1,done
+13	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c642062652022737472696e67206c656e67746820737472696e6722	push1,push1,invokeStk1,done
+14	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c642062652022737472696e6720657175616c203f2d6e6f636173653f203f2d6c656e67746820696e743f20737472696e673120737472696e673222	push1,push1,loadScalar1,invokeStk1,done

@@ -255,8 +255,11 @@ fn compare_native_procedure_header(
         } else {
             text.as_bytes()
                 .iter()
-                .map(|byte| format!("{byte:02x}"))
-                .collect::<String>()
+                .fold(String::new(), |mut result, byte| {
+                    use std::fmt::Write;
+                    write!(result, "{byte:02x}").expect("String writer");
+                    result
+                })
         }
     };
     let source = format!(
@@ -283,7 +286,12 @@ fn compare_native_procedure_header(
             panic!("pinned native header policy")
         }
     };
-    assert_eq!(native, expected, "{interpreter:?} {parameters:?} {body:?}");
+    assert_eq!(
+        native,
+        expected,
+        "{} {parameters:?} {body:?}",
+        interpreter.display()
+    );
 }
 
 #[test]

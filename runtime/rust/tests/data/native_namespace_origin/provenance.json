@@ -1,0 +1,46 @@
+{
+  "source": "proc p {} {return P};namespace eval src {proc p {} {return SOURCE};namespace export p};namespace eval mid {namespace import ::src::p;namespace export p};namespace eval dest {namespace import ::mid::p};list [namespace origin p] [namespace origin ::src::p] [namespace eval dest {namespace origin p}] [namespace origin :::src::::p]",
+  "observer": "catch original source; binary scan original result H*; puts code and hex",
+  "runs": [
+    {
+      "version": "8.4.20",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.4",
+      "binary_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "exit_code": 0,
+      "stdout": "0\t3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70\n",
+      "source_sha256": "687c2d6d7f0c31baa436fd29a9db5bfd92a18faf05cb1377eab1e9ff7e3a76e8"
+    },
+    {
+      "version": "8.5.19",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.5",
+      "binary_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "exit_code": 0,
+      "stdout": "0\t3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70\n",
+      "source_sha256": "687c2d6d7f0c31baa436fd29a9db5bfd92a18faf05cb1377eab1e9ff7e3a76e8"
+    },
+    {
+      "version": "8.6.18",
+      "binary": "/tmp/2286-oracles/bin/tclsh8.6",
+      "binary_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "exit_code": 0,
+      "stdout": "0\t3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70\n",
+      "source_sha256": "687c2d6d7f0c31baa436fd29a9db5bfd92a18faf05cb1377eab1e9ff7e3a76e8"
+    },
+    {
+      "version": "9.0.4",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.0",
+      "binary_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "exit_code": 0,
+      "stdout": "0\t3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70\n",
+      "source_sha256": "687c2d6d7f0c31baa436fd29a9db5bfd92a18faf05cb1377eab1e9ff7e3a76e8"
+    },
+    {
+      "version": "9.1.0",
+      "binary": "/tmp/2286-oracles/bin/tclsh9.1",
+      "binary_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "exit_code": 0,
+      "stdout": "0\t3a3a70203a3a7372633a3a70203a3a7372633a3a70203a3a7372633a3a70\n",
+      "source_sha256": "687c2d6d7f0c31baa436fd29a9db5bfd92a18faf05cb1377eab1e9ff7e3a76e8"
+    }
+  ]
+}

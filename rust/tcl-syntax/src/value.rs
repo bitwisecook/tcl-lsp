@@ -695,6 +695,15 @@ pub trait ValueOps {
         None
     }
 
+    /// Physical String construction for the reached C bad-index error producer.
+    /// The selected index grammar remains independent of this original runtime
+    /// result issuer. Portable adapters supply no physical representation claim.
+    fn index_error_string_protocol(
+        &self,
+    ) -> Result<Option<crate::native_string::NativeStringProtocol>, ValueError> {
+        Ok(None)
+    }
+
     /// Evaluate Jim's safe integer expression without invoking public commands.
     /// Engines reject variable, script and interpolated-word requests.
     fn eval_index_expression(&mut self, source: &str) -> Result<i64, ValueError> {

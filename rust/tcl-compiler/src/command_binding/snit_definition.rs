@@ -189,6 +189,7 @@ fn install_snit_dispatcher(
             dispatcher: Some(dispatcher),
             dispatcher_methods: Arc::new(dispatcher_methods),
             instance_methods: None,
+            instance_variables: None,
             constructor_entry: None,
             destructor_entry: None,
             lifecycle_entries_closed: false,

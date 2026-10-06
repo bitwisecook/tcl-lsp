@@ -1,0 +1,60 @@
+{
+  "engine": "Jim 0.84 pinned reference",
+  "binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+  "cases": [
+    {
+      "case": "none",
+      "source_sha256": "441c2e84a9b67095919a6a24600b3f116fd68e31b3817b28d2bf0ae1ffbc3363",
+      "stdout": "0\t",
+      "exit": 0
+    },
+    {
+      "case": "missing-parent",
+      "source_sha256": "eb16a33b56f48c5fece34a15172ee9524c4988269ba7c81e4e0bd30e0ec1269c",
+      "stdout": "1\t63616e277420756e736574202261286b29223a207661726961626c652069736e2774206172726179",
+      "exit": 0
+    },
+    {
+      "case": "malformed-parent",
+      "source_sha256": "d28e5ca92ed9020cf4a6bf5d468e518725b9528083d234effdb4242625561bd1",
+      "stdout": "1\t63616e277420756e736574202261286b29223a206e6f207375636820656c656d656e7420696e206172726179",
+      "exit": 0
+    },
+    {
+      "case": "missing-member",
+      "source_sha256": "9e73208b71ea796efc30c2e81917c012879fc9ef433de4afa4039b6e86989efd",
+      "stdout": "1\t63616e277420756e736574202261286b29223a206e6f207375636820656c656d656e7420696e206172726179",
+      "exit": 0
+    },
+    {
+      "case": "shared-root",
+      "source_sha256": "d39db027f68822a4d11251fc937600e3ad7a27092f92c54fb71324778e99d884",
+      "stdout": "0\t7b6f74686572204f7d207b6b204b206f74686572204f7d",
+      "exit": 0
+    },
+    {
+      "case": "quiet-parent",
+      "source_sha256": "e7faedc00f9b916cfb12d1302b25a9c14109cc754e811e9eb4e0f69019126f8d",
+      "stdout": "0\t30",
+      "exit": 0
+    },
+    {
+      "case": "quiet-malformed",
+      "source_sha256": "6b0c9aced4389ec395f79743aa18c23d811c5f8663d2dd24544b9f2183242c93",
+      "stdout": "0\t4d414c464f524d4544",
+      "exit": 0
+    },
+    {
+      "case": "indexed-link",
+      "source_sha256": "ea700bf21a8ca73499340073eab390d0dedb5f942afb45f6876ac6f06ee7a281",
+      "stdout": "1\t63616e277420756e736574202276286b29223a207661726961626c652069736e2774206172726179",
+      "exit": 0
+    },
+    {
+      "case": "simple-link",
+      "source_sha256": "cd1c9281bf42150e23dcd6dae92a133db71059314ca6b29bb800242fa6c1bfd9",
+      "stdout": "1\t63616e277420756e736574202276223a206e6f2073756368207661726961626c65",
+      "exit": 0
+    }
+  ]
+}

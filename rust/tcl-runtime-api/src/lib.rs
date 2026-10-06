@@ -704,6 +704,9 @@ pub mod guard;
 pub mod native_command_name;
 /// Closed live interpreter snapshots for runtime compilation.
 pub mod native_compilation;
+
+/// Retained expression grammar and evaluation issuers, separate from CPP facts.
+pub mod expression_policy;
 pub mod native_literal;
 /// Original namespace-name descriptors and independently retained lifecycle state.
 pub mod native_namespace_name;

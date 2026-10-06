@@ -2257,8 +2257,8 @@ impl CodegenCtx<'_> {
         for f in flag_args {
             self.push_lit(f);
         }
-        for (a, b) in operand_args {
-            self.emit_cmd_subst_arg(a, *b);
+        for (index, (a, b)) in operand_args.iter().enumerate() {
+            self.emit_native_argument_word(1 + flag_args.len() + index, a, *b);
         }
         self.push_lit(&format!("::tcl::string::{target_subcmd}"));
         let argc = bytecode_imm(2 + flag_args.len() + operand_args.len());
@@ -2356,8 +2356,8 @@ impl CodegenCtx<'_> {
             );
             Some(label)
         };
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+        self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+        self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
         self.emit(op, vec![]);
         if let Some(label) = sc_end {
             self.place_label(&label);
@@ -2395,8 +2395,8 @@ impl CodegenCtx<'_> {
             self.push_lit(entered_command);
             self.push_lit(subcmd);
         }
-        for (a, b) in sargs {
-            self.emit_cmd_subst_arg(a, *b);
+        for (index, (a, b)) in sargs.iter().enumerate() {
+            self.emit_native_argument_word(index + 1, a, *b);
         }
         let argc = bytecode_imm(usize::from(namespace.is_none()) + 1 + sargs.len());
         let invoke_op = if argc < 256 {
@@ -2432,12 +2432,12 @@ impl CodegenCtx<'_> {
 
         match subcmd.as_str() {
             "index" if sargs.len() == 2 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-                self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
                 self.emit(Op::STR_INDEX, vec![]);
             }
             "range" if sargs.len() == 3 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
                 let start_idx = parse_tcl_index(&sargs[1].0);
                 let end_idx = parse_tcl_index(&sargs[2].0);
                 if let (Some(s), Some(e)) = (start_idx, end_idx)
@@ -2446,8 +2446,8 @@ impl CodegenCtx<'_> {
                 {
                     self.emit(Op::STR_RANGE_IMM, vec![Operand::Imm(s), Operand::Imm(e)]);
                 } else {
-                    self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-                    self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
+                    self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
+                    self.emit_native_argument_word(3, &sargs[2].0, sargs[2].1);
                     self.emit(Op::STR_RANGE, vec![]);
                 }
             }
@@ -2461,7 +2461,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_string_replace(sargs);
             }
             "length" if sargs.len() == 1 => {
-                self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
+                self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
                 self.emit(Op::STR_LEN, vec![]);
             }
             "is" if sargs.len() >= 2 => {
@@ -2484,8 +2484,8 @@ impl CodegenCtx<'_> {
             // checked add and fall back to `strreplace` when it doesn't fit.
             && let Some(start) = last_int.checked_add(1)
         {
-            self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-            self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
+            self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+            self.emit_native_argument_word(4, &sargs[3].0, sargs[3].1);
             self.emit(Op::REVERSE, vec![Operand::Imm(2)]);
             self.emit(
                 Op::STR_RANGE_IMM,
@@ -2495,10 +2495,10 @@ impl CodegenCtx<'_> {
             return;
         }
         // Fallback: strreplace
-        self.emit_cmd_subst_arg(&sargs[0].0, sargs[0].1);
-        self.emit_cmd_subst_arg(&sargs[1].0, sargs[1].1);
-        self.emit_cmd_subst_arg(&sargs[2].0, sargs[2].1);
-        self.emit_cmd_subst_arg(&sargs[3].0, sargs[3].1);
+        self.emit_native_argument_word(1, &sargs[0].0, sargs[0].1);
+        self.emit_native_argument_word(2, &sargs[1].0, sargs[1].1);
+        self.emit_native_argument_word(3, &sargs[2].0, sargs[2].1);
+        self.emit_native_argument_word(4, &sargs[3].0, sargs[3].1);
         self.emit(Op::STR_REPLACE, vec![]);
     }
 
@@ -2541,11 +2541,11 @@ impl CodegenCtx<'_> {
                 // for character classes); defer to the generic command.
                 self.emit_string_is_generic(entered_command, entered_binding, sargs);
             } else {
-                self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+                self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
                 self.emit(Op::STR_CLASS, vec![Operand::Imm(i32::from(class_id))]);
             }
         } else if class_name == "integer" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             if strict {
                 self.emit(Op::NUMERIC_TYPE, vec![]);
                 self.emit(Op::DUP, vec![]);
@@ -2573,7 +2573,7 @@ impl CodegenCtx<'_> {
                 self.place_label(&end_lbl);
             }
         } else if class_name == "double" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             if strict {
                 self.emit(Op::NUMERIC_TYPE, vec![]);
                 let true_lbl = self.fresh_label("si_true");
@@ -2603,7 +2603,7 @@ impl CodegenCtx<'_> {
                 self.place_label(&end_lbl);
             }
         } else if class_name == "boolean" {
-            self.emit_cmd_subst_arg(&val_arg.0, val_arg.1);
+            self.emit_native_argument_word(sargs.len(), &val_arg.0, val_arg.1);
             self.emit(Op::TRY_CVT_TO_BOOLEAN, vec![]);
             let true_lbl = self.fresh_label("si_true");
             self.emit(Op::JUMP_TRUE1, vec![Operand::Label(true_lbl.clone())]);

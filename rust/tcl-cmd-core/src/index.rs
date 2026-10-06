@@ -25,7 +25,7 @@
 //! integer operand: `5`, `-2`, `end`, `end-2`, `1+1`, `0-1`, `end--1`
 //! (= `end - (-1)`).
 
-use tcl_syntax::value::ValueOps;
+use tcl_syntax::value::{ValueError, ValueOps};
 
 use crate::error::CmdError;
 use tcl_syntax::number::ParseFlags;
@@ -195,6 +195,53 @@ pub fn compiler_encodable_in(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Op
     (value <= i64::from(i32::MAX) || value >= i64::MAX - 1).then_some(true)
 }
 
+/// Compile-known list-index encoding after native token-shape validation.
+/// `Ok(None)` means the native compiler evaluates the original index object;
+/// `Err` retains target-width uncertainty rather than choosing that path.
+///
+/// # Errors
+/// Reports unavailable native container-size width for an immediate operand.
+pub fn compiled_list_index_in(
+    spec: &str,
+    version: tcl_dialect::TclVersion,
+) -> Result<Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>, ValueError> {
+    use tcl_syntax::native_compiled_index::NativeCompiledListIndex as Index;
+    let syntax = tcl_dialect::IndexSyntax::for_version(version);
+    if version == tcl_dialect::TclVersion::V8_4 {
+        return Ok(None);
+    }
+    if version == tcl_dialect::TclVersion::V8_5 {
+        return Ok(parse_int_whole(spec, Some(syntax.numbers))
+            .and_then(|value| narrow_tcl_integer(value, syntax))
+            .and_then(|value| i32::try_from(value).ok())
+            .filter(|value| *value >= 0)
+            .map(Index::from_encoded));
+    }
+    let Some(value) = resolve_opt_in(spec, 1, syntax) else {
+        return Ok(None);
+    };
+    if compiler_encodable_in(spec, syntax).is_none() {
+        return Err(ValueError::CommandProtocolUnavailable(
+            "compiled index target width",
+        ));
+    }
+    let encoded = if spec.starts_with("end") {
+        if value > 0 || value < i64::from(i32::MIN) + 2 {
+            -1
+        } else {
+            i32::try_from(value - 2).expect("native encoded end offset")
+        }
+    } else if value < 0
+        || (version < tcl_dialect::TclVersion::V9_0 && value == i64::from(i32::MAX))
+        || value > i64::from(i32::MAX)
+    {
+        -1
+    } else {
+        i32::try_from(value).expect("native encoded absolute index")
+    };
+    Ok(Some(Index::from_encoded(encoded)))
+}
+
 /// Extract Jim's safe integer expression, retaining `end` relativity.
 #[must_use]
 pub fn jim_expression(spec: &str) -> Option<(&str, bool)> {
@@ -243,7 +290,7 @@ pub fn resolve_for_ops<O: ValueOps>(ops: &mut O, spec: &str, len: usize) -> Resu
                 if error.native_access_refusal().is_some() {
                     CmdError::from(error)
                 } else {
-                    bad_index_in(spec, syntax)
+                    bad_index_for_ops(ops, spec, syntax)
                 }
             })?;
             let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
@@ -253,18 +300,19 @@ pub fn resolve_for_ops<O: ValueOps>(ops: &mut O, spec: &str, len: usize) -> Resu
                 None => value,
             });
         }
-        return Err(bad_index_in(spec, syntax));
+        return Err(bad_index_for_ops(ops, spec, syntax));
     }
-    let (expression, relative) = jim_expression(spec).ok_or_else(|| bad_index_in(spec, syntax))?;
+    let (expression, relative) =
+        jim_expression(spec).ok_or_else(|| bad_index_for_ops(ops, spec, syntax))?;
     let value = ops.eval_index_expression(expression).map_err(|error| {
         if error.native_access_refusal().is_some() {
             CmdError::from(error)
         } else {
-            bad_index_in(spec, syntax)
+            bad_index_for_ops(ops, spec, syntax)
         }
     })?;
     finish_jim_index(value, relative, i64::try_from(len).unwrap_or(i64::MAX))
-        .ok_or_else(|| bad_index_in(spec, syntax))
+        .ok_or_else(|| bad_index_for_ops(ops, spec, syntax))
 }
 
 fn wide_expression(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Option<(&str, Option<u8>)> {
@@ -333,6 +381,22 @@ pub fn bad_index_in(spec: impl AsRef<[u8]>, syntax: tcl_dialect::IndexSyntax) ->
     message.extend_from_slice(b"\": must be ");
     message.extend_from_slice(grammar.as_bytes());
     CmdError::new_bytes(message)
+}
+
+/// Publish the reached index diagnostic with its independently selected
+/// physical String producer. Unavailable physical issuers remain host refusals.
+#[must_use]
+pub fn bad_index_for_ops<O: ValueOps>(
+    ops: &O,
+    spec: impl AsRef<[u8]>,
+    syntax: tcl_dialect::IndexSyntax,
+) -> CmdError {
+    let error = bad_index_in(spec, syntax);
+    match ops.index_error_string_protocol() {
+        Ok(Some(protocol)) => error.with_native_string_result(protocol),
+        Ok(None) => error,
+        Err(refusal) => refusal.into(),
+    }
 }
 
 /// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort

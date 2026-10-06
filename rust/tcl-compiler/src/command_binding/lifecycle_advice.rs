@@ -206,10 +206,12 @@ impl SourceScopedLifecycleAdvice {
         {
             return None;
         }
-        Some(SourceCommandBindings::query_points(
-            command,
-            points.into_iter(),
-        ))
+        // These are independently validated original declaration phase
+        // points, not a command dispatch. Retain the conditional purpose
+        // without granting argument completion or an entered target.
+        let mut binding = SourceCommandBindings::query_points(command, points.into_iter());
+        binding.runtime_reachability = super::SourceRuntimeReachability::Conditional;
+        Some(binding)
     }
 
     pub(crate) fn body_source(
@@ -258,6 +260,17 @@ mod tests {
         CommandTokens,
         tcl_registry::CommandRegistry,
     ) {
+        inventory_with_provider(suffix, true)
+    }
+
+    fn inventory_with_provider(
+        suffix: &str,
+        retain_provider: bool,
+    ) -> (
+        SourceCommandBindings,
+        CommandTokens,
+        tcl_registry::CommandRegistry,
+    ) {
         let registry = tcl_registry::CommandRegistry::build_default()
             .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
         let loader = crate::lowering::stock_body_provider_loader(
@@ -276,7 +289,11 @@ mod tests {
                 invocation_dialect: registry
                     .profile()
                     .map(tcl_registry::InvocationDialect::of_profile),
-                trusted_package_loaders: &[loader],
+                trusted_package_loaders: if retain_provider {
+                    std::slice::from_ref(&loader)
+                } else {
+                    &[]
+                },
                 native_compilation: crate::environment_ingress::authoring_native_compilation(),
                 ..Default::default()
             },
@@ -336,6 +353,77 @@ mod tests {
         changed = tokens.clone();
         changed.word_exprs.clear();
         assert!(SourceCommandBindings::scoped_lifecycle_advice(&changed, &registry).is_none());
+    }
+
+    #[test]
+    fn lifecycle_repeat_join_preserves_entry_and_withdraws_unbounded_issuance() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut head = super::super::ModuleCommandBindings::initial(&registry);
+        let initial = head.clone();
+        let mut transfer = head.clone();
+        transfer.mark_opaque_binding_mutation();
+        assert_ne!(
+            transfer.source_variables.representation_epoch,
+            initial.source_variables.representation_epoch
+        );
+        head.join(&transfer);
+        assert_eq!(initial.source_variables.representation_epoch, Some(0));
+        assert_eq!(head.source_variables.representation_epoch, None);
+        assert_eq!(head.source_variables.representation_epoch_high_water, None);
+        let fixed = head.clone();
+        let mut next = head.clone();
+        next.mark_opaque_binding_mutation();
+        head.join(&next);
+        assert!(head.same_state(&fixed));
+        head.join(&fixed);
+        assert!(head.same_state(&fixed), "repeat joins remain idempotent");
+        let mut fresh = initial.clone();
+        fresh.join(&initial);
+        assert_eq!(fresh.source_variables.representation_epoch, Some(0));
+        fresh.mark_opaque_binding_mutation();
+        assert_eq!(
+            fresh.source_variables.representation_epoch,
+            Some(1),
+            "independent fresh issuance remains available"
+        );
+    }
+
+    #[test]
+    fn lifecycle_repeat_join_withdraws_conflicting_cell_generations() {
+        use crate::place::CellGeneration;
+        use crate::var_resolve::{ResolveContext, VariableCellKey};
+        let key = VariableCellKey::Authored("x".to_owned());
+        let mut head = ResolveContext::default();
+        head.generations
+            .insert(key.clone(), CellGeneration::After(10));
+        let mut next = head.clone();
+        next.generations
+            .insert(key.clone(), CellGeneration::After(20));
+        head.join(&next);
+        assert_eq!(head.generations.get(&key), Some(&CellGeneration::Unknown));
+        let fixed = head.clone();
+        next.generations
+            .insert(key.clone(), CellGeneration::After(30));
+        head.join(&next);
+        assert_eq!(head, fixed, "later lifetimes cannot restore a joined owner");
+        head.join(&fixed);
+        assert_eq!(head, fixed);
+    }
+
+    #[test]
+    fn missing_authored_lifecycle_provider_retains_unknown_phase_coverage() {
+        let (bindings, tokens, registry) = inventory_with_provider("", false);
+        assert!(SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry).is_none());
+        if let Some(site) = tokens
+            .source_binding
+            .as_ref()
+            .and_then(|binding| binding.invocation_site())
+        {
+            assert_eq!(
+                bindings.lifecycle_phase_reachability_at(site, SourceBodyPhase::Body),
+                SourceBodyPhaseReachability::Unknown
+            );
+        }
     }
 
     #[test]

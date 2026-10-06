@@ -133,13 +133,43 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
             ok(Value::empty())
         }
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
-            let execution = kind == core_trace::TraceKind::Execution;
-            if add {
-                vm.add_cmd_trace(execution, &name.to_str(), ops, command.to_str().to_string())
-            } else {
-                vm.remove_cmd_trace(execution, &name.to_str(), &ops, &command.to_str())
-            }
+            trace_command_add_remove(
+                vm,
+                name,
+                ops,
+                command,
+                kind == core_trace::TraceKind::Execution,
+                add,
+            )
         }
+    }
+}
+
+/// Native command traces reach the counted prefix before the command name.
+fn trace_command_add_remove(
+    vm: &mut Vm,
+    name: &Value,
+    ops: Vec<String>,
+    command: &Value,
+    execution: bool,
+    add: bool,
+) -> Completion<Value> {
+    let prefix = match vm.native_name_operand_bytes(command) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return vm.refuse_host_command(format!("command trace prefix is unavailable: {error}"));
+        }
+    };
+    let name = match vm.native_name_operand_bytes(name) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return vm.refuse_host_command(format!("command trace name is unavailable: {error}"));
+        }
+    };
+    if add {
+        vm.add_cmd_trace_bytes(execution, &name, ops, prefix.to_vec())
+    } else {
+        vm.remove_cmd_trace_bytes(execution, &name, &ops, &prefix)
     }
 }
 
@@ -176,7 +206,15 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             ok(var_trace_entries(vm, &name))
         }
         core_trace::TraceKind::Command | core_trace::TraceKind::Execution => {
-            vm.cmd_trace_entries(kind == core_trace::TraceKind::Execution, &name.to_str())
+            let name = match vm.native_name_operand_bytes(name) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return vm.refuse_host_command(format!(
+                        "command trace name is unavailable: {error}"
+                    ));
+                }
+            };
+            vm.cmd_trace_entries_bytes(kind == core_trace::TraceKind::Execution, &name)
         }
     }
 }
@@ -268,3 +306,6 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
     }
     ok(Value::empty())
 }
+
+#[cfg(test)]
+mod native_original_tests;

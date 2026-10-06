@@ -44,7 +44,7 @@ fn original(interp: &mut Interp, input: Input) -> obj::Owned {
 fn snapshot(value: *mut TclObj, version: Option<tcl_dialect::TclVersion>) -> String {
     // SAFETY: every observed original is owned by the fixture or an actual List backing.
     state(
-        obj::native_object_snapshot(value).unwrap(),
+        &obj::native_object_snapshot(value).unwrap(),
         unsafe { (*value).ref_count } as usize,
         version,
     )

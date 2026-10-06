@@ -1445,17 +1445,29 @@ impl TclVmEngine {
                         "native completion option protocol is unavailable".into(),
                     )
                 })?;
-                let items = completion
+                let code = if let Some(code) = completion
                     .options
-                    .native_object_list_elements(protocol)
-                    .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
-                let mut code = None;
-                for pair in items.as_chunks::<2>().0 {
-                    if native_string_bytes(&pair[0], dialect)?.as_ref() == b"-errorcode" {
-                        code = Some(native_string_bytes(&pair[1], dialect)?.to_vec());
-                        break;
-                    }
-                }
+                    .with_cached_dictionary_representation(|pairs, _| {
+                        Self::completion_error_code(
+                            pairs.iter().map(|(key, value)| (key, value)),
+                            dialect,
+                        )
+                    }) {
+                    code?
+                } else {
+                    let items = completion
+                        .options
+                        .native_object_list_elements(protocol)
+                        .map_err(|error| EngineError::ExecutionRefusal(error.to_string()))?;
+                    Self::completion_error_code(
+                        items
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|[key, value]| (key, value)),
+                        dialect,
+                    )?
+                };
                 let options = native_string_bytes(&completion.options, dialect)?;
                 if options.is_empty() {
                     Err(EngineError::script_bytes(message.to_vec(), code))
@@ -1468,6 +1480,18 @@ impl TclVmEngine {
                 }
             }
         }
+    }
+
+    fn completion_error_code<'a>(
+        pairs: impl Iterator<Item = (&'a tcl_vm::Value, &'a tcl_vm::Value)>,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<Option<Vec<u8>>, EngineError> {
+        for (key, value) in pairs {
+            if native_string_bytes(key, dialect)?.as_ref() == b"-errorcode" {
+                return Ok(Some(native_string_bytes(value, dialect)?.to_vec()));
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -2435,5 +2459,94 @@ mod tests {
         assert_eq!(message, b"prefix\0\xFF");
         assert_eq!(code.as_deref(), Some(b"CODE\0\xFF".as_slice()));
         assert_eq!(options.as_deref(), Some(expected_options.as_ref()));
+    }
+
+    #[test]
+    fn guest_error_export_preserves_original_stringless_dictionary_and_members() {
+        use tcl_dialect::TclVersion;
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = tcl_registry::InvocationDialect::for_version(version);
+            let key = tcl_vm::Value::new_native_string_bytes(b"-errorcode".as_slice());
+            let code = tcl_vm::Value::new_native_string_bytes(b"CODE\0\xff".as_slice());
+            let key_identity = key.native_object_identity();
+            let code_identity = code.native_object_identity();
+            let original = tcl_vm::Value::native_dictionary_constructor(
+                vec![(key.clone(), code.clone())],
+                Some(4),
+                dialect.native_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let identity = original.native_object_identity();
+            assert!(original.resident_string_bytes().is_none());
+            let completion = tcl_vm::Completion::new(
+                tcl_vm::Code::Error,
+                tcl_vm::Value::new_native_string_bytes(b"FAILED\0\xff".as_slice()),
+                original,
+            );
+            let EngineError::ScriptBytes {
+                message,
+                code: exported_code,
+                options,
+            } = TclVmEngine::completion_to_result(&completion, dialect).unwrap_err()
+            else {
+                panic!("original guest-error export")
+            };
+            assert_eq!(message, b"FAILED\0\xff");
+            assert_eq!(exported_code.as_deref(), Some(b"CODE\0\xff".as_slice()));
+            assert_eq!(
+                options.as_deref(),
+                completion.options.resident_string_bytes().as_deref()
+            );
+            assert_eq!(completion.options.native_object_identity(), identity);
+            assert_eq!(completion.options.cached_dictionary_bucket_count(), Some(4));
+            assert!(completion.options.cached_list_representation().is_none());
+            drop(key);
+            drop(code);
+            completion
+                .options
+                .with_cached_dictionary_representation(|pairs, _| {
+                    assert_eq!(pairs[0].0.native_object_identity(), key_identity);
+                    assert_eq!(pairs[0].1.native_object_identity(), code_identity);
+                    assert!(!pairs[0].0.native_object_is_shared());
+                    assert!(!pairs[0].1.native_object_is_shared());
+                })
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer() {
+        let mut dialect =
+            tcl_registry::InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let options = tcl_vm::Value::native_dictionary_constructor(
+            vec![(
+                tcl_vm::Value::string("-errorcode"),
+                tcl_vm::Value::string("CODE"),
+            )],
+            Some(4),
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let identity = options.native_object_identity();
+        let completion = tcl_vm::Completion::new(
+            tcl_vm::Code::Error,
+            tcl_vm::Value::string("FAILED"),
+            options,
+        );
+        dialect.core_point = None;
+        dialect.native_family = None;
+        assert!(matches!(
+            TclVmEngine::completion_to_result(&completion, dialect),
+            Err(EngineError::ExecutionRefusal(_))
+        ));
+        assert_eq!(completion.options.native_object_identity(), identity);
+        assert!(completion.options.resident_string_bytes().is_none());
+        assert_eq!(completion.options.cached_dictionary_bucket_count(), Some(4));
+        assert!(completion.options.cached_list_representation().is_none());
     }
 }

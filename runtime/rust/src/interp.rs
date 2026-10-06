@@ -2005,6 +2005,28 @@ impl Interp {
             })
     }
 
+    pub(crate) fn expression_evaluation_policy(
+        &self,
+    ) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
+        use tcl_registry::native_expression_program::{
+            authored_expression_evaluation_policy, native_expression_evaluation_policy,
+        };
+        if let Some((provider, _)) = self.logical_expression_parse_policy() {
+            return authored_expression_evaluation_policy(self.dialect_profile(), provider, None);
+        }
+        let dialect = self.native_invocation_dialect();
+        let point = dialect.execution_point()?;
+        let profile = if tcl_registry::InvocationDialect::of_profile(self.dialect_profile())
+            .execution_point()
+            == Some(point)
+        {
+            self.dialect_profile()
+        } else {
+            tcl_dialect::DialectProfile::find(dialect.tcl_version?.dialect_profile_name())?
+        };
+        native_expression_evaluation_policy(profile, point)
+    }
+
     #[cfg(have_tommath)]
     pub(crate) fn expression_parse_context(&self) -> tcl_syntax::expr::parser::ExprParseContext {
         let dialect = self.native_invocation_dialect();
@@ -6438,7 +6460,7 @@ impl Interp {
             self.reset_native_error_objects_before_trace_script();
             self.clear_return_options();
             let saved_script = self.save_native_command_trace_result(true);
-            let _ = self.eval_str(&line);
+            let _ = self.eval_native_command_trace_script(false, &line);
             if let Some(saved) = saved_script {
                 self.restore_native_variable_trace_result(saved);
             }
@@ -6538,7 +6560,7 @@ impl Interp {
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
             self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = self.eval_native_command_trace_script(true, &line);
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 // The callback's result becomes the command's result; abort.
@@ -6618,7 +6640,7 @@ impl Interp {
             drop_fresh(args);
             self.traces.borrow_mut().firing_exec_traces.push(id);
             self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = self.eval_native_command_trace_script(true, &line);
             self.traces.borrow_mut().firing_exec_traces.pop();
             if c != Code::Ok {
                 override_code = Some(c);
@@ -9006,16 +9028,19 @@ impl Interp {
         self.mark_error_stack_reset();
     }
 
-    /// A new public native evaluation resets the previous result's exception.
-    /// The private originals survive the preceding evaluation's return, and
-    /// their existing reset owner publishes them before releasing each field.
+    /// A new public native evaluation resets the active exception episode.
+    /// Modern C publishes its retained private originals before releasing them;
+    /// C8.4 leaves the existing global headers in their cells.
     fn reset_outermost_native_error(&mut self) {
-        if self.eval_depth.get() == 0
-            && !self.host_refusal_pending()
-            && self
-                .native_invocation_dialect()
-                .native_error_variable_protocol()
-                .is_some()
+        if self.eval_depth.get() != 0 || self.host_refusal_pending() {
+            return;
+        }
+        if self.uses_c84_global_error_info() {
+            self.reset_native_global_error_episode();
+        } else if self
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
         {
             self.publish_error();
         }
@@ -10061,6 +10086,7 @@ impl Interp {
         // native ABI. `argv` owns/borrows its objects independently, so dropping
         // the prior result here cannot invalidate an argument.
         self.set_result_bytes(b"");
+        self.reset_native_global_error_episode();
         self.cmd_count.set(self.cmd_count.get() + 1);
         // Fast path: nothing is registered, so nothing can fire. Being inside a
         // trace callback is *not* a reason to skip: C's
@@ -10342,7 +10368,7 @@ impl Interp {
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
             self.clear_return_options();
-            let c = self.eval_str(&line);
+            let c = self.eval_native_command_trace_script(true, &line);
             if c != Code::Ok {
                 outcome = Some(c);
                 break;
@@ -14854,6 +14880,47 @@ mod tests {
     }
 
     #[test]
+    fn expression_policy_keeps_native_dispatch_separate_from_authored_parser() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
+        leak_free(|interp| {
+            interp.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            let native = interp.expression_evaluation_policy().unwrap();
+            assert!(matches!(
+                native.origin,
+                ExpressionEvaluationOrigin::Native(_)
+            ));
+            assert_eq!(
+                tcl_registry::native_expression_program::expression_function_dispatch(
+                    Some(&native),
+                    interp.native_invocation_dialect()
+                ),
+                Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable)
+            );
+            interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            assert!(interp.expression_evaluation_policy().is_none());
+            let host = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+            assert!(interp.set_logical_expression_parse_provider(
+                LogicalExpressionParseProvider::Tcl84CoreSimulation,
+                host
+            ));
+            let authored = interp.expression_evaluation_policy().unwrap();
+            assert_eq!(
+                authored.origin,
+                ExpressionEvaluationOrigin::AuthoredTcl84Parser
+            );
+            assert!(authored.numeric_simulation.is_none());
+            assert_eq!(
+                tcl_registry::native_expression_program::expression_function_dispatch(
+                    Some(&authored),
+                    tcl_registry::InvocationDialect::of_profile(host)
+                ),
+                None
+            );
+        });
+    }
+
+    #[test]
     fn logical_provider_changes_stale_only_interpreter_policy_guards() {
         fn install(
             interp: &mut Interp,
@@ -16563,6 +16630,7 @@ mod tests {
 #[cfg(test)]
 mod native_error_log_tests;
 
+mod native_command_traces;
 mod native_error_headers;
 mod native_return_instruction;
 mod native_trace_result;

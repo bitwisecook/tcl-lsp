@@ -51,39 +51,56 @@ fn hex(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return "-".into();
     }
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        use std::fmt::Write as _;
+        write!(output, "{byte:02x}").unwrap();
+        output
+    })
+}
+
+const APPEND_FIXTURES: [(&str, &str); 6] = [
+    (
+        "tcl8.4",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/8.4.20.tsv"),
+    ),
+    (
+        "tcl8.5",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/8.5.19.tsv"),
+    ),
+    (
+        "tcl8.6",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/8.6.18.tsv"),
+    ),
+    (
+        "tcl9.0",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/9.0.4.tsv"),
+    ),
+    (
+        "tcl9.1",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/9.1.0.tsv"),
+    ),
+    (
+        "jim",
+        include_str!("../../tcl-syntax/tests/data/native_object_append/jim.tsv"),
+    ),
+];
+
+fn append_vm(profile: &str) -> (Vm, NativeStringProtocol) {
+    let mut vm = Vm::new();
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment(profile).unit_profile(),
+    );
+    let protocol = vm
+        .native_scalar_carrier_dialect()
+        .native_string_protocol()
+        .unwrap();
+    (vm, protocol)
 }
 
 #[test]
 fn native_append_preserves_every_measured_primary_storage_and_identity_window() {
-    let fixtures = [
-        (
-            "tcl8.4",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/8.4.20.tsv"),
-        ),
-        (
-            "tcl8.5",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/8.5.19.tsv"),
-        ),
-        (
-            "tcl8.6",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/8.6.18.tsv"),
-        ),
-        (
-            "tcl9.0",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/9.0.4.tsv"),
-        ),
-        (
-            "tcl9.1",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/9.1.0.tsv"),
-        ),
-        (
-            "jim",
-            include_str!("../../tcl-syntax/tests/data/native_object_append/jim.tsv"),
-        ),
-    ];
     let mut observations = 0;
-    for (profile, fixture) in fixtures {
+    for (profile, fixture) in APPEND_FIXTURES {
         for row in fixture.lines() {
             let fields: Vec<_> = row.split('\t').collect();
             assert_eq!(fields.len(), 17);
@@ -93,14 +110,7 @@ fn native_append_preserves_every_measured_primary_storage_and_identity_window() 
                 .unwrap()
                 .split_once("-source-")
                 .unwrap();
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment(profile).unit_profile(),
-            );
-            let protocol = vm
-                .native_scalar_carrier_dialect()
-                .native_string_protocol()
-                .unwrap();
+            let (mut vm, protocol) = append_vm(profile);
             if kinds.0 != "missing" {
                 vm.set_var_bytes(b"v", make(kinds.0, protocol)).unwrap();
                 if fields[1] == "shared-destination" {
@@ -233,7 +243,7 @@ fn assert_cat_snapshot(snapshot: tcl_syntax::native_object::NativeObjectSnapshot
         snapshot
             .resident
             .as_ref()
-            .map_or(-1, |bytes| bytes.len() as i64)
+            .map_or(-1, |bytes| i64::try_from(bytes.len()).unwrap())
             .to_string(),
         row[7]
     );
@@ -245,7 +255,9 @@ fn assert_cat_snapshot(snapshot: tcl_syntax::native_object::NativeObjectSnapshot
             panic!("native String cache");
         };
         assert_eq!(
-            num_chars.map_or(-1, |count| count as i64).to_string(),
+            num_chars
+                .map_or(-1, |count| i64::try_from(count).unwrap())
+                .to_string(),
             row[8]
         );
         assert_eq!(usize::from(unicode.is_some()).to_string(), row[9]);
@@ -292,7 +304,7 @@ fn make_cat(kind: i32, dialect: tcl_registry::InvocationDialect) -> Value {
             }
             value
         }
-        5 => Value::from_native_unicode_units(std::rc::Rc::from(&[233, 128512][..]), dialect)
+        5 => Value::from_native_unicode_units(std::rc::Rc::from(&[233, 128_512][..]), dialect)
             .unwrap(),
         6 => Value::int(7),
         8 => Value::native_list_constructor(vec![Value::int(7)], protocol),
@@ -405,7 +417,7 @@ fn native_cache_carriers_preserve_original_aliases_and_owned_table_lifetime() {
     struct Table(std::cell::RefCell<std::rc::Rc<[u8]>>);
     impl tcl_core_types::NativeIndexTable for Table {
         fn identity(&self) -> usize {
-            self as *const Self as usize
+            std::ptr::from_ref(self) as usize
         }
         fn word(
             &self,

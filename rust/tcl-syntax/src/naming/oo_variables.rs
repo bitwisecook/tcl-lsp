@@ -223,12 +223,12 @@ mod tests {
 
     #[test]
     fn slot_reduction_preserves_full_keys_and_original_selected_records() {
-        use NativeOoVariableSlotOperation as Operation;
-        let existing = vec![(b"a\0old".to_vec(), 1), (b"a".to_vec(), 2)];
-        let incoming = vec![(b"a\0new".to_vec(), 3), (b"a".to_vec(), 4)];
         fn key(entry: &(Vec<u8>, u8)) -> &[u8] {
             &entry.0
         }
+        use NativeOoVariableSlotOperation as Operation;
+        let existing = vec![(b"a\0old".to_vec(), 1), (b"a".to_vec(), 2)];
+        let incoming = vec![(b"a\0new".to_vec(), 3), (b"a".to_vec(), 4)];
         assert_eq!(
             apply_native_oo_variable_slot(
                 existing.clone(),

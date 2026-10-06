@@ -600,6 +600,7 @@ impl Vm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::interp::ok;
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
 
     fn actual_jim() -> Vm {

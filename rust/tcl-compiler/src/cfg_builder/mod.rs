@@ -1427,14 +1427,23 @@ impl<'a> CfgBuilder<'a> {
                 .registry
                 .profile()
                 .map(tcl_registry::model::semantic::SemanticContext::for_profile);
-            let Some(invocation) = crate::registry_invocation::resolved_statement_invocation(
+            let route = crate::registry_invocation::resolved_statement_invocation(
                 self.registry,
                 context,
                 stmt,
-            ) else {
+            )
+            .map(|invocation| invocation.completion_route(self.registry))
+            .or_else(|| {
+                crate::registry_invocation::logical_structured_invocation(
+                    self.registry,
+                    stmt.tokens()?,
+                    None,
+                )
+                .map(|invocation| invocation.conditional_completion_route(self.registry))
+            });
+            let Some(route) = route else {
                 return;
             };
-            let route = invocation.completion_route(self.registry);
             if !route.normal_possible() {
                 if !matches!(
                     route,

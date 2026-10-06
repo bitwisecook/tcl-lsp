@@ -62,6 +62,62 @@ pub const STRING_MATCH_IMPLEMENTATION: NativeCompilerImplementationLookup =
         prepended: &["match"],
     };
 
+impl crate::CommandRegistry {
+    /// Refine an issued monolithic registration with its unchanged original member.
+    ///
+    /// The caller independently owns the live registration and hook prerequisites.
+    /// C84's String compiler reads its original literal member token; modern
+    /// ensembles select actual workers through their separate map and token recipe.
+    #[must_use]
+    pub fn native_compilation_for_original_registration(
+        &self,
+        identity: &str,
+        words: &NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: crate::InvocationDialect,
+    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        let registered = self.native_compilation_for_registration(identity, dialect)?;
+        if registered.grammar != crate::native_compilation::NativeCompilationGrammar::Unresolved
+            || dialect.family() != Some(tcl_dialect::model::Family::Tcl)
+            || dialect.tcl_version != Some(TclVersion::V8_4)
+        {
+            return Some(registered);
+        }
+        self.original_monolithic_string_registration(identity, words, operand_from, dialect)
+            .or(Some(registered))
+    }
+
+    fn original_monolithic_string_registration(
+        &self,
+        identity: &str,
+        words: &NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: crate::InvocationDialect,
+    ) -> Option<crate::native_compilation::NativeCompilationSpec> {
+        if words.shapes().get(operand_from) != Some(&NativeCompilationWordShape::Literal) {
+            return None;
+        }
+        let member = core::str::from_utf8(words.literal(operand_from)?).ok()?;
+        let query = dialect.authoring_query()?;
+        let registration =
+            self.get_for_surface(identity.strip_prefix("::").unwrap_or(identity), Some(query))?;
+        let selected = registration
+            .resolve_subcommand_for_dialect(member, Some(query))?
+            .native_compilation?;
+        matches!(
+            selected.grammar,
+            crate::native_compilation::NativeCompilationGrammar::StringMatch(
+                NativeStringMatchScope::PublicMember
+            ) | crate::native_compilation::NativeCompilationGrammar::StringEqual(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | crate::native_compilation::NativeCompilationGrammar::StringLength(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            )
+        )
+        .then_some(selected)
+    }
+}
+
 /// Modern standalone match/equality instructions use interpreter execution constants.
 #[must_use]
 pub const fn uses_execution_constant(version: TclVersion) -> bool {
@@ -233,6 +289,61 @@ mod tests {
     ];
 
     #[test]
+    fn monolithic_match_member_projection_preserves_registration_and_original_token_scope() {
+        use crate::native_compilation::NativeCompilationGrammar;
+        let registry = crate::CommandRegistry::build_default();
+        for profile_name in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_dialect::DialectProfile::find(profile_name).unwrap();
+            let dialect = crate::InvocationDialect::of_profile(profile);
+            for (source, plain_member) in [
+                (b"string match * $subject".as_slice(), true),
+                (b"renamed mat * $subject".as_slice(), true),
+                (b"string {match} * $subject".as_slice(), false),
+                (b"string \"match\" * $subject".as_slice(), false),
+                (b"string $member * $subject".as_slice(), false),
+                (b"string range A 0 1".as_slice(), false),
+            ] {
+                let parsed = native_script_words_in(
+                    SourceImage::native(source),
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    NativeStringProtocol::C(dialect.tcl_version.unwrap()),
+                )
+                .unwrap();
+                let selected = registry
+                    .native_compilation_for_original_registration("string", &words, 1, dialect)
+                    .unwrap();
+                let refined = profile_name == "tcl8.4" && plain_member;
+                assert_eq!(
+                    matches!(
+                        selected.grammar,
+                        NativeCompilationGrammar::StringMatch(NativeStringMatchScope::PublicMember)
+                    ),
+                    refined,
+                    "{profile_name}/{source:?}",
+                );
+                if !refined {
+                    assert_eq!(selected.grammar, NativeCompilationGrammar::Unresolved);
+                }
+                assert!(
+                    registry
+                        .native_compilation_for_original_registration(
+                            "unissued_registration",
+                            &words,
+                            1,
+                            dialect,
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn original_string_match_selection_preserves_all_60_native_compiler_windows() {
         let rows = include_str!("../tests/data/native_string_compilation/windows.tsv");
         let mut inline_count = 0;
@@ -269,7 +380,7 @@ mod tests {
             let original =
                 NativeCompilerWords::capture(&words, NativeStringProtocol::C(version)).unwrap();
             let recipe = instruction(&original, 1, NativeStringMatchScope::PublicMember, version);
-            let native_inline = fields[9]
+            let native_inline = fields[8]
                 .split(',')
                 .any(|op| matches!(op, "streq" | "strmatch"));
             assert_eq!(recipe.is_some(), native_inline, "{line}");
@@ -277,7 +388,7 @@ mod tests {
                 inline_count += 1;
                 assert_eq!(
                     matches!(recipe.operation, NativeStringMatchOperation::Equal),
-                    fields[9].split(',').any(|op| op == "streq"),
+                    fields[8].split(',').any(|op| op == "streq"),
                     "{line}"
                 );
             } else if matches!(fields[1], "4" | "5" | "6" | "8") {

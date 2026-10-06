@@ -38,6 +38,14 @@ impl Interp {
                     .into(),
             );
         };
+        if argv.is_empty() && matches!(protocol.strings(), NativeStringProtocol::C(_)) {
+            // TclInterpReady reaches Tcl_ResetResult before the empty-vector
+            // return, with no command lookup or command counter increment.
+            return match self.reset_original_c_result() {
+                Ok(()) => Code::Ok,
+                Err(error) => self.report_cmd_error(error.into()),
+            };
+        }
         let pins = protocol.pins_arguments().then(|| {
             argv.iter()
                 .map(|word| Owned::retain(*word))
@@ -278,6 +286,44 @@ mod tests {
     }
     fn hex(bytes: &[u8]) -> String {
         bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    #[test]
+    fn empty_public_vectors_reset_original_result_owners_without_dispatch() {
+        let fixtures = [
+            ("tcl8.4", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.4.20.tsv")),
+            ("tcl8.5", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.5.19.tsv")),
+            ("tcl8.6", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-8.6.18.tsv")),
+            ("tcl9.0", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.0.4.tsv")),
+            ("tcl9.1", include_str!("../../../../rust/tcl-registry/tests/data/native_error_variables/empty-vector-reset-9.1.0.tsv")),
+        ];
+        for (environment, observations) in fixtures {
+            let mut interp = interpreter(environment);
+            for row in observations.lines().take(2) {
+                let fields = row.split('\t').collect::<Vec<_>>();
+                interp.set_result(obj::new_wide_int_obj(17));
+                let original = interp.get_obj_result();
+                let retained = (fields[0] == "1").then(|| Owned::retain(original));
+                assert_eq!(
+                    interp.eval_original_object_vector(&[]),
+                    Code::from_int(fields[1].parse().unwrap()),
+                    "{environment} row {row}"
+                );
+                let result = interp.get_obj_result();
+                assert_eq!(result == original, fields[2] == "1", "{environment}");
+                // The unshared header remains the result; the shared original
+                // remains live through the probe's genuine external reference.
+                unsafe {
+                    assert_eq!((*result).ref_count, fields[3].parse().unwrap());
+                    assert_eq!((*original).ref_count, fields[4].parse().unwrap());
+                    assert_eq!(!(*result).bytes.is_null(), fields[6] == "1");
+                    assert_eq!((*result).length, fields[7].parse().unwrap());
+                }
+                assert_eq!(primary(result), fields[5], "{environment}");
+                assert!(!interp.host_refusal_pending(), "{environment}");
+                drop(retained);
+            }
+        }
     }
 
     #[test]

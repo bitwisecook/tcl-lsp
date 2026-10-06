@@ -589,7 +589,11 @@ mod tests {
                         vm.runtime_version(),
                     ))
                     .unwrap();
-                let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+                let hex: String = bytes.iter().fold(String::new(), |mut output, byte| {
+                    use std::fmt::Write;
+                    write!(output, "{byte:02x}").expect("writing into a String");
+                    output
+                });
                 assert_eq!(hex, expected[4], "{native} {phase}");
                 matched += 1;
             }

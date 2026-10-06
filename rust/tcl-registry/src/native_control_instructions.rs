@@ -250,8 +250,19 @@ fn test(
     words: &NativeCompilerWords<'_>,
     word: &NativeProjectedCompilerWord,
     dialect: InvocationDialect,
+    preparations: &mut Vec<Visit>,
 ) -> Result<NativeControlTest, NativeControlInstructionUnavailable> {
     if let Some(value) = boolean(word, dialect) {
+        preparations.push(Visit::BooleanProbe(
+            crate::native_control_compilation::NativeControlBooleanProbe {
+                operand: word.operand.clone(),
+                literal: word
+                    .literal
+                    .clone()
+                    .ok_or(NativeControlInstructionUnavailable::Geometry)?,
+                value,
+            },
+        ));
         return Ok(NativeControlTest::Constant(value));
     }
     prepare_native_expression_program(words, &word.operand, dialect)
@@ -333,7 +344,7 @@ fn compile_conditional(
             Some(if masked {
                 NativeControlTest::Constant(false)
             } else {
-                test(words, word, dialect)?
+                test(words, word, dialect, &mut preparations)?
             })
         };
         if !fallback && args.get(at).and_then(|word| word.literal.as_deref()) == Some(b"then") {
@@ -411,7 +422,7 @@ fn compile_while(
     if args.iter().any(|word| !simple(word)) {
         return Ok(generic(preparations));
     }
-    let test = test(words, &args[0], dialect)?;
+    let test = test(words, &args[0], dialect, &mut preparations)?;
     let body = native_control_body(words, &args[1])?;
     if test != NativeControlTest::Constant(false) {
         visit_body(&mut preparations, &body, NativeCompiledBodyContext::Loop);

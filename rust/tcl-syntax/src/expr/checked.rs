@@ -635,6 +635,9 @@ fn native_lexical_diagnostic(
     failure: tcl_lexer::ExprLexicalFailure,
 ) -> Option<NativeExprSyntaxDiagnostic<Vec<u8>>> {
     use tcl_lexer::ExprLexicalFailureKind as Kind;
+    if context.native_syntax == NativeExprSyntax::Unknown {
+        return None;
+    }
     let mut error_code = b"NONE".to_vec();
     let mut message = match failure.kind {
         Kind::MissingQuote => match context.native_syntax {
@@ -643,7 +646,7 @@ fn native_lexical_diagnostic(
             NativeExprSyntax::Unknown => return None,
         },
         Kind::MissingBrace => b"missing close-brace".to_vec(),
-        Kind::MissingBracket => b"missing close-bracket".to_vec(),
+        Kind::MissingBracket => nested_command_lexical_message(source, context, failure.at)?,
         Kind::Variable(message) => message.as_bytes().to_vec(),
         Kind::MissingVariableName | Kind::InvalidCharacter => match context.native_syntax {
             NativeExprSyntax::Tcl(TclVersion::V8_4) => {
@@ -688,6 +691,27 @@ fn native_lexical_diagnostic(
         message,
         error_code: Some(error_code),
     })
+}
+
+fn nested_command_lexical_message(
+    source: &[u8],
+    context: &ExprParseContext,
+    at: usize,
+) -> Option<Vec<u8>> {
+    if !matches!(context.native_syntax, NativeExprSyntax::Tcl(_)) {
+        return Some(b"missing close-bracket".to_vec());
+    }
+    // Tcl parses the original nested script before diagnosing its absent final
+    // bracket. Its brace, quote and variable errors therefore take precedence.
+    let body = source.get(at.checked_add(1)?..)?;
+    let cut = tcl_lexer::first_parse_cut_image_checked(
+        &tcl_lexer::SourceImage::native(body),
+        tcl_lexer::LexerConfig::from_grammar(context.lexer_grammar),
+    )
+    .ok()?;
+    Some(cut.map_or(b"missing close-bracket".to_vec(), |cut| {
+        cut.message.as_bytes().to_vec()
+    }))
 }
 
 fn legacy_source_error(source: &[u8], reason: &str, jim: bool) -> Vec<u8> {
@@ -845,11 +869,11 @@ mod native_byte_tests {
                 else {
                     panic!("native source was declined: {source:?}");
                 };
-                let text = match node {
-                    ExprNode::String { text, .. }
-                    | ExprNode::Var { text, .. }
-                    | ExprNode::Command { text, .. } => text,
-                    _ => panic!("unexpected leaf"),
+                let (ExprNode::String { text, .. }
+                | ExprNode::Var { text, .. }
+                | ExprNode::Command { text, .. }) = node
+                else {
+                    panic!("unexpected leaf");
                 };
                 assert_eq!(text, source);
             }
@@ -888,6 +912,55 @@ mod tests {
 
     fn context(version: TclVersion) -> ExprParseContext {
         ExprParseContext::for_profile(DialectProfile::find(version.dialect_profile_name()).unwrap())
+    }
+
+    #[test]
+    fn nested_command_syntax_preserves_35_original_c_delimiter_diagnostics() {
+        fn bytes(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for line in
+            include_str!("../../tests/data/native_nested_expression_syntax/native.tsv").lines()
+        {
+            let row: Vec<_> = line.split('\t').collect();
+            if row[0] == "jim" {
+                continue;
+            }
+            let version = TclVersion::ALL
+                .into_iter()
+                .find(|version| version.dialect_name() == format!("tcl{}", row[0]))
+                .unwrap();
+            let context = context(version);
+            let source = bytes(row[2]);
+            let CheckedExprParse::ProvedSyntaxFailure(failure) =
+                parse_expr_bytes_checked_with_context(&source, &context)
+            else {
+                panic!("{line}: original syntax not rejected")
+            };
+            assert_eq!(
+                failure
+                    .native_diagnostic_bytes_with_context(&source, &context)
+                    .unwrap()
+                    .message,
+                bytes(row[4]),
+                "{line}",
+            );
+            let mut unknown = context;
+            unknown.native_syntax = NativeExprSyntax::Unknown;
+            assert!(
+                failure
+                    .native_diagnostic_bytes_with_context(&source, &unknown)
+                    .is_none()
+            );
+            compared += 1;
+        }
+        assert_eq!(compared, 35);
     }
 
     #[test]

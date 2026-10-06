@@ -716,7 +716,32 @@ pub fn procedure_name_creation_error(
     holder_is_global: bool,
     simple_name: &[u8],
 ) -> Option<Result<(), Vec<u8>>> {
-    let protocol = dialect.native_name_protocol()?;
+    Some(procedure_creation_text_error(
+        dialect.native_name_protocol()?,
+        holder_is_global,
+        simple_name,
+    ))
+}
+
+/// Validate a selected procedure slot using its independently installed naming
+/// policy. Authored policies establish only this textual creation rule, never
+/// physical procedure headers, compiler hooks or namespace ownership.
+///
+/// # Errors
+/// Rejects colon-prefixed local names under the selected old C naming recipe.
+pub fn procedure_name_creation_error_for_policy(
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    holder_is_global: bool,
+    simple_name: &[u8],
+) -> Result<(), Vec<u8>> {
+    procedure_creation_text_error(policy.recipe(), holder_is_global, simple_name)
+}
+
+fn procedure_creation_text_error(
+    protocol: tcl_syntax::naming::NativeNameProtocol,
+    holder_is_global: bool,
+    simple_name: &[u8],
+) -> Result<(), Vec<u8>> {
     if matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
         if version <= tcl_dialect::TclVersion::V8_5)
         && !holder_is_global
@@ -725,9 +750,9 @@ pub fn procedure_name_creation_error(
         let mut message = b"can't create procedure \"".to_vec();
         message.extend_from_slice(simple_name);
         message.extend_from_slice(b"\" in non-global namespace with name starting with \":\"");
-        Some(Err(message))
+        Err(message)
     } else {
-        Some(Ok(()))
+        Ok(())
     }
 }
 
@@ -821,6 +846,60 @@ pub fn parse_static_variables(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn procedure_creation_name_policy_matches_18_native_slots_without_header_grants() {
+        fn bytes(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut checked = 0;
+        for row in include_str!("../tests/data/authored_procedure_names/native.tsv").lines() {
+            let columns: Vec<_> = row.split('\t').collect();
+            let environment = crate::model::ingress::resolve_environment(&if columns[0] == "jim" {
+                "jim".into()
+            } else {
+                format!("tcl{}", columns[0])
+            });
+            let dialect = crate::InvocationDialect::of_profile(environment.unit_profile());
+            let native = tcl_syntax::naming::NamePolicyProtocol::for_native_point(
+                dialect.execution_point().unwrap(),
+            )
+            .unwrap();
+            let authored = match native.recipe() {
+                tcl_syntax::naming::NativeNameProtocol::C(version) => {
+                    tcl_syntax::naming::NamePolicyProtocol::authored_tcl(version)
+                }
+                tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                    tcl_syntax::naming::NamePolicyProtocol::authored_jim084()
+                }
+            };
+            let name = bytes(columns[3]);
+            let expected = if columns[4] == "0" {
+                Ok(())
+            } else {
+                Err(bytes(columns[5]))
+            };
+            for policy in [native, authored] {
+                assert_eq!(
+                    procedure_name_creation_error_for_policy(policy, columns[2] == "1", &name),
+                    expected,
+                    "{row}"
+                );
+            }
+            assert_ne!(native.authority(), authored.authority());
+            checked += 1;
+        }
+        assert_eq!(checked, 18);
+        let mut unknown =
+            crate::InvocationDialect::of_profile(tcl_dialect::DialectProfile::irules());
+        unknown.core_point = None;
+        assert!(procedure_name_creation_error(unknown, false, b":p").is_none());
+    }
 
     #[test]
     fn c84_parse_context_matches_twenty_six_actual_native_parser_failures() {

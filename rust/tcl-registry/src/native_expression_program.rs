@@ -10,6 +10,289 @@ use tcl_lexer::Span;
 use tcl_syntax::expr::NativeExprNode;
 use tcl_syntax::expr::parser::{CheckedExprParse, ExprParseContext};
 
+/// Capture an actual expression evaluator without deriving one from vendor
+/// compatibility or command availability. Function registrations stay separate.
+#[must_use]
+pub fn native_expression_evaluation_policy(
+    profile: &tcl_dialect::DialectProfile,
+    point: tcl_dialect::model::DialectPoint,
+) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
+    let dialect = InvocationDialect::of_profile(profile);
+    if dialect.execution_point() != Some(point) {
+        return None;
+    }
+    let context = dialect.expression_parse_context(Some(profile));
+    if context.native_syntax == tcl_syntax::expr::parser::NativeExprSyntax::Unknown {
+        return None;
+    }
+    Some(
+        tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy {
+            profile: profile.cache_key(),
+            origin: tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::Native(point),
+            context,
+            numeric_simulation: None,
+            authored_functions: None,
+        },
+    )
+}
+
+/// Capture the explicitly installed F5 parser/numeric simulation. Neither
+/// capability authenticates a fixed math table or native expression emission.
+#[must_use]
+pub fn authored_expression_evaluation_policy(
+    profile: &tcl_dialect::DialectProfile,
+    parser: crate::invocation_words::LogicalExpressionParseProvider,
+    numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
+) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
+    let dialect = InvocationDialect::of_profile(profile);
+    let context = dialect.logical_expression_parse_context(parser, profile)?;
+    let numeric_simulation = match numeric {
+        Some(provider) => Some(dialect.authored_logical_numeric_simulation(provider)?),
+        None => None,
+    };
+    Some(
+        tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy {
+            profile: profile.cache_key(),
+            origin:
+                tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::AuthoredTcl84Parser,
+            context,
+            numeric_simulation,
+            authored_functions: None,
+        },
+    )
+}
+
+/// Select the function protocol from an independently retained evaluator and
+/// actual engine. Authored parsing/numbers and missing policy grant no table.
+#[must_use]
+pub fn expression_function_dispatch(
+    policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+    physical: InvocationDialect,
+) -> Option<crate::mathfunc::NativeMathFunctionDispatch> {
+    use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
+    let policy = policy?;
+    let ExpressionEvaluationOrigin::Native(point) = policy.origin else {
+        return None;
+    };
+    if physical.execution_point() != Some(point)
+        || native_expression_evaluation_policy(policy.profile.profile(), point).as_ref()
+            != Some(policy)
+        || physical.expression_parse_context(None).native_syntax != policy.context.native_syntax
+    {
+        return None;
+    }
+    crate::mathfunc::native_function_dispatch(physical)
+}
+
+/// Original compilation entry selects evaluation and physical function lookup
+/// independently. A missing or foreign logical policy remains unavailable.
+#[must_use]
+pub fn compilation_expression_function_dispatch(
+    entry: &tcl_runtime_api::NativeCompilationEntry,
+) -> Option<crate::mathfunc::NativeMathFunctionDispatch> {
+    let policy = entry.expression_policy.as_ref()?;
+    if entry.invocation_policy != Some(policy.profile) {
+        return None;
+    }
+    expression_function_dispatch(
+        Some(policy),
+        InvocationDialect::of_point(entry.execution_point?),
+    )
+}
+
+/// Available expression emission, without pooling logical results as native
+/// C headers or inventing authored function registrations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExpressionProgramEmission {
+    /// Authentic native program with compatible evaluation policy.
+    Native,
+    /// Evaluate unchanged original bytes using the installed authored parser
+    /// and numeric capabilities. Implicit functions additionally require the
+    /// independently installed authored fixed-function provider.
+    AuthoredSource,
+    /// A required expression evaluation capability is absent or conflicts.
+    Unavailable,
+}
+
+fn authored_source_policy(
+    policy: &tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy,
+) -> bool {
+    use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
+    if policy.origin != ExpressionEvaluationOrigin::AuthoredTcl84Parser {
+        return false;
+    }
+    let Some(numeric) = policy.numeric_simulation else {
+        return false;
+    };
+    let mut expected = authored_expression_evaluation_policy(
+        policy.profile.profile(),
+        crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+        Some(numeric),
+    );
+    if let Some(expected) = &mut expected {
+        expected.authored_functions = policy.authored_functions;
+    }
+    expected.as_ref() == Some(policy)
+}
+
+/// Preserve a native pruning decision only when the separately installed
+/// evaluator accepts the same complete original predicate as the same Boolean.
+/// This compares pure policy recipes and grants no physical getter/header.
+#[must_use]
+pub fn expression_boolean_probe_matches(
+    probe: &crate::native_control_compilation::NativeControlBooleanProbe,
+    policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+    physical: InvocationDialect,
+) -> bool {
+    use tcl_syntax::scalar_getter::{NativeScalarGetterKind, NativeScalarGetterValue};
+    let Some(native) = physical
+        .native_scalar_getter_protocol()
+        .and_then(|protocol| {
+            protocol.fresh_conversion(NativeScalarGetterKind::Boolean, &probe.literal)
+        })
+    else {
+        return false;
+    };
+    if !matches!(native.outcome(), Ok(NativeScalarGetterValue::Boolean(value)) if value == probe.value)
+    {
+        return false;
+    }
+    if expression_function_dispatch(policy, physical).is_some() {
+        return true;
+    }
+    policy
+        .filter(|policy| authored_source_policy(policy))
+        .and_then(|policy| policy.numeric_simulation)
+        .and_then(|provider| {
+            provider
+                .parse_boolean(
+                    &probe.literal,
+                    tcl_syntax::logical_numeric_simulation::LogicalBooleanInputStage::BooleanValue,
+                )
+                .ok()
+        })
+        .is_some_and(|logical| logical.value() == probe.value)
+}
+
+/// Check every reached original pruning predicate, including false clauses
+/// absent from the instruction. No probe grants function or object authority.
+#[must_use]
+pub fn control_boolean_probes_match(
+    preparations: &[crate::native_control_compilation::NativeControlPreparationStep],
+    words: &NativeCompilerWords<'_>,
+    policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+    physical: InvocationDialect,
+) -> bool {
+    preparations.iter().all(|step| {
+        let crate::native_control_compilation::NativeControlPreparationStep::BooleanProbe(probe) =
+            step
+        else {
+            return true;
+        };
+        physical
+            .tcl_version
+            .is_some_and(|version| probe.matches_original(words, version))
+            && expression_boolean_probe_matches(probe, policy, physical)
+    })
+}
+
+/// A dynamic original source can use an installed evaluator. Function-table
+/// validation remains a separate reached obligation after source preparation.
+#[must_use]
+pub fn compilation_expression_source_evaluation_supported(
+    entry: &tcl_runtime_api::NativeCompilationEntry,
+) -> bool {
+    entry.expression_policy.as_ref().is_some_and(|policy| {
+        entry.execution_point.is_some()
+            && entry.invocation_policy == Some(policy.profile)
+            && (compilation_expression_function_dispatch(entry).is_some()
+                || authored_source_policy(policy))
+    })
+}
+
+/// Checked topology has no implicit function lookup or unrepresented raw node.
+/// This does not authenticate variables, command substitutions or evaluation.
+#[must_use]
+pub fn expression_tree_is_call_free<Text>(tree: &tcl_syntax::expr::ExprNode<Text>) -> bool {
+    use tcl_syntax::expr::ExprNode;
+    let mut pending = vec![tree];
+    while let Some(node) = pending.pop() {
+        match node {
+            ExprNode::Call { .. } | ExprNode::Raw { .. } => return false,
+            ExprNode::Unary { operand, .. } => pending.push(operand),
+            ExprNode::Binary { left, right, .. } => {
+                pending.push(left);
+                pending.push(right);
+            }
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => {
+                pending.extend([
+                    condition.as_ref(),
+                    true_branch.as_ref(),
+                    false_branch.as_ref(),
+                ]);
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// Select emission from original source and independently retained evaluation
+/// policy. Physical compiler visits still use the original native program.
+#[must_use]
+pub fn expression_program_emission(
+    program: &NativeExpressionProgram,
+    entry: &tcl_runtime_api::NativeCompilationEntry,
+) -> ExpressionProgramEmission {
+    let Some(policy) = entry
+        .expression_policy
+        .as_ref()
+        .filter(|policy| entry.invocation_policy == Some(policy.profile))
+    else {
+        return ExpressionProgramEmission::Unavailable;
+    };
+    let Some(point) = entry.execution_point else {
+        return ExpressionProgramEmission::Unavailable;
+    };
+    expression_program_emission_for_policy(
+        program,
+        Some(policy),
+        InvocationDialect::of_point(point),
+    )
+}
+
+/// Share emission selection with a runtime retaining its actual engine and
+/// policy directly. Missing engine or function capability remains unavailable.
+#[must_use]
+pub fn expression_program_emission_for_policy(
+    program: &NativeExpressionProgram,
+    policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+    physical: InvocationDialect,
+) -> ExpressionProgramEmission {
+    if physical.execution_point().is_none() {
+        return ExpressionProgramEmission::Unavailable;
+    }
+    if program.evaluation_policy_matches(policy, physical) {
+        return ExpressionProgramEmission::Native;
+    }
+    if let Some(policy) = policy.filter(|policy| authored_source_policy(policy))
+        && let CheckedExprParse::Parsed(tree) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
+                &program.source,
+                &policy.context,
+            )
+        && (expression_tree_is_call_free(&tree)
+            || crate::authored_math_functions::provider(policy).is_some())
+    {
+        return ExpressionProgramEmission::AuthoredSource;
+    }
+    ExpressionProgramEmission::Unavailable
+}
+
 /// Original expression program or selected executable syntax failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeExpressionTree {
@@ -80,6 +363,23 @@ pub fn native_expression_boolean_word84(bytes: &[u8]) -> bool {
 }
 
 impl NativeExpressionProgram {
+    /// Native emission requires a separately retained evaluator whose grammar
+    /// and numeric issuer agree with this physical preparation. A logical parser
+    /// alone cannot authorize C literal pooling, function lookup or body code.
+    #[must_use]
+    pub fn evaluation_policy_matches(
+        &self,
+        policy: Option<&tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
+        physical: InvocationDialect,
+    ) -> bool {
+        policy.is_some_and(|policy| {
+            expression_function_dispatch(Some(policy), physical).is_some()
+                && policy.context.native_syntax == self.context.native_syntax
+                && policy.context.expr_grammar_base == self.context.expr_grammar_base
+                && policy.context.f5_word_grammar == self.context.f5_word_grammar
+        })
+    }
+
     /// Visit original compiler syntax without parsing or rendering its tree.
     /// C8.4 fixed-function lookup precedes argument visits; later C compilers
     /// defer script/syntax failures to execution. The lookup must describe the
@@ -374,6 +674,287 @@ mod tests {
     use crate::native_compilation::{
         NativeExpressionCompilerStep as Step, NativeMathFunctionResolution as Resolution,
     };
+
+    #[test]
+    fn expression_evaluator_selects_actual_function_protocol_and_withdraws_foreign_policy() {
+        use crate::mathfunc::NativeMathFunctionDispatch;
+        use tcl_dialect::TclVersion;
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = InvocationDialect::for_version(version);
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let point = dialect.execution_point().unwrap();
+            let policy = native_expression_evaluation_policy(profile, point).unwrap();
+            assert_eq!(
+                expression_function_dispatch(Some(&policy), dialect),
+                Some(if version == TclVersion::V8_4 {
+                    NativeMathFunctionDispatch::FixedTable
+                } else {
+                    NativeMathFunctionDispatch::CommandTable
+                })
+            );
+            assert_eq!(
+                expression_program_emission_for_policy(
+                    &prepare("077+1", version),
+                    Some(&policy),
+                    dialect
+                ),
+                ExpressionProgramEmission::Native
+            );
+            assert_eq!(expression_function_dispatch(None, dialect), None);
+        }
+        let modern = InvocationDialect::for_version(TclVersion::V9_0);
+        let old = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let policy = native_expression_evaluation_policy(
+            old,
+            InvocationDialect::for_version(TclVersion::V8_4)
+                .execution_point()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(expression_function_dispatch(Some(&policy), modern), None);
+        assert!(
+            native_expression_evaluation_policy(
+                tcl_dialect::DialectProfile::irules(),
+                modern.execution_point().unwrap()
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn authored_expression_source_requires_installed_scalar_policy_and_no_implicit_calls() {
+        use crate::invocation_words::LogicalExpressionParseProvider;
+        use tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation;
+        let physical = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let profile = tcl_dialect::DialectProfile::irules();
+        let policy = authored_expression_evaluation_policy(
+            profile,
+            LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            Some(AuthoredLogicalNumericSimulation::Tcl84Core),
+        )
+        .unwrap();
+        for source in ["077+1", "$x+1", "0 && [set lazy 1]"] {
+            let program = prepare(source, tcl_dialect::TclVersion::V9_0);
+            assert_eq!(
+                expression_program_emission_for_policy(&program, Some(&policy), physical),
+                ExpressionProgramEmission::AuthoredSource
+            );
+            assert_eq!(
+                program.context.native_syntax,
+                tcl_syntax::expr::parser::NativeExprSyntax::Tcl(tcl_dialect::TclVersion::V9_0)
+            );
+            assert_eq!(program.source, source.as_bytes());
+        }
+        for source in ["abs(077)", "0 && abs([set skipped 1])", "\"a\" in {a b}"] {
+            assert_eq!(
+                expression_program_emission_for_policy(
+                    &prepare(source, tcl_dialect::TclVersion::V9_0),
+                    Some(&policy),
+                    physical
+                ),
+                ExpressionProgramEmission::Unavailable
+            );
+        }
+        let parser_only = authored_expression_evaluation_policy(
+            profile,
+            LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            None,
+        )
+        .unwrap();
+        let program = prepare("077+1", tcl_dialect::TclVersion::V9_0);
+        assert_eq!(
+            expression_program_emission_for_policy(&program, Some(&parser_only), physical),
+            ExpressionProgramEmission::Unavailable
+        );
+        assert_eq!(expression_function_dispatch(Some(&policy), physical), None);
+        assert_eq!(
+            expression_program_emission_for_policy(&program, None, physical),
+            ExpressionProgramEmission::Unavailable
+        );
+    }
+
+    fn control_probe_recipe(
+        source: &str,
+        grammar: crate::native_compilation::NativeCompilationGrammar,
+        version: tcl_dialect::TclVersion,
+    ) -> (
+        tcl_lexer::NativeScriptCommandWords,
+        crate::native_control_compilation::NativeControlCompilation<
+            crate::native_control_instructions::NativeControlInstruction,
+        >,
+    ) {
+        let dialect = InvocationDialect::for_version(version);
+        let image = tcl_lexer::SourceImage::native(source.as_bytes());
+        let command = tcl_lexer::native_script_words_in(
+            image.clone(),
+            Span::new(0, image.len().try_into().unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap()
+        .commands
+        .remove(0);
+        let captured = NativeCompilerWords::capture(
+            &command.words,
+            dialect.native_source_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let recipe = crate::native_control_instructions::native_control_instruction(
+            grammar,
+            &captured,
+            1,
+            dialect,
+            crate::native_compilation::NativeCompilationContext::default(),
+        )
+        .unwrap();
+        (command, recipe)
+    }
+
+    #[test]
+    fn original_boolean_probes_retain_omitted_false_clauses_and_masked_predicates() {
+        use crate::native_compilation::NativeCompilationGrammar as Grammar;
+        use crate::native_control_compilation::NativeControlPreparationStep as Visit;
+        let physical = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let policy = authored_expression_evaluation_policy(
+            tcl_dialect::DialectProfile::irules(),
+            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            Some(
+                tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
+            ),
+        )
+        .unwrap();
+        for (source, grammar, expected) in [
+            (
+                "if {0} {set omitted 1} elseif {1} {set reached 1}",
+                Grammar::Conditional,
+                vec![false, true],
+            ),
+            (
+                "if {1} {set reached 1} elseif {09} {set masked 1}",
+                Grammar::Conditional,
+                vec![true],
+            ),
+            ("while {1} {break}", Grammar::WhileLoop, vec![true]),
+            ("while {0} {set omitted 1}", Grammar::WhileLoop, vec![false]),
+        ] {
+            let (command, recipe) =
+                control_probe_recipe(source, grammar, tcl_dialect::TclVersion::V9_0);
+            let captured = NativeCompilerWords::capture(
+                &command.words,
+                physical.native_source_string_protocol().unwrap(),
+            )
+            .unwrap();
+            let values: Vec<_> = recipe
+                .preparations
+                .iter()
+                .filter_map(|visit| match visit {
+                    Visit::BooleanProbe(probe) => Some(probe.value),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(values, expected, "{source}");
+            assert!(
+                control_boolean_probes_match(
+                    &recipe.preparations,
+                    &captured,
+                    Some(&policy),
+                    physical
+                ),
+                "{source}"
+            );
+            assert_eq!(
+                recipe
+                    .preparations
+                    .iter()
+                    .filter(|visit| matches!(visit, Visit::Script { .. }))
+                    .count(),
+                usize::from(!source.starts_with("while {0}"))
+            );
+        }
+    }
+
+    #[test]
+    fn original_boolean_probes_refuse_changed_source_missing_policy_and_logical_number_mismatch() {
+        use crate::native_compilation::NativeCompilationGrammar as Grammar;
+        let physical = InvocationDialect::for_version(tcl_dialect::TclVersion::V9_0);
+        let profile = tcl_dialect::DialectProfile::irules();
+        let policy = authored_expression_evaluation_policy(
+            profile,
+            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            Some(
+                tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core,
+            ),
+        )
+        .unwrap();
+        for source in ["if {09} {set reached 1}", "if {0o10} {set reached 1}"] {
+            let (command, recipe) =
+                control_probe_recipe(source, Grammar::Conditional, tcl_dialect::TclVersion::V9_0);
+            let captured = NativeCompilerWords::capture(
+                &command.words,
+                physical.native_source_string_protocol().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                !control_boolean_probes_match(
+                    &recipe.preparations,
+                    &captured,
+                    Some(&policy),
+                    physical
+                ),
+                "{source}"
+            );
+        }
+        let (command, recipe) = control_probe_recipe(
+            "if {1} {set x 1}",
+            Grammar::Conditional,
+            tcl_dialect::TclVersion::V9_0,
+        );
+        let captured = NativeCompilerWords::capture(
+            &command.words,
+            physical.native_source_string_protocol().unwrap(),
+        )
+        .unwrap();
+        assert!(!control_boolean_probes_match(
+            &recipe.preparations,
+            &captured,
+            None,
+            physical
+        ));
+        let parser_only = authored_expression_evaluation_policy(
+            profile,
+            crate::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation,
+            None,
+        )
+        .unwrap();
+        assert!(!control_boolean_probes_match(
+            &recipe.preparations,
+            &captured,
+            Some(&parser_only),
+            physical
+        ));
+        let (changed, _) = control_probe_recipe(
+            "if {0} {set x 1}",
+            Grammar::Conditional,
+            tcl_dialect::TclVersion::V9_0,
+        );
+        let changed = NativeCompilerWords::capture(
+            &changed.words,
+            physical.native_source_string_protocol().unwrap(),
+        )
+        .unwrap();
+        assert!(!control_boolean_probes_match(
+            &recipe.preparations,
+            &changed,
+            Some(&policy),
+            physical
+        ));
+    }
 
     #[test]
     fn logical_recipe_requires_selected_c_syntax_and_preserves_numeric_literals() {

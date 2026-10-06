@@ -14,7 +14,9 @@ fn original_procedure_colon_names_match_all_18_native_home_and_error_controls() 
     let rows = include_str!("../../../tcl-syntax/tests/data/native_procedure_name/rows.txt");
     let decode = |text: &str| {
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect::<Vec<_>>()
     };

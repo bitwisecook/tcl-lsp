@@ -13,6 +13,15 @@ use tcl_dialect::TclVersion;
 /// Independently retained primary object representation.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NativeObjectCacheSnapshot {
+    /// Parsed native level number; this cache owns no frame or interpreter.
+    FrameReference {
+        /// Actual original C descriptor release.
+        version: TclVersion,
+        /// C8.5 relative offsets are resolved against each current frame chain.
+        relative: bool,
+        /// Original signed parsed offset or absolute level.
+        level: i32,
+    },
     /// Actual original instruction-name primary; metadata grants no execution.
     InstructionName {
         /// Selected original C descriptor release.

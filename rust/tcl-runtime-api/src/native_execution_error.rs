@@ -13,6 +13,8 @@ pub enum NativeExpressionRefusal {
     UnsupportedGrammar,
     /// Syntax definitely fails, but its exact native presentation is not proved.
     UnpresentedSyntaxFailure,
+    /// Original function topology has no independently installed dispatch policy.
+    FunctionDispatchPolicyUnavailable,
 }
 
 /// Immutable diagnostic context at the reached expression boundary.
@@ -115,6 +117,9 @@ impl std::fmt::Display for NativeExecutionError {
                 }
                 NativeExpressionRefusal::UnpresentedSyntaxFailure => {
                     "native expression provider required for error presentation"
+                }
+                NativeExpressionRefusal::FunctionDispatchPolicyUnavailable => {
+                    "expression function dispatch policy is unavailable"
                 }
             }),
         }

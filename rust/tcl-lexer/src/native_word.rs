@@ -472,7 +472,7 @@ mod tests {
                 br#"list "\\m([join $operators |])\\M""#.as_slice(),
                 br#"list "[set value]\\""#,
                 br#"list "[set value]\n""#,
-                br#"list prefix-[set value]"#,
+                br"list prefix-[set value]",
                 br#"list """#,
             ] {
                 let word = capture(source, 1, config);

@@ -291,6 +291,35 @@ fn logical_mathfunc(
     shared_math(name, &prepared, int_width, protocol, context.numbers)
 }
 
+pub(crate) fn invoke_authored_function(
+    vm: &mut Vm,
+    name: &str,
+    args: &[Value],
+) -> Completion<Value> {
+    let Some(provider) = vm.authored_math_provider() else {
+        return vm.refuse_host_command("authored fixed-function provider is unavailable".into());
+    };
+    let Some(arity) = tcl_registry::authored_math_functions::arity(provider, name) else {
+        return err(format!("unknown math function \"{name}\""));
+    };
+    if args.len() != arity {
+        return err(format!(
+            "too {} arguments for math function",
+            if args.len() < arity { "few" } else { "many" }
+        ));
+    }
+    if name == "rand" {
+        return vm.authored_math_random(None);
+    }
+    if name == "srand" {
+        return vm.authored_math_random(args.first());
+    }
+    let mut completion =
+        logical_mathfunc(vm, name, args, IntWidth::Windowed, NativeMathProtocol::Tcl);
+    completion.result = vm.format_authored_math_result(completion.result);
+    completion
+}
+
 /// Whether `v` is already an *integer* object — the operand class C's
 /// `Tcl_GetNumberFromObj` reports as `TCL_NUMBER_INT` or `TCL_NUMBER_BIG`.
 /// A double (even an integral one such as `4.0`) is not: C converts it, so it

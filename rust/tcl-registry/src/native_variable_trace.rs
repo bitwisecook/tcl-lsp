@@ -32,6 +32,27 @@ mod tests {
     use super::{NativeTraceStatePurpose as Purpose, NativeTraceStateRecipe as Recipe, *};
 
     #[test]
+    fn command_prefix_storage_reporting_removal_and_eval_extents_are_distinct() {
+        for version in TclVersion::ALL {
+            let protocol = NativeVariableTraceProtocol { version };
+            assert!(protocol.command_prefix_matches(b"cb\xff\0A", b"cb\xff\0B"));
+            assert!(!protocol.command_prefix_matches(b"cb\xff\0A", b"cb\xff\0BB"));
+            assert!(!protocol.command_prefix_matches(b"cb\xff\0A", b"cbx\0A"));
+            assert_eq!(protocol.command_prefix_report(b"cb\xff\0A"), b"cb\xff");
+            let script = b"cb\xff\0A target enter";
+            assert_eq!(protocol.command_callback_source(false, script), script);
+            assert_eq!(
+                protocol.command_callback_source(true, script),
+                if version <= TclVersion::V8_5 {
+                    b"cb\xff".as_slice()
+                } else {
+                    script
+                }
+            );
+        }
+    }
+
+    #[test]
     fn callback_purposes_select_native_result_and_metadata_ownership() {
         for version in [
             TclVersion::V8_4,
@@ -95,6 +116,33 @@ pub enum NativeTraceStateRecipe {
 }
 
 impl NativeVariableTraceProtocol {
+    /// Match the counted command/execution trace prefix with native `strncmp`.
+    /// Storage keeps every original byte; bytes after a common NUL do not
+    /// distinguish prefixes of the same counted length during removal.
+    #[must_use]
+    pub fn command_prefix_matches(self, retained: &[u8], original: &[u8]) -> bool {
+        retained.len() == original.len()
+            && tcl_core_types::c_string_extent(retained)
+                == tcl_core_types::c_string_extent(original)
+    }
+
+    /// `trace info` creates its prefix member with a `CString` constructor.
+    #[must_use]
+    pub fn command_prefix_report(self, retained: &[u8]) -> &[u8] {
+        tcl_core_types::c_string_extent(retained)
+    }
+
+    /// C8.4/8.5 execution traces use `Tcl_Eval`; command traces and later
+    /// execution traces pass the counted assembled script to `Tcl_EvalEx`.
+    #[must_use]
+    pub fn command_callback_source(self, execution: bool, source: &[u8]) -> &[u8] {
+        if execution && self.version <= TclVersion::V8_5 {
+            tcl_core_types::c_string_extent(source)
+        } else {
+            source
+        }
+    }
+
     /// Exact actual release, independently of the caller's source grammar.
     #[must_use]
     pub const fn version(self) -> TclVersion {

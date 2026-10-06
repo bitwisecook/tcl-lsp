@@ -696,9 +696,36 @@ mod tests {
         }
     }
 
-    #[test]
-    fn original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references() {
-        let names = include_str!("../../tests/data/native_borrowed_frame_slots/names.tsv")
+    fn install_original_name_providers(
+        vm: &mut Vm,
+        first: &[u8],
+        second: &[u8],
+        duplicate: bool,
+    ) -> Vec<Value> {
+        vm.register_native_command(
+            "originalA",
+            Rc::new(OriginalName(Value::from_native_string_bytes(
+                first.to_vec(),
+            ))),
+        );
+        vm.register_native_command(
+            "originalB",
+            Rc::new(OriginalName(Value::from_native_string_bytes(
+                second.to_vec(),
+            ))),
+        );
+        vm.register_native_command("originalBScript", Rc::new(OriginalScript(second.to_vec())));
+        let mut formals = vec![Value::from_native_string_bytes(first.to_vec())];
+        if duplicate {
+            formals.push(Value::from_native_string_bytes(second.to_vec()));
+        }
+        formals
+    }
+
+    type BorrowedSourceNames = std::collections::BTreeMap<&'static str, (Vec<u8>, Vec<u8>)>;
+
+    fn borrowed_source_names() -> BorrowedSourceNames {
+        include_str!("../../tests/data/native_borrowed_frame_slots/names.tsv")
             .lines()
             .map(|row| {
                 let mut fields = row.split('\t');
@@ -707,35 +734,70 @@ mod tests {
                     (unhex(fields.next().unwrap()), unhex(fields.next().unwrap())),
                 )
             })
-            .collect::<std::collections::BTreeMap<_, _>>();
+            .collect::<std::collections::BTreeMap<_, _>>()
+    }
+
+    fn borrowed_source_vm(
+        profile: &'static tcl_dialect::DialectProfile,
+        engine: &str,
+        case: &str,
+        receipt_start: std::time::Instant,
+    ) -> Vm {
+        let mut vm = Vm::new();
+        tcl_test_support::oracle_phase_progress(
+            "borrowed-source240",
+            engine,
+            case,
+            "vm-new-complete",
+            receipt_start,
+        );
+        vm.set_dialect_profile(profile);
+        tcl_test_support::oracle_phase_progress(
+            "borrowed-source240",
+            engine,
+            case,
+            "profile-complete",
+            receipt_start,
+        );
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm
+    }
+
+    const BORROWED_SOURCE_FIXTURES: [(&str, &str); 6] = [
+        (
+            "tcl8.4",
+            include_str!("../../tests/data/native_borrowed_frame_slots/8.4.20.tsv"),
+        ),
+        (
+            "tcl8.5",
+            include_str!("../../tests/data/native_borrowed_frame_slots/8.5.19.tsv"),
+        ),
+        (
+            "tcl8.6",
+            include_str!("../../tests/data/native_borrowed_frame_slots/8.6.18.tsv"),
+        ),
+        (
+            "tcl9.0",
+            include_str!("../../tests/data/native_borrowed_frame_slots/9.0.4.tsv"),
+        ),
+        (
+            "tcl9.1",
+            include_str!("../../tests/data/native_borrowed_frame_slots/9.1.0.tsv"),
+        ),
+        (
+            "jim",
+            include_str!("../../tests/data/native_borrowed_frame_slots/Jim.tsv"),
+        ),
+    ];
+
+    #[test]
+    fn original_eval_and_uplevel_sources_match_240_borrowed_slot_native_references() {
+        let names = borrowed_source_names();
         let body =
             unhex(include_str!("../../tests/data/native_borrowed_frame_slots/body.hex").trim());
-        let engines = [
-            (
-                "tcl8.4",
-                include_str!("../../tests/data/native_borrowed_frame_slots/8.4.20.tsv"),
-            ),
-            (
-                "tcl8.5",
-                include_str!("../../tests/data/native_borrowed_frame_slots/8.5.19.tsv"),
-            ),
-            (
-                "tcl8.6",
-                include_str!("../../tests/data/native_borrowed_frame_slots/8.6.18.tsv"),
-            ),
-            (
-                "tcl9.0",
-                include_str!("../../tests/data/native_borrowed_frame_slots/9.0.4.tsv"),
-            ),
-            (
-                "tcl9.1",
-                include_str!("../../tests/data/native_borrowed_frame_slots/9.1.0.tsv"),
-            ),
-            (
-                "jim",
-                include_str!("../../tests/data/native_borrowed_frame_slots/Jim.tsv"),
-            ),
-        ];
+        let engines = BORROWED_SOURCE_FIXTURES;
         let mut compared = 0;
         for (engine, expected) in engines {
             let rows = expected.lines().collect::<Vec<_>>();
@@ -755,43 +817,8 @@ mod tests {
                     "vm-new-start",
                     receipt_start,
                 );
-                let mut vm = Vm::new();
-                tcl_test_support::oracle_phase_progress(
-                    "borrowed-source240",
-                    engine,
-                    &case,
-                    "vm-new-complete",
-                    receipt_start,
-                );
-                vm.set_dialect_profile(profile);
-                tcl_test_support::oracle_phase_progress(
-                    "borrowed-source240",
-                    engine,
-                    &case,
-                    "profile-complete",
-                    receipt_start,
-                );
-                vm.set_compiler(Box::new(
-                    tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-                ));
-                vm.register_native_command(
-                    "originalA",
-                    Rc::new(OriginalName(Value::from_native_string_bytes(first.clone()))),
-                );
-                vm.register_native_command(
-                    "originalB",
-                    Rc::new(OriginalName(Value::from_native_string_bytes(
-                        second.clone(),
-                    ))),
-                );
-                vm.register_native_command(
-                    "originalBScript",
-                    Rc::new(OriginalScript(second.clone())),
-                );
-                let mut formals = vec![Value::from_native_string_bytes(first.clone())];
-                if duplicate {
-                    formals.push(Value::from_native_string_bytes(second.clone()));
-                }
+                let mut vm = borrowed_source_vm(profile, engine, &case, receipt_start);
+                let formals = install_original_name_providers(&mut vm, first, second, duplicate);
                 tcl_test_support::oracle_phase_progress(
                     "borrowed-source240",
                     engine,
@@ -963,26 +990,71 @@ mod tests {
         )
     }
 
+    fn check_unavailable_dictionary_searches() {
+        for engine in ["tcl8.4", "jim"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+            let protocol = tcl_registry::InvocationDialect::of_profile(profile)
+                .native_string_protocol()
+                .unwrap();
+            assert!(
+                Value::from_native_dictionary_cache(Vec::new())
+                    .into_native_dictionary_search(protocol)
+                    .is_err(),
+                "{engine}"
+            );
+        }
+    }
+
+    fn dictionary_epilogue_vm(
+        profile: &'static tcl_dialect::DialectProfile,
+        engine: &str,
+        case: &str,
+        receipt_start: std::time::Instant,
+    ) -> Vm {
+        let mut vm = Vm::new();
+        tcl_test_support::oracle_phase_progress(
+            "dictionary-epilogues35",
+            engine,
+            case,
+            "vm-new-complete",
+            receipt_start,
+        );
+        vm.set_dialect_profile(profile);
+        tcl_test_support::oracle_phase_progress(
+            "dictionary-epilogues35",
+            engine,
+            case,
+            "profile-complete",
+            receipt_start,
+        );
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm
+    }
+
+    const DICTIONARY_SEARCH_FIXTURES: [(&str, &str); 4] = [
+        (
+            "tcl8.5",
+            include_str!("../../tests/data/native_dictionary_search/8.5.19.tsv"),
+        ),
+        (
+            "tcl8.6",
+            include_str!("../../tests/data/native_dictionary_search/8.6.18.tsv"),
+        ),
+        (
+            "tcl9.0",
+            include_str!("../../tests/data/native_dictionary_search/9.0.4.tsv"),
+        ),
+        (
+            "tcl9.1",
+            include_str!("../../tests/data/native_dictionary_search/9.1.0.tsv"),
+        ),
+    ];
+
     #[test]
     fn original_dictionary_search_matches_100_native_storage_windows() {
-        let engines = [
-            (
-                "tcl8.5",
-                include_str!("../../tests/data/native_dictionary_search/8.5.19.tsv"),
-            ),
-            (
-                "tcl8.6",
-                include_str!("../../tests/data/native_dictionary_search/8.6.18.tsv"),
-            ),
-            (
-                "tcl9.0",
-                include_str!("../../tests/data/native_dictionary_search/9.0.4.tsv"),
-            ),
-            (
-                "tcl9.1",
-                include_str!("../../tests/data/native_dictionary_search/9.1.0.tsv"),
-            ),
-        ];
+        let engines = DICTIONARY_SEARCH_FIXTURES;
         let mut compared = 0;
         for (engine, expected) in engines {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
@@ -1071,18 +1143,44 @@ mod tests {
             }
         }
         assert_eq!(compared, 100);
-        for engine in ["tcl8.4", "jim"] {
-            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let protocol = tcl_registry::InvocationDialect::of_profile(profile)
-                .native_string_protocol()
-                .unwrap();
-            assert!(
-                Value::from_native_dictionary_cache(Vec::new())
-                    .into_native_dictionary_search(protocol)
-                    .is_err(),
-                "{engine}"
-            );
-        }
+        check_unavailable_dictionary_searches();
+    }
+
+    fn dictionary_callback_vm(
+        profile: &'static tcl_dialect::DialectProfile,
+        engine: &str,
+        case: &str,
+        add: bool,
+        receipt_start: std::time::Instant,
+    ) -> Vm {
+        let mut vm = Vm::new();
+        tcl_test_support::oracle_phase_progress(
+            "dictionary-callback14",
+            engine,
+            case,
+            "vm-new-complete",
+            receipt_start,
+        );
+        vm.set_dialect_profile(profile);
+        tcl_test_support::oracle_phase_progress(
+            "dictionary-callback14",
+            engine,
+            case,
+            "profile-complete",
+            receipt_start,
+        );
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        vm.register_native_command(
+            "advance",
+            crate::native_conformance::dictionary_search_mutation_driver(
+                tcl_registry::InvocationDialect::of_profile(profile),
+                add,
+            )
+            .unwrap(),
+        );
+        vm
     }
 
     #[test]
@@ -1123,33 +1221,7 @@ mod tests {
                         "vm-new-start",
                         receipt_start,
                     );
-                    let mut vm = Vm::new();
-                    tcl_test_support::oracle_phase_progress(
-                        "dictionary-callback14",
-                        engine,
-                        &case,
-                        "vm-new-complete",
-                        receipt_start,
-                    );
-                    vm.set_dialect_profile(profile);
-                    tcl_test_support::oracle_phase_progress(
-                        "dictionary-callback14",
-                        engine,
-                        &case,
-                        "profile-complete",
-                        receipt_start,
-                    );
-                    vm.set_compiler(Box::new(
-                        tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-                    ));
-                    vm.register_native_command(
-                        "advance",
-                        crate::native_conformance::dictionary_search_mutation_driver(
-                            tcl_registry::InvocationDialect::of_profile(profile),
-                            add,
-                        )
-                        .unwrap(),
-                    );
+                    let mut vm = dictionary_callback_vm(profile, engine, &case, add, receipt_start);
                     tcl_test_support::oracle_phase_progress(
                         "dictionary-callback14",
                         engine,
@@ -1195,7 +1267,9 @@ mod tests {
         assert_eq!(compared, 14);
     }
 
-    struct CaptureSearchReferences(Rc<std::cell::RefCell<Vec<(Vec<u8>, usize)>>>);
+    type SearchReferenceObservations = Rc<std::cell::RefCell<Vec<(Vec<u8>, usize)>>>;
+
+    struct CaptureSearchReferences(SearchReferenceObservations);
     impl NativeCommand for CaptureSearchReferences {
         fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             assert_eq!(args.len(), 2);
@@ -1231,25 +1305,7 @@ mod tests {
             "vm-new-start",
             receipt_start,
         );
-        let mut vm = Vm::new();
-        tcl_test_support::oracle_phase_progress(
-            "dictionary-epilogues35",
-            engine,
-            fields[0],
-            "vm-new-complete",
-            receipt_start,
-        );
-        vm.set_dialect_profile(profile);
-        tcl_test_support::oracle_phase_progress(
-            "dictionary-epilogues35",
-            engine,
-            fields[0],
-            "profile-complete",
-            receipt_start,
-        );
-        vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
+        let mut vm = dictionary_epilogue_vm(profile, engine, fields[0], receipt_start);
         let windows = Rc::new(std::cell::RefCell::new(Vec::new()));
         vm.register_native_command(
             "capture",
@@ -1379,11 +1435,13 @@ mod tests {
         let mut vm = Vm::new();
         let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
         vm.set_dialect_profile(profile);
-        let mut asm = tcl_bytecode::FunctionAsm::default();
-        asm.lvt = tcl_bytecode::LocalVarTable::from_native_names(&[
-            NameBytes::from("x"),
-            NameBytes::from("x"),
-        ]);
+        let asm = tcl_bytecode::FunctionAsm {
+            lvt: tcl_bytecode::LocalVarTable::from_native_names(&[
+                NameBytes::from("x"),
+                NameBytes::from("x"),
+            ]),
+            ..tcl_bytecode::FunctionAsm::default()
+        };
         let unit = vm.compiled_unit(
             Rc::new(asm.clone()),
             tcl_core_types::ByteNamespacePath::root(),

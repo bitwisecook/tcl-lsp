@@ -57,7 +57,7 @@ impl NativeCommand for Inspect {
                     .tokens()
                     .iter()
                     .rposition(|token| token.value.is_same_object(value))
-                    .map_or(-1, |index| index as i32);
+                    .map_or(-1, |index| i32::try_from(index).unwrap());
                 writeln!(
                     observer.rows,
                     "ARGV\t{case}\t{call}\t{index}\t{token}\t{}\t{}\t{}",
@@ -122,7 +122,7 @@ fn original_script_execution_matches_51_native_callback_windows() {
         b"inspect {*} {X Y}",
         b"inspect pre${v}post",
     ];
-    let mut observed = String::new();
+    let mut transcript = String::new();
     for (case, source) in sources.into_iter().enumerate() {
         let mut vm = Vm::new();
         vm.set_dialect_profile(
@@ -147,7 +147,7 @@ fn original_script_execution_matches_51_native_callback_windows() {
             .unwrap();
         let script = backing.ordinary().unwrap();
         writeln!(
-            observed,
+            transcript,
             "BEFORE\t{case}\t{}\t{}\t{}\t{}",
             script.objects.tokens().len(),
             script.objects.missing.map_or(32, i32::from),
@@ -169,13 +169,13 @@ fn original_script_execution_matches_51_native_callback_windows() {
         // after Rust completion transport ownership has left the window.
         drop(completion);
         let observer = observer.borrow();
-        observed.push_str(&observer.rows);
+        transcript.push_str(&observer.rows);
         let same = matches!(&*parent.0.intrep.borrow(),IntRep::JimScript(header) if Rc::ptr_eq(&header.0,&backing));
         let empty = vm
             .with_native_interp_result(|result| result.is_same_object(&context.empty_object()))
             .unwrap();
         writeln!(
-            observed,
+            transcript,
             "AFTER\t{case}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             code.as_int(),
             observer.calls,
@@ -190,5 +190,5 @@ fn original_script_execution_matches_51_native_callback_windows() {
     let expected =
         include_str!("../../tcl-syntax/testdata/native_jim_script_execution/eval_observations.tsv");
     assert_eq!(expected.lines().count(), 51);
-    assert_eq!(observed, expected);
+    assert_eq!(transcript, expected);
 }

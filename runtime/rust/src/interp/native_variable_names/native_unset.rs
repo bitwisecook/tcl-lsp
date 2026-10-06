@@ -486,6 +486,14 @@ mod tests {
                 );
                 let expected = format!("{}\t{}", columns[2], columns[3]);
                 let mut interp = interpreter(engine);
+                if engine == "jim" {
+                    assert_eq!(interp.eval_str(b"unset"), Code::Ok);
+                    assert_eq!(interp.result_bytes(), b"");
+                    assert!(!interp.host_refusal_pending());
+                    // The native observer runs under jimsh's binary extension;
+                    // that distribution-owned script is absent from core entry.
+                    crate::cmd_binary::install(&mut interp);
+                }
                 assert_eq!(
                     interp.eval_str(observed.as_bytes()),
                     Code::Ok,

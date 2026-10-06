@@ -18,7 +18,7 @@ fn native_jim_core_keeps_only_constructor_empty_roles() {
         assert_eq!(
             result.native_object_identity(),
             empty.native_object_identity()
-        )
+        );
     });
     assert_eq!(empty.native_object_reference_count(), 4);
     assert!(vm.lookup_command("binary").is_none());

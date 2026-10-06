@@ -1,0 +1,16 @@
+abs-octal 0 63 NONE
+sqrt 0 3.0 NONE
+pow 0 8.0 NONE
+int-window 0 4294967297 NONE
+wide 0 4294967297 NONE
+double 0 63.0 NONE
+round 0 3 NONE
+domain 1 {domain error: argument not in valid range} NONE
+unknown 1 {unknown math function "future"} NONE
+few 1 {too few arguments for math function} NONE
+many 1 {too many arguments for math function} NONE
+effect 0 7 -7
+lazy 0 0 NONE
+lazy-unknown 1 {unknown math function "future"} NONE
+newer 1 {unknown math function "entier"} NONE
+renamed-public 0 4 NONE

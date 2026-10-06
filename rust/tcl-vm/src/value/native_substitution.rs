@@ -128,7 +128,11 @@ mod tests {
     };
 
     fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        bytes.iter().fold(String::new(), |mut output, byte| {
+            use std::fmt::Write as _;
+            write!(output, "{byte:02x}").unwrap();
+            output
+        })
     }
     fn kind(kind: tcl_lexer::JimScriptTokenKind) -> i32 {
         match kind {
@@ -179,98 +183,155 @@ mod tests {
             value.with_native_jim_dictionary_substitution(with).unwrap();
         }
     }
-    #[test]
-    fn original_substitution_storage_matches_205_native_windows() {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
-            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
-        );
-        let context = vm.native_jim_object_context().unwrap();
-        let config = vm.lexer_config();
-        let protocol = NativeStringProtocol::Jim084;
-        let sources: [&[u8]; 4] = [
-            b"a\n$k[set x X]\\n{q};z",
-            b"A\0B$k[set x X]",
-            b"${x\ny}P\nQ",
-            b"d($k)",
-        ];
-        let mut observed = String::new();
-        for (case, source) in sources.into_iter().enumerate() {
-            for flags in 0..8 {
-                let filename = Value::new_native_string_bytes(b"FILE".as_slice());
-                let original = Value::new_native_string_bytes(source);
-                original
-                    .install_native_jim_source(
-                        super::super::NativeJimSourceInfo {
-                            filename: filename.clone(),
-                            line: 7,
-                        },
-                        &context,
-                    )
-                    .unwrap();
-                writeln!(
-                    observed,
-                    "BEFORE\t{case}\t{flags}\t{}\t{}\t{}",
-                    native_type(&original),
-                    original.native_object_reference_count(),
-                    filename.native_object_reference_count()
-                )
-                .unwrap();
-                let backing = original
-                    .prepare_native_jim_substitution(&context, config, flags)
-                    .unwrap();
-                let JimScriptStorage::Substitution {
-                    objects,
-                    filename: script_file,
-                } = &backing.storage
-                else {
-                    panic!("fresh Subst storage")
-                };
-                writeln!(
-                    observed,
-                    "SUBST\t{case}\t{flags}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                    native_type(&original),
-                    objects.tokens().len(),
-                    objects.flags,
-                    backing.in_use.get(),
-                    usize::from(script_file.is_same_object(&context.empty_object())),
-                    filename.native_object_reference_count(),
-                    original.native_object_reference_count()
-                )
-                .unwrap();
-                for (index, token) in objects.tokens().iter().enumerate() {
-                    let bytes = token.value.resident_string_bytes().unwrap();
-                    writeln!(
-                        observed,
-                        "TOKEN\t{case}\t{flags}\t{index}\t{}\t{}\t{}\t{}\t{}",
-                        kind(token.kind),
-                        native_type(&token.value),
-                        token.value.native_object_reference_count(),
-                        bytes.len(),
-                        hex(&bytes)
-                    )
-                    .unwrap();
-                }
-                let duplicate = original.duplicate_native_object_in(protocol);
-                writeln!(
-                    observed,
-                    "DUP\t{case}\t{flags}\t{}\t{}\t{}",
-                    native_type(&duplicate),
-                    usize::from(duplicate.resident_string_bytes().is_some()),
-                    filename.native_object_reference_count()
-                )
-                .unwrap();
-                drop(duplicate);
-                drop(original);
-                drop(backing);
-                writeln!(
-                    observed,
-                    "RETIRE\t{case}\t{flags}\t{}",
-                    filename.native_object_reference_count()
-                )
-                .unwrap();
-            }
+    fn observe_substitution_input(
+        case: usize,
+        source: &[u8],
+        flags: u8,
+        context: &Rc<NativeJimObjectContext>,
+        config: tcl_lexer::LexerConfig,
+        observed: &mut String,
+    ) {
+        let filename = Value::new_native_string_bytes(b"FILE".as_slice());
+        let original = Value::new_native_string_bytes(source);
+        original
+            .install_native_jim_source(
+                super::super::NativeJimSourceInfo {
+                    filename: filename.clone(),
+                    line: 7,
+                },
+                context,
+            )
+            .unwrap();
+        writeln!(
+            observed,
+            "BEFORE\t{case}\t{flags}\t{}\t{}\t{}",
+            native_type(&original),
+            original.native_object_reference_count(),
+            filename.native_object_reference_count()
+        )
+        .unwrap();
+        let backing = original
+            .prepare_native_jim_substitution(context, config, flags)
+            .unwrap();
+        let JimScriptStorage::Substitution {
+            objects,
+            filename: script_file,
+        } = &backing.storage
+        else {
+            panic!("fresh Subst storage")
+        };
+        writeln!(
+            observed,
+            "SUBST\t{case}\t{flags}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            native_type(&original),
+            objects.tokens().len(),
+            objects.flags,
+            backing.in_use.get(),
+            usize::from(script_file.is_same_object(&context.empty_object())),
+            filename.native_object_reference_count(),
+            original.native_object_reference_count()
+        )
+        .unwrap();
+        for (index, token) in objects.tokens().iter().enumerate() {
+            let bytes = token.value.resident_string_bytes().unwrap();
+            writeln!(
+                observed,
+                "TOKEN\t{case}\t{flags}\t{index}\t{}\t{}\t{}\t{}\t{}",
+                kind(token.kind),
+                native_type(&token.value),
+                token.value.native_object_reference_count(),
+                bytes.len(),
+                hex(&bytes)
+            )
+            .unwrap();
         }
+        let duplicate = original.duplicate_native_object_in(NativeStringProtocol::Jim084);
+        writeln!(
+            observed,
+            "DUP\t{case}\t{flags}\t{}\t{}\t{}",
+            native_type(&duplicate),
+            usize::from(duplicate.resident_string_bytes().is_some()),
+            filename.native_object_reference_count()
+        )
+        .unwrap();
+        drop(duplicate);
+        drop(original);
+        drop(backing);
+        writeln!(
+            observed,
+            "RETIRE\t{case}\t{flags}\t{}",
+            filename.native_object_reference_count()
+        )
+        .unwrap();
+    }
+
+    fn observe_dictionary_windows(
+        vm: &mut Vm,
+        context: &Rc<NativeJimObjectContext>,
+        observed: &mut String,
+        filename: &Value,
+        tokens: &[Value],
+        index: &Value,
+    ) {
+        let value = Value::new_native_string_bytes(b"d(KEY)".as_slice());
+        value
+            .install_native_jim_interpolated(&tokens[0], index, context)
+            .unwrap();
+        children(
+            observed,
+            "interpolated",
+            &value,
+            filename,
+            &tokens[0],
+            index,
+            true,
+        );
+        let duplicate = value.duplicate_native_object_in(NativeStringProtocol::Jim084);
+        children(
+            observed,
+            "interpolated-duplicate",
+            &duplicate,
+            filename,
+            &tokens[0],
+            index,
+            true,
+        );
+        drop(duplicate);
+        value
+            .ensure_native_jim_dictionary_substitution(context)
+            .unwrap();
+        children(
+            observed,
+            "dict-converted",
+            &value,
+            filename,
+            &tokens[0],
+            index,
+            false,
+        );
+        let result = vm
+            .expand_native_jim_dictionary_substitution(&value)
+            .unwrap();
+        writeln!(
+            observed,
+            "EXPAND\t1\t{}\t{}\t{}",
+            native_type(&value),
+            filename.native_object_reference_count(),
+            hex(&result.resident_string_bytes().unwrap())
+        )
+        .unwrap();
+        drop(result);
+        children(
+            observed, "expanded", &value, filename, &tokens[0], index, false,
+        );
+        drop(value);
+    }
+
+    fn observe_original_dictionary(
+        vm: &mut Vm,
+        context: &Rc<NativeJimObjectContext>,
+        observed: &mut String,
+    ) {
         let setup =
             Value::new_native_string_bytes(b"set k KEY; set d [dict create KEY VALUE]".as_slice());
         assert_eq!(
@@ -295,7 +356,7 @@ mod tests {
                     filename: filename.clone(),
                     line: 7,
                 },
-                &context,
+                context,
             )
             .unwrap();
         let index = vm.read_original_named_variable(&tokens[2]).unwrap();
@@ -310,64 +371,7 @@ mod tests {
             filename.native_object_reference_count()
         )
         .unwrap();
-        let value = Value::new_native_string_bytes(b"d(KEY)".as_slice());
-        value
-            .install_native_jim_interpolated(&tokens[0], index, &context)
-            .unwrap();
-        children(
-            &mut observed,
-            "interpolated",
-            &value,
-            &filename,
-            &tokens[0],
-            index,
-            true,
-        );
-        let duplicate = value.duplicate_native_object_in(protocol);
-        children(
-            &mut observed,
-            "interpolated-duplicate",
-            &duplicate,
-            &filename,
-            &tokens[0],
-            index,
-            true,
-        );
-        drop(duplicate);
-        value
-            .ensure_native_jim_dictionary_substitution(&context)
-            .unwrap();
-        children(
-            &mut observed,
-            "dict-converted",
-            &value,
-            &filename,
-            &tokens[0],
-            index,
-            false,
-        );
-        let result = vm
-            .expand_native_jim_dictionary_substitution(&value)
-            .unwrap();
-        writeln!(
-            observed,
-            "EXPAND\t1\t{}\t{}\t{}",
-            native_type(&value),
-            filename.native_object_reference_count(),
-            hex(&result.resident_string_bytes().unwrap())
-        )
-        .unwrap();
-        drop(result);
-        children(
-            &mut observed,
-            "expanded",
-            &value,
-            &filename,
-            &tokens[0],
-            index,
-            false,
-        );
-        drop(value);
+        observe_dictionary_windows(vm, context, observed, &filename, &tokens, index);
         drop(tokens);
         writeln!(
             observed,
@@ -375,6 +379,29 @@ mod tests {
             filename.native_object_reference_count()
         )
         .unwrap();
+    }
+
+    #[test]
+    fn original_substitution_storage_matches_205_native_windows() {
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+        );
+        let context = vm.native_jim_object_context().unwrap();
+        let config = vm.lexer_config();
+        let sources: [&[u8]; 4] = [
+            b"a\n$k[set x X]\\n{q};z",
+            b"A\0B$k[set x X]",
+            b"${x\ny}P\nQ",
+            b"d($k)",
+        ];
+        let mut observed = String::new();
+        for (case, source) in sources.into_iter().enumerate() {
+            for flags in 0..8 {
+                observe_substitution_input(case, source, flags, &context, config, &mut observed);
+            }
+        }
+        observe_original_dictionary(&mut vm, &context, &mut observed);
         let original = Value::new_native_string_bytes(b"set x 1".as_slice());
         let ordinary = original
             .prepare_native_jim_script(&context, config)

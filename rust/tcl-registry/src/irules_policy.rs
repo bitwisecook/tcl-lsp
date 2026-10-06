@@ -163,10 +163,72 @@ pub fn rule_loader_refuses(command: &str, realm: tcl_dialect::model::InvocationR
         && irules_disabled_class(command) == Some(IrulesDisabledClass::CompilerRefused)
 }
 
+/// Explicit appliance measurement selection for original rule-source loading.
+/// It issues no physical Tcl implementation, parser, ABI or compiler capability.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MeasuredIrulesLoaderProfile {
+    /// BIG-IP 21.1.0.1, build 0.0.26, Point Release 1, one group/four TMMs.
+    BigIp21_1_0_1Build0_0_26,
+}
+
+/// Build-scoped rule-source findings, independent of runtime value support.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MeasuredIrulesSourceRefusal {
+    /// The measured configuration parser rejects an original literal NUL byte.
+    LiteralNulRejected,
+    /// Original non-ASCII source has no supported accepted loader domain here.
+    /// This does not claim rejection of every Unicode source or normalization.
+    NonAsciiUnsupported,
+}
+
+impl MeasuredIrulesLoaderProfile {
+    /// Classify original rule-source bytes at the explicitly selected loader.
+    /// Runtime values and native parser/ABI capabilities remain independent.
+    #[must_use]
+    pub fn original_source_refusal(self, source: &[u8]) -> Option<MeasuredIrulesSourceRefusal> {
+        match self {
+            Self::BigIp21_1_0_1Build0_0_26 => {
+                if source.contains(&0) {
+                    Some(MeasuredIrulesSourceRefusal::LiteralNulRejected)
+                } else if !source.is_ascii() {
+                    Some(MeasuredIrulesSourceRefusal::NonAsciiUnsupported)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tcl_dialect::model::{Family, SurfaceQuery, surface_admits};
+
+    #[test]
+    fn measured_loader_bytes_do_not_define_runtime_name_or_object_policy() {
+        let profile = MeasuredIrulesLoaderProfile::BigIp21_1_0_1Build0_0_26;
+        for source in [
+            b"when HTTP_REQUEST {set x A\0B}".as_slice(),
+            "when HTTP_REQUEST {set x é}".as_bytes(),
+            "when HTTP_REQUEST {set x e\u{301}}".as_bytes(),
+        ] {
+            assert!(profile.original_source_refusal(source).is_some());
+        }
+        assert!(
+            profile
+                .original_source_refusal(b"when HTTP_REQUEST {set x [binary format H* 410042]}")
+                .is_none()
+        );
+        assert!(
+            profile
+                .original_source_refusal(
+                    b"when HTTP_REQUEST {set x {A\\
+B}}"
+                )
+                .is_none()
+        );
+    }
 
     /// The §4b split is exact: 16 + 15 disjoint commands, together the
     /// §5 31-command disabled list.

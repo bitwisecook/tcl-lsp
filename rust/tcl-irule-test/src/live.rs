@@ -55,6 +55,28 @@ const FRAMEWORK_FILES: &[&str] = &[
     "orchestrator.tcl",
 ];
 
+/// Purpose-specific original-source findings for an explicit appliance profile.
+/// Dynamic runtime evaluation never consumes this loader-policy receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuleLoaderRefusal {
+    /// Original byte classification; unsupported is distinct from measured rejection.
+    OriginalBytes {
+        /// Explicit measured appliance/build selection.
+        profile: tcl_registry::irules_policy::MeasuredIrulesLoaderProfile,
+        /// Build-scoped original byte finding.
+        finding: tcl_registry::irules_policy::MeasuredIrulesSourceRefusal,
+    },
+    /// Existing shared analyser rule-loader diagnostic on the original source.
+    OriginalPolicy {
+        /// Explicit measured appliance/build selection.
+        profile: tcl_registry::irules_policy::MeasuredIrulesLoaderProfile,
+        /// Shared diagnostic classification, not a guessed guest error code.
+        code: tcl_compiler::analyser::types::DiagCode,
+        /// Original source-policy explanation.
+        message: String,
+    },
+}
+
 /// A session failure, keeping guest text, host refusal and Unicode projection
 /// separate. Use [`LiveSession::eval_completion`] for byte-valued guest results
 /// and their original completion options.
@@ -64,6 +86,8 @@ pub enum SessionError {
     MissingLib(String),
     /// A Tcl evaluation returned an error completion (the message is the result).
     Eval(String),
+    /// Original load-phase refusal, distinct from guest runtime completion.
+    LoaderPolicy(RuleLoaderRefusal),
     /// A host execution refusal, outside guest Tcl completion.
     Execution(NativeExecutionError),
     /// The textual session API cannot represent the original result bytes.
@@ -75,6 +99,7 @@ impl std::fmt::Display for SessionError {
         match self {
             Self::MissingLib(p) => write!(f, "iRule-test library not found: {p}"),
             Self::Eval(m) => write!(f, "orchestrator error: {m}"),
+            Self::LoaderPolicy(reason) => write!(f, "original rule load refused: {reason:?}"),
             Self::Execution(error) => write!(f, "execution refused: {error}"),
             Self::Projection(error) => error.fmt(f),
         }
@@ -109,6 +134,7 @@ impl Write for Capture {
 pub struct LiveSession {
     vm: Vm,
     output: Rc<RefCell<Vec<u8>>>,
+    measured_loader: Option<tcl_registry::irules_policy::MeasuredIrulesLoaderProfile>,
 }
 
 impl LiveSession {
@@ -125,7 +151,15 @@ impl LiveSession {
             return Err(SessionError::MissingLib(lib_dir.display().to_string()));
         }
         let output = Rc::new(RefCell::new(Vec::new()));
-        let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
+        let host_profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+        let mut vm = Vm::with_native_core(
+            Box::new(Capture(Rc::clone(&output))),
+            Rc::new(tcl_vm::host_native::NativeHost::new()),
+            host_profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("explicit C9 core bootstrap");
         // Source grammar remains the measured F5 dialect. The surrounding
         // host needs modern control machinery for persistent flow frames;
         // tmm_shim restricts the commands visible during event execution.
@@ -135,8 +169,6 @@ impl LiveSession {
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
         ));
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
-        let host_profile =
-            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         // This simulator explicitly supplies a C9 host engine. Its F5 source
         // grammar and logical event policies remain separate from that physical
         // engine; broad command visibility alone never selects it.
@@ -162,6 +194,12 @@ impl LiveSession {
         assert!(vm.set_logical_compiled_variable_provider(
             tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider::Tcl84CoreSimulation,
         ));
+        assert!(vm.set_logical_math_function_provider(Some(
+            tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider::Tcl84Core,
+        )));
+        assert!(vm.set_logical_package_provider(Some(
+            tcl_registry::native_package::AuthoredPackageProvider::Tcl84Core,
+        )));
         vm.install_irules_timer_simulation();
         vm.install_irules_static_simulation();
         for (alias, native) in [
@@ -170,7 +208,11 @@ impl LiveSession {
         ] {
             assert!(vm.register_framework_builtin(alias, native, host_profile));
         }
-        let mut session = Self { vm, output };
+        let mut session = Self {
+            vm,
+            output,
+            measured_loader: None,
+        };
         session.bootstrap(lib_dir)?;
         session.eval_host_initialization("::tmm::_static_enroll")?;
         session.eval_host_initialization("::orch::init")?;
@@ -284,6 +326,7 @@ impl LiveSession {
     /// # Errors
     /// Propagates an orchestrator/compile error.
     pub fn load_irule(&mut self, source: &str) -> Result<(), SessionError> {
+        self.validate_original_rule_source(source)?;
         self.eval(&format!("::orch::load_irule {}", list_element(source)))
             .map(|_| ())
     }
@@ -294,7 +337,62 @@ impl LiveSession {
     /// # Errors
     /// Propagates an orchestrator/compile error.
     pub fn load_rule(&mut self, rule: &crate::session::RuleSource) -> Result<(), SessionError> {
+        self.validate_original_rule_source(&rule.source)?;
         self.eval(&rule.load_command()).map(|_| ())
+    }
+
+    /// Select build-specific original loader checks independently of runtime
+    /// evaluation and of the simulator's physical host capabilities.
+    pub fn set_measured_loader_profile(
+        &mut self,
+        profile: Option<tcl_registry::irules_policy::MeasuredIrulesLoaderProfile>,
+    ) {
+        self.measured_loader = profile;
+    }
+
+    fn validate_original_rule_source(&self, source: &str) -> Result<(), SessionError> {
+        let Some(profile) = self.measured_loader else {
+            return Ok(());
+        };
+        if let Some(finding) = profile.original_source_refusal(source.as_bytes()) {
+            return Err(SessionError::LoaderPolicy(
+                RuleLoaderRefusal::OriginalBytes { profile, finding },
+            ));
+        }
+        use tcl_compiler::analyser::types::DiagCode;
+        let result = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        if let Some(diagnostic) = result.diagnostics.iter().find(|diagnostic| {
+            matches!(
+                diagnostic.code,
+                DiagCode::Irule2004 | DiagCode::Irule5005 | DiagCode::Irule5006
+            )
+        }) {
+            return Err(SessionError::LoaderPolicy(
+                RuleLoaderRefusal::OriginalPolicy {
+                    profile,
+                    code: diagnostic.code,
+                    message: diagnostic.message.clone(),
+                },
+            ));
+        }
+        Ok(())
+    }
+
+    /// Recreate one explicitly named rule. Its procedure/handler owners retire,
+    /// its new initializers run on each worker, and shared static cells remain.
+    ///
+    /// # Errors
+    /// Requires an explicit identity and propagates loader/execution failures.
+    pub fn replace_rule(&mut self, rule: &crate::session::RuleSource) -> Result<(), SessionError> {
+        self.validate_original_rule_source(&rule.source)?;
+        let identity = rule.identity.as_ref().ok_or_else(|| {
+            SessionError::Eval("rule replacement requires explicit ownership".into())
+        })?;
+        self.eval(&format!(
+            "::itest::unload_rule {}",
+            list_element(identity.as_path())
+        ))?;
+        self.load_rule(rule)
     }
 
     /// Run one HTTP request through the configured flow (`::orch::run_http_request`
@@ -416,6 +514,7 @@ mod tests {
         let mut session = LiveSession {
             vm: Vm::new(),
             output: Rc::default(),
+            measured_loader: None,
         };
         session.vm.set_compiler(Box::new(Svc::default()));
         session.vm.register("byte_error", byte_error);
@@ -444,6 +543,7 @@ mod tests {
         let mut session = LiveSession {
             vm: Vm::new(),
             output: Rc::default(),
+            measured_loader: None,
         };
         assert!(matches!(
             session.eval_completion("set reached 1"),
@@ -1395,6 +1495,56 @@ mod tests {
     }
 
     #[test]
+    fn authored_functions_keep_independent_worker_random_and_precision_contexts() {
+        let mut session = LiveSession::embedded().expect("framework");
+        assert_eq!(session.eval("expr {abs(077)}").unwrap(), "63");
+        assert_eq!(session.eval("expr {sqrt(2)}").unwrap(), "1.41421356237");
+        session
+            .eval("::orch::configure_tests -tmm_count 2")
+            .unwrap();
+        let worker0 = "::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 0]";
+        let worker1 = "::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 1]";
+        assert_eq!(
+            session
+                .eval(&format!("{worker0} {{expr {{srand(1)}}}}"))
+                .unwrap(),
+            "7.82636925943e-06"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "7.82636925943e-06"
+        );
+        assert_eq!(
+            session
+                .eval(&format!(
+                    "{worker0} {{set tcl_precision 4;expr {{sqrt(2)}}}}"
+                ))
+                .unwrap(),
+            "1.414"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{sqrt(2)}}}}"))
+                .unwrap(),
+            "1.41421356237"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker0} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "0.1315"
+        );
+        assert_eq!(
+            session
+                .eval(&format!("{worker1} {{expr {{rand()}}}}"))
+                .unwrap(),
+            "0.131537788143"
+        );
+    }
+
+    #[test]
     fn rule_init_uses_each_workers_global_cells_once() {
         let mut session = LiveSession::embedded().expect("framework");
         session
@@ -1778,6 +1928,110 @@ mod tests {
     }
 
     #[test]
+    fn rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 4")
+            .unwrap();
+        let a = RuleSource::named(
+            RuleIdentity::new("/Common/a").unwrap(),
+            "when RULE_INIT {set static::collision INIT_A}; when HTTP_REQUEST {set static::event A}",
+        );
+        let b = RuleSource::named(
+            RuleIdentity::new("/Common/b").unwrap(),
+            "when RULE_INIT {set static::collision INIT_B}; when HTTP_REQUEST {set static::event B}",
+        );
+        session.load_rule(&a).unwrap();
+        session.load_rule(&b).unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_B"
+            );
+        }
+        session.eval("::orch::tmm_select 2; ::tmm::_orig_interp eval [lindex $::orch::_tmm_interpreters 2] {unset ::static::collision; set ::static::collision EVENT}").unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                if worker == 2 { "EVENT" } else { "INIT_B" }
+            );
+        }
+        session.replace_rule(&a).unwrap();
+        for worker in 0..4 {
+            session
+                .eval(&format!("::orch::tmm_select {worker}"))
+                .unwrap();
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_A"
+            );
+        }
+        session.replace_rule(&b).unwrap();
+        for worker in 0..4 {
+            assert_eq!(
+                session
+                    .eval(&format!("::orch::tmm_get_static {worker} collision"))
+                    .unwrap(),
+                "INIT_B"
+            );
+        }
+    }
+
+    #[test]
+    fn measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands() {
+        use tcl_registry::irules_policy::MeasuredIrulesLoaderProfile;
+        let mut session = LiveSession::embedded().expect("framework");
+        session.set_measured_loader_profile(Some(
+            MeasuredIrulesLoaderProfile::BigIp21_1_0_1Build0_0_26,
+        ));
+        for source in [
+            "when HTTP_REQUEST {namespace eval N {}}",
+            "when HTTP_REQUEST {interp slaves}",
+            "when HTTP_REQUEST {package provide Tcl}",
+            "when HTTP_REQUEST {rename missing moved}",
+            "proc same {} {return A}; when HTTP_REQUEST {same}",
+            "when HTTP_REQUEST {proc p {} {return x}}",
+            "when HTTP_REQUEST {set x é}",
+            "when HTTP_REQUEST {set x e\u{301}}",
+            "when HTTP_REQUEST {set x A\0B}",
+        ] {
+            assert!(session.load_irule(source).is_err(), "{source}");
+        }
+        session
+            .load_irule(
+                r#"when HTTP_REQUEST {
+            set n [list namespace eval ::probe {set n 11}]
+            set p [list package provide Tcl]
+            set q [list namespace path]
+            set static::measured [list [eval $n] [eval $p] [catch {eval $q} message] $message]
+        }"#,
+            )
+            .unwrap();
+        assert!(
+            !session
+                .fire_event("HTTP_REQUEST")
+                .unwrap()
+                .contains("code 1")
+        );
+        let result = session.eval("set ::static::measured").unwrap();
+        assert!(result.starts_with("11 8.4 1 "), "{result}");
+        assert!(result.contains("bad option"), "{result}");
+        assert!(
+            session
+                .eval("::tmm::_orig_package provide Tcl")
+                .unwrap()
+                .starts_with("9.0")
+        );
+    }
+
+    #[test]
     fn named_rules_keep_procedures_owned_and_route_call_without_extra_frames() {
         use crate::session::{RuleIdentity, RuleSource};
         let mut session = LiveSession::embedded().expect("framework");
@@ -1846,8 +2100,8 @@ mod tests {
             session
                 .eval("list [::orch::tmm_get_static 0 calls] [::orch::tmm_get_static 1 calls]")
                 .unwrap(),
-            "0 1",
-            "the second worker's RULE_INIT publishes a new static seed"
+            "1 1",
+            "selection does not rerun rule-creation initialisation"
         );
         let duplicate = RuleSource::named(RuleIdentity::new("/Common/folder/first").unwrap(), "");
         assert!(

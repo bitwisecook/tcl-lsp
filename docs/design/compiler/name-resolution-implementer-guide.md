@@ -2872,6 +2872,8 @@ CFG command replay projects the unanimous immutable entry baseline from its reta
 
 Procedure declarations also have an entry grammar. `native_procedure::procedure_definition_body_policy` selects `OriginalBracedLiteral` for an F5 rule-loader declaration and `EvaluatedValue` for a native interpreter entry. Check the original body word through the shared `NativeCompilationWordShape`; parser recovery and expansion remain unknown. This policy is separate from procedure header compilation, formal binding, runtime body entry and package availability. A quoted Tcl script can be a runtime procedure body without becoming a file-level iRule declaration.
 
+Physical procedure creation uses the independently installed engine. The VM selects declaration capture order, original body sharing/copying and procedure-header compilation through `actual_native_invocation_dialect`; logical naming, formal grammar and expression policies remain separate. Inspect sharing on the original body before acquiring a temporary owner, then compile the chosen original or genuine copied body. An authored Tcl 8.4 naming policy on a C9 host does not select a C8.4 header or activation. Missing physical engine evidence retains a host refusal; a vendor compatibility label cannot supply it. Test the same original formal/body objects under different logical policies, including shared body copies and absent-engine negatives.
+
 Diagnostic flow follows retained `EvaluatedBodyRegion` phases and the registry's `PossibleBodyTopology`. A possible body preserves the unchanged incoming path. A captured catch phase routes its abrupt Tcl completion to the continuation through its typed `RegionTarget::Exit`; it must not be recognised by a written command name. Nested payload getters retain their exact command-substitution tokens and parent dispatch proof even when a normal assignment remains a generic call.
 
 Body reconstruction requires agreement on the original parent, effective
@@ -2932,7 +2934,8 @@ measurement or compiler grant. Availability alone cannot install that provider.
 
 The simulator explicitly installs a C9 physical engine. Only framework sourcing
 and initialization use `try_eval_native_host_source` to activate its logical C9
-host policy; source grammar stays F5 and user policy is restored on return.
+host policy and source grammar. The configured user dialect remains F5; its
+source grammar and logical policy are restored on return.
 `NativeCompilerPolicy` retains the physical engine, logical handler profile and
 explicit quote, numeric and name providers in cache receipts. Both fast and plain source
 caches validate original entries; reusable procedure bodies recompile when their
@@ -3718,8 +3721,8 @@ receipts. Current numeric objects use the separately authored current-number
 Boolean stage; current NaN truth differs from fresh BooleanValue spelling.
 
 An explicit framework host activation selects the host expression grammar and
-logical host numeric policy for that activation. It retains the independent
-source-script lexer and restores F5 expression grammar and simulation on return.
+logical host numeric policy and source-script lexer for that activation. It
+restores F5 source and expression grammar and simulation on return.
 `host_activation_preserves_separate_authored_numeric_and_expression_policies`
 contrasts legacy octal/wide/UTF16 behavior with host C9 decimal/bignum/scalar
 behavior; `authored_numeric_provider_is_explicit_and_scoped_to_logical_activations`
@@ -5097,3 +5100,145 @@ target separately uses normal Link lookup and cache rules. An actual C8.5+
 dynamic or namespace key birth retains the same original unqualified local
 operand, or a fresh tail header when qualified. A compiled local slot owns no
 hash key. Neither pure projection creates a native cache or an actual alias cell.
+
+### Keep expression evaluation separate from physical compilation
+
+The runtime captures `ExpressionEvaluationPolicy` in
+`NativeCompilationEntry.expression_policy` inside the selected activation. Its
+issuer, profile, checked parser context and optional numeric simulation are
+independent of `execution_point`, original compiler registrations and
+`math_functions`. A supplied entry with no expression policy remains incomplete;
+consumers must not reconstruct it from the catalogue or physical compiler point.
+Host activation selects its own policy and source grammar and restores the
+configured user policy on return. Entry comparison and compiler caches include
+the retained policy.
+
+Use the Registry queries for each purpose:
+
+| Purpose | Shared query | Consumer obligation |
+| --- | --- | --- |
+| Prepare original native syntax | `prepare_native_expression_program` | Preserve the original counted bytes, operand, span and physical parser context. |
+| Select expression emission | `expression_program_emission` | Distinguish `Native`, `AuthoredSource` and `Unavailable`; do not pool authored results as native compiler literals. |
+| Admit dynamic original-source evaluation | `compilation_expression_source_evaluation_supported` | Retain the installed evaluator; function resolution remains a reached, independent obligation. |
+| Select a function protocol | `expression_function_dispatch` or `compilation_expression_function_dispatch` | Retain the actual fixed table or command lookup required by that protocol. Parser and numeric providers grant neither. |
+| Select an authored fixed function | `authored_math_functions::provider`, `arity`, `prepare` | Require the separately installed authored function capability and preserve checked call topology and operand order. |
+
+`AuthoredSource` uses unchanged expression bytes through `EXPR_STK`, under
+explicitly installed parser and numeric capabilities. The checked logical tree
+must contain no unsupported raw node. A checked function call additionally
+requires the independent `AuthoredMathFunctionProvider`; parser and numeric
+capabilities alone do not admit it. This route
+does not authenticate variables, substitutions, native object representations or
+F5 function registrations. Physical compiler preparation and its dependencies
+remain separate. An unavailable capability is a typed refusal, not a Tcl syntax
+or missing-command result.
+
+Exercise both installed and missing policy, the same physical host with distinct
+logical policies, host restoration, child inheritance and cache withdrawal.
+Keep real C Tcl and Jim observations separate from authored F5 simulation and
+measured appliance results.
+
+`AuthoredMathFunctionProvider::Tcl84Core` supplies the checked Tcl 8.4 core
+function set through original-source evaluation. It grants no native fixed-table
+registration, `CALL_BUILTIN_FUNC` admission or native result representation.
+Installation requires the authored Tcl 8.4 parser and numeric policies. Use
+`Vm::set_logical_math_function_provider` to install or withdraw it; that operation
+invalidates captured compilation and evaluation caches.
+
+Each actual interpreter owns its authored random stream and double-formatting
+context. The initial seed of one and precision of twelve are explicit,
+reproducible simulation choices. They are not measurements of automatic C Tcl
+or BIG-IP initialisation. A double uses the current precision when first rendered
+and retains that String afterwards. TMM recreation creates fresh interpreter
+state; equal worker display names do not identify the same owner. Host activation
+uses its installed native core and restores the user policy on return.
+
+Tests must cover capability installation and withdrawal, original argument
+evaluation, rejected calls, formatting before and after precision changes,
+independent interpreter streams, and native host restoration. Compare the
+function and conversion behaviour with real Tcl 8.4 while keeping authored
+state initialisation and appliance observations explicitly separate.
+
+### Preserve conditional declaration-body ownership
+
+An original procedure declaration can retain lexical operand layouts even when
+its installation is unknown. `DeclaredProcedureBody` owns its original source,
+position, candidate, typed publication slot, formal parameters and namespace.
+It is independent of an installed command allocation or entered body.
+
+Consumers obtain this information through the existing declaration-layout advice
+queries. They must keep it conditional: it supplies no runtime target, alias
+cell, successful argument evaluation, normal completion or compiler admission.
+Successor collection stops when substituted operands, changed lookup or unknown
+effects prevent retention of the original lookup context. Explicit replacement
+controls must withdraw the affected advice; an installed body keeps its separate
+receipt.
+
+### Select original compiler registration independently of runtime members
+
+Use the captured original registration and the Registry's
+`native_compilation_for_original_registration` query for physical compiler
+selection. A monolithic command compiler receives its unchanged full source
+word vector, including the member selector. A resolved runtime member can have
+different release availability, compiler dependencies and body semantics.
+Keep those member facts for their own runtime purposes; they cannot replace the
+original root compiler. An unknown compiler hook still requires a provider.
+
+Preserve indexed original `WordExpr` operands through native argument emitters.
+Reparsing an unpositioned substitution does not recreate its original source
+coordinates. Nested words retain their enclosing `Source`, `Derived` or
+`Opaque` provenance; only genuinely positioned source words may read bytes from
+the retained original source image. Test nested and quoted substitutions,
+options and repeated operands, including an opaque-source negative.
+
+### Keep fresh activation contents separate from outward contents
+
+`VariableBindings::enter_called_frame` establishes the contents world of an
+actual fresh procedure or receiver-method activation. Parameters are defined;
+other ordinary locals can be absent even when outward namespace contents are
+unknown. This closure applies only to the selected activation's local keys.
+It supplies no knowledge of globals, enclosing frames or namespace variables.
+
+Alias resolution precedes this projection. Unknown dynamic writes, callbacks,
+incompatible joins and frame restoration withdraw or conservatively combine
+the retained closure. A conditional declaration-body preview does not issue a
+fresh activation. Test defined parameters, absent locals, upvar links, unknown
+writes, callback withdrawal and differing frame identities. Negative fixtures
+must explicitly supply an unknown entry: convenience analysis entry points
+author a fresh source-entry contract.
+
+### Resolve cached frame levels against the current caller chain
+
+The native `levelReference` primary stores a parsed numeric level, not a frame
+pointer or interpreter identity. C Tcl 8.5 can cache relative and absolute levels;
+8.6–9.1 cache absolute levels. Tcl 8.4 has no such primary. Each use selects its
+target from the current caller variable-frame chain. A missing, retired or
+replaced frame must therefore be reconsidered even when the operand retains its
+cache. Moving the same operand to another interpreter does not retain its old
+target.
+
+`NativeObjectCacheSnapshot::FrameReference` exposes only the actual release, relative
+flag and level. Check the original header's lifetime and selected release before
+using it. The native descriptor's free, duplicate, String-update and
+set-from-any hooks are NULL; payload transport must preserve those facts without
+inventing reference owners or a frame-generation stamp.
+
+Test the same operand before and after entering, retiring and replacing a target
+frame, across interpreters, after duplication and after releasing the original.
+Keep foreign-release and retired-header refusals separate from ordinary Tcl
+frame-selection errors.
+
+### Export guest completions without changing their original owners
+
+At byte-valued engine and browser boundaries, preserve the original guest
+completion and its counted result bytes, including embedded NUL and non-Unicode
+bytes. A Unicode presentation boundary must use the fallible Unicode accessor.
+Host refusals remain host failures; terminal presentation cannot manufacture a
+guest completion or guest error code.
+
+When extracting `-errorcode` from completion options, borrow members of an
+existing dictionary primary. Converting that same dictionary to a list changes
+its primary and child owners. The selected list path remains appropriate for
+original list options; String presentation is a separate, reached operation.
+Test original stringless dictionaries, original member identities and ownership,
+raw guest bytes, and missing native issuers before materialisation.

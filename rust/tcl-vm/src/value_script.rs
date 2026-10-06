@@ -258,7 +258,9 @@ mod tests {
             return Vec::new();
         }
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
@@ -272,6 +274,155 @@ mod tests {
             _ => panic!("unexpected measured Script primary"),
         }
     }
+    fn observe_script_tokens(
+        observed: &mut String,
+        case: &str,
+        backing: &NativeJimScript,
+        filename: &Value,
+    ) {
+        for (index, token) in backing
+            .ordinary()
+            .unwrap()
+            .objects
+            .tokens()
+            .iter()
+            .enumerate()
+        {
+            let kind = match token.kind {
+                JimScriptObjectKind::Line { .. } => 9,
+                JimScriptObjectKind::Word(_) => 10,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Escaped) => 2,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::String) => 1,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Variable) => 3,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::IndexedVariable) => 4,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Command) => 5,
+                JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Expression) => 17,
+                JimScriptObjectKind::Source(_) => panic!("unexpected real native Script token"),
+            };
+            let resident = token.value.resident_string_bytes();
+            write!(
+                observed,
+                "TOKEN\t{case}\t{index}\t{kind}\t{}\t{}\t{}\t{}",
+                primary(&token.value),
+                usize::from(resident.is_some()),
+                resident
+                    .as_ref()
+                    .map_or(-1, |bytes| i64::try_from(bytes.len()).unwrap()),
+                token.value.native_object_reference_count()
+            )
+            .unwrap();
+            match &*token.value.0.intrep.borrow() {
+                IntRep::JimScriptLine { argc, line } => writeln!(observed, "\t{argc}\t{line}"),
+                IntRep::Int(count) => writeln!(observed, "\t{count}\t-"),
+                IntRep::JimSource(source) => writeln!(
+                    observed,
+                    "\t{}\t{}",
+                    usize::from(source.info.filename.is_same_object(filename)),
+                    source.info.line
+                ),
+                _ => panic!("unexpected measured cache"),
+            }
+            .unwrap();
+        }
+    }
+
+    fn observe_script_input(
+        case: &str,
+        hex: &str,
+        dialect: tcl_registry::InvocationDialect,
+        config: tcl_lexer::LexerConfig,
+        observed: &mut String,
+    ) {
+        let context = NativeJimObjectContext::new(dialect).unwrap();
+        let filename = Value::new_native_string_bytes(b"FILE".as_slice());
+        let original = Value::new_native_string_bytes(decode(hex).as_slice());
+        original
+            .install_native_jim_source(
+                NativeJimSourceInfo {
+                    filename: filename.clone(),
+                    line: 7,
+                },
+                &context,
+            )
+            .unwrap();
+        writeln!(
+            observed,
+            "SOURCE\t{case}\t{}\t{}",
+            filename.native_object_reference_count(),
+            original.native_object_reference_count()
+        )
+        .unwrap();
+        let backing = original
+            .prepare_native_jim_script(&context, config)
+            .unwrap();
+        writeln!(
+            observed,
+            "SCRIPT\t{case}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            backing.ordinary().unwrap().objects.tokens().len(),
+            backing.ordinary().unwrap().first_line,
+            backing.ordinary().unwrap().linenr.get(),
+            backing
+                .ordinary()
+                .unwrap()
+                .objects
+                .missing
+                .map_or(32, i32::from),
+            backing.in_use.get(),
+            usize::from(
+                backing
+                    .ordinary()
+                    .unwrap()
+                    .filename
+                    .is_same_object(&filename)
+            ),
+            filename.native_object_reference_count(),
+            usize::from(original.resident_string_bytes().is_some())
+        )
+        .unwrap();
+        observe_script_tokens(observed, case, &backing, &filename);
+        let duplicate = original
+            .duplicate_native_object_in(tcl_syntax::native_string::NativeStringProtocol::Jim084);
+        writeln!(
+            observed,
+            "DUP\t{case}\t{}\t{}\t{}\t{}",
+            primary(&duplicate),
+            usize::from(duplicate.resident_string_bytes().is_some()),
+            duplicate.resident_string_bytes().unwrap().len(),
+            filename.native_object_reference_count()
+        )
+        .unwrap();
+        for (index, token) in backing
+            .ordinary()
+            .unwrap()
+            .objects
+            .tokens()
+            .iter()
+            .enumerate()
+            .filter(|(_, token)| matches!(token.kind, JimScriptObjectKind::Line { .. }))
+        {
+            let duplicate = token.value.duplicate_native_object_in(
+                tcl_syntax::native_string::NativeStringProtocol::Jim084,
+            );
+            writeln!(
+                observed,
+                "LINE_DUP\t{case}\t{index}\t{}\t{}\t{}",
+                primary(&duplicate),
+                usize::from(duplicate.resident_string_bytes().is_some()),
+                duplicate.resident_string_bytes().unwrap().len()
+            )
+            .unwrap();
+        }
+        drop(backing);
+        drop(original);
+        drop(duplicate);
+        writeln!(
+            observed,
+            "RETIRED\t{case}\t{}",
+            filename.native_object_reference_count()
+        )
+        .unwrap();
+    }
+
     #[test]
     fn original_script_storage_matches_156_native_windows() {
         let dialect = tcl_registry::InvocationDialect::of_profile(
@@ -288,140 +439,7 @@ mod tests {
             include_str!("../../tcl-syntax/testdata/native_jim_script_objects/inputs.tsv").lines()
         {
             let (case, hex) = input.split_once('\t').unwrap();
-            let context = NativeJimObjectContext::new(dialect).unwrap();
-            let filename = Value::new_native_string_bytes(b"FILE".as_slice());
-            let original = Value::new_native_string_bytes(decode(hex).as_slice());
-            original
-                .install_native_jim_source(
-                    NativeJimSourceInfo {
-                        filename: filename.clone(),
-                        line: 7,
-                    },
-                    &context,
-                )
-                .unwrap();
-            writeln!(
-                observed,
-                "SOURCE\t{case}\t{}\t{}",
-                filename.native_object_reference_count(),
-                original.native_object_reference_count()
-            )
-            .unwrap();
-            let backing = original
-                .prepare_native_jim_script(&context, config)
-                .unwrap();
-            writeln!(
-                observed,
-                "SCRIPT\t{case}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
-                backing.ordinary().unwrap().objects.tokens().len(),
-                backing.ordinary().unwrap().first_line,
-                backing.ordinary().unwrap().linenr.get(),
-                backing
-                    .ordinary()
-                    .unwrap()
-                    .objects
-                    .missing
-                    .map_or(32, i32::from),
-                backing.in_use.get(),
-                usize::from(
-                    backing
-                        .ordinary()
-                        .unwrap()
-                        .filename
-                        .is_same_object(&filename)
-                ),
-                filename.native_object_reference_count(),
-                usize::from(original.resident_string_bytes().is_some())
-            )
-            .unwrap();
-            for (index, token) in backing
-                .ordinary()
-                .unwrap()
-                .objects
-                .tokens()
-                .iter()
-                .enumerate()
-            {
-                let kind = match token.kind {
-                    JimScriptObjectKind::Line { .. } => 9,
-                    JimScriptObjectKind::Word(_) => 10,
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Escaped) => 2,
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::String) => 1,
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Variable) => 3,
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::IndexedVariable) => {
-                        4
-                    }
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Command) => 5,
-                    JimScriptObjectKind::Source(tcl_lexer::JimScriptTokenKind::Expression) => 17,
-                    _ => panic!("unexpected real native Script token"),
-                };
-                let resident = token.value.resident_string_bytes();
-                write!(
-                    observed,
-                    "TOKEN\t{case}\t{index}\t{kind}\t{}\t{}\t{}\t{}",
-                    primary(&token.value),
-                    usize::from(resident.is_some()),
-                    resident
-                        .as_ref()
-                        .map_or(-1, |bytes| i64::try_from(bytes.len()).unwrap()),
-                    token.value.native_object_reference_count()
-                )
-                .unwrap();
-                match &*token.value.0.intrep.borrow() {
-                    IntRep::JimScriptLine { argc, line } => writeln!(observed, "\t{argc}\t{line}"),
-                    IntRep::Int(count) => writeln!(observed, "\t{count}\t-"),
-                    IntRep::JimSource(source) => writeln!(
-                        observed,
-                        "\t{}\t{}",
-                        usize::from(source.info.filename.is_same_object(&filename)),
-                        source.info.line
-                    ),
-                    _ => panic!("unexpected measured cache"),
-                }
-                .unwrap();
-            }
-            let duplicate = original.duplicate_native_object_in(
-                tcl_syntax::native_string::NativeStringProtocol::Jim084,
-            );
-            writeln!(
-                observed,
-                "DUP\t{case}\t{}\t{}\t{}\t{}",
-                primary(&duplicate),
-                usize::from(duplicate.resident_string_bytes().is_some()),
-                duplicate.resident_string_bytes().unwrap().len(),
-                filename.native_object_reference_count()
-            )
-            .unwrap();
-            for (index, token) in backing
-                .ordinary()
-                .unwrap()
-                .objects
-                .tokens()
-                .iter()
-                .enumerate()
-                .filter(|(_, token)| matches!(token.kind, JimScriptObjectKind::Line { .. }))
-            {
-                let duplicate = token.value.duplicate_native_object_in(
-                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                );
-                writeln!(
-                    observed,
-                    "LINE_DUP\t{case}\t{index}\t{}\t{}\t{}",
-                    primary(&duplicate),
-                    usize::from(duplicate.resident_string_bytes().is_some()),
-                    duplicate.resident_string_bytes().unwrap().len()
-                )
-                .unwrap();
-            }
-            drop(backing);
-            drop(original);
-            drop(duplicate);
-            writeln!(
-                observed,
-                "RETIRED\t{case}\t{}",
-                filename.native_object_reference_count()
-            )
-            .unwrap();
+            observe_script_input(case, hex, dialect, config, &mut observed);
         }
         let context = NativeJimObjectContext::new(dialect).unwrap();
         let backing = context

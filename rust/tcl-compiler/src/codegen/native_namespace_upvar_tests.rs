@@ -18,6 +18,92 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[test]
+fn monolithic_namespace_compiler_owns_original_member_coordinates() {
+    use tcl_registry::native_compilation::NativeCompilationSelection;
+    use tcl_runtime_api::{CompileService, ScriptCompileTargetBytes};
+
+    let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
+    let entry = crate::environment_ingress::captured_native_entry(profile);
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+    let service = crate::compile_service::BytecodeCompileService::for_profile(profile);
+    for source in [
+        b"namespace eval ::n {}".as_slice(),
+        b"namespace eval ::n {set x \"}",
+    ] {
+        let image = SourceImage::native(source);
+        let analysis = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            std::str::from_utf8(source).unwrap(),
+            LexerConfig::from_grammar(profile.grammar),
+            registry,
+            crate::compile_service::BytecodeCompileService::native_entry_options(
+                &entry,
+                Some(profile),
+            ),
+        );
+        let tokens = analysis.invocation_at_source("namespace", 0);
+        assert_eq!(
+            tokens.native_compilation_admission_selection(),
+            NativeCompilationSelection::Generic
+        );
+        assert!(!analysis.native_compilation_provider_required_at(0));
+        let compiled = service
+            .compile_script_bytes_with_entry(
+                ScriptCompileTargetBytes {
+                    source: &image,
+                    namespace: &tcl_runtime_api::ByteNamespacePath::root(),
+                },
+                profile,
+                &entry,
+            )
+            .expect("the original namespace compiler declines eval before its body is entered");
+        assert_eq!(
+            compiled.top_level.native_compilation_preflight,
+            tcl_runtime_api::NativeCompilationPreflight::NotRequired
+        );
+        assert!(
+            compiled
+                .top_level
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.op, Op::INVOKE_STK1 | Op::INVOKE_STK4))
+        );
+        assert!(
+            !compiled
+                .top_level
+                .instructions
+                .iter()
+                .any(|instruction| instruction.op == Op::NSUPVAR)
+        );
+    }
+    let image = SourceImage::native(b"namespace eval ::n {}".as_slice());
+    let mut unknown = entry.clone();
+    let selected = unknown
+        .commands
+        .iter_mut()
+        .find(|binding| {
+            binding
+                .compiler
+                .as_ref()
+                .is_some_and(|compiler| compiler.registry_identity == "namespace")
+        })
+        .unwrap();
+    selected.compiler_hook =
+        tcl_runtime_api::native_compilation::NativeCompilerHookPresence::Unknown;
+    assert!(
+        service
+            .compile_script_bytes_with_entry(
+                ScriptCompileTargetBytes {
+                    source: &image,
+                    namespace: &tcl_runtime_api::ByteNamespacePath::root(),
+                },
+                profile,
+                &unknown,
+            )
+            .is_err()
+    );
+}
+
+#[test]
 fn original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback() {
     let profile = tcl_dialect::DialectProfile::find("tcl8.5").unwrap();
     let registry = CommandRegistry::build_default().project_for_profile(profile);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Original Jim GetEnum windows from the pinned native producer.
+//! Original Jim `GetEnum` windows from the pinned native producer.
 use super::*;
 use tcl_core_types::NativeJimOptionCache;
 use tcl_registry::native_jim_enum::NativeJimEnumFlags;
@@ -7,7 +7,43 @@ const WORDS: &[&str] = &["provide", "present", "--"];
 const OTHER: &[&str] = &["present", "provide"];
 const BOGUS: &[&str] = &["bogus"];
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        use std::fmt::Write;
+        write!(output, "{byte:02x}").expect("writing into a String");
+        output
+    })
+}
+
+fn original_enum_target(stage: &str) -> Option<Value> {
+    match stage {
+        "abbrev-errmsg"
+        | "exact-miss-different-flags"
+        | "abbrev-noerrmsg-different-flags"
+        | "changed-table"
+        | "cached-absent" => None,
+        "fresh-empty" => Some(Value::new_native_string_bytes(b"".as_slice())),
+        "fresh--" => Some(Value::new_native_string_bytes(b"-".as_slice())),
+        "fresh-p" => Some(Value::new_native_string_bytes(b"p".as_slice())),
+        "fresh-bogus" | "compared-failed" => {
+            Some(Value::new_native_string_bytes(b"bogus".as_slice()))
+        }
+        "fresh---" => Some(Value::new_native_string_bytes(b"--".as_slice())),
+        "counted-nul-exact" => Some(Value::new_native_string_bytes(b"provide\0x".as_slice())),
+        "compared-exact" => Some(Value::new_native_string_bytes(b"provide".as_slice())),
+        "numeric-failed" => Some(Value::int(42)),
+        _ => panic!("unrecognised native stage {stage}"),
+    }
+}
+
+fn original_enum_flags(stage: &str) -> NativeJimEnumFlags {
+    NativeJimEnumFlags(match stage {
+        "exact-miss-different-flags"
+        | "counted-nul-exact"
+        | "compared-exact"
+        | "compared-failed" => 1,
+        "abbrev-noerrmsg-different-flags" | "changed-table" | "cached-absent" => 2,
+        _ => 3,
+    })
 }
 
 #[test]
@@ -30,24 +66,7 @@ fn original_jim_enum_matches_all_native_14_windows() {
         let fields: Vec<_> = row.split('\t').collect();
         assert_eq!(fields.len(), 9);
         let stage = fields[0];
-        let target = match stage {
-            "abbrev-errmsg"
-            | "exact-miss-different-flags"
-            | "abbrev-noerrmsg-different-flags"
-            | "changed-table"
-            | "cached-absent" => None,
-            "fresh-empty" => Some(Value::new_native_string_bytes(b"".as_slice())),
-            "fresh--" => Some(Value::new_native_string_bytes(b"-".as_slice())),
-            "fresh-p" => Some(Value::new_native_string_bytes(b"p".as_slice())),
-            "fresh-bogus" | "compared-failed" => {
-                Some(Value::new_native_string_bytes(b"bogus".as_slice()))
-            }
-            "fresh---" => Some(Value::new_native_string_bytes(b"--".as_slice())),
-            "counted-nul-exact" => Some(Value::new_native_string_bytes(b"provide\0x".as_slice())),
-            "compared-exact" => Some(Value::new_native_string_bytes(b"provide".as_slice())),
-            "numeric-failed" => Some(Value::int(42)),
-            _ => panic!("unrecognised native stage {stage}"),
-        };
+        let target = original_enum_target(stage);
         let target = target.as_ref().unwrap_or(&original);
         if stage == "cached-absent" {
             target.invalidate_native_string_for_test();
@@ -71,14 +90,7 @@ fn original_jim_enum_matches_all_native_14_windows() {
         } else {
             &table
         };
-        let flags = NativeJimEnumFlags(match stage {
-            "exact-miss-different-flags"
-            | "counted-nul-exact"
-            | "compared-exact"
-            | "compared-failed" => 1,
-            "abbrev-noerrmsg-different-flags" | "changed-table" | "cached-absent" => 2,
-            _ => 3,
-        });
+        let flags = original_enum_flags(stage);
         let before = target.resident_string_bytes();
         let outcome = backend
             .native_jim_enum_from_original(target, selected, flags, None)
@@ -169,7 +181,8 @@ fn original_interpreter_two_table_errors_match_all_native_15_windows() {
             assert_eq!(
                 cache
                     .as_ref()
-                    .map_or(-1, |entry| entry.0.index() as i64)
+                    .map_or(-1, |entry| i64::try_from(entry.0.index())
+                        .expect("native index fits i64"))
                     .to_string(),
                 fields[3]
             );

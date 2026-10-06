@@ -61,6 +61,45 @@ impl NativeJimLookupProtocol {
         Ok(message)
     }
 
+    /// `JimDictSugarSet` reports the original indexed operand after a failed
+    /// removal. Its final `JIM_NONE` parent getter, rather than the failed
+    /// dictionary conversion, distinguishes an absent parent from a missing
+    /// member of any existing parent (including a malformed dictionary).
+    ///
+    /// # Errors
+    /// Preserves an unavailable original diagnostic projection.
+    pub fn dictionary_unset_error(
+        self,
+        original: &[u8],
+        parent_exists: bool,
+    ) -> Result<Vec<u8>, crate::naming::NameProjectionUnavailable> {
+        use crate::naming::{
+            NativeNameProtocol, NativeVariableDiagnosticOperation as Operation,
+            NativeVariableDiagnosticReason as Reason, NativeVariableFailureSite as Site,
+            NativeVariableInputForm as Input, report_native_variable_diagnostic_at,
+        };
+        let diagnostic = report_native_variable_diagnostic_at(
+            NativeNameProtocol::Jim084,
+            Operation::Unset,
+            // Obtain this purpose's original combined operand extent. The
+            // generic NotArray reporter describes an existing malformed root;
+            // JimDictSugarSet's final getter supplies a separate existence fact.
+            Reason::NoSuchElement,
+            Site::ValueUnset,
+            Input::Combined(original),
+        )?;
+        let mut message = b"can't unset \"".to_vec();
+        message.extend_from_slice(&diagnostic.name);
+        message.extend_from_slice(b"\": ");
+        let reason = if parent_exists {
+            Reason::NoSuchElement
+        } else {
+            Reason::NotArray
+        };
+        message.extend_from_slice(reason.message().as_bytes());
+        Ok(message)
+    }
+
     /// Pure pinned recipe, independently of any live interpreter.
     #[must_use]
     pub const fn jim084() -> Self {
@@ -120,6 +159,19 @@ impl NativeJimLookupProtocol {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn indexed_unset_uses_the_final_parent_getter_category() {
+        let protocol = NativeJimLookupProtocol::jim084();
+        assert_eq!(
+            protocol.dictionary_unset_error(b"a(FIRST)", false).unwrap(),
+            b"can't unset \"a(FIRST)\": variable isn't array"
+        );
+        assert_eq!(
+            protocol.dictionary_unset_error(b"a(FIRST)", true).unwrap(),
+            b"can't unset \"a(FIRST)\": no such element in array"
+        );
+    }
 
     #[test]
     fn original_native_lookup_outcomes_match_retained_cache_guards() {

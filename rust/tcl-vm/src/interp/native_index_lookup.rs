@@ -441,28 +441,90 @@ mod tests {
         assert!(numeric.native_scalar_cache().is_some());
     }
 
+    fn check_original_index_window(
+        vm: &mut Vm,
+        target: &Value,
+        table: &NativeStaticIndexTable,
+        flags: tcl_core_types::NativeIndexLookupFlags,
+        fields: &[&str],
+    ) {
+        let before = target.resident_string_bytes();
+        let outcome = vm
+            .native_index_from_original_with_flags(target, table, flags, "option")
+            .unwrap();
+        if let Ok(index) = outcome {
+            assert_eq!(fields[1], "0");
+            assert_eq!(
+                index
+                    .map_or(-1, |n| i64::try_from(n).expect("native index fits i64"))
+                    .to_string(),
+                fields[2]
+            );
+        } else {
+            assert_eq!(fields[1], "1");
+            assert_eq!(fields[2], "-1");
+        }
+        assert_eq!(
+            if matches!(
+                target.native_object_snapshot().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::Index { .. }
+            ) {
+                "index"
+            } else {
+                "none"
+            },
+            fields[3]
+        );
+        assert_eq!(
+            usize::from(target.resident_string_bytes().is_some()).to_string(),
+            fields[4]
+        );
+        let same = match (before, target.resident_string_bytes()) {
+            (Some(before), Some(after)) => std::rc::Rc::ptr_eq(&before, &after),
+            (None, None) => true,
+            _ => false,
+        };
+        assert_eq!(usize::from(same).to_string(), fields[5]);
+    }
+
+    const INDEX_FLAG_FIXTURES: [&str; 5] = [
+        include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.4.20.tsv"),
+        include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.5.19.tsv"),
+        include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.6.18.tsv"),
+        include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/9.0.4.tsv"),
+        include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/9.1.0.tsv"),
+    ];
+
+    fn original_index_tables(
+        fields: &'static [&'static str],
+        flags_words: &'static [&'static str],
+    ) -> (
+        NativeStaticIndexTable,
+        NativeStaticIndexTable,
+        NativeStaticIndexTable,
+    ) {
+        let pointer_table = NativeStaticIndexTable::supported_backend(fields);
+        let struct_table = pointer_table
+            .clone()
+            .with_entry_stride(2 * std::mem::size_of::<*const std::ffi::c_char>())
+            .unwrap();
+        let ordinary_table = NativeStaticIndexTable::supported_backend(flags_words);
+        (pointer_table, struct_table, ordinary_table)
+    }
+
+    const FIELDS: &[&str] = &["provide", "padding", "present"];
+    const FLAGS_WORDS: &[&str] = &["provide", "present", ""];
+
     #[test]
     fn original_index_flags_and_offsets_match_all_native_31_windows() {
         use tcl_core_types::NativeIndexLookupFlags as Flags;
-        const FIELDS: &[&str] = &["provide", "padding", "present"];
-        const FLAGS_WORDS: &[&str] = &["provide", "present", ""];
-        const FIXTURES: [&str; 5] = [
-            include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.4.20.tsv"),
-            include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.5.19.tsv"),
-            include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/8.6.18.tsv"),
-            include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/9.0.4.tsv"),
-            include_str!("../../../tcl-registry/tests/data/native_stock_index_flags/9.1.0.tsv"),
-        ];
+
         let mut compared = 0;
-        for (version, fixture) in TclVersion::ALL.into_iter().zip(FIXTURES) {
+        for (version, fixture) in TclVersion::ALL.into_iter().zip(INDEX_FLAG_FIXTURES) {
             let mut vm = Vm::new();
             vm.set_runtime_version(version);
-            let pointer_table = NativeStaticIndexTable::supported_backend(FIELDS);
-            let struct_table = pointer_table
-                .clone()
-                .with_entry_stride(2 * std::mem::size_of::<*const std::ffi::c_char>())
-                .unwrap();
-            let ordinary_table = NativeStaticIndexTable::supported_backend(FLAGS_WORDS);
+            let (pointer_table, struct_table, ordinary_table) =
+                original_index_tables(FIELDS, FLAGS_WORDS);
             let mut original = Value::new_native_string_bytes(b"present".as_slice());
             for row in fixture.lines() {
                 let fields: Vec<_> = row.split('\t').collect();
@@ -550,41 +612,7 @@ mod tests {
                     _ => panic!("unrecognized native row {stage}"),
                 };
                 let target = &original;
-                let before = target.resident_string_bytes();
-                let outcome = vm
-                    .native_index_from_original_with_flags(target, table, flags, "option")
-                    .unwrap();
-                match outcome {
-                    Ok(index) => {
-                        assert_eq!(fields[1], "0");
-                        assert_eq!(index.map_or(-1, |n| n as i64).to_string(), fields[2]);
-                    }
-                    Err(_) => {
-                        assert_eq!(fields[1], "1");
-                        assert_eq!(fields[2], "-1");
-                    }
-                }
-                assert_eq!(
-                    if matches!(
-                        target.native_object_snapshot().cache,
-                        tcl_syntax::native_object::NativeObjectCacheSnapshot::Index { .. }
-                    ) {
-                        "index"
-                    } else {
-                        "none"
-                    },
-                    fields[3]
-                );
-                assert_eq!(
-                    usize::from(target.resident_string_bytes().is_some()).to_string(),
-                    fields[4]
-                );
-                let same = match (before, target.resident_string_bytes()) {
-                    (Some(before), Some(after)) => std::rc::Rc::ptr_eq(&before, &after),
-                    (None, None) => true,
-                    _ => false,
-                };
-                assert_eq!(usize::from(same).to_string(), fields[5]);
+                check_original_index_window(&mut vm, target, table, flags, &fields);
                 compared += 1;
             }
         }

@@ -280,7 +280,9 @@ mod tests {
                 let expected = (columns[1] == "0").then(|| {
                     columns[2]
                         .as_bytes()
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|hex| {
                             u8::from_str_radix(std::str::from_utf8(hex).unwrap(), 16).unwrap()
                         })

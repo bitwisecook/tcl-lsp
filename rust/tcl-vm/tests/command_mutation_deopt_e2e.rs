@@ -773,12 +773,12 @@ impl CompileService for CountingCompilerSvc {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         match dispatch {
             tcl_runtime_api::ProcedureDispatch::Optimised => {
-                self.fast_calls.set(self.fast_calls.get() + 1)
+                self.fast_calls.set(self.fast_calls.get() + 1);
             }
             tcl_runtime_api::ProcedureDispatch::Plain => {
-                self.plain_calls.set(self.plain_calls.get() + 1)
+                self.plain_calls.set(self.plain_calls.get() + 1);
             }
-        };
+        }
         self.inner
             .compile_procedure_bytes_for_profile(target, profile, dispatch)
     }
@@ -791,12 +791,12 @@ impl CompileService for CountingCompilerSvc {
     ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
         match dispatch {
             tcl_runtime_api::ProcedureDispatch::Optimised => {
-                self.fast_calls.set(self.fast_calls.get() + 1)
+                self.fast_calls.set(self.fast_calls.get() + 1);
             }
             tcl_runtime_api::ProcedureDispatch::Plain => {
-                self.plain_calls.set(self.plain_calls.get() + 1)
+                self.plain_calls.set(self.plain_calls.get() + 1);
             }
-        };
+        }
         self.inner
             .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
     }

@@ -1911,8 +1911,10 @@ impl ExprOps for ExprEval<'_> {
 
     fn literal(&mut self, text: &str) -> Result<Value, TclError> {
         let dialect = self.vm.native_invocation_dialect();
-        native_literal(self.vm.numeric_context(), text)
-            .map(|value| value.with_native_double_format(dialect))
+        native_literal(self.vm.numeric_context(), text).map(|value| {
+            self.vm
+                .format_authored_math_result(value.with_native_double_format(dialect))
+        })
     }
 
     fn string(&mut self, inner: &str, substitutes: bool) -> Result<Value, TclError> {
@@ -1978,6 +1980,21 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn call(&mut self, function: &str, args: Vec<Value>) -> Result<Value, TclError> {
+        if self.vm.authored_math_provider().is_some() {
+            let completion = crate::cmd_math::invoke_authored_function(self.vm, function, &args);
+            return self.accept_completion(completion);
+        }
+        if tcl_registry::native_expression_program::expression_function_dispatch(
+            self.vm.expression_evaluation_policy().as_ref(),
+            self.vm.actual_native_invocation_dialect(),
+        )
+        .is_none()
+        {
+            let completion = self
+                .vm
+                .refuse_host_command("expression function dispatch policy is unavailable".into());
+            return Err(TclError::from_completion(completion));
+        }
         let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(
             self.vm.native_execution_profile(),
         );
@@ -2022,14 +2039,18 @@ impl ExprOps for ExprEval<'_> {
 
     fn arith(&mut self, op: BinOp, l: Value, r: Value) -> Result<Value, TclError> {
         let dialect = self.vm.native_invocation_dialect();
-        arith_in(self.vm.numeric_context(), op, &l, &r)
-            .map(|value| value.with_native_double_format(dialect))
+        arith_in(self.vm.numeric_context(), op, &l, &r).map(|value| {
+            self.vm
+                .format_authored_math_result(value.with_native_double_format(dialect))
+        })
     }
 
     fn unary(&mut self, op: UnaryOp, v: Value) -> Result<Value, TclError> {
         let dialect = self.vm.native_invocation_dialect();
-        unary_in(self.vm.numeric_context(), op, &v)
-            .map(|value| value.with_native_double_format(dialect))
+        unary_in(self.vm.numeric_context(), op, &v).map(|value| {
+            self.vm
+                .format_authored_math_result(value.with_native_double_format(dialect))
+        })
     }
 
     fn compare_numeric(&mut self, l: &Value, r: &Value) -> Option<NumericCompare> {

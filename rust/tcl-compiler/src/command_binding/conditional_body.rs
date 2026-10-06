@@ -665,6 +665,33 @@ impl SourceCommandBindings {
         observed
     }
 
+    /// Namespace of an unchanged nested script in one original procedure
+    /// declaration. This selects lexical advice only, never an entered frame
+    /// or a native compiler preparation. Receiver previews remain unknown.
+    pub(crate) fn declared_script_namespace_context(
+        &self,
+        source: &ExecutedScriptSource,
+    ) -> Option<super::SourceNamespaceKey> {
+        let super::ExecutedScriptMapping::Contiguous { base } = source.mapping else {
+            return None;
+        };
+        let start = usize::try_from(base).ok()?;
+        let end = start.checked_add(source.text.len())?;
+        if source.origin.source_image().bytes().get(start..end) != Some(source.text.bytes()) {
+            return None;
+        }
+        let last = u32::try_from(end.checked_sub(1)?).ok()?;
+        let entry = self.conditional_body_entry_at(&source.origin, base)?;
+        if self
+            .conditional_body_entry_at(&source.origin, last)?
+            .as_ref()
+            != entry.as_ref()
+        {
+            return None;
+        }
+        entry.namespace_context().cloned()
+    }
+
     /// Retain the innermost declaration recipe for this original occurrence.
     /// Conflicting allocations, formal recipes or namespaces withdraw it.
     /// Events and future caller frames require their own protocols. Receiver
@@ -834,6 +861,59 @@ impl SourceCommandBindings {
 
 #[cfg(test)]
 mod original_body_frame_tests {
+    #[test]
+    fn nested_declaration_context_requires_unchanged_original_procedure_source() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(registry.profile().unwrap().grammar);
+        let source = "proc p {} {if {$condition} {exit 0}}";
+        let bindings = super::SourceCommandBindings::analyse(source, config, registry);
+        let origin = bindings.source_origin().unwrap().clone();
+        let base = u32::try_from(source.find("exit 0").unwrap()).unwrap();
+        let child =
+            super::ExecutedScriptSource::contiguous(origin.clone(), "exit 0", base).unwrap();
+        assert!(bindings.executed_script_namespace_context(&child).is_none());
+        assert!(bindings.compiled_script_namespace_context(&child).is_none());
+        assert_eq!(
+            bindings.declared_script_namespace_context(&child),
+            Some(super::super::SourceNamespaceKey::authored("::"))
+        );
+        let mut changed = child.clone();
+        changed.text = tcl_lexer::SourceImage::from_bytes(b"exit 1".as_slice(), child.text.channel());
+        assert!(
+            bindings
+                .declared_script_namespace_context(&changed)
+                .is_none()
+        );
+        let materialised = super::ExecutedScriptSource::materialised(
+            super::super::CommandAllocationSite {
+                source: origin,
+                offset: base,
+            },
+            vec![0],
+            "exit 0",
+        );
+        assert!(
+            bindings
+                .declared_script_namespace_context(&materialised)
+                .is_none()
+        );
+
+        let receiver_source = "oo::class create C {method m {} {if {$condition} {exit 0}}}";
+        let receiver_bindings =
+            super::SourceCommandBindings::analyse(receiver_source, config, registry);
+        let child = super::ExecutedScriptSource::contiguous(
+            receiver_bindings.source_origin().unwrap().clone(),
+            "exit 0",
+            u32::try_from(receiver_source.find("exit 0").unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            receiver_bindings
+                .declared_script_namespace_context(&child)
+                .is_none()
+        );
+    }
+
     #[test]
     fn declared_caller_navigation_keeps_definition_without_an_actual_dispatch() {
         let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();

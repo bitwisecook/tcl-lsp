@@ -36,6 +36,20 @@ fn word_width(bytes: usize) -> Option<NativeHashWordWidth> {
         _ => None,
     }
 }
+/// Issue actual C strtoul/int layouts for this supported backend independently
+/// of the Tcl release. Unsupported data models withdraw the recipe.
+#[must_use]
+pub fn supported_backend_array_search_abi() -> Option<tcl_core_types::NativeArraySearchAbi> {
+    let unsigned_long = match core::mem::size_of::<std::ffi::c_ulong>() {
+        4 => NativeHashWordWidth::Bits32,
+        8 => NativeHashWordWidth::Bits64,
+        _ => return None,
+    };
+    Some(tcl_core_types::NativeArraySearchAbi {
+        unsigned_long,
+        int_bits: u8::try_from(core::mem::size_of::<std::ffi::c_int>() * 8).ok()?,
+    })
+}
 
 #[cfg(test)]
 mod tests {
@@ -50,18 +64,4 @@ mod tests {
         let receipt = supported_backend_hash_abi(None).unwrap();
         assert_eq!(receipt.jim_seed, None);
     }
-}
-/// Issue actual C strtoul/int layouts for this supported backend independently
-/// of the Tcl release. Unsupported data models withdraw the recipe.
-#[must_use]
-pub fn supported_backend_array_search_abi() -> Option<tcl_core_types::NativeArraySearchAbi> {
-    let unsigned_long = match core::mem::size_of::<std::ffi::c_ulong>() {
-        4 => NativeHashWordWidth::Bits32,
-        8 => NativeHashWordWidth::Bits64,
-        _ => return None,
-    };
-    Some(tcl_core_types::NativeArraySearchAbi {
-        unsigned_long,
-        int_bits: u8::try_from(core::mem::size_of::<std::ffi::c_int>() * 8).ok()?,
-    })
 }

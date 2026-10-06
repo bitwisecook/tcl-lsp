@@ -1006,18 +1006,17 @@ fn registered_compiler_selection(
         invocation,
         context.realm,
     );
-    let spec = facts.as_ref().and_then(|facts| facts.native_compilation);
-    let spec = spec?;
-    let facts = facts
-        .as_ref()
-        .expect("selected descriptor retains its facts");
-    let original = original_registered_compiler_preparation(
-        spec,
-        selected,
+    let facts = facts.as_ref()?;
+    let (spec, argument_offset) = original_registration_descriptor(
+        selected.words,
+        selected.head,
+        selected.offset,
+        facts,
         state,
         context,
-        facts.argument_offset,
-    );
+    )?;
+    let original =
+        original_registered_compiler_preparation(spec, selected, state, context, argument_offset);
     let admission = original.as_ref().map_or_else(
         || {
             spec.select_for_facts(
@@ -1087,6 +1086,55 @@ fn registered_compiler_selection(
         switch,
         structured,
     })
+}
+
+/// A monolithic compileProc owns the complete original command vector. The
+/// runtime member's body and effect descriptor does not replace that compiler.
+pub(super) fn original_registration_descriptor(
+    words: &[crate::ir::WordExpr],
+    head: &str,
+    offset: u32,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: super::SourceExecutionContext<'_>,
+) -> Option<(
+    tcl_registry::native_compilation::NativeCompilationSpec,
+    usize,
+)> {
+    let compiler_state = context
+        .compilation_snapshot
+        .map_or(state, |snapshot| &snapshot.table.state);
+    let registered = compiler_state.runtime_command_compiler_prerequisite(
+        head,
+        &context.namespace_identity(),
+        tcl_runtime_api::CommandBindingGuard::ChunkEntry,
+    );
+    if let Some(registered) = registered
+        && registered.compiler.ensemble.is_none()
+    {
+        let origin = state.current_source_origin.as_ref()?;
+        let original = crate::registry_invocation::original_native_compiler_words(
+            origin.source_image(),
+            words,
+            offset,
+            context.config,
+        )?;
+        let protocol =
+            super::compiler_inventory::SourceNativeCompilerPolicy::source_protocol_of(state)?;
+        let captured =
+            tcl_registry::native_compiler_words::NativeCompilerWords::capture(&original, protocol)
+                .ok()?;
+        let spec = context
+            .registry
+            .native_compilation_for_original_registration(
+                &registered.compiler.registry_identity,
+                &captured,
+                1,
+                state.baseline.compilation_dialect()?,
+            )?;
+        return Some((spec, 0));
+    }
+    Some((facts.native_compilation?, facts.argument_offset))
 }
 
 fn original_registered_compiler_preparation(

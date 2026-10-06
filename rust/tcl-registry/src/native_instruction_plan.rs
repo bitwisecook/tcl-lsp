@@ -20,6 +20,10 @@ use tcl_syntax::native_variable_words::{
 /// Executable operation selected from one original complete word vector.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeInstructionPlan {
+    /// Original scalar operands followed by the selected native getter.
+    Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
+    /// Original List/index operands and the native immediate-index protocol.
+    ListIndex(crate::native_list_index_compilation::NativeListIndexInstruction),
     /// Native unset validation followed by sequential original receiver operations.
     Unset(crate::native_unset_compilation::NativeUnsetInstruction),
     /// Original Error operands and dialect-specific options construction.
@@ -708,6 +712,19 @@ fn selected_nonvariable_instruction_plan(
 ) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
     use NativeInstructionPlanUnavailable as Unavailable;
     let version = dialect.tcl_version?;
+    if let Some((operation, scope)) = spec.scalar_compilation() {
+        return Some(
+            crate::native_scalar_compilation::compile_native_scalar(
+                words,
+                operand_from,
+                operation,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::Scalar)
+            .ok_or(Unavailable::OperandGeometry),
+        );
+    }
     Some(match spec.grammar {
         NativeCompilationGrammar::Break => Ok(NativeInstructionPlan::Break),
         NativeCompilationGrammar::Uplevel => {
@@ -747,12 +764,22 @@ fn selected_nonvariable_instruction_plan(
                 .map(NativeInstructionPlan::StringMatch)
                 .ok_or(Unavailable::OperandGeometry)
         }
+        NativeCompilationGrammar::ListIndex => {
+            crate::native_list_index_compilation::compile_native_list_index(
+                words,
+                operand_from,
+                version,
+            )
+            .map(NativeInstructionPlan::ListIndex)
+            .map_err(|_| Unavailable::OperandGeometry)
+        }
         NativeCompilationGrammar::TclOoHelper(helper) => {
             crate::native_tcloo_compilation::instruction(helper, words, operand_from, dialect)
                 .map(NativeInstructionPlan::TclOoHelper)
                 .ok_or(Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::NamespaceLegacy
+        | NativeCompilationGrammar::NamespaceUpvarBindings
         | NativeCompilationGrammar::GlobalBindings
         | NativeCompilationGrammar::NamespaceVariableBindings => {
             let kind = spec.namespace_binding_kind()?;
@@ -1531,12 +1558,29 @@ mod tests {
     fn descriptor_without_portable_instruction_cannot_become_generic() {
         assert_eq!(
             project(
-                b"string length value",
-                NativeCompilationGrammar::StringLength,
+                b"lrange value 0 end",
+                NativeCompilationGrammar::ListRange,
                 TclVersion::V9_0
             ),
             Err(NativeInstructionPlanUnavailable::Operation)
         );
+    }
+
+    #[test]
+    fn original_scalar_descriptor_has_a_retained_native_instruction() {
+        use crate::native_scalar_compilation::{NativeScalarOperation, NativeScalarScope};
+        let recipe = project(
+            b"string length value",
+            NativeCompilationGrammar::StringLength(NativeScalarScope::PublicMember),
+            TclVersion::V8_5,
+        )
+        .unwrap();
+        assert!(matches!(
+            recipe,
+            NativeInstructionPlan::Scalar(scalar)
+                if scalar.operation == NativeScalarOperation::StringLength
+                    && scalar.operands == [crate::native_compiler_word_projection::NativeCompilerWordOperand::Original(2)]
+        ));
     }
 
     #[test]

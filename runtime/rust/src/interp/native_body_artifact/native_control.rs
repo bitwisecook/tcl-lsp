@@ -210,6 +210,12 @@ impl Builder<'_> {
                     },
                 ));
             }
+            if !program.evaluation_policy_matches(
+                self.stamp.expression_policy.as_ref(),
+                tcl_registry::InvocationDialect::for_version(self.stamp.physical),
+            ) {
+                return Err(unavailable("native expression error evaluation policy"));
+            }
             let NativeExpressionTree::Rejected {
                 message,
                 error_code,
@@ -249,6 +255,15 @@ impl Builder<'_> {
             }
             return Ok(prepared);
         };
+        let physical = tcl_registry::InvocationDialect::for_version(self.stamp.physical);
+        if tcl_registry::native_expression_program::expression_program_emission_for_policy(
+            program,
+            self.stamp.expression_policy.as_ref(),
+            physical,
+        ) != tcl_registry::native_expression_program::ExpressionProgramEmission::Native
+        {
+            return Err(unavailable("native expression evaluation policy"));
+        }
         enum Preparation<'a> {
             Node(&'a tcl_syntax::expr::NativeExprNode),
             LogicalLeft84(&'a tcl_syntax::expr::NativeExprNode),
@@ -444,7 +459,9 @@ impl Builder<'_> {
                     start,
                     ..
                 } => {
-                    if self.stamp.physical > tcl_dialect::TclVersion::V8_4 {
+                    if tcl_registry::native_expression_program::expression_function_dispatch(
+                        self.stamp.expression_policy.as_ref(), physical,
+                    ) == Some(tcl_registry::mathfunc::NativeMathFunctionDispatch::CommandTable) {
                         let mut head = b"tcl::mathfunc::".to_vec();
                         head.extend_from_slice(function);
                         prepared
@@ -520,6 +537,10 @@ impl Builder<'_> {
         depth: u32,
     ) -> Result<ControlOperation, ValueError> {
         let prepared = self.prepare_control_steps(captured, &recipe.preparations, depth)?;
+        if let NativeControlOutcome::Rejected(failure) = &recipe.outcome {
+            return Err(self.reject_native_compilation(failure.clone()));
+        }
+        self.validate_control_boolean_probes(captured, &recipe.preparations)?;
         if prepared.declined_script {
             recipe.outcome = NativeControlOutcome::Generic;
         }
@@ -736,7 +757,18 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
         args: &[obj::Owned],
     ) -> Result<obj::Owned, crate::expr_error::ExprError> {
         let pointers = args.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-        let code = if self.artifact.stamp.physical == tcl_dialect::TclVersion::V8_4 {
+        let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
+            self.artifact.stamp.expression_policy.as_ref(),
+            tcl_registry::InvocationDialect::for_version(self.artifact.stamp.physical),
+        )
+        .ok_or_else(|| {
+            crate::expr_error::ExprError::host_refusal(
+                unavailable("native expression function policy")
+                    .native_access_refusal()
+                    .expect("typed refusal"),
+            )
+        })?;
+        let code = if dispatch == tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable {
             let surface = tcl_registry::expr_surface::RuntimeExprSurface::for_profile(
                 tcl_dialect::DialectProfile::find("tcl8.4").expect("actual C8.4 grammar"),
             );
@@ -760,7 +792,18 @@ impl crate::expr::ExprCtx for CompiledExpressionContext<'_> {
         args: &[obj::Owned],
         start: u32,
     ) -> Result<obj::Owned, crate::expr_error::ExprError> {
-        if self.artifact.stamp.physical == tcl_dialect::TclVersion::V8_4 {
+        let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
+            self.artifact.stamp.expression_policy.as_ref(),
+            tcl_registry::InvocationDialect::for_version(self.artifact.stamp.physical),
+        )
+        .ok_or_else(|| {
+            crate::expr_error::ExprError::host_refusal(
+                unavailable("native expression function policy")
+                    .native_access_refusal()
+                    .expect("typed refusal"),
+            )
+        })?;
+        if dispatch == tcl_registry::mathfunc::NativeMathFunctionDispatch::FixedTable {
             let binding = &self.prepared.fixed_functions[&start];
             if binding.name.as_bytes() != name.as_bytes() || binding.arity != Some(args.len()) {
                 return Err(crate::expr_error::ExprError::host_refusal(

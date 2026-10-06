@@ -22,6 +22,11 @@ impl Builder<'_> {
         let mut prepared = PreparedControlOperands::default();
         for visit in visits {
             match visit {
+                Visit::BooleanProbe(probe) => {
+                    if !probe.matches_original(captured, self.stamp.physical) {
+                        return Err(unavailable("original native Boolean probe operand"));
+                    }
+                }
                 Visit::DeclareLocal(name) => {
                     self.local(name, None)
                         .ok_or_else(|| unavailable("native control named local declaration"))?;
@@ -108,5 +113,22 @@ impl Builder<'_> {
             }
         }
         Ok(prepared)
+    }
+
+    pub(super) fn validate_control_boolean_probes(
+        &self,
+        captured: &NativeCompilerWords<'_>,
+        visits: &[Visit],
+    ) -> Result<(), ValueError> {
+        if tcl_registry::native_expression_program::control_boolean_probes_match(
+            visits,
+            captured,
+            self.stamp.expression_policy.as_ref(),
+            tcl_registry::InvocationDialect::for_version(self.stamp.physical),
+        ) {
+            Ok(())
+        } else {
+            Err(unavailable("original Boolean pruning evaluation policy"))
+        }
     }
 }

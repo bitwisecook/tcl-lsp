@@ -158,6 +158,18 @@ impl Interp {
             .ok_or(ValueError::CommandProtocolUnavailable(
                 "compiler result reset",
             ))?;
+        self.reset_original_c_result()
+    }
+
+    /// Reset the actual C result, then publish and release its error fields in
+    /// native order. C8.4 clears its episode flags and leaves the global cells
+    /// and their original object references intact.
+    pub(super) fn reset_original_c_result(&mut self) -> Result<(), ValueError> {
+        self.native_invocation_dialect()
+            .native_error_log_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original C result reset",
+            ))?;
         let original = self.result.get();
         crate::obj::check_native_liveness(original)?;
         if crate::obj::is_shared(original) {
@@ -167,6 +179,10 @@ impl Interp {
             unsafe { crate::obj::decr_ref_count(retired) };
         } else {
             crate::obj::reset_native_c_result(original);
+        }
+        if self.uses_c84_global_error_info() {
+            self.reset_native_global_error_episode();
+            return Ok(());
         }
         self.publish_native_error_objects();
         self.mark_error_stack_reset();

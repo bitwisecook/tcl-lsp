@@ -125,6 +125,20 @@ fn format_operand<S: BuildHasher>(
         }
         Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
         Operand::Imm(val)
+            if instr.op == Op::LIST_INDEX_IMM && instr.native_list_index.is_some() =>
+        {
+            let part = if *val <= -2 {
+                if *val == -2 {
+                    "end".to_owned()
+                } else {
+                    format!("end{}", i64::from(*val) + 2)
+                }
+            } else {
+                val.to_string()
+            };
+            (part, String::new())
+        }
+        Operand::Imm(val)
             if matches!(
                 instr.op,
                 Op::DICT_SET
@@ -358,6 +372,28 @@ pub fn format_module_asm(module: &ModuleAsm) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_list_index_clone_and_display_preserve_the_native_coordinate() {
+        use tcl_syntax::native_compiled_index::NativeCompiledListIndex;
+        let labels = HashMap::<String, usize>::new();
+        for (encoded, expected) in [(-3, "end-1"), (-2, "end"), (-1, "-1"), (0, "0")] {
+            let mut original = Instruction::new(Op::LIST_INDEX_IMM, vec![Operand::Imm(encoded)]);
+            original.native_list_index = Some(NativeCompiledListIndex::from_encoded(encoded));
+            let copied = original.clone();
+            assert_eq!(copied.native_list_index, original.native_list_index);
+            assert_eq!(
+                format_operand(&copied.operands[0], &copied, 0, &labels).0,
+                expected
+            );
+        }
+        let portable = Instruction::new(Op::LIST_INDEX_IMM, vec![Operand::Imm(crate::INDEX_END)]);
+        assert!(portable.native_list_index.is_none());
+        assert_eq!(
+            format_operand(&portable.operands[0], &portable, 0, &labels).0,
+            "end"
+        );
+    }
 
     #[test]
     fn esc_basic() {

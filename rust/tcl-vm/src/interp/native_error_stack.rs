@@ -144,8 +144,10 @@ impl NativeErrorStack {
         self.header
             .as_ref()
             .and_then(Value::cached_list_representation)
-            .map(|(items, _)| items)
-            .unwrap_or_else(|| NativeListItems::new(Vec::new(), false).lifetime_view())
+            .map_or_else(
+                || NativeListItems::new(Vec::new(), false).lifetime_view(),
+                |(items, _)| items,
+            )
     }
     pub(super) fn value(&self) -> Value {
         self.header

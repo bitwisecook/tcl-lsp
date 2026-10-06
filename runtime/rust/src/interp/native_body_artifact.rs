@@ -22,6 +22,10 @@ use native_try::TryOperation;
 mod native_control;
 mod native_string;
 use native_string::StringMatchOperation;
+mod native_list_index;
+use native_list_index::ListIndexOperation;
+mod native_scalar;
+use native_scalar::ScalarOperation;
 mod native_each;
 mod native_unset;
 use native_each::EachOperation;
@@ -71,6 +75,7 @@ struct CacheStamp {
     steps: Vec<(Option<u64>, u8, Vec<u8>)>,
     borrowed_table: Option<usize>,
     fixed_math: Option<tcl_runtime_api::native_compilation::NativeMathFunctionTable>,
+    expression_policy: Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy>,
 }
 
 pub(super) struct NativeBodyArtifact {
@@ -121,6 +126,8 @@ type NativeArenaFrame = (
 );
 
 enum Operation {
+    Scalar(ScalarOperation),
+    ListIndex(ListIndexOperation),
     StringMatch(StringMatchOperation),
     Error(ErrorOperation),
     DictionaryLookup(DictionaryLookupOperation),
@@ -762,7 +769,25 @@ impl Builder<'_> {
                     | crate::namespace::NativeCompilerRecipe::ProcedureNoOp,
                 ) => return Ok(Some(Operation::Invoke)),
                 Some(crate::namespace::NativeCompilerRecipe::Registered { registration, spec }) => {
-                    (registration, spec)
+                    let identity = core::str::from_utf8(&registration)
+                        .map_err(|_| unavailable("native body compiler registration identity"))?;
+                    let registry =
+                        crate::environment::store_for_profile(self.interp.dialect_profile());
+                    let original = registry
+                        .native_compilation_for_registration(identity, dialect)
+                        .filter(|original| *original == spec);
+                    if original.is_none() {
+                        return Ok(None);
+                    }
+                    let Some(selected) = registry.native_compilation_for_original_registration(
+                        identity,
+                        &captured,
+                        arguments_from,
+                        dialect,
+                    ) else {
+                        return Ok(None);
+                    };
+                    (registration, selected)
                 }
                 Some(crate::namespace::NativeCompilerRecipe::Unknown) | None => return Ok(None),
             }
@@ -835,6 +860,7 @@ impl Builder<'_> {
             {
                 let _prepared =
                     self.prepare_control_steps(&captured, &recipe.preparations, depth)?;
+                self.validate_control_boolean_probes(&captured, &recipe.preparations)?;
                 return Ok(Some(Operation::Invoke));
             }
             return self
@@ -893,6 +919,12 @@ impl Builder<'_> {
             },
         };
         Ok(Some(match plan {
+            NativeInstructionPlan::ListIndex(recipe) => {
+                Operation::ListIndex(self.list_index_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::Scalar(recipe) => {
+                Operation::Scalar(self.scalar_operation(&captured, recipe, depth)?)
+            }
             NativeInstructionPlan::StringMatch(recipe) => {
                 Operation::StringMatch(self.string_match_operation(&captured, recipe, depth)?)
             }
@@ -1280,6 +1312,18 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::ListIndex(indexer) = &mut operation {
+                    if let Some(word) = indexer.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::Scalar(scalar) = &mut operation {
+                    if let Some(word) = scalar.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::DictionaryLookup(dictionary) = &mut operation {
                     if let Some(word) = dictionary.prepared_words.remove(&index) {
                         words.push(word);
@@ -1296,6 +1340,8 @@ impl Builder<'_> {
                 // objects. Their indexed receiver layout was allocated above.
                 let emitted = match &operation {
                     Operation::StringMatch(_) => false,
+                    Operation::ListIndex(_) => false,
+                    Operation::Scalar(_) => false,
                     Operation::Error(_) | Operation::DictionaryLookup(_) | Operation::Unset(_) => false,
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::Next{words,..},_)=>words.iter().any(|word|matches!(word,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original)),
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::ObjectInfo{operand,..},_)=>matches!(operand,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original),
@@ -1466,6 +1512,7 @@ impl Interp {
             grammar: self.lexer_config(),
             source_protocol: self.source_string_protocol()?,
             fixed_math: self.native_math_function_table(),
+            expression_policy: self.expression_evaluation_policy(),
             observers: traces
                 .cmd_traces
                 .iter()
@@ -2508,6 +2555,12 @@ impl Interp {
     ) -> Code {
         let result = (|| -> Result<Code, Code> {
             match &command.operation {
+                Operation::Scalar(scalar) => {
+                    self.execute_body_scalar(artifact, command, scalar, execution)
+                }
+                Operation::ListIndex(index) => {
+                    self.execute_body_list_index(artifact, command, index, execution)
+                }
                 Operation::StringMatch(matcher) => {
                     self.execute_body_string_match(artifact, command, matcher, execution)
                 }

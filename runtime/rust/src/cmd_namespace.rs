@@ -1241,15 +1241,34 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"name");
     }
-    let name = obj_bytes(argv[2]);
-    // The shared `TclGetOriginalCommand` walk (`tcl_cmd_core::namespace`).
-    let origin = tcl_cmd_core::namespace::origin_bytes(interp, &name);
+    let origin = if interp
+        .native_invocation_dialect()
+        .native_command_name_protocol()
+        .is_some()
+    {
+        interp.native_namespace_origin(argv[2])
+    } else {
+        // Jim's scripted helper follows source-name aliases, not C command tokens.
+        let name = match interp.native_string_bytes(&argv[2]) {
+            Ok(name) => name,
+            Err(error) => return interp.report_cmd_error(error.into()),
+        };
+        tcl_cmd_core::namespace::origin_bytes_checked(interp, &name)
+    };
+    let origin = match origin {
+        Ok(origin) => origin,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
     match origin {
         Some(fqn) => {
             interp.set_result_bytes(&fqn);
             Code::Ok
         }
         None => {
+            let name = match interp.native_string_bytes(&argv[2]) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
             let mut m = b"invalid command name \"".to_vec();
             m.extend_from_slice(&name);
             m.push(b'"');
@@ -1865,6 +1884,90 @@ fn qualify_in_ns(ns: &[u8], target: &[u8]) -> Vec<u8> {
 mod tests {
     use crate::interp::{Code, Interp};
     use crate::{counters, list, obj};
+
+    #[test]
+    fn origin_reuses_the_original_stringless_command_cache() {
+        for version in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(version),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(interp.eval_str(b"proc p {} {return P}"), Code::Ok);
+            let words = [b"namespace".as_slice(), b"origin", b"p"]
+                .map(|word| obj::Owned::fresh(obj::new_string_bytes(word)));
+            let argv = words.each_ref().map(|word| word.as_ptr());
+            assert_eq!(super::ns_origin(&mut interp, &argv), Code::Ok);
+            let cache = obj::native_command_name_cache(argv[2]).unwrap();
+            obj::invalidate_string(argv[2]);
+            assert_eq!(super::ns_origin(&mut interp, &argv), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"::p");
+            assert!(!obj::has_string_rep(argv[2]));
+            assert_eq!(obj::native_command_name_cache(argv[2]), Some(cache));
+            assert!(!interp.host_refusal_pending());
+        }
+    }
+
+    #[test]
+    fn origin_refuses_a_stringless_original_namespace_name_before_lookup() {
+        let mut interp = Interp::with_native_core(
+            crate::interp::default_host(),
+            crate::environment::profile_for_dialect("tcl9.1"),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(interp.eval_str(b"namespace current"), Code::Ok);
+        let original = obj::Owned::retain(interp.result_obj());
+        assert!(obj::native_namespace_name::cache(original.as_ptr()).is_some());
+        obj::invalidate_string(original.as_ptr());
+        interp.set_result_bytes(b"BEFORE");
+        let before = interp.result_obj();
+        let head = obj::Owned::fresh(obj::new_string_bytes(b"namespace"));
+        let subcommand = obj::Owned::fresh(obj::new_string_bytes(b"origin"));
+        assert_eq!(
+            super::ns_origin(
+                &mut interp,
+                &[head.as_ptr(), subcommand.as_ptr(), original.as_ptr()]
+            ),
+            Code::Error
+        );
+        assert!(interp.host_refusal_pending());
+        assert_eq!(interp.result_obj(), before);
+        assert!(!obj::has_string_rep(original.as_ptr()));
+    }
+
+    #[test]
+    fn original_namespace_origin_matches_five_native_import_chains() {
+        fn decode(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for row in include_str!("../tests/data/native_namespace_origin/windows.tsv").lines() {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(&format!("tcl{}", fields[0])),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.eval_str(&decode(fields[1])).as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{}",
+                fields[0]
+            );
+            assert_eq!(interp.result_bytes(), decode(fields[3]), "{}", fields[0]);
+            assert!(!interp.host_refusal_pending());
+            compared += 1;
+        }
+        assert_eq!(compared, 5);
+    }
 
     #[test]
     fn namespace_unknown_retains_the_original_root_and_validates_before_replacement() {

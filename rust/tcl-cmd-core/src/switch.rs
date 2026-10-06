@@ -675,6 +675,164 @@ fn compile_error(version: TclVersion, detail: &[u8]) -> CmdError {
     ))
 }
 
+/// The compiler's `STR_MATCH` primitive reaches original objects independently of
+/// the public switch handler and its option parser.
+pub trait NativeCompiledSwitchObjects: ValueOps {
+    /// Reach `Tcl_GetByteArrayFromObj` on the original selected C8 operand.
+    fn compiled_binary_bytes(
+        &mut self,
+        value: &Self::Value,
+        version: TclVersion,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError>;
+}
+
+pub fn compiled_glob<O: NativeCompiledSwitchObjects>(
+    ops: &mut O,
+    pattern: &O::Value,
+    subject: &O::Value,
+    version: TclVersion,
+    nocase: bool,
+) -> Result<bool, CmdError> {
+    use tcl_syntax::native_glob::{NativeGlobObject as Object, NativeGlobProtocol};
+    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
+    let snapshot = ops.native_object_snapshot(subject)?;
+    let pattern_snapshot = ops.native_object_snapshot(pattern)?;
+    if matches!(snapshot.cache, Cache::String { .. })
+        || matches!(pattern_snapshot.cache, Cache::String { .. })
+    {
+        let subject = ops.native_unicode_units(subject)?;
+        let pattern = ops.native_unicode_units(pattern)?;
+        return NativeGlobProtocol::authored_tcl(version)
+            .match_objects(
+                Object::CachedUnicode {
+                    units: &pattern,
+                    resident_bytes: None,
+                },
+                Object::CachedUnicode {
+                    units: &subject,
+                    resident_bytes: None,
+                },
+                nocase,
+            )
+            .map_err(|_| {
+                ValueError::CommandProtocolUnavailable("native compiled glob units").into()
+            });
+    }
+    if let Cache::ByteArray { bytes, proper } = &snapshot.cache {
+        let pure = if version >= TclVersion::V9_0 {
+            *proper
+        } else {
+            snapshot.resident.is_none()
+        };
+        if version >= TclVersion::V8_5 && pure && !nocase {
+            let pattern_bytes = if version < TclVersion::V9_0 {
+                Some(ops.compiled_binary_bytes(pattern, version)?)
+            } else {
+                match &pattern_snapshot.cache {
+                    Cache::ByteArray {
+                        bytes,
+                        proper: true,
+                    } => Some(bytes.clone()),
+                    _ => None,
+                }
+            };
+            if let Some(pattern_bytes) = pattern_bytes {
+                return NativeGlobProtocol::authored_tcl(version)
+                    .match_objects(
+                        Object::PureByteArray(&pattern_bytes),
+                        Object::PureByteArray(bytes),
+                        false,
+                    )
+                    .map_err(|_| {
+                        ValueError::CommandProtocolUnavailable("native compiled glob binary").into()
+                    });
+            }
+        }
+    }
+    let subject = ops.native_string_bytes(subject)?;
+    let pattern = ops.native_string_bytes(pattern)?;
+    NativeGlobProtocol::authored_tcl(version)
+        .match_objects(
+            Object::OtherString(&pattern),
+            Object::OtherString(&subject),
+            nocase,
+        )
+        .map_err(|_| ValueError::CommandProtocolUnavailable("native compiled glob strings").into())
+}
+
+/// Reach the selected `STR_EQ` primitive on the same original two operands.
+pub fn compiled_equal<O: ValueOps>(
+    ops: &mut O,
+    left: &O::Value,
+    right: &O::Value,
+    version: TclVersion,
+) -> Result<bool, CmdError> {
+    use tcl_syntax::native_object::{
+        NativeObjectCacheSnapshot as Cache, NativeObjectStringEmptiness as Empty,
+        native_c_string_emptiness,
+    };
+    if ops.same_object(left, right) == Some(true) {
+        return Ok(true);
+    }
+    if version <= TclVersion::V8_5 {
+        let left = ops.native_string_bytes(left)?;
+        let right = ops.native_string_bytes(right)?;
+        return Ok(left.len() == right.len()
+            && tcl_core_types::c_string_extent(&left) == tcl_core_types::c_string_extent(&right));
+    }
+    let a = ops.native_object_snapshot(left)?;
+    let b = ops.native_object_snapshot(right)?;
+    if let (
+        Cache::ByteArray {
+            bytes: a_bytes,
+            proper: a_proper,
+        },
+        Cache::ByteArray {
+            bytes: b_bytes,
+            proper: b_proper,
+        },
+    ) = (&a.cache, &b.cache)
+    {
+        let pure = if version >= TclVersion::V9_0 {
+            *a_proper && *b_proper
+        } else {
+            a.resident.is_none() && b.resident.is_none()
+        };
+        if pure {
+            return Ok(a_bytes == b_bytes);
+        }
+    }
+    if matches!(a.cache, Cache::String { .. }) && matches!(b.cache, Cache::String { .. }) {
+        let a_length = ops.native_char_len(left)?;
+        let b_length = ops.native_char_len(right)?;
+        if let (Some(a), Some(b)) = (&a.resident, &b.resident)
+            && a_length == a.len()
+            && b_length == b.len()
+        {
+            return Ok(a == b);
+        }
+        let a = ops.native_unicode_units(left)?;
+        let b = ops.native_unicode_units(right)?;
+        return Ok(a == b);
+    }
+    let a_empty = native_c_string_emptiness(version, &a)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
+    let b_empty = native_c_string_emptiness(version, &b)
+        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
+    if a_empty == Empty::Empty || b_empty == Empty::Empty {
+        return match (a_empty, b_empty) {
+            (Empty::Empty, Empty::Empty) => Ok(true),
+            (Empty::Empty, Empty::Nonempty) | (Empty::Nonempty, Empty::Empty) => Ok(false),
+            (Empty::Empty, Empty::Unknown) => Ok(ops.native_string_bytes(right)?.is_empty()),
+            (Empty::Unknown, Empty::Empty) => Ok(ops.native_string_bytes(left)?.is_empty()),
+            _ => unreachable!("at least one empty operand"),
+        };
+    }
+    let a = ops.native_string_bytes(left)?;
+    let b = ops.native_string_bytes(right)?;
+    Ok(a == b)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1192,162 +1350,4 @@ mod tests {
             );
         }
     }
-}
-
-/// The compiler's `STR_MATCH` primitive reaches original objects independently of
-/// the public switch handler and its option parser.
-pub trait NativeCompiledSwitchObjects: ValueOps {
-    /// Reach `Tcl_GetByteArrayFromObj` on the original selected C8 operand.
-    fn compiled_binary_bytes(
-        &mut self,
-        value: &Self::Value,
-        version: TclVersion,
-    ) -> Result<std::rc::Rc<[u8]>, CmdError>;
-}
-
-pub fn compiled_glob<O: NativeCompiledSwitchObjects>(
-    ops: &mut O,
-    pattern: &O::Value,
-    subject: &O::Value,
-    version: TclVersion,
-    nocase: bool,
-) -> Result<bool, CmdError> {
-    use tcl_syntax::native_glob::{NativeGlobObject as Object, NativeGlobProtocol};
-    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
-    let snapshot = ops.native_object_snapshot(subject)?;
-    let pattern_snapshot = ops.native_object_snapshot(pattern)?;
-    if matches!(snapshot.cache, Cache::String { .. })
-        || matches!(pattern_snapshot.cache, Cache::String { .. })
-    {
-        let subject = ops.native_unicode_units(subject)?;
-        let pattern = ops.native_unicode_units(pattern)?;
-        return NativeGlobProtocol::authored_tcl(version)
-            .match_objects(
-                Object::CachedUnicode {
-                    units: &pattern,
-                    resident_bytes: None,
-                },
-                Object::CachedUnicode {
-                    units: &subject,
-                    resident_bytes: None,
-                },
-                nocase,
-            )
-            .map_err(|_| {
-                ValueError::CommandProtocolUnavailable("native compiled glob units").into()
-            });
-    }
-    if let Cache::ByteArray { bytes, proper } = &snapshot.cache {
-        let pure = if version >= TclVersion::V9_0 {
-            *proper
-        } else {
-            snapshot.resident.is_none()
-        };
-        if version >= TclVersion::V8_5 && pure && !nocase {
-            let pattern_bytes = if version < TclVersion::V9_0 {
-                Some(ops.compiled_binary_bytes(pattern, version)?)
-            } else {
-                match &pattern_snapshot.cache {
-                    Cache::ByteArray {
-                        bytes,
-                        proper: true,
-                    } => Some(bytes.clone()),
-                    _ => None,
-                }
-            };
-            if let Some(pattern_bytes) = pattern_bytes {
-                return NativeGlobProtocol::authored_tcl(version)
-                    .match_objects(
-                        Object::PureByteArray(&pattern_bytes),
-                        Object::PureByteArray(bytes),
-                        false,
-                    )
-                    .map_err(|_| {
-                        ValueError::CommandProtocolUnavailable("native compiled glob binary").into()
-                    });
-            }
-        }
-    }
-    let subject = ops.native_string_bytes(subject)?;
-    let pattern = ops.native_string_bytes(pattern)?;
-    NativeGlobProtocol::authored_tcl(version)
-        .match_objects(
-            Object::OtherString(&pattern),
-            Object::OtherString(&subject),
-            nocase,
-        )
-        .map_err(|_| ValueError::CommandProtocolUnavailable("native compiled glob strings").into())
-}
-
-/// Reach the selected `STR_EQ` primitive on the same original two operands.
-pub fn compiled_equal<O: ValueOps>(
-    ops: &mut O,
-    left: &O::Value,
-    right: &O::Value,
-    version: TclVersion,
-) -> Result<bool, CmdError> {
-    use tcl_syntax::native_object::{
-        NativeObjectCacheSnapshot as Cache, NativeObjectStringEmptiness as Empty,
-        native_c_string_emptiness,
-    };
-    if ops.same_object(left, right) == Some(true) {
-        return Ok(true);
-    }
-    if version <= TclVersion::V8_5 {
-        let left = ops.native_string_bytes(left)?;
-        let right = ops.native_string_bytes(right)?;
-        return Ok(left.len() == right.len()
-            && tcl_core_types::c_string_extent(&left) == tcl_core_types::c_string_extent(&right));
-    }
-    let a = ops.native_object_snapshot(left)?;
-    let b = ops.native_object_snapshot(right)?;
-    if let (
-        Cache::ByteArray {
-            bytes: a_bytes,
-            proper: a_proper,
-        },
-        Cache::ByteArray {
-            bytes: b_bytes,
-            proper: b_proper,
-        },
-    ) = (&a.cache, &b.cache)
-    {
-        let pure = if version >= TclVersion::V9_0 {
-            *a_proper && *b_proper
-        } else {
-            a.resident.is_none() && b.resident.is_none()
-        };
-        if pure {
-            return Ok(a_bytes == b_bytes);
-        }
-    }
-    if matches!(a.cache, Cache::String { .. }) && matches!(b.cache, Cache::String { .. }) {
-        let a_length = ops.native_char_len(left)?;
-        let b_length = ops.native_char_len(right)?;
-        if let (Some(a), Some(b)) = (&a.resident, &b.resident)
-            && a_length == a.len()
-            && b_length == b.len()
-        {
-            return Ok(a == b);
-        }
-        let a = ops.native_unicode_units(left)?;
-        let b = ops.native_unicode_units(right)?;
-        return Ok(a == b);
-    }
-    let a_empty = native_c_string_emptiness(version, &a)
-        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
-    let b_empty = native_c_string_emptiness(version, &b)
-        .map_err(|_| ValueError::CommandProtocolUnavailable("compiled string equality storage"))?;
-    if a_empty == Empty::Empty || b_empty == Empty::Empty {
-        return match (a_empty, b_empty) {
-            (Empty::Empty, Empty::Empty) => Ok(true),
-            (Empty::Empty, Empty::Nonempty) | (Empty::Nonempty, Empty::Empty) => Ok(false),
-            (Empty::Empty, Empty::Unknown) => Ok(ops.native_string_bytes(right)?.is_empty()),
-            (Empty::Unknown, Empty::Empty) => Ok(ops.native_string_bytes(left)?.is_empty()),
-            _ => unreachable!("at least one empty operand"),
-        };
-    }
-    let a = ops.native_string_bytes(left)?;
-    let b = ops.native_string_bytes(right)?;
-    Ok(a == b)
 }

@@ -7079,11 +7079,39 @@ fn i230_message_keeps_braced_var_spelling() {
     );
 }
 
+/// Execute the fixture's source analysis under an independently captured native entry.
+/// Declared body metadata alone cannot establish an actual existence-fold receipt.
+fn native_existence_result(src: &str, dialect: &str) -> crate::analyser::AnalysisResult {
+    let profile = tcl_dialect::DialectProfile::find(dialect).expect("native fixture profile");
+    let entry = crate::command_binding::SourceAnalysisEntry {
+        native_entry: Some(std::sync::Arc::new(
+            crate::environment_ingress::captured_native_entry(profile),
+        )),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+            ..Default::default()
+        },
+        ..crate::command_binding::SourceAnalysisEntry::default()
+    };
+    Analyser::new()
+        .with_source_analysis_entry(std::sync::Arc::new(entry))
+        .analyse(src, dialect)
+}
+
+fn native_existence_codes(src: &str) -> Vec<String> {
+    native_existence_result(src, "tcl8.6")
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect()
+}
+
 #[test]
 fn info_exists_folds_false_for_never_defined_local() {
     // A never-defined non-parameter never
     // exists → predicate folds false → I230.
-    let codes = codes_for("proc f {a} { if {[info exists b]} { puts hi } }");
+    let codes = native_existence_codes("proc f {a} { if {[info exists b]} { puts hi } }; f VALUE");
     assert!(
         codes.contains(&"I230".to_string()),
         "`info exists` of a never-defined local should fold to I230; got {codes:?}",
@@ -7091,13 +7119,57 @@ fn info_exists_folds_false_for_never_defined_local() {
 }
 
 #[test]
+fn info_exists_fresh_activation_absence_does_not_borrow_namespace_contents() {
+    let source = include_str!("../../../tests/data/native_activation_presence/source.tcl");
+    assert_eq!(
+        source,
+        "set ::b PRESENT; proc f {} {list [info exists b] [info exists Params(key)]}; puts [f]\n"
+    );
+    let codes =
+        native_existence_codes("set ::b PRESENT; proc f {} {if {[info exists b]} {puts hi}}; f");
+    assert!(codes.contains(&"I230".to_owned()), "{codes:?}");
+}
+
+#[test]
 fn info_exists_folds_true_for_parameter() {
     // A parameter always exists → predicate folds true → I230.
-    let codes = codes_for("proc f {a} { if {[info exists a]} { puts hi } }");
+    let codes = native_existence_codes("proc f {a} { if {[info exists a]} { puts hi } }; f VALUE");
     assert!(
         codes.contains(&"I230".to_string()),
         "`info exists` of a parameter should fold to I230; got {codes:?}",
     );
+}
+
+#[test]
+fn info_exists_actual_folds_do_not_borrow_declaration_or_missing_entry() {
+    let declaration = "proc f {a} {if {[info exists a]} {puts hi}}";
+    let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+    // The convenience driver selects its fresh authoring contract. An unknown
+    // incoming interpreter is an explicit, distinct entry in this control.
+    let unknown = crate::command_binding::SourceAnalysisEntry {
+        unknown_entry: true,
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        ..Default::default()
+    };
+    let result = Analyser::new()
+        .with_source_analysis_entry(std::sync::Arc::new(unknown))
+        .analyse(&format!("{declaration}; f VALUE"), "tcl8.6");
+    assert!(
+        !result
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagCode::I230)
+    );
+    for source in [
+        declaration.to_owned(),
+        format!("rename info {{}}; proc info args {{return UNKNOWN}}; {declaration}; f VALUE"),
+        format!("{declaration}; mystery; f VALUE"),
+    ] {
+        assert!(
+            !native_existence_codes(&source).contains(&"I230".to_owned()),
+            "missing actual selected query: {source}"
+        );
+    }
 }
 
 #[test]
@@ -7134,7 +7206,8 @@ fn info_exists_does_not_fold_namespaced_or_array() {
 fn info_exists_folds_false_for_element_of_never_touched_array() {
     // TP — the SpiceGenTcl-adjacent idiom: guarding optional state through an
     // element of an array nothing in the proc ever creates.
-    let codes = codes_for("proc f {} { if {[info exists Params(key)]} { puts hi } }");
+    let codes =
+        native_existence_codes("proc f {} { if {[info exists Params(key)]} { puts hi } }; f");
     assert!(
         codes.contains(&"I230".to_string()),
         "an element guard on a never-touched array should fold to I230; got {codes:?}",
@@ -7145,7 +7218,8 @@ fn info_exists_folds_false_for_element_of_never_touched_array() {
 fn info_exists_folds_false_for_dynamic_element_of_never_touched_array() {
     // TP — the guard is about the array, so even a runtime-selected element
     // is provably absent when the array itself was never created.
-    let codes = codes_for("proc f {k} { if {[info exists Params($k)]} { puts hi } }");
+    let codes =
+        native_existence_codes("proc f {k} { if {[info exists Params($k)]} { puts hi } }; f VALUE");
     assert!(
         codes.contains(&"I230".to_string()),
         "a dynamic element guard on a never-touched array should fold; got {codes:?}",
@@ -7203,8 +7277,9 @@ fn info_exists_element_fold_abstains_on_instance_state_arrays() {
 fn info_exists_element_fold_survives_an_unrelated_array() {
     // TP control for the touched-base skip: touching a *different* array must
     // not blanket-disable the fold.
-    let codes =
-        codes_for("proc f {} { set Other(key) 1\n if {[info exists Params(key)]} { puts hi } }");
+    let codes = native_existence_codes(
+        "proc f {} { set Other(key) 1\n if {[info exists Params(key)]} { puts hi } }; f",
+    );
     assert!(
         codes.contains(&"I230".to_string()),
         "an unrelated array's write must not disable the fold; got {codes:?}",
@@ -7215,9 +7290,8 @@ fn info_exists_element_fold_survives_an_unrelated_array() {
 fn info_exists_does_not_fold_unset_parameter() {
     // All six native engines return false after the successful unset. An
     // incoming-formal fact must not override that later physical mutation.
-    let mut analyser = Analyser::new();
-    let result = analyser.analyse(
-        "proc f {a} { unset a; if {[info exists a]} { puts hi } }",
+    let result = native_existence_result(
+        "proc f {a} { unset a; if {[info exists a]} { puts hi } }; f VALUE",
         "tcl9.0",
     );
     let branches: Vec<_> = result
@@ -7267,8 +7341,8 @@ fn info_exists_fold_survives_unrelated_scope_alias() {
     // TP control for the alias skip: an alias binding for one name must not
     // blanket-disable the fold — a *different*, never-defined local still
     // folds to I230.
-    let codes = codes_for(
-        "proc f {} { namespace upvar ::ns state alias\n if {[info exists other]} { puts hi } }",
+    let codes = native_existence_codes(
+        "namespace eval ::ns {}; proc f {} { namespace upvar ::ns state alias\n if {[info exists other]} { puts hi } }; f",
     );
     assert!(
         codes.contains(&"I230".to_string()),
@@ -7369,9 +7443,9 @@ fn info_exists_still_folds_never_set_non_instance_local_in_method() {
     // TP guard — the abstention is name-scoped, not a blanket "no folds in
     // method bodies": `zzz` is neither instance state nor a parameter nor ever
     // assigned, so it still folds false exactly as it would inside a proc.
-    let codes = codes_for(
+    let codes = native_existence_codes(
         "oo::class create C {\n variable x\n constructor {} { ::set x 1 }\n \
-         method m {} { ::if {[::info exists zzz]} { ::puts hi } }\n}\n",
+         method m {} { ::if {[::info exists zzz]} { ::puts hi } }\n}\n[C new] m\n",
     );
     assert!(
         codes.contains(&"I230".to_string()),
@@ -7388,12 +7462,11 @@ fn info_exists_folds_true_not_false_for_method_parameter() {
     // arm on both tclsh 9.0.4 and 8.6.14.  Both consumers of the fold must
     // read the same `MethodDef::params` (as `build_method_units` does), or
     // the analyser and the optimiser disagree.
-    let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics(
-        "oo::class create C {\n method m {p} { ::if {[::info exists p]} { ::puts hi } }\n}\n",
+    let result = native_existence_result(
+        "oo::class create C {\n method m {p} { ::if {[::info exists p]} { ::puts hi } }\n}\n[C new] m VALUE\n",
+        "tcl8.6",
     );
-    let i230: Vec<&str> = a
-        .result
+    let i230: Vec<&str> = result
         .diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::I230)
@@ -7489,9 +7562,7 @@ fn read_after_my_dispatch_to_an_upvar_sibling_draws_no_read_before_set() {
 
 /// Every I230 message emitted for `src`, in emission order.
 fn i230_messages(src: &str) -> Vec<String> {
-    let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics(src);
-    a.result
+    native_existence_result(src, "tcl8.6")
         .diagnostics
         .iter()
         .filter(|d| d.code == DiagCode::I230)
@@ -7520,7 +7591,7 @@ fn info_exists_folds_true_for_method_parameter_shadowing_an_instance_var() {
     // binds (`A2 in-method: exists 1 value hello`, `A2 after m: 0`).
     let msgs = i230_messages(
         "oo::class create A {\n variable x\n constructor {} { ::set x 42 }\n \
-         method m {x} { ::if {[::info exists x]} { ::puts hi } }\n}\n",
+         method m {x} { ::if {[::info exists x]} { ::puts hi } }\n}\n[A new] m VALUE\n",
     );
     assert_eq!(
         msgs.len(),
@@ -7542,7 +7613,7 @@ fn info_exists_still_abstains_on_the_non_shadowed_instance_vars() {
     let msgs = i230_messages(
         "oo::class create A {\n variable x y\n constructor {} { ::set x 42 }\n \
          method m {x} {\n ::if {[::info exists x]} { ::puts hi }\n \
-         ::if {[::info exists y]} { ::puts ho }\n }\n}\n",
+         ::if {[::info exists y]} { ::puts ho }\n }\n}\n[A new] m VALUE\n",
     );
     assert_eq!(
         msgs.len(),
@@ -7580,7 +7651,7 @@ fn info_exists_frame_facts_survive_a_proc_method_qname_collision() {
          method m {p} { ::if {[::info exists p]} { ::puts inmethod } }\n}\n\
          namespace eval ::C {}\n\
          proc ::C::m {q} {\n if {[info exists q]} { puts inproc }\n \
-         if {[info exists x]} { puts nope }\n}\n",
+         if {[info exists x]} { puts nope }\n}\n[C new] m VALUE; ::C::m VALUE\n",
     );
     // Method: `p` is its own parameter → always true.
     // Proc: `q` is its own parameter → always true; `x` is a never-set local

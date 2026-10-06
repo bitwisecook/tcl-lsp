@@ -8,6 +8,94 @@ use crate::{Value, Vm};
 use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::value::ValueOps;
 
+#[test]
+fn level_reference_reselects_current_frames_in_thirty_native_windows() {
+    let mut compared = 0;
+    for (engine, rows) in [
+        (
+            "tcl8.4",
+            include_str!("../../../tcl-syntax/tests/data/native_frame_reference/8.4.20.tsv"),
+        ),
+        (
+            "tcl8.5",
+            include_str!("../../../tcl-syntax/tests/data/native_frame_reference/8.5.19.tsv"),
+        ),
+        (
+            "tcl8.6",
+            include_str!("../../../tcl-syntax/tests/data/native_frame_reference/8.6.18.tsv"),
+        ),
+        (
+            "tcl9.0",
+            include_str!("../../../tcl-syntax/tests/data/native_frame_reference/9.0.4.tsv"),
+        ),
+        (
+            "tcl9.1",
+            include_str!("../../../tcl-syntax/tests/data/native_frame_reference/9.1.0.tsv"),
+        ),
+    ] {
+        let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
+        let mut vm = crate::native_fixture::core(profile);
+        let mut other = crate::native_fixture::core(profile);
+        let original = Value::new_native_string_bytes(b"#1".as_slice());
+        let mut records = rows.lines();
+        compare_level_reference(&mut vm, &original, records.next().unwrap());
+        vm.push_call_frame(None, vec![]);
+        compare_level_reference(&mut vm, &original, records.next().unwrap());
+        vm.pop_call_frame();
+        compare_level_reference(&mut vm, &original, records.next().unwrap());
+        vm.push_call_frame(None, vec![]);
+        compare_level_reference(&mut vm, &original, records.next().unwrap());
+        other.push_call_frame(None, vec![]);
+        compare_level_reference(&mut other, &original, records.next().unwrap());
+        let duplicate = original.duplicate_native_object_in(
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol()
+                .unwrap(),
+        );
+        drop(original);
+        compare_level_reference(&mut other, &duplicate, records.next().unwrap());
+        assert!(records.next().is_none());
+        other.pop_call_frame();
+        vm.pop_call_frame();
+        compared += 6;
+    }
+    assert_eq!(compared, 30);
+}
+
+fn compare_level_reference(vm: &mut Vm, level: &Value, record: &str) {
+    let fields: Vec<_> = record.split('\t').collect();
+    let target = crate::command::runtime_explicit_frame_selection(vm, level);
+    assert_eq!(
+        target.as_ref().map_or(-1, |_| 1),
+        fields[1].parse::<i32>().unwrap(),
+        "{}",
+        fields[0]
+    );
+    assert_eq!(
+        target
+            .as_ref()
+            .map_or(-1, |level| i32::try_from(*level).unwrap()),
+        fields[2].parse::<i32>().unwrap(),
+        "{}",
+        fields[0]
+    );
+    assert_eq!(level.native_object_type_name(), fields[3], "{}", fields[0]);
+    assert_eq!(level.resident_string_bytes().is_some(), fields[4] == "1");
+    assert_eq!(
+        level.native_object_reference_count(),
+        fields[5].parse::<usize>().unwrap()
+    );
+    assert!(!level.native_primary_has_free_hook());
+    if fields[3] == "levelReference" {
+        assert_eq!(
+            level
+                .native_frame_level_cache_in(vm.actual_native_invocation_dialect())
+                .unwrap(),
+            Some(tcl_registry::NativeFrameLevelCache::Absolute(1))
+        );
+    }
+}
+
 struct Explicit;
 impl NativeCommand for Explicit {
     fn invoke(&self, vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -93,53 +181,75 @@ fn explicit_uplevel_preserves_seventy_native_level_body_and_restore_windows() {
                 .unwrap_or_else(|error| {
                     panic!("{engine}/{case}: original uplevel activation: {error:?}")
                 });
-            assert_eq!(
-                completed.code.as_int().to_string(),
-                fields[3],
-                "{engine}/{case}: {}",
-                completed.result.to_str()
+            assert_explicit_uplevel_result(
+                &mut vm,
+                &completed,
+                &original_level,
+                &original_script,
+                &fields,
+                engine,
+                case,
             );
-            let expected: Vec<_> = fields[4]
-                .as_bytes()
-                .chunks_exact(2)
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect();
-            assert_eq!(
-                vm.native_string_bytes(&completed.result).unwrap().as_ref(),
-                expected.as_slice(),
-                "{engine}/{case}"
-            );
-            assert_eq!(
-                original_level.native_object_type_name(),
-                fields[5],
-                "{engine}/{case}"
-            );
-            assert_eq!(
-                usize::from(original_level.resident_string_bytes().is_some()).to_string(),
-                fields[6],
-                "{engine}/{case}"
-            );
-            assert_eq!(
-                usize::from(original_script.resident_string_bytes().is_some()).to_string(),
-                fields[7],
-                "{engine}/{case}"
-            );
-            assert_eq!(
-                vm.current_level(),
-                0,
-                "original caller restored: {engine}/{case}"
-            );
-            assert_eq!(fields[8], "1", "native restoration: {engine}/{case}");
-            if case == 12 {
-                assert_eq!(
-                    vm.get_var_bytes(b"marker").unwrap().to_str().as_ref(),
-                    "VALUE"
-                );
-            }
             compared += 1;
         }
     }
     assert_eq!(compared, 70);
+}
+
+fn assert_explicit_uplevel_result(
+    vm: &mut Vm,
+    completed: &Completion<Value>,
+    original_level: &Value,
+    original_script: &Value,
+    fields: &[&str],
+    engine: &str,
+    case: usize,
+) {
+    assert_eq!(
+        completed.code.as_int().to_string(),
+        fields[3],
+        "{engine}/{case}: {}",
+        completed.result.to_str()
+    );
+    let expected: Vec<_> = fields[4]
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    assert_eq!(
+        vm.native_string_bytes(&completed.result).unwrap().as_ref(),
+        expected.as_slice(),
+        "{engine}/{case}"
+    );
+    assert_eq!(
+        original_level.native_object_type_name(),
+        fields[5],
+        "{engine}/{case}"
+    );
+    assert_eq!(
+        usize::from(original_level.resident_string_bytes().is_some()).to_string(),
+        fields[6],
+        "{engine}/{case}"
+    );
+    assert_eq!(
+        usize::from(original_script.resident_string_bytes().is_some()).to_string(),
+        fields[7],
+        "{engine}/{case}"
+    );
+    assert_eq!(
+        vm.current_level(),
+        0,
+        "original caller restored: {engine}/{case}"
+    );
+    assert_eq!(fields[8], "1", "native restoration: {engine}/{case}");
+    if case == 12 {
+        assert_eq!(
+            vm.get_var_bytes(b"marker").unwrap().to_str().as_ref(),
+            "VALUE"
+        );
+    }
 }
 
 #[test]

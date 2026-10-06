@@ -1749,12 +1749,12 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
             .iter()
             .map(|snap| {
                 let mut chains: Vec<_> = snap.unit.def_use.chains.values().collect();
-                chains.sort_by(|a, b| a.key.cmp(&b.key));
+                chains.sort_by_key(|chain| (chain.key.0.compatibility_name(), chain.key.1));
                 let chains: Vec<Value> = chains
                     .iter()
                     .map(|chain| {
                         json!({
-                            "variable": chain.key.0,
+                            "variable": chain.key.0.compatibility_name(),
                             "version": chain.key.1,
                             "definition": {
                                 "block": chain.definition.block,

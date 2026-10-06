@@ -39,11 +39,53 @@ struct NativeCatchTaskContext {
 
 impl CodegenCtx<'_> {
     pub(super) fn native_expression_tasks(
+        &mut self,
         command: &tcl_lexer::NativeScriptCommandWords,
         recipe: tcl_registry::native_expression_program::NativeExpressionInstruction,
     ) -> Option<Vec<NativeEmissionTask>> {
         use NativeEmissionTask as Task;
+        if let Some(program) = recipe.program.as_ref()
+            && matches!(program.tree, NativeExpressionTree::Rejected { .. })
+        {
+            if self.native_entry.is_some_and(|entry| {
+                entry.execution_point.is_some_and(|point| {
+                    program.evaluation_policy_matches(
+                        entry.expression_policy.as_ref(),
+                        tcl_registry::InvocationDialect::of_point(point),
+                    )
+                })
+            }) {
+                return Some(vec![Self::native_expression_task(program)]);
+            }
+            self.refuse_native_dependency();
+            return None;
+        }
+        if !self.native_entry.is_some_and(
+            tcl_registry::native_expression_program::compilation_expression_source_evaluation_supported,
+        ) {
+            self.refuse_native_dependency();
+            return None;
+        }
         if let Some(program) = recipe.program {
+            use tcl_registry::native_expression_program::{
+                ExpressionProgramEmission, expression_program_emission,
+            };
+            match self
+                .native_entry
+                .map(|entry| expression_program_emission(&program, entry))
+            {
+                Some(ExpressionProgramEmission::Native) => {}
+                Some(ExpressionProgramEmission::AuthoredSource) => {
+                    return Some(vec![
+                        Task::Literal(program.source),
+                        Task::Operation(Op::EXPR_STK, vec![]),
+                    ]);
+                }
+                Some(ExpressionProgramEmission::Unavailable) | None => {
+                    self.refuse_native_dependency();
+                    return None;
+                }
+            }
             let converts = matches!(
                 &program.tree,
                 NativeExpressionTree::Parsed(
@@ -102,6 +144,12 @@ impl CodegenCtx<'_> {
             image: command.words.first()?.image().clone(),
             config: command.words[0].config(),
         };
+        if !matches!(recipe.outcome, NativeControlOutcome::Rejected(_))
+            && !self.native_boolean_probes_admitted(command, &recipe.preparations)
+        {
+            self.refuse_native_dependency();
+            return None;
+        }
         let instruction = match recipe.outcome {
             NativeControlOutcome::Rejected(failure) => {
                 return Self::native_control_rejected_tasks(&failure, &recipe.preparations);
@@ -131,6 +179,44 @@ impl CodegenCtx<'_> {
                 options,
             } => self.native_catch_tasks(command, &source, protocol, body, result, options),
         }
+    }
+
+    fn native_boolean_probes_admitted(
+        &self,
+        command: &tcl_lexer::NativeScriptCommandWords,
+        preparations: &[tcl_registry::native_control_compilation::NativeControlPreparationStep],
+    ) -> bool {
+        use tcl_registry::native_control_compilation::NativeControlPreparationStep;
+        if !preparations
+            .iter()
+            .any(|step| matches!(step, NativeControlPreparationStep::BooleanProbe(_)))
+        {
+            return true;
+        }
+        self.native_entry.is_some_and(|entry| {
+            let Some(point) = entry.execution_point else {
+                return false;
+            };
+            let Some(protocol) = entry.source_string_protocol else {
+                return false;
+            };
+            let Ok(captured) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+                &command.words,
+                protocol,
+            ) else {
+                return false;
+            };
+            let policy = entry
+                .expression_policy
+                .as_ref()
+                .filter(|policy| entry.invocation_policy == Some(policy.profile));
+            tcl_registry::native_expression_program::control_boolean_probes_match(
+                preparations,
+                &captured,
+                policy,
+                tcl_registry::InvocationDialect::of_point(point),
+            )
+        })
     }
 
     fn native_control_rejected_tasks(
@@ -172,6 +258,7 @@ impl CodegenCtx<'_> {
         for visit in preparations {
             use tcl_registry::native_control_compilation::NativeControlPreparationStep as Visit;
             match visit {
+                Visit::BooleanProbe(_) => {}
                 Visit::DeclareLocal(name) => tasks.push(Task::DeclareNamespaceLocal(name)),
                 Visit::Literal(bytes) => tasks.push(Task::Literal(bytes)),
                 Visit::Word(operand) => {
@@ -787,14 +874,17 @@ impl CodegenCtx<'_> {
         call: NativeExpressionCall,
         pending: &mut Vec<NativeEmissionTask>,
     ) {
-        if self
-            .invocation_dialect
-            .and_then(|dialect| dialect.tcl_version)
-            == Some(tcl_dialect::TclVersion::V8_4)
-        {
-            self.schedule_native_fixed_math_call84(program, call, pending);
-        } else {
-            self.schedule_native_dynamic_math_call(program, call, pending);
+        use tcl_registry::mathfunc::NativeMathFunctionDispatch;
+        match self.native_entry.and_then(
+            tcl_registry::native_expression_program::compilation_expression_function_dispatch,
+        ) {
+            Some(NativeMathFunctionDispatch::FixedTable) => {
+                self.schedule_native_fixed_math_call84(program, call, pending);
+            }
+            Some(NativeMathFunctionDispatch::CommandTable) => {
+                self.schedule_native_dynamic_math_call(program, call, pending);
+            }
+            None => self.refuse_native_dependency(),
         }
     }
 
@@ -982,6 +1072,32 @@ impl CodegenCtx<'_> {
         }
     }
 
+    fn schedule_native_expression_policy(
+        &mut self,
+        program: &NativeExpressionProgram,
+        pending: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use NativeEmissionTask as Task;
+        use tcl_registry::native_expression_program::ExpressionProgramEmission;
+        let emission = self
+            .native_entry
+            .map_or(ExpressionProgramEmission::Unavailable, |entry| {
+                tcl_registry::native_expression_program::expression_program_emission(program, entry)
+            });
+        match emission {
+            ExpressionProgramEmission::Native => true,
+            ExpressionProgramEmission::AuthoredSource => {
+                pending.push(Task::Operation(Op::EXPR_STK, vec![]));
+                pending.push(Task::Literal(program.source.clone()));
+                false
+            }
+            ExpressionProgramEmission::Unavailable => {
+                self.refuse_native_dependency();
+                false
+            }
+        }
+    }
+
     pub(super) fn schedule_native_expression_node(
         &mut self,
         program: NativeExpressionProgram,
@@ -989,6 +1105,9 @@ impl CodegenCtx<'_> {
         pending: &mut Vec<NativeEmissionTask>,
     ) {
         use NativeEmissionTask as Task;
+        if !self.schedule_native_expression_policy(&program, pending) {
+            return;
+        }
         let original = self.source.clone();
         let config = self.lexer_config();
         if self.schedule_native_pooled_expression(&program, &node, config, pending) {

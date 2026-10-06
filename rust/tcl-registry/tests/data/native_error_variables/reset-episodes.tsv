@@ -1,0 +1,6 @@
+version	definition	first_error	same_reset_header	reset_refs	second_definition	same_definition_header	definition_refs	second_error	fresh_error_header	message_X	clean_episode	third_error	third_clean_episode
+8.4.20	0	1	1	2	0	1	2	1	1	1	1	1	1
+8.5.19	0	1	1	2	0	1	2	1	1	1	1	1	1
+8.6.18	0	1	1	2	0	1	2	1	1	1	1	1	1
+9.0.4	0	1	1	2	0	1	2	1	1	1	1	1	1
+9.1.0	0	1	1	2	0	1	2	1	1	1	1	1	1

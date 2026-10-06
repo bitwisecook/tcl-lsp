@@ -26,6 +26,8 @@ namespace eval ::itest {
     variable _loading_rule ""
     variable _current_rule ""
     variable _loaded_rules [list]
+    variable _loading_initialisers [list]
+    variable _collect_initialisers 0
 
     # Framework procedures are copied as executable code; user cells and
     # user command tables are owned by real interpreters, never snapshots.
@@ -65,7 +67,7 @@ namespace eval ::itest {
         ::tmm::_orig_interp eval $worker {
             if {[llength [info commands ::tmm::_static_enroll]]} { ::tmm::_static_enroll }
         }
-        foreach variable {tmos_version hostname platform reported_tcl_version reported_tcl_major disabled_commands post84_commands} {
+        foreach variable {tmos_version hostname platform reported_tcl_version reported_tcl_major disabled_commands post84_commands compiler_refused_commands runtime_namespace_members} {
             ::tmm::_orig_interp eval $worker [list set ::tmm::$variable [set ::tmm::$variable]]
         }
         foreach name [::tmm::_orig_info procs ::tmm::*] {
@@ -135,6 +137,8 @@ namespace eval ::itest {
         variable _handler_counter
         variable _registration_enabled
         variable _loading_rule
+        variable _loading_initialisers
+        variable _collect_initialisers
         set priority 500
         if {[lindex $args 0] eq "priority"} {
             set priority [lindex $args 1]
@@ -145,6 +149,9 @@ namespace eval ::itest {
         if {[llength $args] != 1} { error "wrong # args: should be \"when event ?priority number? ?timing on|off? body\"" }
         set body [lindex $args 0]
         if {![info complete $body]} { error "incomplete handler body for event \"$event\"" }
+        if {$event eq "RULE_INIT" && $_collect_initialisers} {
+            lappend _loading_initialisers [list $priority $body $_loading_rule]
+        }
         if {!$_registration_enabled} { return }
         if {![info exists event_handlers($event)]} { set event_handlers($event) [list] }
         incr _handler_counter
@@ -197,12 +204,16 @@ namespace eval ::itest {
         variable _registration_enabled
         variable _loading_rule
         variable _loaded_rules
+        variable _loading_initialisers
+        variable _collect_initialisers
         if {$identity ne ""} {
             _validate_rule_identity $identity
             if {[lsearch -exact $_loaded_rules $identity] >= 0} {
                 error "iRule identity already loaded: $identity"
             }
         }
+        set _loading_initialisers [list]
+        set _collect_initialisers 1
         set source [::tmm::expr_ops::rewrite_irule_source $source]
         set previous_rule $_loading_rule
         set _loading_rule $identity
@@ -215,6 +226,7 @@ namespace eval ::itest {
                 set code [catch {::tmm::_orig_interp eval $worker [list ::itest::_load_source_for_owner $identity $source]} result]
                 if {$code} { break }
                 set _registration_enabled 0
+                set _collect_initialisers 0
             }
         } else {
             set code [catch {_load_source_for_owner $identity $source} result]
@@ -222,9 +234,66 @@ namespace eval ::itest {
         if {$code == 1} { set error_info $::errorInfo; set error_code $::errorCode }
         set _loading_rule $previous_rule
         set _registration_enabled 1
+        set _collect_initialisers 0
+        set initialisers $_loading_initialisers
+        set _loading_initialisers [list]
         if {$code == 1} { return -code error -errorinfo $error_info -errorcode $error_code $result }
         if {$code} { return -code $code $result }
         if {$identity ne ""} { lappend _loaded_rules $identity }
+        _initialise_loaded_rule $initialisers
+    }
+
+    proc _initialise_loaded_rule {initialisers} {
+        set workers [list ""]
+        if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} {
+            set workers $::orch::_tmm_interpreters
+        }
+        set ::orch::_init_done 1
+        if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} {
+            set ::orch::_tmm_init_done [list]
+            foreach worker $workers { lappend ::orch::_tmm_init_done 1 }
+        }
+        foreach worker $workers {
+            foreach initialiser [lsort -integer -index 0 $initialisers] {
+                set body [lindex $initialiser 1]
+                set identity [lindex $initialiser 2]
+                if {$worker eq ""} {
+                    set completion [_execute_event_body RULE_INIT $body $identity]
+                } else {
+                    set completion [::tmm::_orig_interp eval $worker [list ::itest::_execute_event_body RULE_INIT $body $identity]]
+                }
+                if {[lindex $completion 0] == 1} {
+                    error [lindex $completion 1] [lindex $completion 2]
+                }
+            }
+        }
+    }
+
+    proc unload_rule {identity} {
+        variable event_handlers
+        variable _loaded_rules
+        _validate_rule_identity $identity
+        if {[llength [::tmm::_orig_info commands ::tmm::_timer_rule_loaded]]} { ::tmm::_timer_rule_loaded $identity }
+        foreach event [array names event_handlers] {
+            set kept [list]
+            foreach handler $event_handlers($event) {
+                if {[lindex $handler 2] eq $identity} {
+                    catch {::tmm::_orig_rename [lindex $handler 1] {}}
+                } else { lappend kept $handler }
+            }
+            set event_handlers($event) $kept
+        }
+        set workers [list ""]
+        if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} { set workers $::orch::_tmm_interpreters }
+        foreach worker $workers {
+            if {$worker eq ""} {
+                catch {::tmm::_orig_namespace delete ::$identity}
+            } else {
+                catch {::tmm::_orig_interp eval $worker [list ::tmm::_orig_namespace delete ::$identity]}
+            }
+        }
+        set index [lsearch -exact $_loaded_rules $identity]
+        if {$index >= 0} { set _loaded_rules [lreplace $_loaded_rules $index $index] }
     }
 
     # Resolve the public logical call forms against explicit event/proc

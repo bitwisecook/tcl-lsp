@@ -590,6 +590,7 @@ impl Interp {
         value: *mut TclObj,
     ) -> Result<Rc<[u8]>, ValueError> {
         obj::check_native_liveness(value)?;
+        obj::native_frame_level_cache_in(value, self.native_invocation_dialect())?;
         if obj::native_instruction_name::cache(value).is_some_and(|name| {
             self.native_invocation_dialect().native_string_protocol()
                 != Some(tcl_syntax::native_string::NativeStringProtocol::C(
@@ -757,6 +758,18 @@ impl ValueOps for Interp {
 
     fn index_syntax(&self) -> Option<tcl_dialect::IndexSyntax> {
         self.native_invocation_dialect().index_syntax()
+    }
+
+    fn index_error_string_protocol(
+        &self,
+    ) -> Result<Option<tcl_syntax::native_string::NativeStringProtocol>, ValueError> {
+        let materialization = self
+            .native_invocation_dialect()
+            .native_string_materialization(None)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native index error String producer",
+            ))?;
+        Ok((!materialization.protocol().is_jim084()).then_some(materialization.protocol()))
     }
 
     #[cfg(not(have_tommath))]

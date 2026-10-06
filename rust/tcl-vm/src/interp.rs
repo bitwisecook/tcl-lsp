@@ -57,6 +57,8 @@ use tcl_runtime_api::{
 };
 use tcl_syntax::expr::eval;
 
+mod authored_math;
+mod authored_package;
 mod authored_tmm_static;
 pub(crate) mod jim_local;
 mod jim_teardown;
@@ -1082,6 +1084,7 @@ struct LogicalProviders {
     eval_object: Option<tcl_registry::native_eval_object::LogicalEvalObjectProvider>,
     expression_parse: Option<tcl_registry::invocation_words::LogicalExpressionParseProvider>,
     numeric: Option<tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation>,
+    math_functions: Option<tcl_runtime_api::expression_policy::AuthoredMathFunctionProvider>,
     /// Explicit authored name/string simulation, independent of the host engine.
     names: Option<tcl_syntax::naming::NamePolicyProtocol>,
     /// Explicit compiler-local simulation, separate from name and host authority.
@@ -1177,6 +1180,7 @@ pub struct InterpState {
     native_execution_booleans: Option<[Value; 2]>,
     jim_teardown_started: bool,
     logical_providers: LogicalProviders,
+    authored_math: Option<authored_math::AuthoredMathState>,
     /// The availability registry for [`Self::command_surface_profile`] —
     /// its environment's registry generation, resolved once at pin time
     /// through the ingress seam ([`crate::environment::store_for_profile`];
@@ -1325,6 +1329,8 @@ pub struct InterpState {
     /// is being dispatched, so a handler whose own head is unresolvable falls
     /// through to a hard `invalid command name` instead of recursing.
     package_state: PackageState,
+    authored_packages: Option<authored_package::AuthoredPackageState>,
+    package_table_purpose: authored_package::PackageTablePurpose,
     /// Command prefix invoked by `package require` when no suitable package is
     /// known yet (`package unknown`).
     package_unknown: Option<Vec<u8>>,
@@ -1869,7 +1875,7 @@ struct VarTraceInvocation<'a> {
 /// callback runs (C's re-entrancy rule).
 pub(crate) struct CmdTraceEntry {
     pub(crate) ops: Vec<String>,
-    pub(crate) callback: String,
+    pub(crate) callback: Vec<u8>,
     /// The generation of the command **token** this entry hangs off, or `None`
     /// when the binding had none.
     ///
@@ -1882,7 +1888,7 @@ pub(crate) struct CmdTraceEntry {
     /// rename moves the entry with its token, and re-stamps it.
     token: std::cell::Cell<Option<u64>>,
     firing: std::cell::Cell<bool>,
-    /// Set by [`Vm::remove_cmd_trace`] when it unlinks this registration, so a
+    /// Set by [`Vm::remove_cmd_trace_bytes`] when it unlinks this registration, so a
     /// walk already under way skips it — C's `Tcl_UntraceCommand` unlinks from
     /// the list the walk is following (`tclBasic.c` 9.0.4:4020-4045).
     ///
@@ -1896,7 +1902,7 @@ pub(crate) struct CmdTraceEntry {
 }
 
 impl CmdTraceEntry {
-    fn new(ops: Vec<String>, callback: String, token: Option<u64>) -> Self {
+    fn new(ops: Vec<String>, callback: Vec<u8>, token: Option<u64>) -> Self {
         Self {
             ops,
             callback,
@@ -2338,6 +2344,28 @@ impl Vm {
         self.active_native_profile = saved;
     }
 
+    pub(crate) fn expression_evaluation_policy(
+        &self,
+    ) -> Option<tcl_runtime_api::expression_policy::ExpressionEvaluationPolicy> {
+        use tcl_registry::native_expression_program::{
+            authored_expression_evaluation_policy, native_expression_evaluation_policy,
+        };
+        let profile = self.native_execution_profile();
+        if self.active_native_profile.is_none()
+            && let Some(parser) = self.logical_providers.expression_parse
+            && let Some(mut policy) = authored_expression_evaluation_policy(
+                profile,
+                parser,
+                self.numeric_context().simulation,
+            )
+        {
+            policy.authored_functions = self.logical_providers.math_functions;
+            return Some(policy);
+        }
+        let point = self.actual_native_invocation_dialect().execution_point()?;
+        native_expression_evaluation_policy(profile, point)
+    }
+
     /// Override only the builtin command-availability surface.
     ///
     /// Compilation, bytecode profile validation, lexer/expr semantics, and
@@ -2771,6 +2799,7 @@ impl InterpState {
                 drop(retired);
             }
         }
+        self.reset_native_global_error_episode();
         Ok(())
     }
 
@@ -2799,16 +2828,6 @@ impl InterpState {
             ));
         }
         Ok(lease)
-    }
-
-    pub(crate) fn publish_native_interp_completion(
-        &mut self,
-        mut completion: tcl_core_types::Completion<Value>,
-    ) -> Result<tcl_core_types::Completion<Value>, tcl_syntax::value::ValueError> {
-        completion.result = self
-            .adopt_native_interp_result(completion.result)?
-            .into_value();
-        Ok(completion)
     }
 
     pub(crate) fn set_native_c_return_state(&mut self, code: i32, level: i64) {
@@ -3094,6 +3113,7 @@ impl InterpState {
             native_execution_booleans: None,
             jim_teardown_started: false,
             logical_providers: LogicalProviders::default(),
+            authored_math: None,
             command_surface_point: Some(environment.surface),
             profile_registry: None,
             profile_generation: 0,
@@ -3119,6 +3139,8 @@ impl InterpState {
             registry_object_roots: HashMap::new(),
             ns_unknowns: HashMap::new(),
             package_state: PackageState::default(),
+            authored_packages: None,
+            package_table_purpose: authored_package::PackageTablePurpose::Native,
             package_unknown: None,
             package_prefer: initial_package_prefer(),
             variable_observers: VariableObservers::default(),
@@ -6261,6 +6283,15 @@ impl Vm {
         child.logical_providers.source_words = self.logical_providers.source_words;
         child.logical_providers.eval_object = self.logical_providers.eval_object;
         child.logical_providers.numeric = self.logical_providers.numeric;
+        child.logical_providers.math_functions = self.logical_providers.math_functions;
+        child.authored_packages = self
+            .authored_packages
+            .as_ref()
+            .map(|state| authored_package::AuthoredPackageState::new(state.provider));
+        child.authored_math = self
+            .logical_providers
+            .math_functions
+            .map(|_| authored_math::AuthoredMathState::default());
         child.logical_providers.names = self.logical_providers.names;
         child.logical_providers.compiled_variables = self.logical_providers.compiled_variables;
         child.command_surface_profile = self.command_surface_profile;
@@ -6307,6 +6338,9 @@ impl Vm {
             vm.enable_command_semantics_tracking();
             if vm.authored_timers.installed {
                 crate::retained_activation::register_provider(vm);
+            }
+            if vm.authored_packages.is_some() {
+                authored_package::register_provider(vm);
             }
             if vm.authored_tmm_static.policy.is_some() {
                 authored_tmm_static::register_provider(vm);
@@ -9215,6 +9249,7 @@ impl Vm {
 
     pub(crate) fn native_compiler_policy(&self) -> crate::compiled::NativeCompilerPolicy {
         crate::compiled::NativeCompilerPolicy {
+            expression_evaluation: self.expression_evaluation_policy(),
             expression_provider: self.logical_providers.expression_parse,
             source_word_provider: self.logical_providers.source_words,
             eval_object_provider: self.logical_providers.eval_object,
@@ -10921,7 +10956,7 @@ impl Vm {
     #[cfg(test)]
     pub(crate) fn command_origin_key(&self, key: &str) -> String {
         match self.ultimate_import_origin(&CommandSidecarKey::visible(key)) {
-            CommandSidecarKey::Visible(origin) => self.command_display_key(&origin).to_owned(),
+            CommandSidecarKey::Visible(origin) => self.command_display_key(&origin).clone(),
             CommandSidecarKey::Hidden(origin) => origin,
         }
     }
@@ -12310,7 +12345,7 @@ impl Vm {
     /// Record a version under an already selected package-database key.
     pub(crate) fn provide_package(&mut self, name: impl AsRef<[u8]>, version: impl AsRef<[u8]>) {
         self.record_package_entry(name.as_ref());
-        self.package_state.packages.insert(
+        self.selected_package_state_mut().packages.insert(
             tcl_core_types::NameBytes::from(name.as_ref()),
             tcl_core_types::NameBytes::from(version.as_ref()),
         );
@@ -12318,29 +12353,34 @@ impl Vm {
 
     /// Withdraw an already selected provided key, retaining loader entries.
     pub(crate) fn forget_package(&mut self, name: impl AsRef<[u8]>) {
-        self.package_state.packages.remove(name.as_ref());
-        self.package_state.version_objects.remove(name.as_ref());
+        self.selected_package_state_mut()
+            .packages
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
+            .version_objects
+            .remove(name.as_ref());
     }
 
     pub(crate) fn package_version_bytes(
         &self,
         name: impl AsRef<[u8]>,
     ) -> Option<&tcl_core_types::NameBytes> {
-        self.package_state.packages.get(name.as_ref())
+        self.selected_package_state().packages.get(name.as_ref())
     }
 
     pub(crate) fn package_version_object(&mut self, name: impl AsRef<[u8]>) -> Value {
-        let Some(version) = self.package_state.packages.get(name.as_ref()).cloned() else {
+        let Some(version) = self
+            .selected_package_state()
+            .packages
+            .get(name.as_ref())
+            .cloned()
+        else {
             return Value::empty();
         };
-        if self
-            .native_invocation_dialect()
-            .native_package_protocol()
-            .is_some_and(
-                tcl_registry::native_package::NativePackageProtocol::retains_version_object,
-            )
-        {
-            self.package_state
+        if self.selected_package_protocol().is_some_and(
+            tcl_registry::native_package::NativePackageProtocol::retains_version_object,
+        ) {
+            self.selected_package_state_mut()
                 .version_objects
                 .entry(tcl_core_types::NameBytes::from(name.as_ref()))
                 .or_insert_with(|| Value::from_native_string_bytes(version.as_bytes()))
@@ -12369,14 +12409,36 @@ impl Vm {
     pub(crate) fn package_names(
         &self,
     ) -> Result<Vec<tcl_core_types::NameBytes>, tcl_syntax::value::ValueError> {
-        let keys = self.package_state.package_entry_order.keys().ok_or(
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable("package table ABI"),
-        )?;
+        if self.package_table_is_authored() {
+            let state = self
+                .authored_packages
+                .as_ref()
+                .expect("selected authored table");
+            return Ok(state
+                .order
+                .iter()
+                .filter(|key| {
+                    state.table.packages.contains_key(*key)
+                        || state.table.package_ifneeded.contains_key(*key)
+                })
+                .cloned()
+                .collect());
+        }
+        let keys = self
+            .selected_package_state()
+            .package_entry_order
+            .keys()
+            .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "package table ABI",
+            ))?;
         Ok(keys
             .into_iter()
             .filter(|key| {
-                self.package_state.packages.contains_key(*key)
-                    || self.package_state.package_ifneeded.contains_key(*key)
+                self.selected_package_state().packages.contains_key(*key)
+                    || self
+                        .selected_package_state()
+                        .package_ifneeded
+                        .contains_key(*key)
             })
             .map(tcl_core_types::NameBytes::from)
             .collect())
@@ -12390,9 +12452,13 @@ impl Vm {
         release: tcl_dialect::TclVersion,
     ) {
         self.record_package_entry(name.as_ref());
-        let origin = self.package_state.package_source_paths.last().cloned();
+        let origin = self
+            .selected_package_state()
+            .package_source_paths
+            .last()
+            .cloned();
         let versions = self
-            .package_state
+            .selected_package_state_mut()
             .package_ifneeded
             .entry(tcl_core_types::NameBytes::from(name.as_ref()))
             .or_default();
@@ -12415,11 +12481,13 @@ impl Vm {
         };
         let key = (tcl_core_types::NameBytes::from(name.as_ref()), registered);
         if let Some(origin) = origin {
-            self.package_state
+            self.selected_package_state_mut()
                 .package_loader_origins
                 .insert(key, origin);
         } else {
-            self.package_state.package_loader_origins.remove(&key);
+            self.selected_package_state_mut()
+                .package_loader_origins
+                .remove(&key);
         }
     }
 
@@ -12430,7 +12498,7 @@ impl Vm {
         release: tcl_dialect::TclVersion,
     ) -> Option<&Vec<u8>> {
         let comparable = tcl_core_types::c_string_extent(version.as_ref());
-        self.package_state
+        self.selected_package_state()
             .package_ifneeded
             .get(name.as_ref())
             .and_then(|versions| {
@@ -12449,7 +12517,7 @@ impl Vm {
         &self,
         name: impl AsRef<[u8]>,
     ) -> Vec<tcl_core_types::NameBytes> {
-        self.package_state
+        self.selected_package_state()
             .package_ifneeded
             .get(name.as_ref())
             .map(|versions| {
@@ -12465,7 +12533,7 @@ impl Vm {
         &self,
         name: impl AsRef<[u8]>,
     ) -> Option<&tcl_core_types::NameBytes> {
-        self.package_state
+        self.selected_package_state()
             .package_loading
             .iter()
             .rev()
@@ -12478,16 +12546,16 @@ impl Vm {
         version: impl AsRef<[u8]>,
     ) {
         if self
-            .native_invocation_dialect()
-            .native_package_protocol()
+            .selected_package_protocol()
             .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
         {
-            self.package_state.package_file_inventory_active = true;
-            self.package_state
+            self.selected_package_state_mut()
+                .package_file_inventory_active = true;
+            self.selected_package_state_mut()
                 .package_file_scopes
                 .push(tcl_core_types::NameBytes::from(name.as_ref()));
         }
-        self.package_state.package_loading.push((
+        self.selected_package_state_mut().package_loading.push((
             tcl_core_types::NameBytes::from(name.as_ref()),
             tcl_core_types::NameBytes::from(version.as_ref()),
         ));
@@ -12500,51 +12568,92 @@ impl Vm {
         version: impl AsRef<[u8]>,
     ) {
         if self
-            .package_state
+            .selected_package_state()
             .package_loading
             .last()
             .is_some_and(|(key, loading_version)| {
                 key.as_bytes() == name.as_ref() && loading_version.as_bytes() == version.as_ref()
             })
         {
-            self.package_state.package_loading.pop();
+            self.selected_package_state_mut().package_loading.pop();
             if self
-                .native_invocation_dialect()
-                .native_package_protocol()
+                .selected_package_protocol()
                 .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files)
             {
-                self.package_state.package_file_scopes.pop();
+                self.selected_package_state_mut().package_file_scopes.pop();
             }
         }
     }
 
     pub(crate) fn forget_package_completely(&mut self, name: impl AsRef<[u8]>) {
-        self.package_state.package_entry_order.remove(name.as_ref());
-        self.package_state.packages.remove(name.as_ref());
-        self.package_state.version_objects.remove(name.as_ref());
-        self.package_state.package_ifneeded.remove(name.as_ref());
-        self.package_state.package_files.remove(name.as_ref());
-        self.package_state
+        if self.package_table_is_authored() {
+            self.authored_packages
+                .as_mut()
+                .expect("selected authored table")
+                .order
+                .retain(|key| key.as_bytes() != name.as_ref());
+        }
+        self.selected_package_state_mut()
+            .package_entry_order
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
+            .packages
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
+            .version_objects
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
+            .package_ifneeded
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
+            .package_files
+            .remove(name.as_ref());
+        self.selected_package_state_mut()
             .package_loader_origins
             .retain(|(key, _), _| key.as_bytes() != name.as_ref());
     }
 
     pub(crate) fn set_package_unknown(&mut self, script: Option<Vec<u8>>) {
-        self.package_unknown = script;
+        if self.package_table_is_authored() {
+            self.authored_packages
+                .as_mut()
+                .expect("selected authored table")
+                .unknown = script;
+        } else {
+            self.package_unknown = script;
+        }
     }
     pub(crate) fn package_unknown(&self) -> Option<&Vec<u8>> {
-        self.package_unknown.as_ref()
+        if self.package_table_is_authored() {
+            self.authored_packages.as_ref()?.unknown.as_ref()
+        } else {
+            self.package_unknown.as_ref()
+        }
     }
 
     pub(crate) fn package_prefer(&self) -> PackagePrefer {
-        self.package_prefer
+        if self.package_table_is_authored() {
+            self.authored_packages
+                .as_ref()
+                .expect("selected authored table")
+                .prefer
+        } else {
+            self.package_prefer
+        }
     }
 
     /// Raise the package selection policy to `latest`. Tcl deliberately does
     /// not provide the inverse transition: `package prefer stable` is a no-op
     /// after this latch has been raised.
     pub(crate) fn prefer_latest_packages(&mut self) {
-        self.package_prefer = PackagePrefer::Latest;
+        if self.package_table_is_authored() {
+            self.authored_packages
+                .as_mut()
+                .expect("selected authored table")
+                .prefer = PackagePrefer::Latest;
+        } else {
+            self.package_prefer = PackagePrefer::Latest;
+        }
     }
 
     // Variable traces (`trace add|remove|info variable`)
@@ -12593,8 +12702,12 @@ impl Vm {
     fn install_native_precision_trace(&mut self) {
         use tcl_registry::special_vars::SpecialVariableHook;
         self.variable_observers.precision_cell = None;
-        let Some(name) =
-            SpecialVariableHook::DoublePrecision.name_in(self.native_invocation_dialect())
+        let Some(name) = self
+            .authored_math_provider()
+            .map(|_| "tcl_precision")
+            .or_else(|| {
+                SpecialVariableHook::DoublePrecision.name_in(self.native_invocation_dialect())
+            })
         else {
             return;
         };
@@ -12618,11 +12731,26 @@ impl Vm {
             return Ok(());
         };
         let dialect = self.native_invocation_dialect();
-        let Some(policy) = dialect.double_string_policy() else {
+        if self.authored_math_provider().is_none()
+            && tcl_registry::special_vars::SpecialVariableHook::DoublePrecision
+                .name_in(dialect)
+                .is_none()
+        {
+            return Ok(());
+        }
+        let Some(context) = self
+            .authored_math_format()
+            .or_else(|| crate::value::DoubleFormatContext::for_dialect(dialect))
+        else {
             return Ok(());
         };
-        let Some(context) = crate::value::DoubleFormatContext::for_dialect(dialect) else {
-            return Ok(());
+        let policy = if self.authored_math_provider().is_some() {
+            tcl_dialect::DoubleStringPolicy::Tcl84Precision
+        } else {
+            let Some(policy) = dialect.double_string_policy() else {
+                return Ok(());
+            };
+            policy
         };
         if op == "read" {
             if matches!(
@@ -12804,6 +12932,7 @@ impl Vm {
     /// Register a `trace add command|execution` callback on `name` — which,
     /// unlike a variable trace, must resolve to an existing command
     /// (tclsh-pinned: `unknown command "missing"`).
+    #[cfg(test)]
     pub(crate) fn add_cmd_trace(
         &mut self,
         execution: bool,
@@ -12811,8 +12940,41 @@ impl Vm {
         ops: Vec<String>,
         callback: String,
     ) -> Completion<Value> {
-        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
-            return err(format!("unknown command \"{name}\""));
+        self.add_cmd_trace_bytes(execution, name.as_bytes(), ops, callback.into_bytes())
+    }
+
+    fn command_trace_key(&mut self, name: &[u8]) -> Result<String, Completion<Value>> {
+        match self.resolve_command_bytes_checked(self.current_ns_id(), name, true) {
+            Ok(Some(key)) => Ok(key),
+            Ok(None) => Err(err([
+                b"unknown command \"".as_slice(),
+                tcl_core_types::c_string_extent(name),
+                b"\"",
+            ]
+            .concat())),
+            Err(error) => Err(self.refuse_host_command(format!(
+                "command trace name lookup is unavailable: {error:?}"
+            ))),
+        }
+    }
+
+    pub(crate) fn add_cmd_trace_bytes(
+        &mut self,
+        execution: bool,
+        name: &[u8],
+        ops: Vec<String>,
+        callback: Vec<u8>,
+    ) -> Completion<Value> {
+        if self
+            .actual_native_invocation_dialect()
+            .native_variable_trace_protocol()
+            .is_none()
+        {
+            return self.refuse_host_command("command trace protocol is unavailable".to_owned());
+        }
+        let key = match self.command_trace_key(name) {
+            Ok(key) => key,
+            Err(completion) => return completion,
         };
         let is_step = is_step_capable(&ops);
         // The trace belongs to the token standing at this key now, not to the
@@ -12851,15 +13013,22 @@ impl Vm {
     }
 
     /// Remove one command/execution trace matching `ops` + `callback`.
-    pub(crate) fn remove_cmd_trace(
+    pub(crate) fn remove_cmd_trace_bytes(
         &mut self,
         execution: bool,
-        name: &str,
+        name: &[u8],
         ops: &[String],
-        callback: &str,
+        callback: &[u8],
     ) -> Completion<Value> {
-        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
-            return err(format!("unknown command \"{name}\""));
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_variable_trace_protocol()
+        else {
+            return self.refuse_host_command("command trace protocol is unavailable".to_owned());
+        };
+        let key = match self.command_trace_key(name) {
+            Ok(key) => key,
+            Err(completion) => return completion,
         };
         let is_step = is_step_capable(ops);
         let key = self.renamed_command_key(CommandSidecarKey::visible(key));
@@ -12873,10 +13042,9 @@ impl Vm {
         let mut removed = false;
         if let Some(list) = table.get_mut(&key) {
             // Newest-first first match, as `remove_var_trace` explains.
-            if let Some(index) = list
-                .iter()
-                .rposition(|t| t.ops == ops && t.callback == callback)
-            {
+            if let Some(index) = list.iter().rposition(|t| {
+                t.ops == ops && protocol.command_prefix_matches(&t.callback, callback)
+            }) {
                 // Mark before dropping the handle: a firing walk holds its own
                 // `Rc` and consults the flag, not the table.
                 list[index].untraced.set(true);
@@ -12910,13 +13078,24 @@ impl Vm {
 
     /// The `{ops callback}` pairs registered on command `name` (newest first),
     /// for `trace info command|execution`.
-    pub(crate) fn cmd_trace_entries(&self, execution: bool, name: &str) -> Completion<Value> {
+    pub(crate) fn cmd_trace_entries_bytes(
+        &mut self,
+        execution: bool,
+        name: &[u8],
+    ) -> Completion<Value> {
         // C resolves the name with `TCL_LEAVE_ERR_MSG` before reporting
         // (`TraceCommandObjCmd` `tclTrace.c` 9.0.4:661, `TraceExecutionObjCmd`
         // :454), so introspecting a command that does not exist errors with the
         // name as written — unlike `trace info variable`, which answers empty.
-        let Some(key) = self.resolve_command_fqn(self.current_ns(), name) else {
-            return err(format!("unknown command \"{name}\""));
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_variable_trace_protocol()
+        else {
+            return self.refuse_host_command("command trace protocol is unavailable".to_owned());
+        };
+        let key = match self.command_trace_key(name) {
+            Ok(key) => key,
+            Err(completion) => return completion,
         };
         let table = if execution {
             &self.exec_traces
@@ -12933,7 +13112,9 @@ impl Vm {
                 .map(|t| {
                     Value::list(vec![
                         Value::list(t.ops.iter().map(|o| Value::string(o.clone())).collect()),
-                        Value::string(t.callback.clone()),
+                        Value::from_native_string_bytes(
+                            protocol.command_prefix_report(&t.callback),
+                        ),
                     ])
                 })
                 .collect(),
@@ -12986,7 +13167,7 @@ impl Vm {
             return ok(Value::empty());
         }
         entry.firing.set(true);
-        let mut script = entry.callback.as_bytes().to_vec();
+        let mut script = entry.callback.clone();
         for argument in args {
             let bytes = match self.native_name_operand_bytes(argument) {
                 Ok(bytes) => bytes,
@@ -13008,7 +13189,18 @@ impl Vm {
         let saved = self.trace_in_progress.get();
         self.trace_in_progress
             .set(saved || interp_trace_in_progress);
-        let source = Value::from_string_bytes(script);
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_variable_trace_protocol()
+        else {
+            self.trace_in_progress.set(saved);
+            entry.firing.set(false);
+            return self
+                .refuse_host_command("command trace callback protocol is unavailable".to_owned());
+        };
+        let source = Value::from_native_string_bytes(
+            protocol.command_callback_source(interp_trace_in_progress, &script),
+        );
         let res = self.eval_value_at_level(self.current_level(), &source);
         self.trace_in_progress.set(saved);
         entry.firing.set(false);
@@ -14392,7 +14584,7 @@ impl Vm {
         parameters: &Value,
         body: &Value,
     ) -> Result<Value, tcl_syntax::value::ValueError> {
-        let dialect = self.native_invocation_dialect();
+        let dialect = self.actual_native_invocation_dialect();
         let activation = tcl_registry::native_procedure::procedure_activation_protocol(dialect)
             .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "native procedure definition",
@@ -20260,6 +20452,9 @@ impl Vm {
     ) -> Result<tcl_syntax::expr::NativeExprNode, TclError> {
         use tcl_syntax::expr::parser::CheckedExprParse;
         self.claim_number_grammar();
+        if let Some(prepared) = self.prepare_authored_expression_bytes(source) {
+            return prepared;
+        }
         let context = self.expression_parse_context();
         if tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(&context) {
             return self.prepare_fixed_function_expression_bytes(source, &context, publication);
@@ -20317,7 +20512,28 @@ impl Vm {
                 tcl_runtime_api::NativeExpressionRefusal::UnsupportedGrammar,
             ));
         }
+        self.validate_expression_function_policy(source, &node)?;
         Ok(node)
+    }
+
+    fn validate_expression_function_policy<Text>(
+        &mut self,
+        source: &[u8],
+        node: &tcl_syntax::expr::ExprNode<Text>,
+    ) -> Result<(), TclError> {
+        if !tcl_registry::native_expression_program::expression_tree_is_call_free(node)
+            && tcl_registry::native_expression_program::expression_function_dispatch(
+                self.expression_evaluation_policy().as_ref(),
+                self.actual_native_invocation_dialect(),
+            )
+            .is_none()
+        {
+            return Err(self.refuse_expression_bytes(
+                source,
+                tcl_runtime_api::NativeExpressionRefusal::FunctionDispatchPolicyUnavailable,
+            ));
+        }
+        Ok(())
     }
 
     fn prepare_fixed_function_expression_bytes(
@@ -20495,6 +20711,11 @@ impl Vm {
             return Err(TclError::from_execution_failure(refusal));
         }
         self.claim_number_grammar();
+        if let Some(prepared) = self.prepare_authored_expression_bytes(src.as_bytes()) {
+            return prepared.map(|tree| {
+                tree.map_text(|bytes| String::from_utf8(bytes).expect("authored UTF-8 source"))
+            });
+        }
         let context = self.expression_parse_context();
         if tcl_registry::runtime_expr_validation::requires_fixed_function_preparation(&context) {
             return self.prepare_fixed_function_expression(src, &context);
@@ -20534,6 +20755,7 @@ impl Vm {
             self.seed_parsing_expression_frame(src, &message);
             return Err(TclError::with_error_code(message, error.error_code()));
         }
+        self.validate_expression_function_policy(src.as_bytes(), &node)?;
         Ok(node)
     }
 
@@ -20995,6 +21217,7 @@ impl Vm {
                     .and_then(|frame| frame.compiled_local_layout.clone())
             },
             invocation_policy: Some(self.native_execution_profile().cache_key()),
+            expression_policy: self.expression_evaluation_policy(),
             lexer_grammar: Some(
                 self.lexer_config()
                     .grammar_over(self.source_profile().grammar),
@@ -24268,16 +24491,77 @@ mod family_b_tests {
     }
 
     #[test]
+    fn authored_expression_policy_has_no_fixed_table_and_refuses_before_function_operands() {
+        use tcl_registry::invocation_words::LogicalExpressionParseProvider;
+        use tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin;
+        use tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation;
+        let source = tcl_dialect::DialectProfile::irules();
+        let host = crate::environment::profile_for_dialect("tcl9.0");
+        let mut vm = Vm::new();
+        vm.set_dialect_profile(source);
+        assert!(vm.set_native_engine_profile(host));
+        let absent = vm.native_compilation_entry_for_namespace("", false);
+        assert!(absent.expression_policy.is_none());
+        assert!(vm.set_logical_expression_parse_provider(
+            LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
+        let parser = vm.native_compilation_entry_for_namespace("", false);
+        assert_eq!(
+            parser.expression_policy.unwrap().origin,
+            ExpressionEvaluationOrigin::AuthoredTcl84Parser
+        );
+        assert!(
+            parser
+                .expression_policy
+                .unwrap()
+                .numeric_simulation
+                .is_none()
+        );
+        assert!(!absent.same_compilation_world(&parser));
+        assert!(vm.set_logical_numeric_provider(AuthoredLogicalNumericSimulation::Tcl84Core));
+        let scalar = vm.native_compilation_entry_for_namespace("", false);
+        assert!(!parser.same_compilation_world(&scalar));
+        assert!(scalar.math_functions.is_none());
+        assert_eq!(
+            scalar.execution_point,
+            tcl_registry::InvocationDialect::of_profile(host).execution_point()
+        );
+        assert_eq!(
+            vm.try_eval_expr("077+1")
+                .unwrap()
+                .result
+                .string_bytes()
+                .as_ref(),
+            b"64"
+        );
+        assert!(
+            vm.try_eval_expr("abs([set function_operand_entered 1])")
+                .is_err()
+        );
+        assert!(vm.get_var("function_operand_entered").is_none());
+    }
+
+    #[test]
     fn host_activation_preserves_separate_authored_numeric_and_expression_policies() {
         use tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation;
         use tcl_syntax::value::ValueOps;
         let provider = AuthoredLogicalNumericSimulation::Tcl84Core;
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        let mut vm = Vm::new();
+        let mut vm = Vm::with_native_core(
+            Box::new(Vec::<u8>::new()),
+            Rc::new(crate::host_native::NativeHost::new()),
+            host,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .unwrap();
         vm.set_dialect_profile(source);
+        assert!(vm.set_command_surface_profile(host));
         assert!(vm.set_native_engine_profile(host));
         assert!(vm.set_logical_numeric_provider(provider));
+        assert!(vm.set_logical_expression_parse_provider(
+            tcl_registry::invocation_words::LogicalExpressionParseProvider::Tcl84CoreSimulation
+        ));
         assert_eq!(
             vm.expression_source_profile().cache_key(),
             source.cache_key()
@@ -24290,10 +24574,10 @@ mod family_b_tests {
         )
         .expect("authored octal arithmetic");
         assert_eq!(logical_sum.string_bytes().as_ref(), b"64");
-        let logical_abs = vm
-            .try_eval_expr("abs(077)")
-            .expect("authored fixed math grammar");
-        assert_eq!(logical_abs.result.string_bytes().as_ref(), b"63");
+        let logical_sum_expression = vm
+            .try_eval_expr("077+1")
+            .expect("explicit authored scalar evaluator");
+        assert_eq!(logical_sum_expression.result.string_bytes().as_ref(), b"64");
         let huge = Value::string("18446744073709551616");
         assert!(
             crate::expr::arith_in(
@@ -24307,6 +24591,14 @@ mod family_b_tests {
         assert_eq!(ValueOps::try_char_len(&mut vm, &Value::string("😀")), Ok(2));
         let user_policy = vm.native_compiler_policy();
         vm.active_native_profile = Some(host);
+        assert!(matches!(
+            vm.expression_evaluation_policy().unwrap().origin,
+            tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::Native(_)
+        ));
+        let native_abs = vm
+            .try_eval_expr("abs(077)")
+            .expect("actual C9 command-table math");
+        assert_eq!(native_abs.result.string_bytes().as_ref(), b"77");
         assert!(vm.numeric_context().simulation.is_none());
         assert_eq!(vm.expression_source_profile().cache_key(), host.cache_key());
         assert_eq!(ValueOps::as_int(&mut vm, &Value::string("077")), Ok(77));
@@ -24326,6 +24618,10 @@ mod family_b_tests {
         assert_eq!(membership.result.string_bytes().as_ref(), b"1");
         assert_ne!(vm.native_compiler_policy(), user_policy);
         vm.active_native_profile = None;
+        assert_eq!(
+            vm.expression_evaluation_policy().unwrap().origin,
+            tcl_runtime_api::expression_policy::ExpressionEvaluationOrigin::AuthoredTcl84Parser
+        );
         assert_eq!(
             vm.expression_source_profile().cache_key(),
             source.cache_key()
@@ -27110,7 +27406,9 @@ mod native_namespace_variable_fixture_tests {
     fn bytes_from_hex(hex: &str) -> Vec<u8> {
         assert_eq!(hex.len() % 2, 0);
         hex.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }
@@ -27169,7 +27467,7 @@ mod native_namespace_variable_fixture_tests {
                 let original = vm.native_name_operand_bytes(&operand).unwrap();
                 match setup {
                     "full-only" | "both" => {
-                        vm.set_var_bytes(&original, Value::string("FULL")).unwrap()
+                        vm.set_var_bytes(&original, Value::string("FULL")).unwrap();
                     }
                     "declared-undefined" if !jim => {
                         assert!(

@@ -215,6 +215,19 @@ pub(crate) fn completion_options(interp: &mut Interp, code: Code) -> *mut TclObj
     if interp.uses_jim_error_stack() {
         return jim_options_raw(interp, interp.jim_return_receipt(), code);
     }
+    // Tcl_GetReturnOptions reaches Tcl_AddObjErrorInfo with an empty suffix
+    // on an ERROR result. In particular, this re-arms legacy publication
+    // after a compatibility write trace evaluated and reset the interpreter.
+    // Keep the restored private original; no bytes are appended here. C8.4
+    // has no Tcl_GetReturnOptions and retains its global error-info path.
+    if code == Code::Error
+        && interp
+            .native_invocation_dialect()
+            .native_error_variable_protocol()
+            .is_some()
+    {
+        interp.update_native_error_info();
+    }
     // A body that completed via `return` propagates the return's *own* requested
     // options (`-code C -level L`), not the settled `RETURN`(2)/level-0 — what
     // `catch`'s options dict and TIP 329 `-during` chaining record
@@ -766,6 +779,41 @@ fn throw_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn dynamic_catch_resets_error_state_in_all_six_native_engines() {
+        fn decode(hex: &str) -> Vec<u8> {
+            hex.as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect()
+        }
+        let mut compared = 0;
+        for row in include_str!("../tests/data/native_dynamic_catch_reset/windows.tsv").lines() {
+            let fields = row.split('\t').collect::<Vec<_>>();
+            let engine = if fields[0] == "jim" {
+                "jim".to_owned()
+            } else {
+                format!("tcl{}", fields[0])
+            };
+            let mut interp = crate::interp::Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect(&engine),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                interp.eval_str(&decode(fields[1])).as_int(),
+                fields[2].parse::<i64>().unwrap(),
+                "{engine}"
+            );
+            assert_eq!(interp.result_bytes(), decode(fields[3]), "{engine}");
+            assert!(!interp.host_refusal_pending(), "{engine}");
+            compared += 1;
+        }
+        assert_eq!(compared, 6);
+    }
     use crate::counters;
     use crate::interp::{Code, Interp};
 

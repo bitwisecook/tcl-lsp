@@ -2274,7 +2274,10 @@ mod tests {
 
         ctx.emit_catch_region_inline(&cfg, "catch_body_1", None, None);
 
-        assert_eq!(ctx.cmd_index, 1, "the marker is not a catch-body command");
+        assert_eq!(
+            ctx.cmd_index, 2,
+            "only the catch wrapper and body are source commands"
+        );
         assert!(
             ctx.instructions
                 .iter()

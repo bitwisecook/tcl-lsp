@@ -25,9 +25,19 @@ pub(super) struct NativeErrorTraceState {
 
 impl Interp {
     pub(super) fn uses_c84_global_error_info(&self) -> bool {
-        let dialect = self.native_invocation_dialect();
-        dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4)
-            && dialect.native_error_log_protocol().is_some()
+        self.native_invocation_dialect()
+            .native_error_log_protocol()
+            .is_some_and(
+                tcl_registry::native_error_log::NativeErrorLogProtocol::resets_global_error_episode,
+            )
+    }
+
+    /// Clear C8.4's error-in-progress, already-logged and error-code-set state.
+    /// No global variable setter or header publication belongs to this reset.
+    pub(super) fn reset_native_global_error_episode(&self) {
+        if self.uses_c84_global_error_info() {
+            *self.exc.borrow_mut() = super::ExceptionState::default();
+        }
     }
 
     pub(super) fn save_native_error_trace_state(&self) -> Option<NativeErrorTraceState> {
@@ -222,7 +232,7 @@ impl Interp {
             .map(|bytes| obj::Owned::fresh(new_string(bytes)));
     }
 
-    pub(super) fn update_native_error_info(&mut self) {
+    pub(crate) fn update_native_error_info(&mut self) {
         if self.uses_c84_global_error_info() {
             self.append_c84_global_error_info();
             return;
@@ -441,12 +451,193 @@ mod tests {
 
     thread_local! {
         static C84_LOG_WRITES: std::cell::RefCell<Vec<Vec<u8>>> = const { std::cell::RefCell::new(Vec::new()) };
+        static LOG_HEADERS: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
     }
 
     fn observe_c84_log(interp: &mut Interp, _arguments: &[*mut obj::TclObj]) -> super::super::Code {
         let original = interp.var_get_at(b"::errorInfo", 0).unwrap();
         C84_LOG_WRITES.with(|writes| writes.borrow_mut().push(obj_bytes(original)));
+        LOG_HEADERS.with(|headers| headers.borrow_mut().push(original as usize));
         super::super::Code::Ok
+    }
+
+    fn check_repeated_error_episode(
+        interp: &mut Interp,
+        head: &obj::Owned,
+        original: &obj::Owned,
+        fields: &[&str],
+        profile: &str,
+    ) {
+        use super::super::Code;
+        assert_eq!(
+            interp.eval_original_object_vector(&[head.as_ptr()]),
+            Code::from_int(fields[8].parse().unwrap()),
+            "{profile}"
+        );
+        assert!(
+            !interp.host_refusal_pending(),
+            "{profile}: {:?}",
+            interp.native_access_refusal()
+        );
+        let current = interp.read_named_variable(b"::errorInfo").unwrap();
+        assert_eq!(current != original.as_ptr(), fields[9] == "1", "{profile}");
+        assert_eq!(
+            interp.result_bytes() == b"X",
+            fields[10] == "1",
+            "{profile}"
+        );
+        assert_eq!(
+            !obj_bytes(current)
+                .windows(b"FIRST_ERROR_LONG".len())
+                .any(|bytes| bytes == b"FIRST_ERROR_LONG"),
+            fields[11] == "1",
+            "{profile}"
+        );
+        assert_eq!(
+            interp.eval_original_object_vector(&[head.as_ptr()]),
+            Code::from_int(fields[12].parse().unwrap()),
+            "{profile}"
+        );
+        assert!(
+            !interp.host_refusal_pending(),
+            "{profile}: {:?}",
+            interp.native_access_refusal()
+        );
+        let current = interp.read_named_variable(b"::errorInfo").unwrap();
+        assert_eq!(
+            !obj_bytes(current)
+                .windows(b"FIRST_ERROR_LONG".len())
+                .any(|bytes| bytes == b"FIRST_ERROR_LONG"),
+            fields[13] == "1",
+            "{profile}"
+        );
+    }
+
+    #[test]
+    fn public_error_resets_preserve_global_headers_and_start_fresh_episodes() {
+        use super::super::Code;
+        let observations = include_str!(
+            "../../../../rust/tcl-registry/tests/data/native_error_variables/reset-episodes.tsv"
+        );
+        for (version, profile) in [
+            ("8.4.20", "tcl8.4"),
+            ("8.5.19", "tcl8.5"),
+            ("8.6.18", "tcl8.6"),
+            ("9.0.4", "tcl9.0"),
+            ("9.1.0", "tcl9.1"),
+        ] {
+            let row = observations
+                .lines()
+                .find(|row| row.starts_with(version))
+                .unwrap();
+            let fields = row.split('\t').collect::<Vec<_>>();
+            counters::reset();
+            {
+                let mut interp = Interp::with_native_core(
+                    default_host(),
+                    profile_for_dialect(profile),
+                    NativeBootstrapInputs::default(),
+                )
+                .unwrap();
+                assert_eq!(
+                    interp.eval_str(b"proc p {} {error FIRST_ERROR_LONG}"),
+                    Code::from_int(fields[1].parse().unwrap()),
+                    "{profile}"
+                );
+                let head = obj::Owned::fresh(new_string(b"p"));
+                assert_eq!(
+                    interp.eval_original_object_vector(&[head.as_ptr()]),
+                    Code::from_int(fields[2].parse().unwrap()),
+                    "{profile}"
+                );
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{profile}: {:?}",
+                    interp.native_access_refusal()
+                );
+                let original =
+                    obj::Owned::retain(interp.read_named_variable(b"::errorInfo").unwrap());
+                if interp.uses_c84_global_error_info() {
+                    // C8.4 TclEvalObjvInternal resets even the empty vector.
+                    assert_eq!(interp.eval_original_object_vector(&[]), Code::Ok);
+                    assert_eq!(
+                        interp.read_named_variable(b"::errorInfo").unwrap() == original.as_ptr(),
+                        fields[3] == "1"
+                    );
+                    assert_eq!(
+                        unsafe { (*original.as_ptr()).ref_count },
+                        fields[4].parse().unwrap()
+                    );
+                    assert!(!interp.exc.borrow().native.legacy_copy);
+                    assert_eq!(interp.exc.borrow().native.info_len, 0);
+                }
+                assert_eq!(
+                    interp.eval_str(b"proc p {} {error X}"),
+                    Code::from_int(fields[5].parse().unwrap()),
+                    "{profile}"
+                );
+                assert_eq!(
+                    interp.read_named_variable(b"::errorInfo").unwrap() == original.as_ptr(),
+                    fields[6] == "1",
+                    "{profile}"
+                );
+                assert_eq!(
+                    unsafe { (*original.as_ptr()).ref_count },
+                    fields[7].parse().unwrap(),
+                    "{profile}"
+                );
+                check_repeated_error_episode(&mut interp, &head, &original, &fields, profile);
+            }
+            assert_eq!(counters::finalize(), 0, "{profile}");
+        }
+    }
+
+    #[test]
+    fn c85_error_options_rearm_publication_of_the_restored_original_header() {
+        counters::reset();
+        {
+            let mut interp = Interp::with_native_core(
+                default_host(),
+                profile_for_dialect("tcl8.5"),
+                NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            interp.register_builtin(b"observe_log", observe_c84_log);
+            assert_eq!(
+                interp.eval_str(b"trace variable ::errorInfo w observe_log"),
+                super::super::Code::Ok
+            );
+            C84_LOG_WRITES.with(|writes| writes.borrow_mut().clear());
+            LOG_HEADERS.with(|headers| headers.borrow_mut().clear());
+            interp.set_result_bytes(b"SEED");
+            interp.log_command_bytes(1, b"failing command");
+            let original = interp.exc.borrow().native.info.as_ref().unwrap().as_ptr();
+            assert!(!interp.exc.borrow().native.legacy_copy);
+            let options = obj::Owned::fresh(crate::cmd_error::completion_options(
+                &mut interp,
+                super::super::Code::Error,
+            ));
+            assert!(interp.exc.borrow().native.legacy_copy);
+            assert_eq!(
+                interp.exc.borrow().native.info.as_ref().unwrap().as_ptr(),
+                original
+            );
+            interp.publish_and_reset_error();
+            LOG_HEADERS
+                .with(|headers| assert_eq!(headers.borrow().as_slice(), [original as usize; 2]));
+            C84_LOG_WRITES.with(|writes| {
+                assert_eq!(
+                    writes.borrow().as_slice(),
+                    [
+                        b"SEED\n    while executing\n\"failing command\"".to_vec(),
+                        b"SEED\n    while executing\n\"failing command\"".to_vec(),
+                    ]
+                )
+            });
+            assert!(interp.exc.borrow().native.info.is_none());
+            drop(options);
+        }
+        assert_eq!(counters::finalize(), 0);
     }
 
     #[test]
@@ -481,7 +672,9 @@ mod tests {
             assert_eq!(interp.result.get(), original.as_ptr());
             assert_eq!(obj_bytes(original.as_ptr()), b"SEED");
             assert!(interp.exc.borrow().native.info.is_none());
-            assert!(interp.exc.borrow().already_logged);
+            // Direct Tcl_LogCommandInfo clears ERR_ALREADY_LOGGED in C8.4;
+            // the evaluating command, rather than this logger, owns the bit.
+            assert!(!interp.exc.borrow().already_logged);
             interp.publish_and_reset_error();
             C84_LOG_WRITES.with(|writes| assert_eq!(writes.borrow().len(), 2));
         }

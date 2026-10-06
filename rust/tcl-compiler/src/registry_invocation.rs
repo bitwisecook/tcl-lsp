@@ -205,6 +205,15 @@ impl LogicalStructuredInvocation {
             .body_scope
     }
 
+    /// Abstract routing inside this original conditional body. This cannot
+    /// certify an actual completion, handler effect or native instruction.
+    pub(crate) fn conditional_completion_route(
+        &self,
+        registry: &CommandRegistry,
+    ) -> tcl_registry::completion_route::InvocationCompletionRoute {
+        self.invocation.completion_route(registry)
+    }
+
     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
         self.invocation.facts.operation.inline_body_error_context()
     }

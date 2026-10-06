@@ -575,7 +575,9 @@ mod original_object_tests {
             let (case, source) = lines[0].split_once('\t').unwrap();
             let source: Vec<u8> = source
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             let code = lines[1].split_once('\t').unwrap().1.parse::<i32>().unwrap();
@@ -592,7 +594,9 @@ mod original_object_tests {
                 .find_map(|line| line.strip_prefix("result\t"))
                 .unwrap()
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             let mut ops = actual("jim");
@@ -723,7 +727,9 @@ mod original_object_tests {
                 expected.push(
                     fields[1]
                         .as_bytes()
-                        .chunks_exact(2)
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
                         .map(|pair| {
                             u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap()
                         })
@@ -1173,9 +1179,11 @@ mod original_object_tests {
         }
     }
 
+    type RegsubPrefixObservation = (bool, usize, bool, usize, bool);
+
     thread_local! {
         static SEED_ID: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-        static OBSERVATIONS: RefCell<Vec<(bool, usize, bool, usize, bool)>> = const { RefCell::new(Vec::new()) };
+        static OBSERVATIONS: RefCell<Vec<RegsubPrefixObservation>> = const { RefCell::new(Vec::new()) };
     }
     fn keep(_vm: &mut Vm, argv: &[Value]) -> Completion<Value> {
         assert_eq!(argv.len(), 3);

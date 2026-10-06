@@ -442,6 +442,9 @@ pub struct NativeCompilationEntry {
     /// Absence retains unknown handler/value/frame policies; the physical engine
     /// point cannot fill this slot.
     pub invocation_policy: Option<tcl_dialect::DialectProfileKey>,
+    /// Original expression evaluation issuer and parser policy. Missing policy
+    /// cannot be filled by the physical compiler point or command catalogue.
+    pub expression_policy: Option<crate::expression_policy::ExpressionEvaluationPolicy>,
     /// Actual native engine point, also when the assistance profile is permissive.
     pub execution_point: Option<tcl_dialect::model::DialectPoint>,
     /// Audited native name-input issuer. This remains independent of logical
@@ -606,6 +609,7 @@ impl NativeCompilationEntry {
             && self.epoch == other.epoch
             && self.profile == other.profile
             && self.invocation_policy == other.invocation_policy
+            && self.expression_policy == other.expression_policy
             && self.execution_point == other.execution_point
             && self.name_protocol == other.name_protocol
             && self.compiled_variable_protocol == other.compiled_variable_protocol

@@ -338,7 +338,9 @@ mod tests {
             let fields: Vec<_> = row.split('\t').collect();
             let expected: Vec<u8> = fields[1]
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();

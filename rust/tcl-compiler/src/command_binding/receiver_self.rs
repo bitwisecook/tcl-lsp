@@ -40,6 +40,45 @@ impl SourceReceiverBuiltinCandidates {
 }
 
 impl ModuleCommandBindings {
+    // TclOO auto-links declared instance variables on actual entry. Formal
+    // cells take precedence, and missing receiver metadata cannot prove that
+    // a bare method name is a fresh, absent activation local.
+    pub(super) fn bind_called_receiver_variables(
+        &self,
+        called: &mut crate::var_resolve::ResolveContext,
+        body: &super::DeferredSourceBody,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if !body.receiver_method {
+            return;
+        }
+        let selected = called
+            .activation
+            .as_ref()
+            .and_then(|activation| self.object_instances.receivers.get(activation))
+            .and_then(|receiver| {
+                let definition = self
+                    .class_definitions
+                    .get(receiver.class_target().identity.as_ref()?)?;
+                Some((receiver, definition.instance_variables.as_ref()?))
+            });
+        let Some((receiver, variables)) = selected else {
+            called.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
+            return;
+        };
+        let names = variables
+            .iter()
+            .filter(|name| !body.parameters.iter().any(|formal| &formal.name == *name))
+            .cloned()
+            .map(Some)
+            .collect::<Vec<_>>();
+        if called.link_allocated_instance_variables(receiver.allocation(), &names, registry)
+            != crate::allocated_instance::AllocatedInstanceLinkOutcome::Linked
+        {
+            called.activation_contents_world = Some(crate::var_resolve::ContentsWorld::Unknown);
+        }
+    }
+
     /// A fresh receiver's private namespace contains only its stock dispatcher.
     /// Its authored helper path precedes global lookup. No namespace name is
     /// invented; mutation of the receiver-local command world revokes this route.
@@ -630,6 +669,64 @@ mod tests {
             },
         );
         (bindings, registry)
+    }
+
+    #[test]
+    fn actual_method_entry_links_declared_instance_cells_without_shadowing_formals() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        for (variables, instance_y) in [
+            ("variable x y", true),
+            ("variable x y; variable -clear; variable z", false),
+        ] {
+            let source = format!(
+                "oo::class create C {{{variables}; method m {{x}} {{::info exists x; ::info exists y}}}}; C create receiver; receiver m VALUE"
+            );
+            let bindings = SourceCommandBindings::analyse_with_options(
+                &source,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                registry,
+                SourceAnalysisOptions {
+                    native_entry: Some(&entry),
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                    native_compilation:
+                        tcl_registry::native_compilation::NativeCompilationContext {
+                            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                            ..Default::default()
+                        },
+                    ..Default::default()
+                },
+            );
+            let offset = u32::try_from(source.find("::info exists y").unwrap()).unwrap();
+            let binding = bindings.invocation_at_source("::info", offset);
+            let context = &binding.variable_context;
+            let x = crate::var_resolve::resolve_literal_place("x", context, false, registry);
+            let y = crate::var_resolve::resolve_literal_place("y", context, false, registry);
+            assert!(matches!(
+                x.cell.as_ref().map(|cell| &cell.owner),
+                Some(crate::place::CellOwner::Activation(_))
+            ));
+            assert_eq!(
+                context.contents_presence(&x),
+                crate::var_resolve::ContentsPresence::Defined
+            );
+            assert_eq!(
+                matches!(
+                    y.cell.as_ref().map(|cell| &cell.owner),
+                    Some(crate::place::CellOwner::AllocatedInstance(_))
+                ),
+                instance_y
+            );
+            assert_eq!(
+                context.contents_presence(&y),
+                if instance_y {
+                    crate::var_resolve::ContentsPresence::Unknown
+                } else {
+                    crate::var_resolve::ContentsPresence::Undefined
+                }
+            );
+        }
     }
 
     #[test]

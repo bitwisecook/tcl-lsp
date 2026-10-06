@@ -32,7 +32,11 @@ fn hex(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return "-".into();
     }
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        use std::fmt::Write as _;
+        write!(output, "{byte:02x}").unwrap();
+        output
+    })
 }
 
 fn unhex(text: &str) -> Vec<u8> {
@@ -40,7 +44,9 @@ fn unhex(text: &str) -> Vec<u8> {
         return Vec::new();
     }
     text.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
         .collect()
 }
@@ -143,36 +149,43 @@ fn weak_context_association_preserves_ownership_and_refuses_other_interpreters()
     assert_eq!(original.resident_string_bytes().unwrap().as_ref(), b"a b");
 }
 
+fn source_list_originals(
+    mode: i32,
+    context: &std::rc::Rc<NativeJimObjectContext>,
+) -> (Value, Value, Option<Value>) {
+    let filename = Value::new_native_string_bytes(b"FILE".as_slice());
+    let child = Value::new_native_string_bytes(if mode == 3 {
+        b"4".as_slice()
+    } else {
+        b"CHILD".as_slice()
+    });
+    child
+        .install_native_jim_source(
+            NativeJimSourceInfo {
+                filename: filename.clone(),
+                line: 7,
+            },
+            context,
+        )
+        .unwrap();
+    let parent = Value::native_list_constructor(vec![child.clone()], NativeStringProtocol::Jim084);
+    parent.bind_native_jim_context(context).unwrap();
+    let external = if mode == 1 {
+        Some(child)
+    } else {
+        drop(child);
+        None
+    };
+    (parent, filename, external)
+}
+
 #[test]
 fn last_list_header_retires_source_filename_before_lifetime_view() {
     let context = NativeJimObjectContext::new(jim()).unwrap();
     context.select_numeric_host(std::rc::Rc::new(tcl_host_native::NativeHost::new()));
     let mut observed = String::new();
     for mode in 0..4 {
-        let filename = Value::new_native_string_bytes(b"FILE".as_slice());
-        let child = Value::new_native_string_bytes(if mode == 3 {
-            b"4".as_slice()
-        } else {
-            b"CHILD".as_slice()
-        });
-        child
-            .install_native_jim_source(
-                NativeJimSourceInfo {
-                    filename: filename.clone(),
-                    line: 7,
-                },
-                &context,
-            )
-            .unwrap();
-        let parent =
-            Value::native_list_constructor(vec![child.clone()], NativeStringProtocol::Jim084);
-        parent.bind_native_jim_context(&context).unwrap();
-        let external = if mode == 1 {
-            Some(child)
-        } else {
-            drop(child);
-            None
-        };
+        let (parent, filename, external) = source_list_originals(mode, &context);
         let view = parent.cached_list_representation().unwrap().0;
         let weak = view[0].downgrade_native_object();
         let copied =

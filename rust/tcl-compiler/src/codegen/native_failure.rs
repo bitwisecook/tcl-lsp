@@ -132,6 +132,37 @@ mod tests {
     }
 
     #[test]
+    fn original_c84_inline_script_parse_cut_retains_compiler_failure_context() {
+        let (module, registry) = module_for("foreach i {A} {set broken \"}");
+        let execution =
+            crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
+        let function = super::super::codegen_module(&execution, &module, &registry).top_level;
+        let error = function.native_compilation_failure.as_ref().unwrap();
+        assert_eq!(error.message, "missing \"");
+        assert_eq!(error.error_code.as_deref(), Some("NONE"));
+        assert_eq!(error.command_contexts[0].text, "set broken ");
+        assert_eq!(
+            error.command_contexts[0].after_context,
+            ["\n    (\"foreach\" body line 1)"]
+        );
+        assert_eq!(
+            error.command_contexts[1].text,
+            "foreach i {A} {set broken \"}"
+        );
+        assert!(function.validate_native_compilation_entry().is_ok());
+        assert_eq!(
+            compiler_registration(&function, "foreach")
+                .compiler
+                .registry_identity,
+            "foreach"
+        );
+        assert!(!function.native_compiler_prerequisites.iter().any(|required| {
+            matches!(required, tcl_runtime_api::native_compilation::NativeCompilerSelectionPrerequisite::Command(required)
+                if required.invocation_word.as_bytes() == b"set")
+        }));
+    }
+
+    #[test]
     fn missing_original_entry_keeps_compiler_rejection_as_an_admission_obligation() {
         let (module, registry) = module_for_entry("set x extra bad", None);
         let execution =

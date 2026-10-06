@@ -1252,8 +1252,10 @@ mod source_finalization_tests {
             .native_eval_object_protocol()
             .unwrap();
         let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_4);
-        let mut asm = tcl_bytecode::FunctionAsm::default();
-        asm.plain_command_dispatch = true;
+        let mut asm = tcl_bytecode::FunctionAsm {
+            plain_command_dispatch: true,
+            ..tcl_bytecode::FunctionAsm::default()
+        };
         asm.literals.intern_bytes(b"17\0suffix\xff");
         let receipt =
             NativeDirectSourceOperands::new(&asm, protocol, selected, EvalObjectPurpose::Eval)

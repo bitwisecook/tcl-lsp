@@ -2,7 +2,7 @@
 #
 # This file sets up the restricted Tcl environment that iRules run in
 # on real BIG-IP devices.  TMM runs a modified Tcl 8.4 interpreter with
-# many standard commands completely removed.
+# a distinct loader-refused and interpreter-absent command surface.
 #
 # The framework itself runs on tclsh 8.5+ for convenience, but the
 # environment presented to the iRule under test is strict Tcl 8.4 with
@@ -10,7 +10,7 @@
 #
 # What it does:
 #   1. Completely disables commands that TMM removes (exec, socket,
-#      open, file, source, package, glob, etc.)
+#      open, file, source, glob, etc.); loader-refused commands remain runtime-callable.
 #   2. Overrides [info] to report Tcl 8.4 and TMM-like values
 #   3. Hides framework internals from [info commands] / [info procs]
 #   4. Blocks Tcl 8.5+ features that would not exist on TMM
@@ -52,6 +52,8 @@ namespace eval ::tmm {
     variable reported_tcl_major  "8.4"
 
     # Commands completely disabled on TMM -- from generated registry data.
+    variable compiler_refused_commands $_gen_runtime_compiler_refused
+    variable runtime_namespace_members $_gen_runtime_namespace_members
     variable disabled_commands $_gen_disabled_commands
 
     # Commands that exist in 8.5+ but not in 8.4 TMM -- from generated registry data.
@@ -88,6 +90,7 @@ namespace eval ::tmm {
         _install_post84_blocks
         _install_info_override
         _install_namespace_restriction
+        _install_package_view
         _install_completion_capabilities
 
         set _initialized 1
@@ -128,6 +131,7 @@ namespace eval ::tmm {
 
     proc _install_disabled_commands {} {
         variable disabled_commands
+        variable compiler_refused_commands
 
         # Preserve a private alias for rename -- the loop itself needs it,
         # and the framework uses it later for post-8.4 blocks.
@@ -154,16 +158,19 @@ namespace eval ::tmm {
             if {[llength [::info commands ::[_glob_escape $cmd]]]} {
                 ::tmm::_orig_rename ::$cmd ::tmm::_orig_$cmd
             }
-            # Install the blocker -- matches real TMM error
+            if {[lsearch -exact $compiler_refused_commands $cmd] >= 0} {
+                set body [format {return [uplevel 1 [linsert $args 0 ::tmm::_orig_%s]]} $cmd]
+                proc ::$cmd {args} $body
+                continue
+            }
+            # Interpreter-absent commands remain unavailable at runtime.
             set body [format {
                 error "invalid command name \"%s\"" "invalid command name \"%s\""
             } $cmd $cmd]
             proc ::$cmd {args} $body
         }
 
-        # Now disable rename itself -- install blocker via our private copy
-        set body {error "invalid command name \"rename\"" "invalid command name \"rename\""}
-        proc ::rename {args} $body
+        proc ::rename {args} {return [uplevel 1 [linsert $args 0 ::tmm::_orig_rename]]}
     }
 
     # Block Tcl 8.5+ commands
@@ -311,12 +318,29 @@ namespace eval ::tmm {
 
     # namespace restriction
 
+    proc _select_namespace_member {original members} {
+        if {[llength [::tmm::_orig_info commands ::tmm::_logical_namespace_member]]} {
+            return [::tmm::_logical_namespace_member $original $members]
+        }
+        if {[lsearch -exact $members $original] >= 0} { return $original }
+        set prefix [_private_command_alias ::tcl::prefix]
+        if {[llength [::tmm::_orig_info commands $prefix]]} {
+            # The retained host command owns pure prefix selection. It receives
+            # only the registry-generated Tcl84 member roster.
+            return [uplevel 1 [list $prefix match $members $original]]
+        }
+        return -code error -errorcode {IRULES SIMULATION CAPABILITY KEYWORD} \
+            "authored namespace prefix provider is unavailable"
+    }
+
     proc _install_namespace_restriction {} {
         if {![llength [::tmm::_orig_info commands ::tmm::_orig_namespace]]} {
             ::tmm::_orig_rename ::namespace ::tmm::_orig_namespace
         }
 
         proc ::namespace {subcommand args} {
+            variable ::tmm::runtime_namespace_members
+            set subcommand [::tmm::_select_namespace_member $subcommand $runtime_namespace_members]
             switch -exact -- $subcommand {
                 delete {
                     set ns [lindex $args 0]
@@ -326,17 +350,17 @@ namespace eval ::tmm {
                     if {[string match "::state*" $ns] || [string match "state*" $ns]} {
                         error "cannot delete namespace \"$ns\""
                     }
-                    return [eval [list ::tmm::_orig_namespace delete] $args]
+                    return [uplevel 1 [linsert $args 0 ::tmm::_orig_namespace delete]]
                 }
                 eval {
                     set ns [lindex $args 0]
                     if {[string match "::tmm::_*" $ns] || [string match "tmm::_*" $ns]} {
                         error "cannot eval in namespace \"$ns\""
                     }
-                    return [eval [list ::tmm::_orig_namespace eval] $args]
+                    return [uplevel 1 [linsert $args 0 ::tmm::_orig_namespace eval]]
                 }
                 which {
-                    set result [eval [list ::tmm::_orig_namespace which] $args]
+                    set result [uplevel 1 [linsert $args 0 ::tmm::_orig_namespace which]]
                     # Hide framework-internal commands
                     if {[string match "::tmm::_orig_*" $result]} {
                         return ""
@@ -352,9 +376,22 @@ namespace eval ::tmm {
                     return [uplevel 1 [list ::tmm::_orig_namespace current]]
                 }
                 default {
-                    return [eval [list ::tmm::_orig_namespace $subcommand] $args]
+                    return [uplevel 1 [linsert $args 0 ::tmm::_orig_namespace $subcommand]]
                 }
             }
+        }
+    }
+
+    proc _install_package_view {} {
+        proc ::package {args} {
+            if {[llength [::tmm::_orig_info commands ::tmm::_logical_package]]} {
+                return [uplevel 1 [linsert $args 0 ::tmm::_logical_package [lindex [info level 0] 0]]]
+            }
+            if {[::tmm::_orig_package provide Tcl] eq "8.4"} {
+                return [uplevel 1 [linsert $args 0 ::tmm::_orig_package]]
+            }
+            return -code error -errorcode {IRULES SIMULATION CAPABILITY PACKAGE} \
+                "authored Tcl84 package provider is unavailable"
         }
     }
 

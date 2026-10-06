@@ -319,7 +319,7 @@ mod source_literal_tests {
         assert_eq!(registered_c84_long(b"-0", 64), None);
         assert_eq!(registered_c84_long(b"2147483648", 32), None);
         assert_eq!(registered_c84_long(b"-2147483648", 32), None);
-        assert_eq!(registered_c84_long(b"2147483648", 64), Some(2147483648));
+        assert_eq!(registered_c84_long(b"2147483648", 64), Some(2_147_483_648));
         assert_eq!(registered_c84_long(b"-9223372036854775808", 64), None);
         assert_eq!(registered_c84_long(b"17", 0), None);
     }

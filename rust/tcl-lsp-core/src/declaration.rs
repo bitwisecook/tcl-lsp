@@ -681,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    fn declaration_scan_abstains_for_a_dynamic_binding() {
+    fn declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding() {
         let src = upvar_body("rename $old decl\n", "decl");
         assert!(
             scanned_declaration_lines(&src, "local").is_empty(),
@@ -691,8 +691,20 @@ mod tests {
         assert_eq!(
             scanned_declaration_lines(&src, "local"),
             vec![2],
-            "a dynamic rename must not take `upvar`'s grammar away either"
+            "retained original upvar grammar supplies conditional lexical navigation only"
         );
+    }
+
+    #[test]
+    fn conditional_declaration_preview_declines_explicit_body_replacements() {
+        for replacement in ["rename upvar decl", "proc upvar args {}"] {
+            let src = format!(
+                "rename $old decl\nproc wrap {{}} {{\n{replacement}\nupvar 1 other local\nreturn $local\n}}\n"
+            );
+            assert!(scanned_declaration_lines(&src, "local").is_empty());
+        }
+        let src = upvar_body("rename $old decl\nproc proc args {}\n", "upvar");
+        assert!(scanned_declaration_lines(&src, "local").is_empty());
     }
 
     /// The body recursion is registry-driven too: a `global` buried in an

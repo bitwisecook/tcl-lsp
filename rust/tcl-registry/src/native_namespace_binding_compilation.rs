@@ -103,6 +103,11 @@ pub fn compile_native_namespace_bindings(
 ) -> Result<NativeNamespaceBindingCompilation, NativeNamespaceBindingUnavailable> {
     use NativeNamespaceBindingOutcome as Outcome;
     if kind == NativeNamespaceBindingKind::Upvar {
+        if version >= TclVersion::V8_6 {
+            return crate::native_namespace_upvar_compilation::compile_native_namespace_upvar_worker(
+                words, operand_from, version, context,
+            );
+        }
         return crate::native_namespace_upvar_compilation::compile_native_namespace_upvar(
             words,
             operand_from,

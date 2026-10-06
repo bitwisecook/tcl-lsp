@@ -31,10 +31,14 @@ fn inputs(case: usize) -> Vec<Input> {
     }
 }
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+    bytes.iter().fold(String::new(), |mut output, byte| {
+        use std::fmt::Write as _;
+        write!(output, "{byte:02x}").unwrap();
+        output
+    })
 }
 fn state(
-    snapshot: tcl_syntax::native_object::NativeObjectSnapshot,
+    snapshot: &tcl_syntax::native_object::NativeObjectSnapshot,
     refs: usize,
     version: Option<tcl_dialect::TclVersion>,
 ) -> String {
@@ -64,7 +68,7 @@ fn state(
         snapshot
             .resident
             .as_ref()
-            .map_or(-1, |bytes| bytes.len() as isize),
+            .map_or(-1, |bytes| isize::try_from(bytes.len()).unwrap()),
         snapshot
             .resident
             .as_ref()
