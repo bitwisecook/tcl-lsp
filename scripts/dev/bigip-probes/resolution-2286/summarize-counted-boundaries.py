@@ -58,7 +58,9 @@ def decode_phase(path: Path) -> dict[str, object]:
     body_units: dict[str, set[str]] = collections.defaultdict(set)
     backend_peers = collections.Counter()
     errors = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for line_number, line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(), 1
+    ):
         record = json.loads(line)
         if "error" in record:
             errors.append({"line": line_number, "error": record["error"]})
@@ -121,9 +123,9 @@ fixture_manifest = json.loads((args.fixtures / "manifest.json").read_text())
 output = {
     "source_commit": fixture_manifest["source_commit"],
     "run": fixture_manifest["run"],
-    "fixture_archive_sha256": (
-        args.appliance / "fixture-archive-sha256.txt"
-    ).read_text().split()[0],
+    "fixture_archive_sha256": (args.appliance / "fixture-archive-sha256.txt")
+    .read_text()
+    .split()[0],
     "fixture_manifest_sha256": digest((args.fixtures / "manifest.json").read_bytes()),
     "fixture_inventory_sha256": digest((args.fixtures / "SHA256SUMS").read_bytes()),
     "payloads": {
@@ -160,8 +162,8 @@ output = {
         path.name: path.read_text(errors="replace")
         for path in sorted(args.appliance.glob("*-load.txt"))
     },
-    "cleanup_verification": (
-        args.appliance / "cleanup-verification.txt"
-    ).read_text(errors="replace"),
+    "cleanup_verification": (args.appliance / "cleanup-verification.txt").read_text(
+        errors="replace"
+    ),
 }
 args.out.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n")

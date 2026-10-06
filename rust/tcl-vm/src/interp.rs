@@ -13902,7 +13902,7 @@ impl Vm {
             return match self.observed_variable_exists(name, self.current_level()) {
                 Ok(found) => found,
                 Err(error) => {
-                    self.refuse_host_command(format!(
+                    let _ = self.refuse_host_command(format!(
                         "observed variable storage is unavailable: {error}"
                     ));
                     false
@@ -15809,7 +15809,8 @@ impl Vm {
         origin: FrameLinkOrigin,
     ) -> Result<(), UpvarLinkError> {
         if self.observed_name_policy_selected() {
-            self.refuse_host_command("observed variable link purpose is unavailable".into());
+            let _ =
+                self.refuse_host_command("observed variable link purpose is unavailable".into());
             return Err(UpvarLinkError::TargetNamespace);
         }
         if self.dialect_profile().variable_link_binding()

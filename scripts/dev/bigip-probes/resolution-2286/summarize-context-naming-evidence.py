@@ -143,7 +143,9 @@ chunk_pattern = re.compile(
 
 
 def chunked_event_results(path: Path) -> dict[str, object]:
-    chunks = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    chunks = collections.defaultdict(
+        lambda: collections.defaultdict(collections.Counter)
+    )
     part_counts = {}
     for line in path.read_text().splitlines():
         match = chunk_pattern.search(line)
@@ -160,7 +162,9 @@ def chunked_event_results(path: Path) -> dict[str, object]:
         if len(totals) != 1:
             raise RuntimeError(f"inconsistent chunk totals: {event}/{case}/{tmm}")
         total = next(iter(totals))
-        if set(parts) != set(range(total)) or any(len(values) != 1 for values in parts.values()):
+        if set(parts) != set(range(total)) or any(
+            len(values) != 1 for values in parts.values()
+        ):
             raise RuntimeError(f"incomplete or divergent chunks: {event}/{case}/{tmm}")
         result_hex = "".join(next(iter(parts[index])) for index in range(total))
         observations = sorted(
@@ -273,11 +277,15 @@ output = {
         "loads": loads(args.portable_appliance),
     },
     "cleanup": {
-        "primary": (args.primary_appliance / "cleanup-verification-final.txt").read_text(),
+        "primary": (
+            args.primary_appliance / "cleanup-verification-final.txt"
+        ).read_text(),
         "events": (args.event_appliance / "cleanup-verification-final.txt").read_text(),
         "qualified": (
             args.qualified_appliance / "cleanup-verification-final.txt"
         ).read_text(),
     },
 }
-args.out.write_text(json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+args.out.write_text(
+    json.dumps(output, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+)

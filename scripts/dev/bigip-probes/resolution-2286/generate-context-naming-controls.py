@@ -276,7 +276,7 @@ counted_input_boundaries = """when HTTP_REQUEST {
 counted_input_capture = counted_input_boundaries.replace(
     "    HTTP::respond 200 content OK\n",
     "    binary scan $rows H* rows_hex\n"
-    "    HTTP::respond 200 content $rows_hex X-R2286-TMM \"[TMM::cmp_group]:[TMM::cmp_unit]\" Connection close\n",
+    '    HTTP::respond 200 content $rows_hex X-R2286-TMM "[TMM::cmp_group]:[TMM::cmp_unit]" Connection close\n',
 )
 
 array_root_boundaries = f"""set nul [format %c 0]
@@ -481,6 +481,7 @@ def portable_array_trace(case: str) -> bytes:
     payload = head + "lappend rows [list trace_rows $trace_rows]\n" + separator + tail
     return ascii_lf(payload)
 
+
 additional_payloads = {
     "lexical_clean": ascii_lf(lexical_clean),
     "qualified_nul": ascii_lf(qualified_nul),
@@ -495,18 +496,24 @@ for case, data in additional_payloads.items():
 
 counted_input_data = ascii_lf(counted_input_boundaries)
 (additional / "counted_input_boundaries.tcl").write_bytes(counted_input_data)
-counted_input_rule = ascii_lf(
-    f"ltm rule /Common/__tcl_lsp_2286_{args.run}_counted_input_boundaries {{\n"
-) + counted_input_data + b"}\n"
+counted_input_rule = (
+    ascii_lf(
+        f"ltm rule /Common/__tcl_lsp_2286_{args.run}_counted_input_boundaries {{\n"
+    )
+    + counted_input_data
+    + b"}\n"
+)
 (additional / "counted_input_boundaries.conf").write_bytes(counted_input_rule)
 (additional / "counted_input_boundaries.conf.hex").write_text(
     counted_input_rule.hex() + "\n", encoding="ascii"
 )
 counted_capture_data = ascii_lf(counted_input_capture)
 (additional / "counted_input_capture.tcl").write_bytes(counted_capture_data)
-counted_capture_rule = ascii_lf(
-    f"ltm rule /Common/__tcl_lsp_2286_{args.run}_counted_input_capture {{\n"
-) + counted_capture_data + b"}\n"
+counted_capture_rule = (
+    ascii_lf(f"ltm rule /Common/__tcl_lsp_2286_{args.run}_counted_input_capture {{\n")
+    + counted_capture_data
+    + b"}\n"
+)
 (additional / "counted_input_capture.conf").write_bytes(counted_capture_rule)
 (additional / "counted_input_capture.conf.hex").write_text(
     counted_capture_rule.hex() + "\n", encoding="ascii"

@@ -73,11 +73,11 @@ before loading.
 | `r2286t` | Counted-input, relocated/multiple-NUL array-root and index controls | `d99260e95dce1bac6834937430c4daa411f5a5a35406b78db423d5bf652eb076` | `d90eab3752e3582ef94d846148596b94024ff8ca7de423f02744e35abec23d18` |
 
 The final generator SHA-256 is
-`f6698b14f063f84affcd4d40c38a305d6844e28b9d2581a4ad73a589d5651dde`;
+`3c638e13bd0ecfae6ba623964b5e22e3f19c5e175f88264680d1704858314637`;
 the decoder SHA-256 is
-`8be0d5b865a310640a3f8c74f55da9b9297903c7917a288e49fa267938ffd2fd`.
+`2a4a20c13c10dcf8ac8d9a60dac8e7df8b82b36e47a3ca0cbb45a19fb4ed9b5c`.
 The counted-boundary decoder SHA-256 is
-`e96da76404745fa0541faab0ad8dc9e788f0d8a0d2541605fc6cf95787377981`.
+`75135f15399e85c793f660aeaf76ae23b7570a94fad005e0de1f75068ca68f09`.
 The complete per-file wrapper, payload, hex-dump, size, and context hashes are
 inside the retained manifests. The local evidence inventory is
 [SHA256SUMS.local](evidence/r2286_20261006naming/SHA256SUMS.local).
