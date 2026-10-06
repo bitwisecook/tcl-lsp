@@ -1400,10 +1400,14 @@ impl TclVmEngine {
         Self::with_registry(CommandRegistry::build_default())
     }
 
-    /// A fresh engine whose compiler resolves against `registry`.
+    /// A fresh engine whose compiler resolves against `registry` and whose
+    /// native issuer is the C9.0 contract exposed by this adapter.
     #[must_use]
     pub fn with_registry(registry: CommandRegistry) -> Self {
         let mut vm = Vm::new();
+        let native = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
+        vm.set_dialect_profile(native);
+        assert!(vm.set_native_engine_profile(native));
         vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
         Self {
             vm,

@@ -237,7 +237,7 @@ mod tests {
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        vm.set_command_surface_profile(profile);
+        let _ = vm.set_command_surface_profile(profile);
         assert!(vm.set_logical_name_provider(
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
         ));
