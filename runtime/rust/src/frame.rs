@@ -1256,6 +1256,7 @@ pub(crate) struct PendingTailcall {
     pub(crate) namespace: NsId,
     pub(crate) namespace_name: Vec<u8>,
     pub(crate) words: Vec<crate::obj::Owned>,
+    pub(crate) original_list: Option<crate::obj::Owned>,
 }
 
 struct Frame {
@@ -1657,15 +1658,18 @@ impl FrameStack {
         prev
     }
 
-    pub(crate) fn set_tailcall(&mut self, request: PendingTailcall) -> bool {
+    /// Move retired owners out of the frame before their native free callbacks run.
+    pub(crate) fn replace_tailcall(
+        &mut self,
+        request: Option<PendingTailcall>,
+    ) -> Result<Option<PendingTailcall>, Option<PendingTailcall>> {
         let Some(index) = self.index_of_level(self.active_level) else {
-            return false;
+            return Err(request);
         };
         if !self.frames[index].is_proc {
-            return false;
+            return Err(request);
         }
-        self.frames[index].tailcall = Some(request);
-        true
+        Ok(std::mem::replace(&mut self.frames[index].tailcall, request))
     }
 
     pub(crate) fn take_tailcall(&mut self) -> Option<PendingTailcall> {

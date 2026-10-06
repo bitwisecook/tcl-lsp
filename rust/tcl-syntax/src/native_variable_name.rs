@@ -15,6 +15,13 @@ pub struct NativeVariableNameProtocol {
 pub enum NativeVariableNameLookupPurpose {
     /// Read without creating an undefined entry.
     Read,
+    /// Quiet existence access: no root birth, but an existing array can acquire
+    /// a temporary element entry for its read observers.
+    Exists,
+    /// Quiet Array opcode lookup creates neither a root nor an element entry.
+    Array,
+    /// ARRAY_MAKE creates its root, leaves lookup errors, and never creates an element.
+    ArrayMake,
     /// Write, creating root and element entries before observers.
     Write,
     /// Original write with native flags zero: observers run but variable errors
@@ -36,25 +43,29 @@ impl NativeVariableNameLookupPurpose {
     pub const fn creates_entries(self) -> bool {
         matches!(
             self,
-            Self::Write | Self::QuietWrite | Self::Link | Self::Define
+            Self::Write | Self::QuietWrite | Self::Link | Self::Define | Self::ArrayMake
         )
     }
     /// Root creation and element creation are independent native flags.
     #[must_use]
     pub const fn creates_element_entries(self) -> bool {
-        self.creates_entries() && !matches!(self, Self::Define)
+        matches!(self, Self::Exists)
+            || self.creates_entries() && !matches!(self, Self::Define | Self::ArrayMake)
     }
     /// Whether this caller requested the native variable-error presenter.
     #[must_use]
     pub const fn leaves_error_message(self) -> bool {
-        !matches!(self, Self::QuietWrite | Self::QuietUnset)
+        !matches!(
+            self,
+            Self::Exists | Self::Array | Self::QuietWrite | Self::QuietUnset
+        )
     }
     /// Native lookup diagnostic verb, independent of later value observers.
     #[must_use]
     pub const fn diagnostic_verb(self) -> &'static str {
         match self {
-            Self::Read => "read",
-            Self::Write | Self::QuietWrite => "set",
+            Self::Read | Self::Exists | Self::Array => "read",
+            Self::Write | Self::QuietWrite | Self::ArrayMake => "set",
             Self::Link => "access",
             Self::Define => "define",
             Self::Unset | Self::QuietUnset => "unset",

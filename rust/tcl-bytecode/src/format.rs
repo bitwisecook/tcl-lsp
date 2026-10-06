@@ -125,7 +125,8 @@ fn format_operand<S: BuildHasher>(
         }
         Operand::Imm(val) if instr.op.is_lvt_op() && j == 0 => (format!("%v{val}"), String::new()),
         Operand::Imm(val)
-            if instr.op == Op::LIST_INDEX_IMM && instr.native_list_index.is_some() =>
+            if (instr.op == Op::LIST_INDEX_IMM && instr.native_list_index.is_some())
+                || (instr.op == Op::LIST_RANGE_IMM && instr.native_list_range.is_some()) =>
         {
             let part = if *val <= -2 {
                 if *val == -2 {
@@ -392,6 +393,33 @@ mod tests {
         assert_eq!(
             format_operand(&portable.operands[0], &portable, 0, &labels).0,
             "end"
+        );
+    }
+
+    #[test]
+    fn native_list_range_clone_and_display_preserve_both_coordinates() {
+        use tcl_syntax::native_compiled_index::{NativeCompiledListIndex, NativeCompiledListRange};
+        let labels = HashMap::<String, usize>::new();
+        let mut original =
+            Instruction::new(Op::LIST_RANGE_IMM, vec![Operand::Imm(0), Operand::Imm(-3)]);
+        original.native_list_range = Some(NativeCompiledListRange {
+            first: NativeCompiledListIndex::from_encoded(0),
+            last: NativeCompiledListIndex::from_encoded(-3),
+        });
+        let copied = original.clone();
+        assert_eq!(copied.native_list_range, original.native_list_range);
+        assert_eq!(
+            format_operand(&copied.operands[0], &copied, 0, &labels).0,
+            "0"
+        );
+        assert_eq!(
+            format_operand(&copied.operands[1], &copied, 1, &labels).0,
+            "end-1"
+        );
+        assert!(
+            Instruction::new(Op::LIST_RANGE_IMM, vec![])
+                .native_list_range
+                .is_none()
         );
     }
 

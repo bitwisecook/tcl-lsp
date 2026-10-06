@@ -98,6 +98,15 @@ pub(crate) fn interned_package_name(name: &str) -> &'static str {
 pub(crate) fn captured_native_entry(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> tcl_runtime_api::NativeCompilationEntry {
+    captured_native_entry_with_owner(profile).1
+}
+
+/// Keep the original interpreter alive when a test consumes a weak observation.
+/// Command snapshots alone deliberately retain no registration-world owner.
+#[cfg(test)]
+pub(crate) fn captured_native_entry_with_owner(
+    profile: &'static tcl_dialect::DialectProfile,
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -152,10 +161,43 @@ pub(crate) fn captured_native_entry(
     .expect("authentic native registration before entry capture");
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
     assert!(vm.try_eval_source("set entry_probe 1").is_err());
-    captured
+    let entry = captured
         .borrow_mut()
         .take()
-        .expect("actual interpreter compilation entry")
+        .expect("actual interpreter compilation entry");
+    (vm, entry)
+}
+
+/// Test owner keeps its actual interpreter live through subsequent fact queries.
+#[cfg(test)]
+pub(crate) struct RetainedNativeUnit {
+    unit: crate::compilation_unit::CompilationUnit,
+    _owner: tcl_vm::Vm,
+}
+
+#[cfg(test)]
+impl RetainedNativeUnit {
+    pub(crate) fn new(unit: crate::compilation_unit::CompilationUnit, owner: tcl_vm::Vm) -> Self {
+        Self {
+            unit,
+            _owner: owner,
+        }
+    }
+}
+
+#[cfg(test)]
+impl std::ops::Deref for RetainedNativeUnit {
+    type Target = crate::compilation_unit::CompilationUnit;
+    fn deref(&self) -> &Self::Target {
+        &self.unit
+    }
+}
+
+#[cfg(test)]
+impl std::ops::DerefMut for RetainedNativeUnit {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.unit
+    }
 }
 
 #[cfg(test)]

@@ -234,36 +234,32 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(c) => return c,
         }
     } else {
-        let mut w = args[1..].to_vec();
-        // C resolves a coroutine's initial command at creation, in the current
-        // namespace. When that namespace is not global, resolve the command word
-        // there and run its absolute name — the wrapper itself executes at the
-        // global level, so a bare name would otherwise miss a namespace-local
-        // command (coroutine-4.4).
-        let cxt = vm.current_ns().to_string();
-        if !cxt.is_empty()
-            && let Some(key) = vm.resolve_command_fqn(&cxt, &args[1].to_str())
-        {
-            w[0] = Value::from_string_bytes(
-                vm.rooted_command_sidecar_display_bytes(&CommandSidecarKey::visible(&key)),
-            );
-        }
-        w
+        args[1..].to_vec()
     };
-    // The body is `command arg…` reconstructed as a one-line script (list
-    // quoting preserves the words exactly), dispatched through the compiled
-    // `INVOKE` path so a proc call stays on the coroutine's explicit stack.
-    let body_src = Value::list(words).to_str();
-    // A *script*, not a proc body: the wrapper runs as the coroutine's own
-    // top-level activation, not through a call frame of its own. Carry the
-    // compiler/profile/namespace provenance with it because the coroutine may
-    // not enter that activation until after command-table mutation.
-    let Ok(body) = vm.compile_script_cached_in_namespace(&body_src, "") else {
-        if let Some(p) = &temp_proc {
-            vm.take_command_unchecked(p);
-        }
-        return err(format!("coroutine \"{name}\": could not compile body"));
+    let namespace = match tcl_cmd_core::namespace::current_original(vm) {
+        Ok(namespace) => namespace,
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+    else {
+        return vm.refuse_host_command("original coroutine invocation List issuer".into());
+    };
+    let mut original = Vec::with_capacity(words.len() + 1);
+    original.push(namespace);
+    original.extend(words);
+    let original = Value::native_list_constructor(original, protocol);
+    let asm = Rc::new(tcl_bytecode::FunctionAsm {
+        instructions: vec![tcl_bytecode::Instruction::new(
+            tcl_bytecode::Op::DONE,
+            vec![],
+        )],
+        ..tcl_bytecode::FunctionAsm::default()
+    });
+    let source_namespace = vm.source_namespace_path();
+    let driver = vm.admitted_foreign_unit(asm, source_namespace);
+    let frame = Frame::new_original_invocation(driver, original);
     // Publish the resume command before attaching its fresh coroutine state.
     // `register_command` retires any command it replaces, including an old
     // coroutine at this name; attaching first would let that replacement
@@ -274,7 +270,7 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     vm.coro.live.insert(
         CommandSidecarKey::visible(&fqn),
         CoroState {
-            acts: vec![Frame::new(body, false)],
+            acts: vec![frame],
             parked: ParkedFlow::default(),
             status: CoroStatus::Fresh,
             last_suspend: SuspendKind::Yield,
@@ -392,7 +388,18 @@ fn resume(
         // returns the whole resume-argument list.
         let initial = match kind {
             SuspendKind::Yield => args.first().cloned().unwrap_or_else(Value::empty),
-            SuspendKind::YieldTo => Value::list(args.to_vec()),
+            SuspendKind::YieldTo => {
+                let Some(protocol) = vm
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                else {
+                    vm.coro.stack.pop();
+                    vm.swap_flow(&mut parked);
+                    teardown_coro(vm, key);
+                    return vm.refuse_host_command("original coroutine resume List issuer".into());
+                };
+                Value::native_list_constructor(args.to_vec(), protocol)
+            }
         };
         match run_injections(vm, injections, kind, initial) {
             Ok(delivered) => {
@@ -447,10 +454,7 @@ fn resume(
                 YieldReq::Yield(v) => ok(v),
                 // Relay lookup uses the captured coroutine namespace; the
                 // target executes in the restored resumer variable frame.
-                YieldReq::YieldTo { namespace, words } => {
-                    let name = words[0].to_str().to_string();
-                    vm.invoke_command_in_lookup_namespace(&namespace, &name, &words[1..])
-                }
+                YieldReq::YieldTo { original } => invoke_original_relay(vm, &original),
             }
         }
         RunExit::Done(c) => {
@@ -526,22 +530,29 @@ pub(crate) fn request_yield(vm: &mut Vm, value: Value) -> Result<(), Completion<
 /// `yieldto` builtin and the `YIELD_TO_INVOKE` opcode share. See
 /// [`request_yield`].
 pub(crate) fn request_yieldto(vm: &mut Vm, words: &[Value]) -> Result<(), Completion<Value>> {
-    let namespace = vm.current_ns().to_owned();
-    request_yieldto_in_namespace(vm, &namespace, words)
-}
-
-/// The native relay opcode captures lookup namespace before its operands;
-/// generic handler dispatch selects it after operand evaluation instead.
-pub(crate) fn request_yieldto_in_namespace(
-    vm: &mut Vm,
-    namespace: &str,
-    words: &[Value],
-) -> Result<(), Completion<Value>> {
     if words.is_empty() {
-        return Err(err(
-            r#"wrong # args: should be "yieldto command ?arg ...?""#,
+        return Err(crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"yieldto command ?arg ...?\"",
         ));
     }
+    check_relay_boundary(vm)?;
+    let namespace = tcl_cmd_core::namespace::current_original(vm)
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
+    let protocol = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+        .ok_or_else(|| vm.refuse_host_command("original yieldto List issuer".into()))?;
+    let mut members = Vec::with_capacity(words.len() + 1);
+    members.push(namespace);
+    members.extend_from_slice(words);
+    vm.coro.pending = Some(YieldReq::YieldTo {
+        original: Value::native_list_constructor(members, protocol),
+    });
+    Ok(())
+}
+
+fn check_relay_boundary(vm: &mut Vm) -> Result<(), Completion<Value>> {
     check_yieldable(vm, "yieldto")?;
     if vm.namespace_is_dying(vm.current_ns()) {
         return Err(crate::command::err_with_code(
@@ -549,11 +560,68 @@ pub(crate) fn request_yieldto_in_namespace(
             "TCL COROUTINE YIELDTO_IN_DELETED",
         ));
     }
-    vm.coro.pending = Some(YieldReq::YieldTo {
-        namespace: namespace.to_owned(),
-        words: words.to_vec(),
-    });
     Ok(())
+}
+
+/// Keep the actual compiled namespace-prefixed List through suspension.
+pub(crate) fn request_yieldto_original(
+    vm: &mut Vm,
+    original: Value,
+) -> Result<(), Completion<Value>> {
+    check_relay_boundary(vm)?;
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+    else {
+        return Err(vm.refuse_host_command("original yieldto List issuer".into()));
+    };
+    let members = vm
+        .native_object_list_elements_in(&original, protocol)
+        .map_err(|error| crate::command::completion_from_tcl_error(vm, error.into()))?;
+    if members.len() < 2 {
+        return Err(crate::command::native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"yieldto command ?arg ...?\"",
+        ));
+    }
+    vm.coro.pending = Some(YieldReq::YieldTo { original });
+    Ok(())
+}
+
+fn invoke_original_relay(vm: &mut Vm, original: &Value) -> Completion<Value> {
+    let Some(protocol) = vm
+        .actual_native_invocation_dialect()
+        .native_string_protocol()
+    else {
+        return vm.refuse_host_command("original yieldto List issuer".into());
+    };
+    let members = match vm.native_object_list_elements_in(original, protocol) {
+        Ok(members) => members,
+        Err(error) => return crate::command::completion_from_tcl_error(vm, error.into()),
+    };
+    let Some((namespace, words)) = members.split_first() else {
+        return vm.refuse_host_command("original yieldto namespace operand".into());
+    };
+    let Some((head, args)) = words.split_first() else {
+        return ok(Value::empty());
+    };
+    let namespace = match vm.namespace_object_lookup(namespace) {
+        Ok(Some(namespace)) => namespace,
+        Ok(None) => {
+            return match vm.native_name_operand_bytes(namespace) {
+                Ok(bytes) => vm.namespace_lookup_error_bytes(&bytes),
+                Err(error) => vm.refuse_host_command(error.to_string()),
+            };
+        }
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+    };
+    vm.invoke_command_value_at(
+        namespace,
+        head,
+        args,
+        &[],
+        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+    )
 }
 
 /// `yield ?value?` — suspend the current coroutine.

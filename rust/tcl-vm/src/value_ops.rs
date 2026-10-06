@@ -34,6 +34,8 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[path = "value_ops/native_list_index.rs"]
+mod native_list_index;
 
 use std::rc::Rc;
 
@@ -338,6 +340,32 @@ fn logical_integer(
         .map_err(|_| ValueError::IntegerOverflow)
 }
 
+impl Vm {
+    fn safe_index_integer(
+        &mut self,
+        value: &Value,
+        dialect: tcl_registry::InvocationDialect,
+    ) -> Result<i64, ValueError> {
+        match self.as_int(value) {
+            Err(error)
+                if error.native_access_refusal().is_none()
+                    && dialect.index_syntax().is_some_and(|syntax| {
+                        syntax.width == tcl_dialect::IndexIntegerWidth::Tcl64
+                    }) =>
+            {
+                match value.native_scalar_cache() {
+                    Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(Number::Big {
+                        negative,
+                        ..
+                    })) => Ok(if negative { i64::MIN } else { i64::MAX }),
+                    _ => Err(error),
+                }
+            }
+            outcome => outcome,
+        }
+    }
+}
+
 impl ValueOps for Vm {
     type Value = Value;
 
@@ -538,7 +566,9 @@ impl ValueOps for Vm {
                     )
                 })?;
             match step {
-                ExprEvalStep::Complete(value) => return self.as_int(&value),
+                ExprEvalStep::Complete(value) => {
+                    return self.safe_index_integer(&value, dialect);
+                }
                 ExprEvalStep::Request(ExprEvalRequest::Call { function, args, .. }) => {
                     if self.authored_math_provider().is_some() {
                         let completion =

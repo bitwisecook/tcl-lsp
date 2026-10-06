@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cc",
+    "-I",
+    "/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-packages-dialects/string-trim-native/jim-probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-ldl",
+    "-o",
+    "/workspace/.proofs/2286-packages-dialects/string-trim-native/probe-jim"
+  ],
+  "compile_exit": 0,
+  "stderr": "",
+  "sha": {
+    "/workspace/.proofs/2286-packages-dialects/string-trim-native/jim-probe.c": "8054c8e0775c909d178e1d66b7dd09d7fcd041f32a74dbec08666c040d315dd7",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/jimautoconf.h": "c72023de18863d3d368bbb135692e92848cc79b5a49ed96cc68cf97b8fd49e89",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff"
+  },
+  "exit": 0,
+  "binary_sha": "c58ce135acb40fb4484af1a90e236c20c503e342ca98f65a2872a3f630850d12",
+  "budget": 60,
+  "global_slots": 2
+}

@@ -236,6 +236,8 @@ mod tests {
         vm.set_compiler(Box::new(
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+        vm.set_command_surface_profile(profile);
         assert!(vm.set_logical_name_provider(
             tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4)
         ));
@@ -249,8 +251,9 @@ mod tests {
         crate::cmd_package::cmd_authored_package(vm, &argv)
     }
 
+    #[track_caller]
     fn text(completion: Completion<Value>) -> String {
-        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(completion.code, Code::Ok, "{completion:?}");
         completion
             .result
             .try_to_str()
@@ -301,8 +304,38 @@ mod tests {
     }
 
     #[test]
+    fn authored_package_loader_requires_independent_script_dispatch_provider() {
+        let mut vm = host();
+        assert_eq!(
+            text(package(
+                &mut vm,
+                &[
+                    "ifneeded",
+                    "Demo",
+                    "1.2",
+                    "::tmm::_logical_package package provide Demo 1.2"
+                ]
+            )),
+            ""
+        );
+        let completion = package(&mut vm, &["require", "Demo"]);
+        assert_eq!(completion.code, Code::Error);
+        assert_eq!(
+            vm.execution_refusal.as_ref().unwrap().to_string(),
+            "native script-object dispatch protocol is unavailable"
+        );
+        assert!(vm.package_version_bytes("Demo").is_none());
+        vm.with_package_table(true, |vm| {
+            assert!(vm.package_version_bytes("Demo").is_none());
+        });
+    }
+
+    #[test]
     fn authored_package_loaders_children_and_host_activation_are_separate() {
         let mut vm = host();
+        assert!(vm.set_logical_eval_object_provider(
+            tcl_registry::native_eval_object::LogicalEvalObjectProvider::Tcl84CoreSimulation
+        ));
         assert_eq!(
             text(package(
                 &mut vm,

@@ -665,6 +665,18 @@ impl SourceCommandBindings {
         observed
     }
 
+    /// Whether this original declaration occurrence also has an independently
+    /// retained actual activation. Its lexical recipe alone cannot establish one.
+    #[cfg(test)]
+    pub(crate) fn has_actual_procedure_entry_at(
+        &self,
+        origin: &Arc<super::SourceOriginId>,
+        offset: u32,
+    ) -> bool {
+        self.conditional_body_entry_at(origin, offset)
+            .is_some_and(|entry| self.has_actual_procedure_entry(&entry.source))
+    }
+
     /// Namespace of an unchanged nested script in one original procedure
     /// declaration. This selects lexical advice only, never an entered frame
     /// or a native compiler preparation. Receiver previews remain unknown.
@@ -878,7 +890,8 @@ mod original_body_frame_tests {
             Some(super::super::SourceNamespaceKey::authored("::"))
         );
         let mut changed = child.clone();
-        changed.text = tcl_lexer::SourceImage::from_bytes(b"exit 1".as_slice(), child.text.channel());
+        changed.text =
+            tcl_lexer::SourceImage::from_bytes(b"exit 1".as_slice(), child.text.channel());
         assert!(
             bindings
                 .declared_script_namespace_context(&changed)

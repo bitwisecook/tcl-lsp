@@ -118,11 +118,13 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 .as_bytes(),
         );
     }
-    if crate::native_arithseries::is_series(argv[1]) {
-        return crate::native_arithseries::lindex_command(interp, argv);
+    match interp.original_list_index(argv[1], &argv[2..], true) {
+        Ok(result) => {
+            interp.set_result(result.as_ptr());
+            Code::Ok
+        }
+        Err(error) => interp.report_cmd_error(error),
     }
-    let r = list_core::lindex(interp, &argv[1], &argv[2..]);
-    adapt(interp, r)
 }
 
 /// `lappend varName ?value ...?` — append to the list in `varName` (creating it

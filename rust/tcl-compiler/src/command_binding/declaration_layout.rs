@@ -1017,17 +1017,42 @@ mod tests {
     #[test]
     fn repeated_or_replaced_declarations_do_not_share_original_layout_issuers() {
         let body = "expr {$n + 1}";
-        for source in [
-            "foreach generation {A B} {proc p {n} {expr {$n + 1}}}; p 1; p 2",
-            "proc expr args {return CUSTOM}; proc p {n} {expr {$n + 1}}; p 1; p 2",
-        ] {
-            let (_, tokens) = original_tokens(source, body, source.find(body).unwrap());
-            let binding = tokens.source_binding.as_ref().unwrap();
-            assert!(
-                binding.declaration_operand_layout_advice(&tokens).is_none(),
-                "{source}"
-            );
-        }
+        let source = "foreach generation {A B} {proc p {n} {expr {$n + 1}}}; p 1; p 2";
+        let (_, tokens) = original_tokens(source, body, source.find(body).unwrap());
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let advice = binding.declaration_operand_layout_advice(&tokens).expect(
+            "same original lexical declaration can retain operand geometry across repetitions",
+        );
+        assert!(!advice.targets().is_empty());
+        assert_eq!(
+            binding.native_compilation_admission_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+        );
+        let mut changed = tokens.clone();
+        changed.word_exprs.pop();
+        assert!(
+            binding
+                .declaration_operand_layout_advice(&changed)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn replaced_declaration_handler_withdraws_original_layout_advice() {
+        let body = "expr {$n + 1}";
+        let source = "proc expr args {return CUSTOM}; proc p {n} {expr {$n + 1}}; p 1; p 2";
+        let (_, tokens) = original_tokens(source, body, source.find(body).unwrap());
+        let binding = tokens.source_binding.as_ref().unwrap();
+        assert!(binding.declaration_operand_layout_advice(&tokens).is_none());
+        let replacement = binding
+            .proved_execution_target()
+            .expect("known replacement procedure");
+        assert!(!replacement.registry_backed);
+        assert!(replacement.matches_authored_implementation(source, 0));
+        assert_eq!(
+            binding.native_compilation_admission_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Generic
+        );
     }
 
     #[test]

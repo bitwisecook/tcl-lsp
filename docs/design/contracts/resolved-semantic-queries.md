@@ -1140,3 +1140,22 @@ jump-table suppression and bodies required by continuations. Generic switch
 selection retains ordinary original substitutions. A changed or truncated
 word vector, missing source issuer or missing physical compiler point withdraws
 source-dependent admission.
+
+## Original coroutine compiler and execution owners
+
+`compile_native_coroutine` accepts the retained original parser vector, the
+independently selected C release and its original compilation frame. Preserve
+its ordered steps across compiler preflight, emission and Runtime preparation;
+changing word geometry or missing compiler evidence withdraws the recipe.
+`NativeCoroutineCompilationUnavailable::Generic` is a native decline, while
+`Geometry` means original operands are unavailable. Neither grants handler,
+header, namespace-token or coroutine-suspension authority.
+
+A relay's namespace object and argv List remain their actual original objects.
+Resolve that namespace after restoring the resumer's variable frame, without
+turning a reported name into a new lookup operand. Creation uses an admitted
+direct invocation carrier retaining its original namespace/argv List, rather
+than a regenerated script. The Runtime serialises owning object handoffs across
+its coroutine threads; byte probe/inject interfaces remain independent and
+cannot certify original headers. Native wasm suspension stays a typed
+unavailable execution capability.

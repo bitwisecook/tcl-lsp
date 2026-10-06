@@ -224,6 +224,35 @@ mod tests {
     }
 
     #[test]
+    fn resumable_authored_functions_require_their_own_provider_and_restore_host_dispatch() {
+        let mut vm = simulation(Rc::new(std::cell::RefCell::new(Vec::new())));
+        let completion = vm
+            .try_eval_source(
+                "set operand 077; set actual [expr {abs([set operand])}]; list $operand $actual",
+            )
+            .unwrap();
+        assert_eq!(completion.code, Code::Ok);
+        assert_eq!(completion.result.try_to_str().unwrap().as_ref(), "077 63");
+        assert!(
+            vm.native_compilation_entry_for_namespace("", false)
+                .math_functions
+                .is_none()
+        );
+        let host = vm.try_eval_native_host_source("expr {abs(077)}").unwrap();
+        assert_eq!(host.code, Code::Ok);
+        assert_eq!(host.result.try_to_str().unwrap().as_ref(), "77");
+        assert_eq!(expression(&mut vm, "abs(077)"), "63");
+        assert!(vm.set_logical_math_function_provider(None));
+        assert!(vm.try_eval_source("expr {abs([set operand])}").is_err());
+        assert_eq!(
+            vm.try_eval_native_host_source("expr {abs(077)}")
+                .unwrap()
+                .code,
+            Code::Ok
+        );
+    }
+
+    #[test]
     fn authored_fixed_functions_match_original_c84_results_and_operand_order() {
         let output = Rc::new(std::cell::RefCell::new(Vec::new()));
         let mut vm = simulation(Rc::clone(&output));

@@ -50,10 +50,9 @@ The Rust modules are:
    command availability, including individually callable qualified ensemble
    members, from the same registry. They must never be edited by hand: `cargo xtask
    gen-irule-test-data` regenerates them and `make xtask-check` detects drift.
-   `_mock_stubs.tcl` is a single data table consumed by one generic
-   `::itest::cmd::_stub` proc rather than ~1500 individual stub procs, because
-   defining that many proc bodies cost seconds of compilation on every fresh
-   session; the decision log is identical either way. `_registry_data.tcl` is
+   `_mock_stubs.tcl` is a single data table consumed by the generic
+   `::itest::cmd::_stub` proc, which records the shared decision-log triples.
+   `_registry_data.tcl` is
    a hand-maintained fixture outside this generated-asset contract.
 
 2. **Decision log over state inspection**: Tests assert on the
@@ -66,9 +65,10 @@ The Rust modules are:
    protocol stack.  Connection state persists across keep-alive
    requests; per-request state resets.
 
-4. **`unknown` handler dispatch**: iRule commands resolve through the
-   Tcl `unknown` handler, matching TMM's C-level command resolver.
-   The `_command_map` array maps iRule names to mock procs.
+4. **`unknown` handler dispatch**: Commands unavailable as installed host
+   commands route through the simulation's Tcl `unknown` handler.
+   The `_command_map` array maps iRule names to mock procs. This authored
+   dispatch establishes no native TMM command-resolver or compiler protocol.
 
 5. **Mock proc naming convention**:
    `NS::sub` -> `::itest::cmd::ns_sub`
@@ -112,20 +112,23 @@ The Rust modules are:
    `LiveSession::load_rule`, `SessionPlan::with_rules`, and `simulate_rules`
    preserve this identity. Existing `load_irule`/`simulate_irule` convenience
    inputs remain unnamed. The loader never invents a rule owner from source.
-   Named rule procedures occupy independent namespace command tables in every
-   worker; handler metadata retains its logical owner. `call` selects a local
-   procedure, a same-folder `rule::proc`, or an absolute
-   `/Partition/folder/rule::proc`, and nested calls enter the target owner.
-   Dispatch uses the real caller activation, so `upvar 1` reaches its cells.
-   Topology inputs load unattached rules as libraries without registering
-   their events and refuse ambiguous short-name object resolution.
+   Named rule procedures have private command-table owners in every worker.
+   Their actual execution namespace is `::`, independently of the rule path.
+   `call` selects a local procedure, a partition-root `rule::proc`, or an
+   absolute `/Partition/folder/rule::proc`; nested calls enter the target owner.
+   A relative rule name does not search the caller's folder. Public F5 call
+   targets do not become Tcl namespace commands, so `namespace which -command`
+   does not expose them. Dispatch uses the real caller activation, so `upvar 1`
+   reaches its cells. Topology inputs load unattached rules as libraries without
+   registering their events and refuse ambiguous short-name object resolution.
 
-   These logical forms follow the [F5 call reference](https://clouddocs.f5.com/api/irules/call.html).
-   The namespace used to store procedures is a simulator representation; that
-   reference does not establish the physical `namespace current` observed
-   inside procedures on an appliance. C Tcl validates the interpreter/frame
-   mechanics, while build-specific F5 procedure namespace behaviour remains
-   unmeasured.
+   These contracts match the [recorded BIG-IP 21.1.0.1 build 0.0.26 controls](../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md).
+   `Vm::install_irules_rule_callable_simulation` is an explicit authored
+   capability. Physical Tcl procedure declarations, bodies, command epochs and
+   entered activations retain their real host owners; no F5 CPP or ABI is inferred.
+   Named procedure declarations and calls on an external host require an
+   equivalent capability. Anonymous execution and named event-only rules remain
+   available without this rule-owner provider.
 
    `configure_static` is an explicit test configuration broadcast. It stores
    into each worker's existing `::static` cell and therefore runs that cell's
@@ -376,8 +379,10 @@ Use the built-in `:sh` command:
 The simulator gives each worker its own `static::` cells. Rule creation runs
 that rule's `RULE_INIT` across the configured roster. Names in `::static` share
 storage across rule owners within a worker, and creation order determines the
-last writer. Recreating a named rule removes only its declarations and handlers,
-then runs only its initialisers. An event write, unset or recreation affects the
+last writer. Removing a rule configuration removes its event registration but
+retains activated procedures. Recreating a rule publishes its declarations and
+runs only its initialisers. A full framework reset retires all callable owners. An event write, unset or
+recreation affects the
 executing worker; `configure_static` explicitly broadcasts a configuration store.
 Worker selection does not initialise rules. The mock `table` shares state across
 workers.
@@ -398,10 +403,18 @@ table starts with `Tcl 8.4`; it grants no appliance ABI, native package header o
 compiler authority. External Tcl hosts require an explicit equivalent provider.
 
 Build-specific original loader checks are opt-in. The measured profile rejects
-literal source NUL and treats non-ASCII source outside its accepted domain;
-the two observed Unicode spellings do not prove a universal Unicode rejection.
+literal source NUL. Exact complete source images in the measured Unicode corpus
+retain their observed ACCEPT/REJECT outcomes; all other non-ASCII source is
+unsupported by this loader profile. Three emoji literal probes were accepted,
+while the ten other probes were rejected. These observations establish no
+general Unicode acceptance rule, identifier normalization or hash-key identity.
 ASCII LF and CRLF source remain accepted. Runtime-generated NUL values and names
-remain separate from the original loader policy. Literal compiler-refused
+remain separate from the original loader policy. Dynamic `A\0B` success does not
+prove a distinct counted-name key from `A`. The separately installed
+`Vm::install_irules_counted_string_simulation` counts original encoded string
+bytes and pure bytearray bytes in user event code. It grants no native StringLength
+CPP, Unicode indexing or physical object-header authority; host string operations
+retain their actual protocol. Literal compiler-refused
 commands use the shared load-phase diagnostics; dynamic evaluation sees the
 measured runtime surface. Namespace selectors use the Tcl84 member roster,
 including prefix ambiguity, and exclude `namespace path`.

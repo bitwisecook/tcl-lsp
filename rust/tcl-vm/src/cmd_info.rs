@@ -184,6 +184,12 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // `info exists varName` — the shared Family-B core over `VarStore::exists`.
         "exists" => match rest {
             [name] => {
+                if vm.native_c_variable_name_protocol().is_some() {
+                    return match vm.exists_original_c_parts(name, None) {
+                        Ok(found) => ok(Value::bool(found)),
+                        Err(failure) => failure,
+                    };
+                }
                 // `info exists` fires read traces first (a trace may create the
                 // variable — tcltest's lazy `SafeFetch` constraint init relies
                 // on this); a trace error does not abort the existence check.
@@ -224,7 +230,17 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     );
                 }
             };
-            match tcl_cmd_core::info::level(vm, number) {
+            let dialect = vm.actual_native_invocation_dialect();
+            let result = if dialect.native_error_log_protocol().is_some()
+                && dialect
+                    .tcl_version
+                    .is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6)
+            {
+                vm.native_info_level(number)
+            } else {
+                tcl_cmd_core::info::level(vm, number)
+            };
+            match result {
                 Ok(v) => ok(v),
                 Err(e) => crate::command::completion_from_cmd_error(vm, e),
             }
@@ -602,3 +618,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_info/native_commands_tests.rs"]
+mod native_commands_tests;

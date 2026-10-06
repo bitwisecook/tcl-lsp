@@ -27,6 +27,7 @@
 
 use tcl_runtime_api::{Frames, Introspect, Namespaces, NsId, Procs, ROOT_NS, VarStore};
 use tcl_syntax::glob::{is_literal_bytes, string_match_bytes};
+use tcl_syntax::native_glob::{NativeGlobProtocol, NativeNameGlobPurpose};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -265,15 +266,24 @@ where
             })?;
         return Ok(build_name_list_bytes(ops, names));
     }
+    let matcher = NativeGlobProtocol::from_name_policy(policy);
+    let pattern = pat.as_deref().map(tcl_core_types::c_string_extent);
     let cur = Namespaces::current(ops);
-    let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
-        qualified_listing_bytes(ops, prefix, tail, cur, |o, id| {
-            if procs_only {
-                o.procs_in_bytes(id)
-            } else {
-                o.commands_in_bytes(id)
-            }
-        })?
+    let names = if let Some((prefix, tail)) = pattern.and_then(split_last_qualifier_bytes) {
+        qualified_listing_bytes(
+            ops,
+            prefix,
+            tail,
+            cur,
+            |o, id| {
+                if procs_only {
+                    o.procs_in_bytes(id)
+                } else {
+                    o.commands_in_bytes(id)
+                }
+            },
+            |pattern, candidate| command_pattern_matches(matcher, pattern, candidate),
+        )?
     } else {
         let mut v = if procs_only {
             ops.procs_in_bytes(cur)
@@ -284,9 +294,46 @@ where
         if !procs_only && cur != ROOT_NS {
             v.extend(ops.commands_in_bytes(ROOT_NS));
         }
-        finish_unqualified_bytes(v, pat.as_deref())
+        v.sort();
+        v.dedup();
+        filter_command_names(v, pattern, matcher)?
     };
     Ok(build_name_list_bytes(ops, names))
+}
+
+fn command_pattern_matches(
+    matcher: NativeGlobProtocol,
+    pattern: &[u8],
+    candidate: &[u8],
+) -> Result<bool, CmdError> {
+    matcher
+        .match_name_pattern(
+            NativeNameGlobPurpose::InfoCommandsSearch,
+            pattern,
+            candidate,
+        )
+        .map_err(|_| {
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "command enumeration native match",
+            )
+            .into()
+        })
+}
+
+fn filter_command_names(
+    names: Vec<Vec<u8>>,
+    pattern: Option<&[u8]>,
+    matcher: NativeGlobProtocol,
+) -> Result<Vec<Vec<u8>>, CmdError> {
+    let mut selected_names = Vec::new();
+    for name in names {
+        if pattern.map_or(Ok(true), |pattern| {
+            command_pattern_matches(matcher, pattern, &name)
+        })? {
+            selected_names.push(name);
+        }
+    }
+    Ok(selected_names)
 }
 
 fn jim_namespace_variables<O, V>(ops: &mut O, pattern: Option<&V>) -> Result<V, CmdError>
@@ -401,7 +448,14 @@ where
         .transpose()?;
     let cur = Namespaces::current(ops);
     let names = if let Some((prefix, tail)) = pat.as_deref().and_then(split_last_qualifier_bytes) {
-        qualified_listing_bytes(ops, prefix, tail, cur, Namespaces::consts_in_bytes)?
+        qualified_listing_bytes(
+            ops,
+            prefix,
+            tail,
+            cur,
+            Namespaces::consts_in_bytes,
+            |pattern, candidate| Ok(string_match_bytes(pattern, candidate)),
+        )?
     } else {
         let mut names = if Frames::in_proc(ops) {
             ops.const_names_bytes()
@@ -437,16 +491,18 @@ where
     Ok(build_name_list_bytes(ops, names))
 }
 
-fn qualified_listing_bytes<O, F>(
+fn qualified_listing_bytes<O, F, M>(
     ops: &O,
     prefix: &[u8],
     tail: &[u8],
     cur: NsId,
     enumerate: F,
+    matches: M,
 ) -> Result<Vec<Vec<u8>>, CmdError>
 where
     O: Namespaces,
     F: Fn(&O, NsId) -> Vec<Vec<u8>>,
+    M: Fn(&[u8], &[u8]) -> Result<bool, CmdError>,
 {
     let target = if prefix.is_empty() {
         Some(ROOT_NS)
@@ -462,15 +518,15 @@ where
     if id != ROOT_NS {
         prefix_bytes.extend_from_slice(b"::");
     }
-    Ok(raw
-        .into_iter()
-        .filter(|name| string_match_bytes(tail, name))
-        .map(|name| {
+    let mut names = Vec::new();
+    for name in raw {
+        if matches(tail, &name)? {
             let mut full_name = prefix_bytes.clone();
             full_name.extend_from_slice(&name);
-            full_name
-        })
-        .collect())
+            names.push(full_name);
+        }
+    }
+    Ok(names)
 }
 
 fn qualified_variable_listing_bytes<O: Namespaces>(
@@ -505,18 +561,6 @@ fn qualified_variable_listing_bytes<O: Namespaces>(
 /// Filter an already ordered native inventory without changing entry identity,
 /// declaration multiplicity, or physical table traversal.
 fn filter_ordered_names(mut names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Vec<Vec<u8>> {
-    if let Some(pattern) = pattern {
-        names.retain(|name| string_match_bytes(pattern, name));
-    }
-    names
-}
-
-/// Sort, dedupe, and glob-filter `names` by `pat` — the unqualified-listing tail
-/// shared by the `info` listing cores. Sorting makes the listing deterministic
-/// rather than following C's hash order.
-fn finish_unqualified_bytes(mut names: Vec<Vec<u8>>, pattern: Option<&[u8]>) -> Vec<Vec<u8>> {
-    names.sort();
-    names.dedup();
     if let Some(pattern) = pattern {
         names.retain(|name| string_match_bytes(pattern, name));
     }
@@ -563,6 +607,39 @@ mod tests {
         assert_eq!(
             super::filter_ordered_names(names.to_vec(), Some(b"x")),
             [b"x".to_vec(), b"x".to_vec()]
+        );
+    }
+
+    #[test]
+    fn command_name_filter_keeps_native_scan_and_exact_key_purposes() {
+        use tcl_dialect::TclVersion;
+        use tcl_syntax::native_glob::NativeGlobProtocol;
+        let names = [b"raw\xff".to_vec(), b"raw\xc3\xbf".to_vec()];
+        for version in TclVersion::ALL {
+            let matcher = NativeGlobProtocol::authored_tcl(version);
+            assert_eq!(
+                super::filter_command_names(names.to_vec(), Some(b"raw?"), matcher).unwrap(),
+                names
+            );
+            assert_eq!(
+                super::filter_command_names(names.to_vec(), Some(b"raw[\xff]"), matcher).unwrap(),
+                names
+            );
+            assert_eq!(
+                super::filter_command_names(names.to_vec(), Some(b"raw\xff"), matcher).unwrap(),
+                [names[0].clone()]
+            );
+        }
+        let matcher = NativeGlobProtocol::from_name_policy(
+            tcl_syntax::naming::NamePolicyProtocol::authored_jim084(),
+        );
+        assert_eq!(
+            super::filter_command_names(names.to_vec(), Some(b"raw?"), matcher).unwrap(),
+            names
+        );
+        assert_eq!(
+            super::filter_command_names(names.to_vec(), Some(b"raw\xff"), matcher).unwrap(),
+            [names[0].clone()]
         );
     }
 

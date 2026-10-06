@@ -108,11 +108,13 @@ impl crate::CommandRegistry {
             selected.grammar,
             crate::native_compilation::NativeCompilationGrammar::StringMatch(
                 NativeStringMatchScope::PublicMember
-            ) | crate::native_compilation::NativeCompilationGrammar::StringEqual(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            ) | crate::native_compilation::NativeCompilationGrammar::StringLength(
-                crate::native_scalar_compilation::NativeScalarScope::PublicMember
-            )
+            ) | crate::native_compilation::NativeCompilationGrammar::StringTrim { .. }
+                | crate::native_compilation::NativeCompilationGrammar::StringEqual(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
+                | crate::native_compilation::NativeCompilationGrammar::StringLength(
+                    crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                )
         )
         .then_some(selected)
     }

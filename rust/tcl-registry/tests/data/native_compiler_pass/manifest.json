@@ -1,0 +1,122 @@
+[
+  {
+    "version": "8.4.20",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe-8.4.20"
+    ],
+    "compile_status": 0,
+    "source_sha256": "84241f5e250ca76021dfd4d6b4ac1e191e02c89fa03d0a5cdf51dd7bb0b931e6",
+    "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "status": 0,
+    "stdout_hex": "300930093009310a310930093009310a320930093009310a330930093009310a340930093009310a350931093009310a360931093009310a370931093009310a",
+    "stderr_hex": "",
+    "binary_sha256": "cfacbb2c17e354e4fe19f97b4bba4bfd2b0ad4c8e388f00062cdd141765b5dd9"
+  },
+  {
+    "version": "8.5.19",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe-8.5.19"
+    ],
+    "compile_status": 0,
+    "source_sha256": "84241f5e250ca76021dfd4d6b4ac1e191e02c89fa03d0a5cdf51dd7bb0b931e6",
+    "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "status": 0,
+    "stdout_hex": "300930093009310a310930093009310a320930093009310a330930093009310a340930093009310a350931093009310a360931093009310a370931093009310a",
+    "stderr_hex": "",
+    "binary_sha256": "8ab8f365f97659bd857ecd398c22d94bf2ddb29dd6906182b0325db3ef1ec9f7"
+  },
+  {
+    "version": "8.6.18",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe-8.6.18"
+    ],
+    "compile_status": 0,
+    "source_sha256": "84241f5e250ca76021dfd4d6b4ac1e191e02c89fa03d0a5cdf51dd7bb0b931e6",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "status": 0,
+    "stdout_hex": "300930093209360a310930093109340a320930093109340a330930093109340a340930093009310a350931093109340a360931093209360a370931093109340a",
+    "stderr_hex": "",
+    "binary_sha256": "ce73e2789adb1cd18624559ccddd2f466733fe818dc5cb0517f2a88479d584d3"
+  },
+  {
+    "version": "9.0.4",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe-9.0.4"
+    ],
+    "compile_status": 0,
+    "source_sha256": "84241f5e250ca76021dfd4d6b4ac1e191e02c89fa03d0a5cdf51dd7bb0b931e6",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "status": 0,
+    "stdout_hex": "300930093209360a310930093109340a320930093109340a330930093109340a340930093009310a350931093109340a360931093209360a370931093109340a",
+    "stderr_hex": "",
+    "binary_sha256": "2acd7f49efc4a243936eb68bceba9d957eaa0b3d143a6ad386c8d00d720a1c19"
+  },
+  {
+    "version": "9.1.0",
+    "compile_argv": [
+      "cc",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/workspace/.proofs/2286-command-compiler-pass-native/probe-9.1.0"
+    ],
+    "compile_status": 0,
+    "source_sha256": "84241f5e250ca76021dfd4d6b4ac1e191e02c89fa03d0a5cdf51dd7bb0b931e6",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "status": 0,
+    "stdout_hex": "300930093209360a310930093109340a320930093109340a330930093109340a340930093009310a350931093109340a360931093209360a370931093109340a",
+    "stderr_hex": "",
+    "binary_sha256": "483e31729a8abfa095697bdf86a7fd106f1c9ca7febd3542cc823471d9bfacb6"
+  }
+]

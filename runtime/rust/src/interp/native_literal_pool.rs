@@ -100,6 +100,18 @@ impl Drop for NativeRuntimeLiteralArray {
 }
 
 impl Interp {
+    /// Observe this actual C interpreter's original empty registration world.
+    /// No object getter or additional original reference is taken. Each capture
+    /// expires earlier observations, even without a compiler-epoch change.
+    pub fn capture_native_empty_literal_world(
+        &self,
+    ) -> Option<tcl_runtime_api::native_literal::NativeEmptyLiteralWorld> {
+        let epoch = self.native_compiler_cache_epochs(self.current_ns.get())?.0;
+        self.native_literal_world
+            .borrow()
+            .capture_empty_world(self.native_command_interpreter, epoch)
+    }
+
     /// Allocate a compiler-admitted C local object array and finalize only
     /// actual source-pointer matches before attaching Bytecode to the source.
     #[cfg(test)]
@@ -484,6 +496,49 @@ pub(super) fn retire_arrays(arrays: &RefCell<Vec<Weak<NativeRuntimeLiteralArray>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_literal_world_capture_has_actual_owner_epoch_and_retirement() {
+        for version in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut interp = Interp::with_native_core(
+                super::super::default_host(),
+                crate::environment::profile_for_dialect(version),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("actual C core");
+            let epoch = interp
+                .native_compiler_cache_epochs(interp.current_ns.get())
+                .unwrap()
+                .0;
+            let first = interp.capture_native_empty_literal_world().expect(version);
+            assert!(first.is_current_for(interp.native_command_interpreter, epoch));
+            assert!(!first.is_current_for(interp.native_command_interpreter, epoch + 1));
+            let second = interp.capture_native_empty_literal_world().unwrap();
+            assert!(!first.is_current());
+            let source = obj::Owned::fresh(obj::new_string_bytes(b"original source"));
+            let array = interp
+                .create_native_literal_array(
+                    source.as_ptr(),
+                    &[NativeRuntimeLiteral::RegisteredBytes {
+                        bytes: b"held\0original".to_vec(),
+                        namespace: None,
+                    }],
+                )
+                .unwrap();
+            assert!(!second.is_current());
+            let original = array.original(0).unwrap();
+            let references = unsafe { (*original).ref_count };
+            let primary = obj::obj_type_ptr(original);
+            assert!(interp.capture_native_empty_literal_world().is_none());
+            assert_eq!(unsafe { (*original).ref_count }, references);
+            assert_eq!(obj::obj_type_ptr(original), primary);
+            drop(array);
+            let current = interp.capture_native_empty_literal_world().unwrap();
+            assert!(current.is_current());
+            drop(interp);
+            assert!(!current.is_current());
+        }
+    }
 
     #[test]
     fn syntax_compiler_reset_publishes_original_without_a_global_literal_owner() {

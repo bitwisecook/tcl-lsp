@@ -1349,27 +1349,39 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         words.extend_from_slice(&argv[2..]);
         return interp.dispatch(&words);
     }
-    let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
     let pairs_args = &argv[3..argv.len() - 1];
 
-    let Some(d) = dict_var_get(interp, &dict_var) else {
-        return no_such_var(interp, &dict_var);
+    let d = match interp
+        .dictionary_scope_variable_read(argv[2], crate::interp::DictionaryScopeRead::Initial)
+    {
+        Ok(Some(dictionary)) => dictionary,
+        Ok(None) => {
+            let name = match interp.native_object_string_bytes(argv[2]) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+            return no_such_var(interp, &name);
+        }
+        Err(code) => return code,
     };
     let original_dictionary = crate::obj::Owned::retain(d);
     // Link phase: set each local to its key's value (or unset if absent).
     for c in pairs_args.chunks_exact(2) {
         let key = obj_bytes(c[0]);
-        let var = obj_bytes(c[1]);
         match dict::dict_get(original_dictionary.as_ptr(), &key) {
             Ok(Some(val)) => {
-                if interp.var_set(&var, val).is_err() {
-                    return cant_set(interp, &var);
+                if let Err(code) = interp.assign_original_named_variable(c[1], val) {
+                    return code;
                 }
             }
             Ok(None) => {
                 if plan.missing_key == tcl_registry::dictionary_scope::DictionaryMissingKey::Unset {
-                    interp.var_unset(&var);
+                    let name = match interp.native_object_string_bytes(c[1]) {
+                        Ok(name) => name,
+                        Err(error) => return interp.report_cmd_error(error.into()),
+                    };
+                    interp.var_unset(&name);
                 }
             }
             Err(e) => return bad_dict(interp, e),
@@ -1381,17 +1393,45 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if !plan.writeback_routes(route).captured {
         return code;
     }
+    finish_update_writeback(interp, argv, &plan, route, code)
+}
+
+fn finish_update_writeback(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    plan: &tcl_registry::dictionary_scope::DictionaryScopePlan,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    code: Code,
+) -> Code {
+    let pairs_args = &argv[3..argv.len() - 1];
     let result = crate::obj::Owned::retain(interp.get_obj_result());
 
     // Write-back: re-read the dict (the body may have replaced it), then apply
     // each local var (set if it exists, drop the key if it was unset).
-    if let Some(cur) = dict_var_get(interp, &dict_var) {
+    let current = match interp.dictionary_scope_variable_read(
+        argv[2],
+        crate::interp::DictionaryScopeRead::UpdateWriteback,
+    ) {
+        Ok(current) => current,
+        Err(code) => return code,
+    };
+    if let Some(cur) = current {
+        let saved_error = interp.save_dictionary_scope_error();
         let Some(acc) = copy_dict(interp, cur) else {
-            return scope_writeback_failure(&plan);
+            return scope_writeback_failure(plan);
         };
         for c in pairs_args.chunks_exact(2) {
-            let var = obj_bytes(c[1]);
-            match interp.var_get(&var) {
+            let value = match interp.dictionary_scope_variable_read(
+                c[1],
+                crate::interp::DictionaryScopeRead::UpdateWriteback,
+            ) {
+                Ok(value) => value,
+                Err(code) => {
+                    unsafe { obj::decr_ref_count(acc) };
+                    return code;
+                }
+            };
+            match value {
                 Some(val) => {
                     let _ = dict::dict_set(acc, c[0], val);
                 }
@@ -1400,15 +1440,15 @@ fn update(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 }
             }
         }
-        if dict_var_set(interp, &dict_var, acc).is_err() {
+        if let Err(code) = interp.assign_original_named_variable(argv[2], acc) {
             unsafe { obj::decr_ref_count(acc) };
-            cant_set(interp, &dict_var);
-            return scope_writeback_failure(&plan);
+            return code;
         }
         unsafe { obj::decr_ref_count(acc) };
+        interp.restore_dictionary_scope_error(saved_error);
     }
     interp.set_result(result.as_ptr());
-    finish_scope_completion(interp, &plan, route, code)
+    finish_scope_completion(interp, plan, route, code)
 }
 
 /// `dict with dictVarName ?key ...? script` — map every key of the (sub-)dict to a
@@ -1424,12 +1464,21 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     ) else {
         return interp.error(b"native dictionary scope protocol is not selected");
     };
-    let dict_var = obj_bytes(argv[2]);
     let body_obj = argv[argv.len() - 1];
     let path = &argv[3..argv.len() - 1];
 
-    let Some(d) = dict_var_get(interp, &dict_var) else {
-        return no_such_var(interp, &dict_var);
+    let d = match interp
+        .dictionary_scope_variable_read(argv[2], crate::interp::DictionaryScopeRead::Initial)
+    {
+        Ok(Some(dictionary)) => dictionary,
+        Ok(None) => {
+            let name = match interp.native_object_string_bytes(argv[2]) {
+                Ok(name) => name,
+                Err(error) => return interp.report_cmd_error(error.into()),
+            };
+            return no_such_var(interp, &name);
+        }
+        Err(code) => return code,
     };
     let original_dictionary = crate::obj::Owned::retain(d);
     // Navigate the optional key path to the sub-dict.
@@ -1446,10 +1495,10 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Err(e) => return bad_dict(interp, e),
     };
     // Map every key to a local var.
-    let keys: Vec<Vec<u8>> = pairs.iter().map(|&(k, _)| obj_bytes(k)).collect();
-    for (k, v) in &pairs {
-        if interp.var_set(&obj_bytes(*k), *v).is_err() {
-            return cant_set(interp, &obj_bytes(*k));
+    let keys: Vec<*mut TclObj> = pairs.iter().map(|&(key, _)| key).collect();
+    for (key, value) in &pairs {
+        if let Err(code) = interp.assign_original_named_variable(*key, *value) {
+            return code;
         }
     }
 
@@ -1458,16 +1507,36 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if !plan.writeback_routes(route).captured {
         return code;
     }
+    finish_with_writeback(interp, argv, &keys, &plan, route, code)
+}
+
+fn finish_with_writeback(
+    interp: &mut Interp,
+    argv: &[*mut TclObj],
+    keys: &[*mut TclObj],
+    plan: &tcl_registry::dictionary_scope::DictionaryScopePlan,
+    route: tcl_registry::completion_route::InvocationCompletionRoute,
+    code: Code,
+) -> Code {
+    let path = &argv[3..argv.len() - 1];
     let result = crate::obj::Owned::retain(interp.get_obj_result());
+
+    let saved_error = interp.save_dictionary_scope_error();
 
     // Write-back: rebuild the (sub-)dict at the key path from the mapped locals,
     // then store it back through the path. The body may have replaced the dict,
     // so re-read it; if the path no longer resolves, skip the write-back.
-    if let Some(cur) = dict_var_get(interp, &dict_var) {
+    let current = match interp
+        .dictionary_scope_variable_read(argv[2], crate::interp::DictionaryScopeRead::WithWriteback)
+    {
+        Ok(current) => current,
+        Err(code) => return code,
+    };
+    if let Some(cur) = current {
         // A malformed current/sub dict is a write-back error, not a silent
         // skip (the `copy_dict` call has already set the result).
         let Some(acc) = copy_dict(interp, cur) else {
-            return scope_writeback_failure(&plan);
+            return scope_writeback_failure(plan);
         };
         // Navigate `acc` to the sub-dict at `path`.
         let mut sub_src = acc;
@@ -1484,20 +1553,30 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if reached {
             let Some(newsub) = copy_dict(interp, sub_src) else {
                 unsafe { obj::decr_ref_count(acc) };
-                return scope_writeback_failure(&plan);
+                return scope_writeback_failure(plan);
             };
-            for key in &keys {
-                let kobj = crate::interp::new_string(key);
-                unsafe { obj::incr_ref_count(kobj) };
-                match interp.var_get(key) {
-                    Some(val) => {
-                        let _ = dict::dict_set(newsub, kobj, val);
+            for &key in keys {
+                let value = match interp.dictionary_scope_variable_read(
+                    key,
+                    crate::interp::DictionaryScopeRead::UpdateWriteback,
+                ) {
+                    Ok(value) => value,
+                    Err(code) => {
+                        unsafe {
+                            obj::decr_ref_count(newsub);
+                            obj::decr_ref_count(acc);
+                        }
+                        return code;
+                    }
+                };
+                match value {
+                    Some(value) => {
+                        let _ = dict::dict_set(newsub, key, value);
                     }
                     None => {
-                        let _ = dict::dict_unset(newsub, key);
+                        let _ = dict::dict_unset(newsub, &obj_bytes(key));
                     }
                 }
-                unsafe { obj::decr_ref_count(kobj) };
             }
             // The rebuilt sub is the whole dict (no path) or is set back
             // at the path within `acc`.
@@ -1507,20 +1586,24 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 let _ = dict_path_set(acc, path, newsub);
                 acc
             };
-            if dict_var_set(interp, &dict_var, store).is_err() {
+            if let Err(code) = interp.assign_original_named_variable(argv[2], store) {
                 unsafe {
                     obj::decr_ref_count(newsub);
                     obj::decr_ref_count(acc);
                 }
-                cant_set(interp, &dict_var);
-                return scope_writeback_failure(&plan);
+                return if interp.host_refusal_pending() {
+                    code
+                } else {
+                    scope_writeback_failure(plan)
+                };
             }
             unsafe { obj::decr_ref_count(newsub) };
         }
         unsafe { obj::decr_ref_count(acc) };
     }
+    interp.restore_dictionary_scope_error(saved_error);
     interp.set_result(result.as_ptr());
-    finish_scope_completion(interp, &plan, route, code)
+    finish_scope_completion(interp, plan, route, code)
 }
 
 // helpers
@@ -1572,6 +1655,9 @@ fn drop_fresh(obj: *mut TclObj) {
         obj::decr_ref_count(obj);
     }
 }
+
+#[cfg(test)]
+mod native_scope_trace_tests;
 
 #[cfg(test)]
 mod tests {

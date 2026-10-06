@@ -39,6 +39,7 @@ pub mod emitter;
 pub mod expressions;
 pub mod helpers;
 mod hook_operands;
+mod native_compiler_pass;
 mod native_failure;
 pub mod peephole;
 pub mod statements;
@@ -345,6 +346,10 @@ pub struct CodegenCtx<'r> {
         Option<tcl_runtime_api::native_compilation::NativeMathFunctionPrerequisite>,
     /// A transformed CFG retained a dependency which this artifact cannot guard.
     native_dependency_refusal: bool,
+    /// Hazards captured from actual emitted instructions before peepholes.
+    native_compiler_pass_hazards: Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard>,
+    /// Actual second compiler pass omits executable START_CMD markers.
+    compact_compiler_pass: bool,
     /// Active C8.4 Catch body compilation checkpoints, independently of
     /// exception ranges entered by the eventual runtime instructions.
     native_speculative_compilations: Vec<std::rc::Rc<std::cell::Cell<bool>>>,
@@ -479,6 +484,8 @@ impl<'r> CodegenCtx<'r> {
             math_expression_base: None,
             math_table_prerequisite: None,
             native_dependency_refusal: false,
+            native_compiler_pass_hazards: Vec::new(),
+            compact_compiler_pass: false,
             native_speculative_compilations: Vec::new(),
             plain_command_dispatch: false,
             source: tcl_lexer::SourceImage::default(),

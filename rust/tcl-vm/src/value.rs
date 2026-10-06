@@ -31,6 +31,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+mod native_list_storage;
 mod native_namespace_name;
 
 use tcl_cmd_core::namespace::TclStringHashOrder;
@@ -463,6 +464,7 @@ enum IntRep {
     /// Real original C compiled pattern; no string updater.
     NativeRegexp(tcl_syntax::native_regex::NativeRegexpCache<tcl_regex::cmd_core::CompiledRegex>),
     JimIndex(tcl_syntax::native_jim_index::JimIndex),
+    NativeEndOffset(tcl_syntax::native_end_offset::NativeEndOffset),
     JimRegexp(tcl_syntax::native_regex::JimRegexpCache<tcl_regex::cmd_core::CompiledRegex>),
     NativePropertyName(native_property_name::NativePropertyName),
     NativeInstructionName(tcl_syntax::native_instruction_name::NativeInstructionName),
@@ -1990,6 +1992,23 @@ impl Value {
                 .set(NativeStringStorageIdentity::Allocated);
             return Ok(bytes);
         }
+        if let Some(offset) = self.native_end_offset() {
+            if protocol != NativeStringProtocol::C(offset.version()) {
+                return Err(
+                    tcl_syntax::native_string::NativeStringUnavailable::ProtocolUnavailable,
+                );
+            }
+            let bytes: Rc<[u8]> = Rc::from(
+                offset
+                    .string_update()
+                    .ok_or(tcl_syntax::native_string::NativeStringUnavailable::StringUpdater)?,
+            );
+            *self.0.string.borrow_mut() = Some(RawString::from_bytes(Rc::clone(&bytes)));
+            self.0
+                .string_storage
+                .set(NativeStringStorageIdentity::Allocated);
+            return Ok(bytes);
+        }
         let index_cache = self.native_index_cache();
         if let Some((cache, version)) = index_cache {
             if protocol != tcl_syntax::native_string::NativeStringProtocol::C(version) {
@@ -2643,6 +2662,7 @@ impl Value {
             IntRep::NativeBytecode(_) => "bytecode",
             IntRep::NativeRegexp(_) | IntRep::JimRegexp(_) => "regexp",
             IntRep::JimIndex(_) => "index",
+            IntRep::NativeEndOffset(_) => "end-offset",
             IntRep::NativePropertyName(_) => "tcl::oo property name",
             IntRep::NativeInstructionName(_) => "instname",
             IntRep::FrameLevel { .. } => "levelReference",
@@ -2707,6 +2727,31 @@ impl Value {
             IntRep::JimIndex(index) => Some(index.0),
             _ => None,
         })
+    }
+    pub(crate) fn clear_native_index_arithmetic_primary(&self) {
+        self.replace_primary(IntRep::Str);
+    }
+    pub(crate) fn native_end_offset(
+        &self,
+    ) -> Option<tcl_syntax::native_end_offset::NativeEndOffset> {
+        if let IntRep::NativeEndOffset(offset) = *self.0.intrep.borrow() {
+            Some(offset)
+        } else {
+            None
+        }
+    }
+    pub(crate) fn install_native_end_offset(
+        &self,
+        offset: tcl_syntax::native_end_offset::NativeEndOffset,
+    ) -> Result<(), tcl_syntax::value::ValueError> {
+        self.check_native_header()?;
+        if self.resident_string_bytes().is_none() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original end-offset resident string",
+            ));
+        }
+        self.replace_primary(IntRep::NativeEndOffset(offset));
+        Ok(())
     }
     pub(crate) fn install_native_jim_index(&self, index: tcl_syntax::native_jim_index::JimIndex) {
         self.replace_primary(IntRep::JimIndex(index));
@@ -3598,7 +3643,7 @@ impl Value {
             IntRep::NativePropertyName(_) => Class::PropertyName,
             IntRep::NativeInstructionName(_) => Class::InstructionName,
             IntRep::NativeMethodName(_) => Class::MethodName,
-            IntRep::NativeIndex { .. } => Class::Index,
+            IntRep::NativeIndex { .. } | IntRep::NativeEndOffset(_) => Class::Index,
         }
     }
 
@@ -3918,9 +3963,15 @@ impl Value {
         else {
             unreachable!("selected native List replacement cache");
         };
-        let members = crate::NativeListItems::new(elements.to_vec(), false);
-        *canonical = members.canonical_state();
-        *items = members;
+        let length = items.len();
+        if let Some(version) = protocol.tcl_version() {
+            items.replace_native(0, length, elements, version)?;
+            *canonical = items.canonical_state();
+        } else {
+            let members = crate::NativeListItems::new(elements.to_vec(), false);
+            *canonical = members.canonical_state();
+            *items = members;
+        }
         drop(primary);
         value.invalidate_native_list_string();
         Ok(value)
@@ -3985,9 +4036,16 @@ impl Value {
         } else {
             canonical.get()
         };
-        let mut members = items.as_ref().clone();
-        members.extend(elements.iter().cloned());
-        *items = crate::NativeListItems::new(members, flag);
+        if let Some(version) = protocol.tcl_version() {
+            items.replace_native(items.len(), 0, elements, version)?;
+            if version < tcl_dialect::TclVersion::V9_0 {
+                items.canonical_state().set(flag);
+            }
+        } else {
+            let mut members = items.as_ref().clone();
+            members.extend(elements.iter().cloned());
+            *items = crate::NativeListItems::new(members, flag);
+        }
         *canonical = items.canonical_state();
         drop(primary);
         self.invalidate_native_list_string();
@@ -4518,10 +4576,17 @@ impl Value {
         let start = plan.byte_start();
         let end = plan.byte_end();
         if start != 0 {
-            // trimleft manufactured a fresh object before trimright ran.
-            return Self::new_native_string_bytes(&bytes[start..end]);
+            // JimStringTrimLeft manufactures the original working header;
+            // JimStringTrimRight then converts that SAME header before cutting.
+            let working = Self::new_native_string_bytes(&bytes[start..]);
+            return working.jim_trim_right_result(end - start, plan.right_conversion());
         }
-        if plan.right_conversion() {
+        self.jim_trim_right_result(end, plan.right_conversion())
+    }
+
+    fn jim_trim_right_result(&self, end: usize, convert: bool) -> Self {
+        let bytes = self.string_bytes();
+        if convert {
             let count = match &*self.0.intrep.borrow() {
                 IntRep::JimString(count) => *count,
                 _ => None,
@@ -4843,16 +4908,7 @@ impl Value {
             IntRep::NativeString { unicode: None, .. } => {
                 panic!("native String has neither resident bytes nor Unicode backing")
             }
-            IntRep::ByteArray(bytes) => (
-                RawString::from_unicode(
-                    bytes
-                        .bytes
-                        .iter()
-                        .map(|&byte| char::from(byte))
-                        .collect::<String>(),
-                ),
-                false,
-            ),
+            IntRep::ByteArray(bytes) => (Self::raw_byte_array_string(&bytes.bytes), false),
             cache @ (IntRep::Int(_)
             | IntRep::Tcl84Long(_)
             | IntRep::CoercedDouble(_)
@@ -4863,6 +4919,7 @@ impl Value {
             | IntRep::NativeIndex { .. }
             | IntRep::NativeNamespaceName(_)
             | IntRep::JimIndex(_)
+            | IntRep::NativeEndOffset(_)
             | IntRep::NativeInstructionName(_)) => (self.render_native_cache_bytes(cache), false),
             IntRep::CompletionCode(_)
             | IntRep::NativeArraySearch { .. }
@@ -4896,6 +4953,15 @@ impl Value {
         (generated, past_cap)
     }
 
+    fn raw_byte_array_string(bytes: &[u8]) -> RawString {
+        RawString::from_unicode(
+            bytes
+                .iter()
+                .map(|&byte| char::from(byte))
+                .collect::<String>(),
+        )
+    }
+
     fn cache_generated_raw_string(&self, generated: &RawString) {
         *self.0.string.borrow_mut() = Some(generated.clone());
         if let IntRep::List { canonical, .. } = &mut *self.0.intrep.borrow_mut() {
@@ -4914,6 +4980,10 @@ impl Value {
 
     fn render_native_cache_bytes(&self, cache: &IntRep) -> RawString {
         let (bytes, _) = match cache {
+            IntRep::NativeEndOffset(offset) => (
+                RawString::from_bytes(offset.string_update().expect("legacy end-offset updater")),
+                false,
+            ),
             IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::CoercedDouble(n) => {
                 (RawString::from_unicode(n.to_string()), false)
             }
@@ -5021,6 +5091,7 @@ impl Value {
             | IntRep::NativeRegexp(_)
             | IntRep::JimRegexp(_)
             | IntRep::JimIndex(_)
+            | IntRep::NativeEndOffset(_)
             | IntRep::NativeIndex { .. }
             | IntRep::NativeCommandName(_)
             | IntRep::NativeCommandNameUnresolved(_)
@@ -5219,6 +5290,7 @@ impl Value {
             | IntRep::NativeRegexp(_)
             | IntRep::JimRegexp(_)
             | IntRep::JimIndex(_)
+            | IntRep::NativeEndOffset(_)
             | IntRep::NativeIndex { .. }
             | IntRep::NativeCommandName(_)
             | IntRep::NativeCommandNameUnresolved(_)
@@ -5274,6 +5346,7 @@ impl Value {
             | IntRep::NativeRegexp(_)
             | IntRep::JimRegexp(_)
             | IntRep::JimIndex(_)
+            | IntRep::NativeEndOffset(_)
             | IntRep::NativeIndex { .. }
             | IntRep::NativeCommandName(_)
             | IntRep::NativeCommandNameUnresolved(_)
@@ -5399,6 +5472,7 @@ impl Value {
             IntRep::Dict(dict) if self.0.string.borrow().is_none() => Some(Rc::clone(dict)),
             _ => None,
         };
+        let mut allocated = None;
         let items: Rc<Vec<Value>> = if let Some(dict) = dict {
             Rc::new(
                 dict.pairs_backing()
@@ -5419,6 +5493,12 @@ impl Value {
             let original = self.native_string_bytes(protocol).map_err(|_| {
                 ValueError::CommandProtocolUnavailable("native object list storage")
             })?;
+            if protocol
+                .tcl_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+            {
+                allocated = Some(list::max_list_length_bytes(&original).max(1));
+            }
             let elements =
                 list::split_native_list_elements(&original, protocol).map_err(|error| {
                     ValueError::NativeListParse {
@@ -5448,6 +5528,11 @@ impl Value {
             false,
             Some(protocol),
         ));
+        if let Some(allocated) = allocated
+            && let IntRep::List { items, .. } = &*self.0.intrep.borrow()
+        {
+            items.set_capacity(allocated);
+        }
         Ok(self
             .cached_list_representation()
             .expect("installed native List")

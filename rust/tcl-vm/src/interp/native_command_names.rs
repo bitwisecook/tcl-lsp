@@ -221,6 +221,54 @@ impl Vm {
             ))
     }
 
+    /// Allocate the selected C full-command-name String result independently
+    /// of the original command operand and its retained command-name cache.
+    pub(crate) fn native_namespace_origin_result(&self, bytes: &[u8]) -> Result<Value, ValueError> {
+        let dialect = self.actual_native_invocation_dialect();
+        let strings = dialect
+            .native_command_name_protocol()
+            .and_then(|_| dialect.native_string_materialization(None))
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native origin String issuer",
+            ))?;
+        let result = Value::from_native_string_bytes(bytes.to_vec());
+        result.retain_native_string_representation(strings)?;
+        Ok(result)
+    }
+
+    /// Present the reached C origin failure from the SAME original operand.
+    pub(crate) fn native_namespace_origin_failure(
+        &mut self,
+        original: &Value,
+    ) -> super::Completion<Value> {
+        let dialect = self.actual_native_invocation_dialect();
+        let Some(strings) = dialect
+            .native_command_name_protocol()
+            .and_then(|_| dialect.native_string_materialization(None))
+        else {
+            return self.refuse_host_command("native origin diagnostic String issuer".into());
+        };
+        let name = match self.native_name_operand_bytes(original) {
+            Ok(name) => name,
+            Err(error) => return self.refuse_host_command(error.to_string()),
+        };
+        let name = tcl_core_types::c_string_extent(&name);
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(name);
+        message.push(b'"');
+        let mut code = b"TCL LOOKUP COMMAND ".to_vec();
+        tcl_syntax::list::append_list_element(&mut code, name, false);
+        let error = if dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4) {
+            tcl_cmd_core::CmdError::new_bytes(message)
+        } else {
+            tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
+        };
+        crate::command::completion_from_cmd_error(
+            self,
+            error.with_native_string_result(strings.protocol()),
+        )
+    }
+
     /// Original command getter at a retained dispatch namespace. A valid cache
     /// supplies its live token; callers never look up the reporting bytes again.
     pub(crate) fn resolve_original_command_key_at(
@@ -320,9 +368,34 @@ impl Vm {
         asm: &FunctionAsm,
         source_namespace: &NamespacePath,
     ) -> crate::literal_pool::NativeLiteralPoolReceipt {
+        self.create_native_literal_table_pool(asm, &asm.literals, source_namespace)
+    }
+
+    fn create_native_literal_table_pool(
+        &mut self,
+        asm: &FunctionAsm,
+        table: &tcl_bytecode::LiteralTable,
+        source_namespace: &NamespacePath,
+    ) -> crate::literal_pool::NativeLiteralPoolReceipt {
         use crate::literal_pool::{NativeLiteralPool, NativeLiteralUnavailable as Error};
-        let context: Option<&NativeLiteralContext> = asm
-            .literals
+        for first_pass in table.discarded_native_passes() {
+            let discarded =
+                self.create_native_literal_table_pool(asm, first_pass, source_namespace)?;
+            drop(discarded);
+        }
+        if let Some(planned) = table.compiler_replay_environment() {
+            let current = self.capture_native_compiler_pass_environment(None);
+            if !planned.is_current_for(self.native_interpreter_identity())
+                || !planned.is_root()
+                || planned.has_enabled_limits()
+                || current.as_ref() != Some(&planned.without_procedure())
+            {
+                return Err(Error::unavailable(
+                    "native compiler replay environment changed during first-pass publication",
+                ));
+            }
+        }
+        let context: Option<&NativeLiteralContext> = table
             .entries()
             .iter()
             .find_map(|literal| match literal.allocation() {
@@ -332,7 +405,7 @@ impl Vm {
                 _ => None,
             })
             .or_else(|| {
-                asm.literals
+                table
                     .native_actions()
                     .iter()
                     .find_map(|action| match action {
@@ -364,7 +437,7 @@ impl Vm {
         let before = self.native_cache_stamp(namespace);
         let pool = NativeLiteralPool::create_with_actions(
             &world,
-            &asm.literals,
+            table,
             self.native_scalar_carrier_dialect()
                 .native_string_protocol(),
             namespace,
@@ -493,6 +566,49 @@ mod tests {
             "cmdName"
         } else {
             "none"
+        }
+    }
+
+    #[test]
+    fn origin_string_result_requires_actual_native_core_issuer() {
+        assert!(
+            Vm::new()
+                .native_namespace_origin_result(b"::selected")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics() {
+        let source = include_bytes!(
+            "../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl"
+        );
+        let rows = include_str!(
+            "../../../../runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv"
+        );
+        for (version, row) in TclVersion::ALL.into_iter().zip(rows.lines()) {
+            let mut vm = crate::native_fixture::interpreter(
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
+            );
+            let completion = vm.try_eval_source_bytes(source).unwrap();
+            assert_eq!(completion.code, crate::Code::Ok, "{version:?}");
+            let expected = row.split_once('\t').unwrap().1;
+            let expected: Vec<_> = expected
+                .as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            assert_eq!(
+                vm.native_name_operand_bytes(&completion.result)
+                    .unwrap()
+                    .as_ref(),
+                expected,
+                "{version:?}"
+            );
+            let result = vm.native_namespace_origin_result(b"::selected").unwrap();
+            assert_eq!(result.native_object_type_name(), "string");
         }
     }
 

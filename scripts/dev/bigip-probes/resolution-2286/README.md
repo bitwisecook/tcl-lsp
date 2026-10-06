@@ -3,7 +3,8 @@
 This handoff measures **real iRule compilation and execution on BIG-IP**. The
 fixtures cover original command and variable names, procedure ownership, scope,
 mutation, traces, and the `static::` namespace across initialization and actual
-TMM events. All appliance outcomes in the manifest are **UNMEASURED**. The goal
+TMM events. The reusable manifest records **UNMEASURED** outcomes;
+[the appliance report](BIGIP_RESULTS.md) contains build-specific measured results. The goal
 is a reproducible evidence bundle, including rejections and incomplete coverage,
 not a predetermined pass report.
 

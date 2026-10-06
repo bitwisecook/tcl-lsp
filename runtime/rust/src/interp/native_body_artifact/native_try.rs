@@ -518,3 +518,27 @@ mod tests {
         }
     }
 }
+
+impl TryOperation {
+    pub(super) fn compaction_hazards(
+        &self,
+    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+        let dynamic = self.recipe.body.script.is_none()
+            || self
+                .recipe
+                .handlers
+                .iter()
+                .filter_map(|handler| handler.body.as_ref())
+                .any(|body| body.script.is_none())
+            || self
+                .recipe
+                .finally
+                .as_ref()
+                .is_some_and(|body| body.script.is_none());
+        if dynamic {
+            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ScriptEvaluation]
+        } else {
+            Vec::new()
+        }
+    }
+}

@@ -408,20 +408,29 @@ mod tests {
 
     #[test]
     fn unentered_or_failed_return_value_does_not_gain_executable_expression_metadata() {
-        for source in [
-            "proc p {x} {return [expr {$x + 1}]}",
-            "proc p {} {return [expr {$missing + 1}]}; p",
-            "proc p {x} {return [expr {$x + 1}]}; mystery; p 1",
+        for (source, preparation_reached) in [
+            ("proc p {x} {return [expr {$x + 1}]}", false),
+            ("proc p {} {return [expr {$missing + 1}]}; p", true),
+            ("proc p {x} {return [expr {$x + 1}]}; mystery; p 1", false),
         ] {
             let module = native_return_module(source);
             let body = &module.procedures["::p"].body;
             assert!(body.implicit_math_invocations.is_empty());
-            assert!(body.expression_preparations.is_empty());
+            // Reached preparation precedes the missing-variable failure; it
+            // supplies neither a normal result nor admission of the Return.
+            assert_eq!(
+                !body.expression_preparations.is_empty(),
+                preparation_reached
+            );
             assert!(body.statements.iter().all(|statement| {
-                statement
-                    .tokens()
-                    .and_then(|tokens| tokens.source_binding.as_ref())
-                    .is_none_or(|binding| binding.proved_execution_target().is_none())
+                let Some(tokens) = statement.tokens() else {
+                    return true;
+                };
+                tokens.source_binding.as_ref().is_none_or(|binding| {
+                    binding.proved_execution_target().is_none()
+                        && !binding.original_arguments_complete_normally(tokens)
+                        && binding.original_normal_result(tokens).is_none()
+                })
             }));
         }
     }

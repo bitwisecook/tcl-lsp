@@ -176,6 +176,8 @@ pub enum MeasuredIrulesLoaderProfile {
 pub enum MeasuredIrulesSourceRefusal {
     /// The measured configuration parser rejects an original literal NUL byte.
     LiteralNulRejected,
+    /// This exact original non-ASCII source was rejected by the measured loader.
+    NonAsciiRejected,
     /// Original non-ASCII source has no supported accepted loader domain here.
     /// This does not claim rejection of every Unicode source or normalization.
     NonAsciiUnsupported,
@@ -190,6 +192,8 @@ impl MeasuredIrulesLoaderProfile {
             Self::BigIp21_1_0_1Build0_0_26 => {
                 if source.contains(&0) {
                     Some(MeasuredIrulesSourceRefusal::LiteralNulRejected)
+                } else if let Some(accepted) = measured_utf8_source_outcome(source) {
+                    (!accepted).then_some(MeasuredIrulesSourceRefusal::NonAsciiRejected)
                 } else if !source.is_ascii() {
                     Some(MeasuredIrulesSourceRefusal::NonAsciiUnsupported)
                 } else {
@@ -198,6 +202,67 @@ impl MeasuredIrulesLoaderProfile {
             }
         }
     }
+}
+
+const MEASURED_UTF8_SOURCES: &[(&[u8], bool)] = &[
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_bmp_copyright.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_bmp_heart.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_bmp_snowman.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_decomposed.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_family.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_flag.tcl"),
+        true,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_grinning.tcl"),
+        true,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_keycap.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_rainbow_flag.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_skin_tone.tcl"),
+        true,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_text_vs.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_emoji_zwj.tcl"),
+        false,
+    ),
+    (
+        include_bytes!("f5/measured_rule_sources/unicode_literal_precomposed.tcl"),
+        false,
+    ),
+];
+
+fn measured_utf8_source_outcome(source: &[u8]) -> Option<bool> {
+    MEASURED_UTF8_SOURCES
+        .iter()
+        .find_map(|(original, accepted)| (*original == source).then_some(*accepted))
 }
 
 #[cfg(test)]
@@ -227,6 +292,27 @@ mod tests {
 B}}"
                 )
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn measured_utf8_loader_outcomes_require_the_complete_attested_source() {
+        let profile = MeasuredIrulesLoaderProfile::BigIp21_1_0_1Build0_0_26;
+        for &(source, accepted) in MEASURED_UTF8_SOURCES {
+            assert_eq!(
+                profile.original_source_refusal(source),
+                (!accepted).then_some(MeasuredIrulesSourceRefusal::NonAsciiRejected)
+            );
+            let mut changed = source.to_vec();
+            changed.push(b' ');
+            assert_eq!(
+                profile.original_source_refusal(&changed),
+                Some(MeasuredIrulesSourceRefusal::NonAsciiUnsupported)
+            );
+        }
+        assert_eq!(
+            profile.original_source_refusal("when HTTP_REQUEST {set 😀 1}".as_bytes()),
+            Some(MeasuredIrulesSourceRefusal::NonAsciiUnsupported)
         );
     }
 

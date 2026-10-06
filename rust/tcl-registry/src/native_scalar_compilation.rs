@@ -260,8 +260,13 @@ mod tests {
                     assert!(!observed_inline);
                     continue;
                 };
+                let Some(command) = parsed.commands.first() else {
+                    assert!(parsed.fatal_tail.is_some());
+                    assert!(!observed_inline);
+                    continue;
+                };
                 let words = NativeCompilerWords::capture(
-                    &parsed.commands[0].words,
+                    &command.words,
                     dialect.native_string_protocol().unwrap(),
                 )
                 .unwrap();

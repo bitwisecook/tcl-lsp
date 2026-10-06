@@ -990,7 +990,7 @@ The driver supplies the entry; the example does not reconstruct it from a
 dialect name. Use the same retained entry when creating a cross-file scan or
 an incremental cache key.
 
-`SourceCommandBindings` and `CommandBindingRealm` compare retained semantic state, including source origins, deferred/future bodies, compiler visits, variable continuations and runtime coverage. Only the derived unpositioned projection cache and per-point `OnceLock` lookup cache are excluded. Consumers may retain the exact realm across analysis results without reconstructing a dialect or treating a pointer as semantic equality.
+`SourceCommandBindings` and `CommandBindingRealm` compare retained semantic state, including source origins, deferred/future bodies, compiler visits, variable continuations and runtime coverage. Only the derived unpositioned projection cache and per-point `OnceLock` lookup cache are excluded. Consumers may retain the exact realm across analysis results without reconstructing a dialect or treating a pointer as semantic equality. Immutable `SourceLookupSnapshot` carriers retain the complete original state and realm without computing a fingerprint during ordinary lookup. Hashing or equality initializes its derived memo on demand; a fingerprint match still requires full semantic equality. Joining a retained point invalidates the detached snapshot's memo and preserves the predecessor snapshot. The memo grants no command, compiler, frame or object authority.
 
 A package catalogue and a loaded implementation are different evidence. A
 Tcllib factory's authored successful object return describes a selected known
@@ -1296,7 +1296,7 @@ Jim substring searches also retain their distinct native protocols. `first` comp
 
 The selected Jim glob owner matches decoded numeric units and uses the same pinned simple uppercase table for nocase comparisons. It retains the native bracket grammar and the order of star continuations. The owned terminating NUL can participate in a native decode, so `?*` matches an empty subject even though `*?` does not. A subsequent decode outside that storage remains a reached host refusal. This operation does not use the existing byte-glob compatibility fallback or plain byte equality.
 
-Jim trimming separates byte selection from object ownership. `RawString::jim084_trim_plan` uses the actual default set (space, TAB, LF, CR and NUL), decoded numeric-unit membership and the pinned backward start-byte scan. That scan can drop trailing continuation bytes even with an empty trim set. `ValueOps::jim_string_trim_result` applies the plan to the original physical object. A left cut creates a fresh result. A right operation performs the native string-intrep conversion; a unique suffix cut preserves an existing cached count, while a shared cut copies bytes and starts a new count. Concrete adapters selecting Jim must implement this hook; the ordinary byte construction default is for non-native fixture models.
+Jim trimming separates byte selection from object ownership. `RawString::jim084_trim_plan` uses the actual default set (space, TAB, LF, CR and NUL), decoded numeric-unit membership and the pinned backward start-byte scan. That scan can drop trailing continuation bytes even with an empty trim set. `ValueOps::jim_string_trim_result` applies the plan to the original physical object. Left/full trim checks the original subject getter before the character getter; right trim checks characters before the subject. A left cut creates a fresh NULL-primary working header. Full trim passes that SAME header to the right operation, which performs native string-intrep conversion before cutting. An unshared suffix cut preserves an existing cached count; a shared cut creates a fresh NULL-primary result with no cached count. An all-trim right operation creates a fresh empty NULL-primary object, including an originally empty subject. Concrete adapters selecting Jim must implement this hook; the ordinary byte construction default is for non-native fixture models.
 
 Diagnostic argv must not change that sharing decision or force a string representation before the handler runs. The VM moves actual command words into one shared argument-vector owner and retains that same container in its evaluation frame. Actual error capture acquires the native argument-list references. Release completed frame argv after capture/settlement, while retaining it across an unfinished child activation. The byte-valued Runtime borrows the actual caller-owned argument handles through a scoped activation and materialises them only at capture. Never compensate for diagnostic copies by subtracting guessed reference counts.
 
@@ -1381,6 +1381,17 @@ objects and binding authority. Preserve
 `dictionary_lookup_preserves_original_key_order_and_parser_expansion` and
 `dictionary_default_operand_is_evaluated_after_every_original_key` when changing
 either producer.
+
+Runtime dictionary scopes read the original variable-name objects through
+`dictionary_scope_variable_read`. `DictionaryScopeRead` separates the initial
+read from quiet update writeback and the creating `with` lookup. Each selected
+C receiver stays live across its read callbacks; writeback reads that receiver's
+current value and performs a fresh original-name lookup for the final store.
+The epilogue saves and restores genuine private error headers at the native
+update/with boundaries, so a quiet failed read preserves the body's completion.
+Mapped variables and frozen `with` keys retain their original objects through
+the corresponding getter and setter calls. Jim retains its separate variable
+protocol and does not acquire C trace authority from this scope operation.
 
 Procedure-header and ensemble choices use one `NativeCompilerSelectionSite` boundary with a purpose-typed `NativeCompilerSelectionPrerequisite`. Validate at its retained `guard()` boundary, hold the selection across argument evaluation, and replay the exact original command once when the premise fails. A function-wide handler guard cannot capture this operation. Check worker/compiler configuration before argument effects, while resolving the selected name's runtime handler afterward. Preserve constructed namespace keys by removing exactly one root marker; repeated trimming changes literal-colon namespace identities.
 
@@ -2841,7 +2852,7 @@ do not replace a missing version with a name-based search or version zero.
 If the consumer queries broader contents provenance, retain its explicit
 `unknown_residual` as well.
 
-A scheduled tailcall belongs to its issuing variable frame. Catching the returned completion does not remove that request: later commands can run, a successful procedure return dispatches the replacement, an error suppresses it, and another empty tailcall clears it. The VM stores this request on `CallFrame`, so selected-frame suspension and coroutine parking preserve its owner. Replacement command lookup retains the issuing namespace while the replacement executes in the caller variable frame. Native tailcall stack layout and namespace capture timing come from `NativeTailcallStack`; generic handlers and opcodes share scheduling and settlement.
+A scheduled tailcall belongs to its issuing variable frame. Catching the returned completion does not remove that request: later commands can run, a successful procedure return dispatches the replacement, an error suppresses it, and another empty tailcall clears it. The VM stores this request on `CallFrame`, so selected-frame suspension and coroutine parking preserve its owner. Replacement command lookup retains the issuing namespace while the replacement executes in the caller variable frame. The authentic original compiler recipe comes from `compile_native_coroutine`; generic handlers and opcodes share scheduling and settlement.
 
 Native list mutation and deferred control transfer also retain their evaluated
 word protocol. `lset` captures its scalar/array/stack address before index/value
@@ -2850,13 +2861,27 @@ address shape. A zero-index replacement still performs that read; its result
 bytes do not require a list representation. Both statement and nested-value
 emission consume the same typed hook and original operand map.
 
-For admitted `tailcall`, `NativeTailcallStack` owns namespace timing and stack
-shape: C8.6/9.0 capture the live namespace after argv; C9.1 captures it first.
+For admitted original coroutine compilers, consume
+`compile_native_coroutine` and retain its ordered `NativeCoroutineStep`s.
+C8.6/C9.0 evaluate the original tailcall head placeholder and replace it with the
+executing procedure namespace at execution; no early namespace producer or
+stack reversal belongs to that original compiler. C9.1 produces the namespace
+first and registers a simple first target with its command-literal role.
 Legacy `TAILCALL` has a bounded one-byte count, `TAILCALL4` retains C9.1's wide
-count, and `TAILCALL_LIST` consumes its expanded/empty namespace-prefixed list.
-The VM removes the issuer activation before running the deferred target in its
-caller's variable frame, while lookup retains the issuer's captured namespace.
-An empty request terminates the procedure rather than running its next command.
+count, and `TAILCALL_LIST` consumes the same expanded/empty namespace-prefixed
+List. The original List owns its members through replacement lookup and target
+completion after the issuer leaves. An empty C request terminates its procedure;
+Jim's actual empty tailcall completes normally.
+
+YieldTo keeps its original namespace-prefixed List through suspension, then
+resolves the original namespace object and target in the restored caller flow.
+A namespace-only List reports the original wrong-argument error before parking.
+Creation must retain original argv and its selected namespace; printed fully
+qualified names and generated scripts cannot replace that transport. The VM's
+admitted direct invocation driver carries no compiler-hook receipt. The
+Runtime's private serialised original-object handoff preserves yielded, resumed
+and final result headers; its wire-byte probe/inject APIs grant no header
+identity. Native wasm suspension reports a typed unavailable capability.
 
 Compiled `error` is a C8.6+ `returnImm error 0` operation. Its emitter retains
 original message/errorInfo/errorCode values in native evaluation order. The
@@ -4204,6 +4229,42 @@ retained table's canonical-word updater. `from_native_string_cache` preserves
 actual String units/counts or Jim's retained optional count with independent
 resident storage. Neither cache is reconstructed from equal string bytes.
 
+Native trim consumers retain the selected `NativeStringTrimInstruction`, not a
+command-name test. Its compiler visits the original subject before the explicit
+character operand or registered default literal. At execution,
+`string::compiled_trim` converts the character header before the subject header;
+a no-cut result preserves the same subject, while a cut creates a fresh
+NULL-primary string object. Interpreted C `string::trim` always creates a fresh
+result. `native_string_trim::trim_range` supplies counted native UTF byte
+boundaries and `default_trim_set` selects the release-specific literal, without
+issuing cache, header or compiler authority. C8.4/8.5 and Jim retain their genuine
+generic compiler paths. Both executable consumers use the same Core result
+owner; preserve the original operand holds through result publication. The
+six-engine paired controls inspect primary, resident spelling, reference count
+and subject identity before any observer getter.
+
+The whole-body compiler replay owner captures actual root/limit state and an
+actual command-owned procedure namespace independently of source labels.
+Runtime first materializes the original local literal array and applies its
+ordered actions, then validates the complete compiler stamp after callbacks.
+A selected replay drops that array and first-pass executable, literal and
+auxiliary preparation while retaining the same local table. Only the final
+array belongs to the installed body. Root and enabled-limit facts select only a
+reached compilation pass; changing them does not invalidate warm native Bytecode
+or reallocate its retained local table. Consumers use `native_compiler_replays`
+and the common pass owner; they cannot substitute extra per-command anonymous
+slots or install discarded-pass source Bytecode.
+
+`info::command_list` obtains the original pattern through the selected string
+getter. C namespace qualification consumes its CString extent before the
+independent `InfoCommandsSearch` matcher chooses exact table-key comparison or
+a native UTF scan. A raw FF key and a UTF-8 U+00FF key are distinct exact keys;
+a wildcard or bracket scan can match both. Compatibility Unicode matching
+cannot supply this native lookup or scan. Jim uses its flat-table namespace
+helper and counted original pattern, with its own lookup and matching recipe.
+The 110 paired object-vector controls keep original raw-String or genuine C
+ByteArray patterns through dispatch and inspect exact result name bytes.
+
 C switch option consumers call `tcl_cmd_core::switch::parse_options` with the
 actual C release and use `switch::usage` for inline and single-list arity
 failures. C8.4 scans every leading option and accepts repeated modes with the
@@ -4730,8 +4791,14 @@ Consumers use that capability instead of maintaining their own grammar lists.
 It supplies no hook, selection or execution authority.
 
 `native_instruction_plan` consumes the complete original `NativeCompilerWords`
-vector under the actual compiler registration. Its operands identify unchanged
-source words or parser-expanded literal members with exact value spans.
+vector under the actual compiler registration. For an independently selected
+registered worker, use `native_registered_worker_instruction_plan`: the complete
+vector still retains the public ensemble selectors, while the operand offset
+identifies the actual worker arguments. Its validator uses registered-worker
+grammar, without reinterpreting the public head as another worker selector.
+Neither factory supplies registration, compiler-hook, or callable authority.
+Its operands identify unchanged source words or parser-expanded literal members
+with exact value spans.
 `project_native_compiler_words` follows the selected C parser's pure TEXT list
 expansion. Substituted, malformed and generated members retain their expansion
 obligation. Runtime List conversion cannot replace that parser evidence.
@@ -5242,3 +5309,27 @@ its primary and child owners. The selected list path remains appropriate for
 original list options; String presentation is a separate, reached operation.
 Test original stringless dictionaries, original member identities and ownership,
 raw guest bytes, and missing native issuers before materialisation.
+
+### Empty native literal registration observations
+
+`NativeLiteralWorld::capture_empty_world` observes the actual shared registration
+index without calling an object getter or retaining a native object. Its
+`NativeEmptyLiteralWorld` receipt binds the interpreter, registration-world
+identity, capture epoch and weak lifetime. Another capture, registration attempt,
+registration acquisition/release, world replacement or retirement invalidates
+that receipt before native callbacks or owner changes. Populated and foreign
+worlds cannot supply it.
+
+`NativeCompilationEntry.empty_literal_world` is optional. The VM captures its
+own world at the original entry boundary; Runtime exposes the corresponding
+concrete-world observation through `capture_native_empty_literal_world` using
+its actual physical compiler epoch. A profile or engine point cannot create the
+receipt. The source importer checks the original entry interpreter and epoch,
+and source joins require the same current observation. Unknown effects withdraw
+this provenance permanently within that source world.
+
+The native observation closes only original literal object effects needed by
+an exact fresh command publication. It does not issue a stock literal class,
+numeric or container contents, child ownership, successful normal execution,
+compiled instruction or command binding. Numeric and stock-literal consumers
+retain their separate authored pool requirements.

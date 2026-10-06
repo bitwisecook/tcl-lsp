@@ -132,7 +132,9 @@ impl CapturedExpressionRead {
                 .is_none_or(|cell| cell.generation == crate::place::CellGeneration::Unknown)
             || !before.read_produces_value(&place, context.registry)
             || !before.contents_native_string_access_closed_at(&place, context.registry)
-            || state.ordinary_literal_pool.is_none()
+            || !state.ordinary_literal_pool.as_ref().is_some_and(
+                super::literal_object_pool::SourceOrdinaryLiteralPool::authored_objects,
+            )
             || state.has_opaque_domain()
             || state.source_step_observed()
         {

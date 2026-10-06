@@ -7,19 +7,28 @@
 //! `TclRegisterLiteral` can reuse the same object across separately compiled
 //! bodies. A host command can replace its intrep with an abstract-list type;
 //! unchanged bytes then prove neither its type nor its method effects.
-//! Consequently this provenance intersects on joins and is never recreated
-//! after unknown effects, even when a later constructor creates a new epoch.
+//! An actual empty registration-world observation supplies only effect closure
+//! for original literals; stock class, contents and numeric caches remain separate.
+//! Provenance intersects on joins and is never recreated after unknown effects,
+//! even when a later constructor creates a new value epoch.
 
 use super::{
     Arc, ModuleCommandBindings, SourceAnalysisOptions, SourceExecutionContext,
     SourceNativeInvocation, SourceOriginId,
 };
 
-/// The source driver supplied a fresh interpreter, and no unenumerated host
-/// or object effects have withdrawn its original ordinary literal pool.
+/// Authored fresh-pool provenance or a same-capture empty native world.
+/// No unenumerated host/object effects have withdrawn the original effect proof.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum LiteralPoolOrigin {
+    Authored,
+    Native(tcl_runtime_api::native_literal::NativeEmptyLiteralWorld),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SourceOrdinaryLiteralPool {
     entry: Arc<SourceOriginId>,
+    origin: LiteralPoolOrigin,
     numeric_representations_unmodified: bool,
     integer_contents:
         Option<tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol>,
@@ -31,8 +40,6 @@ impl SourceOrdinaryLiteralPool {
         options: SourceAnalysisOptions<'_>,
     ) -> Option<Self> {
         if options.unknown_entry
-            || options.native_entry.is_some()
-            || state.baseline.native_entry.is_some()
             || state.opaque_binding_mutation
             || options.invocation_dialect?.family() != Some(tcl_dialect::model::Family::Tcl)
         {
@@ -42,14 +49,53 @@ impl SourceOrdinaryLiteralPool {
         if !matches!(entry.kind(), super::SourceOriginKind::Authored(_)) {
             return None;
         }
+        let origin = Self::entry_origin(state, options)?;
+        let authored = matches!(origin, LiteralPoolOrigin::Authored);
         Some(Self {
             entry: Arc::clone(entry),
-            numeric_representations_unmodified: true,
-            integer_contents:
+            origin,
+            numeric_representations_unmodified: authored,
+            integer_contents: authored.then(|| {
                 tcl_registry::native_numeric_conversion::NativeStockIntegerContentsProtocol::select(
-                    options.invocation_dialect?,
-                ),
+                    options.invocation_dialect.expect("checked invocation dialect"),
+                )
+            }).flatten(),
         })
+    }
+
+    fn entry_origin(
+        state: &ModuleCommandBindings,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<LiteralPoolOrigin> {
+        match (options.native_entry, state.baseline.native_entry.as_deref()) {
+            (None, None) => Some(LiteralPoolOrigin::Authored),
+            (Some(captured), Some(original)) if captured == original => {
+                // Exact physical string policy remains independent of logical
+                // simulation. An empty Jim/modelled table supplies no C pool.
+                if !matches!(
+                    original.source_string_protocol,
+                    Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+                ) {
+                    return None;
+                }
+                let receipt = original.empty_literal_world.as_ref()?;
+                receipt
+                    .is_current_for(original.interpreter, original.epoch)
+                    .then(|| LiteralPoolOrigin::Native(receipt.clone()))
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) const fn authored_objects(&self) -> bool {
+        matches!(self.origin, LiteralPoolOrigin::Authored)
+    }
+
+    pub(super) fn effects_current(&self) -> bool {
+        match &self.origin {
+            LiteralPoolOrigin::Authored => true,
+            LiteralPoolOrigin::Native(receipt) => receipt.is_current(),
+        }
     }
 
     pub(super) const fn initial_numeric_representations(&self) -> bool {
@@ -61,14 +107,18 @@ impl SourceOrdinaryLiteralPool {
     }
 
     pub(super) fn joined(&self, other: &Self) -> Option<Self> {
-        (self.entry == other.entry && self.integer_contents == other.integer_contents).then(|| {
-            Self {
+        (self.entry == other.entry
+            && self.origin == other.origin
+            && self.effects_current()
+            && other.effects_current()
+            && self.integer_contents == other.integer_contents)
+            .then(|| Self {
                 entry: Arc::clone(&self.entry),
+                origin: self.origin.clone(),
                 integer_contents: self.integer_contents,
                 numeric_representations_unmodified: self.numeric_representations_unmodified
                     && other.numeric_representations_unmodified,
-            }
-        })
+            })
     }
 
     pub(super) fn note_command_lookup(
@@ -178,11 +228,39 @@ impl SourceStockLiteralObject {
 }
 
 impl SourceOrdinaryLiteralObject {
+    pub(super) fn capture_original_word(
+        word: &crate::ir::WordExpr,
+        value: &str,
+        state: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<Self> {
+        if !state.ordinary_literal_pool.as_ref()?.effects_current() {
+            return None;
+        }
+        if !matches!(
+            word,
+            crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+        ) {
+            return None;
+        }
+        let origin = state.current_source_origin.as_ref()?;
+        super::ExecutedScriptSource::literal_word_base(
+            super::executed_script_source::source_text(origin)?,
+            word,
+            value,
+            config,
+        )?;
+        Some(Self)
+    }
+
     pub(super) fn capture_word(
         word: &crate::ir::WordExpr,
         state: &ModuleCommandBindings,
     ) -> Option<SourceStockLiteralObject> {
         let pool = state.ordinary_literal_pool.as_ref()?;
+        if !pool.authored_objects() {
+            return None;
+        }
         matches!(
             word,
             crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
@@ -197,7 +275,9 @@ impl SourceOrdinaryLiteralObject {
         expression: &crate::expr_ast::ExprNode,
         state: &ModuleCommandBindings,
     ) -> Option<Self> {
-        state.ordinary_literal_pool.as_ref()?;
+        if !state.ordinary_literal_pool.as_ref()?.authored_objects() {
+            return None;
+        }
         matches!(expression, crate::expr_ast::ExprNode::Literal { .. }).then_some(Self)
     }
 
@@ -209,7 +289,9 @@ impl SourceOrdinaryLiteralObject {
     ) -> Option<Self> {
         // The immutable entry identity is retained even when the current
         // script is a separately entered body from that same interpreter.
-        let _pool = state.ordinary_literal_pool.as_ref()?;
+        if !state.ordinary_literal_pool.as_ref()?.effects_current() {
+            return None;
+        }
         // Observed argv, aliases, and expanded operands have independent
         // frozen ownership; none can inherit an original literal receipt.
         context.written_representations?;
@@ -445,6 +527,8 @@ mod tests {
             inline_compilation_disabled: false,
             authored_tmm_static: None,
             namespace_variable_tables: None,
+            empty_literal_world: None,
+            compiler_pass_environment: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,
@@ -458,5 +542,86 @@ mod tests {
         runtime.install_runtime_entry(&entry);
         assert!(runtime.ordinary_literal_pool.is_none());
         assert_ne!(runtime, bindings.final_state.as_ref().clone());
+    }
+    fn native_pool_state(entry: &tcl_runtime_api::NativeCompilationEntry) -> ModuleCommandBindings {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let options = SourceAnalysisOptions {
+            native_entry: Some(entry),
+            invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                registry.profile().unwrap(),
+            )),
+            ..Default::default()
+        };
+        let mut state = ModuleCommandBindings::initial_with_options(registry, options, None);
+        state.current_source_origin = Some(Arc::new(SourceOriginId::authored_image(
+            tcl_lexer::SourceImage::native(b"proc fresh {} {}".as_slice()),
+        )));
+        state.ordinary_literal_pool = SourceOrdinaryLiteralPool::at_entry(&state, options);
+        state
+    }
+
+    #[test]
+    fn actual_empty_literal_pool_is_effect_only_and_expires_with_original_capture() {
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let (mut vm, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let state = native_pool_state(&entry);
+        let pool = state
+            .ordinary_literal_pool
+            .as_ref()
+            .expect("same live empty world");
+        assert!(pool.effects_current());
+        assert!(!pool.authored_objects());
+        assert!(!pool.initial_numeric_representations());
+        assert!(pool.integer_contents.is_none());
+        let literal = crate::ir::WordExpr::Literal {
+            text: "1".into(),
+            source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 1)),
+        };
+        assert!(SourceOrdinaryLiteralObject::capture_word(&literal, &state).is_none());
+        let mut missing = entry.clone();
+        missing.empty_literal_world = None;
+        assert!(native_pool_state(&missing).ordinary_literal_pool.is_none());
+        let mut foreign = entry.clone();
+        foreign.interpreter.owner += 1;
+        assert!(native_pool_state(&foreign).ordinary_literal_pool.is_none());
+        let mut later = entry.clone();
+        later.epoch += 1;
+        assert!(native_pool_state(&later).ordinary_literal_pool.is_none());
+        assert!(vm.try_eval_source("set second_capture 1").is_err());
+        assert!(!pool.effects_current());
+        assert!(pool.joined(pool).is_none());
+        assert!(native_pool_state(&entry).ordinary_literal_pool.is_none());
+        drop(vm);
+        assert!(!entry.empty_literal_world.unwrap().is_current());
+    }
+
+    #[test]
+    fn actual_empty_pool_preserves_independent_original_class_and_proc_publications() {
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile();
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (_vm, entry) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let source = "oo::class create C {method m {} {return method}}; namespace eval ::C {}; proc ::C::p {} {return proc}; [C new] m; ::C::p";
+        let bindings = SourceCommandBindings::analyse_with_options(
+            source,
+            tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            registry,
+            SourceAnalysisOptions {
+                native_entry: Some(&entry),
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        );
+        let call = u32::try_from(source.rfind("::C::p").unwrap()).unwrap();
+        assert!(
+            bindings
+                .invocation_at_source("::C::p", call)
+                .proved_target()
+                .is_some(),
+            "fresh exact proc publication preserves the independently retained class dispatcher"
+        );
+        let mut unknown = bindings.final_state.as_ref().clone();
+        unknown.mark_opaque_binding_mutation();
+        assert!(unknown.ordinary_literal_pool.is_none());
     }
 }

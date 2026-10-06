@@ -84,7 +84,7 @@ fn cmd_lindex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .unwrap_or("lindex list ?index ...?"),
         );
     };
-    adapt(vm, |vm| list_core::lindex(vm, list, idxs))
+    adapt(vm, |vm| vm.original_list_index(list, idxs, true))
 }
 
 fn cmd_lrange(vm: &mut Vm, args: &[Value]) -> Completion<Value> {

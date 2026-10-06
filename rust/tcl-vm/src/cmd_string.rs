@@ -102,6 +102,11 @@ fn string_op(vm: &mut Vm, sub: &str, args: &[Value]) -> Completion<Value> {
     cmd_string(vm, &full)
 }
 
+/// Reach the actual host length handler independently of authored TMM policy.
+pub(crate) fn physical_string_length(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    string_op(vm, "length", args)
+}
+
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }

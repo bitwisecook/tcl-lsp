@@ -31,6 +31,53 @@ impl Interp {
         tcl_cmd_core::namespace::origin_from_command_checked(self, command).map(Some)
     }
 
+    /// Produce the C full-command-name String independently of the input cache.
+    pub(crate) fn native_namespace_origin_result(
+        &self,
+        bytes: &[u8],
+    ) -> Result<obj::Owned, ValueError> {
+        let dialect = self.native_invocation_dialect();
+        let strings = dialect
+            .native_command_name_protocol()
+            .and_then(|_| dialect.native_string_materialization(None))
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native origin String issuer",
+            ))?;
+        let original = obj::Owned::fresh(obj::new_string_bytes(bytes));
+        obj::retain_native_string_representation(original.as_ptr(), strings)?;
+        Ok(original)
+    }
+
+    /// Present the selected C origin lookup failure with its actual String
+    /// result birth, retaining the original command operand for the getter.
+    pub(crate) fn native_namespace_origin_failure(&mut self, original: *mut TclObj) -> super::Code {
+        let dialect = self.native_invocation_dialect();
+        let Some(strings) = dialect
+            .native_command_name_protocol()
+            .and_then(|_| dialect.native_string_materialization(None))
+        else {
+            return self.report_cmd_error(
+                ValueError::CommandProtocolUnavailable("native origin diagnostic String issuer")
+                    .into(),
+            );
+        };
+        let name = match self.native_string_bytes(&original) {
+            Ok(name) => name,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let name = tcl_core_types::c_string_extent(&name);
+        let mut message = b"invalid command name \"".to_vec();
+        message.extend_from_slice(name);
+        message.push(b'"');
+        let code = super::error_code_list(&[b"TCL", b"LOOKUP", b"COMMAND", name]);
+        let error = if dialect.tcl_version == Some(tcl_dialect::TclVersion::V8_4) {
+            tcl_cmd_core::CmdError::new_bytes(message)
+        } else {
+            tcl_cmd_core::CmdError::with_error_code_bytes(message, code)
+        };
+        self.report_cmd_error(error.with_native_string_result(strings.protocol()))
+    }
+
     /// Observe the actual current reference context and original node identity.
     /// This grants no worker ownership or name-derived cache authority.
     #[cfg(test)]
@@ -215,6 +262,39 @@ mod tests {
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn origin_string_result_requires_actual_native_core_issuer() {
+        assert!(Interp::new()
+            .native_namespace_origin_result(b"::selected")
+            .is_err());
+    }
+
+    #[test]
+    fn native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics() {
+        let source = include_bytes!("../../tests/data/native_namespace_origin_failures/source.tcl");
+        let rows = include_str!("../../tests/data/native_namespace_origin_failures/controls.tsv");
+        for (version, row) in TclVersion::ALL.into_iter().zip(rows.lines()) {
+            let mut interp = native_interpreter(version);
+            assert_eq!(interp.eval_str(source), Code::Ok, "{version:?}");
+            let expected = row.split_once('\t').unwrap().1;
+            let expected: Vec<_> = expected
+                .as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+                .collect();
+            assert_eq!(interp.result_bytes(), expected, "{version:?}");
+            let result = interp
+                .native_namespace_origin_result(b"::selected")
+                .unwrap();
+            assert!(matches!(
+                obj::native_object_snapshot(result.as_ptr()).unwrap().cache,
+                tcl_syntax::native_object::NativeObjectCacheSnapshot::String { .. }
+            ));
+        }
     }
 
     #[test]

@@ -10,6 +10,13 @@ pub(super) struct NativeErrorObjects {
     pub(super) info_len: usize,
     pub(super) code: Option<obj::Owned>,
     pub(super) legacy_copy: bool,
+    pub(super) global_code_set: bool,
+}
+
+pub(super) struct NativeGlobalErrorFlags {
+    in_progress: bool,
+    already_logged: bool,
+    code_set: bool,
 }
 
 pub(super) struct NativeErrorTraceState {
@@ -37,6 +44,29 @@ impl Interp {
     pub(super) fn reset_native_global_error_episode(&self) {
         if self.uses_c84_global_error_info() {
             *self.exc.borrow_mut() = super::ExceptionState::default();
+        }
+    }
+
+    /// Tcl 8.4 CallVarTraces saves only these error-episode flag bits.
+    pub(super) fn capture_native_global_error_flags(&self) -> Option<NativeGlobalErrorFlags> {
+        self.uses_c84_global_error_info().then(|| {
+            let exc = self.exc.borrow();
+            NativeGlobalErrorFlags {
+                in_progress: exc.native.legacy_copy,
+                already_logged: exc.already_logged,
+                code_set: exc.native.global_code_set,
+            }
+        })
+    }
+
+    /// Successful C8.4 trace chains OR the original flags into current state;
+    /// globals and projected completion data retain their independent owners.
+    pub(super) fn restore_native_global_error_flags(&self, saved: Option<NativeGlobalErrorFlags>) {
+        if let Some(saved) = saved {
+            let mut exc = self.exc.borrow_mut();
+            exc.native.legacy_copy |= saved.in_progress;
+            exc.already_logged |= saved.already_logged;
+            exc.native.global_code_set |= saved.code_set;
         }
     }
 
@@ -198,7 +228,35 @@ impl Interp {
         }
     }
 
-    pub(super) fn replace_native_error_code(&self, bytes: &[u8]) {
+    /// C8.4's Tcl_SetObjErrorCode publishes the borrowed original globally
+    /// before marking ERROR_CODE_SET. The global cell owns its actual role.
+    pub(crate) fn publish_original_c84_error_code(&mut self, original: *mut obj::TclObj) {
+        if !self.uses_c84_global_error_info() {
+            return;
+        }
+        let stored = crate::vars::set(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            GLOBAL,
+            b"::errorCode",
+            original,
+        );
+        if stored.is_ok() && self.has_variable_traces() {
+            let home = self.trace_identity(b"::errorCode");
+            let access = self.trace_access(b"errorCode", b"errorCode", None, &home, false);
+            self.fire_var_trace_resolved(&home, &access, b"write");
+        }
+        // Tcl_SetObjErrorCode ignores setter failure and sets this flag after
+        // the actual callback, independently of projected -errorcode bytes.
+        self.exc.borrow_mut().native.global_code_set = true;
+    }
+
+    pub(super) fn replace_native_error_code(&mut self, bytes: &[u8]) {
+        if self.uses_c84_global_error_info() {
+            let original = obj::Owned::fresh(new_string(bytes));
+            self.publish_original_c84_error_code(original.as_ptr());
+            return;
+        }
         if self
             .native_invocation_dialect()
             .native_error_variable_protocol()
@@ -317,10 +375,16 @@ impl Interp {
         if !self.exc.borrow().native.legacy_copy {
             let original = self.result.get();
             let length = self.result_bytes().len();
+            // ERR_IN_PROGRESS is set before the setter's trace chain.
+            {
+                let mut exc = self.exc.borrow_mut();
+                exc.native.info_len = length;
+                exc.native.legacy_copy = true;
+            }
             // C8.4's first Tcl_AddObjErrorInfo setter lends the current result
             // to the global cell, with no separately retained private header.
             let _ = self.var_set(b"::errorInfo", original);
-            if self.exc.borrow().code.is_empty() {
+            if !self.exc.borrow().native.global_code_set {
                 let code = obj::Owned::fresh(new_string(b"NONE"));
                 let _ = self.var_set(b"::errorCode", code.as_ptr());
             }
@@ -592,6 +656,124 @@ mod tests {
         }
     }
 
+    thread_local! {
+        static C84_CODE_EVENTS: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+        static C84_CODE_HEADERS: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
+    fn observe_c84_code(interp: &mut Interp, argv: &[*mut obj::TclObj]) -> super::super::Code {
+        let name = obj_bytes(argv[1]);
+        let operation = obj_bytes(argv[3]);
+        let rooted = if name.starts_with(b"::") {
+            name.clone()
+        } else {
+            [b"::".as_slice(), name.as_slice()].concat()
+        };
+        let value = interp.var_get(&rooted).expect("actual traced global cell");
+        let bytes = obj_bytes(value);
+        let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+        C84_CODE_EVENTS.with(|events| {
+            events.borrow_mut().push(format!(
+                "{}|{}|{hex}",
+                String::from_utf8(name).unwrap(),
+                String::from_utf8(operation).unwrap(),
+            ));
+        });
+        if rooted == b"::errorCode" {
+            C84_CODE_HEADERS.with(|headers| headers.borrow_mut().push(value as usize));
+        }
+        super::super::Code::Ok
+    }
+
+    fn c84_code_interpreter() -> Interp {
+        let mut interp = Interp::with_native_core(
+            default_host(),
+            profile_for_dialect("tcl8.4"),
+            NativeBootstrapInputs::default(),
+        )
+        .unwrap();
+        interp.register_builtin(b"observe", observe_c84_code);
+        assert_eq!(
+            interp.eval_str(
+                b"trace variable ::errorInfo rw observe;trace variable ::errorCode rw observe"
+            ),
+            super::super::Code::Ok
+        );
+        C84_CODE_EVENTS.with(|events| events.borrow_mut().clear());
+        C84_CODE_HEADERS.with(|headers| headers.borrow_mut().clear());
+        interp
+    }
+
+    #[test]
+    fn c84_global_error_code_publication_matches_five_original_callback_controls() {
+        let controls = include_str!("../../tests/data/native_c84_error_code/controls.tsv");
+        let sources: &[(&str, &[u8])] = &[
+            (
+                "conflict",
+                b"package provide probe 1;catch {package provide probe 2} m;list $m $::errorCode",
+            ),
+            ("no-code", b"catch {error FAIL} m;list $m $::errorCode"),
+            ("NONE", b"catch {error FAIL {} NONE} m;list $m $::errorCode"),
+            (
+                "structured",
+                b"catch {error FAIL {} {CUSTOM DETAIL}} m;list $m $::errorCode",
+            ),
+            (
+                "structured-getter",
+                b"catch {lindex {} BAD} m;list $m $::errorCode",
+            ),
+        ];
+        for row in controls.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let source = sources
+                .iter()
+                .find(|(name, _)| *name == fields[0])
+                .unwrap()
+                .1;
+            let mut interp = c84_code_interpreter();
+            assert_eq!(
+                interp.eval_str(source).as_int().to_string(),
+                fields[1],
+                "{row}"
+            );
+            let result: String = interp
+                .result_bytes()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect();
+            assert_eq!(result, fields[2], "{row}");
+            C84_CODE_EVENTS
+                .with(|events| assert_eq!(events.borrow().join(";"), fields[3], "{row}"));
+            assert!(!interp.host_refusal_pending(), "{row}");
+        }
+    }
+
+    #[test]
+    fn c84_explicit_error_code_setter_retains_the_same_original_header() {
+        let mut interp = c84_code_interpreter();
+        let head = obj::Owned::fresh(new_string(b"error"));
+        let message = obj::Owned::fresh(new_string(b"FAIL"));
+        let info = obj::Owned::fresh(new_string(b""));
+        let code = obj::Owned::fresh(new_string(b"CUSTOM DETAIL"));
+        assert_eq!(
+            interp.eval_original_object_vector(&[
+                head.as_ptr(),
+                message.as_ptr(),
+                info.as_ptr(),
+                code.as_ptr(),
+            ]),
+            super::super::Code::Error
+        );
+        C84_CODE_HEADERS.with(|headers| {
+            assert_eq!(
+                headers.borrow().first().copied(),
+                Some(code.as_ptr() as usize)
+            )
+        });
+        assert_eq!(interp.var_get(b"::errorCode"), Some(code.as_ptr()));
+        assert!(!interp.host_refusal_pending());
+    }
+
     #[test]
     fn c85_error_options_rearm_publication_of_the_restored_original_header() {
         counters::reset();
@@ -789,6 +971,7 @@ mod tests {
                     info_len: b"PRIVATE INFO".len(),
                     code: Some(code.clone()),
                     legacy_copy: false,
+                    global_code_set: false,
                 };
                 assert_eq!(
                     obj_bytes(interp.read_named_variable(b"::errorInfo").unwrap()),

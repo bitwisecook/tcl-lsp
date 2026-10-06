@@ -66,6 +66,25 @@ impl VariableReceiver {
     pub(crate) fn is_constant(&self) -> bool {
         self.contents.borrow().constant
     }
+    /// Materialise an array on this independently selected root receiver.
+    pub(crate) fn ensure_array(&self) -> Result<(), VarError> {
+        if self.element.is_some() {
+            return Err(VarError::IsScalar);
+        }
+        let mut cell = self.contents.borrow_mut();
+        if let Some(error) = cell.rmw_retirement {
+            return Err(error);
+        }
+        match cell.var.as_ref() {
+            Some(Var::Array(_)) => Ok(()),
+            Some(_) => Err(VarError::IsScalar),
+            None => {
+                cell.var = Some(Var::Array(Default::default()));
+                Ok(())
+            }
+        }
+    }
+
     pub(crate) fn is_array(&self) -> bool {
         matches!(self.contents.borrow().var.as_ref(), Some(Var::Array(_)))
     }

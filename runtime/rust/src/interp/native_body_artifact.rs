@@ -10,6 +10,8 @@ mod native_dictionary;
 #[path = "native_body_artifact/native_error.rs"]
 mod native_error;
 use native_error::ErrorOperation;
+mod native_coroutine;
+use native_coroutine::CoroutineOperation;
 #[path = "native_body_artifact/native_named.rs"]
 mod native_named;
 use native_dictionary::DictionaryLookupOperation;
@@ -21,15 +23,30 @@ use native_named::NamedOperation;
 use native_try::TryOperation;
 mod native_control;
 mod native_string;
+mod native_string_trim;
 use native_string::StringMatchOperation;
+use native_string_trim::StringTrimOperation;
 mod native_list_index;
 use native_list_index::ListIndexOperation;
+mod native_list_operations;
+use native_list_operations::ListOperationsOperation;
+mod native_array;
+mod native_compiler_pass;
+mod native_introspection;
 mod native_scalar;
+use native_array::ArrayOperation;
+use native_introspection::IntrospectionOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
+mod native_info_exists;
 mod native_unset;
+mod native_upvar;
+#[cfg(test)]
+mod native_upvar_info_exists_tests;
 use native_each::EachOperation;
+use native_info_exists::InfoExistsOperation;
 use native_unset::UnsetOperation;
+use native_upvar::UpvarOperation;
 #[path = "native_body_artifact/native_control_preparation.rs"]
 mod native_control_preparation;
 use native_control_preparation::PreparedControlOperands;
@@ -127,9 +144,14 @@ type NativeArenaFrame = (
 
 enum Operation {
     Scalar(ScalarOperation),
+    Introspection(IntrospectionOperation),
+    Array(Box<ArrayOperation>),
     ListIndex(ListIndexOperation),
+    ListOperations(ListOperationsOperation),
     StringMatch(StringMatchOperation),
+    StringTrim(StringTrimOperation),
     Error(ErrorOperation),
+    Coroutine(CoroutineOperation),
     DictionaryLookup(DictionaryLookupOperation),
     NamedInvocation(NamedOperation),
     Expression(Box<native_control::ExpressionOperation>),
@@ -139,6 +161,8 @@ enum Operation {
     Control(Box<native_control::ControlOperation>),
     Each(EachOperation),
     NamespaceBindings(NamespaceOperation),
+    Upvar(UpvarOperation),
+    InfoExists(InfoExistsOperation),
     Switch(SwitchOperation),
     TclOoHelper(
         tcl_registry::native_tcloo_compilation::NativeTclOoInstruction,
@@ -261,6 +285,7 @@ struct Builder<'a> {
     parse_failure: Option<tcl_lexer::NativeScriptWordCut>,
     compilation_failure: Option<tcl_registry::native_compilation::NativeCompilationFailure>,
     private_objects: HashMap<usize, obj::Owned>,
+    procedure: Option<Weak<ProcDef>>,
 }
 
 impl Builder<'_> {
@@ -894,6 +919,22 @@ impl Builder<'_> {
             .map_err(|_| unavailable("native original iterator compiler"))?;
             return self.each_operation(&captured, recipe, depth).map(Some);
         }
+        if let tcl_registry::native_compilation::NativeCompilationGrammar::Array {
+            command, ..
+        } = spec.grammar
+        {
+            if selection == NativeCompilationSelection::Generic {
+                let recipe = tcl_registry::native_array_compilation::native_array_compilation(
+                    &captured,
+                    arguments_from,
+                    command,
+                    self.stamp.physical,
+                    self.context,
+                )
+                .ok_or_else(|| unavailable("original declined Array preparation"))?;
+                return self.array_operation(&captured, recipe, depth).map(Some);
+            }
+        }
         if selection == NativeCompilationSelection::Generic {
             return Ok(Some(Operation::Invoke));
         }
@@ -919,14 +960,35 @@ impl Builder<'_> {
             },
         };
         Ok(Some(match plan {
+            NativeInstructionPlan::Upvar(recipe) => {
+                Operation::Upvar(self.upvar_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::InfoExists(recipe) => {
+                Operation::InfoExists(self.info_exists_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::ListOperations(recipe) => {
+                Operation::ListOperations(self.list_operation(&captured, recipe, depth)?)
+            }
             NativeInstructionPlan::ListIndex(recipe) => {
                 Operation::ListIndex(self.list_index_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::Array(recipe) => {
+                self.array_operation(&captured, recipe, depth)?
+            }
+            NativeInstructionPlan::Introspection(recipe) => {
+                Operation::Introspection(self.introspection_operation(&captured, recipe, depth)?)
             }
             NativeInstructionPlan::Scalar(recipe) => {
                 Operation::Scalar(self.scalar_operation(&captured, recipe, depth)?)
             }
+            NativeInstructionPlan::StringTrim(recipe) => {
+                Operation::StringTrim(self.string_trim_operation(&captured, recipe, depth)?)
+            }
             NativeInstructionPlan::StringMatch(recipe) => {
                 Operation::StringMatch(self.string_match_operation(&captured, recipe, depth)?)
+            }
+            NativeInstructionPlan::Coroutine(recipe) => {
+                Operation::Coroutine(self.coroutine_operation(&captured, recipe, depth)?)
             }
             NativeInstructionPlan::Error(recipe) => {
                 Operation::Error(self.error_operation(&captured, recipe, depth)?)
@@ -1300,8 +1362,20 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::Coroutine(coroutine) = &mut operation {
+                    if let Some(word) = coroutine.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::Error(error) = &mut operation {
                     if let Some(word) = error.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::StringTrim(trim) = &mut operation {
+                    if let Some(word) = trim.prepared_words.remove(&index) {
                         words.push(word);
                         continue;
                     }
@@ -1312,8 +1386,26 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::ListOperations(list) = &mut operation {
+                    if let Some(word) = list.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::ListIndex(indexer) = &mut operation {
                     if let Some(word) = indexer.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::Array(array) = &mut operation {
+                    if let Some(word) = array.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::Introspection(introspection) = &mut operation {
+                    if let Some(word) = introspection.prepared_words.remove(&index) {
                         words.push(word);
                         continue;
                     }
@@ -1330,6 +1422,18 @@ impl Builder<'_> {
                         continue;
                     }
                 }
+                if let Operation::Upvar(upvar) = &mut operation {
+                    if let Some(word) = upvar.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
+                if let Operation::InfoExists(exists) = &mut operation {
+                    if let Some(word) = exists.prepared_words.remove(&index) {
+                        words.push(word);
+                        continue;
+                    }
+                }
                 if let Operation::Unset(unset) = &mut operation {
                     if let Some(word) = unset.prepared_words.remove(&index) {
                         words.push(word);
@@ -1339,10 +1443,11 @@ impl Builder<'_> {
                 // Opcode variable operands are not emitted as ordinary argument
                 // objects. Their indexed receiver layout was allocated above.
                 let emitted = match &operation {
-                    Operation::StringMatch(_) => false,
-                    Operation::ListIndex(_) => false,
-                    Operation::Scalar(_) => false,
-                    Operation::Error(_) | Operation::DictionaryLookup(_) | Operation::Unset(_) => false,
+                    Operation::StringMatch(_) | Operation::StringTrim(_) => false,
+                    Operation::ListIndex(_) | Operation::ListOperations(_) => false,
+                    Operation::Scalar(_) | Operation::Introspection(_) | Operation::Array(_) => false,
+                    Operation::Upvar(_) | Operation::InfoExists(_) => false,
+                    Operation::Error(_) | Operation::Coroutine(_) | Operation::DictionaryLookup(_) | Operation::Unset(_) => false,
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::Next{words,..},_)=>words.iter().any(|word|matches!(word,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original)),
                     Operation::TclOoHelper(tcl_registry::native_tcloo_compilation::NativeTclOoInstruction::ObjectInfo{operand,..},_)=>matches!(operand,tcl_registry::native_compiler_word_projection::NativeCompilerWordOperand::Original(original) if index==*original),
                     Operation::Invoke => true,
@@ -1499,10 +1604,17 @@ impl Interp {
             return false;
         };
         matches!(&current.owner, BodyContext::Procedure(owner) if Weak::ptr_eq(owner, &Rc::downgrade(procedure)))
-            && self.native_body_stamp(procedure.namespace(), true).as_ref() == Some(&current.stamp)
+            && self
+                .native_body_stamp(procedure.namespace(), Some(procedure))
+                .as_ref()
+                == Some(&current.stamp)
     }
 
-    fn native_body_stamp(&self, namespace: NsId, procedure: bool) -> Option<CacheStamp> {
+    fn native_body_stamp(
+        &self,
+        namespace: NsId,
+        procedure: Option<&Rc<ProcDef>>,
+    ) -> Option<CacheStamp> {
         let traces = self.traces.borrow();
         Some(CacheStamp {
             interpreter: self.native_command_interpreter,
@@ -1524,7 +1636,7 @@ impl Interp {
                 .iter()
                 .map(|trace| (trace.token, trace.ops, trace.command.clone()))
                 .collect(),
-            borrowed_table: if !procedure && self.frames.borrow().in_proc() {
+            borrowed_table: if procedure.is_none() && self.frames.borrow().in_proc() {
                 Some(Rc::as_ptr(self.frames.borrow().native_local_name_table()?) as usize)
             } else {
                 None
@@ -1552,7 +1664,7 @@ impl Interp {
                 ));
             }
         }
-        let Some(mut stamp) = self.native_body_stamp(namespace, procedure.is_some()) else {
+        let Some(mut stamp) = self.native_body_stamp(namespace, procedure) else {
             return Ok(None);
         };
         let matches_owner = |owner: &BodyContext| match (owner, procedure) {
@@ -1573,7 +1685,7 @@ impl Interp {
             obj::change_type(original, core::ptr::null(), 0);
         }
         stamp = self
-            .native_body_stamp(namespace, procedure.is_some())
+            .native_body_stamp(namespace, procedure)
             .ok_or_else(|| {
                 self.report_cmd_error(unavailable("native body source callback context").into())
             })?;
@@ -1637,11 +1749,7 @@ impl Interp {
             .map_err(|error| self.report_cmd_error(error.into()))?;
         // Canonical name materialisation may call a native updater. The same
         // table and physical compiler context must still own the compilation.
-        if self
-            .native_body_stamp(namespace, procedure.is_some())
-            .as_ref()
-            != Some(&stamp)
-        {
+        if self.native_body_stamp(namespace, procedure).as_ref() != Some(&stamp) {
             return Err(
                 self.report_cmd_error(unavailable("native body borrowed table changed").into())
             );
@@ -1665,166 +1773,48 @@ impl Interp {
             parse_failure: None,
             compilation_failure: None,
             private_objects: HashMap::new(),
+            procedure: procedure.map(Rc::downgrade),
         };
-        if let Err(error) = builder.script(region, 0) {
-            if let Some(failure) = builder.compilation_failure {
-                return Err(builder.interp.report_cmd_error(
-                    tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
-                        message: failure.message.unwrap_or_default().into_bytes(),
-                        string_result: None,
-                        error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(
-                            failure
-                                .error_code
-                                .unwrap_or_else(|| "NONE".to_owned())
-                                .into_bytes(),
-                        ),
-                        error_info: failure.error_info.map(String::into_bytes),
-                        error_line: None,
-                        primitive_getter: None,
-                    }),
-                ));
-            }
-            if let Some(fatal) = builder.parse_failure {
-                return Err(builder.interp.error(fatal.cut.message.as_bytes()));
-            }
-            if matches!(
-                &error,
-                ValueError::CommandProtocolUnavailable(
-                    "native body registered instruction capability"
-                )
-            ) {
-                return Ok(None);
-            }
-            return Err(builder.interp.report_cmd_error(error.into()));
-        }
-        let entries: Vec<_> = builder
-            .literals
-            .entries()
-            .iter()
-            .enumerate()
-            .map(|(index, literal)| {
-                Ok(match literal.allocation() {
-                    NativeLiteralAllocation::PrivateLogicalBoolean85(value) => {
-                        NativeRuntimeLiteral::PrivateLogicalBoolean85(*value)
-                    }
-                    NativeLiteralAllocation::PrivateInteger(value) => {
-                        NativeRuntimeLiteral::UnsharedOriginal(obj::Owned::fresh(
-                            obj::new_wide_int_obj(*value),
-                        ))
-                    }
-                    NativeLiteralAllocation::PrivateExpressionNumber { version, value } => {
-                        if *version != stamp.physical || *version < tcl_dialect::TclVersion::V8_5 {
-                            return Err(unavailable("native folded-number literal issuer"));
-                        }
-                        let original = obj::Owned::fresh(obj::new_string_bytes(b""));
-                        let protocol = tcl_registry::InvocationDialect::for_version(*version)
-                            .native_scalar_getter_protocol()
-                            .ok_or_else(|| unavailable("native folded-number literal producer"))?;
-                        obj::adopt_native_scalar_cache(
-                            original.as_ptr(),
-                            tcl_syntax::scalar_getter::NativeScalarCache::Number(value.number()),
-                            protocol,
-                        )?;
-                        obj::invalidate_string(original.as_ptr());
-                        NativeRuntimeLiteral::UnsharedOriginal(original)
-                    }
-                    NativeLiteralAllocation::PrivateConstantList { members, protocol } => {
-                        NativeRuntimeLiteral::PrivateConstantList {
-                            members: members.clone(),
-                            protocol: *protocol,
-                        }
-                    }
-                    NativeLiteralAllocation::Unshared => {
-                        NativeRuntimeLiteral::UnsharedBytes(literal.bytes().to_vec())
-                    }
-                    NativeLiteralAllocation::PrivateConcatString => {
-                        NativeRuntimeLiteral::PrivateConcatString(literal.bytes().to_vec())
-                    }
-                    NativeLiteralAllocation::PrivateReturnOptions(recipe) => {
-                        NativeRuntimeLiteral::UnsharedOriginal(
-                            crate::native_return_merge::manufacture(recipe).map_err(|error| {
-                                let _ = error;
-                                unavailable("native private Return literal manufacture")
-                            })?,
-                        )
-                    }
-                    NativeLiteralAllocation::PrivateOriginal => {
-                        NativeRuntimeLiteral::UnsharedOriginal(
-                            builder.private_objects.remove(&index).ok_or_else(|| {
-                                unavailable("native private original literal lacks supplied owner")
-                            })?,
-                        )
-                    }
-                    NativeLiteralAllocation::RegisteredNativeCommand {
-                        context,
-                        fully_qualified,
-                    } => NativeRuntimeLiteral::RegisteredBytes {
-                        bytes: literal.bytes().to_vec(),
-                        namespace: tcl_runtime_api::native_literal::command_literal_partition(
-                            stamp.source_protocol,
-                            tcl_core_types::NsId(
-                                u32::try_from(context.namespace_token).map_err(|_| {
-                                    unavailable("native literal namespace partition")
-                                })?,
+        let compilation = builder
+            .script(region, 0)
+            .and_then(|()| builder.finish_compactible_body(region, original));
+        let literals = match compilation {
+            Ok(literals) => literals,
+            Err(error) => {
+                if let Some(failure) = builder.compilation_failure {
+                    return Err(builder.interp.report_cmd_error(
+                        tcl_cmd_core::CmdError::from_byte_details(tcl_cmd_core::CmdErrorDetails {
+                            message: failure.message.unwrap_or_default().into_bytes(),
+                            string_result: None,
+                            error_code: tcl_cmd_core::CmdErrorCodeUpdate::Set(
+                                failure
+                                    .error_code
+                                    .unwrap_or_else(|| "NONE".to_owned())
+                                    .into_bytes(),
                             ),
-                            *fully_qualified,
-                        ),
-                    },
-                    NativeLiteralAllocation::RegisteredData => {
-                        NativeRuntimeLiteral::RegisteredBytes {
-                            bytes: literal.bytes().to_vec(),
-                            namespace: None,
-                        }
-                    }
-                    NativeLiteralAllocation::RegisteredCommand { .. } => {
-                        return Err(unavailable("native literal lacks original namespace token"));
-                    }
-                })
-            })
-            .collect::<Result<Vec<_>, ValueError>>()
-            .map_err(|error| builder.interp.report_cmd_error(error.into()))?;
-        let actions: Vec<_> = builder
-            .literals
-            .native_actions()
-            .iter()
-            .map(|action| match action {
-                NativeLiteralAction::RetainSyntaxErrorInfo { options, message } => {
-                    NativeRuntimeLiteralAction::RetainSyntaxErrorInfo {
-                        options: *options,
-                        message: *message,
-                    }
+                            error_info: failure.error_info.map(String::into_bytes),
+                            error_line: None,
+                            primitive_getter: None,
+                        }),
+                    ));
                 }
-                NativeLiteralAction::Register(index) => {
-                    NativeRuntimeLiteralAction::Register(*index)
+                if let Some(fatal) = builder.parse_failure {
+                    return Err(builder.interp.error(fatal.cut.message.as_bytes()));
                 }
-                NativeLiteralAction::AdoptExpressionNumber {
-                    index,
-                    version,
-                    value,
-                } => NativeRuntimeLiteralAction::AdoptExpressionNumber {
-                    index: *index,
-                    version: *version,
-                    value: value.clone(),
-                },
-                NativeLiteralAction::Hide(index) => NativeRuntimeLiteralAction::Hide(*index),
-                NativeLiteralAction::PrimeExpressionBoolean84(index) => {
-                    NativeRuntimeLiteralAction::PrimeExpressionBoolean84(*index)
+                if matches!(
+                    &error,
+                    ValueError::CommandProtocolUnavailable(
+                        "native body registered instruction capability"
+                    )
+                ) {
+                    return Ok(None);
                 }
-                NativeLiteralAction::PrimeCommandName { index, receipt } => {
-                    NativeRuntimeLiteralAction::PrimeCommandName {
-                        index: *index,
-                        receipt: receipt.clone(),
-                    }
-                }
-            })
-            .collect();
-        let literals = builder
-            .interp
-            .create_native_literal_array_with_actions(original, &entries, &actions)
-            .map_err(|error| builder.interp.report_cmd_error(error.into()))?;
+                return Err(builder.interp.report_cmd_error(error.into()));
+            }
+        };
         if builder
             .interp
-            .native_body_stamp(namespace, procedure.is_some())
+            .native_body_stamp(namespace, procedure)
             .as_ref()
             != Some(&stamp)
         {
@@ -2313,31 +2303,50 @@ impl Interp {
         slot: Option<usize>,
         value: &obj::Owned,
     ) -> Code {
+        match self.body_store_value(evaluated, slot, value) {
+            Ok(Some(result)) => {
+                self.set_result(result.as_ptr());
+                Code::Ok
+            }
+            Ok(None) => {
+                self.set_result_bytes(b"");
+                Code::Ok
+            }
+            Err(code) => code,
+        }
+    }
+
+    fn body_store_value(
+        &mut self,
+        evaluated: &EvaluatedTarget,
+        slot: Option<usize>,
+        value: &obj::Owned,
+    ) -> Result<Option<obj::Owned>, Code> {
         let capture = match self.body_capture_target(evaluated, slot, true) {
             Ok(captured) => captured,
-            Err(code) => return code,
+            Err(code) => return Err(code),
         };
         let root = capture.root.as_slice();
         let element = capture.element.as_deref();
         let receiver = capture.receiver;
         let home = capture.home;
         if let Err(error) = receiver.store(value.as_ptr()) {
-            return crate::builtins::var_error(self, root, error);
+            return Err(crate::builtins::var_error(self, root, error));
         }
         if self.has_variable_traces() {
             let access = self.trace_access(root, root, element, &home, false);
             if self.fire_var_trace_resolved(&home, &access, b"write") {
-                return crate::builtins::var_error(self, root, crate::frame::VarError::TraceError);
+                return Err(crate::builtins::var_error(
+                    self,
+                    root,
+                    crate::frame::VarError::TraceError,
+                ));
             }
         }
         if self.host_refusal_pending() {
-            return Code::Error;
+            return Err(Code::Error);
         }
-        match receiver.read() {
-            Ok(Some(value)) => self.set_result(value),
-            _ => self.set_result_bytes(b""),
-        }
-        Code::Ok
+        Ok(receiver.read().ok().flatten().map(obj::Owned::retain))
     }
 
     fn body_argument_list(
@@ -2555,14 +2564,35 @@ impl Interp {
     ) -> Code {
         let result = (|| -> Result<Code, Code> {
             match &command.operation {
+                Operation::Upvar(upvar) => {
+                    self.execute_body_upvar(artifact, command, upvar, execution)
+                }
+                Operation::InfoExists(exists) => {
+                    self.execute_body_info_exists(artifact, command, exists, execution)
+                }
+                Operation::Array(recipe) => {
+                    self.execute_body_array(artifact, command, recipe, execution)
+                }
+                Operation::Introspection(recipe) => {
+                    self.execute_body_introspection(artifact, command, recipe, execution)
+                }
                 Operation::Scalar(scalar) => {
                     self.execute_body_scalar(artifact, command, scalar, execution)
+                }
+                Operation::ListOperations(list) => {
+                    self.execute_body_list_operation(artifact, command, list, execution)
                 }
                 Operation::ListIndex(index) => {
                     self.execute_body_list_index(artifact, command, index, execution)
                 }
+                Operation::StringTrim(trim) => {
+                    self.execute_body_string_trim(artifact, command, trim, execution)
+                }
                 Operation::StringMatch(matcher) => {
                     self.execute_body_string_match(artifact, command, matcher, execution)
+                }
+                Operation::Coroutine(coroutine) => {
+                    self.execute_body_coroutine(artifact, command, coroutine, execution)
                 }
                 Operation::Error(error) => {
                     self.execute_body_error(artifact, command, error, execution)

@@ -30,6 +30,9 @@
 //! runtime still implements itself, so a host can fall back to its own
 //! body for the few not routed here.
 
+mod native_trim;
+pub use native_trim::compiled_trim;
+
 use tcl_syntax::raw_string::RawString;
 use tcl_syntax::value::ValueOps;
 
@@ -662,13 +665,41 @@ pub fn trim<O: ValueOps>(
     right: bool,
 ) -> Result<O::Value, CmdError> {
     if ops.string_character_model() == Some(tcl_dialect::StringCharacterModel::Jim084Utf8) {
-        let string = tcl_syntax::raw_string::RawString::from_bytes(ops.as_bytes(s));
-        let characters = tcl_syntax::raw_string::RawString::from_bytes(chars.map_or_else(
-            || std::rc::Rc::from(&b" \t\n\r\0"[..]),
-            |value| ops.as_bytes(value),
-        ));
+        let characters = if left {
+            None
+        } else {
+            chars
+                .map(|value| ops.native_string_bytes(value))
+                .transpose()?
+        };
+        let string = tcl_syntax::raw_string::RawString::from_bytes(ops.native_string_bytes(s)?);
+        let characters = if left {
+            chars
+                .map(|value| ops.native_string_bytes(value))
+                .transpose()?
+        } else {
+            characters
+        };
+        let characters = tcl_syntax::raw_string::RawString::from_bytes(
+            characters.unwrap_or_else(|| std::rc::Rc::from(&b" \t\n\r\0"[..])),
+        );
         let plan = string.jim084_trim_plan(&characters, left, right);
         return Ok(ops.jim_string_trim_result(s, plan));
+    }
+    let version = match ops.string_character_model() {
+        Some(tcl_dialect::StringCharacterModel::BmpCharsElseUtf8Bytes) => {
+            Some(tcl_dialect::TclVersion::V8_4)
+        }
+        Some(tcl_dialect::StringCharacterModel::Utf16CodeUnits) => {
+            Some(tcl_dialect::TclVersion::V8_6)
+        }
+        Some(tcl_dialect::StringCharacterModel::UnicodeScalars) => {
+            Some(tcl_dialect::TclVersion::V9_0)
+        }
+        _ => None,
+    };
+    if let Some(version) = version {
+        return native_trim::command_trim(ops, s, chars, version, left, right);
     }
     let string = ops.try_as_str(s)?.to_string();
     let custom = chars.map(|c| ops.try_as_str(c)).transpose()?;

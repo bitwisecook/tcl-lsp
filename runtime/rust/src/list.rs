@@ -47,6 +47,10 @@ struct TclList {
     string_protocol: Cell<Option<NativeStringProtocol>>,
 }
 
+#[path = "list/native_list_storage.rs"]
+mod native_list_storage;
+pub(crate) use native_list_storage::{native_list_range, replace_prepared_native_elements};
+
 struct NativeListElements(
     Vec<*mut TclObj>,
     Cell<bool>,
@@ -56,13 +60,20 @@ struct NativeListElements(
 struct NativeListStorage {
     backing: Rc<NativeListStorageData>,
     header: bool,
+    window: Option<std::ops::Range<usize>>,
+    span: bool,
+    generation: u64,
 }
 struct NativeListStorageData {
     elements: RefCell<NativeListElements>,
     headers: Cell<usize>,
+    capacity: Cell<Option<usize>>,
+    first_used: Cell<usize>,
+    generation: Cell<u64>,
 }
 impl NativeListStorage {
     fn new(elements: Vec<*mut TclObj>) -> Self {
+        let capacity = elements.len().max(1);
         Self {
             backing: Rc::new(NativeListStorageData {
                 elements: RefCell::new(NativeListElements(
@@ -71,36 +82,122 @@ impl NativeListStorage {
                     RefCell::new(Vec::new()),
                 )),
                 headers: Cell::new(1),
+                capacity: Cell::new(Some(capacity)),
+                first_used: Cell::new(0),
+                generation: Cell::new(0),
             }),
             header: true,
+            window: None,
+            span: false,
+            generation: 0,
         }
     }
     fn elements(&self) -> Ref<'_, [*mut TclObj]> {
         Ref::map(self.backing.elements.borrow(), |elements| {
-            elements.0.as_slice()
+            match &self.window {
+                Some(window) => {
+                    &elements.0[window.start - self.backing.first_used.get()
+                        ..window.end - self.backing.first_used.get()]
+                }
+                None => elements.0.as_slice(),
+            }
         })
     }
     fn len(&self) -> usize {
-        self.backing.elements.borrow().0.len()
+        self.window.as_ref().map_or_else(
+            || self.backing.elements.borrow().0.len(),
+            std::ops::Range::len,
+        )
     }
     fn get(&self, index: usize) -> Option<*mut TclObj> {
-        self.backing.elements.borrow().0.get(index).copied()
+        self.elements().get(index).copied()
     }
     fn lifetime_view(&self) -> Self {
         Self {
             backing: Rc::clone(&self.backing),
             header: false,
+            window: self.window.clone(),
+            span: self.span,
+            generation: self.generation,
         }
     }
     fn copied_header(&self) -> Self {
-        let elements = self.backing.elements.borrow().clone();
-        Self {
-            backing: Rc::new(NativeListStorageData {
-                elements: RefCell::new(elements),
-                headers: Cell::new(1),
-            }),
-            header: true,
+        let elements = self.elements().to_vec();
+        for &value in &elements {
+            unsafe { obj::incr_ref_count(value) };
         }
+        Self::new(elements)
+    }
+    fn set_capacity(&self, capacity: usize) {
+        assert!(capacity >= self.backing.elements.borrow().0.len());
+        let mut members = self.backing.elements.borrow_mut();
+        let length = members.0.len();
+        members.0.reserve_exact(capacity - length);
+        self.backing.capacity.set(Some(capacity));
+    }
+    fn checked_generation(&self) -> Result<(), tcl_syntax::value::ValueError> {
+        if self.generation != self.backing.generation.get() {
+            return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "changed native List member vector",
+            ));
+        }
+        Ok(())
+    }
+    fn range_header(&self, range: std::ops::Range<usize>) -> Self {
+        let mut header = self.clone();
+        let start = self
+            .window
+            .as_ref()
+            .map_or(self.backing.first_used.get(), |window| window.start);
+        header.window = Some(start + range.start..start + range.end);
+        header.span = self.span || range.start != 0 || range.end != self.len();
+        header
+    }
+    fn select_window(&mut self, range: std::ops::Range<usize>, span: bool) {
+        assert!(self.header && range.start <= range.end && range.end <= self.len());
+        let offset = self
+            .window
+            .as_ref()
+            .map_or(0, |window| window.start - self.backing.first_used.get());
+        let start = offset + range.start;
+        let end = offset + range.end;
+        if self.native_is_shared() {
+            self.window =
+                Some(self.backing.first_used.get() + start..self.backing.first_used.get() + end);
+        } else {
+            let retired = {
+                let mut elements = self.backing.elements.borrow_mut();
+                let mut retired = elements.0.drain(end..).collect::<Vec<_>>();
+                retired.extend(elements.0.drain(..start));
+                retired
+            };
+            for value in retired {
+                unsafe { obj::decr_ref_count(value) };
+            }
+            self.backing.first_used.set(if span {
+                self.backing.first_used.get() + start
+            } else {
+                0
+            });
+            self.window = None;
+            self.note_mutation();
+        }
+        self.span = span;
+    }
+    fn collect_unreferenced(&mut self) {
+        if !self.native_is_shared() && self.window.is_some() {
+            self.select_window(0..self.len(), self.span);
+        }
+    }
+    fn note_mutation(&mut self) {
+        let generation = self
+            .backing
+            .generation
+            .get()
+            .checked_add(1)
+            .expect("native List generation");
+        self.backing.generation.set(generation);
+        self.generation = generation;
     }
     fn native_is_shared(&self) -> bool {
         self.backing.headers.get() > 1
@@ -110,6 +207,9 @@ impl NativeListStorage {
         if self.native_is_shared() {
             *self = self.copied_header();
         }
+        self.collect_unreferenced();
+        self.note_mutation();
+        self.backing.capacity.set(None);
         RefMut::map(self.backing.elements.borrow_mut(), |elements| {
             &mut elements.0
         })
@@ -129,6 +229,9 @@ impl Clone for NativeListStorage {
         Self {
             backing: Rc::clone(&self.backing),
             header: self.header,
+            window: self.window.clone(),
+            span: self.span,
+            generation: self.generation,
         }
     }
 }
@@ -214,6 +317,7 @@ impl NativeListBacking {
     /// Return live original members. A retired sole child remains allocated for
     /// pointer safety but its native cache cannot be read through this view.
     pub(crate) fn elements(&self) -> Result<Ref<'_, [*mut TclObj]>, tcl_syntax::value::ValueError> {
+        self.elements.checked_generation()?;
         let elements = self.elements.elements();
         if elements
             .iter()
@@ -688,9 +792,14 @@ pub(crate) fn append_prepared_native_elements(
                 protocol.copied_list_canonical(list.canonical.get()),
             ));
         }
-        for &element in elements {
-            obj::incr_ref_count(element);
-            list.elems.make_mut().push(element);
+        if protocol.tcl_version().is_some() {
+            let length = list.elems.len();
+            replace_prepared_native_elements(value, length, 0, elements, protocol, false)?;
+        } else {
+            for &element in elements {
+                obj::incr_ref_count(element);
+                list.elems.make_mut().push(element);
+            }
         }
     }
     obj::invalidate_string(value);
@@ -842,8 +951,16 @@ fn list_elements_using(
                 member
             })
             .collect();
+        let storage = NativeListStorage::new(elems);
+        if native.is_some_and(|protocol| {
+            protocol
+                .tcl_version()
+                .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_0)
+        }) {
+            storage.set_capacity(tcl_syntax::list::max_list_length_bytes(&bytes).max(1));
+        }
         let backing = Box::new(TclList {
-            elems: NativeListStorage::new(elems),
+            elems: storage,
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(native),
         });
@@ -872,12 +989,17 @@ pub(crate) fn replace_elements_native(
     // SAFETY: the checked receiver owns a List header. Retain all replacement
     // members before releasing the old backing, including overlapping inputs.
     unsafe {
-        for &element in elements {
-            obj::incr_ref_count(element);
-        }
         let list = list_mut(value.as_ptr());
-        list.elems = NativeListStorage::new(elements.to_vec());
-        list.canonical = Rc::new(Cell::new(false));
+        if protocol.tcl_version().is_some() {
+            let length = list.elems.len();
+            replace_prepared_native_elements(value.as_ptr(), 0, length, elements, protocol, false)?;
+        } else {
+            for &element in elements {
+                obj::incr_ref_count(element);
+            }
+            list.elems = NativeListStorage::new(elements.to_vec());
+            list.canonical = Rc::new(Cell::new(false));
+        }
     }
     obj::invalidate_string(value.as_ptr());
     Ok(value)

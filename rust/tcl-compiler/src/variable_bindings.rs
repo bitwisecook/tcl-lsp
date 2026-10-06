@@ -788,7 +788,9 @@ fn apply_effects(
             continue;
         }
         match access.domain {
-            WorldStateDomain::VariableTraces if !precise => state.dynamic_traces = true,
+            WorldStateDomain::VariableTraces if !precise => {
+                state.mark_unenumerated_variable_observers();
+            }
             WorldStateDomain::VariableStore if !precise => {
                 for generation in state.generations.values_mut() {
                     *generation = CellGeneration::Unknown;
@@ -1547,10 +1549,24 @@ fn apply_trace(state: &mut ResolveContext, trace: &TraceTransition, registry: &C
         state.traced.remove(&key);
         state.trace_registration_receivers.remove(&key);
     }
-    for alias in state.alias_bindings.values_mut() {
-        if place::overlap(alias, &target) {
-            alias.observed = observed || state.dynamic_traces;
-        }
+    let aliases = state
+        .alias_bindings
+        .iter()
+        .filter_map(|(key, alias)| {
+            place::overlap(alias, &target).then(|| {
+                (
+                    key.clone(),
+                    observed || state.unenumerated_observers_may_run(alias),
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    for (key, observed) in aliases {
+        state
+            .alias_bindings
+            .get_mut(&key)
+            .expect("selected alias")
+            .observed = observed;
     }
 }
 
@@ -1576,7 +1592,7 @@ fn register_possible_variable_trace(
                 },
             );
         }
-        _ => state.dynamic_traces = true,
+        _ => state.mark_unenumerated_variable_observers(),
     }
 }
 

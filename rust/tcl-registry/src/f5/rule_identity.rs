@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Logical iRule ownership for the documented `call` routing contract.
+//! Logical iRule ownership for the measured partition-root `call` contract.
 //!
 //! Rule identity comes from a configuration object or an explicit session
 //! input. Source text and procedure spelling never manufacture an owner.
@@ -74,6 +74,13 @@ impl RuleIdentity {
         &self.0
     }
 
+    /// Owning partition root, independent of the rule folder.
+    #[must_use]
+    pub fn partition(&self) -> &str {
+        let end = self.0[1..].find('/').expect("validated rule identity") + 1;
+        &self.0[..end]
+    }
+
     /// Owning folder, including its partition.
     #[must_use]
     pub fn folder(&self) -> &str {
@@ -91,7 +98,7 @@ pub struct RuleProcedureTarget {
 }
 
 impl RuleProcedureTarget {
-    /// Resolve documented local, same-folder and absolute-folder call forms.
+    /// Resolve documented local, partition-root and absolute-folder call forms.
     ///
     /// # Errors
     /// Returns an error when identity is absent or the target is malformed.
@@ -104,7 +111,7 @@ impl RuleProcedureTarget {
                 if rule.contains('/') || rule.contains("::") {
                     return Err(RuleIdentityError::InvalidPath);
                 }
-                format!("{}/{rule}", owner.folder())
+                format!("{}/{rule}", owner.partition())
             };
             (RuleIdentity::new(path)?, procedure)
         } else {
@@ -127,11 +134,12 @@ impl RuleProcedureTarget {
 mod tests {
     use super::*;
     #[test]
-    fn call_targets_preserve_rule_and_folder_ownership() {
+    fn call_targets_preserve_rule_ownership_and_partition_root_lookup() {
         let current = RuleIdentity::new("/Common/folder/request").unwrap();
         for (target, rule) in [
             ("local", "/Common/folder/request"),
-            ("helpers::local", "/Common/folder/helpers"),
+            ("helpers::local", "/Common/helpers"),
+            ("/Common/folder/helpers::local", "/Common/folder/helpers"),
             ("/Other/helpers::local", "/Other/helpers"),
         ] {
             let resolved = RuleProcedureTarget::resolve(target, Some(&current)).unwrap();
@@ -144,5 +152,6 @@ mod tests {
         );
         assert!(RuleIdentity::new("/Common/../helpers").is_err());
         assert!(RuleIdentity::new("helpers").is_err());
+        assert!(RuleProcedureTarget::resolve("::helpers::local", Some(&current)).is_err());
     }
 }

@@ -1322,6 +1322,8 @@ pub struct Instruction {
     pub native_each: Option<std::sync::Arc<NativeEachAuxiliary>>,
     /// Original C list-index immediate encoding, independent of `INDEX_END`.
     pub native_list_index: Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>,
+    /// Original C inclusive range coordinates, independent of portable `INDEX_END`.
+    pub native_list_range: Option<tcl_syntax::native_compiled_index::NativeCompiledListRange>,
     /// `FOREACH_START` only: this is a *collecting* loop (`lmap`), so the VM
     /// initialises a per-loop accumulator that `LMAP_COLLECT` appends to and the
     /// paired `FOREACH_END` materialises as `list(accum)`. Carried out-of-band
@@ -1409,6 +1411,7 @@ impl Instruction {
             foreach_vars: None,
             native_each: None,
             native_list_index: None,
+            native_list_range: None,
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
@@ -1691,6 +1694,9 @@ pub struct LiteralTable {
     entries: Vec<NativeStringLiteral>,
     index: HashMap<Vec<u8>, usize>,
     actions: Vec<NativeLiteralAction>,
+    discarded_native_passes: Vec<LiteralTable>,
+    native_compiler_replay_environment:
+        Option<tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment>,
 }
 
 /// Native compiler actions on its object array, in original execution order.
@@ -1733,6 +1739,37 @@ pub enum NativeLiteralAction {
 }
 
 impl LiteralTable {
+    /// Retain the original first-pass array actions for chronological concrete
+    /// construction and release before the final compiler pass array.
+    /// This metadata owns no native headers and grants no compiler admission.
+    pub fn retain_discarded_native_pass(&mut self, table: Self) {
+        self.discarded_native_passes.push(table);
+    }
+
+    /// Earlier compiler arrays which must be constructed and released in order.
+    #[must_use]
+    pub fn discarded_native_passes(&self) -> &[Self] {
+        &self.discarded_native_passes
+    }
+
+    /// Retain the original environment used to plan a compact second pass.
+    /// Concrete realization must revalidate it after the first array's callbacks.
+    /// This metadata grants neither native compiler admission nor cache validity.
+    pub fn retain_compiler_replay_environment(
+        &mut self,
+        environment: tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment,
+    ) {
+        self.native_compiler_replay_environment = Some(environment);
+    }
+
+    /// Original planned replay environment, independent of installed body freshness.
+    #[must_use]
+    pub fn compiler_replay_environment(
+        &self,
+    ) -> Option<&tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment> {
+        self.native_compiler_replay_environment.as_ref()
+    }
+
     /// Register the original C8.4 Boolean word and retain its reached getter
     /// action separately from local/global literal deduplication.
     pub fn intern_expression_boolean84(&mut self, bytes: &[u8]) -> usize {

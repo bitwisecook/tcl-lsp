@@ -69,7 +69,11 @@ pub(super) fn walk_known_outputs(
     ))
 }
 
-fn store_is_closed(target: &Place, variables: &ResolveContext, registry: &CommandRegistry) -> bool {
+pub(super) fn store_is_closed(
+    target: &Place,
+    variables: &ResolveContext,
+    registry: &CommandRegistry,
+) -> bool {
     let Some(cell) = &target.cell else {
         return false;
     };

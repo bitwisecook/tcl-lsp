@@ -596,6 +596,16 @@ fn info_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args_for_prefix(argv, 2, b"varName");
     }
+    if interp.native_c_variable_name_protocol().is_some() {
+        return match interp.exists_original_c_parts(argv[2], None) {
+            Ok(found) => {
+                let result = crate::obj::new_boolean_obj(i32::from(found));
+                interp.set_result(result);
+                Code::Ok
+            }
+            Err(code) => code,
+        };
+    }
     // Tcl's existence query fires read traces and ignores their errors. The
     // resolved variable owner includes native linked-variable callbacks.
     let name = obj_bytes(argv[2]);
@@ -616,7 +626,11 @@ fn info_level(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         3 => Some(&argv[2]),
         _ => return interp.wrong_args_for_prefix(argv, 2, b"?number?"),
     };
-    match tcl_cmd_core::info::level(interp, number) {
+    let dialect = interp.native_invocation_dialect();
+    let result = if dialect.native_error_log_protocol().is_some() && dialect.tcl_version.is_some_and(|version| version >= tcl_dialect::TclVersion::V8_6) {
+        interp.native_info_level(number)
+    } else { tcl_cmd_core::info::level(interp, number) };
+    match result {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
@@ -1276,3 +1290,7 @@ mod tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "cmd_info/native_commands_tests.rs"]
+mod native_commands_tests;

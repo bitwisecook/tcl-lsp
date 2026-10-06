@@ -4272,12 +4272,12 @@ mod tests {
     fn native_existence_unit(
         source: &str,
         registry: &CommandRegistry,
-    ) -> crate::compilation_unit::CompilationUnit {
+    ) -> crate::environment_ingress::RetainedNativeUnit {
         let profile = registry.profile().expect("selected native fixture profile");
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(profile);
         let entry = crate::command_binding::SourceAnalysisEntry {
-            native_entry: Some(std::sync::Arc::new(
-                crate::environment_ingress::captured_native_entry(profile),
-            )),
+            native_entry: Some(std::sync::Arc::new(captured)),
             invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -4285,7 +4285,7 @@ mod tests {
             },
             ..crate::command_binding::SourceAnalysisEntry::default()
         };
-        crate::compilation_unit::CompilationUnit::build_with_source_entry(
+        let unit = crate::compilation_unit::CompilationUnit::build_with_source_entry(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry,
@@ -4296,7 +4296,8 @@ mod tests {
                 declared_commands: None,
             },
             &entry,
-        )
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
     }
 
     #[test]
@@ -4409,14 +4410,8 @@ mod tests {
                 ..Default::default()
             },
         );
-        assert!(
-            missing_entry
-                .function("::f")
-                .unwrap()
-                .sccp
-                .constant_branches
-                .is_empty()
-        );
+        assert!(missing_entry.function("::f").is_none());
+        assert_missing_entry_retains_only_declared_query(declaration, &registry, profile);
         for source in [
             declaration.to_owned(),
             format!("rename info {{}}; proc info args {{return UNKNOWN}}; {declaration}; f VALUE"),
@@ -4432,6 +4427,54 @@ mod tests {
                 "unentered or unselected query must not fold: {source}"
             );
         }
+    }
+
+    fn assert_missing_entry_retains_only_declared_query(
+        declaration: &str,
+        registry: &CommandRegistry,
+        profile: &tcl_dialect::DialectProfile,
+    ) {
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let bindings = crate::command_binding::SourceCommandBindings::analyse_with_options(
+            declaration,
+            config,
+            registry,
+            crate::command_binding::SourceAnalysisOptions {
+                unknown_entry: true,
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        );
+        let query = "info exists local";
+        let offset = u32::try_from(declaration.find(query).unwrap()).unwrap();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(query, offset, config)
+                .remove(0);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(declaration),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let layout = binding
+            .declaration_operand_layout_advice(&tokens)
+            .expect("the original declaration retains conditional query geometry");
+        assert!(!layout.closed_lookup());
+        assert!(binding.unknown);
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.compiler_lookup_state.is_none());
+        let site = binding.invocation_site().unwrap();
+        let lexical_body = bindings
+            .conditional_body_entry_at(&site.source, site.offset)
+            .expect("conditional lexical source is independent of actual entry");
+        assert!(lexical_body.owns_source(&site.source, site.offset));
+        assert!(!bindings.has_actual_procedure_entry_at(&site.source, site.offset));
+        assert_eq!(
+            binding.native_compilation_admission_selection(),
+            tcl_registry::native_compilation::NativeCompilationSelection::Unknown
+        );
     }
 
     #[test]

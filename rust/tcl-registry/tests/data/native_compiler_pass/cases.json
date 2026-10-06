@@ -1,0 +1,7 @@
+{
+  "fields": ["case", "code", "arrayCompilerCalls", "compiledLocals"],
+  "cases": ["root", "child", "commandLimit", "timeLimit", "executionTrace", "invocationHazard", "libraryProcedure", "libraryWithLimit"],
+  "legacyLimitAvailability": {"8.4.20": false, "8.5.19": true},
+  "childInitialization": "Tcl_Init parent with exact bundled TCL_LIBRARY then Tcl_CreateSlave",
+  "scope": "Actual C compilation; no Jim compiler/replay inference"
+}

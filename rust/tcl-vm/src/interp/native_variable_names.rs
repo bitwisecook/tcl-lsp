@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C variable-name lookups and authentic compiled-local owners.
 
+#[path = "native_variable_names/native_array.rs"]
+mod native_array;
+#[path = "native_variable_names/native_exists.rs"]
+mod native_exists;
 use super::{HashSet, ResolvedVar, Value, VarBinding, VarTableOwner, Vm};
 use crate::value::NativeObjectLifetimeLease;
 use std::rc::Rc;
@@ -1990,7 +1994,6 @@ mod tests {
     #[test]
     fn cpp_table_and_var_roles_match_all_25_original_callback_windows() {
         use std::cell::RefCell;
-        use tcl_core_types::VarId;
         let rows = Rc::new(RefCell::new(Vec::new()));
         for (environment, version) in [
             ("tcl8.4", "8.4.20"),

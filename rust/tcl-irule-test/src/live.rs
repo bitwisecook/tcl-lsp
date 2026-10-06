@@ -200,6 +200,8 @@ impl LiveSession {
         assert!(vm.set_logical_package_provider(Some(
             tcl_registry::native_package::AuthoredPackageProvider::Tcl84Core,
         )));
+        assert!(vm.install_irules_rule_callable_simulation());
+        assert!(vm.install_irules_counted_string_simulation());
         vm.install_irules_timer_simulation();
         vm.install_irules_static_simulation();
         for (alias, native) in [
@@ -351,6 +353,7 @@ impl LiveSession {
     }
 
     fn validate_original_rule_source(&self, source: &str) -> Result<(), SessionError> {
+        use tcl_compiler::analyser::types::DiagCode;
         let Some(profile) = self.measured_loader else {
             return Ok(());
         };
@@ -359,7 +362,6 @@ impl LiveSession {
                 RuleLoaderRefusal::OriginalBytes { profile, finding },
             ));
         }
-        use tcl_compiler::analyser::types::DiagCode;
         let result = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
         if let Some(diagnostic) = result.diagnostics.iter().find(|diagnostic| {
             matches!(
@@ -2006,12 +2008,12 @@ mod tests {
         }
         session
             .load_irule(
-                r#"when HTTP_REQUEST {
+                r"when HTTP_REQUEST {
             set n [list namespace eval ::probe {set n 11}]
             set p [list package provide Tcl]
             set q [list namespace path]
             set static::measured [list [eval $n] [eval $p] [catch {eval $q} message] $message]
-        }"#,
+        }",
             )
             .unwrap();
         assert!(
@@ -2061,8 +2063,8 @@ mod tests {
                 when RULE_INIT {set init_global 7; set static::calls 0}
                 when HTTP_REQUEST {
                     set local 4
-                    call helpers::mutate local
-                    set static::seen [list [call shared] [call helpers::shared] [call /Other/helpers::nested] $local $::init_global]
+                    call /Common/folder/helpers::mutate local
+                    set static::seen [list [call shared] [call /Common/folder/helpers::shared] [call /Other/helpers::nested] $local $::init_global]
                     incr static::calls
                 }
             ",
@@ -2111,6 +2113,98 @@ mod tests {
                 .to_string()
                 .contains("identity already loaded")
         );
+    }
+
+    #[test]
+    fn measured_rule_lookup_uses_partition_root_and_keeps_activated_callables() {
+        use crate::session::{RuleIdentity, RuleSource};
+        let mut session = LiveSession::embedded().expect("framework");
+        session
+            .eval("::orch::configure_tests -tmm_count 4")
+            .unwrap();
+        let source = r"
+            proc identify {} {return partition}
+            proc inspect {name} {
+                upvar 1 $name cell
+                set cell changed
+                set command [list namespace current]
+                set lookup [list namespace which -command /Common/helpers::identify]
+                return [list [eval $command] [eval $lookup]]
+            }
+        ";
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/helpers").unwrap(),
+                source,
+            ))
+            .unwrap();
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/folder/helpers").unwrap(),
+                "proc identify {} {return folder}",
+            ))
+            .unwrap();
+        session.load_rule(&RuleSource::named(RuleIdentity::new("/Common/folder/caller").unwrap(), r"
+            proc identify {} {return caller}
+            when HTTP_REQUEST {
+                set local original
+                set context [call helpers::inspect local]
+                set static::owner_result [list [call identify] [call helpers::identify] [call /Common/folder/helpers::identify] $context $local]
+            }
+        ")).unwrap();
+        for deleted in [false, true] {
+            if deleted {
+                session
+                    .eval("::itest::unload_rule /Common/helpers")
+                    .unwrap();
+            }
+            for worker in 0..4 {
+                session
+                    .eval(&format!("::orch::tmm_select {worker}"))
+                    .unwrap();
+                let result = session.fire_event("HTTP_REQUEST").unwrap();
+                assert!(
+                    !result.contains("code 1"),
+                    "worker {worker}, deleted {deleted}: {result}"
+                );
+                assert_eq!(
+                    session
+                        .eval(&format!("::orch::tmm_get_static {worker} owner_result"))
+                        .unwrap(),
+                    "caller partition folder {:: {}} changed"
+                );
+            }
+        }
+        session
+            .load_rule(&RuleSource::library(
+                RuleIdentity::new("/Common/helpers").unwrap(),
+                source,
+            ))
+            .unwrap();
+        session.eval("::itest::clear_irule").unwrap();
+        assert_eq!(
+            session
+                .eval("::tmm::_orig_namespace exists ::tmm::_rule_callables")
+                .unwrap(),
+            "0"
+        );
+    }
+
+    #[test]
+    fn measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host() {
+        let mut session = LiveSession::embedded().expect("framework");
+        session.load_irule(r#"
+            when HTTP_REQUEST {
+                set literal "😀"
+                set dynamic [binary format H* f09f918df09f8fbd]
+                set nul [binary format H* 410042]
+                set static::lengths [list [string length $literal] [string len $literal] [string length $dynamic] [string length $nul]]
+            }
+        "#).unwrap();
+        let result = session.fire_event("HTTP_REQUEST").unwrap();
+        assert!(!result.contains("code 1"), "{result}");
+        assert_eq!(session.eval("set ::static::lengths").unwrap(), "4 4 8 3");
+        assert_eq!(session.eval("::tmm::_orig_string length 😀").unwrap(), "1");
     }
 
     #[test]

@@ -63,6 +63,7 @@ use std::{
 
 use crate::counters;
 
+pub(crate) mod native_end_offset;
 pub(crate) mod native_index;
 pub(crate) mod native_instruction_name;
 pub(crate) mod native_lambda_expression;
@@ -1732,7 +1733,7 @@ pub(crate) fn stock_list_input_class(
     if core::ptr::eq(kind, &NATIVE_ARRAY_SEARCH_TYPE) {
         return Class::ArraySearch;
     }
-    if native_index::cache(value).is_some() {
+    if native_index::cache(value).is_some() || native_end_offset::cache(value).is_some() {
         return Class::Index;
     }
     if native_instruction_name::cache(value).is_some() {

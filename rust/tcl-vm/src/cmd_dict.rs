@@ -1328,7 +1328,6 @@ mod tests {
 
 #[cfg(test)]
 mod native_rmw_fixture_tests {
-    use crate::interp::Vm;
     use tcl_syntax::value::ValueOps;
 
     fn unhex(hex: &str) -> Vec<u8> {
@@ -1357,7 +1356,7 @@ mod native_rmw_fixture_tests {
         let receipt_start = std::time::Instant::now();
         tcl_test_support::oracle_row_progress(suite, engine, name, None);
         tcl_test_support::oracle_phase_progress(suite, engine, name, "vm-new-start", receipt_start);
-        let mut vm = Vm::new();
+        let mut vm = crate::native_fixture::interpreter(profile);
         tcl_test_support::oracle_phase_progress(
             suite,
             engine,
@@ -1365,7 +1364,6 @@ mod native_rmw_fixture_tests {
             "vm-new-complete",
             receipt_start,
         );
-        vm.set_dialect_profile(profile);
         tcl_test_support::oracle_phase_progress(
             suite,
             engine,
@@ -1373,9 +1371,6 @@ mod native_rmw_fixture_tests {
             "profile-complete",
             receipt_start,
         );
-        vm.set_compiler(Box::new(
-            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
         tcl_test_support::oracle_phase_progress(
             suite,
             engine,

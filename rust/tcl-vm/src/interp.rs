@@ -59,6 +59,7 @@ use tcl_syntax::expr::eval;
 
 mod authored_math;
 mod authored_package;
+mod authored_rule_callables;
 mod authored_tmm_static;
 pub(crate) mod jim_local;
 mod jim_teardown;
@@ -80,6 +81,7 @@ mod native_error_stack;
 mod native_error_variables;
 mod native_execution_constants;
 mod native_index_lookup;
+mod native_introspection;
 mod native_jim_increment;
 mod native_jim_links;
 pub(crate) mod native_jim_lookup;
@@ -92,6 +94,9 @@ mod native_namespace_root_tests;
 mod native_package_files;
 mod native_procedure_artifacts;
 mod native_rename;
+#[cfg(test)]
+#[path = "interp/native_upvar_info_exists_tests.rs"]
+mod native_upvar_info_exists_tests;
 mod native_variable_names;
 mod native_variable_observers;
 mod selected_frame;
@@ -1263,6 +1268,7 @@ pub struct InterpState {
     /// Actual core-constructor purpose excludes subsequently loaded library scripts.
     bootstrap: NativeBootstrapPurpose,
     native_literal_world: Rc<RefCell<crate::literal_pool::NativeLiteralWorld>>,
+    native_compiler_pass_owner: tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner,
     /// Export patterns per namespace (canonical name → glob patterns), set by
     /// `namespace export` and consulted by `namespace import`.
     ns_exports: HashMap<NsId, Vec<NameBytes>>,
@@ -1330,6 +1336,7 @@ pub struct InterpState {
     /// through to a hard `invalid command name` instead of recursing.
     package_state: PackageState,
     authored_packages: Option<authored_package::AuthoredPackageState>,
+    authored_rule_providers: authored_rule_callables::AuthoredRuleProviders,
     package_table_purpose: authored_package::PackageTablePurpose,
     /// Command prefix invoked by `package require` when no suitable package is
     /// known yet (`package unknown`).
@@ -3095,6 +3102,15 @@ impl InterpState {
         ))
     }
 
+    fn fresh_compiler_pass_owner(
+        owner: u64,
+        interpreter: u64,
+    ) -> tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner {
+        tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner::new(
+            tcl_runtime_api::native_compilation::NativeInterpreterIdentity { owner, interpreter },
+        )
+    }
+
     fn fresh_in_environment(
         out: OutputWriter,
         environment: FreshSemanticEnvironment,
@@ -3133,6 +3149,7 @@ impl InterpState {
             scripted_dictionary_wrappers: None,
             bootstrap: NativeBootstrapPurpose::Distribution,
             native_literal_world: Self::fresh_literal_world(),
+            native_compiler_pass_owner: Self::fresh_compiler_pass_owner(owner, interpreter),
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
             builtin_identities: HashMap::new(),
@@ -3140,6 +3157,7 @@ impl InterpState {
             ns_unknowns: HashMap::new(),
             package_state: PackageState::default(),
             authored_packages: None,
+            authored_rule_providers: authored_rule_callables::AuthoredRuleProviders::default(),
             package_table_purpose: authored_package::PackageTablePurpose::Native,
             package_unknown: None,
             package_prefer: initial_package_prefer(),
@@ -6288,6 +6306,7 @@ impl Vm {
             .authored_packages
             .as_ref()
             .map(|state| authored_package::AuthoredPackageState::new(state.provider));
+        child.authored_rule_providers = self.authored_rule_providers;
         child.authored_math = self
             .logical_providers
             .math_functions
@@ -6338,6 +6357,9 @@ impl Vm {
             vm.enable_command_semantics_tracking();
             if vm.authored_timers.installed {
                 crate::retained_activation::register_provider(vm);
+            }
+            if vm.authored_rule_providers.callables || vm.authored_rule_providers.counted_strings {
+                authored_rule_callables::register_provider(vm);
             }
             if vm.authored_packages.is_some() {
                 authored_package::register_provider(vm);
@@ -12060,25 +12082,21 @@ impl Vm {
                 .owners
                 .insert(member, id);
             self.name_world.borrow_mut().namespaces.remove(name);
-            if let (Some(parent), Some(tail)) = (
-                self.name_world
-                    .borrow()
+            let child_link = {
+                let world = self.name_world.borrow();
+                world
                     .ns_parents
                     .get(member.0 as usize)
                     .copied()
-                    .flatten(),
-                name.last(),
-            ) && self
-                .name_world
-                .borrow()
-                .ns_children
-                .get(&(parent, tail.clone()))
-                == Some(&member)
-            {
-                self.name_world
-                    .borrow_mut()
-                    .ns_children
-                    .remove(&(parent, tail.clone()));
+                    .flatten()
+                    .zip(name.last())
+                    .filter(|(parent, tail)| {
+                        world.ns_children.get(&(*parent, (*tail).clone())) == Some(&member)
+                    })
+                    .map(|(parent, tail)| (parent, tail.clone()))
+            };
+            if let Some(link) = child_link {
+                self.name_world.borrow_mut().ns_children.remove(&link);
             }
             if let Some(order) = self
                 .name_world
@@ -14600,12 +14618,26 @@ impl Vm {
         self.capture_procedure_body_value(body)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare_procedure_body_value(
         &mut self,
         admission: Option<(&str, &str)>,
         parameters: &[crate::command::Param],
         namespace: NsId,
         original: &Value,
+    ) -> Result<CompiledUnit, TclError> {
+        self.prepare_procedure_body_value_with_owner(
+            admission, parameters, namespace, original, None,
+        )
+    }
+
+    fn prepare_procedure_body_value_with_owner(
+        &mut self,
+        admission: Option<(&str, &str)>,
+        parameters: &[crate::command::Param],
+        namespace: NsId,
+        original: &Value,
+        command_namespace: Option<NsId>,
     ) -> Result<CompiledUnit, TclError> {
         if self
             .actual_native_invocation_dialect()
@@ -14621,7 +14653,24 @@ impl Vm {
         })?;
         let source = tcl_runtime_api::SourceImage::native(bytes.as_ref());
         let path = self.ns_path(namespace);
-        let entry = self.native_compilation_entry_for_namespace_token(Some(namespace), true);
+        let mut entry = self.native_compilation_entry_for_namespace_token(Some(namespace), true);
+        let procedure = command_namespace.and_then(|token| {
+            let namespace = entry.retained_namespace_context(u64::from(token.0)).ok()?;
+            let mut name = b"::".to_vec();
+            for (index, component) in namespace.path.as_segments().iter().enumerate() {
+                if index != 0 {
+                    name.extend_from_slice(b"::");
+                }
+                name.extend_from_slice(component.as_bytes());
+            }
+            Some(
+                tcl_runtime_api::native_compiler_pass::NativeCompilerPassProcedure {
+                    namespace,
+                    namespace_full_name: tcl_runtime_api::NameBytes::from(name),
+                },
+            )
+        });
+        entry.compiler_pass_environment = self.capture_native_compiler_pass_environment(procedure);
         let mut unit =
             self.prepare_procedure_body_with_entry(admission, parameters, &path, &source, &entry)?;
         let actual = self.actual_native_invocation_dialect();
@@ -14926,13 +14975,30 @@ impl Vm {
     /// A current, binding-valid foreign admission may run unchanged only when
     /// no compile service is installed; retaining the foreign marker ensures a
     /// later `set_compiler` still refreshes it.
+    fn command_owned_procedure_namespace(
+        &self,
+        procedure: &Rc<crate::command::ProcDef>,
+    ) -> Option<NsId> {
+        self.commands
+            .values()
+            .chain(self.hidden_commands.values())
+            .find_map(|command| {
+                if let Command::Proc(binding) = command {
+                    Rc::ptr_eq(&binding.declaration(), procedure)
+                        .then(|| procedure.actual_command_slot().namespace)
+                } else {
+                    None
+                }
+            })
+    }
+
     pub(crate) fn ensure_proc_traced(
         &mut self,
         command: crate::command::NativeProcedureCommand,
     ) -> Result<crate::command::PreparedProcedureActivation, TclError> {
         let proc = command.declaration();
         let Some(protocol) = tcl_registry::native_procedure::procedure_activation_protocol(
-            self.native_invocation_dialect(),
+            self.actual_native_invocation_dialect(),
         ) else {
             let _ = self
                 .refuse_host_command("native procedure activation protocol is unavailable".into());
@@ -14951,22 +15017,24 @@ impl Vm {
             ));
         }
         let body = if !protocol.retains_prepared_body() {
-            self.prepare_procedure_body_value(
+            self.prepare_procedure_body_value_with_owner(
                 None,
                 &proc.params,
                 proc.actual_namespace_id(),
                 &proc.body_src,
+                self.command_owned_procedure_namespace(&proc),
             )?
             .with_source_location(proc.body_src.source_location())
         } else if let Some(body) = self.current_native_procedure_body(&proc) {
             body
         } else {
             let body = self
-                .prepare_procedure_body_value(
+                .prepare_procedure_body_value_with_owner(
                     None,
                     &proc.params,
                     proc.actual_namespace_id(),
                     &proc.body_src,
+                    self.command_owned_procedure_namespace(&proc),
                 )?
                 .with_source_location(proc.body_src.source_location());
             let storage = self
@@ -15049,7 +15117,7 @@ impl Vm {
         };
         let proc = command.declaration();
         let protocol = tcl_registry::native_procedure::procedure_activation_protocol(
-            self.native_invocation_dialect(),
+            self.actual_native_invocation_dialect(),
         )
         .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
             "native procedure activation issuer",
@@ -17656,6 +17724,15 @@ impl Vm {
                     "parent namespace doesn't exist",
                 )
             })?;
+        self.ensure_array_selected(name, &resolved)
+    }
+
+    fn ensure_array_selected(
+        &mut self,
+        name: &[u8],
+        resolved: &ResolvedVar,
+    ) -> Result<(), Completion<Value>> {
+        let input = tcl_syntax::naming::NativeVariableInputForm::Combined(name);
         if resolved.elem.is_some() {
             return Err(self.variable_access_error_input(
                 "array set",
@@ -17664,12 +17741,12 @@ impl Vm {
             ));
         }
         if self.dictionary_variable_containers() {
-            if let Some(value) = self.read_variable_contents(&resolved) {
+            if let Some(value) = self.read_variable_contents(resolved) {
                 self.native_variable_dict_pairs(&value).map_err(|error| {
                     crate::command::completion_from_cmd_error(self, error.into())
                 })?;
             } else {
-                self.store_dictionary_root(&resolved, Value::dict(Vec::new()))?;
+                self.store_dictionary_root(resolved, Value::dict(Vec::new()))?;
             }
             return Ok(());
         }
@@ -19322,10 +19399,37 @@ impl Vm {
                 "TCL TAILCALL ILLEGAL",
             ));
         }
-        self.frames
+        let previous = self
+            .frames
             .last_mut()
             .expect("procedure frame present")
-            .tailcall = (!request.words.is_empty()).then_some(request);
+            .tailcall
+            .take();
+        drop(previous);
+        if !request.words.is_empty() {
+            self.frames
+                .last_mut()
+                .expect("procedure frame present")
+                .tailcall = Some(request);
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn cancel_original_tailcall(&mut self) -> Result<(), Completion<Value>> {
+        if !self.frame_owns_local_variables(self.current_level()) {
+            return Err(crate::command::err_with_code(
+                "tailcall can only be called from a proc, lambda or method",
+                "TCL TAILCALL ILLEGAL",
+            ));
+        }
+        let previous = self
+            .frames
+            .last_mut()
+            .expect("procedure frame present")
+            .tailcall
+            .take();
+        drop(previous);
         Ok(())
     }
 
@@ -21241,8 +21345,34 @@ impl Vm {
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Absent
             },
             namespace_variable_tables: self.native_namespace_variable_tables(interpreter),
+            compiler_pass_environment: self.capture_native_compiler_pass_environment(None),
+            empty_literal_world: self
+                .native_literal_world
+                .borrow()
+                .capture_empty_world(interpreter, self.compilation_epochs.trace_deopt_epoch.get()),
             frame,
         }
+    }
+
+    fn capture_native_compiler_pass_environment(
+        &self,
+        procedure: Option<tcl_runtime_api::native_compiler_pass::NativeCompilerPassProcedure>,
+    ) -> Option<tcl_runtime_api::native_compiler_pass::NativeCompilerPassEnvironment> {
+        if self.actual_native_invocation_dialect().native_family
+            != Some(tcl_dialect::model::Family::Tcl)
+            || self
+                .actual_native_invocation_dialect()
+                .execution_point()
+                .is_none()
+        {
+            return None;
+        }
+        Some(self.native_compiler_pass_owner.capture(
+            self.interps.get(self.cur.0)?.is_root(),
+            self.limits.cmd_value.is_some(),
+            self.limits.time_value.is_some(),
+            procedure,
+        ))
     }
 
     fn native_namespace_variable_tables(

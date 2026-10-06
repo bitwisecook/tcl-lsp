@@ -1,0 +1,95 @@
+[
+  {
+    "version": "8.6.18",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+      "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-8.6.18"
+    ],
+    "compile_status": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "source_sha256": "e1d4472a49de8e9e29bbe507c2f49dd48ddf7815daf962a1e1cd7d30f18565d8",
+    "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "header_sha256": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "argv": [
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-8.6.18"
+    ],
+    "status": 0,
+    "stdout_hex": "30093209320935093509310a",
+    "stderr_hex": "",
+    "binary_sha256": "e92811c3f0c9588cf7c5ee7c2195eb866f12f1ac83b678fb6fc545bba668a1b9"
+  },
+  {
+    "version": "9.0.4",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+      "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-9.0.4"
+    ],
+    "compile_status": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "source_sha256": "e1d4472a49de8e9e29bbe507c2f49dd48ddf7815daf962a1e1cd7d30f18565d8",
+    "archive_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+    "header_sha256": "f000e14fdc4e00da1c5ab98a8087c41be3cbf26564a274152236e0531bb55053",
+    "argv": [
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-9.0.4"
+    ],
+    "status": 0,
+    "stdout_hex": "30093209320935093509310a",
+    "stderr_hex": "",
+    "binary_sha256": "e7fe53e1c5509697305a2715429a4f966b87679f5fdf9bb4c48447149b259646"
+  },
+  {
+    "version": "9.1.0",
+    "compile_argv": [
+      "cc",
+      "-std=c99",
+      "-Wl,--wrap=TclCompileArraySetCmd",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+      "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+      "/workspace/tcl-lsp/rust/tcl-registry/tests/data/native_compiler_pass/warm_limit/probe.c",
+      "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+      "-lm",
+      "-ldl",
+      "-lpthread",
+      "-lz",
+      "-o",
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-9.1.0"
+    ],
+    "compile_status": 0,
+    "compile_stdout_hex": "",
+    "compile_stderr_hex": "",
+    "source_sha256": "e1d4472a49de8e9e29bbe507c2f49dd48ddf7815daf962a1e1cd7d30f18565d8",
+    "archive_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+    "header_sha256": "fea9d99020df9aec6efebf6e3f18592ee267a9bf80d3843df0d6439efebe65cc",
+    "argv": [
+      "/tmp/2286-native-warm-limit-mpvpsatw/probe-9.1.0"
+    ],
+    "status": 0,
+    "stdout_hex": "30093209320935093509310a",
+    "stderr_hex": "",
+    "binary_sha256": "330ae8cbf78cc78cef89d0b98b6bb1c243157a09816a65b4ea97cfb19e83a86d"
+  }
+]

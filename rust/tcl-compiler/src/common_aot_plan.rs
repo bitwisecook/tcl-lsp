@@ -1433,7 +1433,7 @@ fn select_direct_evidence(
         .args
         .iter()
         .enumerate()
-        .map(|(index, _)| actual_fact(input.function, input.site, index))
+        .map(|(index, _)| actual_fact(input.function, input.site, index, input.registry))
         .collect();
     let actual_types = actual_facts.iter().map(|fact| fact.0.clone()).collect();
     let actual_values = actual_facts.into_iter().map(|fact| fact.1).collect();
@@ -1594,18 +1594,34 @@ fn actual_fact(
     function: &FunctionUnit,
     site: &CallCandidate<'_>,
     argument: usize,
+    registry: &tcl_registry::CommandRegistry,
 ) -> (TypeLattice, DirectActualValue) {
     let read = site
         .tokens
         .as_deref()
         .and_then(|tokens| tokens.words().get(argument.checked_add(1)?))
         .and_then(|word| {
-            crate::ssa::SsaSourceView::at_statement(
+            let view = crate::ssa::SsaSourceView::at_statement(
                 &function.ssa,
                 site.block,
                 site.statement_index as usize,
-            )
-            .read_word(word)
+            );
+            if site.id.nested_argument.is_some() {
+                let invocation = site
+                    .tokens
+                    .as_deref()?
+                    .source_binding
+                    .as_ref()?
+                    .invocation_site()?;
+                let (symbol, version) =
+                    view.captured_argument_value_definition(word, invocation, registry)?;
+                Some(crate::ssa::SsaReadReference {
+                    symbol,
+                    version: Some(version),
+                })
+            } else {
+                view.read_word(word)
+            }
         });
     if let Some(crate::ssa::SsaReadReference {
         symbol,
@@ -1665,8 +1681,25 @@ pub(crate) fn direct_call_argument_read(
     let function = unit.function(&id.function)?;
     let tokens = direct_call_tokens(unit, id)?;
     let word = tokens.words().get(argument.checked_add(1)?)?;
-    crate::ssa::SsaSourceView::at_statement(&function.ssa, id.block, id.statement_index as usize)
-        .read_word(word)
+    let view = crate::ssa::SsaSourceView::at_statement(
+        &function.ssa,
+        id.block,
+        id.statement_index as usize,
+    );
+    if id.nested_argument.is_some() {
+        let invocation = tokens.source_binding.as_ref()?.invocation_site()?;
+        let (symbol, version) = view.captured_argument_value_definition(
+            word,
+            invocation,
+            unit.ir_module.resolved_registry(),
+        )?;
+        Some(crate::ssa::SsaReadReference {
+            symbol,
+            version: Some(version),
+        })
+    } else {
+        view.read_word(word)
+    }
 }
 
 /// Exact captured contents of a selected, unexpanded direct-call operand.

@@ -1995,6 +1995,23 @@ pub(crate) fn parse_params_value(
 /// `proc name params body` — retain a procedure declaration. Its original
 /// body is prepared by the activation owner when the procedure is called.
 fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    define_procedure(vm, args, None)
+}
+
+/// Authored callable publication retains a private command owner and ROOT body scope.
+pub(crate) fn cmd_authored_rule_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let original = vm.active_native_profile;
+    vm.active_native_profile = Some(vm.actual_native_execution_profile());
+    let completion = define_procedure(vm, args, Some(tcl_core_types::ROOT_NS));
+    vm.active_native_profile = original;
+    completion
+}
+
+fn define_procedure(
+    vm: &mut Vm,
+    args: &[Value],
+    execution_namespace: Option<NsId>,
+) -> Completion<Value> {
     use tcl_registry::native_procedure::{
         NativeProcedureDefinitionSelection, ProcedureDefinitionResult,
     };
@@ -2042,6 +2059,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(publication) => publication,
         Err(error) => return vm.refuse_host_command(error.to_string()),
     };
+    let ns_id = execution_namespace.unwrap_or(ns_id);
     let namespace = vm.namespace_path_for_token(ns_id);
     let native_header = match procedure_header_compilation(vm, params, &body) {
         Ok(header) => header,
@@ -2436,9 +2454,32 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// Queue the same replacement activation used by the native tailcall opcode.
 fn cmd_tailcall(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let Some(protocol) = vm.actual_native_invocation_dialect().tailcall_protocol() else {
+        return vm.refuse_host_command("native tailcall control issuer".into());
+    };
+    if args.is_empty() && !protocol.schedules_empty() {
+        return ok(Value::empty());
+    }
+    if protocol == tcl_registry::invocation_words::NativeTailcallProtocol::Tcl {
+        if let Err(completion) = vm.cancel_original_tailcall() {
+            return completion;
+        }
+        if args.is_empty() {
+            return Completion::new(Code::Return, Value::empty(), Value::empty());
+        }
+        let request = match vm.original_tailcall_request(args) {
+            Ok(request) => request,
+            Err(completion) => return completion,
+        };
+        if let Err(completion) = vm.schedule_tailcall(request) {
+            return completion;
+        }
+        return Completion::new(Code::Return, Value::empty(), Value::empty());
+    }
     let request = crate::exec::TailcallReq {
         namespace: tcl_cmd_core::namespace::current(vm),
         words: args.to_vec(),
+        original_list: None,
     };
     if let Err(completion) = vm.schedule_tailcall(request) {
         return completion;

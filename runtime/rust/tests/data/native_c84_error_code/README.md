@@ -1,0 +1,5 @@
+# Tcl 8.4 error-code publication
+
+The private C probe constructs each actual core interpreter and records global errorInfo/errorCode write/read callbacks plus result bytes. Header fields are captured before their observer getters. Tcl 8.4 records ERROR_CODE_SET independently of projected completion bytes: absent codes publish fresh NONE after the initial SAME-result errorInfo setter; explicitly supplied code objects are published first and suppress the default store. Successful Tcl 8.4 variable trace chains preserve the original three error flags without restoring global variable values or object headers.
+
+The controls compare original C8.4 callback order/name/value bytes and exact result. Raw five-release header/refcount outputs are retained separately; these tests do not claim all five modern callback ownership windows. The first probe attempt used removed legacy trace syntax on C9; its source and manifest remain explicit failed evidence. The final probe uses each actual release's supported trace syntax. All executions use the original 60-second budget and shared two-slot limit.

@@ -815,15 +815,6 @@ fn simple_title(c: char) -> char {
     }
 }
 
-/// Tcl's default trim set (`tclDefaultTrimSet`): ASCII whitespace plus the full
-/// Unicode whitespace/zero-width set, including NUL.
-const DEFAULT_TRIM: &[char] = &[
-    '\u{09}', '\u{0A}', '\u{0B}', '\u{0C}', '\u{0D}', ' ', '\u{0000}', '\u{0085}', '\u{00A0}',
-    '\u{1680}', '\u{180E}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}',
-    '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200A}', '\u{200B}', '\u{2028}', '\u{2029}',
-    '\u{202F}', '\u{205F}', '\u{2060}', '\u{3000}', '\u{FEFF}',
-];
-
 /// `string trim|trimleft|trimright string ?chars?` — strip leading/trailing
 /// characters that appear in `chars` (Tcl's default whitespace set otherwise).
 /// Matching is character-based so multi-byte trim characters work.
@@ -840,30 +831,10 @@ fn str_trim(interp: &mut Interp, argv: &[*mut TclObj], left: bool, right: bool) 
             usage.splitn(3, |byte| *byte == b' ').nth(2).unwrap_or(b""),
         );
     }
-    let s = obj_bytes(argv[2]);
-    let chars: Vec<char> = String::from_utf8_lossy(&s).chars().collect();
-    let set: Vec<char> = if argv.len() == 4 {
-        String::from_utf8_lossy(&obj_bytes(argv[3]))
-            .chars()
-            .collect()
-    } else {
-        DEFAULT_TRIM.to_vec()
-    };
-    let mut lo = 0;
-    let mut hi = chars.len();
-    if left {
-        while lo < hi && set.contains(&chars[lo]) {
-            lo += 1;
-        }
+    match tcl_cmd_core::string::trim(interp,&argv[2],argv.get(3),left,right) {
+        Ok(result)=>{interp.set_result(result);Code::Ok},
+        Err(error)=>interp.report_cmd_error(error),
     }
-    if right {
-        while hi > lo && set.contains(&chars[hi - 1]) {
-            hi -= 1;
-        }
-    }
-    let out: String = chars[lo..hi].iter().collect();
-    interp.set_result_bytes(out.as_bytes());
-    Code::Ok
 }
 
 fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Code {

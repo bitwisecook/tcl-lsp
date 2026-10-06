@@ -1047,10 +1047,14 @@ fn finalize_function(
     if let Some(failure) = cfg.native_compilation_failure.as_deref() {
         super::super::native_failure::retain_dependencies(ctx, failure);
     }
+    super::super::native_compiler_pass::capture_first_pass(ctx);
+    if ctx.compact_compiler_pass {
+        super::super::native_compiler_pass::omit_command_markers(ctx);
+    }
     // Peephole passes.
+    ctx.strip_empty_start_cmd();
     ctx.remove_trailing_pop();
     ctx.fold_tail_return_to_done();
-    ctx.strip_empty_start_cmd();
     ctx.strip_unused_start_cmd();
     ctx.fixup_top_level_start_cmd();
     ctx.fold_const_push_pop_nops();

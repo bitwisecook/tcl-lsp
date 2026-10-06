@@ -858,3 +858,258 @@ fn compiler_and_resolver_epochs_match_all_87_original_native_mutation_rows() {
     }
     assert_eq!(completed, 87);
 }
+
+#[test]
+fn empty_literal_world_entry_is_original_capture_and_registration_scoped() {
+    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let vm = native_vm(engine);
+        let first = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let receipt = first.empty_literal_world.as_ref().expect(engine);
+        assert!(receipt.is_current_for(first.interpreter, first.epoch));
+        assert!(!receipt.is_current_for(first.interpreter, first.epoch + 1));
+        let second = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        assert!(!receipt.is_current());
+        let current = second.empty_literal_world.as_ref().unwrap();
+        assert!(current.is_current_for(second.interpreter, second.epoch));
+        assert!(!first.same_compilation_world(&second));
+
+        let mut table = tcl_bytecode::LiteralTable::new();
+        let index = table.intern_bytes(b"original ordinary registration");
+        let pool = crate::literal_pool::NativeLiteralPool::create(
+            &vm.native_literal_world,
+            &table,
+            vm.actual_native_invocation_dialect()
+                .native_string_protocol(),
+            ROOT_NS,
+            &tcl_runtime_api::ByteNamespacePath::root(),
+        )
+        .unwrap();
+        assert!(!current.is_current());
+        let references = pool
+            .with_original(index, Value::native_object_reference_count)
+            .unwrap();
+        let populated = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        assert!(populated.empty_literal_world.is_none());
+        assert_eq!(
+            pool.with_original(index, Value::native_object_reference_count),
+            Some(references)
+        );
+        drop(pool);
+        let fresh = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+        let final_receipt = fresh.empty_literal_world.unwrap();
+        assert!(final_receipt.is_current());
+        drop(vm);
+        assert!(!final_receipt.is_current());
+    }
+}
+
+#[test]
+fn compiler_pass_capture_uses_actual_parent_limits_and_state_lifetime() {
+    let mut vm = native_vm("tcl8.6");
+    let entry = vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false);
+    let environment = entry.compiler_pass_environment.as_ref().unwrap();
+    assert!(environment.is_current_for(entry.interpreter));
+    assert!(environment.is_root());
+    assert!(!environment.has_enabled_limits());
+    vm.set_command_limit_value(Some(10_000));
+    assert!(
+        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+            .compiler_pass_environment
+            .unwrap()
+            .has_enabled_limits()
+    );
+    vm.set_command_limit_value(None);
+    vm.set_time_limit_deadline(Some(i128::from(i64::MAX)));
+    assert!(
+        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+            .compiler_pass_environment
+            .unwrap()
+            .has_enabled_limits()
+    );
+    vm.set_time_limit_deadline(None);
+    let name = vm.create_child(Some("child".into()), false);
+    let id = vm.children[&name];
+    let child_entry = vm.in_interp(id, |vm| {
+        vm.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+    });
+    assert!(!child_entry.compiler_pass_environment.unwrap().is_root());
+    drop(vm);
+    assert!(!environment.is_current_for(entry.interpreter));
+    let jim = native_vm("jimtcl");
+    assert!(
+        jim.native_compilation_entry_for_namespace_token(Some(ROOT_NS), false)
+            .compiler_pass_environment
+            .is_none()
+    );
+}
+
+#[test]
+fn discarded_compiler_array_executes_cache_actions_then_releases_registrations() {
+    use tcl_syntax::scalar_getter::NativeScalarCache;
+    let mut vm = native_vm("tcl8.6");
+    let mut resident = tcl_bytecode::FunctionAsm::default();
+    resident.literals.intern("7");
+    let owner = vm
+        .create_native_literal_pool(&resident, &NamespacePath::root())
+        .unwrap();
+    let original = owner.value(0).unwrap();
+    assert_eq!(original.native_scalar_cache(), None);
+    let baseline = original.native_object_reference_count();
+    let mut first = tcl_bytecode::LiteralTable::default();
+    first.intern_expression_number(
+        b"7",
+        tcl_dialect::TclVersion::V8_6,
+        tcl_bytecode::NativeExpressionNumberLiteral::Integer(7),
+    );
+    first.intern("discarded-only");
+    let mut final_pass = tcl_bytecode::FunctionAsm::default();
+    final_pass.literals.intern("7");
+    final_pass.literals.retain_discarded_native_pass(first);
+    let final_pool = vm
+        .create_native_literal_pool(&final_pass, &NamespacePath::root())
+        .unwrap();
+    assert_eq!(
+        original.native_scalar_cache(),
+        Some(NativeScalarCache::Number(tcl_syntax::number::Number::Int(
+            7
+        )))
+    );
+    assert!(
+        final_pool
+            .with_original(0, |value| value.is_same_object(&original))
+            .unwrap()
+    );
+    assert_eq!(original.native_object_reference_count(), baseline + 1);
+    drop(final_pool);
+    assert_eq!(original.native_object_reference_count(), baseline);
+    drop(original);
+    drop(owner);
+    let interpreter = vm.native_interpreter_identity();
+    assert!(
+        vm.native_literal_world
+            .borrow()
+            .capture_empty_world(interpreter, vm.trace_deopt_epoch())
+            .is_some()
+    );
+}
+
+fn syntax_first_pass() -> tcl_bytecode::LiteralTable {
+    use tcl_runtime_api::native_return_literal::{
+        NativeKnownWordLiteral, NativeReturnOptionsLiteral,
+    };
+    let mut literals = tcl_bytecode::LiteralTable::new();
+    let message = literals.register_unshared(b"missing close-brace");
+    let options = literals.register_private_return_options(NativeReturnOptionsLiteral {
+        protocol: tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1),
+        words: [b"-errorcode".as_slice(), b"NONE"]
+            .into_iter()
+            .map(|word| NativeKnownWordLiteral {
+                pieces: vec![word.to_vec()],
+                composite: false,
+            })
+            .collect(),
+        code: 0,
+        level: 1,
+        size: 1,
+    });
+    literals.retain_syntax_error_info(options, message);
+    literals
+}
+
+#[test]
+fn first_array_callback_revalidates_replay_before_final_array_publication() {
+    fn enable_limit(vm: &mut Vm, _arguments: &[Value]) -> Completion<Value> {
+        vm.set_command_limit_value(Some(1_000_000));
+        crate::interp::ok(Value::string(""))
+    }
+    for changes_limit in [false, true] {
+        let mut vm = native_vm("tcl9.1");
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(vm.source_profile()),
+        ));
+        if changes_limit {
+            vm.register("enableReplayLimit", enable_limit);
+            assert_eq!(
+                invoke(
+                    &mut vm,
+                    "trace",
+                    &[
+                        "add",
+                        "variable",
+                        "::errorInfo",
+                        "write",
+                        "enableReplayLimit"
+                    ],
+                ),
+                Code::Ok
+            );
+        }
+        let mut resident = tcl_bytecode::FunctionAsm::default();
+        resident.literals.intern("final-array-only");
+        let resident_pool = vm
+            .create_native_literal_pool(&resident, &NamespacePath::root())
+            .unwrap();
+        let original = resident_pool.value(0).unwrap();
+        let baseline = original.native_object_reference_count();
+        let environment = vm.capture_native_compiler_pass_environment(None).unwrap();
+        let mut asm = tcl_bytecode::FunctionAsm::default();
+        asm.literals.intern("final-array-only");
+        asm.literals
+            .retain_discarded_native_pass(syntax_first_pass());
+        asm.literals.retain_compiler_replay_environment(environment);
+        let result = vm.create_native_literal_pool(&asm, &NamespacePath::root());
+        if changes_limit {
+            let error = result
+                .err()
+                .expect("changed reached environment refuses replay");
+            assert_eq!(
+                error.to_string(),
+                "native compiler replay environment changed during first-pass publication"
+            );
+            assert!(vm.limits.cmd_value.is_some());
+            assert_eq!(original.native_object_reference_count(), baseline);
+        } else {
+            let pool = result.unwrap();
+            assert_eq!(original.native_object_reference_count(), baseline + 1);
+            assert_eq!(
+                pool.value(0)
+                    .unwrap()
+                    .resident_string_bytes()
+                    .unwrap()
+                    .as_ref(),
+                b"final-array-only"
+            );
+        }
+    }
+}
+
+#[test]
+fn planned_replay_requires_same_live_environment_owner() {
+    let mut vm = native_vm("tcl9.1");
+    let foreign = native_vm("tcl9.1");
+    let environment = foreign
+        .capture_native_compiler_pass_environment(None)
+        .unwrap();
+    let mut asm = tcl_bytecode::FunctionAsm::default();
+    asm.literals.intern("final-array-only");
+    asm.literals
+        .retain_discarded_native_pass(tcl_bytecode::LiteralTable::default());
+    asm.literals.retain_compiler_replay_environment(environment);
+    assert!(
+        vm.create_native_literal_pool(&asm, &NamespacePath::root())
+            .is_err()
+    );
+    drop(foreign);
+    assert!(
+        vm.create_native_literal_pool(&asm, &NamespacePath::root())
+            .is_err()
+    );
+    vm.set_command_limit_value(Some(100));
+    asm.literals.retain_compiler_replay_environment(
+        vm.capture_native_compiler_pass_environment(None).unwrap(),
+    );
+    assert!(
+        vm.create_native_literal_pool(&asm, &NamespacePath::root())
+            .is_err()
+    );
+}

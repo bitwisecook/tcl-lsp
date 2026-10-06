@@ -67,8 +67,8 @@ pub enum BigIpExecutionContext {
     /// The appliance's own `/usr/bin/tclsh`. Provenance only — it is
     /// **not** a BIG-IP execution context, and the run proved why:
     /// `tclsh8.4` on the same box is **8.4.13**, not the 8.4.6 embedded in
-    /// all three F5 contexts (§4a). Reading a version off the host would
-    /// have been wrong for every F5 row.
+    /// the measured embedded F5 contexts. Host versions cannot identify
+    /// an embedded interpreter.
     HostShellTcl,
 }
 
@@ -146,8 +146,8 @@ impl BigIpExecutionContext {
     ///
     /// [`Self::IAppPresentationApl`] is the one that is not: APL is a
     /// presentation DSL with `define`/`section`/`choice`/`optional`
-    /// clauses that merely *embeds* Tcl. A consumer that routes an APL
-    /// range into the Tcl registry has made the F1 mistake.
+    /// clauses that embeds Tcl. APL ranges cannot be routed into the Tcl
+    /// command registry.
     #[must_use]
     pub const fn is_tcl(self) -> bool {
         !matches!(self, Self::IAppPresentationApl)
@@ -171,13 +171,12 @@ impl BigIpExecutionContext {
         }
     }
 
-    /// The build profile of the context's interpreter (review B1).
+    /// The independently measured build profile of the context's interpreter.
     ///
     /// [`BuildProfileId::F5Scriptd32`] for `IAppImplementation` — measured
     /// `tcl_platform(wordSize) == 4` against TMM's 8 (§4) — and
-    /// [`BuildProfileId::Unknown`] for every unmeasured context, so
-    /// capability queries answer `Unknown` rather than a canonical
-    /// default.
+    /// [`BuildProfileId::Unknown`] where interpreter width is unmeasured,
+    /// including tmsh and iCall. Capability queries preserve that uncertainty.
     #[must_use]
     pub const fn build_profile(self) -> BuildProfileId {
         match self {
@@ -227,8 +226,7 @@ impl BigIpExecutionContext {
     /// Whether a fact measured in `self` may be read as a fact about
     /// `other`.
     ///
-    /// Always `false` for distinct contexts. This is the F1/F4 rule stated
-    /// as code: *"A command-availability fact measured in one context must
+    /// Always `false` for distinct contexts: *"A command-availability fact measured in one context must
     /// never be promoted to another"* (§4a) — `exec` works in a `cli
     /// script` and an iApp implementation and is absent in TMM, which is
     /// the concrete case behind it.

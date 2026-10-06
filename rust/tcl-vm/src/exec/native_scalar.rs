@@ -138,6 +138,34 @@ mod tests {
                     "{engine}/{case}"
                 );
                 let result = &completion.result;
+                if result.native_object_type_name() != fields[2] {
+                    let Some(crate::command::Command::Proc(command)) = vm.lookup_command("p")
+                    else {
+                        panic!("retained original scalar procedure");
+                    };
+                    let declaration = command.declaration();
+                    let cache = declaration.body_src.native_bytecode_cache();
+                    panic!(
+                        "{engine}/{case}: actual result {:?}; retained instruction metadata {:?}",
+                        (
+                            result.native_object_type_name(),
+                            result.resident_string_bytes(),
+                            result.native_scalar_cache()
+                        ),
+                        cache.as_ref().map(|cache| cache
+                            .unit
+                            .asm
+                            .instructions
+                            .iter()
+                            .take(40)
+                            .map(|instruction| (
+                                instruction.op,
+                                &instruction.operands,
+                                instruction.native_switch_version
+                            ))
+                            .collect::<Vec<_>>())
+                    );
+                }
                 assert_eq!(
                     result.native_object_type_name(),
                     fields[2],

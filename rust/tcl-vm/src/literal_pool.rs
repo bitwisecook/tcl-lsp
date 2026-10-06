@@ -54,6 +54,14 @@ pub(crate) struct NativeLiteralWorld {
     pools: Vec<Weak<NativeLiteralPool>>,
 }
 impl NativeLiteralWorld {
+    pub(crate) fn capture_empty_world(
+        &self,
+        interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+        epoch: u64,
+    ) -> Option<tcl_runtime_api::native_literal::NativeEmptyLiteralWorld> {
+        self.shared.borrow().capture_empty_world(interpreter, epoch)
+    }
+
     pub(crate) fn invalidate_command_literal(
         &self,
         protocol: NativeStringProtocol,
@@ -1086,6 +1094,7 @@ impl NativeDirectSourceOperands {
                         | NativeLiteralAllocation::PrivateInteger(_)
                 )
             })
+            || !asm.literals.discarded_native_passes().is_empty()
             || asm
                 .literals
                 .native_actions()

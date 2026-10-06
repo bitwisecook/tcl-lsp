@@ -59,10 +59,7 @@ pub fn spec() -> CommandSpec {
         name: "yield",
         // Native compileProc registration: pinned C Tcl 8.4.20–9.1.0 tclBasic.c.
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
-            grammar: crate::native_compilation::NativeCompilationGrammar::ArityFrom {
-                first: tcl_dialect::TclVersion::V8_6,
-                arity: Arity::new(0, 1),
-            },
+            grammar: crate::native_compilation::NativeCompilationGrammar::CoroutineYield,
             operation: crate::SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,
         }),

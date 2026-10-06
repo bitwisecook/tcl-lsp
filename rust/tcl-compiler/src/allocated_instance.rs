@@ -112,6 +112,7 @@ impl ResolveContext {
     /// Withdraw storage evidence for the exact object whose destruction was
     /// reached. Names and class labels cannot retire another allocation.
     pub fn retire_allocated_instance_variables(&mut self, allocation: &SourceObjectAllocation) {
+        self.closed_observer_allocations.remove(allocation);
         let places = self
             .contents_presence_slots
             .values()
@@ -194,7 +195,7 @@ impl ResolveContext {
                 {
                     return AllocatedInstanceLinkOutcome::Error;
                 }
-                if self.dynamic_traces
+                if self.unenumerated_observers_may_run(&slot)
                     || self
                         .untracked_traces
                         .contains(&crate::var_resolve::cell_key(&slot))
@@ -272,6 +273,41 @@ mod tests {
             incarnation: AllocationIncarnation::First,
         };
         (state, allocation)
+    }
+
+    #[test]
+    fn fresh_receiver_observers_require_the_exact_live_allocation() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let (incoming, allocation) = fixture();
+        let frame = VariableExecutionFrame::ReceiverMethod {
+            identity: "constructor-call".to_owned(),
+        };
+        let mut incoming = incoming;
+        incoming.dynamic_traces = true;
+        let mut state = incoming.enter_called_frame(&frame);
+        state.closed_observer_allocations.insert(allocation.clone());
+        assert_eq!(
+            state.link_allocated_instance_variables(&allocation, &[Some("x".to_owned())], registry),
+            AllocatedInstanceLinkOutcome::Linked
+        );
+        let x = resolve_literal_place("x", &state, false, registry);
+        assert!(!x.observed);
+        state.define_literal("x", "42", registry);
+        assert_eq!(state.contents_presence(&x), ContentsPresence::Defined);
+        let mut foreign = state.clone();
+        foreign.closed_observer_allocations.clear();
+        assert!(resolve_literal_place("x", &foreign, false, registry).observed);
+        let mut traced = state.clone();
+        traced.traced.insert(crate::var_resolve::cell_key(&x));
+        assert!(resolve_literal_place("x", &traced, false, registry).observed);
+        state.mark_unenumerated_variable_observers();
+        assert!(resolve_literal_place("x", &state, false, registry).observed);
+        let mut retired = incoming.enter_called_frame(&frame);
+        retired
+            .closed_observer_allocations
+            .insert(allocation.clone());
+        retired.retire_allocated_instance_variables(&allocation);
+        assert!(!retired.closed_observer_allocations.contains(&allocation));
     }
 
     #[test]

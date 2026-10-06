@@ -1,0 +1,122 @@
+{
+  "source_sha256": "41ad70151861b4690b055cf4826c92de18b8c02b1625864422ffc3330b6cd8cf",
+  "original_budget": 60,
+  "global_slots": 2,
+  "rows": [
+    {
+      "version": "8.4.20",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe-8.4.20"
+      ],
+      "compile_status": 0,
+      "status": 0,
+      "library_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "binary_sha256": "0d482f7cb436ccb4ad286720c75a27750878f9fd049dca6111e28672f0d185ab",
+      "stdout_sha256": "b06cb99183069a170f9592fe876c83ead333a8013df54dfc6f40bfdce2b71b7f"
+    },
+    {
+      "version": "8.5.19",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe-8.5.19"
+      ],
+      "compile_status": 0,
+      "status": 0,
+      "library_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "binary_sha256": "e467ab207a66d4c87d43bd23e540aaac74540026591512c2a63720bb58b49d9a",
+      "stdout_sha256": "baac8dda0263ae4a9359c4d15d9e9c6b7eae821d70eb6fccb2848051b0a275b5"
+    },
+    {
+      "version": "8.6.18",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe-8.6.18"
+      ],
+      "compile_status": 0,
+      "status": 0,
+      "library_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "binary_sha256": "2a646b585e1b8c080daa7a54a285e0184e30a6d88594d0644d681ef4d4b73eef",
+      "stdout_sha256": "cc8e3677ba54f3dc25337497a91544ddac021c408e96bbb1505f392748b0eeee"
+    },
+    {
+      "version": "9.0.4",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe-9.0.4"
+      ],
+      "compile_status": 0,
+      "status": 0,
+      "library_sha256": "2ba08ecf7197e16d99e303c0d95dde29c59f391a22fd02378edc2697567e0e04",
+      "binary_sha256": "257d873f36e7b83963178970ec78f14868345b6eb25b415c903b6a0354d2375e",
+      "stdout_sha256": "cc8e3677ba54f3dc25337497a91544ddac021c408e96bbb1505f392748b0eeee"
+    },
+    {
+      "version": "9.1.0",
+      "compile_argv": [
+        "cc",
+        "-DSTDC_HEADERS=1",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/.proofs/2286-byte-list-assignment-order-native/probe-9.1.0"
+      ],
+      "compile_status": 0,
+      "status": 0,
+      "library_sha256": "8b2dba836908287f95f26a442bb065601daac300fdeee48b15e64a5c03894e33",
+      "binary_sha256": "be68184d8877f02267980bc6c44c477b2095854c3dcf68bf84917171d361cbfa",
+      "stdout_sha256": "4c415b1486b7e72f07cd29d6b76d7f29874c1562a0585887a867c0e466c485a0"
+    }
+  ]
+}

@@ -32,3 +32,42 @@ impl CodegenCtx<'_> {
         true
     }
 }
+
+impl CodegenCtx<'_> {
+    pub(super) fn append_native_string_trim_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_string_trim_compilation::NativeStringTrimInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        let Some(subject) = Self::native_namespace_word_task(&command.words, recipe.subject) else {
+            return false;
+        };
+        let characters = if let Some(original) = recipe.characters {
+            let Some(characters) = Self::native_namespace_word_task(&command.words, original)
+            else {
+                return false;
+            };
+            characters
+        } else {
+            NativeEmissionTask::Literal(
+                tcl_registry::native_string_trim_compilation::default_trim_set(version).to_vec(),
+            )
+        };
+        operations.push(subject);
+        operations.push(characters);
+        let op = match recipe.operation {
+            tcl_registry::native_string_trim_compilation::NativeStringTrimOperation::Both => {
+                Op::STR_TRIM
+            }
+            tcl_registry::native_string_trim_compilation::NativeStringTrimOperation::Left => {
+                Op::STR_TRIM_LEFT
+            }
+            tcl_registry::native_string_trim_compilation::NativeStringTrimOperation::Right => {
+                Op::STR_TRIM_RIGHT
+            }
+        };
+        operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
+        true
+    }
+}

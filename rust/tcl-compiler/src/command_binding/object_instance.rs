@@ -677,12 +677,16 @@ impl ModuleCommandBindings {
             2 => AllocationIncarnation::Second,
             _ => return None,
         };
+        let allocation = SourceObjectAllocation {
+            site,
+            frame: context.frame.clone(),
+            incarnation,
+        };
+        Arc::make_mut(&mut self.source_variables)
+            .closed_observer_allocations
+            .insert(allocation.clone());
         Some(Arc::new(SourceObjectInstanceProof {
-            allocation: SourceObjectAllocation {
-                site,
-                frame: context.frame.clone(),
-                incarnation,
-            },
+            allocation,
             class: class.clone(),
             dispatch_generation: generation,
             receiver_dispatcher_generation: objects.receiver_dispatcher_generation,

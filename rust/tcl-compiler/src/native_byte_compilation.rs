@@ -8,6 +8,7 @@ use tcl_registry::native_compilation::{
     NativeCompilationSelection, NativeCompilationSpec, NativeCompilationWordShape,
 };
 use tcl_registry::native_compiler_words::{NativeCompilerWords, NativeCompilerWordsUnavailable};
+use tcl_registry::native_instruction_plan::NativeInstructionPlan;
 use tcl_registry::{CommandRegistry, InvocationDialect};
 use tcl_runtime_api::NativeCompilationEntry;
 use tcl_runtime_api::native_compilation::{NativeCompilationBinding, NativeCompilerHookPresence};
@@ -49,9 +50,38 @@ pub(crate) struct NativeByteRegisteredCommand {
     pub binding: NativeCompilationBinding,
     /// Additional original compiler dependencies, separate from late dispatch.
     pub dependencies: Vec<NativeCompilationBinding>,
+    recipe: OriginalRegisteredRecipe,
     /// Original configured public compiler and selected worker, when delegated.
     pub prerequisite:
         Option<tcl_runtime_api::native_compilation::NativeCommandCompilerPrerequisite>,
+}
+
+/// The factory-selected recipe and its exact original operand/selection basis.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OriginalRegisteredRecipe {
+    words: Vec<NativeWord>,
+    spec: NativeCompilationSpec,
+    selection: NativeCompilationSelection,
+    context: NativeCompilationContext,
+    operand_from: usize,
+    instruction: NativeInstructionPlan,
+}
+
+impl NativeByteRegisteredCommand {
+    /// Consume the original factory recipe without changing its compiler purpose.
+    /// A different source vector or selection basis cannot reuse its preparation.
+    pub(crate) fn original_instruction(
+        &self,
+        words: &[NativeWord],
+    ) -> Option<&NativeInstructionPlan> {
+        let recipe = &self.recipe;
+        (recipe.words == words
+            && recipe.spec == self.spec
+            && recipe.selection == self.selection
+            && recipe.context == self.context
+            && recipe.operand_from == self.operand_from)
+            .then_some(&recipe.instruction)
+    }
 }
 
 /// Unavailable original compilation, distinct from generic or guest rejection.
@@ -228,7 +258,9 @@ fn ensemble_command_plan(
                     })),
                 ),
                 OriginalSelectedWorkerCompilation::Operation {
-                    spec, selection, ..
+                    spec,
+                    selection,
+                    plan,
                 } => Ok(NativeByteCommandPlan::Registered(Box::new(
                     NativeByteRegisteredCommand {
                         spec,
@@ -237,6 +269,14 @@ fn ensemble_command_plan(
                         operand_from: selected.operand_from,
                         binding: selected.worker,
                         dependencies: Vec::new(),
+                        recipe: OriginalRegisteredRecipe {
+                            words: captured.original_words().to_vec(),
+                            spec,
+                            selection,
+                            context,
+                            operand_from: selected.operand_from,
+                            instruction: *plan,
+                        },
                         prerequisite: Some(prerequisite),
                     },
                 ))),
@@ -339,7 +379,8 @@ fn registered_command_plan(
             if spec.namespace_binding_kind().is_none()
                 && !matches!(
                     spec.grammar,
-                    NativeCompilationGrammar::Conditional
+                    NativeCompilationGrammar::Array { .. }
+                        | NativeCompilationGrammar::Conditional
                         | NativeCompilationGrammar::ForLoop
                         | NativeCompilationGrammar::Catch
                         | NativeCompilationGrammar::Try
@@ -350,13 +391,10 @@ fn registered_command_plan(
             Ok(NativeByteCommandPlan::Generic)
         }
         NativeCompilationSelection::Generic | NativeCompilationSelection::Inline { .. } => {
-            if tcl_registry::native_instruction_plan::native_instruction_plan(
+            let instruction = tcl_registry::native_instruction_plan::native_instruction_plan(
                 spec, selection, captured, 1, dialect, context,
             )
-            .is_err()
-            {
-                return Err(NativeByteCommandUnavailable::Recipe);
-            }
+            .map_err(|_| NativeByteCommandUnavailable::Recipe)?;
             Ok(NativeByteCommandPlan::Registered(Box::new(
                 NativeByteRegisteredCommand {
                     spec,
@@ -365,6 +403,14 @@ fn registered_command_plan(
                     operand_from: 1,
                     binding: binding.clone(),
                     dependencies: Vec::new(),
+                    recipe: OriginalRegisteredRecipe {
+                        words: captured.original_words().to_vec(),
+                        spec,
+                        selection,
+                        context,
+                        operand_from: 1,
+                        instruction,
+                    },
                     prerequisite: None,
                 },
             )))
@@ -400,23 +446,9 @@ fn registered_operand_available(
     entry: &NativeCompilationEntry,
     plan: &NativeByteRegisteredCommand,
 ) -> bool {
-    let Ok(dialect) = compiler_dialect(entry) else {
-        return false;
-    };
-    let Some(protocol) = entry.source_string_protocol else {
-        return false;
-    };
-    NativeCompilerWords::capture(words, protocol).is_ok_and(|words| {
-        tcl_registry::native_instruction_plan::native_instruction_plan(
-            plan.spec,
-            plan.selection,
-            &words,
-            plan.operand_from,
-            dialect,
-            plan.context,
-        )
-        .is_ok()
-    })
+    compiler_dialect(entry).is_ok()
+        && entry.source_string_protocol.is_some()
+        && plan.original_instruction(words).is_some()
 }
 
 /// Certify original generic C compilation, without granting registered opcodes.
@@ -657,6 +689,87 @@ mod tests {
                 assert_eq!(plan.unwrap(), NativeByteCommandPlan::Generic);
             } else {
                 assert!(plan.is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn registered_worker_recipe_preserves_purpose_and_rejects_changed_original_basis() {
+        use tcl_registry::native_compilation::NativeCompilationFrame;
+        for version in [
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ] {
+            let profile =
+                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
+            let entry = crate::environment_ingress::captured_native_entry(profile);
+            let registry = CommandRegistry::build_default().project_for_profile(profile);
+            for (source, frame) in [
+                (
+                    b"array set event_handlers {}".as_slice(),
+                    NativeCompilationFrame::ScriptCode,
+                ),
+                (
+                    b"array set event_handlers {name handler}".as_slice(),
+                    NativeCompilationFrame::ProcedureCode,
+                ),
+                (
+                    b"array exists event_handlers".as_slice(),
+                    NativeCompilationFrame::ScriptCode,
+                ),
+            ] {
+                let parsed = native_script_words_in(
+                    SourceImage::native(source),
+                    Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                let words = &parsed.commands[0].words;
+                let context = NativeCompilationContext {
+                    mode: NativeCompilationMode::BytecodeObject,
+                    frame,
+                    ..Default::default()
+                };
+                let NativeByteCommandPlan::Registered(plan) =
+                    native_byte_command_plan(words, &entry, &registry, context).unwrap()
+                else {
+                    panic!("{version:?}: actual Array worker compiler");
+                };
+                assert!(
+                    plan.prerequisite
+                        .as_ref()
+                        .unwrap()
+                        .selected_worker
+                        .is_some()
+                );
+                assert!(matches!(
+                    plan.original_instruction(words),
+                    Some(NativeInstructionPlan::Array(_))
+                ));
+                assert!(registered_operand_available(words, &entry, &plan));
+                let changed_source = source.iter().copied().chain([b' ']).collect::<Vec<_>>();
+                let changed = native_script_words_in(
+                    SourceImage::native(changed_source.as_slice()),
+                    Span::new(0, u32::try_from(changed_source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                )
+                .unwrap();
+                assert!(
+                    plan.original_instruction(&changed.commands[0].words)
+                        .is_none()
+                );
+                assert!(!registered_operand_available(
+                    &changed.commands[0].words,
+                    &entry,
+                    &plan
+                ));
+                let mut changed_basis = (*plan).clone();
+                changed_basis.operand_from += 1;
+                assert!(changed_basis.original_instruction(words).is_none());
+                changed_basis = (*plan).clone();
+                changed_basis.context.frame = NativeCompilationFrame::Unknown;
+                assert!(changed_basis.original_instruction(words).is_none());
             }
         }
     }
@@ -924,6 +1037,8 @@ mod tests {
             inline_compilation_disabled: false,
             authored_tmm_static: None,
             namespace_variable_tables: None,
+            empty_literal_world: None,
+            compiler_pass_environment: None,
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,
@@ -1376,19 +1491,9 @@ mod tests {
                     .as_ref(),
                 Some(&worker)
             );
-            let captured =
-                NativeCompilerWords::capture(words, entry.source_string_protocol.unwrap()).unwrap();
             let tcl_registry::native_instruction_plan::NativeInstructionPlan::DictionaryLookup(
                 recipe,
-            ) = tcl_registry::native_instruction_plan::native_instruction_plan(
-                selected.spec,
-                selected.selection,
-                &captured,
-                2,
-                InvocationDialect::for_version(version),
-                context,
-            )
-            .unwrap()
+            ) = selected.original_instruction(words).unwrap().clone()
             else {
                 panic!("shared dictionary original geometry");
             };
@@ -1627,19 +1732,9 @@ mod tests {
             else {
                 panic!("actual expanded member compiler");
             };
-            let captured =
-                NativeCompilerWords::capture(words, entry.source_string_protocol.unwrap()).unwrap();
             let tcl_registry::native_instruction_plan::NativeInstructionPlan::DictionaryLookup(
                 recipe,
-            ) = tcl_registry::native_instruction_plan::native_instruction_plan(
-                selected.spec,
-                selected.selection,
-                &captured,
-                selected.operand_from,
-                InvocationDialect::for_version(version),
-                context,
-            )
-            .unwrap()
+            ) = selected.original_instruction(words).unwrap().clone()
             else {
                 panic!("dictionary compiler recipe");
             };

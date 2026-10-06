@@ -58,7 +58,9 @@ mod executed_expression_source;
 mod executed_script_source;
 mod frozen_arguments;
 mod future_bodies;
+mod native_list_assignment;
 mod pre_handler_failure;
+mod source_arguments;
 pub use future_bodies::{SourceFutureBodyInventory, SourceFutureCallSite};
 mod operand_layout;
 mod retained_source;
@@ -1447,13 +1449,15 @@ impl OriginalCompilationLookupAdvice {
     }
 }
 
-/// Immutable semantic point. Hashing a retained token carrier must not walk
-/// the complete interpreter world every time an IR cache reads that carrier.
+/// Immutable semantic point. Ordinary lookup retains the original full world
+/// without hashing it. Hashing and equality initialize a derived fingerprint
+/// once; equality still checks the full state and realm after that fingerprint.
+/// A reached state join invalidates the memo on its detached snapshot only.
 #[derive(Debug, Clone)]
 pub(crate) struct SourceLookupSnapshot {
     realm: tcl_dialect::model::InvocationRealm,
     state: ModuleCommandBindings,
-    fingerprint: u64,
+    fingerprint: OnceLock<u64>,
 }
 
 impl SourceLookupSnapshot {
@@ -1462,18 +1466,20 @@ impl SourceLookupSnapshot {
     }
 
     fn in_realm(state: ModuleCommandBindings, realm: tcl_dialect::model::InvocationRealm) -> Self {
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        state.hash(&mut hasher);
-        realm.hash(&mut hasher);
         Self {
             realm,
             state,
-            fingerprint: std::hash::Hasher::finish(&hasher),
+            fingerprint: OnceLock::new(),
         }
     }
 
-    const fn fingerprint(&self) -> u64 {
-        self.fingerprint
+    fn fingerprint(&self) -> u64 {
+        *self.fingerprint.get_or_init(|| {
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            self.state.hash(&mut hasher);
+            self.realm.hash(&mut hasher);
+            std::hash::Hasher::finish(&hasher)
+        })
     }
 }
 
@@ -1664,10 +1670,9 @@ impl SourceInvocationBinding {
         {
             let snapshot = Arc::make_mut(state);
             snapshot.state.join(&incoming.state);
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            snapshot.state.hash(&mut hasher);
-            snapshot.realm.hash(&mut hasher);
-            snapshot.fingerprint = std::hash::Hasher::finish(&hasher);
+            // The joined state owns a new immutable semantic point. A cloned
+            // snapshot must not retain its predecessor's derived fingerprint.
+            snapshot.fingerprint = OnceLock::new();
         } else {
             self.lookup_state = None;
         }
@@ -6498,6 +6503,25 @@ impl SourceCommandBindings {
             context,
             segment.span.start(),
         );
+        if let Some(outcomes) = self.walk_original_list_assignment(
+            SourceCommandInput {
+                image,
+                segment,
+                words: words.words(),
+                effective: &[],
+            },
+            base,
+            state,
+            &compiled,
+            context,
+        ) {
+            return outcomes;
+        }
+        // An unrepresented compiler can store or invoke callbacks before later
+        // written operands. Its possible world cannot borrow argv-first absence.
+        if compiled.unknown && !compiled.compile_error {
+            state.mark_opaque_binding_mutation();
+        }
         let argument_entry =
             pre_handler_failure::ArgumentEntry::capture(state, context, segment.span.start());
         let mut arguments =
@@ -6585,109 +6609,17 @@ impl SourceCommandBindings {
         words: &[crate::ir::WordExpr],
         context: &SourceExecutionContext<'_>,
     ) -> Box<PreparedSourceArguments> {
-        let context = *context;
-        let argument_owner = source_invocation_argument_owner(
-            state,
-            segment.span.start(),
-            context.variable_read_owner,
-        );
-        let mut prepared = PreparedSourceArguments::boxed(words.len());
-        let mut written_arguments = Vec::with_capacity(words.len());
-        for word in words {
-            let substitutions = self.walk_substitutions(
-                word,
+        self.prepare_source_argument_range(
+            source_arguments::SourceArgumentSlice {
                 source,
                 base,
-                state,
-                SourceExecutionContext {
-                    depth: context.depth + 1,
-                    variable_read_owner: argument_owner.as_ref(),
-                    ..context
-                },
-            );
-            prepared.complete_normally &=
-                substitutions.normal_completion.is_some() && substitutions.abrupt.is_empty();
-            for (route, state) in &substitutions.abrupt {
-                prepared.outcomes.add_abrupt(*route, state);
-            }
-            let object = match word {
-                crate::ir::WordExpr::Variable { .. }
-                | crate::ir::WordExpr::CommandSubstitution { .. } => {
-                    substitutions.normal_object.clone()
-                }
-                _ => None,
-            };
-            let result = substitutions.normal_value.clone();
-            let rhs_read = word
-                .sole_command_substitution()
-                .and(substitutions.normal_rhs_read.clone());
-            let prefix = match word {
-                crate::ir::WordExpr::Variable { .. }
-                | crate::ir::WordExpr::CommandSubstitution { .. } => {
-                    substitutions.normal_method_prefix.clone()
-                }
-                _ => None,
-            };
-            // An unstamped constructor shape is an immediate result, not a
-            // frozen shared-object receipt. Only the last plain substitution
-            // can carry it straight into an unobserved store.
-            let representation = substitutions.normal_representation.filter(|receipt| {
-                substitutions
-                    .normal
-                    .as_ref()
-                    .is_some_and(|normal| receipt.is_current(&normal.source_variables))
-                    || (receipt.is_immediate_created_result()
-                        && word.sole_command_substitution().is_some()
-                        && std::ptr::eq(word, words.last().unwrap()))
-            });
-            let Some(continuing) = substitutions.normal else {
-                prepared.outcomes.publish(state);
-                return prepared;
-            };
-            publish_source_branch(state, continuing);
-            let Ok(frozen) =
-                frozen_arguments::freeze_word(word, result.as_deref(), state, context.registry)
-            else {
-                prepared.outcomes.add_abrupt(
-                    tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                        tcl_registry::completion::CompletionCode::Error,
-                    ),
-                    state,
-                );
-                prepared.outcomes.publish(state);
-                return prepared;
-            };
-            prepared
-                .effective
-                .extend(frozen_arguments::runtime_words(&frozen));
-            written_arguments.push(frozen);
-            prepared.written_values.push(result);
-            let representation = representation.or_else(|| {
-                source_representation::FrozenSourceRepresentation::capture_stock_literal(
-                    literal_object_pool::SourceOrdinaryLiteralObject::capture_word(word, state)?,
-                    &state.source_variables,
-                )
-                .map(Arc::new)
-            });
-            prepared
-                .written_representations
-                .push(representation.map(|receipt| *receipt));
-            prepared.written_objects.push(object);
-            prepared.written_method_prefixes.push(prefix);
-            prepared.written_variable_reads.push(
-                self.capture_argument_read(word, state, context.registry)
-                    .or_else(|| {
-                        argument_reads::FrozenSourceArgumentRead::from_expression(
-                            rhs_read,
-                            state,
-                            context.registry,
-                        )
-                    }),
-            );
-        }
-        prepared.written_arguments = written_arguments.into();
-        prepared.ready = true;
-        prepared
+                words,
+                selected: 0..words.len(),
+            },
+            state,
+            segment,
+            context,
+        )
     }
 
     /// Capture large point projections before entering any recursive body.
@@ -10881,6 +10813,15 @@ impl ModuleCommandBindings {
             }
         }
         places.extend(observer_places.iter().cloned());
+        self.record_provider_write_places(&places, &observer_places, registry);
+    }
+
+    fn record_provider_write_places(
+        &mut self,
+        places: &[crate::place::Place],
+        observer_places: &[crate::place::Place],
+        registry: &CommandRegistry,
+    ) {
         if places.is_empty() {
             return;
         }

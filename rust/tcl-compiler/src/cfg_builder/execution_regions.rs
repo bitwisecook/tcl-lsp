@@ -1177,6 +1177,43 @@ mod tests {
     }
 
     #[test]
+    fn nested_conditional_completion_requires_unchanged_original_exit_lookup() {
+        let registry = CommandRegistry::build_default()
+            .project_for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());
+        for (prefix, body) in [
+            (
+                "proc exit args {return CUSTOM}; ",
+                "if {$condition} {exit 0}",
+            ),
+            ("rename [mystery] exit; ", "if {$condition} {exit 0}"),
+            ("", "if {[rename exit saved; expr 1]} {exit 0}"),
+            (
+                "proc replaceExit args {rename ::exit ::saved; proc ::exit args {return CUSTOM}}; ",
+                "set condition 1; trace add variable condition read replaceExit; if {$condition} {exit 0}",
+            ),
+        ] {
+            let source = format!(
+                "package require tcltest; {prefix}proc p {{}} {{tcltest::test name description -body {{{body}}} -cleanup {{set cleaned 1}}}}"
+            );
+            let script = trusted_lifecycle_body(&source, &registry, true);
+            let cfg = CfgBuilder::new(true, &registry)
+                .with_faithful_exceptions()
+                .build_function("::p", &script);
+            assert!(
+                cfg.blocks.values().all(|block| !matches!(
+                    block.terminator,
+                    Some(Terminator::Complete {
+                        route:
+                            tcl_registry::completion_route::InvocationCompletionRoute::ProcessExit,
+                        ..
+                    })
+                )),
+                "prefix={prefix}, body={body}"
+            );
+        }
+    }
+
+    #[test]
     fn repeated_lifecycle_adds_a_normal_backedge_without_re_evaluating_argv() {
         let (registry, mut script) =
             fixture("set x 1", "puts $x", "unset x", RegionSelection::MaySkip);

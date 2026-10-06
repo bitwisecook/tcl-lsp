@@ -207,6 +207,44 @@ pub(crate) fn cmd_authored_package(vm: &mut Vm, args: &[Value]) -> Completion<Va
     completion
 }
 
+fn package_subcommand(
+    vm: &mut Vm,
+    original: &Value,
+    protocol: tcl_registry::native_package::NativePackageProtocol,
+    options: &'static [&'static str],
+) -> Result<&'static str, Completion<Value>> {
+    let table =
+        tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
+    let selection = if vm.package_table_is_authored() {
+        let bytes = match package_operand_bytes(vm, original) {
+            Ok(bytes) => bytes,
+            Err(completion) => return Err(completion),
+        };
+        Ok(tcl_registry::native_package::select_authored_keyword(
+            &bytes, options,
+        ))
+    } else {
+        vm.native_index_from_original(original, &table, false, "option")
+    };
+    match selection {
+        Ok(Ok(index)) => Ok(options[index]),
+        Ok(Err(message)) => {
+            let word = match package_word(vm, original) {
+                Ok(word) => word,
+                Err(completion) => return Err(completion),
+            };
+            Err(package_error(
+                &[message.as_slice()],
+                &protocol
+                    .index_error_code(b"option", word.as_bytes())
+                    .expect("C package index metadata"),
+                vm,
+            ))
+        }
+        Err(error) => Err(crate::command::completion_from_cmd_error(vm, error.into())),
+    }
+}
+
 fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
@@ -219,35 +257,9 @@ fn dispatch_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return jim_package(vm, protocol, sub, rest);
     };
     let options = protocol.c_members().expect("selected C package table");
-    let table =
-        tcl_registry::native_index_lookup::NativeStaticIndexTable::supported_backend(options);
-    let selection = if vm.package_table_is_authored() {
-        let bytes = match package_operand_bytes(vm, sub) {
-            Ok(bytes) => bytes,
-            Err(completion) => return completion,
-        };
-        Ok(tcl_registry::native_package::select_authored_keyword(
-            &bytes, options,
-        ))
-    } else {
-        vm.native_index_from_original(sub, &table, false, "option")
-    };
-    let sub = match selection {
-        Ok(Ok(index)) => options[index],
-        Ok(Err(message)) => {
-            let word = match package_word(vm, sub) {
-                Ok(word) => word,
-                Err(completion) => return completion,
-            };
-            return package_error(
-                &[message.as_slice()],
-                &protocol
-                    .index_error_code(b"option", word.as_bytes())
-                    .expect("C package index metadata"),
-                vm,
-            );
-        }
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+    let sub = match package_subcommand(vm, sub, protocol, options) {
+        Ok(sub) => sub,
+        Err(completion) => return completion,
     };
     match sub {
         "provide" => pkg_provide(vm, rest, release),

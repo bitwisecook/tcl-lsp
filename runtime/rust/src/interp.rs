@@ -42,8 +42,10 @@ mod jim_teardown;
 mod native_append;
 pub(crate) mod native_body_artifact;
 mod native_command_names;
+mod native_introspection;
 mod native_compilation;
 mod native_dictionary;
+pub(crate) use native_dictionary::DictionaryScopeRead;
 mod native_ensemble_objects;
 mod native_error_variables;
 mod native_execution_constants;
@@ -1010,6 +1012,7 @@ struct ArrayOperationTarget {
 pub struct InterpState {
     /// Owned native cache authority; neither allocation addresses nor display names issue it.
     native_command_interpreter: tcl_runtime_api::native_compilation::NativeInterpreterIdentity,
+    native_compiler_pass_owner: std::cell::OnceCell<tcl_runtime_api::native_compiler_pass::NativeCompilerPassOwner>,
     native_literal_world:
         Rc<RefCell<tcl_runtime_api::native_literal::NativeLiteralWorld<obj::Owned>>>,
     native_literal_arrays:
@@ -1104,6 +1107,8 @@ pub struct InterpState {
     /// [`eval_in_child`]: Interp::eval_in_child
     /// [`with_child`]: Interp::with_child
     parent: RefCell<Weak<InterpState>>,
+    /// Actual child creation remains independent of the temporary reentrant parent handle.
+    native_child_interpreter: Cell<bool>,
     /// Whether this interp is safe (`interp create -safe` / `interp issafe`).
     is_safe: Cell<bool>,
     /// How many of *this* interp's evals are currently on the stack (as a child:
@@ -1629,6 +1634,7 @@ impl Interp {
                         ),
                     interpreter: 0,
                 },
+            native_compiler_pass_owner: std::cell::OnceCell::new(),
             jim_local_depth: Cell::new(0),
             jim_active_command_workers: RefCell::new(Vec::new()),
             frames: RefCell::new(FrameStack::new()),
@@ -1657,6 +1663,7 @@ impl Interp {
             interp_counter: Cell::new(0),
             hidden: RefCell::new(std::collections::BTreeMap::new()),
             parent: RefCell::new(Weak::new()),
+            native_child_interpreter: Cell::new(false),
             is_safe: Cell::new(false),
             eval_active: Cell::new(0),
             pending_delete: Cell::new(false),
@@ -5826,6 +5833,7 @@ impl Interp {
         let propagate = op != b"unset";
         // Preserve the result object across the callbacks.
         let saved = self.save_native_variable_trace_result(false);
+        let global_error_flags = self.capture_native_global_error_flags();
 
         // The cell is marked active for the whole firing, as C marks `varPtr`
         // once on entry and clears it on the way out — not per callback.
@@ -5953,6 +5961,9 @@ impl Interp {
         }
         let popped = self.active_var_trace_scopes.borrow_mut().pop();
         debug_assert_eq!(popped, Some(cell));
+        if !errored {
+            self.restore_native_global_error_flags(global_error_flags);
+        }
         // Restore the saved result (release the trace's, adopt our held +1).
         if !errored || !leave_error_message {
             if let Some(saved) = saved {
@@ -7828,6 +7839,7 @@ impl Interp {
             return self.refuse_native_access(error);
         }
         let details = error.into_byte_details();
+        let explicit_code_store = matches!(details.error_code, tcl_cmd_core::CmdErrorCodeUpdate::Set(_));
         let update = match details.error_code.resolve(|| {
             self.native_invocation_dialect()
                 .wrong_arguments_protocol(Some(tcl_registry::native_wrong_arguments::LogicalWrongArgumentsProvider::Tcl84CoreSimulation))
@@ -7863,7 +7875,11 @@ impl Interp {
             }
         }
         if let tcl_cmd_core::ResolvedCmdErrorCodeUpdate::Set(code) = &update {
-            self.replace_native_error_code(code);
+            if !self.uses_c84_global_error_info() || explicit_code_store {
+                self.replace_native_error_code(code);
+            } else {
+                self.exc.borrow_mut().native.global_code_set = false;
+            }
         }
         let mut exc = self.exc.borrow_mut();
         match update {
@@ -11091,6 +11107,7 @@ impl Interp {
             n.into_bytes()
         });
         let mut child = Interp::with_host(self.host());
+        child.native_child_interpreter.set(true);
         // A child interpreter is another interpreter of the *same* Tcl build,
         // not a different release — C compiles one library in, so every child
         // reports and behaves as its parent's release. Inherited before the
@@ -12203,6 +12220,27 @@ impl Interp {
         let Some(protocol) = self.native_invocation_dialect().tailcall_protocol() else {
             return self.error(b"native tailcall protocol is not selected");
         };
+        if protocol == tcl_registry::invocation_words::NativeTailcallProtocol::Tcl {
+            // The generic handler retires the previous request before producing
+            // a namespace operand; an empty invocation creates no replacement.
+            if !self.replace_pending_tailcall(None) {
+                return self.error(b"tailcall can only be called from a proc, lambda or method");
+            }
+            if words.is_empty() {
+                self.set_result_bytes(b"");
+                return Code::Return;
+            }
+            let namespace=match tcl_cmd_core::namespace::current_original(self) {
+                Ok(original)=>crate::obj::Owned::fresh(original),
+                Err(error)=>return self.report_cmd_error(error),
+            };
+            let Some(strings)=self.native_invocation_dialect().native_string_protocol() else { return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original tailcall List issuer").into()); };
+            let mut members=Vec::with_capacity(words.len()+1);
+            members.push(namespace.as_ptr());
+            members.extend_from_slice(words);
+            let original=crate::obj::Owned::fresh(crate::list::new_list_obj_native(&members,strings));
+            return self.schedule_original_tailcall_list(original);
+        }
         self.set_result_bytes(b"");
         if words.is_empty() && !protocol.schedules_empty() {
             return Code::Ok;
@@ -12213,27 +12251,65 @@ impl Interp {
                 .namespaces
                 .borrow()
                 .qualified_name(self.current_ns.get()),
+            original_list: None,
             words: words
                 .iter()
                 .map(|word| crate::obj::Owned::retain(*word))
                 .collect(),
         };
-        if !self.frames.borrow_mut().set_tailcall(request) {
+        if !self.replace_pending_tailcall(Some(request)) {
             return self.error(b"tailcall can only be called from a proc, lambda or method");
         }
         Code::from_int(protocol.pending_code())
     }
 
-    fn dispatch_tailcall(&mut self, request: crate::frame::PendingTailcall) -> Code {
-        let words: Vec<_> = request
-            .words
-            .iter()
-            .map(crate::obj::Owned::as_ptr)
-            .collect();
-        let Some(head) = words.first() else {
-            self.set_result_bytes(b"");
-            return Code::Ok;
+    pub(crate) fn schedule_original_tailcall_list(&mut self, original: crate::obj::Owned) -> Code {
+        if !self.in_proc() {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        // Compiled operands already exist. Retire the old List before examining
+        // the new one, and release a namespace-only cancellation at this opcode.
+        if !self.replace_pending_tailcall(None) {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original tailcall List issuer").into());
         };
+        let members = match crate::list::list_elements_native_checked(original.as_ptr(), protocol) {
+            Ok(members) => members,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        if members.len() <= 1 {
+            drop(original);
+            self.set_result_bytes(b"");
+            return Code::Return;
+        }
+        let request = crate::frame::PendingTailcall {
+            namespace: self.current_ns.get(),
+            namespace_name: Vec::new(),
+            words: Vec::new(),
+            original_list: Some(original),
+        };
+        if !self.replace_pending_tailcall(Some(request)) {
+            return self.error(b"tailcall can only be called from a proc, lambda or method");
+        }
+        self.set_result_bytes(b"");
+        Code::Return
+    }
+
+    fn replace_pending_tailcall(&mut self, request: Option<crate::frame::PendingTailcall>) -> bool {
+        let retired = { self.frames.borrow_mut().replace_tailcall(request) };
+        match retired {
+            Ok(previous) => { drop(previous); true }
+            Err(rejected) => { drop(rejected); false }
+        }
+    }
+
+    fn dispatch_tailcall(&mut self, request: crate::frame::PendingTailcall) -> Code {
+        if let Some(original) = request.original_list.as_ref() {
+            return self.invoke_original_namespace_list(original.as_ptr());
+        }
+        let words: Vec<_> = request.words.iter().map(crate::obj::Owned::as_ptr).collect();
         let lookup = {
             let namespaces = self.namespaces.borrow();
             if namespaces.namespace_is_live(request.namespace) {
@@ -12243,15 +12319,42 @@ impl Interp {
             }
         };
         let Some(lookup) = lookup else {
-            let message = [
-                b"namespace \"".as_slice(),
-                &request.namespace_name,
-                b"\" not found",
-            ]
-            .concat();
-            let error_code =
-                error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", &request.namespace_name]);
+            let message = [b"namespace \"".as_slice(), &request.namespace_name, b"\" not found"].concat();
+            let error_code = error_code_list(&[b"TCL", b"LOOKUP", b"NAMESPACE", &request.namespace_name]);
             return self.error_with_code(&message, &error_code);
+        };
+        self.dispatch_original_words_at(&words, lookup)
+    }
+
+    pub(crate) fn invoke_original_namespace_list(&mut self, original: *mut TclObj) -> Code {
+        let Some(protocol) = self.native_invocation_dialect().native_string_protocol() else {
+            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original coroutine List issuer").into());
+        };
+        let members = match crate::list::list_elements_native_checked(original, protocol) {
+            Ok(members) => members,
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        let Some((namespace, words)) = members.split_first() else {
+            return self.report_cmd_error(tcl_syntax::value::ValueError::CommandProtocolUnavailable("original coroutine namespace operand").into());
+        };
+        if words.is_empty() {
+            self.set_result_bytes(b"");
+            return Code::Ok;
+        }
+        let lookup = match self.native_namespace_object_lookup(*namespace) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => return crate::cmd_namespace::ns_operation_not_found(
+                self, *namespace, tcl_syntax::naming::NativeNamespaceLookupOperation::ObjectLookup,
+            ),
+            Err(error) => return self.report_cmd_error(error.into()),
+        };
+        self.dispatch_original_words_at(words, lookup)
+    }
+
+    fn dispatch_original_words_at(&mut self, words: &[*mut TclObj], lookup: NsId) -> Code {
+        let Some(head) = words.first() else {
+            self.set_result_bytes(b"");
+            return Code::Ok;
         };
         if let Err(code) = self.reset_native_ensemble_rewrite(
             tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BeforeOrdinaryLookup,

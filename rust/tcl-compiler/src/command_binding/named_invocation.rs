@@ -284,6 +284,8 @@ pub(super) mod tests {
             namespaces: vec![root, caller],
             current_namespace: 7,
             namespace_variable_tables: None,
+            empty_literal_world: None,
+            compiler_pass_environment: None,
             variable_observers: NativeVariableObserverPresence::Absent,
             authored_tmm_static: None,
             frame: NativeCompilationFrame::Namespace,

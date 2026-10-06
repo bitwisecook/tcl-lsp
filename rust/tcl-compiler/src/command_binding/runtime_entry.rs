@@ -666,6 +666,8 @@ mod tests {
             inline_compilation_disabled: false,
             authored_tmm_static: None,
             namespace_variable_tables: None,
+            empty_literal_world: None,
+            compiler_pass_environment: None,
             variable_observers:
                 tcl_runtime_api::native_compilation::NativeVariableObserverPresence::Unknown,
             math_functions: None,

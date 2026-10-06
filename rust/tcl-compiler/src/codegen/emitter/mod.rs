@@ -130,17 +130,14 @@ struct ModuleEmit<'a> {
 /// the proc body's `base_line` (its `proc` definition line) so the
 /// `(procedure … line N)` frame reports a proc-relative line.
 #[must_use]
-fn codegen_function_src(
-    cfg: &CfgFunction,
+fn configured_codegen_context<'a>(
     params: &[tcl_runtime_api::NameBytes],
     is_proc: bool,
-    proc_defs: &[IrProcedure],
-    module: &ModuleEmit<'_>,
-    base_line: u32,
-    resolution_namespace: &tcl_runtime_api::ByteNamespacePath,
-) -> FunctionAsm {
+    module: &ModuleEmit<'a>,
+    namespace: &tcl_runtime_api::ByteNamespacePath,
+) -> CodegenCtx<'a> {
     let mut ctx = CodegenCtx::with_native_parameters(is_proc, params, module.registry);
-    ctx.set_resolution_namespace_path(resolution_namespace.clone());
+    ctx.set_resolution_namespace_path(namespace.clone());
     ctx.numbers = module.numbers;
     ctx.escapes = module.escapes;
     ctx.braced_var = module.braced_var;
@@ -182,7 +179,38 @@ fn codegen_function_src(
         ..module.native_compilation
     };
     ctx.set_indexed_source(module.source.clone(), module.line_index.clone());
+    ctx
+}
+
+#[derive(Clone, Copy)]
+struct FunctionNamespace<'a> {
+    path: &'a tcl_runtime_api::ByteNamespacePath,
+    selected_procedure: bool,
+}
+
+fn codegen_function_src(
+    cfg: &CfgFunction,
+    params: &[tcl_runtime_api::NameBytes],
+    is_proc: bool,
+    proc_defs: &[IrProcedure],
+    module: &ModuleEmit<'_>,
+    base_line: u32,
+    scope: FunctionNamespace<'_>,
+) -> FunctionAsm {
+    let mut ctx = configured_codegen_context(params, is_proc, module, scope.path);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
+    if let Some(environment) =
+        super::native_compiler_pass::replay_environment(&ctx, scope.selected_procedure)
+    {
+        let mut replay = configured_codegen_context(params, is_proc, module, scope.path);
+        replay.lvt = std::mem::take(&mut asm.lvt);
+        replay.compact_compiler_pass = true;
+        let first_literals = std::mem::take(&mut asm.literals);
+        drop(asm);
+        asm = generate::generate(&mut replay, cfg, proc_defs);
+        asm.literals.retain_discarded_native_pass(first_literals);
+        asm.literals.retain_compiler_replay_environment(environment);
+    }
     asm.body_base_line = base_line;
     asm
 }
@@ -411,7 +439,10 @@ fn codegen_procedures(
             &[],
             module,
             base_line,
-            &procedure_namespace,
+            FunctionNamespace {
+                path: &procedure_namespace,
+                selected_procedure: false,
+            },
         );
         // The body word this assembly was compiled from, so a runtime consumer
         // keyed by name can tell it apart from another `proc` of the same name
@@ -552,7 +583,10 @@ fn codegen_module_with_top_context(
         &[],
         &module,
         0,
-        &namespace,
+        FunctionNamespace {
+            path: &namespace,
+            selected_procedure: target.is_procedure,
+        },
     );
     // The same top level as a *procedure body*. A body compiled at run time
     // (`proc` on a cache miss, an `apply` lambda, a method) reaches the
@@ -570,7 +604,10 @@ fn codegen_module_with_top_context(
             &[],
             &module,
             0,
-            &namespace,
+            FunctionNamespace {
+                path: &namespace,
+                selected_procedure: false,
+            },
         )
     };
     let procedures = match target.scope {

@@ -49,6 +49,8 @@ pub(crate) mod hooks;
 mod installed_bodies;
 #[cfg(test)]
 mod native_body_context_tests;
+#[cfg(test)]
+mod native_control_carrier_tests;
 pub use execution_regions::stock_body_provider_loader;
 // `pub(crate)` for one item: `structured::parse_switch_options`, which the
 // opaque-switch emitter asks where a `switch`'s options end rather than
@@ -2256,6 +2258,22 @@ impl<'r> Lowerer<'r> {
         let args = seg.args();
         // Release availability is selected before recursive body lowering.
         let tokens = self.cmd_tokens_boxed(seg);
+        if self.target.is_bytecode()
+            && tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_structured_compilation(&tokens))
+                .is_some_and(|preparation| {
+                    matches!(
+                        preparation.recipe(),
+                        tcl_registry::native_instruction_plan::NativeInstructionPlan::Control(_)
+                    )
+                })
+        {
+            // The selected compiler owns expression preparation and body visits.
+            // Retain its original vector until the native emission work list.
+            return Some(self.lower_default_boxed(seg, namespace));
+        }
         let admitted = self.target.is_bytecode().then(|| {
             crate::registry_invocation::admitted_native_compiler_invocation(
                 self.registry,

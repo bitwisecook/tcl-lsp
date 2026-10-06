@@ -1953,6 +1953,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trim",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Both,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // Whenever `trim` actually strips characters it builds a fresh
         // *string* from the UTF rep in both 8.6 and 9.0 (`StringTrimCmd`
         // → `Tcl_NewStringObj`, and the compiled `INST_STR_TRIM`
@@ -1990,6 +1998,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimleft",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Left,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // An effective trim builds a fresh string in both 8.6 and 9.0
         // (`StringTrimLCmd` / `INST_STR_TRIM_LEFT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,
@@ -2020,6 +2036,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "trimright",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringTrim {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_trim_compilation::NativeStringTrimOperation::Right,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // An effective trim builds a fresh string in both 8.6 and 9.0
         // (`StringTrimRCmd` / `INST_STR_TRIM_RIGHT`); see `trim` above.
         byte_array_effect: ByteArrayEffect::Coerces,

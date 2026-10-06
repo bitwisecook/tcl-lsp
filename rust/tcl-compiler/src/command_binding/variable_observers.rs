@@ -32,7 +32,56 @@ struct CapturedStorePublication {
     route: Route,
 }
 
+/// The selected original opcode supplies this physical store, not a synthetic invocation.
+pub(super) struct OriginalOpcodeStore<'a> {
+    pub receiver: &'a Place,
+    pub reference: Option<&'a str>,
+    pub value: Option<&'a str>,
+    pub offset: u32,
+}
+
 impl SourceCommandBindings {
+    pub(super) fn walk_original_opcode_store(
+        &mut self,
+        store: OriginalOpcodeStore<'_>,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> SourceOutcomes {
+        let OriginalOpcodeStore {
+            receiver,
+            reference,
+            value,
+            offset,
+        } = store;
+        if state.source_variables.store_would_error(receiver) {
+            return SourceOutcomes::invocation(state, Route::Tcl(CompletionCode::Error));
+        }
+        if !super::variable_outputs::store_is_closed(
+            receiver,
+            &state.source_variables,
+            context.registry,
+        ) {
+            return super::opaque_source_invocation(state);
+        }
+        let mut receiver = receiver.clone();
+        receiver.observed = false;
+        state.record_provider_write_places(std::slice::from_ref(&receiver), &[], context.registry);
+        Arc::make_mut(&mut state.object_instances)
+            .invalidate_writes(std::slice::from_ref(&receiver));
+        Arc::make_mut(&mut state.source_variables)
+            .set_contents_write_source(state.current_source_origin.clone());
+        Arc::make_mut(&mut state.source_variables).publish_captured_store(&receiver, value, offset);
+        let outcomes = self.walk_variable_observers(
+            offset,
+            &receiver,
+            reference,
+            TraceOperation::Write,
+            state,
+            context,
+        );
+        outcomes.publish(state);
+        outcomes
+    }
     pub(super) fn walk_observed_native_store(
         &mut self,
         native: super::SourceNativeInvocation<'_>,

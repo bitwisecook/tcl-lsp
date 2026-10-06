@@ -1152,6 +1152,14 @@ mod tests {
         i.result_bytes()
     }
 
+    fn native_package_fixture(profile: &'static tcl_dialect::DialectProfile) -> Interp {
+        Interp::with_native_core(
+            crate::interp::default_host(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        ).expect("the original package fixture requires its selected native core")
+    }
+
     #[test]
     fn jim_direct_packages_use_global_source_and_preserve_partial_effects() {
         let profile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
@@ -1179,8 +1187,7 @@ mod tests {
         ] {
             std::fs::write(directory.join(format!("{name}.tcl")), source).expect("package source");
         }
-        let mut interp = Interp::new();
-        interp.set_dialect_profile(profile);
+        let mut interp = native_package_fixture(profile);
         let setup = format!(
             "set ::auto_path [list {}]",
             tcl_syntax::list::list_element(&directory.to_string_lossy())
@@ -1526,7 +1533,7 @@ mod tests {
 
     #[test]
     fn package_completion_matches_all_six_native_84_controls() {
-        let jim = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
+        let jim: &'static tcl_dialect::DialectProfile = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
             "jim",
             &[],
             "Jim",
@@ -1594,12 +1601,14 @@ mod tests {
                 let name = fields[0];
                 let script = unhex(fields[1]);
                 let expected = unhex(fields[3]);
-                let mut interp = Interp::new();
-                if engine == 5 {
-                    interp.set_dialect_profile(jim);
+                let profile = if engine == 5 {
+                    jim
                 } else {
-                    interp.set_runtime_version(TclVersion::ALL[engine]);
-                }
+                    tcl_registry::model::ingress::resolve_environment(
+                        TclVersion::ALL[engine].dialect_name(),
+                    ).unit_profile()
+                };
+                let mut interp = native_package_fixture(profile);
                 let host =
                     tcl_test_support::fixed_sources::FixedSourceHost::new(interp.host(), FILES);
                 interp.set_host(std::rc::Rc::new(host));

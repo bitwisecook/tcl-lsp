@@ -240,12 +240,11 @@ execution results, not merely compile acceptance:
 
 ---
 
-## 3. §F3's discriminating matrix, answered on TMM
+## 3. Discriminating word-formation matrix
 
-The evidence review asks six specific questions and says the dialect-level
-separator should be retained **only if the live generic cases establish it**.
-They do. Run with the `__tcl_lsp_probe_*` prefix, a collision check before each
-create and an absence proof after each delete
+The six byte-controlled cases distinguish generic word formation from command
+argument grammar. The fixture uses the `__tcl_lsp_probe_*` prefix, a collision
+check before each create and an absence proof after each delete
 ([`irules/f3-matrix/`](../../../scripts/dev/bigip-probes/irules/f3-matrix/)):
 
 | Case | Stock 8.6.18 / 9.0.4 | **TMM 21.1.0.1** | What it settles |
@@ -257,7 +256,7 @@ create and an absence proof after each delete
 | `if{1}{expr {6*7}}` | invalid command | **`undefined procedure: if{1}{set`** | **no separator before the first `{`** |
 | `list {*}{a b}` | expands to `a b` | **`* {a b}`** | **the separator wins; there is no expansion** |
 
-Three consequences for the redesign:
+Current grammar contract:
 
 1. **Keep the dialect-level separator.** `list {a}{b}` and `set x {a}{b}` both
    split on TMM, so the rule is not `if`-specific and does not belong in
@@ -270,12 +269,10 @@ Three consequences for the redesign:
 3. **`{*}` must not be implemented in the iRules dialect.** On TMM the separator
    wins and `{*}` is inert, yielding a literal `*` plus the unexpanded list. A
    lexer that implements 8.5 expansion here would silently disagree with the
-   appliance. This is the expansion/separator interaction the review noted was
-   uncovered.
+   appliance. Expansion and word separation remain distinct grammar features.
 
 The generic rule that produces all six rows is R1–R7 in §1. A second, independent
-divergence — brace-line continuation, §2 — is not covered by the review's matrix
-at all.
+divergence — brace-line continuation — has its own controls in §2.
 
 ---
 
@@ -323,8 +320,10 @@ rather than real expansion.
 
 ## 4a. Do the tmsh and iApp parsers match the iRule parser?
 
-**Yes — exactly, on every grammar and newline case.** The three F5 execution
-contexts are one parser; they differ only in command surface and environment.
+**The three contexts agree on all 34 entered parity cases.** This establishes
+agreement for those exact grammar and newline inputs, not parser-build identity
+or equivalence for unmeasured source. Command surface and environment remain
+context-specific.
 
 A single 34-case list
 ([`suites/10-context-parity.cases`](../../../scripts/dev/bigip-probes/suites/10-context-parity.cases))
@@ -335,7 +334,7 @@ script — so any difference in the transcripts is a real context difference and
 not a difference in what was asked. Raw output:
 [`results/10-context-parity.txt`](../../../scripts/dev/bigip-probes/results/10-context-parity.txt).
 
-### Parser behaviour — identical across all three F5 contexts
+### Entered parser cases — agreement across three F5 contexts
 
 | Case | TmmIRule | TmshCliScript | IAppImplementation | host 8.4 | host 8.5 |
 | --- | --- | --- | --- | --- | --- |
@@ -384,18 +383,18 @@ Three consequences:
 
 1. **`exec` is available in `TmshCliScript` and `IAppImplementation` but not in
    `TmmIRule`.** A command-availability fact measured in one context must never
-   be promoted to another. This is the concrete case behind F1 and F4.
+   be promoted to another.
 2. **The host `tclsh` is a different Tcl build entirely** — 8.4.13, not the
    8.4.6 embedded in all three F5 contexts. Reading a version off the host
    `tclsh` would have produced a wrong answer for every F5 row.
 3. **`tcl_patchLevel` does not exist in `TmshCliScript`**, whose `tcl_platform`
-   is also empty. Any probe that reads either without guarding aborts there —
-   this one did, on its first run.
+   is also empty. A probe must guard these reads so missing globals do not
+   abort the remaining cases.
 
 ### Command resolution happens at rule load — even inside `catch`
 
-Found by breaking the probe: a literal reference to a command TMM does not have
-is rejected when the **rule is loaded**, regardless of `catch`.
+A literal reference to a command absent from TMM is rejected when the **rule
+is loaded**, regardless of `catch`.
 
 ```
 ltm rule … { when RULE_INIT { if {[catch {tmsh::version} e]} { … } } }
@@ -506,7 +505,7 @@ from each other only in ambient packages and host facts — `exec` present,
 `tcl_platform` empty vs real-Linux, `package names` small vs large — with no
 grammar delta between them at all.
 
-This keys the F1 execution contexts without inventing a family per context, and
+This keys execution contexts independently of the shared language family, and
 it puts each measured fact at the level where it was actually observed.
 
 ---
@@ -581,9 +580,9 @@ substitution pass evaluate it**.
 That is exactly what KaiWilke's
 [Natural Speech Expression](https://github.com/KaiWilke/F5-Natural-Speech-Expression)
 does — an expression-language interpreter written as an iRule. It JIT-compiles a
-natural-language search filter into a Tcl expression, caches the compiled string
-in a `static::` array (which also lets TMM reuse the bytecode from the first
-execution), and evaluates it with an **unbraced** `if`:
+natural-language search filter into a Tcl expression, caches that expression
+string in a `static::` array, and evaluates it with an **unbraced** `if`. The
+source pattern does not establish a physical TMM bytecode-cache observation:
 
 ```tcl
 if $static::natural_speech_cache($search_string) { … }
@@ -769,26 +768,25 @@ Two things to note before using this as an LSP table:
   and `HTTP::status` in `HTTP_REQUEST`, which are exactly the mistakes an editor
   should catch.
 
-**Model status (2026-08-27, #27).** The shipping event oracle
-(`CommandRegistry::is_irules_call_legal_in_event`) now reproduces this
-matrix cell for cell, except the six `RULE_INIT` compile acceptances,
-which it deliberately refuses for the reason the first bullet gives. The
-fifteen cells it got wrong on the corpus's first run were fixed in
-per-command registry data, not in the corpus:
+### Current event policy
 
-| Cell(s) | Was | Fix in `rust/tcl-registry/src/commands/irules/` |
-| --- | --- | --- |
-| `HTTP::uri` in `HTTP_RESPONSE` | accepted (missed error) | `excluded_events: ["HTTP_RESPONSE"]` on `http__uri.rs` |
-| `HTTP::status` in `HTTP_REQUEST` | accepted (missed error) | `excluded_events: ["HTTP_REQUEST"]` on `http__status.rs` |
-| `SSL::cipher` in `CLIENT_ACCEPTED`, `CLIENT_DATA`, `SERVER_CONNECTED`, `CLIENT_CLOSED` | accepted (missed error) | `excluded_events` on `ssl__cipher.rs` — the four events either side of a completed handshake. No `EventProps` predicate separates the accepted set (`LB_SELECTED` implies no profile at all), so the refused cells are carried as the measured closed list |
-| `SSL::cipher` and `LB::server` in `RULE_INIT` | accepted (missed error) | `event_requires { flow: true }` on both — the same encoding `table` already used for the identical row shape |
-| `HTTP::uri`, `HTTP::status`, `HTTP::collect` in `LB_SELECTED` | rejected (false positive) | `LB_SELECTED` added to each command's `event_requires.also_in`: the event implies no HTTP profile yet the compiler accepts all three there |
-| `IP::server_addr` in `CLIENT_ACCEPTED`, `CLIENT_DATA`, `HTTP_REQUEST`, `CLIENT_CLOSED` | rejected (false positive) | it was modelled `server_side: true`; the measured row is `– yes yes yes yes yes yes yes`, identical to `LB::server`/`table`, so the requirement is `flow: true` and no side at all. The command's own documentation agrees: before the serverside connection exists it returns `0` rather than failing |
+`CommandRegistry::is_irules_call_legal_in_event` agrees with the measured
+matrix except for six `RULE_INIT` compile acceptances. Those commands retain
+flow requirements: load acceptance alone does not establish usable connection
+state. The corpus records that distinction as `RuleInitCompileAcceptance`.
 
-The corpus rows for all fifteen flipped from `Diverges` to `Agrees`
-(`rust/tcl-registry/src/f5/corpus.rs`), which is the acceptance signal;
-the six `RULE_INIT` rows keep their recorded `RuleInitCompileAcceptance`
-reason.
+| Command and event | Current constraint in `rust/tcl-registry/src/commands/irules/` |
+| --- | --- |
+| `HTTP::uri` in `HTTP_RESPONSE` | `excluded_events: ["HTTP_RESPONSE"]` on `http__uri.rs` |
+| `HTTP::status` in `HTTP_REQUEST` | `excluded_events: ["HTTP_REQUEST"]` on `http__status.rs` |
+| `SSL::cipher` in `CLIENT_ACCEPTED`, `CLIENT_DATA`, `SERVER_CONNECTED`, `CLIENT_CLOSED` | An explicit `excluded_events` list on `ssl__cipher.rs`; the accepted set cannot be selected by an `EventProps` predicate alone |
+| `SSL::cipher` and `LB::server` in `RULE_INIT` | `event_requires { flow: true }` |
+| `HTTP::uri`, `HTTP::status`, `HTTP::collect` in `LB_SELECTED` | Each command's `event_requires.also_in` includes `LB_SELECTED`; compiler acceptance does not imply that an HTTP profile is present |
+| `IP::server_addr` in `CLIENT_ACCEPTED`, `CLIENT_DATA`, `HTTP_REQUEST`, `CLIENT_CLOSED` | `flow: true` without a server-side requirement; the documented result before a serverside connection exists is `0` |
+
+The current per-command constraints and measured results are checked by
+`rust/tcl-registry/src/f5/corpus.rs`. Compile acceptance, runtime availability
+and event-state requirements remain independent.
 
 ### Rule priority
 
@@ -898,8 +896,8 @@ Useful driver details, if this is re-run:
 - syslog collapses repeated identical lines, so emit one joined line per probe
   rather than one line per case.
 - Probes were wrapped in `when HTTP_REQUEST` (compiled, never executed) except
-  where runtime values were needed, which used `RULE_INIT` (runs at load, once
-  per TMM).
+  where runtime values were needed, which used `RULE_INIT`. Rule creation runs those initialisers; worker
+  coverage requires recorded TMM identities rather than a per-TMM assumption.
 - Stubbing `unknown` in a tclsh control silently swallows misuse of *builtins*
   too (an `else` command, for instance). Stub only the iRule-specific commands.
 
@@ -913,73 +911,77 @@ claims because they differ only through this asymmetry.
 
 ---
 
-## 11. What the model takes from this run
+## 11. Evidence contracts
 
-### What this closes
+### Context and build identity
 
-| Review finding | What was measured | Effect |
-| --- | --- | --- |
-| **F1** — the proposal conflates six language contexts | Four of the six measured with **one shared 34-case list** (§4a): `TmmIRule`, `TmshCliScript`, `IAppImplementation`, `HostShellTcl`. | **Refines F1.** The three F5 contexts are *one parser* — every grammar and newline case is identical — but they are **not** one environment: `exec` is absent in `TmmIRule` and works in the other two, `info commands` counts 152/95/95, and `tcl_platform` is fabricated / **empty** / real-Linux respectively. So split the key on *command surface and environment*, not on grammar. Two contexts remain **unmeasured**: `IAppPresentationApl` and `IAppPresentationTclCallback`, recorded as `Unknown` by the driver itself. **Consumed by the model** (2026-08-27): `BigIpExecutionContext` in `rust/tcl-registry/src/f5/execution_context.rs` — the six contexts as a typed key, with family, build profile, environment and core profile per context; the two APL contexts answer `None` on every one, and no fact crosses a context boundary. |
-| **F2** — Tcl release defaults have no provenance | All three F5 contexts report `8.4.6`; 16 features that cleanly separate 8.4 from 8.5 behave as 8.4 in every one (§4); numeral handling is 8.4 throughout (§4a). Controls are `tclsh8.4`/`tclsh8.5` **on the same appliance**. | Gives 21.1.0.1 a measured row rather than a guessed one, and **directly vindicates the review's "one observed `tclsh`" objection**: `/usr/bin/tclsh8.4` is **8.4.13**, not the 8.4.6 embedded in all three F5 contexts. Reading the version off the host would have been wrong for every F5 row. Still one build; see F8. **Consumed by the model** (2026-08-27): `EmbeddedRuntimeEvidence` in `rust/tcl-registry/src/f5/evidence.rs` — `(context, build, fact, provenance)` records seeded from this run, with the host `tclsh8.4` row kept deliberately and marked *not* embedded-runtime proof. An unmeasured build answers `None` through the semantic door and a labelled nearest-known **assistance** row through the other. |
-| **F3** — `}{` overfits one command, overclaims all | The full six-row matrix, run on TMM (§3). | **Retain the dialect-level separator.** Gate it on the word having started with `{` or `"`. Do not implement `{*}` in the iRules dialect. |
-| **F4** — tmsh policy is not core Tcl availability | All 85 stock 8.4 builtins probed individually against the iRule compiler: 31 disabled, 2 absent, 52 present (§5). Cross-context: `exec` absent in `TmmIRule`, working in `TmshCliScript` and `IAppImplementation` (§4a). | Supplies the `TmmIRule` **rule-load** surface as data and proves it does **not** generalise. Also separates two mechanisms that look alike: a literal disabled command is refused at load with `command is disabled`, while the same command reached through `eval` at runtime is simply `invalid command name`. **Consumed by the model** (2026-08-27): the 31 rows are `rust/tcl-registry/src/irules_policy.rs`'s two classes *and* 31 corpus vectors + 31 evidence records; `exec` carries a per-context presence row proving it does not generalise. The role/policy half of F4 is still unwired. |
-| **F5** — `tcl_platform` has iRules-specific semantics | Measured in all three F5 contexts (§4): TMM fabricates it (`machine` = hostname, `os BIG-IP`, `tmmVersion 26`, `wordSize 8`), iApp reports a real-ish Linux with `wordSize 4`, and a tmsh cli script's array is **empty**. | Confirms F5, and shows the divergence is three-way, not two-way. **Consumed by the model** (2026-08-27): all three shapes are `RuntimeFact::TclPlatform` records (`FabricatedBigIp`/`Empty`/`RealHost` with key counts 7/0/7 and word sizes 8/–/4), cross-checked against the §4a environment table by test; TMM's seven fabricated keys are pinned against `special_vars.rs`'s iRules column. The CMP-effect overlay itself is still unwired. |
-| **F8** — one build must become a fixture | [`scripts/dev/bigip-probes/`](../../../scripts/dev/bigip-probes/) — 378 iRules, drivers, controls, raw transcripts. | Partially discharges F8: it is a re-runnable fixture, but see the delta below before treating it as the E4 artefact. **Consumed by the model** (2026-08-27): 205 hermetic vectors in `rust/tcl-registry/src/f5/corpus.rs` derived from these transcripts — §4a parity (21), §4a environment differences (9), the 16 discriminators, §4b's 31 classes, §8's 120 event cells, §6/§8 priority (8) — each citing its section and asserted against the model. Rows record whether the model agrees, diverges (with a reason), or has no comparable answer, so closing a gap fails a row deliberately. **The corpus paid for itself on its first run** (2026-08-27, #27): it found sixteen real model defects — eight over-permissive event cells, seven over-strict ones, and the missing bare `matches` operator — and all sixteen were fixed by moving the model to the measurement (§8's model-status table; §4a `e_matches`). The event-context divergence count is 21 → 6, and the six are the deliberate `RULE_INIT` compile acceptances. Still owed: corpus-*generated* rows and the transcript-schema validator. |
+`BigIpExecutionContext` in `rust/tcl-registry/src/f5/execution_context.rs`
+identifies seven contexts independently: TMM iRules, tmsh CLI scripts, iApp
+implementation scripts, iCall scripts, APL presentation, APL Tcl callbacks and
+host Tcl. Grammar agreement on entered cases does not establish a shared parser
+build or permit a command-surface fact to cross contexts. The two APL contexts
+are unmeasured and supply no family, environment or core profile.
 
-**F6** (BIG-IP release vs tmsh syntax release) and **F7** (iApp target and
-execution policy as action-local data) were not addressed by this run; nothing
-measured here bears on them. They were nevertheless *modelled* on 2026-08-27
-from their documentary evidence, because both are data rather than behaviour:
-the tmsh syntax axis and its `tmsh::modify cli version active` transition are
-`rust/tcl-registry/src/f5/tmsh_syntax.rs` (typed axis, literal → selected,
-dynamic → `Unknown`, realm scope explicitly **unmeasured** pending §12's
-question), and the iApp action metadata is
-`rust/tcl-registry/src/f5/iapp_metadata.rs` (`requires-bigip-version-min`/`-max`
-intersecting the configured targets on the BIG-IP axis, `role-acl`, and `run-as`
-with an omitted principal reading as the calling user). Neither claims an
-appliance measurement it does not have.
+`EmbeddedRuntimeEvidence` in `rust/tcl-registry/src/f5/evidence.rs` retains
+context, exact BIG-IP build, fact and provenance. `measured_fact` requires the
+exact context and build. `assistance_fact` supplies only a labelled same-context
+measured or nearest-known row; it grants no semantic authority for another
+build. Host Tcl transcripts are separate controls, not embedded-runtime proof.
+Reported Tcl patchlevels do not grant parser, object, compiler or ABI capability.
 
-### What this run did *not* do
+The [resolution-context transcripts](../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md)
+contain 92 byte-attested scripts entered independently in tmsh, iApp
+implementation and iCall contexts. `RuntimeFact::ParserCase` retains each
+original source hex, completion code and result hex. iCall's own transcript
+reports Tcl 8.4.6, 95 commands, `tmsh::version` 21.1.0.1 and a successful `exec`
+invocation. It does not measure interpreter width or establish a registered
+catalogue environment. tmsh's empty `tcl_platform` likewise supplies no width.
+Both build profiles remain `Unknown`; iApp's measured width selects
+`F5Scriptd32`. No iCall fact is borrowed from iApp implementation scripts.
 
-Two runs are described here and they differ in rigour. The **§3 F3 matrix** and
-the **§4a four-context parity probe** were run under the E4 contract
-([`dialect-and-package-registry-redesign.md`](../registry/dialect-and-package-registry-redesign.md)
-§0.2) — `__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
-`EXIT` trap deleting only those names, an absence proof after every delete, an
-explicit "attached to a virtual server?" check, and the APL contexts recorded as
-`Unknown` rather than inferred. The driver is
+### Source, runtime and environment axes
+
+- TMM's word-separator grammar applies when a word starts with `{` or `"`.
+  The iRules dialect does not gain Tcl argument expansion from `{*}`.
+- Literal `namespace`, `interp`, `package` and `rename` invocations are refused
+  by the measured rule loader, while dynamically constructed invocations run
+  on BIG-IP 21.1.0.1 build 0.0.26. `namespace path` is unsupported and the
+  logical package table reports Tcl 8.4. `irules_policy::rule_loader_refuses`
+  and `runtime_surface_admits` retain these separate axes. Interpreter-absent
+  commands have their own availability class.
+- TMM's fabricated `tcl_platform`, tmsh's empty array and iApp's host-like array
+  are separate `RuntimeFact::TclPlatform` observations. A fabricated platform
+  field does not establish a native object ABI. Ordinary-global CMP demotion
+  does not establish a shared cross-TMM variable cell.
+- `rust/tcl-registry/src/f5/corpus.rs` checks measured grammar, command surface,
+  event and priority cases against the current model. Agreement, explained
+  divergence and unavailable model answers remain distinct outcomes.
+
+`rust/tcl-registry/src/f5/tmsh_syntax.rs` owns the BIG-IP-independent tmsh syntax
+axis and its `tmsh::modify cli version active` transition. Literal syntax
+versions can select that axis; dynamic versions remain `Unknown`. The
+transition's realm scope is unmeasured. `rust/tcl-registry/src/f5/iapp_metadata.rs`
+owns action-local target constraints, `role-acl` and `run-as`; an omitted
+principal means the calling user. Those documentary contracts do not claim
+unmeasured appliance behaviour.
+
+### Provenance limits
+
+The §3 word-formation matrix and §4a parity evidence satisfy the E4
+probe-and-cleanup contract: reserved object names, exact-name absence checks,
+cleanup traps, deletion verification and attachment checks. The driver is
 [`lib/e4-context-probe.sh`](../../../scripts/dev/bigip-probes/lib/e4-context-probe.sh).
+The §5–§9 surface, event and traffic evidence carries
+`e4_conforming: false`. Its raw transcript remains usable with that qualification:
+object names and pre-create checks do not meet the same contract, and the
+traffic lab intentionally uses virtual servers and a backend. No role or
+`systemauth.disablebash` annotation is available for that command surface.
 
-The **earlier bulk run** (§5–§9) answered the same questions under a looser
-procedure. Its differences, in full:
-
-- Probe objects used `probe_*`, `lab_*` and `probe_ws_*` prefixes, **not**
-  `__tcl_lsp_probe_*`. Only `irules/f3-matrix/` uses the reserved prefix.
-- There was **no exact-name absence check before each create** and **no `EXIT`
-  trap**, except in the F3 matrix run. A name collision would have been silently
-  overwritten by the merge rather than aborting.
-- The traffic lab (§8) **deliberately attached rules to virtual servers**, which
-  E4 step 7 forbids. It also created a pool, two virtual servers, and an off-box
-  backend.
-- Role and command visibility were recorded only as "run as the SSH login user";
-  policy settings such as `systemauth.disablebash` were not captured, so the
-  §5 command surface carries no role annotation.
-- The APL contexts of E4 step 6 were not exercised at all.
-
-What it did satisfy: `save sys config` was never run; every created object was
-deleted and the absence verified; the stock-Tcl controls were run on the
-appliance rather than on a developer machine; and no conclusion about a missing
-command rests on a single `info commands` result — §5 probes each builtin as a
-separate rule load and distinguishes `command is disabled` from
-`undefined procedure`.
-
-**Recommendation.** Treat §3 and §4a as E4-grade evidence and everything else as
-a strong but non-conforming transcript. §4a is a single clean run
-covering all four contexts, with zero residual objects and a cleanup proof per
-object; the standalone command-resolution probe (E4.4b) ran in the same pass and
-confirmed `undefined procedure: __no_such_command__` at rule load. Re-running the suites under the full E4
-contract is mechanical — `lib/runner.sh` needs only a prefix change and a
-pre-create absence check — and would upgrade the whole document.
+Each observation keeps its own provenance; the resolution-context transcripts
+also retain their own non-E4 label. No conforming suite upgrades another suite's
+record. Appliance probe creation, traffic and cleanup details belong to the
+checked-in drivers and raw reports, independently of the current semantic
+contracts above.
 
 ---
 
@@ -998,19 +1000,24 @@ pre-create absence check — and would upgrade the whole document.
 - Whether N1 interacts with `priority` ordering or with event-time versus
   load-time compilation.
 
-### What the model now needs from a next run
+### Unmeasured axes and discriminating controls
 
-The evidence layer landed on 2026-08-27 (`rust/tcl-registry/src/f5/`) turned
-every row above into a typed record or a corpus vector. That exposed exactly
-which questions are *blocked on an appliance* rather than on modelling, and they
-are the acceptance matrix's empty columns plus the specific probes below:
+The current evidence covers one appliance build. Semantic queries for other
+builds remain unknown; nearest-known assistance does not prove interpolation.
+The following axes require independent measurements:
 
-| Needed | Why the model cannot proceed without it |
+| Axis | Current evidence boundary and useful control |
 | --- | --- |
-| One supported **17.x** build and one **older** build, same suites | The corpus covers one build, so every "since when" question about the F5 tree is `Unknown`. Two more builds turn `EmbeddedRuntimeEvidence`'s nearest-known **assistance** answers into real interpolation, and make the ladder's post-fork deltas data rather than hypothesis. |
-| A **restricted-role** tmsh column | F4's role/visibility overlay has no measured input at all: this run recorded only "run as the SSH login user" (§11), so the §5 command surface carries no role annotation and the overlay cannot be wired honestly. |
-| The two **APL** contexts (E4 step 6) | Both stay `Unknown` end-to-end. Until a non-interactive presentation renderer is exercised, an APL `tcl` callback has no family, no build profile, and no surface — and the model must keep refusing to copy `IAppImplementation`'s row into it. |
-| The **realm scope** of `tmsh::modify cli version active` | Whether the setting is script-, tmsh-process-, session-, or system-scoped decides where the F6 transition's state lives. The transition is wired with `scope_is_measured: false` until it is answered. |
-| A **`matches`** semantics/precedence re-probe alongside `matches_glob`/`matches_regex` | The *grammar* half is closed (#27): the bare `matches` is the trunk's tenth word operator, at the equality level beside `matches_glob`, and `e_matches` now `Agrees`. Two things the transcripts still do not pin remain. **Precedence**: `expr {"abc" matches "abc"}` is a single-operator expression, so it exercises no binding power at all — the equality class is inherited from its siblings, not measured. **Semantics**: the same probe is an exact-equality case, so it discriminates none of the string-match readings (equality, containment, glob). The model answers it as a string equality — the one reading the measured cell exercises — and the compiler deliberately refuses to constant-fold the operator so no unmeasured meaning is baked into a rewrite. A pair of probes (`expr {"abcd" matches "bc"}` and `expr {1 or 0 matches 0}`) settles both. |
-| An **E4 re-run of the §5–§9 suites** | The 85-builtin surface, the 120-cell event matrix, and the traffic lab are consumed by the model today as non-E4-conforming rows (`e4_conforming: false` in their provenance). §11 says the re-run is mechanical; doing it upgrades ~180 corpus vectors from "strong transcript" to ratified evidence. |
-| The **six remaining event-context divergences** re-probed per cell | The corpus pins where the shipping model and the appliance disagree (§8's matrix). The fifteen open registry-data gaps were closed in #27 by moving the per-command data to the measurement (§8's model-status table). The six that remain are the deliberate `RULE_INIT` compile-acceptance difference and are *meant* to diverge — they need the runtime half of §8's first caveat confirmed (does calling an `HTTP::*` command in `RULE_INIT` always fail at runtime, or only when it touches connection state?) rather than a change of model. |
+| Other BIG-IP releases | Run the same byte-controlled suites on supported 17.x and older builds; retain exact build identifiers and context-specific results |
+| Restricted-role tmsh | Record role, command visibility and relevant policy settings; the current surface has no role annotation |
+| APL presentation and its Tcl callbacks | Exercise each context independently through a non-interactive renderer; neither inherits iApp implementation facts |
+| `tmsh::modify cli version active` scope | Distinguish script, process, session and system state; `scope_is_measured` remains false |
+| `matches` semantics and precedence | The measured equal-string case is true and `"abcd" matches "bc"` is false. Both equality and glob interpretations fit those results. A wildcard-bearing operand distinguishes them; a mixed-operator expression distinguishes binding power. The current authored evaluator uses equality, and native constant folding declines this operator. These are separate from its measured grammatical presence |
+| Surface, event and traffic provenance | Repeat non-E4-conforming cells with the complete probe-and-cleanup contract; retain each suite's own provenance rather than promoting another suite's conformance |
+| `RULE_INIT` runtime command validity | For each of the six compile-accepted flow commands, execute the original command and capture its completion and required connection state; load acceptance alone cannot settle the runtime question |
+
+The remaining resolution-specific identity, callable replacement and deletion
+boundaries have exact probes in
+[FOLLOWUP_APPLIANCE_CHECKS.md](../../../scripts/dev/bigip-probes/resolution-2286/FOLLOWUP_APPLIANCE_CHECKS.md).
+They do not imply general Unicode name acceptance, counted-NUL key identity or
+cross-worker state sharing.

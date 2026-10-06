@@ -29,12 +29,22 @@ use super::{CodegenCtx, Op, Operand};
 use crate::ir::{Statement, WordExpr};
 use crate::word_subst::whole_word_command_tokens;
 use tcl_registry::hooks::InlineCodegenHookId;
+#[path = "statements/native_array.rs"]
+mod native_array;
 #[path = "native_control.rs"]
 mod native_control;
+#[path = "native_coroutine.rs"]
+mod native_coroutine;
 #[path = "native_each.rs"]
 mod native_each;
 #[path = "native_error.rs"]
 mod native_error;
+#[path = "native_info_exists.rs"]
+mod native_info_exists;
+#[path = "statements/native_introspection.rs"]
+mod native_introspection;
+#[path = "native_list_operations.rs"]
+mod native_list_operations;
 #[path = "native_namespace_upvar.rs"]
 mod native_namespace_upvar;
 #[path = "statements/native_scalar.rs"]
@@ -47,10 +57,16 @@ mod native_switch;
 mod native_try;
 #[path = "native_unset.rs"]
 mod native_unset;
+#[path = "native_upvar.rs"]
+mod native_upvar;
 
 /// Work retained on the heap so array indices and bracket scripts share one
 /// compilation unit without recursive emitter calls or depth-limited views.
 enum NativeEmissionTask {
+    NativeArrayEachStart(
+        tcl_dialect::TclVersion,
+        [std::rc::Rc<std::cell::Cell<Option<usize>>>; 2],
+    ),
     NativeEachStart(
         tcl_dialect::TclVersion,
         Vec<Vec<Vec<u8>>>,
@@ -129,6 +145,7 @@ enum NativeEmissionTask {
     RestoreSource(NativeEmissionSource),
     Operation(Op, Vec<Operand>),
     NativeListIndex(tcl_syntax::native_compiled_index::NativeCompiledListIndex),
+    NativeListRange(tcl_syntax::native_compiled_index::NativeCompiledListRange),
     ErrorReturn,
     SwitchOperation(Op, Vec<Operand>, tcl_dialect::TclVersion),
     SwitchTable(
@@ -1570,7 +1587,7 @@ impl CodegenCtx<'_> {
 
     /// Use retained original words when the selected compiler owns preparation
     /// before handler dispatch, including its local and literal allocations.
-    fn emit_retained_native_expression(&mut self) -> bool {
+    pub(super) fn emit_retained_native_expression(&mut self) -> bool {
         let tokens = self.invocation_tokens.clone();
         let Some(binding) = tokens
             .as_ref()
@@ -1703,6 +1720,7 @@ impl CodegenCtx<'_> {
                 | Task::ErrorReturn
                 | Task::Operation(..)
                 | Task::NativeListIndex(..)
+                | Task::NativeListRange(..)
                 | Task::Literal(..)
                 | Task::PrivateReturnOptions(..)
                 | Task::PoolLiteral(..)
@@ -1718,7 +1736,8 @@ impl CodegenCtx<'_> {
                 | Task::EndNativeCatchBranch) => {
                     self.emit_native_control_task(selected, &mut pending);
                 }
-                selected @ (Task::NativeEachStart(..)
+                selected @ (Task::NativeArrayEachStart(..)
+                | Task::NativeEachStart(..)
                 | Task::RestoreSource(..)
                 | Task::DeclareNativeTemporary(..)
                 | Task::NativeTemporaryOperation(..)
@@ -1789,6 +1808,16 @@ impl CodegenCtx<'_> {
             Task::ErrorReturn => self.emit_native_error_return(""),
             Task::Operation(op, operands) => {
                 self.emit(op, operands);
+            }
+            Task::NativeListRange(range) => {
+                let instruction = self.emit(
+                    Op::LIST_RANGE_IMM,
+                    vec![
+                        Operand::Imm(range.first.encoded()),
+                        Operand::Imm(range.last.encoded()),
+                    ],
+                );
+                self.instructions[instruction].native_list_range = Some(range);
             }
             Task::NativeListIndex(index) => {
                 let instruction =
@@ -1893,6 +1922,23 @@ impl CodegenCtx<'_> {
     ) {
         use NativeEmissionTask as Task;
         match task {
+            Task::NativeArrayEachStart(version, variables) => {
+                let Some(variables) = variables
+                    .iter()
+                    .map(|slot| slot.get())
+                    .collect::<Option<Vec<_>>>()
+                else {
+                    self.refuse_native_dependency();
+                    return;
+                };
+                let index = self.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
+                self.instructions[index].native_each =
+                    Some(std::sync::Arc::new(tcl_bytecode::NativeEachAuxiliary {
+                        version,
+                        variables: vec![variables],
+                        temporaries: Vec::new(),
+                    }));
+            }
             Task::NativeEachStart(version, names, temporaries, collect) => {
                 let variables = names
                     .iter()
@@ -2511,7 +2557,6 @@ impl CodegenCtx<'_> {
         plan: &crate::native_byte_compilation::NativeByteRegisteredCommand,
     ) -> Option<PreparedNativeRegistered> {
         use tcl_registry::native_compiler_words::NativeCompilerWords;
-        use tcl_registry::native_instruction_plan::native_instruction_plan;
         let entry = self.native_entry?;
         let version = entry
             .execution_point
@@ -2543,22 +2588,7 @@ impl CodegenCtx<'_> {
                 guard: crate::registry_invocation::native_command_binding_guard(guard),
             }
         });
-        let dialect = (crate::command_binding::SourceAnalysisOptions {
-            native_entry: Some(entry),
-            invocation_dialect: self.invocation_dialect,
-            native_compilation: self.native_compilation,
-            ..Default::default()
-        })
-        .native_compiler_dialect()?;
-        let instruction = native_instruction_plan(
-            plan.spec,
-            plan.selection,
-            &words,
-            plan.operand_from,
-            dialect,
-            plan.context,
-        )
-        .ok()?;
+        let instruction = plan.original_instruction(&command.words)?.clone();
         Some(PreparedNativeRegistered {
             version,
             instruction,
@@ -2578,6 +2608,10 @@ impl CodegenCtx<'_> {
                 NativeCompilationSelection::Inline { guard, .. } => guard,
                 NativeCompilationSelection::Generic
                     if plan.spec.namespace_binding_kind().is_some()
+                        || matches!(
+                            plan.spec.grammar,
+                            tcl_registry::native_compilation::NativeCompilationGrammar::Array { .. }
+                        )
                         || matches!(plan.spec.grammar,
                 tcl_registry::native_compilation::NativeCompilationGrammar::Conditional |
                 tcl_registry::native_compilation::NativeCompilationGrammar::ForLoop |
@@ -2625,6 +2659,12 @@ impl CodegenCtx<'_> {
                 };
                 *operations = tasks;
             }
+            NativeInstructionPlan::Coroutine(recipe) => {
+                let Some(tasks) = self.native_coroutine_tasks(command, recipe) else {
+                    return false;
+                };
+                *operations = tasks;
+            }
             NativeInstructionPlan::NamedInvocation(_) => return false,
             NativeInstructionPlan::Uplevel(recipe) => {
                 return Self::append_native_uplevel_tasks(command, &recipe, operations);
@@ -2654,13 +2694,33 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::NamespaceBindings(recipe) => {
                 return self.append_native_namespace_tasks(command, recipe, operations);
             }
+            NativeInstructionPlan::StringTrim(recipe) => {
+                return Self::append_native_string_trim_tasks(command, recipe, version, operations);
+            }
             NativeInstructionPlan::StringMatch(recipe) => {
                 return Self::append_native_string_match_tasks(
                     command, recipe, version, operations,
                 );
             }
+            NativeInstructionPlan::Upvar(recipe) => {
+                return Self::append_native_upvar_tasks(command, recipe, operations);
+            }
+            NativeInstructionPlan::InfoExists(recipe) => {
+                return self.append_native_info_exists_tasks(command, recipe, operations);
+            }
+            NativeInstructionPlan::ListOperations(recipe) => {
+                return self.append_native_list_operation_tasks(command, recipe, operations);
+            }
             NativeInstructionPlan::ListIndex(recipe) => {
                 return Self::append_native_list_index_tasks(command, recipe, operations);
+            }
+            NativeInstructionPlan::Array(recipe) => {
+                return self.append_native_array_tasks(command, recipe, version, operations);
+            }
+            NativeInstructionPlan::Introspection(recipe) => {
+                return Self::append_native_introspection_tasks(
+                    command, recipe, version, operations,
+                );
             }
             NativeInstructionPlan::Scalar(recipe) => {
                 return Self::append_native_scalar_tasks(command, recipe, version, operations);

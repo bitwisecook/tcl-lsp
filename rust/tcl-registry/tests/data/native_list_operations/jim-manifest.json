@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "cc",
+    "-I/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-byte-list-operations-native/jim-probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-ldl",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-byte-list-operations-native/jim-probe"
+  ],
+  "compile_status": 0,
+  "run_status": 0,
+  "budget": 60,
+  "sha256": {
+    "/workspace/.proofs/2286-byte-list-operations-native/jim-probe.c": "53a9b93a4e38d27e5a4693e613bfb25b81b2a54520b5cbf85ea68e3e11929152",
+    "/workspace/.proofs/2286-byte-list-operations-native/jim-probe": "8b24cc0d338fe8c878bfcc788c77aa5d3913fcfbb8245dab6325f257b699dd24",
+    "/tmp/2286-oracles/jimtcl/jim.h": "d9b020a910ba79cd90d2194849ad56b691fecb5dafd2b3f01c3d4d94e04c369d",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/workspace/.proofs/2286-byte-list-operations-native/jim.txt": "c6d78db36f9a442da2b02d3fe2ea86512765ef332732d16774d1c536d26ca528"
+  },
+  "results": 30,
+  "headers": 4
+}

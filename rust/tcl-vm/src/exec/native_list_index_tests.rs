@@ -120,3 +120,111 @@ fn original_namespace_array_index_compilation_enters_its_retained_child() {
         assert!(vm.execution_refusal.is_none(), "{engine}");
     }
 }
+
+mod original_objects {
+    use crate::Value;
+    include!("../../../tcl-registry/tests/data/native_list_index_original_objects/inputs.rs");
+    const TABLES: &[(&str, &str)] = &[
+        (
+            "tcl8.4",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt"
+            ),
+        ),
+        (
+            "tcl8.5",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt"
+            ),
+        ),
+        (
+            "tcl8.6",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt"
+            ),
+        ),
+        (
+            "tcl9.0",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt"
+            ),
+        ),
+        (
+            "tcl9.1",
+            include_str!(
+                "../../../tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt"
+            ),
+        ),
+    ];
+    #[test]
+    fn original_index_getters_match_45_native_header_and_result_windows() {
+        let mut count = 0;
+        for &(engine, table) in TABLES {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            vm.try_eval_source("proc p {x i} {lindex $x $i}").unwrap();
+            for row in table.lines() {
+                let columns = row.split('|').collect::<Vec<_>>();
+                let case = columns[0].parse::<usize>().unwrap();
+                let head = Value::new_native_string_bytes(b"p".as_slice());
+                let arguments = [
+                    Value::new_native_string_bytes(b"{{A B} C} D".as_slice()),
+                    Value::new_native_string_bytes(INPUTS[case].as_bytes()),
+                ];
+                let completion = vm.invoke_host_original_object_vector(&head, &arguments);
+                assert!(
+                    vm.execution_refusal.is_none(),
+                    "{engine}/{case}: {:?}",
+                    vm.execution_refusal
+                );
+                let result = &completion.result;
+                let observed = [
+                    completion.code.as_int().to_string(),
+                    arguments[1].native_object_type_name().to_owned(),
+                    usize::from(arguments[1].resident_string_bytes().is_some()).to_string(),
+                    arguments[1].native_object_reference_count().to_string(),
+                    result.native_object_type_name().to_owned(),
+                    usize::from(result.resident_string_bytes().is_some()).to_string(),
+                    result.native_object_reference_count().to_string(),
+                ];
+                assert_eq!(
+                    observed.iter().map(String::as_str).collect::<Vec<_>>(),
+                    columns[1..8],
+                    "{engine}/{case} original headers"
+                );
+                assert_eq!(
+                    result.string_bytes().as_ref(),
+                    super::unhex(columns[8]),
+                    "{engine}/{case} result"
+                );
+                count += 1;
+            }
+        }
+        assert_eq!(count, 45);
+    }
+    #[test]
+    fn original_index_list_and_returned_child_have_independent_real_owners() {
+        for &(engine, _) in TABLES {
+            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
+            let mut vm = crate::native_fixture::interpreter(profile);
+            let child = Value::new_native_string_bytes(b"MEMBER".as_slice());
+            let list = Value::list(vec![child.clone()]);
+            let index = Value::list(vec![Value::new_native_string_bytes(b"0".as_slice())]);
+            let before = child.native_object_reference_count();
+            let selected = vm
+                .original_list_index(&list, std::slice::from_ref(&index), true)
+                .unwrap();
+            assert_eq!(index.native_object_type_name(), "list", "{engine}");
+            assert!(selected.is_same_object(&child), "{engine}");
+            assert_eq!(
+                child.native_object_reference_count(),
+                before + 1,
+                "{engine}"
+            );
+            drop(list);
+            assert_eq!(selected.string_bytes().as_ref(), b"MEMBER", "{engine}");
+            drop(selected);
+            assert_eq!(child.native_object_reference_count(), 1, "{engine}");
+        }
+    }
+}

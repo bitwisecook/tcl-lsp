@@ -1214,3 +1214,62 @@ impl Interp {
         Ok(Code::Ok)
     }
 }
+
+impl PreparedNativeExpression {
+    fn compaction_hazards(
+        &self,
+    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+        if self.function_heads.is_empty() {
+            Vec::new()
+        } else {
+            vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::Invocation]
+        }
+    }
+}
+impl ExpressionOperation {
+    pub(super) fn compaction_hazards(
+        &self,
+    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+        self.static_program.as_ref().map_or_else(||vec![tcl_registry::native_compiler_pass::NativeCompilerPassHazard::ExpressionEvaluation],PreparedNativeExpression::compaction_hazards)
+    }
+}
+impl ControlOperation {
+    pub(super) fn compaction_hazards(
+        &self,
+    ) -> Vec<tcl_registry::native_compiler_pass::NativeCompilerPassHazard> {
+        use tcl_registry::native_compiler_pass::NativeCompilerPassHazard as Hazard;
+        let mut hazards = self
+            .prepared
+            .expressions
+            .values()
+            .flat_map(PreparedNativeExpression::compaction_hazards)
+            .collect::<Vec<_>>();
+        let dynamic = match &self.recipe.outcome {
+            NativeControlOutcome::Generic => {
+                hazards.push(Hazard::Invocation);
+                false
+            }
+            NativeControlOutcome::Rejected(_) => false,
+            NativeControlOutcome::Inline(instruction) => match instruction {
+                NativeControlInstruction::Conditional(clauses) => {
+                    clauses.iter().any(|clause| clause.body.script.is_none())
+                }
+                NativeControlInstruction::While {
+                    test: NativeControlTest::Constant(false),
+                    ..
+                } => false,
+                NativeControlInstruction::While { body, .. }
+                | NativeControlInstruction::Catch { body, .. } => body.script.is_none(),
+                NativeControlInstruction::For {
+                    start, body, next, ..
+                } => [start, body, next]
+                    .into_iter()
+                    .any(|body| body.script.is_none()),
+            },
+        };
+        if dynamic {
+            hazards.push(Hazard::ScriptEvaluation);
+        }
+        hazards
+    }
+}

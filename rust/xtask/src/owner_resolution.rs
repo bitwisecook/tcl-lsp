@@ -64,6 +64,10 @@ pub fn run() -> Result<ExitCode> {
     problems.extend(validate_native_instruction_name_consumers(&root)?);
     problems.extend(validate_jim_original_lookup_consumers(&root)?);
     problems.extend(validate_package_consumers(&root)?);
+    problems.extend(validate_native_compiler_pass_consumers(&root)?);
+    problems.extend(validate_native_coroutine_consumers(&root)?);
+    problems.extend(validate_native_string_trim_consumers(&root)?);
+    problems.extend(validate_native_list_storage_consumers(&root)?);
     if problems.is_empty() {
         let owner_count = parse_manifest(&contract)
             .map(|rows| rows.len())
@@ -947,6 +951,218 @@ fn command_object_projection_is_owned(section: &str) -> bool {
         .any(|bypass| section.contains(bypass))
 }
 
+/// Compiler replay consumes actual environment and opcode owners; earlier
+/// literal arrays remain chronological native factories, not live cache pins.
+fn validate_native_compiler_pass_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for (path, required) in [
+        (
+            "rust/tcl-vm/src/interp.rs",
+            vec![
+                "capture_native_compiler_pass_environment(",
+                "self.native_compiler_pass_owner.capture(",
+                "self.command_owned_procedure_namespace(&proc)",
+            ],
+        ),
+        (
+            "rust/tcl-compiler/src/codegen/native_compiler_pass.rs",
+            vec![
+                "native_compiler_replays(",
+                "ctx.instructions",
+                "hazard(instruction.op)",
+            ],
+        ),
+        (
+            "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+            vec!["capture_first_pass(ctx)", "omit_command_markers(ctx)"],
+        ),
+        (
+            "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+            vec![
+                "native_compiler_pass::replay_environment(",
+                "replay.lvt = std::mem::take(&mut asm.lvt)",
+                "retain_discarded_native_pass(first_literals)",
+                "retain_compiler_replay_environment(environment)",
+            ],
+        ),
+        (
+            "rust/tcl-vm/src/interp/native_command_names.rs",
+            vec![
+                "table.discarded_native_passes()",
+                "create_native_literal_table_pool(",
+                "drop(discarded)",
+                "table.compiler_replay_environment()",
+                "capture_native_compiler_pass_environment(None)",
+            ],
+        ),
+        (
+            "runtime/rust/src/interp/native_body_artifact/native_compiler_pass.rs",
+            vec![
+                "native_compiler_replays(",
+                "materialize_body_literals(original)",
+                "drop(first_pass)",
+            ],
+        ),
+    ] {
+        let source = read(root, path)?;
+        for door in required {
+            if !source.contains(door) {
+                problems.push(format!(
+                    "native compiler replay in `{path}` bypasses `{door}`"
+                ));
+            }
+        }
+    }
+    Ok(problems)
+}
+
+/// Original List storage consumers share range and replacement geometry.
+fn validate_native_list_storage_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for (path, required) in [
+        (
+            "rust/tcl-vm/src/value/native_list_storage.rs",
+            "range_action(",
+        ),
+        (
+            "runtime/rust/src/list/native_list_storage.rs",
+            "range_action(",
+        ),
+        ("rust/tcl-vm/src/native_list_backing.rs", "replace_layout("),
+        (
+            "runtime/rust/src/list/native_list_storage.rs",
+            "replace_layout(",
+        ),
+        ("rust/tcl-vm/src/value.rs", "items.replace_native("),
+        (
+            "runtime/rust/src/list.rs",
+            "replace_prepared_native_elements(",
+        ),
+        (
+            "rust/tcl-vm/src/native_list_backing.rs",
+            "fn check_generation(",
+        ),
+        ("runtime/rust/src/list.rs", "fn checked_generation("),
+    ] {
+        if !read(root, path)?.contains(required) {
+            problems.push(format!(
+                "native List storage in `{path}` bypasses original owner `{required}`"
+            ));
+        }
+    }
+    let execution = read(root, "rust/tcl-vm/src/exec.rs")?;
+    for required in [
+        "instr.native_list_range",
+        "l.native_list_range(range, protocol)",
+        "l.native_list_range_validate(protocol)",
+    ] {
+        if !execution.contains(required) {
+            problems.push(format!(
+                "native List range execution loses original coordinate/getter owner `{required}`"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
+fn validate_native_coroutine_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for (path, required) in [
+        (
+            "rust/tcl-registry/src/native_instruction_plan.rs",
+            "native_coroutine_compilation::compile_native_coroutine(",
+        ),
+        (
+            "rust/tcl-compiler/src/codegen/statements.rs",
+            "native_coroutine_tasks(",
+        ),
+        (
+            "rust/tcl-compiler/src/codegen/native_coroutine.rs",
+            "NativeCoroutineStep::",
+        ),
+        (
+            "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+            "NativeInstructionPlan::Coroutine(",
+        ),
+        (
+            "runtime/rust/src/interp/native_body_artifact/native_coroutine.rs",
+            "NativeCoroutineStep::",
+        ),
+        ("rust/tcl-vm/src/exec.rs", "request_yieldto_original("),
+        (
+            "rust/tcl-vm/src/cmd_coro.rs",
+            "Frame::new_original_invocation(",
+        ),
+        ("runtime/rust/src/cmd_coro.rs", "OriginalHandoff"),
+    ] {
+        if !read(root, path)?.contains(required) {
+            problems.push(format!("original coroutine consumer `{path}` lacks shared recipe or original-object transport `{required}`"));
+        }
+    }
+    let source = read(root, "rust/tcl-vm/src/cmd_coro.rs")?;
+    if let Some((_, creation)) = source.split_once("fn cmd_coroutine(")
+        && creation
+            .split("fn coro_resume(")
+            .next()
+            .unwrap_or(creation)
+            .contains("compile_script_cached")
+    {
+        problems.push(
+            "coroutine creation reconstructs source instead of retaining original argv".to_owned(),
+        );
+    }
+    Ok(problems)
+}
+
+/// Original trim instructions share operand conversion/cut/result owners.
+fn validate_native_string_trim_consumers(root: &Path) -> Result<Vec<String>> {
+    let mut problems = Vec::new();
+    for path in [
+        "rust/tcl-vm/src/exec.rs",
+        "runtime/rust/src/interp/native_body_artifact/native_string_trim.rs",
+    ] {
+        if !read(root, path)?.contains("tcl_cmd_core::string::compiled_trim(") {
+            problems.push(format!(
+                "native trim in `{path}` bypasses shared original operand/result ownership"
+            ));
+        }
+    }
+    for path in [
+        "rust/tcl-compiler/src/codegen/statements/native_string.rs",
+        "runtime/rust/src/interp/native_body_artifact/native_string_trim.rs",
+    ] {
+        if !read(root, path)?.contains("native_string_trim_compilation::default_trim_set(") {
+            problems.push(format!(
+                "native trim in `{path}` bypasses selected default character operand"
+            ));
+        }
+    }
+    let source = read(root, "rust/tcl-cmd-core/src/string/native_trim.rs")?;
+    if !compiled_trim_operand_order_is_owned(&source) {
+        problems.push(
+            "shared native trim loses character-before-subject original getter order".to_owned(),
+        );
+    }
+    Ok(problems)
+}
+
+fn compiled_trim_operand_order_is_owned(source: &str) -> bool {
+    let Some(section) = source
+        .split_once("pub fn compiled_trim<")
+        .map(|(_, section)| {
+            section
+                .split("pub(super) fn command_trim<")
+                .next()
+                .unwrap_or(section)
+        })
+    else {
+        return false;
+    };
+    let characters = section.find("ops.native_concat_string_bytes(characters)");
+    let subject = section.find("ops.native_concat_string_bytes(subject)");
+    matches!((characters, subject), (Some(characters), Some(subject)) if characters < subject)
+}
+
 fn parse_manifest(markdown: &str) -> Result<Vec<OwnerRow>, String> {
     let start = markdown
         .find(START_MARKER)
@@ -1265,6 +1481,17 @@ mod tests {
         assert!(!super::variable_inventory_is_owned(
             &format!("{body}; names.dedup();"),
             "vars_in_bytes_checked("
+        ));
+    }
+
+    #[test]
+    fn original_trim_guard_requires_selected_getter_order() {
+        let original = "pub fn compiled_trim<O>() { let characters = ops.native_concat_string_bytes(characters)?; let bytes = ops.native_concat_string_bytes(subject)?; }";
+        assert!(super::compiled_trim_operand_order_is_owned(original));
+        let reversed = "pub fn compiled_trim<O>() { let bytes = ops.native_concat_string_bytes(subject)?; let characters = ops.native_concat_string_bytes(characters)?; }";
+        assert!(!super::compiled_trim_operand_order_is_owned(reversed));
+        assert!(!super::compiled_trim_operand_order_is_owned(
+            "pub fn compiled_trim<O>() { ops.to_string(subject); }"
         ));
     }
 

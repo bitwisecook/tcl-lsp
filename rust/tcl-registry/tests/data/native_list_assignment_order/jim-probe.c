@@ -1,0 +1,8 @@
+#include "jim.h"
+#include <stdio.h>
+#include <string.h>
+static int caseId,markCount;
+static void hex(const char*p,int n){for(int k=0;k<n;k++)printf("%02x",(unsigned char)p[k]);}
+static void state(Jim_Obj*v){int refs=v->refCount,res=v->bytes!=NULL;const char*t=v->typePtr?v->typePtr->name:"none";printf("%s|%d|%d|",t,res,refs);int n;const char*b=Jim_GetString(v,&n);hex(b,n);}
+static int Mark(Jim_Interp*i,int n,Jim_Obj*const*v){printf("H|%d|%d|",caseId,markCount++);state(v[1]);puts("");return JIM_OK;}
+int main(void){Jim_Interp*i=Jim_CreateInterp();Jim_RegisterCoreCommands(i);Jim_CreateCommand(i,"mark",Mark,NULL,NULL);const char*cases[]={"lassign $name first [set first]; list $first $A", "catch {lassign $name first [error STOP]} caught; list $first $caught", "lassign $name first a([set first]); list $first $a(A)", "lassign $name first [proc lassign args {return CUSTOM}; set first]; list $first $A"};for(caseId=0;caseId<sizeof(cases)/sizeof(*cases);caseId++){Jim_Eval(i,"catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch {unset ::g};set ::log {}; proc tap {v} {lappend ::log $v;return $v};proc traceRead {n e op} {set ::g CREATED}; proc traceFail {n e op} {error TRACE}");char source[4096];snprintf(source,sizeof source,"proc p {name idx} {set x $name;set a(1) $name;%s}",cases[caseId]);if(Jim_Eval(i,source)!=JIM_OK){printf("SETUP|%d\n",caseId);continue;}Jim_Obj*v[]={Jim_NewStringObj(i,"p",-1),Jim_NewStringObj(i,"{A} B C",-1),Jim_NewStringObj(i,"1",-1)};for(int k=0;k<3;k++)Jim_IncrRefCount(v[k]);markCount=0;int code=Jim_EvalObjVector(i,3,v);printf("R|%d|%d|",caseId,code);state(Jim_GetResult(i));puts("|");printf("O|%d|",caseId);state(v[1]);puts("");for(int k=0;k<3;k++)Jim_DecrRefCount(i,v[k]);}Jim_FreeInterp(i);return 0;}

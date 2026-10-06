@@ -505,46 +505,29 @@ impl Vm {
         })
     }
 
-    pub(crate) fn exists_compiled_variable(
+    pub(crate) fn exists_compiled_original_variable(
         &mut self,
         slot: usize,
-        element: Option<&[u8]>,
+        element: Option<&Value>,
     ) -> Result<bool, Completion<Value>> {
-        let (name, resolved) = self.compiled_operand(slot, element)?;
-        let cell = self.trace_cell_from_resolved(&resolved);
-        let check = |vm: &mut Self| {
-            let traced = match element {
-                Some(element) => vm.fire_elem_traces_from_cell_bytes(
-                    name.as_bytes(),
-                    element,
-                    "read",
-                    cell.clone(),
-                ),
-                None => vm.fire_var_traces_from_cell_bytes(
-                    name.as_bytes(),
-                    "read",
-                    None,
-                    None,
-                    cell.clone(),
-                ),
-            };
-            if let Some(refusal) = vm.refused_completion() {
-                return Err(refusal);
+        let bytes = element
+            .map(|element| self.native_name_operand_bytes(element))
+            .transpose()
+            .map_err(|error| self.refuse_host_command(error.to_string()))?;
+        let (name, mut resolved) = self.compiled_operand(slot, bytes.as_deref())?;
+        self.prepare_existing_array_read(&mut resolved)?;
+        if self
+            .native_c_variable_name_protocol()
+            .is_some_and(|protocol| protocol.element_table_retains_original())
+        {
+            if let (Some(array), Some(index), Some(original)) =
+                (resolved.base_id, resolved.elem.as_ref(), element)
+            {
+                self.var_arena
+                    .retain_original_array_key(array, index, original.clone());
             }
-            if traced.is_err() {
-                vm.publish_swallowed_trace_error();
-            }
-            Ok(vm.read_variable_contents(&resolved).is_some()
-                || resolved.elem.is_none()
-                    && resolved
-                        .id
-                        .and_then(|id| vm.var_arena.get(id))
-                        .is_some_and(|cell| matches!(cell.state(), Local::Array(_))))
-        };
-        match cell.as_ref() {
-            Some(cell) => self.with_variable_operation(cell, check),
-            None => check(self),
         }
+        self.exists_selected_original_variable(name.as_bytes(), bytes.as_deref(), resolved, None)
     }
 
     pub(crate) fn unset_compiled_variable(
@@ -604,6 +587,11 @@ impl Vm {
     ) -> Result<Value, Completion<Value>> {
         let (name, captured) = self.capture_compiled_update(slot, element)?;
         self.lappend_instruction_single_captured(name.as_bytes(), element, &captured, addition)
+    }
+
+    pub(crate) fn ensure_array_compiled(&mut self, slot: usize) -> Result<(), Completion<Value>> {
+        let (name, resolved) = self.compiled_operand(slot, None)?;
+        self.ensure_array_original_selected_opcode(name.as_bytes(), &resolved)
     }
 
     pub(crate) fn array_exists_compiled(&mut self, slot: usize) -> Result<bool, Completion<Value>> {

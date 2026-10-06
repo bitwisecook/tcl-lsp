@@ -91,6 +91,20 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::NamespaceBindings(recipe) => {
                 self.original_namespace_preparations(words, recipe, context)
             }
+            NativeInstructionPlan::Upvar(recipe) => self.original_operands(
+                words,
+                recipe.level.iter().cloned().chain(recipe.bindings.iter().map(|binding| binding.other.clone())),
+                context,
+            ),
+            NativeInstructionPlan::InfoExists(recipe) => {
+                match (&recipe.receiver, &recipe.operand) {
+                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target), NativeCompilerWordOperand::Original(word)) => {
+                        self.original_variable_operand(words, target, *word, context)
+                    }
+                    (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::ExpandedLiteral { .. }, NativeCompilerWordOperand::LiteralExpansion { .. }) => None,
+                    _ => { self.require_provider(); None }
+                }
+            }
             NativeInstructionPlan::Uplevel(recipe) => self.original_operands(
                 words,
                 recipe
@@ -123,10 +137,28 @@ impl CompilerTraversal<'_> {
                 }),
                 context,
             ),
+            NativeInstructionPlan::Coroutine(coroutine) => self.original_operands(
+                words, coroutine.steps.iter().filter_map(|step| match step {
+                    tcl_registry::native_coroutine_compilation::NativeCoroutineStep::Word(operand) |
+                    tcl_registry::native_coroutine_compilation::NativeCoroutineStep::CommandWord { operand, .. } => Some(operand.clone()),
+                    _ => None,
+                }), context,
+            ),
             NativeInstructionPlan::DictionaryLookup(dictionary) => {
                 self.original_operands(words, dictionary.operands.iter().cloned(), context)
             }
+            NativeInstructionPlan::ListOperations(recipe) => self.original_list_operation(words, recipe, context),
             NativeInstructionPlan::ListIndex(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
+            NativeInstructionPlan::Array(recipe) => {
+                let Some(recipe)=&recipe.instruction else{return None;};
+                if let (tcl_registry::native_info_exists_compilation::NativeInfoExistsReceiver::Original(target),NativeCompilerWordOperand::Original(index))=(&recipe.receiver,&recipe.operand) {
+                    if let Some(failure)=self.original_variable_operand(words,target,*index,context){return Some(failure);}
+                }
+                self.original_operands(words,recipe.values.iter().cloned(),context)
+            }
+            NativeInstructionPlan::Introspection(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
             NativeInstructionPlan::Scalar(recipe) => {
@@ -150,6 +182,7 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Unset(recipe) => {
                 self.original_unset_preparations(words, recipe, context)
             }
+            NativeInstructionPlan::StringTrim(recipe) => self.original_operands(words,std::iter::once(recipe.subject.clone()).chain(recipe.characters.iter().cloned()),context),
             NativeInstructionPlan::StringMatch(recipe) => self.original_operands(
                 words,
                 [recipe.pattern.clone(), recipe.subject.clone()],
@@ -648,6 +681,45 @@ impl CompilerTraversal<'_> {
                 self.substitutions(std::slice::from_ref(word), context)
             }
             NativeCompilerWordOperand::LiteralExpansion { .. } => None,
+        }
+    }
+
+    fn original_list_operation(
+        &mut self,
+        words: &[WordExpr],
+        recipe: &tcl_registry::native_list_operations_compilation::NativeListOperationInstruction,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        use tcl_registry::native_list_operations_compilation::{
+            NativeListOperationInstruction as Plan, NativeListVariableOperand as Target,
+        };
+        match recipe {
+            Plan::Range { list, .. } => {
+                self.original_operands(words, std::iter::once(list.clone()), context)
+            }
+            Plan::Assign { list, targets } => {
+                if let Some(failure) = self.original_operand(words, list, context) {
+                    return Some(failure);
+                }
+                for target in targets {
+                    if let Target::Original {
+                        operand: NativeCompilerWordOperand::Original(index),
+                        variable,
+                    } = target
+                    {
+                        if let Some(failure) =
+                            self.original_variable_operand(words, variable, *index, context)
+                        {
+                            return Some(failure);
+                        }
+                    }
+                }
+                None
+            }
+            Plan::Insert { .. } | Plan::Set { .. } => {
+                self.require_provider();
+                None
+            }
         }
     }
 

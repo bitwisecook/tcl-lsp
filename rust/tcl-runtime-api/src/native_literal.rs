@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Native global literal registrations with concrete original object owners.
 
+#[path = "native_literal_observation.rs"]
+mod observation;
+pub use observation::NativeEmptyLiteralWorld;
+use observation::NativeLiteralObservationOwner;
 use std::collections::HashMap;
 use tcl_core_types::NsId;
 use tcl_syntax::native_string::NativeStringProtocol;
@@ -28,6 +32,7 @@ pub struct NativeLiteralWorld<V> {
     entries: Vec<Option<Registration<V>>>,
     index: HashMap<NativeLiteralKey, Vec<usize>>,
     free: Vec<usize>,
+    observation: NativeLiteralObservationOwner,
 }
 impl<V> Default for NativeLiteralWorld<V> {
     fn default() -> Self {
@@ -35,6 +40,7 @@ impl<V> Default for NativeLiteralWorld<V> {
             entries: Vec::new(),
             index: HashMap::new(),
             free: Vec::new(),
+            observation: NativeLiteralObservationOwner::default(),
         }
     }
 }
@@ -50,6 +56,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
         mut spelling: impl FnMut(&V) -> Result<Vec<u8>, E>,
         make: impl FnOnce() -> Result<V, E>,
     ) -> Result<(usize, V), E> {
+        self.observation.invalidate();
         if let Some(entries) = self.index.get(&key) {
             for &index in entries {
                 let entry = self.entries[index]
@@ -84,6 +91,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
     /// Acquire an additional local-array lease for this retained registration.
     /// The index must come from the same live world; no key lookup is replayed.
     pub fn acquire_registration(&mut self, index: usize) -> Option<V> {
+        self.observation.invalidate();
         let entry = self.entries.get_mut(index)?.as_mut()?;
         entry.local_arrays = entry
             .local_arrays
@@ -93,6 +101,7 @@ impl<V: Clone> NativeLiteralWorld<V> {
     }
     /// Release one real local-array registration before its local member owner.
     pub fn release(&mut self, index: usize) {
+        self.observation.invalidate();
         let entry = self.entries[index]
             .as_mut()
             .expect("retained global literal registration");
@@ -116,6 +125,19 @@ impl<V: Clone> NativeLiteralWorld<V> {
             self.index.remove(&entry.key);
         }
     }
+    /// Capture actual emptiness in this same live interpreter-owned registration world.
+    /// Existing values are neither inspected nor converted. Each capture invalidates
+    /// earlier observations, including when a populated world declines this receipt.
+    #[must_use]
+    pub fn capture_empty_world(
+        &self,
+        interpreter: crate::native_compilation::NativeInterpreterIdentity,
+        capture_epoch: u64,
+    ) -> Option<NativeEmptyLiteralWorld> {
+        self.observation
+            .capture(interpreter, capture_epoch, self.index.is_empty())
+    }
+
     /// Borrow all actual global owners without acquiring native references.
     pub fn registered_values(&self) -> impl Iterator<Item = &V> {
         self.entries.iter().flatten().map(|entry| &entry.value)
@@ -142,6 +164,12 @@ impl<V: Clone> NativeLiteralWorld<V> {
             .get(index)?
             .as_ref()
             .map(|entry| entry.local_arrays)
+    }
+}
+
+impl<V> Drop for NativeLiteralWorld<V> {
+    fn drop(&mut self) {
+        self.observation.retire();
     }
 }
 
@@ -374,5 +402,100 @@ mod source_literal_tests {
             count += 1;
         }
         assert_eq!(count, 10);
+    }
+}
+
+#[cfg(test)]
+mod empty_world_tests {
+    use super::*;
+    use crate::native_compilation::NativeInterpreterIdentity;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    fn interpreter() -> NativeInterpreterIdentity {
+        NativeInterpreterIdentity {
+            owner: NativeInterpreterIdentity::fresh_owner(),
+            interpreter: 0,
+        }
+    }
+    fn key() -> NativeLiteralKey {
+        NativeLiteralKey {
+            protocol: NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6),
+            namespace: None,
+            original: b"held".to_vec(),
+        }
+    }
+    #[test]
+    fn empty_world_capture_is_bound_to_actual_owner_epoch_and_capture() {
+        let owner = interpreter();
+        let world = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let first = world.capture_empty_world(owner, 7).unwrap();
+        assert!(first.is_current_for(owner, 7));
+        assert!(!first.is_current_for(owner, 8));
+        assert!(!first.is_current_for(interpreter(), 7));
+        let second = world.capture_empty_world(owner, 7).unwrap();
+        assert!(!first.is_current());
+        assert!(second.is_current());
+        assert_ne!(first, second);
+        assert!(world.capture_empty_world(interpreter(), 7).is_none());
+        assert!(!second.is_current());
+        assert!(world.capture_empty_world(owner, 7).is_none());
+    }
+    #[test]
+    fn populated_world_declines_without_getters_or_extra_value_references() {
+        let owner = interpreter();
+        let mut world = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let empty = world.capture_empty_world(owner, 0).unwrap();
+        let original = Rc::new(vec![0, 255]);
+        let getters = Cell::new(0);
+        let (index, local) = world
+            .register(
+                key(),
+                |_| {
+                    getters.set(getters.get() + 1);
+                    Ok::<_, ()>(b"held".to_vec())
+                },
+                || Ok::<_, ()>(original.clone()),
+            )
+            .unwrap();
+        assert!(!empty.is_current());
+        let before = Rc::strong_count(&original);
+        assert!(world.capture_empty_world(owner, 0).is_none());
+        assert_eq!(getters.get(), 0);
+        assert_eq!(Rc::strong_count(&original), before);
+        world.release(index);
+        assert!(world.capture_empty_world(owner, 0).is_some());
+        drop(local);
+        assert_eq!(Rc::strong_count(&original), 1);
+    }
+    #[test]
+    fn failed_registration_invalidates_before_native_getter_or_constructor() {
+        let owner = interpreter();
+        let mut world = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let empty = world.capture_empty_world(owner, 0).unwrap();
+        let refused: Result<(usize, Rc<Vec<u8>>), ()> = world.register(
+            key(),
+            |_| panic!("empty world has no getter"),
+            || {
+                assert!(!empty.is_current());
+                Err(())
+            },
+        );
+        assert!(refused.is_err());
+        assert!(!empty.is_current());
+        assert!(world.capture_empty_world(owner, 0).is_some());
+    }
+    #[test]
+    fn replacement_or_retirement_never_revives_an_original_world() {
+        let owner = interpreter();
+        let world = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let first = world.capture_empty_world(owner, 0).unwrap();
+        drop(world);
+        assert!(!first.is_current());
+        let replacement = NativeLiteralWorld::<Rc<Vec<u8>>>::default();
+        let fresh = replacement.capture_empty_world(owner, 0).unwrap();
+        assert_ne!(first, fresh);
+        assert!(!first.is_current());
+        assert!(fresh.is_current());
     }
 }

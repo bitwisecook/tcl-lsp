@@ -262,7 +262,7 @@ pub fn compile_original_selected_worker(
             .map_or(Result::Unavailable, Result::Named)
         }
         NativeCompilationSelection::Inline { .. } | NativeCompilationSelection::CompileError => {
-            crate::native_instruction_plan::native_instruction_plan(
+            crate::native_instruction_plan::native_registered_worker_instruction_plan(
                 spec,
                 selection,
                 words,

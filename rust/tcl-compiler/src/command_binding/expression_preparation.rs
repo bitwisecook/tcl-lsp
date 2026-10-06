@@ -411,18 +411,17 @@ fn expression_has_integer_inputs(
     while let Some(node) = pending.pop() {
         match node {
             ExprNode::Literal { text, .. } => {
-                if state.ordinary_literal_pool.is_none()
-                    || !matches!(
-                        tcl_syntax::number::parse_whole_with(
-                            text,
-                            tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers)
-                        ),
-                        Some(
-                            tcl_syntax::number::Number::Int(_)
-                                | tcl_syntax::number::Number::Big { .. }
-                        )
+                if !state.ordinary_literal_pool.as_ref().is_some_and(
+                    super::literal_object_pool::SourceOrdinaryLiteralPool::authored_objects,
+                ) || !matches!(
+                    tcl_syntax::number::parse_whole_with(
+                        text,
+                        tcl_syntax::number::ParseFlags::for_syntax(dialect.numbers)
+                    ),
+                    Some(
+                        tcl_syntax::number::Number::Int(_) | tcl_syntax::number::Number::Big { .. }
                     )
-                {
+                ) {
                     return false;
                 }
             }
@@ -545,7 +544,10 @@ fn expression_evaluation_completes_normally(
     reads: &[super::SourceVariableAccess],
     registry: &tcl_registry::CommandRegistry,
 ) -> bool {
-    state.ordinary_literal_pool.is_some()
+    state
+        .ordinary_literal_pool
+        .as_ref()
+        .is_some_and(super::literal_object_pool::SourceOrdinaryLiteralPool::authored_objects)
         && !state.has_opaque_domain()
         && preparation.has_closed_script_compilation()
         && evaluation.native_value_effects_are_proved()

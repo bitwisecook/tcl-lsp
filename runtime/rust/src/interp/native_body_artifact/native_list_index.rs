@@ -67,23 +67,18 @@ impl Interp {
         let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
         let result = match index.operation {
             NativeListIndexOperation::Single => {
-                tcl_cmd_core::list::lindex(self, &pointers[0], &pointers[1..])
+                self.original_list_index(pointers[0], &pointers[1..], true)
             }
             NativeListIndexOperation::Multi(_) => {
-                tcl_cmd_core::list::lindex_flat(self, &pointers[0], &pointers[1..])
+                self.original_list_index(pointers[0], &pointers[1..], false)
             }
-            NativeListIndexOperation::Immediate(coordinate) => self
-                .list_elements(&pointers[0])
-                .map(|members| {
-                    coordinate
-                        .resolve(members.len())
-                        .map_or_else(|| self.empty(), |index| members[index])
-                })
-                .map_err(Into::into),
+            NativeListIndexOperation::Immediate(coordinate) => {
+                tcl_cmd_core::native_list_index::immediate(self, &pointers[0], coordinate)
+            }
         };
         match result {
             Ok(value) => {
-                self.set_result(value);
+                self.set_result(value.owned().as_ptr());
                 Ok(Code::Ok)
             }
             Err(error) => Ok(self.report_cmd_error(error)),
@@ -102,7 +97,7 @@ mod tests {
         ("tcl9.0", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.0.4.txt")),
         ("tcl9.1", include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_compilation/9.1.0.txt")),
     ];
-    fn unhex(value: &str) -> Vec<u8> {
+    pub(super) fn unhex(value: &str) -> Vec<u8> {
         value
             .as_bytes()
             .chunks_exact(2)
@@ -172,5 +167,110 @@ mod tests {
             }
         }
         assert_eq!(windows, 95);
+    }
+}
+
+#[cfg(test)]
+mod original_objects {
+    use super::*;
+    include!(
+        "../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/inputs.rs"
+    );
+    const TABLES: &[(&str,&str)] = &[
+        ("tcl8.4",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.4.20.txt")),
+        ("tcl8.5",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.5.19.txt")),
+        ("tcl8.6",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/8.6.18.txt")),
+        ("tcl9.0",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.0.4.txt")),
+        ("tcl9.1",include_str!("../../../../../rust/tcl-registry/tests/data/native_list_index_original_objects/9.1.0.txt")),
+    ];
+    fn header(value: *mut TclObj) -> [String; 3] {
+        let descriptor = obj::obj_type_ptr(value);
+        // SAFETY: each argument/result observation is held by its real native owner.
+        unsafe {
+            [
+                if descriptor.is_null() {
+                    "none".to_owned()
+                } else {
+                    core::ffi::CStr::from_ptr((*descriptor).name)
+                        .to_str()
+                        .unwrap()
+                        .to_owned()
+                },
+                usize::from(obj::has_string_rep(value)).to_string(),
+                (*value).ref_count.to_string(),
+            ]
+        }
+    }
+    #[test]
+    fn original_index_getters_match_45_native_header_and_result_windows() {
+        let mut count = 0;
+        for &(engine, table) in TABLES {
+            let mut interp = super::super::tests::interpreter(engine);
+            assert_eq!(interp.eval_str(b"proc p {x i} {lindex $x $i}"), Code::Ok);
+            for row in table.lines() {
+                let columns = row.split('|').collect::<Vec<_>>();
+                let case = columns[0].parse::<usize>().unwrap();
+                let originals = [b"p".as_slice(), b"{{A B} C} D", INPUTS[case].as_bytes()]
+                    .map(|bytes| obj::Owned::fresh(new_string(bytes)));
+                let argv = originals.each_ref().map(obj::Owned::as_ptr);
+                let code = interp.eval_original_object_vector(&argv);
+                assert!(
+                    !interp.host_refusal_pending(),
+                    "{engine}/{case}: {:?}",
+                    interp.native_access_refusal()
+                );
+                let result = interp.result_obj();
+                let mut observed = vec![code.as_int().to_string()];
+                observed.extend(header(argv[2]));
+                observed.extend(header(result));
+                assert_eq!(
+                    observed.iter().map(String::as_str).collect::<Vec<_>>(),
+                    columns[1..8],
+                    "{engine}/{case} original headers"
+                );
+                assert_eq!(
+                    obj_bytes(result),
+                    super::tests::unhex(columns[8]),
+                    "{engine}/{case} result"
+                );
+                count += 1;
+            }
+        }
+        assert_eq!(count, 45);
+    }
+    #[test]
+    fn original_index_list_and_returned_child_have_independent_real_owners() {
+        for &(engine, _) in TABLES {
+            let mut interp = super::super::tests::interpreter(engine);
+            let child = obj::Owned::fresh(new_string(b"MEMBER"));
+            let protocol = interp.native_invocation_dialect().native_string_protocol().unwrap();
+            let list = obj::Owned::fresh(crate::list::new_list_obj_native(&[child.as_ptr()], protocol));
+            let index_word = obj::Owned::fresh(new_string(b"0"));
+            let index = obj::Owned::fresh(crate::list::new_list_obj_native(&[index_word.as_ptr()], protocol));
+            // SAFETY: the original child is retained through every count observation.
+            let before = unsafe { (*child.as_ptr()).ref_count };
+            let selected = interp
+                .original_list_index(list.as_ptr(), &[index.as_ptr()], true)
+                .unwrap();
+            assert!(
+                core::ptr::eq(
+                    obj::obj_type_ptr(index.as_ptr()),
+                    &crate::list::TCL_LIST_TYPE
+                ),
+                "{engine}"
+            );
+            assert_eq!(selected.as_ptr(), child.as_ptr(), "{engine}");
+            // SAFETY: the returned member and original child both own genuine references.
+            assert_eq!(
+                unsafe { (*child.as_ptr()).ref_count },
+                before + 1,
+                "{engine}"
+            );
+            drop(list);
+            assert_eq!(obj_bytes(selected.as_ptr()), b"MEMBER", "{engine}");
+            drop(selected);
+            // SAFETY: only the explicit child owner remains.
+            assert_eq!(unsafe { (*child.as_ptr()).ref_count }, 1, "{engine}");
+        }
     }
 }

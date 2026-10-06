@@ -486,6 +486,13 @@ pub struct NativeCompilationEntry {
     /// Independently captured complete variable-root tables. Missing tables
     /// remain open; command or observer closure cannot fill this capability.
     pub namespace_variable_tables: Option<Vec<NativeNamespaceVariableTable>>,
+    /// Same-capture absence of original shared literal registrations. This is
+    /// effect-only provenance, not an object class, contents or compiler receipt.
+    pub empty_literal_world: Option<crate::native_literal::NativeEmptyLiteralWorld>,
+    /// Actual root/limit/procedure environment for whole-unit native replay.
+    /// Missing or retired evidence cannot select another compiler pass.
+    pub compiler_pass_environment:
+        Option<crate::native_compiler_pass::NativeCompilerPassEnvironment>,
     /// Independently installed authored worker publication contract. Missing
     /// concrete TMM providers do not acquire this from a dialect/profile.
     pub authored_tmm_static: Option<crate::authored_tmm::AuthoredTmmStaticCompilationContext>,
@@ -624,6 +631,8 @@ impl NativeCompilationEntry {
             && self.current_namespace == other.current_namespace
             && self.variable_observers == other.variable_observers
             && self.namespace_variable_tables == other.namespace_variable_tables
+            && self.empty_literal_world == other.empty_literal_world
+            && self.compiler_pass_environment == other.compiler_pass_environment
             && self.authored_tmm_static == other.authored_tmm_static
             && self.frame == other.frame
     }

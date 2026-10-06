@@ -803,28 +803,12 @@ impl CodegenCtx<'_> {
                 || self.source_image().clone(),
                 |site| site.source.source_image().clone(),
             );
-        let span = tcl_lexer::Span::new(
+        let words = crate::registry_invocation::original_native_compiler_words(
+            &image,
+            tokens.words(),
             tokens.words().first()?.source().span.start(),
-            tokens.words().last()?.source().span.end(),
-        );
-        let plan = tcl_lexer::native_script_words_in(
-            image,
-            span,
             tokens.native_lexer_config(self.lexer_config()),
-        )
-        .ok()?;
-        if plan.fatal_tail.is_some() || plan.commands.len() != 1 {
-            return None;
-        }
-        let words = plan.commands.into_iter().next()?.words;
-        if words.len() != tokens.words().len()
-            || words
-                .iter()
-                .zip(tokens.words())
-                .any(|(original, word)| original.span() != word.source().span)
-        {
-            return None;
-        }
+        )?;
         Some(OriginalCompilerWords {
             words,
             version,
@@ -839,14 +823,18 @@ impl CodegenCtx<'_> {
         word: &crate::ir::WordExpr,
     ) -> Option<tcl_syntax::native_variable_words::NativeVariableWordOperand> {
         let original = self.original_compiler_words()?;
-        let mut matches = original
-            .words
+        let mut matches = self
+            .invocation_tokens
+            .as_deref()?
+            .words()
             .iter()
-            .filter(|original| original.span() == word.source().span);
-        let selected = matches.next()?;
+            .enumerate()
+            .filter(|(_, original)| *original == word);
+        let (index, _) = matches.next()?;
         if matches.next().is_some() {
             return None;
         }
+        let selected = original.words.get(index)?;
         tcl_syntax::native_variable_words::native_variable_word(
             selected,
             original.version,
@@ -1639,6 +1627,8 @@ mod tests {
             inline_compilation_disabled: false,
             authored_tmm_static: None,
             namespace_variable_tables: None,
+            empty_literal_world: None,
+            compiler_pass_environment: None,
             variable_observers: NativeVariableObserverPresence::Unknown,
             math_functions: None,
             closed: true,
@@ -1662,6 +1652,56 @@ mod tests {
             config,
             &segment,
         )
+    }
+
+    #[test]
+    fn original_variable_projection_keeps_the_final_substitution_closer() {
+        use tcl_syntax::native_variable_words::NativeVariableWordOperand;
+        let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
+        let registry = CommandRegistry::build_default().project_for_profile(profile);
+        let entry = crate::environment_ingress::captured_native_entry(profile);
+        for source in [
+            "lappend ::events [list $n $i $op]",
+            "lappend \"arr($i)\" [list $n]",
+            "lappend {arr($i)} [list $n]",
+        ] {
+            let image = tcl_lexer::SourceImage::native(source.as_bytes());
+            let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+            let tokens = increment_tokens(&image, config);
+            let mut ctx = CodegenCtx::new(true, &[], &registry);
+            ctx.source = image;
+            ctx.native_entry = Some(&entry);
+            ctx.source_string_protocol = entry.source_string_protocol;
+            ctx.invocation_tokens = Some(Box::new(tokens.clone()));
+            let original = ctx.original_compiler_words().unwrap();
+            assert_eq!(original.words.len(), 3, "{source}");
+            let variable = ctx.original_variable_operand(&tokens.words()[1]).unwrap();
+            match (source, variable) {
+                (
+                    "lappend ::events [list $n $i $op]",
+                    NativeVariableWordOperand::Literal { name, index, .. },
+                ) => {
+                    assert_eq!(name, b"::events");
+                    assert_eq!(index, None);
+                }
+                (
+                    "lappend \"arr($i)\" [list $n]",
+                    NativeVariableWordOperand::CompoundArray { name, index, .. },
+                ) => {
+                    assert_eq!(name, b"arr");
+                    assert_eq!(index.image().bytes(), original.words[1].image().bytes());
+                }
+                ("lappend {arr($i)} [list $n]", NativeVariableWordOperand::DynamicWord) => {}
+                (source, variable) => panic!("{source}: actual C84 variable layout {variable:?}"),
+            }
+            let changed = increment_tokens(
+                &tcl_lexer::SourceImage::native(b"lappend other [list $n]".as_slice()),
+                config,
+            );
+            assert!(ctx.original_variable_operand(&changed.words()[1]).is_none());
+            ctx.source_string_protocol = None;
+            assert!(ctx.original_variable_operand(&tokens.words()[1]).is_none());
+        }
     }
 
     #[test]

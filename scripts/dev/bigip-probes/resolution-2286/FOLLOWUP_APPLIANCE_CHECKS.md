@@ -6,7 +6,7 @@ Work on branch `work`. Write results in the peer file `FOLLOWUP_APPLIANCE_RESULT
 
 ## Lab and evidence requirements
 
-Use uniquely named disposable rules, folders, partitions and VIPs in the authorized isolated lab. Clients and servers may both run on `dev.bragi0.com`, including loopback tests using any suitable protocol. All test virtual servers must use **SNAT automap**. Show actual client-to-VIP-to-backend correlation and backend peer address when forwarding traffic. Retain raw `/var/log/ltm` from before rule creation through cleanup, raw client replies, backend transcripts, object configurations and exact request/phase identifiers.
+Use uniquely named disposable rules, folders, partitions and VIPs in the authorized isolated lab. Clients and servers may both run on `dev.bragi0.com`, including loopback tests using any suitable protocol. All test virtual servers must use **SNAT automap**. Show actual client-to-VIP-to-backend correlation and backend peer address when forwarding traffic. Retain raw `/var/log/ltm` from before rule creation through cleanup, raw client replies, backend transcripts, object configurations and exact request and observation identifiers.
 
 Discover the actual TMM roster. Run name checks on every reachable pair, reporting coverage gaps explicitly. Keep ordinary-global-induced CMP demotion separate from storage sharing. Reuse the available traffic/backend tools where useful. Do not restart TMM, change global CMP, overwrite configuration, save global configuration, or touch unrelated objects. Delete only exact owned names. Record provider config deletion separately from runtime callable retirement; a successful `tmsh delete` does not establish retirement.
 

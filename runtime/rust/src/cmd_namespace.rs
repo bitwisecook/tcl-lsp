@@ -1261,10 +1261,29 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     match origin {
         Some(fqn) => {
-            interp.set_result_bytes(&fqn);
+            if interp
+                .native_invocation_dialect()
+                .native_command_name_protocol()
+                .is_some()
+            {
+                let original = match interp.native_namespace_origin_result(&fqn) {
+                    Ok(original) => original,
+                    Err(error) => return interp.report_cmd_error(error.into()),
+                };
+                interp.set_result(original.as_ptr());
+            } else {
+                interp.set_result_bytes(&fqn);
+            }
             Code::Ok
         }
         None => {
+            if interp
+                .native_invocation_dialect()
+                .native_command_name_protocol()
+                .is_some()
+            {
+                return interp.native_namespace_origin_failure(argv[2]);
+            }
             let name = match interp.native_string_bytes(&argv[2]) {
                 Ok(name) => name,
                 Err(error) => return interp.report_cmd_error(error.into()),
@@ -1299,7 +1318,11 @@ fn ns_code(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             ),
         );
     };
-    if policy.preserves_argument(&obj_bytes(argv[2])) {
+    let original_bytes = match interp.native_string_bytes(&argv[2]) {
+        Ok(bytes) => bytes,
+        Err(error) => return interp.report_cmd_error(error.into()),
+    };
+    if policy.preserves_argument(&original_bytes) {
         interp.set_result(argv[2]);
         return Code::Ok;
     }

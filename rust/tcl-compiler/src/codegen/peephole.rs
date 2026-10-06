@@ -46,17 +46,20 @@ impl CodegenCtx<'_> {
         if self.instructions[n - 2].op != Op::POP {
             return;
         }
-        if !self.instructions[n - 2]
-            .native_operation_selections
-            .is_empty()
-        {
-            return;
-        }
         // Don't strip pop after reverse — it's part of catch epilogue.
         if n >= 3 && self.instructions[n - 3].op == Op::REVERSE {
             return;
         }
-
+        if !self.instructions[n - 2]
+            .native_operation_selections
+            .is_empty()
+        {
+            // The operation entry still has to validate its retained recipe,
+            // but the final command's value belongs to DONE. Keep that entry
+            // and its range without discarding the value it guards.
+            self.instructions[n - 2].op = Op::NOP;
+            return;
+        }
         let done_old_idx = n - 1;
         let pop_idx = n - 2;
         self.instructions.remove(pop_idx);
@@ -219,6 +222,8 @@ impl CodegenCtx<'_> {
         while i < self.instructions.len() {
             let is_empty = self.instructions[i].op == Op::START_CMD
                 && self.instructions[i].native_operation_selections.is_empty()
+                && self.instructions[i].native_compiler_selection.is_none()
+                && self.instructions[i].entered_command.is_none()
                 && self.instructions[i]
                     .operands
                     .first()
@@ -377,7 +382,7 @@ mod tests {
             .push(operation_site("end"));
         ctx.emit(Op::DONE, vec![]);
         ctx.remove_trailing_pop();
-        assert_eq!(ctx.instructions[1].op, Op::POP);
+        assert_eq!(ctx.instructions[1].op, Op::NOP);
         assert_eq!(
             ctx.instructions[1].native_operation_selections,
             [operation_site("end")]
@@ -476,6 +481,63 @@ mod tests {
         ctx.fold_tail_return_to_done();
         // Top-level — not changed
         assert_eq!(ctx.instructions.last().unwrap().op, Op::RETURN_IMM);
+    }
+
+    #[test]
+    fn empty_terminal_marker_preserves_the_final_command_result() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.push_lit("result");
+        ctx.emit(Op::POP, vec![]);
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("empty_end".into()), Operand::Imm(1)],
+        );
+        ctx.place_label("empty_end");
+        ctx.emit(Op::DONE, vec![]);
+
+        ctx.strip_empty_start_cmd();
+        ctx.remove_trailing_pop();
+
+        assert_eq!(ctx.instructions.len(), 2);
+        assert_eq!(ctx.instructions[0].op, Op::PUSH1);
+        assert_eq!(ctx.instructions[1].op, Op::DONE);
+        assert_eq!(ctx.label_positions["empty_end"], 1);
+    }
+
+    #[test]
+    fn empty_terminal_marker_preserves_catch_epilogue_and_operation_guards() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        ctx.emit(Op::REVERSE, vec![Operand::Imm(2)]);
+        ctx.emit(Op::POP, vec![]);
+        ctx.emit(
+            Op::START_CMD,
+            vec![Operand::Label("empty_end".into()), Operand::Imm(1)],
+        );
+        ctx.place_label("empty_end");
+        ctx.emit(Op::DONE, vec![]);
+        ctx.strip_empty_start_cmd();
+        ctx.remove_trailing_pop();
+        assert_eq!(ctx.instructions[1].op, Op::POP);
+
+        ctx.instructions.insert(
+            2,
+            Instruction::new(
+                Op::START_CMD,
+                vec![Operand::Label("guard_end".into()), Operand::Imm(1)],
+            ),
+        );
+        ctx.label_positions.insert("guard_end".into(), 3);
+        ctx.instructions[2]
+            .native_operation_selections
+            .push(operation_site("guard_end"));
+        ctx.strip_empty_start_cmd();
+        assert_eq!(ctx.instructions[2].op, Op::START_CMD);
+        assert_eq!(
+            ctx.instructions[2].native_operation_selections,
+            [operation_site("guard_end")]
+        );
     }
 
     #[test]

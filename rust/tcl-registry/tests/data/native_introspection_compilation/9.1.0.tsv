@@ -1,0 +1,31 @@
+0	0	nsName	1	1	none	1	0	3a3a4e	currentNamespace,done	2	6c656674,7269676874
+1	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c6420626520226e616d6573706163652063757272656e7422	push,push,push,push,invokeReplace,done	2	6c656674,7269676874
+2	0	string	1	1	cmdName	1	0	3a3a736f757263653a3a746172676574	loadScalar,originCmd,done	2	6c656674,7269676874
+3	1	string	1	1	none	1	0	696e76616c696420636f6d6d616e64206e616d6520226d697373696e6722	push,originCmd,done	2	6c656674,7269676874
+4	0	list	0	1	none	1	0	3a3a6e616d65737061636520696e73636f7065203a3a4e207b7075747320587d	push,push,currentNamespace,push,list,done	2	6c656674,7269676874
+5	0	list	0	1	none	1	0	3a3a6e616d65737061636520696e73636f7065203a3a4e2061	push,push,loadScalar,push,invokeReplace,done	2	6c656674,7269676874
+6	0	list	0	1	none	1	0	3a3a6e616d65737061636520696e73636f7065203a3a4e207b3a3a6e616d65737061636520696e73636f7065207d	push,push,currentNamespace,push,list,done	2	6c656674,7269676874
+7	0	none	1	3	none	1	0	3a3a6e616d65737061636520696e73636f7065203a3a4e2058	push,push,push,push,invokeReplace,done	2	6c656674,7269676874
+8	0	int	0	1	none	1	0	31	infoLevelNumber,done	2	6c656674,7269676874
+9	0	list	0	1	none	1	0	3a3a4e3a3a702061207b6b2056206a20577d	push,infoLevelArgs,done	2	6c656674,7269676874
+10	0	list	0	1	int	1	0	3a3a4e3a3a702030207b6b2056206a20577d	loadScalar,infoLevelArgs,done	2	6c656674,7269676874
+11	1	string	1	1	none	1	0	626164206c6576656c20223231343734383336343822	push,infoLevelArgs,done	2	6c656674,7269676874
+12	1	string	1	1	none	1	0	626164206c6576656c20222d3231343734383336343922	push,infoLevelArgs,done	2	6c656674,7269676874
+13	1	string	1	1	none	1	0	657870656374656420696e74656765722062757420676f742022696e76616c696422	push,infoLevelArgs,done	2	6c656674,7269676874
+14	1	string	1	1	none	1	0	77726f6e67202320617267733a2073686f756c642062652022696e666f206c6576656c203f6e756d6265723f22	push,push,push,push,push,invokeReplace,done	2	6c656674,7269676874
+15	0	int	0	2	none	1	0	30	arrayExistsImm,done	3	6c656674,7269676874,61
+16	0	int	1	2	none	1	0	30	loadScalar,arrayExistsStk,done	2	6c656674,7269676874
+17	0	int	1	2	none	1	0	30	push,push,push,push,invokeReplace,done	3	6c656674,7269676874,61
+18	0	none	1	3	none	1	0		arrayExistsImm,jumpTrue,arrayMakeImm,push,done	3	6c656674,7269676874,61
+19	0	none	1	3	none	1	0		push,dup,arrayExistsStk,jumpTrue,arrayMakeStk,jump,pop,push,done	2	6c656674,7269676874
+20	0	none	1	3	none	1	0		arrayExistsImm,jumpTrue,arrayMakeImm,push,foreach_start,loadScalar,loadScalar,storeArray,pop,foreach_step,foreach_end,push,done	7	6c656674,7269676874,61,,,,
+21	1	none	1	1	none	1	0	6c697374206d757374206861766520616e206576656e206e756d626572206f6620656c656d656e7473	push,push,push,invokeStk,done	2	6c656674,7269676874
+22	0	none	1	3	none	1	0		arrayExistsImm,jumpTrue,arrayMakeImm,loadScalar,dup,listLength,push,bitand,jumpFalse,push,push,returnImm,foreach_start,loadScalar,loadScalar,storeArray,pop,foreach_step,foreach_end,push,done	7	6c656674,7269676874,61,,,,
+23	0	none	1	1	parsedVarName	1	0		push,loadScalar,push,invokeStk,done	2	6c656674,7269676874
+24	0	none	1	3	none	1	0		arrayExistsImm,jumpFalse,unsetScalar,push,done	3	6c656674,7269676874,61
+25	0	none	1	3	none	1	0		loadScalar,dup,arrayExistsStk,jumpFalse,unsetStk,jump,pop,push,done	2	6c656674,7269676874
+26	0	none	1	1	none	1	0		push,push,push,invokeStk,done	2	6c656674,7269676874
+27	1	string	1	1	none	1	0	63616e277420617272617920736574202261223a207661726961626c652069736e2774206172726179	push,storeScalar,pop,arrayExistsImm,jumpTrue,arrayMakeImm,push,done	3	6c656674,7269676874,61
+28	0	none	1	3	none	1	0	7363616c6172	push,storeScalar,pop,arrayExistsImm,jumpFalse,unsetScalar,nop,nop,nop,nop,nop,nop,loadScalar,done	3	6c656674,7269676874,61
+29	0	int	1	2	none	1	0	30	arrayExistsImm,jumpTrue,arrayMakeImm,push,foreach_start,loadScalar,loadScalar,storeArray,pop,foreach_step,foreach_end,nop,nop,nop,nop,nop,nop,arrayExistsImm,jumpFalse,unsetScalar,nop,nop,nop,nop,nop,nop,arrayExistsImm,done	7	6c656674,7269676874,61,,,,
+30	0	none	1	1	none	1	0		arrayExistsImm,jumpTrue,arrayMakeImm,push,foreach_start,loadScalar,loadScalar,storeArray,pop,foreach_step,foreach_end,nop,nop,nop,nop,nop,nop,startCommand,push,push,push,invokeStk,pop,startCommand,push,push,invokeStk,done	5	6c656674,7269676874,61,,

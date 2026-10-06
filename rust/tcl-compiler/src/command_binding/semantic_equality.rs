@@ -83,6 +83,7 @@ fn cfg_replay_declines_conflicting_or_missing_retained_entry_contexts() {
             let baseline = Arc::make_mut(&mut snapshot.state.baseline);
             baseline.native_compilation.loop_depth += 1;
             baseline.refresh_fingerprint();
+            snapshot.fingerprint = std::sync::OnceLock::new();
         }
         assert!(super::cfg_entry_state(&cfg, &registry).opaque_binding_mutation);
     }
@@ -223,4 +224,74 @@ fn unavailable_native_grammar_retains_supplied_lexical_configuration() {
         },
     );
     assert_eq!(bindings.lexer_config, Some(config));
+}
+
+fn lookup_snapshot_hash(snapshot: &super::SourceLookupSnapshot) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    snapshot.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[test]
+fn source_lookup_snapshot_memo_is_lazy_and_preserves_clone_semantics() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let original =
+        super::SourceLookupSnapshot::new(super::ModuleCommandBindings::initial(&registry));
+    assert!(original.fingerprint.get().is_none());
+    let untouched = original.clone();
+    assert!(untouched.fingerprint.get().is_none());
+    let hash = lookup_snapshot_hash(&original);
+    assert!(original.fingerprint.get().is_some());
+    assert!(untouched.fingerprint.get().is_none());
+    let cached = original.clone();
+    assert_eq!(cached.fingerprint.get(), original.fingerprint.get());
+    let independent =
+        super::SourceLookupSnapshot::new(super::ModuleCommandBindings::initial(&registry));
+    for equivalent in [untouched, cached, independent] {
+        assert_eq!(original, equivalent);
+        assert_eq!(hash, lookup_snapshot_hash(&equivalent));
+    }
+}
+
+#[test]
+fn source_lookup_snapshot_memo_keeps_realm_and_full_state_identity() {
+    use tcl_dialect::model::InvocationRealm;
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let state = super::ModuleCommandBindings::initial(&registry);
+    let mut original = super::SourceLookupSnapshot::new(state.clone());
+    let mut changed_state = state.clone();
+    changed_state.mark_opaque_binding_mutation();
+    let mut changed = super::SourceLookupSnapshot::new(changed_state);
+    // Deliberate hash collisions do not supply semantic identity or close an
+    // unknown world. Realm remains an independent part of the retained key.
+    original.fingerprint = std::sync::OnceLock::from(7);
+    changed.fingerprint = std::sync::OnceLock::from(7);
+    assert_ne!(original, changed);
+    let mut foreign =
+        super::SourceLookupSnapshot::in_realm(state, InvocationRealm::InterpreterRuntime);
+    foreign.fingerprint = std::sync::OnceLock::from(7);
+    assert_ne!(original, foreign);
+}
+
+#[test]
+fn source_lookup_snapshot_join_invalidates_only_the_detached_point() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let state = super::ModuleCommandBindings::initial(&registry);
+    let original = super::source_binding(&state, "set", "::");
+    let original_snapshot = original.lookup_state.as_ref().unwrap();
+    let original_hash = lookup_snapshot_hash(original_snapshot);
+    let mut changed = original.clone();
+    let mut incoming = state;
+    incoming.mark_opaque_binding_mutation();
+    changed.join(&super::source_binding(&incoming, "set", "::"));
+    let joined = changed.lookup_state.as_ref().unwrap();
+    assert!(!Arc::ptr_eq(original_snapshot, joined));
+    assert!(joined.fingerprint.get().is_none());
+    assert!(original_snapshot.fingerprint.get().is_some());
+    assert_eq!(original_hash, lookup_snapshot_hash(original_snapshot));
+    let fresh = super::SourceLookupSnapshot::in_realm(joined.state.clone(), joined.realm);
+    assert_eq!(joined.as_ref(), &fresh);
+    assert_eq!(lookup_snapshot_hash(joined), lookup_snapshot_hash(&fresh));
+    assert_ne!(original_snapshot, joined);
 }

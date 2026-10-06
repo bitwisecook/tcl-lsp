@@ -40,6 +40,8 @@ mod native_concat;
 #[cfg(test)]
 #[path = "value_ops/native_concat_tests.rs"]
 mod native_concat_tests;
+#[path = "value_ops/native_list_index.rs"]
+pub(crate) mod native_list_index;
 
 use std::rc::Rc;
 
@@ -858,10 +860,26 @@ impl ValueOps for Interp {
         let start = plan.byte_start();
         let end = plan.byte_end();
         if start > 0 {
-            return self.new_bytes(&bytes[start..end]);
+            // The left-trim producer creates an unshared original working
+            // header. Right trim converts and mutates that header in place.
+            let working = self.new_bytes(&bytes[start..]);
+            if plan.right_conversion() {
+                obj::retain_jim_string_representation(working);
+                if end == start {
+                    crate::interp::drop_fresh(working);
+                    return self.new_bytes(b"");
+                }
+                if end < bytes.len() {
+                    obj::trim_jim_string_bytes(working, &bytes[start..end]);
+                }
+            }
+            return working;
         }
         if plan.right_conversion() {
             obj::retain_jim_string_representation(*value);
+            if end == 0 {
+                return self.new_bytes(b"");
+            }
         }
         if end == bytes.len() {
             return *value;

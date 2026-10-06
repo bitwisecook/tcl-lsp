@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "cc",
+    "-I/tmp/2286-oracles/jimtcl",
+    "/workspace/.proofs/2286-byte-list-assignment-order-native/jim-probe.c",
+    "/tmp/2286-oracles/jimtcl/libjim.a",
+    "-lm",
+    "-ldl",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+    "-o",
+    "/workspace/.proofs/2286-byte-list-assignment-order-native/jim-probe"
+  ],
+  "compile_status": 0,
+  "run_status": 0,
+  "original_budget": 60,
+  "sha256": {
+    "/workspace/.proofs/2286-byte-list-assignment-order-native/jim-probe.c": "d3883a8b40f65358ea0bb8c839552f02508942e83671c7e5f2d27864b9bd6a15",
+    "/workspace/.proofs/2286-byte-list-assignment-order-native/jim-probe": "5a93b7f3fe5ab14a31cb4938195bc5e98191c54727d846d9bf912e1c5f9a96c2",
+    "/workspace/.proofs/2286-byte-list-assignment-order-native/jim.txt": "e3c71f0276164549be3980f8ebc9e272997c7f3c0b3197ce089d7411a5b65992",
+    "/tmp/2286-oracles/jimtcl/libjim.a": "75c74eef0c9d1ff2ff8972e6339678564a3439d6332f66032eb4db79004937ff",
+    "/tmp/2286-oracles/jimtcl/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867"
+  }
+}

@@ -92,6 +92,8 @@ namespace eval ::tmm {
         _install_namespace_restriction
         _install_package_view
         _install_completion_capabilities
+        _install_rule_declarations
+        _install_counted_string_length
 
         set _initialized 1
         return
@@ -223,6 +225,39 @@ namespace eval ::tmm {
                     ::error "invalid command name \"%s\"" "invalid command name \"%s\""
                 } $private $private $canonical $canonical]
                 proc $canonical {args} $body
+        }
+    }
+
+    # The original source runs in ::; rule ownership is a separate provider.
+    proc _install_rule_declarations {} {
+        if {![llength [::tmm::_orig_info commands ::tmm::_orig_proc]]} {
+            ::tmm::_orig_rename ::proc ::tmm::_orig_proc
+        }
+        ::tmm::_orig_proc ::proc {name args body} {
+            if {[::tmm::_orig_info exists ::itest::_executing_rule] && $::itest::_executing_rule &&
+                [::tmm::_orig_info exists ::itest::_current_rule] && $::itest::_current_rule ne ""} {
+                if {![llength [::tmm::_orig_info commands ::tmm::_rule_declare]]} {
+                    return -code error -errorcode {IRULES SIMULATION CAPABILITY RULE_CALLABLE} "named procedures require an explicit authored rule callable provider"
+                }
+                return [::tmm::_rule_declare $::itest::_current_rule $name $args $body]
+            }
+            return [::uplevel 1 [::list ::tmm::_orig_proc $name $args $body]]
+        }
+    }
+
+    proc _install_counted_string_length {} {
+        if {![llength [::tmm::_orig_info commands ::tmm::_counted_string_length]]} { return }
+        if {![llength [::tmm::_orig_info commands ::tmm::_orig_string]]} {
+            ::tmm::_orig_rename ::string ::tmm::_orig_string
+        }
+        ::tmm::_orig_proc ::string {member args} {
+            if {[::tmm::_orig_info exists ::itest::_executing_rule] && $::itest::_executing_rule} {
+                set member [::tmm::_logical_string_member $member]
+                if {$member eq "length"} {
+                    return [::uplevel 1 [::linsert $args 0 ::tmm::_counted_string_length]]
+                }
+            }
+            return [::uplevel 1 [::linsert $args 0 ::tmm::_orig_string $member]]
         }
     }
 

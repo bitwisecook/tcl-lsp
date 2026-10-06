@@ -22,12 +22,24 @@ use tcl_syntax::native_variable_words::{
 pub enum NativeInstructionPlan {
     /// Original scalar operands followed by the selected native getter.
     Scalar(crate::native_scalar_compilation::NativeScalarInstruction),
+    /// Original namespace/frame operands and actual selected native operation.
+    Introspection(crate::native_introspection_compilation::NativeIntrospectionInstruction),
+    /// Original Array target, RHS and private foreach compiler geometry.
+    Array(crate::native_array_compilation::NativeArrayCompilation),
     /// Original List/index operands and the native immediate-index protocol.
     ListIndex(crate::native_list_index_compilation::NativeListIndexInstruction),
+    /// Original native ranges or interleaved list assignment stores.
+    ListOperations(crate::native_list_operations_compilation::NativeListOperationInstruction),
+    /// One retained frame-level operand followed by original ordered alias targets.
+    Upvar(crate::native_upvar_compilation::NativeUpvarInstruction),
+    /// Original variable geometry followed by a quiet existence observation.
+    InfoExists(crate::native_info_exists_compilation::NativeInfoExistsInstruction),
     /// Native unset validation followed by sequential original receiver operations.
     Unset(crate::native_unset_compilation::NativeUnsetInstruction),
     /// Original Error operands and dialect-specific options construction.
     Error(crate::native_error_compilation::NativeErrorInstruction),
+    /// Original coroutine stack and namespace-capture operations.
+    Coroutine(crate::native_coroutine_compilation::NativeCoroutineInstruction),
     /// Original native dictionary/key/default stack operands.
     DictionaryLookup(crate::native_dictionary_compilation::NativeDictionaryLookupInstruction),
     /// A compile-selected private name followed by independently guarded late lookup.
@@ -70,6 +82,8 @@ pub enum NativeInstructionPlan {
     TclOoHelper(crate::native_tcloo_compilation::NativeTclOoInstruction),
     /// Original pattern and subject followed by the selected C string matcher.
     StringMatch(crate::native_string_compilation::NativeStringMatchInstruction),
+    /// Original trim subject and optional original character set.
+    StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
     /// Read the selected original variable operand.
     Load {
         /// Original compiler variable-word geometry.
@@ -464,11 +478,19 @@ pub(crate) fn argument_list_steps_for_expansion(
     words: impl IntoIterator<Item = (usize, bool)>,
     dialect: InvocationDialect,
 ) -> Vec<NativeArgumentListStep> {
+    argument_list_steps_for_expansion_with_prefix(words, dialect, 0)
+}
+
+pub(crate) fn argument_list_steps_for_expansion_with_prefix(
+    words: impl IntoIterator<Item = (usize, bool)>,
+    dialect: InvocationDialect,
+    prefix: usize,
+) -> Vec<NativeArgumentListStep> {
     use NativeArgumentListStep as Step;
     let limit =
         crate::native_compilation::NativeTailcallStack::argument_list_segment_limit(dialect);
     let mut steps = Vec::new();
-    let mut pending = 0;
+    let mut pending = prefix;
     let mut concatenated = false;
     for (index, expanded) in words {
         if expanded && pending > 0 {
@@ -545,11 +567,91 @@ pub fn native_instruction_plan(
     dialect: InvocationDialect,
     context: NativeCompilationContext,
 ) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    native_instruction_plan_for_purpose(
+        spec,
+        selection,
+        words,
+        operand_from,
+        dialect,
+        context,
+        CompilerOperandPurpose::PublicInvocation,
+    )
+}
+
+/// Project an independently selected original worker compiler onto the same
+/// retained operands. The public ensemble selector words remain in `words`,
+/// while `operand_from` identifies the worker's operands after those selectors.
+/// This validates the registered-worker grammar; it supplies no registration,
+/// namespace, compiler-hook, or callable authority.
+///
+/// # Errors
+/// Rejects an unavailable compiler point, a conflicting worker selection,
+/// unsupported original geometry, or a missing portable instruction recipe.
+pub fn native_registered_worker_instruction_plan(
+    spec: NativeCompilationSpec,
+    selection: NativeCompilationSelection,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    dialect: InvocationDialect,
+    context: NativeCompilationContext,
+) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
+    native_instruction_plan_for_purpose(
+        spec,
+        selection,
+        words,
+        operand_from,
+        dialect,
+        context,
+        CompilerOperandPurpose::RegisteredWorker,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum CompilerOperandPurpose {
+    PublicInvocation,
+    RegisteredWorker,
+}
+
+impl CompilerOperandPurpose {
+    fn select(
+        self,
+        spec: NativeCompilationSpec,
+        words: &NativeCompilerWords<'_>,
+        operand_from: usize,
+        dialect: InvocationDialect,
+        context: NativeCompilationContext,
+    ) -> NativeCompilationSelection {
+        match self {
+            Self::PublicInvocation => {
+                spec.select_native_words(words, operand_from, Some(dialect), context)
+            }
+            Self::RegisteredWorker => spec.select_registered_worker_native_words(
+                words,
+                operand_from,
+                Some(dialect),
+                context,
+            ),
+        }
+    }
+}
+
+fn native_instruction_plan_for_purpose(
+    spec: NativeCompilationSpec,
+    selection: NativeCompilationSelection,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    dialect: InvocationDialect,
+    context: NativeCompilationContext,
+    purpose: CompilerOperandPurpose,
+) -> Result<NativeInstructionPlan, NativeInstructionPlanUnavailable> {
     use NativeInstructionPlanUnavailable as Unavailable;
     if dialect.family() != Some(tcl_dialect::model::Family::Tcl) {
         return Err(Unavailable::CompilerPoint);
     }
     let version = dialect.tcl_version.ok_or(Unavailable::CompilerPoint)?;
+    if purpose.select(spec, words, operand_from, dialect, context) != selection {
+        return Err(Unavailable::Selection);
+    }
     if matches!(
         selection,
         NativeCompilationSelection::NamedInvocation { .. }
@@ -563,20 +665,35 @@ pub fn native_instruction_plan(
             context,
         );
     }
-    if !instruction_selection_supported(spec, selection)
-        || spec.select_native_words(words, operand_from, Some(dialect), context) != selection
-    {
+    if !instruction_selection_supported(spec, selection) {
         return Err(Unavailable::Selection);
     }
     if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = spec.grammar {
-        return native_instruction_plan(
+        return native_instruction_plan_for_purpose(
             *compiler,
             selection,
             words,
             operand_from,
             dialect,
             context,
+            purpose,
         );
+    }
+    if matches!(
+        spec.grammar,
+        NativeCompilationGrammar::Tailcall
+            | NativeCompilationGrammar::CoroutineYield
+            | NativeCompilationGrammar::CoroutineRelay
+    ) {
+        return crate::native_coroutine_compilation::compile_native_coroutine(
+            words,
+            operand_from,
+            spec.grammar,
+            dialect,
+            context,
+        )
+        .map(NativeInstructionPlan::Coroutine)
+        .map_err(|_| Unavailable::OperandGeometry);
     }
     if spec.grammar == NativeCompilationGrammar::Error {
         return crate::native_error_compilation::compile_native_error(words, operand_from, version)
@@ -619,7 +736,8 @@ fn instruction_selection_supported(
 ) -> bool {
     matches!(selection, NativeCompilationSelection::Inline { .. })
         || (selection == NativeCompilationSelection::Generic
-            && spec.namespace_binding_kind().is_some())
+            && (spec.namespace_binding_kind().is_some()
+                || matches!(spec.grammar, NativeCompilationGrammar::Array { .. })))
         || (matches!(
             selection,
             NativeCompilationSelection::Generic | NativeCompilationSelection::CompileError
@@ -703,15 +821,39 @@ fn selected_uplevel_instruction(
     })
 }
 
-fn selected_nonvariable_instruction_plan(
+fn selected_projected_instruction_plan(
     spec: NativeCompilationSpec,
     words: &NativeCompilerWords<'_>,
     operand_from: usize,
-    dialect: InvocationDialect,
+    version: tcl_dialect::TclVersion,
     context: NativeCompilationContext,
 ) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
     use NativeInstructionPlanUnavailable as Unavailable;
-    let version = dialect.tcl_version?;
+    if let NativeCompilationGrammar::Array { command, .. } = spec.grammar {
+        return Some(
+            crate::native_array_compilation::native_array_compilation(
+                words,
+                operand_from,
+                command,
+                version,
+                context,
+            )
+            .map(NativeInstructionPlan::Array)
+            .ok_or(Unavailable::OperandGeometry),
+        );
+    }
+    if let Some(kind) = spec.introspection_compilation() {
+        return Some(
+            crate::native_introspection_compilation::compile_native_introspection(
+                words,
+                operand_from,
+                kind,
+                version,
+            )
+            .map(NativeInstructionPlan::Introspection)
+            .ok_or(Unavailable::OperandGeometry),
+        );
+    }
     if let Some((operation, scope)) = spec.scalar_compilation() {
         return Some(
             crate::native_scalar_compilation::compile_native_scalar(
@@ -726,12 +868,35 @@ fn selected_nonvariable_instruction_plan(
         );
     }
     Some(match spec.grammar {
-        NativeCompilationGrammar::Break => Ok(NativeInstructionPlan::Break),
-        NativeCompilationGrammar::Uplevel => {
-            selected_uplevel_instruction(spec, words, operand_from, dialect)
-                .map(NativeInstructionPlan::Uplevel)
+        NativeCompilationGrammar::Upvar => crate::native_upvar_compilation::compile_native_upvar(
+            words,
+            operand_from,
+            version,
+            context,
+        )
+        .map(NativeInstructionPlan::Upvar)
+        .map_err(|_| Unavailable::OperandGeometry),
+        NativeCompilationGrammar::InfoExists => {
+            crate::native_info_exists_compilation::compile_native_info_exists(
+                words,
+                operand_from,
+                version,
+            )
+            .map(NativeInstructionPlan::InfoExists)
+            .map_err(|_| Unavailable::OperandGeometry)
         }
-        NativeCompilationGrammar::Continue => Ok(NativeInstructionPlan::Continue),
+        _ => return None,
+    })
+}
+
+fn selected_container_and_string_instruction_plan(
+    spec: NativeCompilationSpec,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: tcl_dialect::TclVersion,
+) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
+    use NativeInstructionPlanUnavailable as Unavailable;
+    Some(match spec.grammar {
         NativeCompilationGrammar::Dictionary { command, ensemble } => {
             crate::native_dictionary_compilation::compile_native_dictionary_lookup(
                 command,
@@ -742,6 +907,76 @@ fn selected_nonvariable_instruction_plan(
             .map(NativeInstructionPlan::DictionaryLookup)
             .map_err(|_| Unavailable::Operation)
         }
+        NativeCompilationGrammar::StringTrim { scope, operation } => {
+            crate::native_string_trim_compilation::instruction(
+                words,
+                operand_from,
+                scope,
+                version,
+                operation,
+            )
+            .map(NativeInstructionPlan::StringTrim)
+            .ok_or(Unavailable::OperandGeometry)
+        }
+        NativeCompilationGrammar::StringMatch(scope) => {
+            crate::native_string_compilation::instruction(words, operand_from, scope, version)
+                .map(NativeInstructionPlan::StringMatch)
+                .ok_or(Unavailable::OperandGeometry)
+        }
+        NativeCompilationGrammar::ListRange | NativeCompilationGrammar::ListAssignment => {
+            let kind = if spec.grammar == NativeCompilationGrammar::ListRange {
+                crate::native_list_operations_compilation::NativeListOperationKind::Range
+            } else {
+                crate::native_list_operations_compilation::NativeListOperationKind::Assign
+            };
+            crate::native_list_operations_compilation::compile_native_list_operation(
+                words,
+                operand_from,
+                version,
+                kind,
+            )
+            .map(NativeInstructionPlan::ListOperations)
+            .map_err(|_| Unavailable::OperandGeometry)
+        }
+        NativeCompilationGrammar::ListIndex => {
+            crate::native_list_index_compilation::compile_native_list_index(
+                words,
+                operand_from,
+                version,
+            )
+            .map(NativeInstructionPlan::ListIndex)
+            .map_err(|_| Unavailable::OperandGeometry)
+        }
+        _ => return None,
+    })
+}
+
+fn selected_nonvariable_instruction_plan(
+    spec: NativeCompilationSpec,
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    dialect: InvocationDialect,
+    context: NativeCompilationContext,
+) -> Option<Result<NativeInstructionPlan, NativeInstructionPlanUnavailable>> {
+    use NativeInstructionPlanUnavailable as Unavailable;
+    let version = dialect.tcl_version?;
+    if let Some(plan) =
+        selected_projected_instruction_plan(spec, words, operand_from, version, context)
+    {
+        return Some(plan);
+    }
+    if let Some(plan) =
+        selected_container_and_string_instruction_plan(spec, words, operand_from, version)
+    {
+        return Some(plan);
+    }
+    Some(match spec.grammar {
+        NativeCompilationGrammar::Break => Ok(NativeInstructionPlan::Break),
+        NativeCompilationGrammar::Uplevel => {
+            selected_uplevel_instruction(spec, words, operand_from, dialect)
+                .map(NativeInstructionPlan::Uplevel)
+        }
+        NativeCompilationGrammar::Continue => Ok(NativeInstructionPlan::Continue),
         NativeCompilationGrammar::Expression => {
             crate::native_expression_program::native_expression_instruction(
                 words,
@@ -758,20 +993,6 @@ fn selected_nonvariable_instruction_plan(
         | NativeCompilationGrammar::Catch
         | NativeCompilationGrammar::WhileLoop => {
             selected_control_instruction_plan(spec, words, operand_from, dialect, context)
-        }
-        NativeCompilationGrammar::StringMatch(scope) => {
-            crate::native_string_compilation::instruction(words, operand_from, scope, version)
-                .map(NativeInstructionPlan::StringMatch)
-                .ok_or(Unavailable::OperandGeometry)
-        }
-        NativeCompilationGrammar::ListIndex => {
-            crate::native_list_index_compilation::compile_native_list_index(
-                words,
-                operand_from,
-                version,
-            )
-            .map(NativeInstructionPlan::ListIndex)
-            .map_err(|_| Unavailable::OperandGeometry)
         }
         NativeCompilationGrammar::TclOoHelper(helper) => {
             crate::native_tcloo_compilation::instruction(helper, words, operand_from, dialect)
@@ -1558,8 +1779,8 @@ mod tests {
     fn descriptor_without_portable_instruction_cannot_become_generic() {
         assert_eq!(
             project(
-                b"lrange value 0 end",
-                NativeCompilationGrammar::ListRange,
+                b"linsert value 0 X",
+                NativeCompilationGrammar::ListInsertion,
                 TclVersion::V9_0
             ),
             Err(NativeInstructionPlanUnavailable::Operation)
@@ -1696,3 +1917,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod registered_worker_tests;

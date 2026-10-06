@@ -18,7 +18,7 @@ tell me to use `static::` instead?
 
 ## Why
 
-BIG-IP runs one TMM per CPU and spreads connections across all of them.
+BIG-IP distributes connections across its configured CMP workers.
 Legacy global-variable access is not CMP-compatible, so it can force the virtual server into CMP compatibility mode: every
 connection is pinned to a single TMM and the rest of the box sits idle.
 On a busy virtual server that is a large, silent throughput loss.
@@ -70,8 +70,8 @@ when HTTP_REQUEST {
 
 The quick fix applies this rewrite, but review it before accepting:
 `static::` variables live per TMM and have a different lifetime from a
-global, so a counter becomes a per-TMM counter rather than a box-wide
-one.
+global. The replacement gives each executing TMM its own counter. CMP
+demotion does not establish a box-wide global cell shared by all TMMs.
 
 ## What it detects
 

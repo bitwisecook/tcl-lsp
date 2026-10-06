@@ -760,13 +760,16 @@ fn prove_operand(
         || SsaSourceView::at_terminator(&context.function_unit.ssa, context.block),
         |index| SsaSourceView::at_statement(&context.function_unit.ssa, context.block, index),
     );
-    require_unobserved_expression_operand(context, source, node, expr_base)?;
+    if context.unit.ir_module.has_dynamic_variable_trace {
+        return Err(NativeIntegerDeclineReason::DynamicVariableTrace);
+    }
     let read = source.read_expression_variable(node, expr_base);
     if read.is_none_or(|read| read.version.is_none())
         && let Some(incoming) = incoming_operand(context, &source, node, expr_base, name)
     {
         return incoming;
     }
+    require_unobserved_expression_operand(context, source, node, expr_base)?;
     let read = read.ok_or(NativeIntegerDeclineReason::MissingDefUseEvidence)?;
     let symbol = read.symbol;
     let version = read
@@ -1035,11 +1038,11 @@ mod tests {
         source: &str,
         dialect: &'static tcl_dialect::DialectProfile,
         registry: &CommandRegistry,
-    ) -> CompilationUnit {
+    ) -> crate::environment_ingress::RetainedNativeUnit {
+        let (owner, captured) =
+            crate::environment_ingress::captured_native_entry_with_owner(dialect);
         let entry = crate::command_binding::SourceAnalysisEntry {
-            native_entry: Some(std::sync::Arc::new(
-                crate::environment_ingress::captured_native_entry(dialect),
-            )),
+            native_entry: Some(std::sync::Arc::new(captured)),
             invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(dialect)),
             native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
                 mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
@@ -1047,7 +1050,7 @@ mod tests {
             },
             ..crate::command_binding::SourceAnalysisEntry::default()
         };
-        CompilationUnit::build_with_source_entry(
+        let unit = CompilationUnit::build_with_source_entry(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry,
@@ -1058,7 +1061,8 @@ mod tests {
                 declared_commands: None,
             },
             &entry,
-        )
+        );
+        crate::environment_ingress::RetainedNativeUnit::new(unit, owner)
     }
 
     fn prove(
@@ -1107,7 +1111,7 @@ mod tests {
         let dialect = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let mut unit = native_unit(
-            "expr {abs(-3)}\nproc add {b c} {return [expr {$b+$c}]}\nadd 2 4",
+            "proc add {b c} {return [expr {$b+$c}]}\nadd 2 4\nexpr {abs(-3)}",
             dialect,
             registry,
         );
@@ -1189,6 +1193,153 @@ mod tests {
                 .composition
                 .requires_internal_operation_guard_or_sealed_policy
         );
+    }
+
+    fn assert_captured_writer_uses_original_point_tokens(
+        caller: &crate::compilation_unit::FunctionUnit,
+        view: SsaSourceView<'_>,
+        tokens: &crate::ir::CommandTokens,
+        argument: usize,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+    ) {
+        let nested = crate::value_shapes::command_substitution_tokens(
+            &tokens.words()[1],
+            Some(tokens),
+            config,
+        )
+        .unwrap();
+        let contents = view
+            .read_word_contents(&nested[0].words()[argument + 1], registry)
+            .unwrap();
+        let [(block, index)] = contents.writes.as_slice() else {
+            panic!("one original earlier argv-value writer");
+        };
+        let writer = &caller.ssa.blocks[block].statements[*index];
+        assert!(
+            writer
+                .statement
+                .tokens()
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .is_none()
+        );
+        assert!(
+            SsaSourceView::at_statement(&caller.ssa, *block, *index)
+                .source_tokens()
+                .and_then(|tokens| tokens.source_binding.as_ref())
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn nested_argument_value_dependency_does_not_remove_execution_barriers() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let unit = native_unit(
+            &format!("{ADD_BODY}set d 2\nset e 4\nputs [add $d $e]"),
+            profile,
+            registry,
+        );
+        let caller = &unit.top_level;
+        assert!(
+            caller
+                .ssa
+                .blocks
+                .values()
+                .flat_map(|block| &block.statements)
+                .any(|statement| {
+                    statement.statement.tokens().is_some_and(|tokens| {
+                        tokens.synthetic == Some(crate::ir::SyntheticMarker::RegistryBarrier)
+                    })
+                })
+        );
+        let (block, index, tokens) = caller
+            .ssa
+            .blocks
+            .iter()
+            .find_map(|(block, body)| {
+                body.statements
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, statement)| {
+                        let tokens = statement.statement.tokens()?;
+                        (tokens.argv_texts.first().map(String::as_str) == Some("puts"))
+                            .then_some((*block, index, tokens))
+                    })
+            })
+            .unwrap();
+        let site = crate::common_aot_plan::DirectCallSiteId {
+            function: caller.name.clone(),
+            block,
+            statement_index: u32::try_from(index).unwrap(),
+            nested_argument: Some(0),
+        };
+        let view = SsaSourceView::at_statement(&caller.ssa, block, index);
+        for (argument, spelling, value) in [(0, "$d", 2), (1, "$e", 4)] {
+            let original = tokens
+                .variable_accesses
+                .iter()
+                .find(|access| access.original_spelling == spelling)
+                .unwrap();
+            let physical = view.read_reference(&original.source, spelling).unwrap();
+            let captured =
+                crate::common_aot_plan::direct_call_argument_read(&unit, &site, argument)
+                    .expect("the original captured argv value retains its earlier definition");
+            assert_captured_writer_uses_original_point_tokens(
+                caller,
+                view,
+                tokens,
+                argument,
+                unit.ir_module.lexer_config,
+                registry,
+            );
+            assert_eq!(captured.symbol, physical.symbol);
+            assert!(captured.version.unwrap() < physical.version.unwrap());
+            assert_eq!(
+                range_from_sccp(
+                    caller
+                        .sccp
+                        .values
+                        .get(&(captured.symbol, captured.version.unwrap()))
+                )
+                .unwrap()
+                .unwrap(),
+                crate::intervals::constant(value)
+            );
+        }
+    }
+
+    #[test]
+    fn nested_argument_value_dependencies_decline_observed_or_unknown_reads() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        for prefix in ["trace add variable d read mutate;", "mystery;", "unset d;"] {
+            let unit = native_unit(
+                &format!("{ADD_BODY}set d 2; set e 4; {prefix} puts [add $d $e]"),
+                profile,
+                registry,
+            );
+            for (block, body) in &unit.top_level.ssa.blocks {
+                for (index, statement) in body.statements.iter().enumerate() {
+                    if statement.statement.tokens().is_none_or(|tokens| {
+                        tokens.argv_texts.first().map(String::as_str) != Some("puts")
+                    }) {
+                        continue;
+                    }
+                    let site = crate::common_aot_plan::DirectCallSiteId {
+                        function: unit.top_level.name.clone(),
+                        block: *block,
+                        statement_index: u32::try_from(index).unwrap(),
+                        nested_argument: Some(0),
+                    };
+                    assert!(
+                        crate::common_aot_plan::direct_call_argument_read(&unit, &site, 0)
+                            .is_none(),
+                        "original read remains unavailable after {prefix}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

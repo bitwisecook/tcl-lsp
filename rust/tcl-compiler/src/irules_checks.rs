@@ -1949,8 +1949,8 @@ fn check_generic_static(
         span,
         code: DiagCode::Irule4002,
         message: format!(
-            "'{var_name}' is a generic name that will collide with other iRules. \
-             static:: variables are shared across every iRule on the BIG-IP system — \
+            "'{var_name}' is a generic name that can collide with other iRules. \
+             static:: names share storage across rule owners on each executing TMM — \
              prefix with the application or rule name (e.g. 'static::<app>_{bare}')."
         ),
         replacement: None,

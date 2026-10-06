@@ -17,13 +17,13 @@ Why does the analyser flag a `static::` variable with a generic name?
 
 ## Why
 
-Names like `static::debug` or `static::timeout` collide with identically named variables in other iRules on the same virtual server.
+Names like `static::debug` or `static::timeout` collide with identically named variables in other iRules on the same executing TMM. Each TMM has its own static cells; identical names do not create one shared cell across TMMs.
 
 ## Symptoms
 
 - A yellow squiggle appears under the variable name, with the message
-  "'static::debug' is a generic name that will collide with other iRules.
-  static:: variables are shared across every iRule on the BIG-IP system — prefix
+  "'static::debug' is a generic name that can collide with other iRules.
+  static:: names share storage across rule owners on each executing TMM — prefix
   with the application or rule name (e.g. 'static::<app>_debug')."
 
 ## Example that triggers it

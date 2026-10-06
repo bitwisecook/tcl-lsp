@@ -843,6 +843,71 @@ impl<'a> SsaSourceView<'a> {
         self.read_reference(&access.source, &access.original_spelling)
     }
 
+    /// Definition supplying one captured original argv value before a nested
+    /// handler runs. This contents dependency leaves the physical SSA read and
+    /// every later barrier unchanged; it grants no representation or erasure.
+    pub(crate) fn captured_argument_value_definition(
+        self,
+        word: &WordExpr,
+        invocation: &crate::command_binding::CommandAllocationSite,
+        registry: &CommandRegistry,
+    ) -> Option<ValueKey> {
+        let access = self.word_variable_access(word)?;
+        if !exclusive_argument_owner(&access.owner, invocation)
+            || access.context_residual()
+                != crate::command_binding::SourceVariableReadResidual::Closed
+            || !self.read_word_produces_value(word, registry)
+        {
+            return None;
+        }
+        let place = source_read_place(access, registry);
+        let cell = place.cell.as_ref()?;
+        if place.dynamic
+            || place.observed
+            || place.kind != crate::place::PlaceKind::Scalar
+            || cell.generation == crate::place::CellGeneration::Unknown
+            || access.context_alternatives().iter().any(|context| {
+                let alternative = access.place_in_context(context, registry);
+                alternative.cell.as_ref() != Some(cell)
+                    || alternative.dynamic
+                    || alternative.observed
+                    || context.read_contents_origin(&alternative, registry)
+                        != access
+                            .variable_context
+                            .read_contents_origin(&place, registry)
+            })
+        {
+            return None;
+        }
+        let contents = self.read_word_contents(word, registry)?;
+        if contents.unknown_residual || contents.includes_incoming {
+            return None;
+        }
+        let [(write_block, write_index)] = contents.writes.as_slice() else {
+            return None;
+        };
+        let (read_block, read_index) = self.point?;
+        if *write_block != read_block || *write_index >= read_index {
+            return None;
+        }
+        let statement = self
+            .ssa
+            .blocks
+            .get(write_block)?
+            .statements
+            .get(*write_index)?;
+        let writer = SsaSourceView::at_statement(self.ssa, *write_block, *write_index)
+            .source_tokens()?
+            .source_binding
+            .as_ref()?
+            .invocation_site()?;
+        if writer.source != invocation.source {
+            return None;
+        }
+        let version = *statement.defs.get(&contents.reference.symbol)?;
+        Some((contents.reference.symbol, version))
+    }
+
     fn word_variable_access(
         self,
         word: &WordExpr,
@@ -4482,6 +4547,26 @@ fn captured_read_representations<'a>(
         numeric_category: (seen && numeric_categories_closed)
             .then_some(numeric_category)
             .flatten(),
+    }
+}
+
+fn exclusive_argument_owner(
+    owner: &crate::command_binding::SourceVariableEvaluationOwner,
+    invocation: &crate::command_binding::CommandAllocationSite,
+) -> bool {
+    use crate::command_binding::SourceVariableEvaluationOwner;
+    match owner {
+        SourceVariableEvaluationOwner::InvocationArguments {
+            invocation: original,
+            ..
+        } => original == invocation,
+        SourceVariableEvaluationOwner::Alternatives(owners) => {
+            !owners.is_empty()
+                && owners
+                    .iter()
+                    .all(|owner| exclusive_argument_owner(owner, invocation))
+        }
+        _ => false,
     }
 }
 

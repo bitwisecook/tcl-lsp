@@ -26,6 +26,10 @@
 //! (→ `Ok`), `Error`/`Break`/`Continue` propagate to the top of this `run`
 //! (where `catch`, which invoked us via `eval_source`, observes them).
 
+#[cfg(test)]
+#[path = "exec/native_child_completion_tests.rs"]
+mod native_child_completion_tests;
+
 #[path = "exec/native_jim_script.rs"]
 mod native_script;
 
@@ -37,7 +41,13 @@ mod native_fixed_math_tests;
 #[cfg(test)]
 #[path = "exec/native_list_index_tests.rs"]
 mod native_list_index_tests;
+#[cfg(test)]
+#[path = "exec/native_list_operations_tests.rs"]
+mod native_list_operations_tests;
 mod native_scalar;
+#[cfg(test)]
+#[path = "exec/native_string_trim_tests.rs"]
+mod native_string_trim_tests;
 #[cfg(test)]
 #[path = "exec/native_try_tests.rs"]
 mod native_try_tests;
@@ -184,6 +194,9 @@ pub(crate) struct Frame {
     foreach_pairs: Rc<HashMap<usize, usize>>,
     pc: usize,
     stack: Vec<Value>,
+    /// Original tailcall Lists retain their member headers through target completion.
+    tailcall_owners: Vec<Value>,
+    original_invocation: Option<Value>,
     /// Literal command tokens resolved at their command-head push, before the
     /// remaining words perform substitutions. Entries are keyed by the
     /// matching command continuation so nested substitutions compose without
@@ -559,6 +572,8 @@ impl Frame {
             foreach_pairs,
             pc: 0,
             stack: Vec::new(),
+            tailcall_owners: Vec::new(),
+            original_invocation: None,
             entered_commands: Vec::new(),
             chunk_native_compiler_selections: std::collections::HashSet::new(),
             entered_native_compiler_selections: Vec::new(),
@@ -728,6 +743,16 @@ impl Frame {
             collected: Vec::new(),
         }));
         f
+    }
+
+    pub(crate) fn new_original_invocation(
+        unit: crate::compiled::CompiledUnit,
+        original: Value,
+    ) -> Self {
+        let mut frame = Self::new(unit, false);
+        frame.original_invocation = Some(original);
+        frame.native_bytecode_entered = true;
+        frame
     }
 
     fn new_expression(req: ExpressionReq, placeholder: crate::compiled::CompiledUnit) -> Self {
@@ -910,10 +935,7 @@ pub(crate) enum YieldReq {
     Yield(Value),
     /// Relay lookup uses the namespace selected in the coroutine, while the
     /// target executes in the resumer's variable frame.
-    YieldTo {
-        namespace: String,
-        words: Vec<Value>,
-    },
+    YieldTo { original: Value },
 }
 
 /// How [`Vm::drive`](Vm) treats a [`Tick::Suspend`]: `Plain` is an ordinary
@@ -938,11 +960,19 @@ enum TickAction {
     Suspend(YieldReq),
 }
 
+/// A retained driver consumes its child's completion before ordinary bytecode.
+enum ChildCompletion {
+    Resume,
+    Unwind(Completion<Value>),
+    Bytecode(Completion<Value>),
+}
+
 /// Deferred native tailcall: lookup belongs to the issuing activation,
 /// while the target executes after that activation has left.
 pub(crate) struct TailcallReq {
     pub(crate) namespace: Value,
     pub(crate) words: Vec<Value>,
+    pub(crate) original_list: Option<Value>,
 }
 
 /// How a [`Vm::drive`](Vm) invocation ended: the activation stack emptied
@@ -2474,73 +2504,15 @@ impl Vm {
             {
                 return self.dispatch_tailcall(acts, request);
             }
-            // A subst activation's `[…]` child (`act`) just completed: fold its
-            // result into the enclosing subst frame's scan by subst rules (see
-            // [`Vm::fold_subst_bracket`]). `Resume` re-ticks the subst frame;
-            // `Unwind` drops it and keeps unwinding (a `break`'s output / an error).
-            if acts.last().is_some_and(|p| p.subst.is_some()) {
-                let parent = acts.last_mut().expect("subst parent present");
-                match self.fold_subst_bracket(parent, c) {
-                    SubstFold::Resume => return None,
-                    SubstFold::Unwind(nc) => {
-                        c = nc;
-                        continue;
-                    }
-                }
-            }
-            // An `each_loop` (`foreach`/`lmap` runtime-fallback) activation's body
-            // child (`act`) just completed: fold its result into the enclosing
-            // loop's iteration state — this is what makes a
-            // value-consumed `lmap`, e.g. `set r [lmap x {1 2} { yield $x }]`,
-            // yieldable. `Resume` re-ticks the loop frame for the next iteration
-            // (or its final result, once exhausted); `Unwind` drops it and keeps
-            // unwinding (an error, or an uncaught `return`).
-            if acts.last().is_some_and(|p| p.each_loop.is_some()) {
-                let parent = acts.last_mut().expect("each_loop parent present");
-                match Self::fold_each_loop(parent, c) {
-                    EachLoopFold::Resume => return None,
-                    EachLoopFold::Unwind(nc) => {
-                        c = nc;
-                        continue;
-                    }
-                }
-            }
-            if acts
-                .last()
-                .is_some_and(|parent| parent.expression.is_some())
-            {
-                let parent = acts.last_mut().expect("expression parent present");
-                match self.fold_expression_result(parent, c) {
-                    Ok(()) => return None,
-                    Err(completion) => {
+            if let Some(parent) = acts.last_mut() {
+                match self.fold_child_completion(parent, c) {
+                    ChildCompletion::Resume => return None,
+                    ChildCompletion::Unwind(completion) => {
                         c = completion;
                         continue;
                     }
+                    ChildCompletion::Bytecode(completion) => c = completion,
                 }
-            }
-            if acts
-                .last()
-                .is_some_and(|parent| parent.jim_script.is_some())
-            {
-                let parent = acts.last_mut().expect("native Script parent");
-                if c.code == Code::Ok {
-                    parent.jim_evaluation.invocation = Value::empty();
-                }
-                parent
-                    .jim_script
-                    .as_mut()
-                    .expect("native Script state")
-                    .accept(self, c);
-                return None;
-            }
-            if acts.last().is_some_and(|parent| parent.control.is_some()) {
-                let parent = acts.last_mut().expect("control parent present");
-                parent
-                    .control
-                    .as_mut()
-                    .expect("control state present")
-                    .accept(self, c);
-                return None;
             }
             match acts.last_mut() {
                 None => return Some(c),
@@ -2576,6 +2548,73 @@ impl Vm {
                     // Error / uncaught Break|Continue / unabsorbed Return keep unwinding.
                 }
             }
+        }
+    }
+
+    /// Consume the original child result through the retained parent's driver.
+    /// Synchronous tailcall targets and popped child activations share this
+    /// boundary; neither reconstructs a command, token or completion.
+    fn fold_child_completion(
+        &mut self,
+        parent: &mut Frame,
+        completion: Completion<Value>,
+    ) -> ChildCompletion {
+        parent.tailcall_owners.clear();
+        if parent.subst.is_some() {
+            return match self.fold_subst_bracket(parent, completion) {
+                SubstFold::Resume => ChildCompletion::Resume,
+                SubstFold::Unwind(completion) => ChildCompletion::Unwind(completion),
+            };
+        }
+        if parent.each_loop.is_some() {
+            return match Self::fold_each_loop(parent, completion) {
+                EachLoopFold::Resume => ChildCompletion::Resume,
+                EachLoopFold::Unwind(completion) => ChildCompletion::Unwind(completion),
+            };
+        }
+        if parent.expression.is_some() {
+            return match self.fold_expression_result(parent, completion) {
+                Ok(()) => ChildCompletion::Resume,
+                Err(completion) => ChildCompletion::Unwind(completion),
+            };
+        }
+        if let Some(state) = parent.jim_script.as_mut() {
+            if completion.code == Code::Ok {
+                parent.jim_evaluation.invocation = Value::empty();
+            }
+            state.accept(self, completion);
+            return ChildCompletion::Resume;
+        }
+        if let Some(state) = parent.control.as_mut() {
+            state.accept(self, completion);
+            return ChildCompletion::Resume;
+        }
+        ChildCompletion::Bytecode(completion)
+    }
+
+    /// Deliver a tailcall target after the issuing procedure has retired.
+    fn deliver_tailcall_completion(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        completion: Completion<Value>,
+    ) -> Option<Completion<Value>> {
+        let completion = self.validate_unwind_boundary(acts, completion);
+        let Some(parent) = acts.last_mut() else {
+            return Some(match self.publish_native_interp_completion(completion) {
+                Ok(completion) => completion,
+                Err(error) => crate::command::completion_from_tcl_error(self, error.into()),
+            });
+        };
+        match self.fold_child_completion(parent, completion) {
+            ChildCompletion::Resume => None,
+            ChildCompletion::Unwind(completion) => self.unwind(acts, completion),
+            ChildCompletion::Bytecode(completion) if completion.code == Code::Ok => {
+                parent.jim_evaluation.invocation = Value::empty();
+                parent.last_options = completion.options;
+                parent.stack.push(completion.result.into_native_reference());
+                None
+            }
+            ChildCompletion::Bytecode(completion) => self.settle_completion(acts, completion),
         }
     }
 
@@ -3573,6 +3612,14 @@ impl Vm {
         args: Vec<Value>,
     ) -> Result<Completion<Value>, Box<Tick>> {
         use tcl_syntax::expr::ExprOps;
+        // Resumable evaluation uses the same explicit authored capability as
+        // synchronous ExprEval; that capability never becomes a native table.
+        if self.authored_math_provider().is_some() {
+            return Ok(crate::cmd_math::invoke_authored_function(
+                self, function, &args,
+            ));
+        }
+
         let dispatch = tcl_registry::native_expression_program::expression_function_dispatch(
             self.expression_evaluation_policy().as_ref(),
             self.actual_native_invocation_dialect(),
@@ -3995,6 +4042,9 @@ impl Vm {
     fn tick(&mut self, f: &mut Frame) -> Tick {
         if let Some(dispatch) = f.deferred_dispatch.take() {
             return *dispatch;
+        }
+        if let Some(original) = f.original_invocation.take() {
+            return self.tick_original_invocation(f, original);
         }
         // Compilation precedes every body word, even a malformed command
         // appearing after an otherwise executable store. Procedure entry has
@@ -4550,35 +4600,41 @@ impl Vm {
                 f.stack.push(updated.value);
             }
             Op::EXIST_SCALAR => {
-                // The slot name may be an `arr(key)` element reference baked
-                // into the LVT (the codegen names the slot `a(x)`), so resolve
-                // it element-aware.
-                // `info exists` fires read traces (a trace may create the
-                // variable); a trace error does not abort the existence check.
-                f.stack
-                    .push(Value::bool(try_op!(self.exists_compiled_variable(
-                        usize::try_from(imm0(instr)).expect("local slot index"),
-                        None
-                    ))));
+                let found = try_op!(self.exists_compiled_original_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None
+                ));
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
             }
             Op::EXIST_STK => {
-                let name = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(Value::bool(self.exists_var_traced_bytes(&name)));
+                let original = pop(f);
+                let found = if self.native_c_variable_name_protocol().is_some() {
+                    try_op!(self.exists_original_c_parts(&original, None))
+                } else {
+                    let name = native_operand_bytes!(original);
+                    self.exists_var_traced_bytes(&name)
+                };
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
             }
             Op::EXIST_ARRAY => {
-                let key = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(Value::bool(try_op!(self.exists_compiled_variable(
-                        usize::try_from(imm0(instr)).expect("local slot index"),
-                        Some(&key)
-                    ))));
+                let index = pop(f);
+                let found = try_op!(self.exists_compiled_original_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&index)
+                ));
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
             }
             Op::EXIST_ARRAY_STK => {
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(Value::bool(self.exists_elem_traced_bytes(&name, &key)));
+                let index = pop(f);
+                let original = pop(f);
+                let found = if self.native_c_variable_name_protocol().is_some() {
+                    try_op!(self.exists_original_c_parts(&original, Some(&index)))
+                } else {
+                    let index = native_operand_bytes!(index);
+                    let name = native_operand_bytes!(original);
+                    self.exists_elem_traced_bytes(&name, &index)
+                };
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
             }
 
             // Arrays.
@@ -4612,34 +4668,44 @@ impl Vm {
                 )));
             }
             Op::ARRAY_EXISTS_IMM => {
-                f.stack.push(Value::bool(try_op!(self.array_exists_compiled(
+                let found = try_op!(self.array_exists_compiled(
                     usize::try_from(imm0(instr)).expect("local slot index")
-                ))));
+                ));
+                let version = self.actual_native_invocation_dialect().tcl_version;
+                let Some(version) = version else {
+                    return Tick::Return(
+                        self.refuse_host_command("native array existence issuer".into()),
+                    );
+                };
+                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+                    |error| crate::command::completion_from_cmd_error(self, error.into())
+                ));
+                f.stack.push(result);
             }
             Op::ARRAY_EXISTS_STK => {
-                // The stack form resolves an arbitrary (possibly qualified) name,
-                // so it honours the namespace-variable fallback `array_is` skips.
-                let name = native_operand_bytes!(pop(f));
-                let completion = self.with_array_trace_target_bytes(&name, |vm, target| {
-                    match tcl_runtime_api::VarStore::array_key_bytes_checked_at(vm, target) {
-                        Ok(keys) => ok(Value::bool(keys.is_some())),
-                        Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
-                    }
-                });
-                if let Err(completion) = Self::deliver_sync(f, completion) {
-                    return Tick::Return(completion);
-                }
+                let original = pop(f);
+                let found = try_op!(self.array_exists_original_opcode(&original));
+                let Some(version) = self.actual_native_invocation_dialect().tcl_version else {
+                    return Tick::Return(
+                        self.refuse_host_command("native Array constant issuer".into()),
+                    );
+                };
+                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+                    |error| crate::command::completion_from_cmd_error(self, error.into())
+                ));
+                f.stack.push(result);
             }
             // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
             // variable an empty array when undefined, no-op when it already is
             // one, and error on a scalar or an array element.
             Op::ARRAY_MAKE_IMM => {
-                let name = lvt_name(imm0(instr));
-                try_op!(self.ensure_array_bytes(name.as_bytes()));
+                try_op!(self.ensure_array_compiled(
+                    usize::try_from(imm0(instr)).expect("local slot index")
+                ));
             }
             Op::ARRAY_MAKE_STK => {
-                let name = native_operand_bytes!(pop(f));
-                try_op!(self.ensure_array_bytes(&name));
+                let original = pop(f);
+                try_op!(self.array_make_original_opcode(&original));
             }
 
             // Lists (inline opcodes)
@@ -4691,7 +4757,7 @@ impl Vm {
             Op::LIST_INDEX => {
                 let idx = pop(f);
                 let l = pop(f);
-                match tcl_cmd_core::list::lindex(self, &l, std::slice::from_ref(&idx)) {
+                match self.original_list_index(&l, std::slice::from_ref(&idx), true) {
                     Ok(v) => f.stack.push(v),
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(self, e));
@@ -4699,47 +4765,76 @@ impl Vm {
                 }
             }
             Op::LIST_INDEX_IMM => {
-                let l = pop(f);
-                let items = if instr.native_list_index.is_some() {
-                    let result = self
-                        .actual_native_invocation_dialect()
-                        .native_string_protocol()
-                        .ok_or(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "compiled List index protocol",
-                        ))
-                        .and_then(|protocol| self.native_object_list_elements_in(&l, protocol));
-                    match result {
-                        Ok(items) => items,
+                let list = pop(f);
+                if let Some(coordinate) = instr.native_list_index {
+                    match tcl_cmd_core::native_list_index::immediate(self, &list, coordinate) {
+                        Ok(value) => f.stack.push(value),
                         Err(error) => {
                             return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
+                                self, error,
                             ));
                         }
                     }
                 } else {
-                    match l.as_list() {
+                    let items = match list.as_list() {
                         Ok(items) => items,
                         Err(error) => {
                             return Tick::Return(crate::command::completion_from_tcl_error(
                                 self, error,
                             ));
                         }
-                    }
-                };
-                if let Some(index) = instr.native_list_index {
-                    f.stack.push(
-                        index
-                            .resolve(items.len())
-                            .map_or_else(Value::empty, |index| items[index].clone()),
-                    );
-                } else {
-                    let i = imm_index(imm0(instr), items.len());
-                    f.stack.push(get_at(&items, i));
+                    };
+                    let index = imm_index(imm0(instr), items.len());
+                    f.stack.push(get_at(&items, index));
                 }
             }
             Op::LIST_RANGE_IMM => {
                 let l = pop(f);
+                if let Some(range) = instr.native_list_range {
+                    let Some(protocol) = self
+                        .actual_native_invocation_dialect()
+                        .native_string_protocol()
+                    else {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "native compiled List range issuer",
+                            )
+                            .into(),
+                        ));
+                    };
+                    let discard = asm.instructions.get(f.pc).is_some_and(|next| {
+                        next.op == Op::POP
+                            && next.native_compiler_selection.is_none()
+                            && next.native_operation_selections.is_empty()
+                            && !next.source_command_boundary.is_start()
+                            && next.completion_option_scope.is_none()
+                    });
+                    if discard {
+                        match l.native_list_range_validate(protocol) {
+                            Ok(()) => {
+                                f.pc += 1;
+                            }
+                            Err(error) => {
+                                return Tick::Return(crate::command::completion_from_cmd_error(
+                                    self,
+                                    error.into(),
+                                ));
+                            }
+                        }
+                    } else {
+                        match l.native_list_range(range, protocol) {
+                            Ok(value) => f.stack.push(value),
+                            Err(error) => {
+                                return Tick::Return(crate::command::completion_from_cmd_error(
+                                    self,
+                                    error.into(),
+                                ));
+                            }
+                        }
+                    }
+                    return Tick::Continue;
+                }
                 if imm0(instr) == 0 && imm_at(instr, 1) == tcl_bytecode::INDEX_END {
                     if let Some(protocol) = self
                         .actual_native_invocation_dialect()
@@ -5724,6 +5819,21 @@ impl Vm {
                     try_core!(tcl_cmd_core::string::repeat_with_count(self, &value, count));
                 f.stack.push(result);
             }
+            Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT
+                if instr.native_switch_version.is_some() =>
+            {
+                let characters = pop(f);
+                let subject = pop(f);
+                let result = try_core!(tcl_cmd_core::string::compiled_trim(
+                    self,
+                    &subject,
+                    &characters,
+                    instr.native_switch_version.unwrap(),
+                    instr.op != Op::STR_TRIM_RIGHT,
+                    instr.op != Op::STR_TRIM_LEFT
+                ));
+                f.stack.push(result);
+            }
             Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT => {
                 let chars = pop(f).to_str();
                 let s = pop(f).to_str();
@@ -6385,7 +6495,7 @@ impl Vm {
                 let Some((list, idxs)) = items.split_first() else {
                     return Tick::Return(err("lindexMulti: stack underflow"));
                 };
-                match tcl_cmd_core::list::lindex_flat(self, list, idxs) {
+                match self.original_list_index(list, idxs, false) {
                     Ok(v) => f.stack.push(v),
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(self, e));
@@ -6546,25 +6656,41 @@ impl Vm {
             }
 
             Op::TAILCALL | Op::TAILCALL4 => {
+                if !self.frame_owns_local_variables(self.current_level()) {
+                    return Tick::Return(crate::command::err_with_code(
+                        "tailcall can only be called from a proc, lambda or method",
+                        "TCL TAILCALL ILLEGAL",
+                    ));
+                }
                 let count = usize::try_from(imm0(instr)).unwrap_or(0);
                 if f.stack.len() < count || count == 0 {
                     return Tick::Return(err("tailcall: stack underflow"));
                 }
-                let words = f.stack.split_off(f.stack.len() - count);
-                return Self::tailcall_tick(&words);
+                let mut words = f.stack.split_off(f.stack.len() - count);
+                if instr.op == Op::TAILCALL {
+                    words[0] = match tcl_cmd_core::namespace::current_original(self) {
+                        Ok(value) => value,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self, error,
+                            ));
+                        }
+                    };
+                }
+                let Some(protocol) = self
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                else {
+                    return Tick::Return(
+                        self.refuse_host_command("native tailcall List issuer".into()),
+                    );
+                };
+                let list = Value::native_list_constructor(words, protocol);
+                return self.native_tailcall_tick(list);
             }
             Op::TAILCALL_LIST => {
                 let list = pop(f);
-                let words = match tcl_syntax::value::ValueOps::list_elements(self, &list) {
-                    Ok(words) => words,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                return Self::tailcall_tick(&words);
+                return self.native_tailcall_tick(list);
             }
 
             // Termination.
@@ -6675,13 +6801,13 @@ impl Vm {
                     return Tick::Return(crate::command::completion_from_cmd_error(self, error));
                 }
             },
-            Op::INFO_LEVEL_NUM => match tcl_cmd_core::info::level(self, None) {
+            Op::INFO_LEVEL_NUM => match self.native_info_level(None) {
                 Ok(v) => f.stack.push(v),
                 Err(e) => return Tick::Return(crate::command::completion_from_cmd_error(self, e)),
             },
             Op::INFO_LEVEL_ARGS => {
                 let n = pop(f);
-                match tcl_cmd_core::info::level(self, Some(&n)) {
+                match self.native_info_level(Some(&n)) {
                     Ok(v) => f.stack.push(v),
                     Err(e) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(self, e));
@@ -6702,21 +6828,14 @@ impl Vm {
             Op::ORIGIN_CMD => {
                 let original = pop(f);
                 match self.native_namespace_command_name(&original, true) {
-                    Ok(Some(bytes)) => f.stack.push(Value::from_native_string_bytes(bytes)),
+                    Ok(Some(bytes)) => match self.native_namespace_origin_result(&bytes) {
+                        Ok(result) => f.stack.push(result),
+                        Err(error) => {
+                            return Tick::Return(self.refuse_host_command(error.to_string()));
+                        }
+                    },
                     Ok(None) => {
-                        let written = match self.native_name_operand_bytes(&original) {
-                            Ok(bytes) => bytes,
-                            Err(error) => {
-                                return Tick::Return(self.refuse_host_command(error.to_string()));
-                            }
-                        };
-                        return Tick::Return(crate::cmd_namespace::namespace_command_lookup_error(
-                            self,
-                            &written,
-                            b"invalid command name ",
-                            b"",
-                            b"COMMAND",
-                        ));
+                        return Tick::Return(self.native_namespace_origin_failure(&original));
                     }
                     Err(error) => return Tick::Return(self.refuse_host_command(error.to_string())),
                 }
@@ -6758,20 +6877,8 @@ impl Vm {
             // TOS is the captured namespace followed by relay command argv.
             // The namespace was evaluated before the original operands.
             Op::YIELD_TO_INVOKE => {
-                let words = match pop(f).as_list() {
-                    Ok(w) => w,
-                    Err(e) => {
-                        return Tick::Return(crate::command::completion_from_tcl_error(self, e));
-                    }
-                };
-                let Some((namespace, words)) = words.split_first() else {
-                    return Tick::Return(err("yieldto: missing captured namespace"));
-                };
-                if let Err(c) = crate::cmd_coro::request_yieldto_in_namespace(
-                    self,
-                    namespace.to_str().as_ref(),
-                    words,
-                ) {
+                let original = pop(f);
+                if let Err(c) = crate::cmd_coro::request_yieldto_original(self, original) {
                     return Tick::Return(c);
                 }
                 if let Some(req) = self.coro.pending.take() {
@@ -8667,15 +8774,121 @@ impl Vm {
         result
     }
 
-    /// Decode the native namespace-prefixed replacement invocation.
-    fn tailcall_tick(words: &[Value]) -> Tick {
-        let Some((namespace, words)) = words.split_first() else {
+    fn tick_original_invocation(&mut self, frame: &mut Frame, original: Value) -> Tick {
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+        else {
+            return Tick::Return(
+                self.refuse_host_command("original coroutine invocation List issuer".into()),
+            );
+        };
+        let members = match self.native_object_list_elements_in(&original, protocol) {
+            Ok(members) => members,
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_tcl_error(
+                    self,
+                    error.into(),
+                ));
+            }
+        };
+        let Some((namespace, words)) = members.split_first() else {
+            return Tick::Return(
+                self.refuse_host_command("original coroutine namespace operand".into()),
+            );
+        };
+        let context = match self.namespace_object_lookup(namespace) {
+            Ok(Some(namespace)) => namespace,
+            Ok(None) => {
+                return Tick::Return(match self.native_name_operand_bytes(namespace) {
+                    Ok(bytes) => self.namespace_lookup_error_bytes(&bytes),
+                    Err(error) => self.refuse_host_command(error.to_string()),
+                });
+            }
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_cmd_error(
+                    self,
+                    error.into(),
+                ));
+            }
+        };
+        let words = crate::NativeListItems::invocation_view(Rc::new(
+            words
+                .iter()
+                .map(|word| word.native_lifetime_lease().into_value())
+                .collect(),
+        ));
+        frame.tailcall_owners.push(original);
+        match self.dispatch_words_entry_at(frame, &words, None, context, &[], true) {
+            Ok(Some(tick)) => tick,
+            Ok(None) => Tick::Continue,
+            Err(completion) => Tick::Return(completion),
+        }
+    }
+
+    pub(crate) fn original_tailcall_request(
+        &mut self,
+        words: &[Value],
+    ) -> Result<TailcallReq, Completion<Value>> {
+        if !self.frame_owns_local_variables(self.current_level()) {
+            return Err(crate::command::err_with_code(
+                "tailcall can only be called from a proc, lambda or method",
+                "TCL TAILCALL ILLEGAL",
+            ));
+        }
+        let namespace = tcl_cmd_core::namespace::current_original(self)
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
+        let protocol = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .ok_or_else(|| self.refuse_host_command("original tailcall List issuer".into()))?;
+        let mut members = Vec::with_capacity(words.len() + 1);
+        members.push(namespace);
+        members.extend_from_slice(words);
+        let original = Value::native_list_constructor(members, protocol);
+        let values = self
+            .native_object_list_elements_in(&original, protocol)
+            .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
+        let (namespace, words) = values.split_first().expect("original namespace prefix");
+        Ok(TailcallReq {
+            namespace: namespace.native_lifetime_lease().into_value(),
+            words: words
+                .iter()
+                .map(|word| word.native_lifetime_lease().into_value())
+                .collect(),
+            original_list: Some(original),
+        })
+    }
+
+    /// Preserve the real namespace-prefixed List and borrow its original members.
+    fn native_tailcall_tick(&mut self, list: Value) -> Tick {
+        let Some(protocol) = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+        else {
+            return Tick::Return(self.refuse_host_command("native tailcall List issuer".into()));
+        };
+        let members = match self.native_object_list_elements_in(&list, protocol) {
+            Ok(members) => members,
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_tcl_error(
+                    self,
+                    error.into(),
+                ));
+            }
+        };
+        let Some((namespace, words)) = members.split_first() else {
             return Tick::Return(err("tailcall: missing namespace"));
         };
-        Tick::Tailcall(TailcallReq {
-            namespace: namespace.clone(),
-            words: words.to_vec(),
-        })
+        let request = TailcallReq {
+            namespace: namespace.native_lifetime_lease().into_value(),
+            words: words
+                .iter()
+                .map(|value| value.native_lifetime_lease().into_value())
+                .collect(),
+            original_list: Some(list),
+        };
+        Tick::Tailcall(request)
     }
 
     /// Dispatch a procedure-owned replacement after its frame and leave
@@ -8685,7 +8898,11 @@ impl Vm {
         acts: &mut Vec<Frame>,
         request: TailcallReq,
     ) -> Option<Completion<Value>> {
-        let TailcallReq { namespace, words } = request;
+        let TailcallReq {
+            namespace,
+            words,
+            original_list,
+        } = request;
         let context = match self.namespace_object_lookup(&namespace) {
             Ok(Some(context)) => context,
             Ok(None) => {
@@ -8693,11 +8910,11 @@ impl Vm {
                     Ok(bytes) => self.namespace_lookup_error_bytes(&bytes),
                     Err(error) => self.refuse_host_command(error.to_string()),
                 };
-                return self.settle_completion(acts, completion);
+                return self.deliver_tailcall_completion(acts, completion);
             }
             Err(error) => {
                 let completion = crate::command::completion_from_cmd_error(self, error.into());
-                return self.settle_completion(acts, completion);
+                return self.deliver_tailcall_completion(acts, completion);
             }
         };
         let words = crate::NativeListItems::invocation_view(Rc::new(words));
@@ -8712,6 +8929,9 @@ impl Vm {
         let parent = acts
             .last_mut()
             .expect("replacement result activation present");
+        if let Some(owner) = original_list {
+            parent.tailcall_owners.push(owner);
+        }
         match self.dispatch_words_entry_at(parent, &words, None, context, &[], true) {
             Ok(Some(mut tick)) => {
                 if let Tick::PushEachLoop { req, .. } = &mut tick {
@@ -8720,8 +8940,15 @@ impl Vm {
                 parent.deferred_dispatch = Some(Box::new(tick));
                 None
             }
-            Ok(None) => None,
-            Err(completion) => self.settle_completion(acts, completion),
+            Ok(None) => {
+                let completion = Completion::new(
+                    Code::Ok,
+                    pop(parent),
+                    std::mem::replace(&mut parent.last_options, Value::empty()),
+                );
+                self.deliver_tailcall_completion(acts, completion)
+            }
+            Err(completion) => self.deliver_tailcall_completion(acts, completion),
         }
     }
 }

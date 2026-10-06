@@ -37,7 +37,7 @@ pub enum NativeListIndexOperation {
     Immediate(NativeCompiledListIndex),
 }
 
-/// Ordered parser operands of one independently admitted ListIndex compiler.
+/// Ordered parser operands of one independently admitted `ListIndex` compiler.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeListIndexInstruction {
     /// List followed by each original index, excluding an immediate index.
@@ -56,6 +56,44 @@ pub enum NativeListIndexUnavailable {
     Expansion,
     /// Native immediate selection depends on unavailable container-size width.
     Encoding,
+}
+
+/// Select original `ListIndex` compilation after native parser expansion.
+/// Registration and compilation context remain independent caller obligations.
+#[must_use]
+pub fn select_original(
+    words: &NativeCompilerWords<'_>,
+    operand_from: usize,
+    version: TclVersion,
+    spec: crate::native_compilation::NativeCompilationSpec,
+) -> crate::native_compilation::NativeCompilationSelection {
+    use crate::native_compilation::NativeCompilationSelection as Selection;
+    let Ok(projected) = project_native_compiler_words(words, version) else {
+        return Selection::Unknown;
+    };
+    if operand_from == 0 {
+        return Selection::Unknown;
+    }
+    let Some(arguments) = projected.get(operand_from..) else {
+        return Selection::Unknown;
+    };
+    if arguments.is_empty() {
+        return Selection::Generic;
+    }
+    match compile_native_list_index(words, operand_from, version) {
+        Ok(_) => Selection::Inline {
+            operation: spec.operation,
+            guard: if version == TclVersion::V8_4 {
+                crate::native_compilation::NativeCompilationGuard::ChunkEntry
+            } else {
+                crate::native_compilation::NativeCompilationGuard::BeforeArguments
+            },
+        },
+        Err(NativeListIndexUnavailable::Expansion) => Selection::Generic,
+        Err(NativeListIndexUnavailable::Geometry | NativeListIndexUnavailable::Encoding) => {
+            Selection::Unknown
+        }
+    }
 }
 
 /// Select operands only; the caller must authenticate the actual compiler.
@@ -214,12 +252,88 @@ mod tests {
             None
         );
         for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                tcl_cmd_core::index::compiled_list_index_in("-1", version)
+                    .unwrap()
+                    .unwrap()
+                    .encoded(),
+                -1,
+            );
+            assert_eq!(
+                tcl_cmd_core::index::compiled_list_index_in("end+1", version)
+                    .unwrap()
+                    .map(NativeCompiledListIndex::encoded),
+                (version == TclVersion::V8_6).then_some(-1),
+            );
             let end = tcl_cmd_core::index::compiled_list_index_in("end-1", version)
                 .unwrap()
                 .unwrap();
             assert_eq!(end.encoded(), -3);
             assert_eq!(end.resolve(3), Some(1));
             assert_eq!(end.resolve(0), None);
+        }
+    }
+
+    #[test]
+    fn original_list_index_expansion_preserves_decline_and_projected_operands() {
+        let registry = crate::CommandRegistry::build_default();
+        for version in [
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            let dialect = crate::InvocationDialect::for_version(version);
+            let spec = registry
+                .native_compilation_for_registration("lindex", dialect)
+                .unwrap();
+            let context = NativeCompilationContext {
+                mode: NativeCompilationMode::BytecodeObject,
+                frame: NativeCompilationFrame::ProcedureCode,
+                ..Default::default()
+            };
+            for (source, compiled) in [("lindex $x {*}$i", false), ("lindex {*}{a b} 0", true)] {
+                let parsed = tcl_lexer::native_script_words_in(
+                    tcl_lexer::SourceImage::native(source.as_bytes()),
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+                )
+                .unwrap();
+                let words = NativeCompilerWords::capture(
+                    &parsed.commands[0].words,
+                    tcl_syntax::native_string::NativeStringProtocol::C(version),
+                )
+                .unwrap();
+                let selected = spec.select_native_words(&words, 1, Some(dialect), context);
+                if compiled {
+                    assert!(matches!(
+                        selected,
+                        crate::native_compilation::NativeCompilationSelection::Inline { .. }
+                    ));
+                    let recipe = compile_native_list_index(&words, 1, version).unwrap();
+                    assert_eq!(recipe.operation, NativeListIndexOperation::Multi(3));
+                    assert!(matches!(
+                        recipe.operands[0],
+                        NativeCompilerWordOperand::LiteralExpansion {
+                            original_word: 1,
+                            ..
+                        }
+                    ));
+                } else {
+                    assert_eq!(
+                        selected,
+                        crate::native_compilation::NativeCompilationSelection::Generic
+                    );
+                    assert_eq!(
+                        compile_native_list_index(&words, 1, version),
+                        Err(NativeListIndexUnavailable::Expansion)
+                    );
+                }
+                assert_eq!(
+                    spec.select_native_words(&words, 1, None, context),
+                    crate::native_compilation::NativeCompilationSelection::Unknown
+                );
+            }
         }
     }
 }

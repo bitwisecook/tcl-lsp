@@ -497,6 +497,11 @@ pub struct ResolveContext {
     /// of unknown incoming namespace values. Only the actual frame-entry owner
     /// issues this axis; callbacks and unresolved writes withdraw it.
     pub(crate) activation_contents_world: Option<ContentsWorld>,
+    /// A newly entered private activation starts with no inherited variable
+    /// observers. This is separate from its contents and namespace trace world.
+    pub(crate) activation_observers_closed: bool,
+    /// Actual fresh receiver allocations whose observer world remains enumerated.
+    pub(crate) closed_observer_allocations: HashSet<crate::command_binding::SourceObjectAllocation>,
     /// Namespace-scoped contents clobbers without enumerated cell names.
     pub contents_unknown_namespaces: VariableNamespaceSet,
     /// Physical array roots affected by stores or deletions to an unknown element.
@@ -805,6 +810,13 @@ impl ResolveContext {
         let expanded = crate::allocated_instance::relocation_with_cell_keys(self, relocation);
         let relocation = &expanded;
         let mut context = self.clone();
+        context.closed_observer_allocations = self
+            .closed_observer_allocations
+            .iter()
+            .map(|allocation| {
+                crate::allocated_instance::relocate_allocation(allocation, relocation)
+            })
+            .collect();
         context.namespace_identity = self
             .namespace_identity
             .as_ref()
@@ -1071,6 +1083,9 @@ pub fn restore_execution_frame(parent: &ResolveContext, child: &ResolveContext) 
         .outward_namespace_destructions
         .extend(child.outward_namespace_destructions.iter().cloned());
     restored.dynamic_traces |= child.dynamic_traces;
+    restored
+        .closed_observer_allocations
+        .clone_from(&child.closed_observer_allocations);
     restore_outward_aliases(parent, child, &mut restored);
     if child.dynamic_bindings {
         restored.widen();
@@ -1268,6 +1283,7 @@ fn restore_selected_bindings(parent: &ResolveContext, child: &ResolveContext) ->
                 current.upvar_aliases.clone_from(&frame.upvar_aliases);
                 current.dynamic_bindings = frame.dynamic_bindings;
                 current.activation_contents_world = frame.activation_contents_world;
+                current.activation_observers_closed = frame.activation_observers_closed;
                 break;
             }
             candidate = frame.caller.as_deref();
@@ -1277,6 +1293,19 @@ fn restore_selected_bindings(parent: &ResolveContext, child: &ResolveContext) ->
     }
     std::sync::Arc::try_unwrap(restored.expect("parent frame was retained"))
         .expect("restored root has a single owner")
+}
+
+fn hash_unordered_set<T: Hash, H: Hasher>(items: &HashSet<T>, state: &mut H) {
+    let mut hashes = items
+        .iter()
+        .map(|item| {
+            let mut hash = std::collections::hash_map::DefaultHasher::new();
+            item.hash(&mut hash);
+            hash.finish()
+        })
+        .collect::<Vec<_>>();
+    hashes.sort_unstable();
+    hashes.hash(state);
 }
 
 fn hash_set<T: Hash + Ord, H: Hasher>(items: &HashSet<T>, state: &mut H) {
@@ -1349,6 +1378,8 @@ impl Hash for ResolveContext {
         self.contents_kinds.hash(state);
         self.contents_world.hash(state);
         self.activation_contents_world.hash(state);
+        self.activation_observers_closed.hash(state);
+        hash_unordered_set(&self.closed_observer_allocations, state);
         self.contents_unknown_namespaces.hash(state);
         self.contents_unknown_arrays.hash(state);
         self.closed_array_roots.hash(state);
@@ -1412,6 +1443,8 @@ impl Default for ResolveContext {
             contents_kinds: VariableCellTable::default(),
             contents_world: ContentsWorld::Tracked,
             activation_contents_world: None,
+            activation_observers_closed: false,
+            closed_observer_allocations: HashSet::new(),
             contents_unknown_namespaces: VariableNamespaceSet::default(),
             contents_unknown_arrays: VariableCellSet::default(),
             closed_array_roots: VariableCellSet::default(),
@@ -1604,6 +1637,9 @@ impl ResolveContext {
                 })
                 .cloned();
         }
+        selected
+            .closed_observer_allocations
+            .clone_from(&self.closed_observer_allocations);
         selected.raw_bindings.clone_from(&self.raw_bindings);
         selected.captured_cells.clone_from(&self.captured_cells);
         selected
@@ -1738,6 +1774,7 @@ impl ResolveContext {
                 | VariableExecutionFrame::ReceiverMethod { .. }
         ) {
             selected.activation_contents_world = Some(ContentsWorld::Tracked);
+            selected.activation_observers_closed = true;
         }
         selected.constant_values.clone_from(&self.constant_values);
         selected
@@ -2954,7 +2991,7 @@ impl ResolveContext {
             .retain(|key, object| other.namespace_objects.get(key) == Some(object));
         if self.authored_tmm_static != other.authored_tmm_static {
             self.authored_tmm_static = None;
-            self.dynamic_traces = true;
+            self.mark_unenumerated_variable_observers();
         }
         for (key, pending) in &mut self.pending_namespace_retirements {
             if other.pending_namespace_retirements.get(key) != Some(pending) {
@@ -3124,6 +3161,7 @@ impl ResolveContext {
     }
 
     fn withdraw_activation_contents_closure(&mut self) {
+        self.activation_observers_closed = false;
         if self.activation_contents_world.is_some() {
             self.activation_contents_world = Some(ContentsWorld::Unknown);
         }
@@ -3175,6 +3213,10 @@ impl ResolveContext {
             (Some(left), Some(right)) => Some(left.joined(right)),
             _ => None,
         };
+        self.activation_observers_closed &=
+            other.activation_observers_closed && self.activation == other.activation;
+        self.closed_observer_allocations
+            .retain(|allocation| other.closed_observer_allocations.contains(allocation));
         self.contents_unknown_namespaces
             .extend(other.contents_unknown_namespaces.iter().cloned());
         self.contents_unknown_arrays
@@ -3418,7 +3460,7 @@ impl ResolveContext {
         }
 
         self.dynamic_bindings = true;
-        self.dynamic_traces = true;
+        self.mark_unenumerated_variable_observers();
         self.unknown_bindings
             .extend(self.alias_bindings.keys().cloned());
         self.alias_bindings.clear();
@@ -3509,7 +3551,20 @@ fn bind_scalar(
     observed: Option<bool>,
     registry: &CommandRegistry,
 ) -> Place {
-    let obs = observed.unwrap_or_else(|| ctx.dynamic_traces || ctx.traced.contains(base));
+    let mut bound = bind_scalar_receiver(base, ctx, observed, registry);
+    if observed.is_none() {
+        bound.observed |= ctx.unenumerated_observers_may_run(&bound);
+    }
+    bound
+}
+
+fn bind_scalar_receiver(
+    base: &str,
+    ctx: &ResolveContext,
+    observed: Option<bool>,
+    registry: &CommandRegistry,
+) -> Place {
+    let obs = observed.unwrap_or_else(|| ctx.traced.contains(base));
     if ctx.unknown_bindings.contains(base) {
         return place::unknown_top();
     }
@@ -4416,6 +4471,30 @@ impl ResolveContext {
         self.variable_observers_for_keys(access, operation, registry, keys, unordered_destruction)
     }
 
+    pub(crate) fn unenumerated_observers_may_run(&self, access: &Place) -> bool {
+        let closed_owner = match access.cell.as_ref().map(|cell| &cell.owner) {
+            Some(CellOwner::Activation(identity)) => {
+                self.activation_observers_closed && self.activation.as_ref() == Some(identity)
+            }
+            Some(CellOwner::AllocatedInstance(allocation)) => self
+                .closed_observer_allocations
+                .contains(allocation.as_ref()),
+            _ => false,
+        };
+        self.dynamic_traces && !closed_owner
+    }
+
+    /// An unresolved registration can select an existing caller or receiver.
+    /// Revoke every affected fresh-owner receipt, not just the active frame.
+    pub(crate) fn mark_unenumerated_variable_observers(&mut self) {
+        self.dynamic_traces = true;
+        self.activation_observers_closed = false;
+        self.closed_observer_allocations.clear();
+        if let Some(caller) = &mut self.caller {
+            std::sync::Arc::make_mut(caller).mark_unenumerated_variable_observers();
+        }
+    }
+
     fn variable_observers_for_keys(
         &self,
         access: &Place,
@@ -4434,7 +4513,7 @@ impl ResolveContext {
                 .as_ref()
                 .is_some_and(|index| index.kind != place::IndexKind::Literal);
         let mut projection = VariableObserverProjection {
-            unknown_residual: self.dynamic_traces
+            unknown_residual: self.unenumerated_observers_may_run(access)
                 || self.authored_static_observer_may_run(access, operation)
                 || self.implicit_read_changes_value(access, registry)
                     && operation == tcl_registry::TraceOperation::Read,
@@ -4487,7 +4566,7 @@ pub fn project_access(
     operation: tcl_registry::TraceOperation,
 ) -> Place {
     let candidates = variable_observer_keys(&bound, ctx, operation);
-    bound.observed = ctx.dynamic_traces
+    bound.observed = ctx.unenumerated_observers_may_run(&bound)
         || ctx.authored_static_observer_may_run(&bound, operation)
         || ctx.possible_trace_registrations.iter().any(|registration| {
             registration.operations.contains(&operation)
@@ -4672,6 +4751,49 @@ mod tests {
                 identity: "unentered-frame".to_owned(),
             });
         assert!(preview.activation_contents_world.is_none());
+    }
+
+    #[test]
+    fn fresh_activation_observers_are_independent_of_incoming_namespace_traces() {
+        let registry = registry();
+        let mut incoming = ResolveContext::for_namespace("::");
+        incoming.dynamic_traces = true;
+        let frame = VariableExecutionFrame::Procedure {
+            namespace: "::".to_owned(),
+            identity: "actual-call".to_owned(),
+        };
+        let mut state = incoming.enter_called_frame(&frame);
+        let local = resolve_literal_place("missing", &state, false, &registry);
+        let global = resolve_literal_place("::missing", &state, false, &registry);
+        assert!(!local.observed);
+        assert!(global.observed);
+        assert_eq!(state.contents_presence(&local), ContentsPresence::Undefined);
+        assert!(
+            resolve_literal_place("missing", &incoming.in_frame(&frame), false, &registry).observed
+        );
+        state.traced.insert(cell_key(&local));
+        assert!(resolve_literal_place("missing", &state, false, &registry).observed);
+        assert!(!resolve_literal_place("other", &state, false, &registry).observed);
+        state.mark_unenumerated_variable_observers();
+        assert!(resolve_literal_place("other", &state, false, &registry).observed);
+    }
+
+    #[test]
+    fn unknown_child_trace_registration_withdraws_exact_caller_observer_closure() {
+        let registry = registry();
+        let parent = called_frame_with_unknown_namespace_contents("parent-call");
+        let mut child = parent.enter_called_frame(&VariableExecutionFrame::Procedure {
+            namespace: "::".to_owned(),
+            identity: "child-call".to_owned(),
+        });
+        let untouched = restore_execution_frame(&parent, &child);
+        assert!(!resolve_literal_place("missing", &untouched, false, &registry).observed);
+        child.mark_unenumerated_variable_observers();
+        let restored = restore_execution_frame(&parent, &child);
+        assert!(resolve_literal_place("missing", &restored, false, &registry).observed);
+        let mut mixed = untouched;
+        mixed.join(&restored);
+        assert!(resolve_literal_place("missing", &mixed, false, &registry).observed);
     }
 
     #[test]

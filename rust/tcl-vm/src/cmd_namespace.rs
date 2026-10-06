@@ -472,22 +472,44 @@ fn cmd_namespace_in(
                     tcl_cmd_core::CmdError::wrong_args(subcommand.synopsis),
                 );
             }
-            let name = match vm.native_name_operand_bytes(&rest[0]) {
-                Ok(bytes) => bytes,
-                Err(error) => return vm.refuse_host_command(error.to_string()),
-            };
             match vm.native_namespace_command_name(&rest[0], true) {
+                Ok(Some(bytes))
+                    if vm
+                        .actual_native_invocation_dialect()
+                        .native_command_name_protocol()
+                        .is_some() =>
+                {
+                    match vm.native_namespace_origin_result(&bytes) {
+                        Ok(result) => ok(result),
+                        Err(error) => vm.refuse_host_command(error.to_string()),
+                    }
+                }
                 Ok(Some(bytes)) => ok(Value::from_native_string_bytes(bytes)),
-                Ok(None) => namespace_command_lookup_error(
-                    vm,
-                    &name,
-                    b"invalid command name ",
-                    b"",
-                    b"COMMAND",
-                ),
+                Ok(None)
+                    if vm
+                        .actual_native_invocation_dialect()
+                        .native_command_name_protocol()
+                        .is_some() =>
+                {
+                    vm.native_namespace_origin_failure(&rest[0])
+                }
+                Ok(None) => {
+                    let name = match vm.native_name_operand_bytes(&rest[0]) {
+                        Ok(name) => name,
+                        Err(error) => return vm.refuse_host_command(error.to_string()),
+                    };
+                    namespace_command_lookup_error(
+                        vm,
+                        &name,
+                        b"invalid command name ",
+                        b"",
+                        b"COMMAND",
+                    )
+                }
                 Err(error) => vm.refuse_host_command(error.to_string()),
             }
         }
+
         "export" => {
             if vm.dialect_profile().namespace_import_binding()
                 == Some(tcl_dialect::NamespaceImportBinding::SourceName)

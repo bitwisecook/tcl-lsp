@@ -23,6 +23,15 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NativeCompiledListIndex(i32);
 
+/// Inclusive native range operands; construction grants no compiler authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeCompiledListRange {
+    /// Native first coordinate after the selected compiler's clamping.
+    pub first: NativeCompiledListIndex,
+    /// Native last coordinate after the selected compiler's clamping.
+    pub last: NativeCompiledListIndex,
+}
+
 impl NativeCompiledListIndex {
     /// Preserve the native signed operand: `-1` is outside and `-2` is `end`.
     #[must_use]
@@ -36,6 +45,18 @@ impl NativeCompiledListIndex {
         self.0
     }
 
+    /// Decode a native coordinate against this operation's meaning of `end`.
+    /// Range uses the last member; insertion uses the position after it.
+    /// Before/after sentinel clamping remains the caller's native recipe.
+    #[must_use]
+    pub fn decode(self, end: i128) -> i128 {
+        if self.0 <= -2 {
+            end + i128::from(self.0) + 2
+        } else {
+            i128::from(self.0)
+        }
+    }
+
     /// Select a member after the original List getter established its length.
     #[must_use]
     pub fn resolve(self, length: usize) -> Option<usize> {
@@ -47,5 +68,26 @@ impl NativeCompiledListIndex {
         usize::try_from(position)
             .ok()
             .filter(|index| *index < length)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_range_and_insertion_decode_against_their_actual_end() {
+        let end = NativeCompiledListIndex::from_encoded(-2);
+        let before_end = NativeCompiledListIndex::from_encoded(-3);
+        assert_eq!(end.decode(2), 2);
+        assert_eq!(end.decode(3), 3);
+        assert_eq!(before_end.decode(2), 1);
+        assert_eq!(NativeCompiledListIndex::from_encoded(-1).decode(2), -1);
+        assert_eq!(
+            NativeCompiledListIndex::from_encoded(i32::MAX).decode(2),
+            i128::from(i32::MAX)
+        );
+        assert_eq!(end.resolve(0), None);
+        assert_eq!(end.resolve(3), Some(2));
     }
 }

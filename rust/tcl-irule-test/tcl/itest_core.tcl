@@ -174,8 +174,7 @@ namespace eval ::itest {
         return $identity
     }
 
-    # The namespace below is an explicit simulator command-table owner. The
-    # documented F5 call forms do not prove an appliance's namespace current.
+    # Rule callable ownership is independent of the root execution namespace.
     proc _load_source_for_owner {identity source} {
         if {[llength [::tmm::_orig_info commands ::tmm::_timer_rule_loaded]]} {
             ::tmm::_timer_rule_loaded $identity
@@ -186,11 +185,7 @@ namespace eval ::itest {
         set previous_rule $_current_rule
         set _executing_rule 1
         set _current_rule $identity
-        if {$identity eq ""} {
-            set code [catch {uplevel #0 $source} result]
-        } else {
-            set code [catch {::tmm::_orig_namespace eval ::$identity $source} result]
-        }
+        set code [catch {uplevel #0 $source} result]
         if {$code == 1} { set error_info $::errorInfo; set error_code $::errorCode }
         set _executing_rule $previous_execution
         set _current_rule $previous_rule
@@ -283,15 +278,7 @@ namespace eval ::itest {
             }
             set event_handlers($event) $kept
         }
-        set workers [list ""]
-        if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} { set workers $::orch::_tmm_interpreters }
-        foreach worker $workers {
-            if {$worker eq ""} {
-                catch {::tmm::_orig_namespace delete ::$identity}
-            } else {
-                catch {::tmm::_orig_interp eval $worker [list ::tmm::_orig_namespace delete ::$identity]}
-            }
-        }
+        # Configuration deletion removes event registration, not activated callables.
         set index [lsearch -exact $_loaded_rules $identity]
         if {$index >= 0} { set _loaded_rules [lreplace $_loaded_rules $index $index] }
     }
@@ -300,29 +287,13 @@ namespace eval ::itest {
     # ownership. There is no default partition inferred from source text.
     proc _resolve_rule_call {target} {
         variable _current_rule
-        set separator [string last :: $target]
-        if {$separator < 0} {
-            if {$_current_rule eq ""} { return [list "" $target] }
-            set owner $_current_rule
-            set procedure $target
-        } else {
-            set rule [string range $target 0 [expr {$separator - 1}]]
-            set procedure [string range $target [expr {$separator + 2}] end]
-            if {[string match "/*" $rule]} {
-                set owner [_validate_rule_identity $rule]
-            } else {
-                if {$_current_rule eq ""} { error "an iRule call requires explicit rule ownership" }
-                if {[string first / $rule] >= 0 || [string first :: $rule] >= 0 || $rule eq ""} {
-                    error "an iRule call requires a rule name or absolute folder/name path"
-                }
-                set slash [string last / $_current_rule]
-                set owner "[string range $_current_rule 0 [expr {$slash - 1}]]/$rule"
-            }
+        if {$_current_rule eq ""} {
+            return [list "" $target]
         }
-        if {$procedure eq "" || [string first / $procedure] >= 0 || [string first :: $procedure] >= 0} {
-            error "an iRule call requires an unqualified procedure name"
+        if {![llength [::tmm::_orig_info commands ::tmm::_rule_target]]} {
+            return -code error -errorcode {IRULES SIMULATION CAPABILITY RULE_CALLABLE} "named calls require an explicit authored rule callable provider"
         }
-        return [list $owner ::${owner}::$procedure]
+        return [::tmm::_rule_target $_current_rule $target]
     }
 
     # A traffic connection retains one real Tcl proc activation. The host's
@@ -459,14 +430,12 @@ namespace eval ::itest {
         variable event_handlers
         variable fired_events
         variable _loaded_rules
-        # Retire the named command-table owners, not copied cell contents.
-        foreach identity $_loaded_rules {
-            if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} {
-                foreach owned_worker $::orch::_tmm_interpreters {
-                    catch {::tmm::_orig_interp eval $owned_worker [list ::tmm::_orig_namespace delete ::$identity]}
-                }
-            } else { catch {::tmm::_orig_namespace delete ::$identity} }
-        }
+        # Full reset retires all activated callable owners, including deleted configs.
+        if {[info exists ::orch::_tmm_count] && $::orch::_tmm_count > 1} {
+            foreach owned_worker $::orch::_tmm_interpreters {
+                catch {::tmm::_orig_interp eval $owned_worker {::tmm::_orig_namespace delete ::tmm::_rule_callables}}
+            }
+        } else { catch {::tmm::_orig_namespace delete ::tmm::_rule_callables} }
         set _loaded_rules [list]
         # Remove handler procs
         foreach event [array names event_handlers] {

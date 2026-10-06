@@ -3268,6 +3268,7 @@ impl CommandRegistry {
                             compiler.grammar = crate::native_compilation::NativeCompilationGrammar::StringMatch(crate::native_string_compilation::NativeStringMatchScope::PrivateOperands);
                         }
                         compiler.grammar = match compiler.grammar {
+                            crate::native_compilation::NativeCompilationGrammar::StringTrim { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringTrim { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
                             crate::native_compilation::NativeCompilationGrammar::StringEqual(_) => crate::native_compilation::NativeCompilationGrammar::StringEqual(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
                             crate::native_compilation::NativeCompilationGrammar::StringLength(_) => crate::native_compilation::NativeCompilationGrammar::StringLength(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
                             grammar => grammar,

@@ -430,6 +430,12 @@ impl CodegenCtx<'_> {
         let preparation = bindings.preparation().cloned();
         if bindings.is_positioned() {
             let Some(preparation) = preparation else {
+                // Missing normal-evaluation evidence does not discard an
+                // independently admitted original compiler program. This door
+                // retains its own words, registration and evaluation policy.
+                if self.emit_retained_native_expression() {
+                    return false;
+                }
                 // Keep the original expression intact so native entry validation
                 // happens before substitutions, including runtime-lazy branches.
                 self.refuse_native_dependency();

@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Original C name ingress; physical caches precede receiver observers.
 
+#[path = "native_variable_names/native_exists.rs"]
+mod native_exists;
+#[path = "native_variable_names/native_array.rs"]
+mod native_array;
+#[path = "native_variable_names/native_upvar.rs"]
+mod native_upvar;
 use super::{Code, Interp};
 #[path = "native_variable_names/native_unset.rs"]
 mod native_unset;
@@ -977,12 +983,13 @@ impl Interp {
             report_native_variable_diagnostic_at, NativeVariableDiagnosticOperation as Operation,
         };
         let operation = match purpose {
-            NativeVariableNameLookupPurpose::Read => Operation::Read,
+            NativeVariableNameLookupPurpose::Read | NativeVariableNameLookupPurpose::Exists | NativeVariableNameLookupPurpose::Array => Operation::Read,
             NativeVariableNameLookupPurpose::Unset
             | NativeVariableNameLookupPurpose::QuietUnset => Operation::Unset,
             NativeVariableNameLookupPurpose::Write
             | NativeVariableNameLookupPurpose::QuietWrite
-            | NativeVariableNameLookupPurpose::Link => Operation::Write,
+            | NativeVariableNameLookupPurpose::Link
+            | NativeVariableNameLookupPurpose::ArrayMake => Operation::Write,
             NativeVariableNameLookupPurpose::Define => Operation::Define,
         };
         let protocol = self

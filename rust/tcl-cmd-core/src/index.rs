@@ -217,6 +217,34 @@ pub fn compiled_list_index_in(
             .filter(|value| *value >= 0)
             .map(Index::from_encoded));
     }
+    // C9's positive end-offset conversion does not retain an encodable
+    // negative-base primary. The member compiler evaluates that index object.
+    if version >= tcl_dialect::TclVersion::V9_0
+        && spec.starts_with("end")
+        && resolve_opt_in(spec, 1, syntax).is_some_and(|value| value > 0)
+    {
+        return Ok(None);
+    }
+    compiled_list_bound_in(spec, version, -1, -1)
+}
+
+/// Encode a compile-known list coordinate with its native boundary policy.
+/// The native range and insertion compilers clamp before/after coordinates
+/// differently from a member lookup. This does not construct an index object.
+///
+/// # Errors
+/// Reports native container-width uncertainty rather than choosing an opcode.
+pub fn compiled_list_bound_in(
+    spec: &str,
+    version: tcl_dialect::TclVersion,
+    before: i32,
+    after: i32,
+) -> Result<Option<tcl_syntax::native_compiled_index::NativeCompiledListIndex>, ValueError> {
+    use tcl_syntax::native_compiled_index::NativeCompiledListIndex as Index;
+    let syntax = tcl_dialect::IndexSyntax::for_version(version);
+    if version < tcl_dialect::TclVersion::V8_6 {
+        return Ok(None);
+    }
     let Some(value) = resolve_opt_in(spec, 1, syntax) else {
         return Ok(None);
     };
@@ -226,16 +254,19 @@ pub fn compiled_list_index_in(
         ));
     }
     let encoded = if spec.starts_with("end") {
-        if value > 0 || value < i64::from(i32::MIN) + 2 {
-            -1
+        if value > 0 {
+            after
+        } else if value < i64::from(i32::MIN) + 2 {
+            before
         } else {
             i32::try_from(value - 2).expect("native encoded end offset")
         }
-    } else if value < 0
-        || (version < tcl_dialect::TclVersion::V9_0 && value == i64::from(i32::MAX))
+    } else if value < 0 {
+        before
+    } else if (version < tcl_dialect::TclVersion::V9_0 && value == i64::from(i32::MAX))
         || value > i64::from(i32::MAX)
     {
-        -1
+        after
     } else {
         i32::try_from(value).expect("native encoded absolute index")
     };
@@ -315,7 +346,10 @@ pub fn resolve_for_ops<O: ValueOps>(ops: &mut O, spec: &str, len: usize) -> Resu
         .ok_or_else(|| bad_index_for_ops(ops, spec, syntax))
 }
 
-fn wide_expression(spec: &str, syntax: tcl_dialect::IndexSyntax) -> Option<(&str, Option<u8>)> {
+pub(crate) fn wide_expression(
+    spec: &str,
+    syntax: tcl_dialect::IndexSyntax,
+) -> Option<(&str, Option<u8>)> {
     let flags = index_int_flags(Some(syntax.numbers));
     let whole_integer = |text: &str| tcl_syntax::number::parse_whole_with(text, flags).is_some();
     if let Some(rest) = spec.strip_prefix("end") {
