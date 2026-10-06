@@ -16,39 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! [`BigIpExecutionContext`] — the F1 key.
+//! BIG-IP execution contexts key runtime facts, command surfaces and storage.
 //!
-//! The evidence review's executive finding is that the F5 model needs
-//! another key before it can be ratified, because six distinct language
-//! contexts were being treated as one: they have different command
-//! surfaces, variables, package paths, security policies, lifetimes, and
-//! execution engines. This is that key.
-//!
-//! The live run
-//! (`docs/design/f5/bigip-irule-parser-measurements.md` §4a) then *refined*
-//! F1 in one important way: the three BIG-IP-hosted Tcl contexts are **one
-//! parser** — every grammar and newline case in a single 34-case list is
-//! byte-identical across `TmmIRule`, `TmshCliScript` and
-//! `IAppImplementation` — but they are emphatically **not one
-//! environment**. `exec` is absent in TMM and works in the other two,
-//! `llength [info commands]` counts 152/95/95, `tcl_platform` is
-//! fabricated / **empty** / real-Linux respectively, and `tcl_patchLevel`
-//! does not exist at all in a `cli script`. So the key splits **command
-//! surface, variables, policy and evidence**, not grammar; grammar answers
-//! from the `f5-tcl` trunk family for all three.
-//!
-//! Two of the six were never exercised. [`BigIpExecutionContext::IAppPresentationApl`]
-//! and [`BigIpExecutionContext::IAppPresentationTclCallback`] are recorded
-//! [`ContextMeasurement::Unmeasured`] by the driver itself (E4 step 6:
-//! *"Otherwise record that context as `Unknown`; never copy the
-//! implementation result into it"*), and this module is where that
-//! discipline is mechanised: an unmeasured context has no family, no build
-//! profile, no environment and no core profile, and nothing in
-//! [`crate::f5::evidence`] will hand it another context's row.
+//! TMM, tmsh, iApp implementation and iCall agree on the measured F5 grammar cases,
+//! while each retains its own environment and evidence. Host Tcl is an
+//! independent control. APL and its Tcl callbacks are unmeasured and cannot
+//! inherit facts from implementation scripts. A measured context can still
+//! have an unknown build profile or no registered environment.
 
 use tcl_dialect::model::family::{BuildProfileId, CoreProfileId, Family, Release};
 
-/// One of the six BIG-IP-relevant Tcl execution contexts (F1).
+/// A BIG-IP-relevant language or interpreter execution context.
 ///
 /// The spellings are the transcript's own labels
 /// (`TCLLSPPROBE|TmmIRule|…` in
@@ -73,6 +51,10 @@ pub enum BigIpExecutionContext {
     /// same trunk — working `exec`, and a large ambient package set
     /// (§4/§4a).
     IAppImplementation,
+    /// An iCall script entered by a triggered handler through scriptd.
+    /// Its own transcript reports Tcl 8.4.6, 95 commands and working `exec`.
+    /// Interpreter width is not measured by that transcript.
+    ICallScript,
     /// The APL presentation language in an iApp template's `presentation`
     /// field. **Never measured** (E4 step 6). APL is a presentation DSL
     /// that *contains* Tcl, not a Tcl dialect: its keywords must never
@@ -111,11 +93,12 @@ impl ContextMeasurement {
 }
 
 impl BigIpExecutionContext {
-    /// Every context, in the review's declaration order.
-    pub const ALL: [Self; 6] = [
+    /// Every independently identified execution context.
+    pub const ALL: [Self; 7] = [
         Self::TmmIRule,
         Self::TmshCliScript,
         Self::IAppImplementation,
+        Self::ICallScript,
         Self::IAppPresentationApl,
         Self::IAppPresentationTclCallback,
         Self::HostShellTcl,
@@ -128,6 +111,7 @@ impl BigIpExecutionContext {
             Self::TmmIRule => "TmmIRule",
             Self::TmshCliScript => "TmshCliScript",
             Self::IAppImplementation => "IAppImplementation",
+            Self::ICallScript => "ICallScript",
             Self::IAppPresentationApl => "IAppPresentationApl",
             Self::IAppPresentationTclCallback => "IAppPresentationTclCallback",
             Self::HostShellTcl => "HostShellTcl",
@@ -143,14 +127,14 @@ impl BigIpExecutionContext {
         !matches!(self, Self::HostShellTcl)
     }
 
-    /// Whether an appliance transcript backs the context (§11: four of the
-    /// six were measured; the two APL contexts were not).
+    /// Whether an appliance transcript backs the context. APL contexts are unmeasured.
     #[must_use]
     pub const fn measurement(self) -> ContextMeasurement {
         match self {
             Self::TmmIRule
             | Self::TmshCliScript
             | Self::IAppImplementation
+            | Self::ICallScript
             | Self::HostShellTcl => ContextMeasurement::Measured,
             Self::IAppPresentationApl | Self::IAppPresentationTclCallback => {
                 ContextMeasurement::Unmeasured("no non-interactive presentation renderer exercised")
@@ -179,7 +163,9 @@ impl BigIpExecutionContext {
     pub const fn family(self) -> Option<Family> {
         match self {
             Self::TmmIRule => Some(Family::F5Irules),
-            Self::TmshCliScript | Self::IAppImplementation => Some(Family::F5Tcl),
+            Self::TmshCliScript | Self::IAppImplementation | Self::ICallScript => {
+                Some(Family::F5Tcl)
+            }
             Self::HostShellTcl => Some(Family::Tcl),
             Self::IAppPresentationApl | Self::IAppPresentationTclCallback => None,
         }
@@ -195,11 +181,12 @@ impl BigIpExecutionContext {
     #[must_use]
     pub const fn build_profile(self) -> BuildProfileId {
         match self {
-            Self::TmmIRule | Self::TmshCliScript | Self::HostShellTcl => BuildProfileId::Canonical,
+            Self::TmmIRule | Self::HostShellTcl => BuildProfileId::Canonical,
             Self::IAppImplementation => BuildProfileId::F5Scriptd32,
-            Self::IAppPresentationApl | Self::IAppPresentationTclCallback => {
-                BuildProfileId::Unknown
-            }
+            Self::IAppPresentationApl
+            | Self::IAppPresentationTclCallback
+            | Self::ICallScript
+            | Self::TmshCliScript => BuildProfileId::Unknown,
         }
     }
 
@@ -215,9 +202,10 @@ impl BigIpExecutionContext {
             Self::TmmIRule => Some("f5-irules"),
             Self::TmshCliScript => Some("f5-tmsh"),
             Self::IAppImplementation => Some("f5-iapps"),
-            Self::IAppPresentationApl | Self::IAppPresentationTclCallback | Self::HostShellTcl => {
-                None
-            }
+            Self::IAppPresentationApl
+            | Self::IAppPresentationTclCallback
+            | Self::HostShellTcl
+            | Self::ICallScript => None,
         }
     }
 
@@ -263,13 +251,13 @@ mod tests {
     use tcl_dialect::model::family::CapabilityAnswer;
 
     #[test]
-    fn the_six_contexts_are_distinct_and_named_as_the_transcript_names_them() {
+    fn execution_contexts_are_distinct_and_named_as_the_transcript_names_them() {
         let mut seen = std::collections::HashSet::new();
         for context in BigIpExecutionContext::ALL {
             assert!(seen.insert(context.as_str()), "{context}: duplicate label");
             assert_eq!(context.to_string(), context.as_str());
         }
-        assert_eq!(seen.len(), 6);
+        assert_eq!(seen.len(), 7);
     }
 
     /// §11: four contexts measured, two `Unknown` — and the two unmeasured
@@ -288,6 +276,7 @@ mod tests {
                 BigIpExecutionContext::TmmIRule,
                 BigIpExecutionContext::TmshCliScript,
                 BigIpExecutionContext::IAppImplementation,
+                BigIpExecutionContext::ICallScript,
                 BigIpExecutionContext::HostShellTcl,
             ]
         );
@@ -329,6 +318,7 @@ mod tests {
         let irule = BigIpExecutionContext::TmmIRule;
         let tmsh = BigIpExecutionContext::TmshCliScript;
         let iapp = BigIpExecutionContext::IAppImplementation;
+        let icall = BigIpExecutionContext::ICallScript;
 
         // One parser: the iRules offshoot inherits the trunk grammar
         // whole, so every lexical axis agrees across the three.
@@ -338,6 +328,9 @@ mod tests {
         };
         assert_eq!(grammar_of(irule), grammar_of(tmsh));
         assert_eq!(grammar_of(tmsh), grammar_of(iapp));
+        assert_eq!(grammar_of(iapp), grammar_of(icall));
+        assert_eq!(icall.environment_name(), None);
+        assert_eq!(icall.build_profile(), BuildProfileId::Unknown);
         // …and every one of them differs from the host build.
         assert_ne!(
             grammar_of(irule),
@@ -364,7 +357,7 @@ mod tests {
                 .resolve()
                 .capabilities
                 .word_size_64,
-            CapabilityAnswer::Yes
+            CapabilityAnswer::Unknown
         );
 
         // The host `tclsh` is provenance only.
