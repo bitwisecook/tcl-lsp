@@ -1226,17 +1226,21 @@ keeps the shapes for where no run is made (D291); `ConstantReturn` is a
 lossless projection (D292); and a run's "no constant" overrides the shapes
 (D293).
 
-Green at the landing: the record's Measured paragraph states what had run
-when the device's latest failure brought the commit forward — `make
-rust-check` whole, `dialect-drift`'s 8 sites, the compiler suite's unit tests
-and the new and touched tests under tclsh 8.4 to 9.1 — with the suites one
-crate at a time and the corpus differential still running.
+Green at the landing: the record's Measured paragraphs — at the commit,
+which the device's latest failure brought forward, `make rust-check` whole,
+`dialect-drift`'s 8 sites, the compiler suite's unit tests and the new and
+touched tests under tclsh 8.4 to 9.1; after it, on the same tree, the nine
+suites one crate at a time passed whole, `tcl diag` and `tcl opt --profile
+full` print what H's binary prints for all 1120 corpus files, and the
+seedless stage's cost is within the run-to-run noise.
 
 Left open, each with its program: a `return` inside a command substitution
 is no exit either reading sees (#2394); neither O103 path proves the callee
-completes normally where an exit is reachable (#2390); O100 rewrites `return
-{$x}` as a read of `x` (#2391); 8.4's twelve-digit doubles (#2395). What
-slice 13 starts from: the seedless `ReturnKind` (`pub(crate)`,
+completes normally where an exit is reachable, nor on a procedure the
+complexity guard stopped, whose summary the shapes still answer (#2390); O100
+rewrites `return {$x}` as a read of `x` (#2391); 8.4's doubles — twelve
+digits, an exponent of at least two digits, a rejected subnormal (#2395).
+What slice 13 starts from: the seedless `ReturnKind` (`pub(crate)`,
 `Literal(ExactValue)`) that `TransferSummary::result` names, `exit_value` as
 the one reading of a procedure's exits, and the one seedless stage, which
 VT13.1's bottom-up composition and cycle bound replace once the caller's
@@ -9089,9 +9093,15 @@ Left open, outside the fix: under `tcl8.4` a double that is not short is
 spelled in 8.5's shortest form where 8.4's `tcl_precision` of 12 prints twelve
 digits, so `set y [expr {1.0/3}]` folds to `set y 0.3333333333333333` and
 `string length $y` to 18, where tclsh 8.4 prints `0.333333333333` and 14
-(#2395). The fix does not move it: the two spellings agree for such a value,
-and the ones it changes — an integral double, an exponent — 8.4 spells as 8.5
-does.
+(#2395). The fix does not move it, and the 8.4 model's two further axes stay
+with #2395, widened to them (the slice 7a review's S1): 8.4's
+`Tcl_PrintDouble` is C's `%.12g`, whose exponent has at least two digits, so
+a computed `1e-5` or `1.5e-7` folds under `--dialect tcl8.4` as `1e-5` or
+`1.5e-7` where tclsh 8.4 prints `1e-05` or `1.5e-07` (Rust's `Display` had
+spelled them `0.00001` and `0.00000015`); and 8.4 rejects a subnormal, so
+`expr {4.9e-324}` folds to `5e-324` where tclsh 8.4 raises `floating-point
+value too large to represent`. An integral double (`3.0`) and a positive
+exponent (`1e+301`) 8.4 spells as 8.5 does.
 
 Measured, and committed at the coordinator's ruling while the device's
 second failure is repaired: `make rust-check` passed whole and
@@ -9243,7 +9253,9 @@ VT7a.2, with the plan's message (D290 to D294).
   x [expr {1/0}]}; return 5}` the words had said `const(5)`, and `catch {set
   y [p]} m; puts $m` printed 5 after `tcl opt` where tclsh 8.4 to 9.1 print
   `divide by zero` — #2390's case where the lattice proves no exit; the
-  others, where an exit is reachable, stay #2390's.
+  others, where an exit is reachable, stay #2390's. So does the no-exit case
+  on a procedure the complexity guard stopped: no run is made there, and the
+  shapes answer with neither D289's check nor this one (the review's N4).
 - **The renderer (D294).** `is_value_safe_bare_word` no longer trims, so a
   value with whitespace about an integer is braced wherever O100, O102 or
   O103 spell it (#2392).
@@ -9317,6 +9329,37 @@ text); the shapes trimming the word, the same test (` 5` as 5); and a run's
 word is the same literal the shapes' constant is right — and the program
 that kills it is the new witness's. The first two and the last were run
 again on the committed tree after clippy's fix, with the same results.
+
+Measured after the commit, on its tree (the working tree's `rust/` was
+`3076a049`'s throughout; the hand-off page after it touches no code): the
+suites one crate at a time, each pruned after, passed whole — `tcl-compiler`
+10193 passed, 6 ignored (H's 10188 and the five new tests); `tcl-registry`
+1428; `tcl-explorer` 112; `tcl-lsp-db` 139, 5 ignored; `tcl-lsp-core --lib`
+2353; `tcl-cli` 207 (H's 206 and the CLI twin); `xtask` 275; `tcl-spectcl`
+476, 1 ignored; `tcl-cmd-core` 143. Over the corpus, `tcl diag` and `tcl opt
+--profile full` print under this commit's binary what they print under H's
+for every one of the 1120 files, so no rendering moved for tclsh to judge:
+the summary path answers only a call the re-run could make (#2389) and both
+read a procedure's exits through `exit_value`, so a corpus call whose
+callee's return is computed folds to the value the re-run gave it before,
+and no fold in the corpus spells a value the exact reading changes — a
+double, a boolean word, a padded or zero-led integer, a braced read.
+`fumagic/filetypes.tcl` runs past the 300 s limit under both binaries, as a
+debug build. Timing: in the corpus run, each binary beside the day's other
+work, `tcl diag` took 4939 s against H's 4817 s (+2.5%) and `tcl opt
+--profile full` 4967 s against 4728 s (+5.0%); paired, on the twelve corpus
+files with the most procedures (75 to 176) in three rounds alternating the
+binaries, the least CPU time per binary sums to 217.5 s against H's 216.3 s
+for `opt` (+0.6%) and 256.9 s against 253.3 s for `diag` (+1.4%), each file
+between 0.96 and 1.07 of H's where one binary's three rounds on one file
+differ by up to 12%: the seedless stage's one more lattice run per pure
+procedure costs less than the run-to-run noise. At the slice's review
+(`land as is, with S1 corrected`), the commit recording these measurements,
+`wip(value-transfers): slice 7a — the record's measurements`, also corrects
+the D287 record's 8.4 sentence above (S1) and the O103 note's `switch`
+bullet (N3), and adds the guarded-path sentence (N4) and the unit entry at
+the top of `interprocedural-analysis.md` (N5); the review's nits N1, N2 and
+N6 are the next commit's.
 
 ### Slice 13 — proc-level transfer summaries
 
@@ -12509,13 +12552,13 @@ Taken in the review fixes of slice 12 (§ *Slice 12* › *Record (2026-10-05): r
 
 Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10-05): slice 7a* has the witnesses):
 
-- **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axis — 8.4's twelve-digit `tcl_precision` — is not modelled here (#2395).
+- **D287 — A lattice double is spelled as Tcl spells it** (the lane's own defect from slice 1, found while preparing slice 7a; the coordinator's ruling, before the slice). `const_to_exact` is the one projection of a lattice constant into the exact value the routes, the refinements, the loop state and the return folds read; it spelled a double with Rust's `Display`, which drops an integral double's `.0` and never writes an exponent, so `string length` of `[expr {1.0 * 3}]` read `3`. It spells a double with `format_double`, as O103 renders one (D58). The spelling's release axes — 8.4's twelve-digit `tcl_precision`, its exponent of at least two digits and its rejected subnormal — are not modelled here (#2395).
 - **D288 — O103's argument-independent fold answers only a call its re-run could make** (#2389, at the coordinator's ruling, ahead of slice 7a). The summary's constant says what the procedure returns, not what evaluating the call's words does: a word that substitutes runs before the call and may raise or write, and a count the parameters do not accept raises. The fold takes the re-run's own test, read once for both paths — every word after the head literal, as `parse_static_call_args` reads them, and a count `arity_from_names(params)` accepts — and the bare-statement hint, which has the lowering's words, their literal kinds. The parameters are read by name, as the re-run reads them: a call that leaves a defaulted parameter out folds on neither path.
 - **D289 — The return reading stops at a statement that may run a `return` of its own** (#2393, at the coordinator's ruling, ahead of slice 7a). The exits the reading reads are the flow graph's `return` terminators and its fall-through; a statement the flow graph keeps whole runs its scripts inside one block, and a `return` there leaves the procedure from that statement. The reading declines when an executable block holds one whose IR scripts can run a `return` — the IR's statement variants decide, with no command spelling, and a `catch` body is not read, since `catch` absorbs the `return`. A `return` in a command substitution's script is no IR statement and stays #2394's.
 - **D290 — The seedless lattice runs once per pure procedure, after the fixpoints** (VT7a.1; the coordinator's ruling on the plan's staged fixed point, P1). The plan has `summarise_returns` run each callee's lattice "in a staged fixed point over the call graph, bottom-up, a cycle bounded by `MAX_INTERPROCEDURAL_WALK_DEPTH` and answering computed". No lattice in the tree reads a `ProcSummary` — the unit's are built before the summaries, the re-run reads none, and the driver takes a call to a procedure of the module for a command it cannot see until slice 13's VT13.2 applies a callee's summary at the call — so each seedless run depends on no summary and the summaries on the runs: one stage after the purity fixpoint, which decides whose returns may fold, is the fixed point, and a return that passes through a recursive call is computed by construction. The bottom-up composition and its cycle bound arrive with VT13.1, which composes a callee's summary into its caller's, before VT13.2's driver reads one; no iteration machinery is built without a consumer. The run is under the rewrite's whole-module trust, with no existence rung, as the re-run's is, and only for a pure procedure, the summary path's precondition.
 - **D291 — One reading of a return's value under a lattice, exact, shared by the summary and the re-run** (VT7a.1; P2, at the coordinator's ruling). The plan has `classify_return` read "the lattice value at the return through the exact ingress"; the reading of every exit under a lattice is `exit_value`, moved from `propagation.rs`, which the summary's seedless run and O103's argument-sensitive re-run both call (R5: `classify_return` keeps its name for the word's shape, the summary's answer where no run is made, and the passthrough and depends kinds). A literal word is read through `recorded_word_value` and `ExactValue::from_literal`, so the re-run no longer trims (`return " 5"` had folded `[p 1]` to `5`) or reads a braced `$x` as `x` (#2388's O103 half; O100's is #2391); a lattice double is spelled by `format_double` (D287).
 - **D292 — `ConstantReturn` is a lossless projection, rendered back exactly** (P2). The summary's typed constant is an integer only for its canonical decimal, a double only for the spelling `format_double` gives it, a boolean only for `true` or `false` as written, and text otherwise; `ConstantReturn::text` spells each back, and both O103 forms render it, so the lsp-db's hashable projection carries the exact value through its round trip unchanged. Every test of the shapes keeps its answer (`inlining_interproc_residual.rs`: `return 3.5` a double, `return true` a boolean, `return hello` and `"a b c"` text, a method's `return 7` an integer).
-- **D293 — An `expr` literal operand is its own value only as a canonical decimal integer, and a run's "no constant" overrides the shapes** (K, at the coordinator's ruling, #2388's family). The expression route decides `0x10` (16), `010` (8 or 10 by release) and `true`; the shapes, which stand where no run is made, take a literal operand as the value only where its text is that value under every release, and a fixed string operand as before (#2227). Where a run was made and proved no constant, the shapes answer only the passthrough and depends kinds: the run is the authority wherever it is made, and a run that reaches no exit — `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` — proves the procedure returns nothing, where the words had said `const(5)` and O103 folded `[p]` to `5` (tclsh raises `divide by zero`; the case of #2390 the lattice decides, the rest staying open).
+- **D293 — An `expr` literal operand is its own value only as a canonical decimal integer, and a run's "no constant" overrides the shapes** (K, at the coordinator's ruling, #2388's family). The expression route decides `0x10` (16), `010` (8 or 10 by release) and `true`; the shapes, which stand where no run is made, take a literal operand as the value only where its text is that value under every release, and a fixed string operand as before (#2227). Where a run was made and proved no constant, the shapes answer only the passthrough and depends kinds: the run is the authority wherever it is made, and a run that reaches no exit — `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` — proves the procedure returns nothing, where the words had said `const(5)` and O103 folded `[p]` to `5` (tclsh raises `divide by zero`; the case of #2390 the lattice decides, the rest staying open, with the no-exit case on a procedure the complexity guard stopped, where no run is made).
 - **D294 — The word renderer braces a padded integer** (G, #2392, at the coordinator's ruling). `is_value_safe_bare_word` took ` 5` for the integer 5 and spelled it bare, so O102, O100 and O103 printed the number without its space; it parses the value as it stands.
 
 ### Open questions for the owner

@@ -4,13 +4,18 @@ How the compiler reasons about cross-procedure behaviour — purity,
 constant-folding eligibility, and effect propagation — and how the resulting
 summaries decide whether ICIP (O103) folds a call.
 
-`build_interprocedural_analysis` builds a `ProcSummary` for each procedure by
-first collecting per-procedure scratch facts (`LocalFacts`), then running
-fixpoints over the call graph to propagate purity and effects, and — from a
-compilation unit, which holds each procedure's flow graph and SSA — reading
-each pure procedure's return from its own lattice, run with no call-site
-seed.  Summaries are consumed by ICIP (O103), the elimination passes,
-unused-proc detection (O124), and taint analysis.
+The optimiser and `CompilationUnit::with_interprocedural` build the summaries
+through the unit's entry, `build_interprocedural_analysis_for_unit`, which
+adds each pure procedure's seedless return (Step 2b);
+`build_interprocedural_analysis` is the same build from IR alone, without it.
+
+The build makes a `ProcSummary` for each procedure by first collecting
+per-procedure scratch facts (`LocalFacts`), then running fixpoints over the
+call graph to propagate purity and effects, and — from a compilation unit,
+which holds each procedure's flow graph and SSA — reading each pure
+procedure's return from its own lattice, run with no call-site seed.
+Summaries are consumed by ICIP (O103), the elimination passes, unused-proc
+detection (O124), and taint analysis.
 
 Source: `rust/tcl-compiler/src/interprocedural.rs`
 
