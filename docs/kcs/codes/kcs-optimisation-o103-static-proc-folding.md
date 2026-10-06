@@ -62,9 +62,11 @@ folds to `1.0`, `return 007` to `007`, and `return " 5"` to `{ 5}`.
   raise, or change a variable, before the proc runs.
 - Skipped when the proc body cannot be summarised by [interprocedural analysis](../../GLOSSARY.md#ipa).
 - Skipped when a `return` runs inside a command the analyser keeps whole — an
-  arm of `switch -glob` or `switch -regexp` whose subject it cannot read —
-  since the value that `return` gives is not read. A subject it can read
-  decides the `switch`, and the arm's `return` then folds like any other.
+  arm of `switch -glob` or `switch -regexp` whose subject it cannot read, or
+  the body of a `foreach` or `lmap` over a namespace-qualified variable such
+  as `::x` — since the value that `return` gives is not read. A subject it
+  can read decides the `switch`, and the arm's `return` then folds like any
+  other.
 - Skipped when the analyser proves the procedure reaches none of its
   `return`s, as after a loop that ends only by raising.
 - Skipped when the proc's bare name is anywhere `rename`d over, `rename`d away, or shadowed by an `interp alias` — the call site can no longer be trusted to run that proc's body.

@@ -5421,6 +5421,44 @@ pub(crate) fn resolved_cell_update(
     }
 }
 
+/// Whether the plan a `head args…` call declares under `registry` absorbs
+/// every completion of its body (`catch`'s), so a `return` the body runs
+/// ends there: what the return reading asks of a call holding a script
+/// word, answered from the registry's declaration rather than a command's
+/// spelling.
+pub(crate) fn resolved_body_absorbs_completion(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> bool {
+    let texts: Vec<&str> = args.iter().map(String::as_str).collect();
+    let words: Vec<InvocationWord<'_>> = texts.iter().copied().map(word_of).collect();
+    let Some(resolved) = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()
+    else {
+        return false;
+    };
+    let Some(semantics) = resolved.semantics.value.semantics() else {
+        return false;
+    };
+    let context = AnalysisContext::detached(registry.profile());
+    let inputs = StructureInputs::new(
+        view_of(&resolved, &texts, &words, InvocationLayout::Source),
+        &context,
+    );
+    matches!(
+        semantics.structure(&inputs),
+        PlanAnswer::Body {
+            completion: tcl_registry::value_transfer::CompletionProtocol::CatchAll { .. },
+            ..
+        }
+    )
+}
+
 /// The declaration a `head args…` call over literal words resolves to under
 /// `registry`, its form selected by those words, with the role the resolver
 /// gives each word: what a consumer runs over the call's own words, or asks

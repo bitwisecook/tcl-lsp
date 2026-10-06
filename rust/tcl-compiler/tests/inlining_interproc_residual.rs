@@ -1223,15 +1223,23 @@ fn constant_return_kind_text_wire_forms() {
         ConstantReturn::Float(1.5).as_kind_text(),
         ("float", "1.5".to_string())
     );
-    // Bool renders as "1" / "0" in the wire form (distinct from the
-    // human-facing "true"/"false" rendering noted in the type's doc).
+    // The text is the value as the procedure returns it, which a fold
+    // spells: a double as Tcl prints it, a boolean as written.
+    assert_eq!(
+        ConstantReturn::Float(1.0).as_kind_text(),
+        ("float", "1.0".to_string())
+    );
+    assert_eq!(
+        ConstantReturn::Float(1e301).as_kind_text(),
+        ("float", "1e+301".to_string())
+    );
     assert_eq!(
         ConstantReturn::Bool(true).as_kind_text(),
-        ("bool", "1".to_string())
+        ("bool", "true".to_string())
     );
     assert_eq!(
         ConstantReturn::Bool(false).as_kind_text(),
-        ("bool", "0".to_string())
+        ("bool", "false".to_string())
     );
     assert_eq!(
         ConstantReturn::Str("hi".into()).as_kind_text(),

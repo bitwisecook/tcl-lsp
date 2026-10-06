@@ -132,10 +132,14 @@ command-substitution path (`try_o103_proc_fold` in
 plus `evaluate_proc_with_constants`, re-running the callee body under the
 literal arguments and reading the value every executable exit gives. A
 `return` that runs inside a statement the flow graph keeps whole — an
-opaque `switch`'s arm — leaves the procedure where no exit block stands for
-it, so a block holding such a statement stops the reading
-(`interprocedural::statement_may_return`, #2393); a `catch` body's `return`
-does not count, since the `catch` absorbs it.  `can_fold_static_calls` gates only the
+opaque `switch`'s arm, a word of a call the registry gives the Body role
+(a loop over a qualified variable is kept as such a call), or a barrier's
+unseen code — leaves the procedure where no exit block stands for it, so a
+block holding such a statement stops the reading
+(`interprocedural::statement_may_return`, #2393). A `catch` body's `return`
+does not count, since the `catch` absorbs it, as its registry plan states,
+and nor does the header the flow graph synthesises for a loop it lowers,
+which holds only the list words.  `can_fold_static_calls` gates only the
 argument-independent fold, which replaces the call with
 `summary.constant_return` — and only a call the re-run could make: every
 word after the head literal (a `$name` the caller proves constant, or a

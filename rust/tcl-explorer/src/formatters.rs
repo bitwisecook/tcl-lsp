@@ -262,15 +262,12 @@ pub(crate) fn py_repr_str(s: &str) -> String {
     out
 }
 
-/// `repr()`-style rendering of a constant return value.
-fn py_repr_constant(c: &ConstantReturn) -> String {
+/// A constant return as the fold spells it ([`ConstantReturn::text`]), text
+/// quoted `repr()`-style.
+fn constant_return_text(c: &ConstantReturn) -> String {
     match c {
-        ConstantReturn::Int(n) => n.to_string(),
-        ConstantReturn::Bool(b) => if *b { "True" } else { "False" }.to_owned(),
         ConstantReturn::Str(s) => py_repr_str(s),
-        // Rust's Debug for f64 is shortest-round-trip with a decimal point,
-        // matching `repr` for the common cases.
-        ConstantReturn::Float(f) => format!("{f:?}"),
+        _ => c.text(),
     }
 }
 
@@ -281,7 +278,7 @@ pub fn format_return_shape(s: &ProcSummary) -> String {
         let r = s
             .constant_return
             .as_ref()
-            .map_or_else(|| "None".to_owned(), py_repr_constant);
+            .map_or_else(|| "None".to_owned(), constant_return_text);
         return format!("const({r})");
     }
     if let Some(param) = &s.return_passthrough_param {
@@ -472,5 +469,23 @@ mod tests {
             d["endColUtf16"], 8,
             "the end must clear both code units of the pair",
         );
+    }
+
+    #[test]
+    fn a_constant_return_is_spelled_as_the_fold_spells_it() {
+        for (constant, shape) in [
+            (ConstantReturn::Int(7), "const(7)"),
+            (ConstantReturn::Float(1.0), "const(1.0)"),
+            (ConstantReturn::Float(1e301), "const(1e+301)"),
+            (ConstantReturn::Bool(true), "const(true)"),
+            (ConstantReturn::Str("a b".to_owned()), "const('a b')"),
+        ] {
+            let summary = ProcSummary {
+                returns_constant: true,
+                constant_return: Some(constant),
+                ..ProcSummary::unknown("::p")
+            };
+            assert_eq!(format_return_shape(&summary), shape);
+        }
     }
 }

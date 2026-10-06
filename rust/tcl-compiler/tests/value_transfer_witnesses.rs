@@ -8266,6 +8266,44 @@ fn a_return_inside_a_statement_kept_whole_stops_the_fold() {
     }
 }
 
+/// A loop over a qualified variable is a statement the flow graph keeps
+/// whole too, as a call holding its body word, and a `return` that body runs
+/// leaves the procedure from it. The reading asked only the statement
+/// variants a `return` could sit in, so both O103 paths folded `[p]`, `[q 5]`
+/// and `[r]` to `2`, `2` and `4`, where tclsh prints 1, 5 and 3 (#2393's
+/// rule missed the call). No call folds, and each program prints what tclsh
+/// 8.4 to 9.1 print, before and after `tcl opt`, the `lmap` one from 8.6.
+#[test]
+fn a_return_inside_a_call_holding_a_body_stops_the_fold() {
+    let programs = [
+        (
+            "proc p {} {foreach ::x {1} {return 1}; return 2}\nputs [p]\n",
+            "1\n",
+            "8.4",
+        ),
+        (
+            "proc q {a} {foreach ::y [list $a] {return $a}; return 2}\nputs [q 5]\n",
+            "5\n",
+            "8.4",
+        ),
+        (
+            "proc r {} {lmap ::z {1} {return 3}; return 4}\nputs [r]\n",
+            "3\n",
+            "8.6",
+        ),
+    ];
+    for (source, printed, first) in programs {
+        for dialect in DIALECTS {
+            let folds: Vec<Optimisation> = rewrites_of(source, dialect)
+                .into_iter()
+                .filter(|rewrite| rewrite.code == DiagCode::O103)
+                .collect();
+            assert!(folds.is_empty(), "{dialect}: {folds:?}\n{source}");
+        }
+        prints_under_releases_from(source, printed, first);
+    }
+}
+
 /// Slice 7a's exit witness: the argument-independent O103 folds a procedure
 /// whose return is a computed constant. `p`'s return is no literal, but its
 /// seedless lattice — the procedure run with its parameters unknown — holds

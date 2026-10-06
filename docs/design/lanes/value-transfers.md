@@ -27,7 +27,12 @@ double spelled as Tcl spells it, the lane's own; the summary path folding only
 a call the re-run could make (#2389); a return inside a statement kept whole
 stopping the return fold (#2393); and the slice, each pure procedure's own
 lattice, run with no call-site seed and read at every exit through the exact
-value ingress, giving its summary's constant return (#2388, #2392).
+value ingress, giving its summary's constant return (#2388, #2392). Its
+review's nits are their own commit (§ *Slice 7a* › *Record (2026-10-05): slice
+7a* › *The review's nits*, D295): the wire form and the explorer spell a
+constant return as the fold does, and a call holding a script word, or a
+barrier, stops the return fold, which closes the miscompile D289's rule left
+in the body of a loop over a qualified variable.
 
 ## Goal
 
@@ -9361,6 +9366,82 @@ bullet (N3), and adds the guarded-path sentence (N4) and the unit entry at
 the top of `interprocedural-analysis.md` (N5); the review's nits N1, N2 and
 N6 are the next commit's.
 
+##### The review's nits
+
+`wip(value-transfers): slice 7a — the review's nits`, the review's N1, N2 and
+N6 at the coordinator's rulings, redone after the machine was replaced.
+
+- **N1.** `ConstantReturn::as_kind_text` is `text()`'s kind-tagged twin: the
+  kind as before and the text `text()`'s, so a boolean is `true` or `false`
+  and a double is spelled as Tcl prints it, where the wire form had kept the
+  `1` and `0` and Rust's `Display` that D292 retired from `text()`.
+- **N2 (D295).** `statement_may_return` reads the registry the reading
+  carries: a call may run a `return` when the registry gives one of its
+  words the Body role, and a barrier may, except the header the flow graph
+  synthesises for a loop it lowers and a call whose registry plan absorbs
+  every completion of its body, a `catch` kept as a call. The gap in D289's
+  rule, closed here: the flow graph keeps a `foreach` or `lmap` over a
+  qualified variable as a plain call holding its body word, and the scan
+  calls the procedure pure (the review had it impure), so for `proc p {}
+  {foreach ::x {1} {return 1}; return 2}`, `proc q {a} {foreach ::y [list
+  $a] {return $a}; return 2}` and `proc r {} {lmap ::z {1} {return 3};
+  return 4}` both O103 paths read the `return` after the loop alone and
+  folded `[p]` and `[q 5]` to `2` under every dialect and `[r]` to `4` under
+  every dialect with `lmap`, where tclsh 8.4 to 9.1 print 1 and 5 and 8.6 to
+  9.1 print 3. A `catch`
+  kept as a call still folds: `proc t {} {catch {return 1}; return 2};
+  puts [t]` gives `puts 2`, as tclsh prints. Found in passing and outside
+  the commit, the coordinator filing it: the purity scan takes `foreach ::x
+  {1} {}` as pure, so `proc p {} {foreach ::x {1} {}; return 2}; puts [p];
+  puts $::x`, which prints 2 and 1 under tclsh 8.4 to 9.1, raises `can't
+  read "::x": no such variable` after `tcl opt`, which folds `[p]` and
+  drops the write.
+- **N6.** The explorer's `format_return_shape` renders a constant return as
+  the fold spells it, through `text()`: `const(1e+301)` and `const(true)`
+  where it showed `const(1e301)` and `const(True)`, text keeping its
+  `const('…')`.
+
+Tests: `a_call_running_a_body_word_may_return` (`interprocedural.rs`, new:
+the two qualified loops and a barrier may return; a `catch` kept as a call
+and the header of a loop over three lists may not);
+`a_return_inside_a_call_holding_a_body_stops_the_fold`
+(`value_transfer_witnesses.rs`, new: no O103 under the five dialects, and
+each program prints 1, 5 and 3 under tclsh 8.4 to 9.1 before and after
+`tcl opt`, the `lmap` one from 8.6);
+`a_constant_return_is_spelled_as_the_fold_spells_it` (`formatters.rs`, new:
+an integer, `1.0`, `1e+301`, `true` and text);
+`constant_return_kind_text_wire_forms` (`inlining_interproc_residual.rs`:
+`true`, `false`, `1.0` and `1e+301`).
+`o103_folds_implicit_return_proc_cmd_subst` and
+`o103_folds_arg_sensitive_passthrough_cmd_subst` are byte-identical and pass.
+
+Measured, on the commit's tree: `make rust-check` passed whole, and
+`dialect-drift` reports its 8 sites, none new. The suites one crate at a
+time, each pruned after, passed whole: `tcl-compiler` 10195 passed, 6 ignored
+(10193 and the two new tests, the witnesses under `TCL_LSP_REQUIRE_TCLSH=1`,
+every release compared); `tcl-explorer` 113 (112 and the new test);
+`tcl-lsp-db` 139, 5 ignored; `tcl-cli` 207; `tcl-registry` 1428;
+`tcl-lsp-core --lib` 2353; `xtask` 275; `tcl-spectcl` 476, 1 ignored;
+`tcl-cmd-core` 143. Mutations of N2's rule, each reverted to the byte: the
+Body-role reading dropped fails `a_call_running_a_body_word_may_return` and
+the witness (`[p]` folds to `2`); the `catch` plan's exception dropped fails
+the unit test (a `catch` kept as a call may return), as do the loop header's
+exception dropped (the header of a loop over three lists) and a barrier
+answering no (`time {return 1}`). Over the corpus the landing's differential
+read — every `.tcl` file of tcllib 2.0's modules (794), and every `.tcl` and
+`.irul` file of `samples/` (137) and `editors/vscode/` (189), 1120 in all — a
+census of the flow graphs, which the commit does not change, finds what the
+rule reads: 257 calls holding a Body-role word, 31 of them a `catch` kept as
+a call and 14 the header of a loop over three or more lists, which the rule
+leaves out, and 693 barriers, in 212 files, every one in a procedure the scan
+calls impure, so neither O103 path reads one. `tcl diag` and `tcl opt
+--profile full` print under this commit's binary what they print under one
+built at its parent, `5104f46ab` (the code of `aaabe16e3`), for every one of
+the 1120 files, standard output, standard error and exit status alike: the
+rule declines no fold the corpus holds, and no rendering moved.
+`fumagic/filetypes.tcl` runs past the 300 s limit under both binaries, as a
+debug build, and under the census.
+
 ### Slice 13 — proc-level transfer summaries
 
 #### Goal and exit
@@ -12560,6 +12641,7 @@ Taken in slice 7a, seedless return summaries (§ *Slice 7a* › *Record (2026-10
 - **D292 — `ConstantReturn` is a lossless projection, rendered back exactly** (P2). The summary's typed constant is an integer only for its canonical decimal, a double only for the spelling `format_double` gives it, a boolean only for `true` or `false` as written, and text otherwise; `ConstantReturn::text` spells each back, and both O103 forms render it, so the lsp-db's hashable projection carries the exact value through its round trip unchanged. Every test of the shapes keeps its answer (`inlining_interproc_residual.rs`: `return 3.5` a double, `return true` a boolean, `return hello` and `"a b c"` text, a method's `return 7` an integer).
 - **D293 — An `expr` literal operand is its own value only as a canonical decimal integer, and a run's "no constant" overrides the shapes** (K, at the coordinator's ruling, #2388's family). The expression route decides `0x10` (16), `010` (8 or 10 by release) and `true`; the shapes, which stand where no run is made, take a literal operand as the value only where its text is that value under every release, and a fixed string operand as before (#2227). Where a run was made and proved no constant, the shapes answer only the passthrough and depends kinds: the run is the authority wherever it is made, and a run that reaches no exit — `proc p {} {while {1} {set x [expr {1/0}]}; return 5}` — proves the procedure returns nothing, where the words had said `const(5)` and O103 folded `[p]` to `5` (tclsh raises `divide by zero`; the case of #2390 the lattice decides, the rest staying open, with the no-exit case on a procedure the complexity guard stopped, where no run is made).
 - **D294 — The word renderer braces a padded integer** (G, #2392, at the coordinator's ruling). `is_value_safe_bare_word` took ` 5` for the integer 5 and spelled it bare, so O102, O100 and O103 printed the number without its space; it parses the value as it stands.
+- **D295 — A call holding a script word, and a barrier, may run a `return`** (N2 of the slice 7a review, at the coordinator's ruling; amending D289). D289's rule decided by statement variant and answered no for every call, which held for a script a call runs only where the command made the procedure impure or a barrier. A loop over a qualified variable does neither: the flow graph keeps `foreach ::x {1} {return 1}` as a plain call holding its body word, the scan calls the procedure pure, and both O103 paths read the exits past it, so `[p]`, `[q 5]` and an `lmap ::z` loop's `[r]` folded to `2`, `2` and `4` where tclsh prints 1, 5 and 3 — the gap in D289's rule, closed here. `statement_may_return` reads the registry the reading carries: a call may run a `return` when the registry gives one of its words the Body role (on `canonical_command_or_source`), and a barrier, whose code is unseen, may, so the rule holds without the purity scan. Two calls are left out, neither by a command's spelling: the header the flow graph synthesises for a loop it lowers (`foreach_groups`), which holds only the list words — the registry reads the last of three or more as a body — while the body is lowered into the blocks after it; and a call whose registry plan absorbs every completion of its body (`CompletionProtocol::CatchAll`, asked through `resolved_body_absorbs_completion`), the `catch` the flow graph keeps as a call when its body holds control flow or a block terminator, whose body D289 leaves unread. A loop's plan absorbs `break` and `continue` alone and `try`'s handlers only the completions they select, so both may return. A document stub's Body role is not seen: the reading carries the catalogue's registry, and the re-run's context no declared surface.
 
 ### Open questions for the owner
 

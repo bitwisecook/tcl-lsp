@@ -124,15 +124,16 @@ pub enum ConstantReturn {
 impl ConstantReturn {
     /// Lower into the canonical `(kind, text)` wire form. `kind`
     /// is one of `"int"`, `"float"`, `"bool"`, `"str"`; `text` is
-    /// the rendered value. Bools render as `"1"` / `"0"`.
+    /// [`Self::text`], the value as the procedure returns it.
     #[must_use]
     pub fn as_kind_text(&self) -> (&'static str, String) {
-        match self {
-            Self::Int(i) => ("int", i.to_string()),
-            Self::Float(f) => ("float", f.to_string()),
-            Self::Bool(b) => ("bool", if *b { "1".into() } else { "0".into() }),
-            Self::Str(s) => ("str", s.clone()),
-        }
+        let kind = match self {
+            Self::Int(_) => "int",
+            Self::Float(_) => "float",
+            Self::Bool(_) => "bool",
+            Self::Str(_) => "str",
+        };
+        (kind, self.text())
     }
 
     /// The value's text, as the procedure returns it: the summary keeps an
@@ -3034,14 +3035,34 @@ fn stmt_always_returns(stmt: &crate::ir::Statement, depth: u32) -> bool {
 /// Whether running `stmt` may run a `return` that leaves the procedure from
 /// inside it: a `return` itself, or one in a script the statement runs — an
 /// `if`'s, a loop's, a `try`'s body, handlers or `finally`, a `switch`'s arms,
-/// a block's or an `uplevel`'s — but not one in a `catch` body, which the
-/// `catch` absorbs. `depth` is the nesting level of the script holding
-/// `stmt`; past [`MAX_INTERPROCEDURAL_WALK_DEPTH`] it answers that it may.
-pub(crate) fn statement_may_return(stmt: &crate::ir::Statement, depth: u32) -> bool {
+/// a block's or an `uplevel`'s, a call's word the registry gives the
+/// [`tcl_registry::ArgRole::Body`] role, or a barrier's unseen code — but not
+/// one in a `catch` body, which the `catch` absorbs (as the registry's plan
+/// says of a `catch` kept as a call), nor in the body of a loop the flow
+/// graph lowers, whose synthetic header holds only the list words. `depth`
+/// is the nesting level of the script holding `stmt`; past
+/// [`MAX_INTERPROCEDURAL_WALK_DEPTH`] it answers that it may.
+pub(crate) fn statement_may_return(
+    stmt: &crate::ir::Statement,
+    registry: &tcl_registry::CommandRegistry,
+    depth: u32,
+) -> bool {
     use crate::ir::Statement;
-    let runs = |script: &crate::ir::Script| script_may_return(script, depth + 1);
+    let runs = |script: &crate::ir::Script| script_may_return(script, registry, depth + 1);
     match stmt {
-        Statement::Return { .. } => true,
+        Statement::Return { .. } | Statement::Barrier { .. } => true,
+        Statement::Call {
+            args,
+            foreach_groups: None,
+            ..
+        } => {
+            let head = stmt.canonical_command_or_source();
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            !registry
+                .arg_indices_for_role(head, &words, tcl_registry::ArgRole::Body)
+                .is_empty()
+                && !crate::value_transfer::resolved_body_absorbs_completion(registry, head, args)
+        }
         Statement::If {
             clauses, else_body, ..
         } => {
@@ -3076,12 +3097,16 @@ pub(crate) fn statement_may_return(stmt: &crate::ir::Statement, depth: u32) -> b
 
 /// [`statement_may_return`] over every statement of `script`, nested
 /// `depth` levels deep.
-fn script_may_return(script: &crate::ir::Script, depth: u32) -> bool {
+fn script_may_return(
+    script: &crate::ir::Script,
+    registry: &tcl_registry::CommandRegistry,
+    depth: u32,
+) -> bool {
     MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth)
         || script
             .statements
             .iter()
-            .any(|stmt| statement_may_return(stmt, depth))
+            .any(|stmt| statement_may_return(stmt, registry, depth))
 }
 
 /// What a procedure's seedless run says it returns, as
@@ -3316,7 +3341,7 @@ pub(crate) fn exit_value(
             && block
                 .statements
                 .iter()
-                .any(|stmt| statement_may_return(stmt, 0))
+                .any(|stmt| statement_may_return(stmt, reading.folds.registry, 0))
     }) {
         return None;
     }
@@ -4650,6 +4675,39 @@ mod tests {
         );
         // Guard: an unbound `out` is genuinely unknown.
         assert!(unknown("set y 1\n", "out"));
+    }
+
+    /// Whether a statement of `::p`'s flow graph may run a `return` of its
+    /// own, as the return reading asks of each executable block.
+    fn p_may_return(source: &str) -> bool {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for(source, &registry, false);
+        unit.procedures["::p"]
+            .cfg
+            .blocks
+            .values()
+            .flat_map(|block| &block.statements)
+            .any(|stmt| statement_may_return(stmt, &registry, 0))
+    }
+
+    /// A call holding a word the registry gives the Body role may run a
+    /// `return` there: the flow graph keeps a loop over a qualified variable
+    /// as a call holding its body, and a barrier's code is unseen. A `catch`
+    /// absorbs its body's `return`, and the header of a loop the flow graph
+    /// lowers holds only the list words.
+    #[test]
+    fn a_call_running_a_body_word_may_return() {
+        assert!(p_may_return(
+            "proc p {} {foreach ::x {1} {return 1}; return 2}"
+        ));
+        assert!(p_may_return(
+            "proc p {} {lmap ::x {1} {return 1}; return 2}"
+        ));
+        assert!(p_may_return("proc p {} {time {return 1}; return 2}"));
+        assert!(!p_may_return("proc p {} {catch {return 1}; return 2}"));
+        assert!(!p_may_return(
+            "proc p {} {set s 0; foreach x {1 2} y {3 4} z {5 6} {incr s}; return $s}"
+        ));
     }
 }
 
