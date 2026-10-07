@@ -1789,7 +1789,7 @@ file; this call falls through to the 'unknown' handler."
             return;
         };
 
-        let maps = build_phi_undef_index(&fu.ssa, considered, Some(registry));
+        let maps = build_phi_undef_index(&fu.ssa, considered, Some(registry), &ctx.supp.call_steps);
         let phi_idx = PhiUndefIndex {
             phi_def: &maps.phi_def,
             phi_block: &maps.phi_block,

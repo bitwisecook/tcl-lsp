@@ -8655,6 +8655,10 @@ fn the_seven_summary_witnesses() {
                 "{dialect}: {source}"
             );
         }
+        // Of the releases `DIALECTS` holds tcl8.4, tcl8.6 and tcl9.0; beside
+        // them f5-irules, on its 8.4 base, and the lenient tcl, which answers
+        // only where every release agrees, keep the read as tcl8.4 does, and
+        // tcl8.5 and tcl9.1, not in the list, fold as tcl8.6 does.
         let creates_absent = matches!(dialect, "tcl8.6" | "tcl9.0");
         assert_eq!(
             optimised(&absent, dialect).0.contains("puts 1\n"),
@@ -8921,4 +8925,99 @@ fn an_element_argument_is_a_barrier() {
         );
     }
     prints_under_every_release(&source, "arr\n1\n");
+}
+
+/// The `reset` of the read-before-set witnesses: it unsets the place its
+/// argument names.
+const RESET: &str = "proc reset {name} {upvar 1 $name v; unset v}\n";
+
+/// Whether the analyser reports W210 for `name` in `source` under `dialect`.
+fn reads_before_set(source: &str, dialect: &str, name: &str) -> bool {
+    let named = format!("'{name}'");
+    tcl_compiler::analyser::Analyser::new()
+        .analyse(source, dialect)
+        .diagnostics
+        .iter()
+        .any(|diagnostic| diagnostic.code == DiagCode::W210 && diagnostic.message.contains(&named))
+}
+
+/// A call to a procedure of the module is the assignment its summary states
+/// for the place a `Name` argument names: after `reset m`, which unsets it,
+/// a read of `m` is read before it is set, in a procedure and at the top
+/// level, by `puts` and by `return`, and after the `info exists` test that
+/// decides it gone; after `maybe k $c`, which may leave `k` unset, a read of
+/// `k` nothing set before the call is too — the analyser has no may form of
+/// W210, so it is the plain finding — and after `bump q`, which binds `q`,
+/// the read draws nothing. tclsh 8.4 to 9.1 stop with `can't read` in each
+/// that reports, before and after `tcl opt`.
+#[test]
+fn a_read_after_a_call_reads_the_place_as_the_call_leaves_it() {
+    let reporting = [
+        (
+            format!("{RESET}proc p {{}} {{set m 1; reset m; puts $m}}\np\n"),
+            "m",
+            "",
+        ),
+        (format!("{RESET}set m 1\nreset m\nputs $m\n"), "m", ""),
+        (
+            format!("{RESET}proc p {{}} {{set m 1; reset m; return $m}}\nputs [p]\n"),
+            "m",
+            "",
+        ),
+        (
+            "proc maybe {name c} {upvar 1 $name v; if {$c} {set v 9}}\n\
+             proc p {c} {maybe k $c; puts $k}\np 0\n"
+                .to_owned(),
+            "k",
+            "",
+        ),
+        (
+            format!(
+                "{RESET}proc p {{}} {{set m 1; reset m; \
+                 if {{[info exists m]}} {{puts $m}} else {{puts gone}}; puts $m}}\np\n"
+            ),
+            "m",
+            "gone\n",
+        ),
+    ];
+    for (source, name, printed) in &reporting {
+        for dialect in DIALECTS {
+            assert!(
+                reads_before_set(source, dialect, name),
+                "{dialect}: {source}"
+            );
+        }
+        prints_then_errors(source, printed);
+    }
+    let bound = format!("{BUMP}proc p {{}} {{bump q; puts $q}}\np\n");
+    for dialect in DIALECTS {
+        assert!(!reports(&bound, dialect, DiagCode::W210), "{dialect}");
+    }
+}
+
+/// A call the analyser cannot re-run takes its callee's summary: `drop`'s
+/// recursion goes 40 calls deep, past the 32 a re-run reaches, so the call
+/// at that depth applies `drop`'s step, an unbind, and each run above it
+/// reads the place from there; `z` and `y` are unbound after `drop z 40`
+/// and `drop y 40`, so both `[info exists …]` tests fold to the `gone`
+/// arm. The recursion is no tail call, which O122 would turn into a loop.
+/// tclsh 8.4 to 9.1 print `gone` twice, before and after `tcl opt`.
+#[test]
+fn a_call_past_the_rerun_depth_takes_the_summarys_step() {
+    let source = "proc drop {name n} {upvar 1 $name v; \
+                  if {$n > 0} {drop v [expr {$n - 1}]; set n 0} else {unset v}}\n\
+                  set z 1\ndrop z 40\nif {[info exists z]} {puts kept} else {puts gone}\n\
+                  proc p {} {set y 1; drop y 40; \
+                  if {[info exists y]} {return kept} else {return gone}}\nputs [p]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+        let unit = unit_of(source, dialect);
+        assert_eq!(last_existence(&unit, "::p", "y"), UNBOUND, "{dialect}");
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("drop z 40\nputs gone\n")
+                && rewritten.contains("drop y 40; return gone}"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(source, "gone\ngone\n");
 }

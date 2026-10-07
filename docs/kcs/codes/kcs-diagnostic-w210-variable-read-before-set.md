@@ -242,6 +242,36 @@ it writes, and treats the call as the assignment. That covers `upvar` with a
 literal name or a by-name parameter, `uplevel 1 {…}`, and
 `uplevel 1 [list set …]`, plus one hop of `uplevel 1 [list helper …]`.
 
+Where the analyser has summarised the procedure, the call is the assignment the
+summary states for each variable a by-name argument names, as the call leaves
+it. A call that unsets the variable leaves it unset, so a read after it is
+flagged; a call that sets it only on some paths leaves a variable nothing set
+before the call unset on the others, and a read after it is flagged too — the
+check has one wording, with no "may be" form:
+
+```tcl
+proc reset {name} {upvar 1 $name v; unset v}
+proc maybe {name c} {upvar 1 $name v; if {$c} {set v 9}}
+proc a {} {
+    set m 1
+    reset m
+    puts $m           ;# flagged — reset unset m
+}
+proc b {c} {
+    maybe k $c
+    puts $k           ;# flagged — maybe sets k only when c is true
+}
+proc d {c} {
+    set k 1
+    maybe k $c
+    puts $k           ;# not flagged — k was set before the call
+}
+```
+
+A procedure the analyser has no summary for — one that runs code it cannot
+see, or names a variable it computes — is the assignment of every variable a
+by-name argument names, as above.
+
 Only a write to *your* frame counts: `upvar #0` writes a global, `upvar 0` the
 callee's own local, and `upvar 2` your caller's caller.
 

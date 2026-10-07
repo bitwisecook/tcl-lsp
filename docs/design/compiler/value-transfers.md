@@ -2548,7 +2548,9 @@ What the callee does to the *caller's* places is the summary's business:
 struct TransferSummary {
     params: Vec<ParamRole>,
     /// Places outside the callee's frame it may write, with the outcome
-    /// kind: `set ::counter 5`, `incr ::hits`, a `global` alias.
+    /// kind: `set ::counter 5`, `incr ::hits`, a `global` alias, and the
+    /// place a qualified or aliased `Name` argument of a call it makes
+    /// names (`bump ::g`, `global g; bump g`).
     globals: Vec<(PlaceRef, ExistenceOutcome)>,
     /// `Literal`, `Passthrough(param)`, or computed — the shape
     /// `summarise_returns` derives, over the seedless lattice.
@@ -2656,9 +2658,18 @@ bump absent                                    ;# 8.4: can't read "v"; from 8.5:
 n; return $n}` the call leaves `n` at 2, so `[p]` folds on O103's summary
 path and `[q 5]`, for `proc q {x} {set n $x; bump n; return $n}`, on the
 argument-sensitive one. Consumers: O103; the caller's value lattice and
-existence rung; W210 and W211 in the caller (a `Name` write defines the
-caller's place); taint's interprocedural pass; and a statement's word
-effects, whose embedded calls take the summary as a call statement does.
+existence rung; W210 in the caller, which reads a place a `Name` argument
+names as the summary's step leaves it — unset after an unbind, and after a
+may-bind where nothing set it before the call — and W211, which takes the
+argument as a read of the place; taint's interprocedural pass; and a
+statement's word effects, whose embedded calls take the summary as a call
+statement does. A call whose `Name` argument names a place outside the
+caller's frame — a qualified name, or a local the caller links to a
+namespace's variable with `upvar #0`, `global` or `variable` — is a write of
+that place among the caller's `globals`, with the callee's outcome where
+every completion of the caller makes the call; a caller whose argument names
+a place the summary cannot name (a local linked to two places, or to an
+object's or a connection's variable) has none.
 The consumers that run with no compilation unit in hand — the parameter
 traits (`param_traits.rs`), the interprocedural scan's alias names and
 `upvar` level, the analyser's binder checks (`diagnostics/helpers.rs`) and

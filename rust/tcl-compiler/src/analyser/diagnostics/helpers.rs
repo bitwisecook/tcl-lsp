@@ -661,6 +661,56 @@ pub(super) type PhiBlockMap = FxHashMap<(String, crate::ssa::Version), BlockId>;
 pub(super) type MayDefMap =
     FxHashMap<(String, crate::ssa::Version), (BlockId, crate::ssa::Version)>;
 
+/// The step each definition of a call to a procedure of the module takes
+/// from the callee's transfer summary, by `(name, version)`, with the block
+/// the call sits in and the version it found
+/// ([`crate::value_transfer::summary_steps`]).
+pub(super) type CallStepMap = FxHashMap<
+    (String, crate::ssa::Version),
+    (
+        crate::value_transfer::ExistenceStep,
+        BlockId,
+        crate::ssa::Version,
+    ),
+>;
+
+/// The [`CallStepMap`] of `fu`'s calls in `considered` blocks: empty where
+/// no module's procedures are in hand.
+pub(super) fn call_steps(
+    fu: &crate::compilation_unit::FunctionUnit,
+    considered: &HashSet<BlockId>,
+    module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+    registry: &tcl_registry::CommandRegistry,
+) -> CallStepMap {
+    let mut steps = CallStepMap::default();
+    let Some(module) = module else {
+        return steps;
+    };
+    let config = crate::dynamic_names::lexer_config_for(registry);
+    for &bn in considered {
+        let Some(block) = fu.ssa.blocks.get(&bn) else {
+            continue;
+        };
+        for (index, statement) in block.statements.iter().enumerate() {
+            for (place, step) in crate::value_transfer::summary_steps(
+                module,
+                &fu.name,
+                &statement.statement,
+                &config,
+            ) {
+                let Some(symbol) = fu.ssa.var_symbol(&place) else {
+                    continue;
+                };
+                if let Some(&version) = statement.defs.get(&symbol) {
+                    let prior = crate::sccp::prior_version(block, index, symbol);
+                    steps.insert((place, version), (step, bn, prior));
+                }
+            }
+        }
+    }
+    steps
+}
+
 /// The indices [`phi_can_undef`] answers from: phi operands, the block each
 /// phi sits in, the `unset`-killed versions, and the may-definitions of the
 /// opaque `switch` statements.
@@ -678,8 +728,10 @@ pub(super) fn build_phi_undef_index(
     ssa: &crate::ssa::SsaFunction,
     considered: &HashSet<BlockId>,
     registry: Option<&tcl_registry::CommandRegistry>,
+    steps: &CallStepMap,
 ) -> UndefIndexMaps {
     use crate::ir::Statement;
+    use tcl_registry::value_transfer::{BindingKind, Existence};
     let mut phi_def: PhiDefMap = FxHashMap::default();
     let mut phi_block: PhiBlockMap = FxHashMap::default();
     let mut killed: FxHashSet<(String, crate::ssa::Version)> = FxHashSet::default();
@@ -744,6 +796,21 @@ pub(super) fn build_phi_undef_index(
             }
         }
     }
+    // A call to a procedure of the module is the assignment its summary
+    // states for each place it names: a step that leaves the place unset
+    // whatever it held kills it, one that sets it is a definition, and any
+    // other — a may-bind, a preserve, or a may-unset, which a summary also
+    // states out of its own caution — leaves the place unset where it was
+    // before the call, so it reads the version before the call.
+    for (key, &(step, block, prior)) in steps {
+        let after_bound = step.apply(Existence::Bound(BindingKind::Either));
+        let after_unbound = step.apply(Existence::Unbound);
+        if after_bound == Existence::Unbound && after_unbound == Existence::Unbound {
+            killed.insert(key.clone());
+        } else if matches!(after_unbound, Existence::Unbound | Existence::MayBound) {
+            may_defs.insert(key.clone(), (block, prior));
+        }
+    }
     for (block, markers) in &ssa.value_clobbers {
         if !considered.contains(block) {
             continue;
@@ -805,6 +872,10 @@ pub(super) struct UndefSuppression {
     /// so a direct read of one is read-before-set just like a version-0
     /// origin.
     pub(super) killed: FxHashSet<(String, crate::ssa::Version)>,
+    /// The step each definition of a call to a procedure of the module takes
+    /// from its summary ([`CallStepMap`]), which both read-before-set passes
+    /// read.
+    pub(super) call_steps: CallStepMap,
     /// Phi versions that can be undefined on some executable path
     /// (a one-branch `set y 1` merge, or a try-handler merge). A statement
     /// read of one is read-before-set; the def-use pass can't express this
@@ -1326,6 +1397,9 @@ pub(super) struct UndefSuppressionSemantics<'a> {
     pub dialect: Option<SurfaceQuery<'a>>,
     pub registry: Option<&'a tcl_registry::CommandRegistry>,
     pub rules: tcl_syntax::word_rules::WordValueRules,
+    /// The module's procedures, whose transfer summaries say what a call to
+    /// one does to the places it names.
+    pub module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
 }
 
 pub(super) fn build_undef_suppression(
@@ -1339,14 +1413,16 @@ pub(super) fn build_undef_suppression(
         dialect,
         registry,
         rules,
+        module,
     } = semantics;
     let commands = registry.unwrap_or_else(|| tcl_registry::default_registry());
+    let call_steps = call_steps(fu, considered, module, commands);
     let UndefIndexMaps {
         phi_def,
         phi_block,
         killed,
         may_defs,
-    } = build_phi_undef_index(&fu.ssa, considered, registry);
+    } = build_phi_undef_index(&fu.ssa, considered, registry, &call_steps);
     // Phi versions that can reach an undef origin on some executable path —
     // a statement read of one is read-before-set. The per-use existence
     // guard + suppression set still apply in the emitter loop.
@@ -1408,6 +1484,7 @@ pub(super) fn build_undef_suppression(
         unseen_call_sites: collect_unseen_call_sites(fu, considered, initial_global, commands),
         script_concat_writes: collect_script_concat_writes(fu, considered, commands),
         killed,
+        call_steps,
         can_undef,
         preserved_undef,
         loop_entry_only_undef,

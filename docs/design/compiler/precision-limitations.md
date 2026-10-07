@@ -387,6 +387,29 @@ is the lowering's question, answered per command; the conservative rule
 holds until a rebinding module motivates the precise one. Not assigned to a
 slice.
 
+## Open — a procedure that hands on a local linked to a place it cannot name has no transfer summary
+
+A call's `Name` argument may name a place outside the caller's frame — a
+qualified name, or a local the caller links to a namespace's variable with
+`upvar #0`, `global`, `variable` or `namespace upvar` — and the caller's
+summary states that place among the outer places it writes (slice 13's
+review, D313). A local linked to a place the summary cannot name — one of
+two places, by the path taken, or an object's or a connection's variable —
+leaves the procedure with no summary, and a call to it keeps the widening
+every call to code the module cannot see has:
+
+```tcl
+proc bump {name} {upvar 1 $name v; incr v}
+proc f {c} {if {$c} {upvar #0 g x} else {upvar #0 k x}; bump x}
+```
+
+The answer is sound, and only precision is lost.
+
+Why it has not been done: a place chosen by the path is a set of places the
+summary's outer writes have no form for, and an object's or a connection's
+variable lives in no namespace a place reference names. Not assigned to a
+slice.
+
 ## Open — a procedure whose `upvar` level names no known frame has no transfer summary
 
 A transfer summary's `Name` role is a place in the frame a level selects, and

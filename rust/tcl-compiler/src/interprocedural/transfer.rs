@@ -33,7 +33,7 @@
 //! barrier.
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::rc::Rc;
 
@@ -283,7 +283,10 @@ pub(crate) struct ModuleProcedures<'a> {
 
 /// A re-run's identity: the callee, the bytes each parameter and place is
 /// seeded with and each place's existence, and whether the run takes the
-/// whole-module trust.
+/// whole-module trust. The fold policy and the dialect a re-run is solved
+/// under are not in it: both are fixed for one [`ModuleProcedures`] — one
+/// per unit build, one per seedless stage and one per O103 fold — so every
+/// re-run it holds shares them.
 type RerunKey = (
     String,
     Vec<Option<Vec<u8>>>,
@@ -922,7 +925,141 @@ impl<'a> ModuleProcedures<'a> {
                 self.callee(&call.command, qname, inputs, &mut callees)?;
             }
         }
+        self.outer_arguments(qname, inputs)?;
         Some(callees)
+    }
+
+    /// The `Name` arguments of `qname`'s calls that name a place outside its
+    /// frame ([`OuterArgument`]). `None` where one names a place the
+    /// summary cannot name — a local linked within the frame, to an object's
+    /// or a connection's variable, or to more than one place — so the
+    /// procedure has no summary.
+    fn outer_arguments(
+        &self,
+        qname: &str,
+        inputs: &ModuleInputs<'_>,
+    ) -> Option<Vec<OuterArgument>> {
+        let cfg = inputs.cfg.procedures.get(qname)?;
+        let (namespace, _) = tcl_syntax::naming::key_holder_and_tail(qname);
+        let linked = linked_locals(cfg, namespace, inputs.registry);
+        let mut found = Vec::new();
+        let mut blocks: Vec<_> = cfg.blocks.iter().collect();
+        blocks.sort_unstable_by_key(|(id, _)| **id);
+        for (&id, block) in blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                if let Statement::Call {
+                    command,
+                    args,
+                    tokens,
+                    foreach_groups: None,
+                    ..
+                } = statement
+                    && tokens
+                        .as_ref()
+                        .is_none_or(|tokens| tokens.synthetic.is_none())
+                    && let Some(words) = crate::value_transfer::call_literal_words(
+                        args,
+                        tokens.as_ref(),
+                        &inputs.config,
+                    )
+                {
+                    let site = (id == cfg.entry).then_some((id, index));
+                    let call = OuterCall {
+                        head: command,
+                        words: &words,
+                        site,
+                    };
+                    self.outer_call_arguments(
+                        qname,
+                        call,
+                        (&linked, namespace),
+                        inputs,
+                        &mut found,
+                    )?;
+                }
+                let nested =
+                    crate::ir_helpers::evaluated_command_substitutions(statement, inputs.registry);
+                for words in nested.all_commands() {
+                    let Some((head, rest)) = words.split_first() else {
+                        continue;
+                    };
+                    if head.substituted || head.expanded || rest.iter().any(|word| word.expanded) {
+                        continue;
+                    }
+                    let words: Vec<Option<String>> = rest
+                        .iter()
+                        .map(|word| (!word.substituted).then(|| word.text.clone()))
+                        .collect();
+                    let call = OuterCall {
+                        head: &head.text,
+                        words: &words,
+                        site: None,
+                    };
+                    self.outer_call_arguments(
+                        qname,
+                        call,
+                        (&linked, namespace),
+                        inputs,
+                        &mut found,
+                    )?;
+                }
+            }
+        }
+        Some(found)
+    }
+
+    /// [`Self::outer_arguments`] for one call `qname` makes.
+    fn outer_call_arguments(
+        &self,
+        qname: &str,
+        call: OuterCall<'_>,
+        (linked, namespace): (&HashMap<String, LinkedLocal>, &str),
+        inputs: &ModuleInputs<'_>,
+        found: &mut Vec<OuterArgument>,
+    ) -> Option<()> {
+        let Some(callee) = self.resolve_any(call.head, qname) else {
+            return Some(());
+        };
+        let Some(declared) = inputs.ir.procedures.get(&callee) else {
+            return Some(());
+        };
+        let formals = self.formals(&callee);
+        for (param, _) in links_of(declared, inputs) {
+            let word = match call.words.get(param) {
+                Some(Some(word)) => word.as_str(),
+                // A substituted `Name` argument is the flow graph's barrier.
+                Some(None) => continue,
+                None => match formals
+                    .as_ref()
+                    .and_then(|formals| formals.get(param))
+                    .and_then(|formal| formal.default_value.as_deref())
+                {
+                    Some(default) => default,
+                    // Omitted with no default, the call raises.
+                    None => continue,
+                },
+            };
+            let (places, unconditional) = if word.contains("::") {
+                (outer_places(word, namespace), call.site.is_some())
+            } else {
+                match linked.get(word) {
+                    None | Some(LinkedLocal::Caller) => continue,
+                    Some(LinkedLocal::Unnameable) => return None,
+                    Some(LinkedLocal::Outer(place, link)) => (
+                        vec![place.clone()],
+                        call.site
+                            .is_some_and(|(block, index)| link.0 == block && link.1 < index),
+                    ),
+                }
+            };
+            found.push(OuterArgument {
+                callee: callee.clone(),
+                param,
+                places,
+                unconditional,
+            });
+        }
+        Some(())
     }
 
     /// Record the procedures of the module one statement calls; `None` for
@@ -988,8 +1125,14 @@ impl<'a> ModuleProcedures<'a> {
     }
 
     /// Classify one command head `function` runs: a procedure of the module
-    /// whose binding stands is a callee, a command the registry knows runs
-    /// no code of the module's, and anything else is a barrier.
+    /// whose binding stands is a callee, a command the registry knows is no
+    /// callee, and anything else is a barrier. A registry command can still
+    /// run a script of the module's — `eval`, `uplevel`, `apply`, `after`,
+    /// `namespace eval` — and the summary stays right for it by other facts:
+    /// a script that reaches the caller's frame leaves the frame open
+    /// ([`frame_is_closed`]), a script word the scan cannot read is opaque
+    /// (`evaluated_command_substitutions(...).opaque`), and a local such a
+    /// script writes is one the lattice takes as written by unseen code.
     fn callee(
         &self,
         head: &str,
@@ -1165,9 +1308,14 @@ impl<'a> ModuleProcedures<'a> {
         }
     }
 
-    /// The global and namespace places a set of procedures may write, each
-    /// may-bound afterwards, and may-unbound too where a body it runs
-    /// destroys a variable.
+    /// The global and namespace places a set of procedures may write: those
+    /// its bodies write, those its callees' summaries state, and those a
+    /// callee's `Name` parameter names through a qualified argument or a
+    /// local linked to a namespace's variable ([`Self::outer_arguments`]).
+    /// A place one call names, which every normal completion makes and
+    /// nothing else in the set writes, takes the callee's outcomes on it;
+    /// every other is may-bound afterwards, and may-unbound too where a body
+    /// the set runs destroys a variable or a callee may unbind such a place.
     fn component_outer_writes(
         &self,
         component: &[&str],
@@ -1175,6 +1323,7 @@ impl<'a> ModuleProcedures<'a> {
         inputs: &ModuleInputs<'_>,
     ) -> Vec<(PlaceRef, ExistenceOutcome)> {
         let mut names: BTreeSet<String> = BTreeSet::new();
+        let mut precise: Vec<(String, Vec<ExistenceOutcome>)> = Vec::new();
         let mut destroys = false;
         let summaries = self.summaries.borrow();
         for qname in component {
@@ -1189,24 +1338,73 @@ impl<'a> ModuleProcedures<'a> {
                 .procedures
                 .get(*qname)
                 .is_some_and(|cfg| destroys_a_variable(cfg, inputs.registry));
-            destroys |= calls[qname].iter().any(|callee| {
-                summaries.get(callee).is_some_and(|summary| {
-                    summary
-                        .globals
-                        .iter()
-                        .any(|(_, outcome)| *outcome == ExistenceOutcome::Unbind)
-                })
-            });
-        }
-        let mut outer = Vec::new();
-        for name in names {
-            let place = PlaceRef::scalar(name);
-            if destroys {
-                outer.push((place.clone(), ExistenceOutcome::Unbind));
+            for callee in &calls[qname] {
+                let Some(summary) = summaries.get(callee) else {
+                    continue;
+                };
+                destroys |= summary
+                    .globals
+                    .iter()
+                    .any(|(_, outcome)| *outcome == ExistenceOutcome::Unbind);
+                names.extend(summary.globals.iter().map(|(place, _)| place.name.clone()));
             }
-            outer.push((place, ExistenceOutcome::MayBind(BindingKind::Either)));
+            for argument in self.outer_arguments(qname, inputs).unwrap_or_default() {
+                let outcomes = summaries.get(&argument.callee).and_then(|summary| {
+                    match summary.params.get(argument.param) {
+                        Some(ParamRole::Name { outcomes, .. }) => Some(outcomes.clone()),
+                        _ => None,
+                    }
+                });
+                match (argument.unconditional, argument.places.as_slice(), outcomes) {
+                    (true, [place], Some(outcomes)) if component.len() == 1 => {
+                        precise.push((place.clone(), outcomes));
+                    }
+                    (_, _, outcomes) => {
+                        // A callee that may unbind the place destroys a
+                        // variable the set may write.
+                        destroys |= outcomes
+                            .is_none_or(|outcomes| outcomes.contains(&ExistenceOutcome::Unbind));
+                        names.extend(argument.places);
+                    }
+                }
+            }
         }
-        outer
+        let shared: Vec<bool> = precise
+            .iter()
+            .map(|(place, _)| {
+                names.contains(place)
+                    || precise.iter().filter(|(other, _)| other == place).count() > 1
+            })
+            .collect();
+        destroys |= precise
+            .iter()
+            .zip(&shared)
+            .any(|((_, outcomes), &shared)| shared && outcomes.contains(&ExistenceOutcome::Unbind));
+        let mut places: BTreeMap<String, Vec<ExistenceOutcome>> = BTreeMap::new();
+        for ((place, outcomes), shared) in precise.into_iter().zip(shared) {
+            if destroys || shared {
+                names.insert(place);
+            } else {
+                places.insert(place, outcomes);
+            }
+        }
+        for name in names {
+            let mut outcomes = Vec::new();
+            if destroys {
+                outcomes.push(ExistenceOutcome::Unbind);
+            }
+            outcomes.push(ExistenceOutcome::MayBind(BindingKind::Either));
+            places.insert(name, outcomes);
+        }
+        places
+            .into_iter()
+            .flat_map(|(name, outcomes)| {
+                let place = PlaceRef::scalar(name);
+                outcomes
+                    .into_iter()
+                    .map(move |outcome| (place.clone(), outcome))
+            })
+            .collect()
     }
 
     /// `qname`'s parameter roles under the summaries in hand: `None` when no
@@ -1339,6 +1537,157 @@ fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(
         .unwrap_or_default();
     links.sort_unstable();
     links
+}
+
+/// One `Name` argument of a call a procedure makes that names a place
+/// outside the procedure's frame: a qualified name, or a local the
+/// procedure links to a namespace's variable.
+#[derive(Debug, Clone)]
+struct OuterArgument {
+    /// The callee, by qualified name.
+    callee: String,
+    /// The `Name` parameter's index.
+    param: usize,
+    /// The places the argument may name: one, or for a relative name its
+    /// namespace's and the global namespace's.
+    places: Vec<String>,
+    /// Whether every normal completion of the procedure makes the call with
+    /// the argument naming that place: a statement of the entry block, after
+    /// the one link the argument reads.
+    unconditional: bool,
+}
+
+/// A call [`ModuleProcedures::outer_arguments`] reads: its head, each
+/// argument's literal value (`None` for one that substitutes), and its
+/// `(block, index)` where it is a statement of the entry block.
+#[derive(Clone, Copy)]
+struct OuterCall<'c> {
+    head: &'c str,
+    words: &'c [Option<String>],
+    site: Option<(crate::cfg::BlockId, usize)>,
+}
+
+/// Where a local a procedure links outside its frame lives.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum LinkedLocal {
+    /// A namespace's variable, by qualified name, linked by the statement at
+    /// `(block, index)`.
+    Outer(String, (crate::cfg::BlockId, usize)),
+    /// The place one frame up a `Name` parameter names, which the
+    /// parameter's role states.
+    Caller,
+    /// A place the summary cannot name.
+    Unnameable,
+}
+
+/// Each local `cfg` links outside its frame, with where it lives
+/// ([`LinkedLocal`]), from the registry's alias declarations and scope-alias
+/// plans; a local linked twice, to two places, is unnameable.
+fn linked_locals(
+    cfg: &CfgFunction,
+    namespace: &str,
+    registry: &CommandRegistry,
+) -> HashMap<String, LinkedLocal> {
+    use tcl_registry::{CallerFrameSelection, VariableAliasTarget};
+    let mut linked: HashMap<String, LinkedLocal> = HashMap::new();
+    let mut record = |local: &str, place: LinkedLocal| {
+        let local = crate::naming::normalise_var_name(local).to_owned();
+        let same = |held: &LinkedLocal| match (held, &place) {
+            (LinkedLocal::Outer(held, _), LinkedLocal::Outer(new, _)) => held == new,
+            (held, new) => held == new,
+        };
+        match linked.get(&local) {
+            Some(held) if same(held) => {}
+            Some(_) => {
+                linked.insert(local, LinkedLocal::Unnameable);
+            }
+            None => {
+                linked.insert(local, place);
+            }
+        }
+    };
+    let mut blocks: Vec<_> = cfg.blocks.iter().collect();
+    blocks.sort_unstable_by_key(|(id, _)| **id);
+    for (&id, block) in blocks {
+        for (index, statement) in block.statements.iter().enumerate() {
+            let at = (id, index);
+            for alias in alias_facts(statement, registry) {
+                let Some(local) = alias.local.literal() else {
+                    continue;
+                };
+                let place = match &alias.target {
+                    VariableAliasTarget::Global { variable } => variable
+                        .literal()
+                        .map_or(LinkedLocal::Unnameable, |variable| {
+                            LinkedLocal::Outer(in_namespace(variable, "::"), at)
+                        }),
+                    VariableAliasTarget::CurrentNamespace { variable } => variable
+                        .literal()
+                        .map_or(LinkedLocal::Unnameable, |variable| {
+                            LinkedLocal::Outer(in_namespace(variable, namespace), at)
+                        }),
+                    VariableAliasTarget::Namespace {
+                        namespace: named,
+                        variable,
+                    } => match (named.literal(), variable.literal()) {
+                        (Some(named), Some(variable)) if named.starts_with("::") => {
+                            LinkedLocal::Outer(in_namespace(variable, named), at)
+                        }
+                        _ => LinkedLocal::Unnameable,
+                    },
+                    VariableAliasTarget::CallerSelectedFrame { frame, variable } => {
+                        let level = match frame {
+                            CallerFrameSelection::DefaultCaller => Some(FrameLevel::Relative(1)),
+                            CallerFrameSelection::Explicit(level) => level
+                                .literal()
+                                .and_then(|level| FrameLevel::parse_in(level, registry)),
+                        };
+                        match (level, variable.literal()) {
+                            (Some(FrameLevel::Absolute(0)), Some(variable)) => {
+                                LinkedLocal::Outer(in_namespace(variable, "::"), at)
+                            }
+                            (Some(FrameLevel::Relative(1)), None) => LinkedLocal::Caller,
+                            _ => LinkedLocal::Unnameable,
+                        }
+                    }
+                };
+                record(local, place);
+            }
+            let Statement::Call { args, .. } = statement else {
+                continue;
+            };
+            let head = statement.canonical_command_or_source();
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            if matches!(
+                registry.alias_frame(head, &words, None),
+                Some(
+                    tcl_registry::value_transfer::AliasFrame::Object
+                        | tcl_registry::value_transfer::AliasFrame::Connection
+                )
+            ) {
+                for index in
+                    registry.arg_indices_for_role(head, &words, tcl_registry::ArgRole::VarWrite)
+                {
+                    if let Some(word) = args.get(index) {
+                        record(word, LinkedLocal::Unnameable);
+                    }
+                }
+            }
+        }
+    }
+    linked
+}
+
+/// `variable`'s qualified name as a variable of `namespace` names it: an
+/// absolute name is itself, and a relative one is in `namespace`.
+fn in_namespace(variable: &str, namespace: &str) -> String {
+    if variable.starts_with("::") {
+        variable.to_owned()
+    } else if namespace.is_empty() || namespace == "::" {
+        format!("::{variable}")
+    } else {
+        format!("{namespace}::{variable}")
+    }
 }
 
 /// The constant `local` holds at every one of a run's normal `exits`: the
@@ -2059,6 +2408,66 @@ mod tests {
             Some(CallTransfer::Never)
         );
         assert_eq!(module.call_transfer("::cell", &[]), None);
+    }
+
+    /// A `Name` argument naming a place outside the caller's frame — a
+    /// qualified name, or a local the caller links to a namespace's
+    /// variable by `upvar #0`, `global` or `variable` — is a write the
+    /// caller's summary states among its globals: with the callee's outcome
+    /// where every completion of the caller makes the call, may-bound where
+    /// only some do, and may-unbound too where the callee may unbind it. A
+    /// local linked to one of two places names a place the summary cannot,
+    /// so that caller has no summary. tclsh 8.4 to 9.1 print 2 for `puts
+    /// [c]`.
+    #[test]
+    fn a_name_argument_naming_an_outer_place_is_a_global_write() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
+            set g 1\n\
+            proc c {} {bump ::g; return $::g}\n\
+            proc d {} {upvar #0 g x; bump x}\n\
+            proc e {} {global g; bump g}\n\
+            proc h {c} {if {$c} {bump ::g}}\n\
+            proc f {c} {if {$c} {upvar #0 g x} else {upvar #0 k x}; bump x}\n\
+            namespace eval ns {variable v 1; proc w {} {variable v; bump v}}\n\
+            proc reset {name} {upvar 1 $name v; unset v}\n\
+            proc r {} {reset ::q}\n\
+            proc s {c} {if {$c} {reset ::q}}\n";
+        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let module = ModuleProcedures::of_unit(&unit, registry);
+        let g = PlaceRef::scalar("::g".to_owned());
+        for caller in ["::c", "::d", "::e"] {
+            assert_eq!(
+                unit.transfers.0[caller].globals,
+                vec![(g.clone(), BIND)],
+                "{caller}"
+            );
+            assert!(!module.keeps_to_its_frame(caller), "{caller}");
+        }
+        assert_eq!(
+            unit.transfers.0["::h"].globals,
+            vec![(g, ExistenceOutcome::MayBind(BindingKind::Either))]
+        );
+        assert_eq!(
+            unit.transfers.0["::ns::w"].globals,
+            vec![(PlaceRef::scalar("::ns::v".to_owned()), BIND)]
+        );
+        let q = PlaceRef::scalar("::q".to_owned());
+        assert_eq!(
+            unit.transfers.0["::r"].globals,
+            vec![(q.clone(), ExistenceOutcome::Unbind)]
+        );
+        assert_eq!(
+            unit.transfers.0["::s"].globals,
+            vec![
+                (q.clone(), ExistenceOutcome::Unbind),
+                (q, ExistenceOutcome::MayBind(BindingKind::Either))
+            ]
+        );
+        assert!(!unit.transfers.0.contains_key("::f"));
+        assert!(unit.transfers.0.contains_key("::bump"));
     }
 
     const CYCLE: &str =

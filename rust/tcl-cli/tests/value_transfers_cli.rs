@@ -1446,6 +1446,45 @@ fn explore_sccp_prints_what_a_call_leaves_in_its_name_argument() {
     assert!(p.contains("n#2 = const(2)"), "{text}");
 }
 
+/// Slice 13's review fix S1 through the shipped binary: `tcl explore --show
+/// interproc` prints, among a caller's globals, the global it writes through
+/// a qualified or aliased `Name` argument — `bump ::g`, `upvar #0 g x; bump
+/// x`, `global g; bump g` — and says a caller whose argument names a place
+/// the summary cannot name has none.
+#[test]
+fn explore_interproc_prints_the_global_a_name_argument_writes() {
+    let text = run_tcl(&[
+        "explore",
+        "--source",
+        "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\nset g 1\n\
+         proc c {} {bump ::g; return $::g}\nproc d {} {upvar #0 g x; bump x}\n\
+         proc e {} {global g; bump g}\n\
+         proc f {c} {if {$c} {upvar #0 g x} else {upvar #0 k x}; bump x}\nputs [c]\n",
+        "--show",
+        "interproc",
+        "--text",
+        "--no-colour",
+    ]);
+    let transfer = |caller: &str| {
+        text.split(&format!("{caller} arity"))
+            .nth(1)
+            .and_then(|section| section.lines().find(|line| line.contains("transfer:")))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    for caller in ["::c", "::d", "::e"] {
+        assert!(
+            transfer(caller)
+                .ends_with("transfer: globals: ::g binds a scalar · completes: ok or error"),
+            "{caller}: {text}"
+        );
+    }
+    assert!(
+        transfer("::f").ends_with("transfer: none — a call is a barrier"),
+        "{text}"
+    );
+}
+
 /// The `bump` of the summary witnesses.
 const BUMP: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n";
 

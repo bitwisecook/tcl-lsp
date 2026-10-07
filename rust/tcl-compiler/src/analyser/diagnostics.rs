@@ -554,11 +554,12 @@ impl Analyser {
         // ``CompilationUnit::functions``.
         // Iterate top-level explicitly so we can pass the IR
         // module through.
+        let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
         self.emit_cfg_ssa_diagnostics_for_function_full(
             &cu.top_level,
             BodyFrame::TopLevel,
-            &top_level_known_defined,
-            &top_level_cross_event_vars,
+            (&top_level_known_defined, &top_level_cross_event_vars),
+            Some(&module),
         );
         self.emit_channel_diagnostics(&cu.top_level, registry);
         for (qname, fu) in &cu.procedures {
@@ -583,8 +584,8 @@ impl Analyser {
                     .procedures
                     .get(qname)
                     .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
-                &extra_known_defined,
-                &cross_event_vars,
+                (&extra_known_defined, &cross_event_vars),
+                Some(&module),
             );
             self.emit_channel_diagnostics(fu, registry);
             // IRULE4005 — racy ``static::``
@@ -607,7 +608,7 @@ impl Analyser {
             registry,
             &cbn_proc_index,
             &traced_globals,
-            &unit_commands,
+            (&unit_commands, &module),
         );
 
         self.emit_cross_function_diagnostics(cu, registry);
@@ -665,7 +666,10 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for (qname, fu) in &cu.methods {
             let method_ir = cu.ir_module.methods.get(qname);
@@ -717,8 +721,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 method_ir.map_or(BodyFrame::TopLevel, BodyFrame::Method),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu, registry);
         }
@@ -734,21 +738,24 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         self.emit_method_body_diagnostics(
             cu,
             registry,
             cbn_proc_index,
             traced_globals,
-            unit_commands,
+            (unit_commands, module),
         );
         self.emit_lambda_body_diagnostics(
             cu,
             registry,
             cbn_proc_index,
             traced_globals,
-            unit_commands,
+            (unit_commands, module),
         );
     }
 
@@ -775,7 +782,10 @@ impl Analyser {
         registry: &tcl_registry::CommandRegistry,
         cbn_proc_index: &crate::interprocedural::ProcIndex,
         traced_globals: &HashSet<String>,
-        unit_commands: &UnitCommandResolver<'_>,
+        (unit_commands, module): (
+            &UnitCommandResolver<'_>,
+            &crate::interprocedural::ModuleProcedures<'_>,
+        ),
     ) {
         for qname in &cu.ir_module.lambda_body_units {
             let (Some(fu), Some(ir_proc)) =
@@ -797,8 +807,8 @@ impl Analyser {
             self.emit_cfg_ssa_diagnostics_for_function_full(
                 fu,
                 BodyFrame::Procedure(ir_proc),
-                &known_bound,
-                &cross_event_vars,
+                (&known_bound, &cross_event_vars),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu, registry);
         }
@@ -817,8 +827,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            &HashSet::new(),
-            &HashSet::new(),
+            (&HashSet::new(), &HashSet::new()),
+            None,
         );
     }
 
@@ -840,8 +850,8 @@ impl Analyser {
         self.emit_cfg_ssa_diagnostics_for_function_full(
             function_unit,
             frame,
-            extra_known_defined,
-            &HashSet::new(),
+            (extra_known_defined, &HashSet::new()),
+            None,
         );
     }
 
@@ -856,12 +866,16 @@ impl Analyser {
     /// | cross_event_imports`) and for `pkgIndex.tcl` `$dir`,
     /// which the package loader assigns before the script body
     /// runs.
-    pub fn emit_cfg_ssa_diagnostics_for_function_full(
+    ///
+    /// `module` holds the module's procedures where the caller has them, so
+    /// the read-before-set check reads what a call to one does to the places
+    /// it names from its transfer summary.
+    pub(crate) fn emit_cfg_ssa_diagnostics_for_function_full(
         &mut self,
         function_unit: &crate::compilation_unit::FunctionUnit,
         frame: BodyFrame<'_>,
-        extra_known_defined: &HashSet<String>,
-        cross_event_vars: &HashSet<String>,
+        (extra_known_defined, cross_event_vars): (&HashSet<String>, &HashSet<String>),
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
         let defined = collect_defined_vars(&function_unit.cfg);
         // Alias recognition is registry-driven; fall back to the cached
@@ -938,6 +952,7 @@ impl Analyser {
                 dialect: Some(self.analysis_context().context().authoring_query()),
                 registry: self.registry.as_deref(),
                 rules: self.word_rules(),
+                module,
             },
         );
         let rbs_params: HashSet<&str> = ir_proc

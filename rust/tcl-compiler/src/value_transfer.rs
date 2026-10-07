@@ -738,6 +738,66 @@ enum CallRerun {
     Waiting,
 }
 
+/// Each argument word of a call statement as the driver reads it — its
+/// literal value, `None` for one that substitutes — or `None` where a word
+/// expands, so no word's position is known.
+pub(crate) fn call_literal_words(
+    args: &[String],
+    tokens: Option<&CommandTokens>,
+    config: &LexerConfig,
+) -> Option<Vec<Option<String>>> {
+    let cooked = call_arguments(args, tokens, config);
+    if cooked
+        .iter()
+        .any(|word| word.kind == InvocationWordKind::Expanded)
+    {
+        return None;
+    }
+    Some(
+        literal_words(&cooked)
+            .into_iter()
+            .map(|word| word.map(str::to_owned))
+            .collect(),
+    )
+}
+
+/// The step each place a call statement's `Name` arguments name takes from
+/// its callee's transfer summary, the callee resolved from `function` under
+/// the shared lattice's trust: what the read-before-set check reads of the
+/// call. Empty for any other statement, and for a call the summary does not
+/// answer or that never completes normally.
+pub(crate) fn summary_steps(
+    module: &crate::interprocedural::ModuleProcedures<'_>,
+    function: &str,
+    statement: &Statement,
+    config: &LexerConfig,
+) -> Vec<(String, ExistenceStep)> {
+    let Statement::Call {
+        command,
+        args,
+        tokens,
+        foreach_groups: None,
+        ..
+    } = statement
+    else {
+        return Vec::new();
+    };
+    if statement.synthetic_marker().is_some() {
+        return Vec::new();
+    }
+    let Some(callee) = module.resolve(command, function, FoldTrust::ObservedBindings) else {
+        return Vec::new();
+    };
+    let Some(words) = call_literal_words(args, tokens.as_ref(), config) else {
+        return Vec::new();
+    };
+    let words: Vec<Option<&str>> = words.iter().map(Option::as_deref).collect();
+    match module.call_transfer(&callee, &words) {
+        Some(crate::interprocedural::CallTransfer::Places(places)) => places,
+        _ => Vec::new(),
+    }
+}
+
 /// Each word's literal text, `None` for a word that substitutes.
 fn literal_words<'w>(cooked: &'w [ArgWord<'_>]) -> Vec<Option<&'w str>> {
     cooked
