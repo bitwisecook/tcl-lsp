@@ -1,0 +1,6 @@
+subject=C=GB, O=tcl-lsp event-flow, CN=trusted-client
+issuer=C=GB, O=tcl-lsp event-flow, CN=evtflow test CA
+serial=1002
+notBefore=Oct  7 08:05:46 2026 GMT
+notAfter=Nov  6 08:05:46 2026 GMT
+sha256 Fingerprint=72:A3:45:80:F1:21:04:02:10:38:E0:3A:A2:D2:F3:A9:3D:F6:D8:C2:85:23:46:CC:38:C4:A8:D8:48:47:F3:C8

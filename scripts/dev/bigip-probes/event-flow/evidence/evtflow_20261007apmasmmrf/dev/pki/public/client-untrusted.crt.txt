@@ -1,0 +1,6 @@
+subject=C=GB, O=tcl-lsp event-flow, CN=untrusted-client
+issuer=C=GB, O=tcl-lsp event-flow, CN=evtflow rogue CA
+serial=2001
+notBefore=Oct  7 08:05:46 2026 GMT
+notAfter=Nov  6 08:05:46 2026 GMT
+sha256 Fingerprint=D8:8B:BD:AC:5B:A5:35:80:8F:1C:E4:D9:3E:16:F2:11:A3:2B:BE:37:F2:C1:47:B5:78:71:C4:89:87:DF:72:CB

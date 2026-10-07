@@ -1,0 +1,8 @@
+Measured 2026-10-07 after appliance relicensing and reboot.
+
+An active process was observed with PID 17904, parent PID 16202:
+/usr/bin/curl --resolve callhome.f5networks.net:443:159.60.134.92 -X POST -H Content-Type:text/xml;charset=UTF-8 -H SOAPAction:SoftwareUpdate --user [empty] -H User-Agent:bigip/21.1.0 -d @- https://callhome.f5networks.net/soa/softwareupdate/
+
+The process was terminated. A later anchored process check found no active
+curl whose command line targeted callhome.f5networks.net. The persistent final
+configuration and service state are in final-callout-state.txt.

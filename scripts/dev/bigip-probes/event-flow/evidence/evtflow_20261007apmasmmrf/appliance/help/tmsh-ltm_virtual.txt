@@ -1,0 +1,668 @@
+ltm virtual(1)                                                         BIG-IP TMSH Manual                                                         ltm virtual(1)
+
+
+
+[1mNAME[0m
+       virtual - Configures a virtual server.
+
+[1mMODULE[0m
+       [1mltm[0m
+
+[1mSYNTAX[0m
+       Configure the [1mvirtual [22mcomponent within the [1mltm [22mmodule using the syntax
+       shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create virtual [name]
+        modify virtual [name]
+         options:
+          all
+          acmev2-challenge [enabled | disabled]
+          address-status [yes | no]
+          app-service [[string] | none]
+          auth [add | delete | replace-all-with] {
+              [profile_name ... ]
+          }
+          auth [default | none]
+          auto-discovery [enabled | disabled]
+          auto-lasthop [default | enabled | disabled ]
+          clone-pools [add | delete | replace-all-with] {
+              [pool_name ... ] {
+                context [clientside | serverside]
+              }
+          }
+          clone-pools none
+          cmp-enabled [yes | no]
+          connection-limit [integer]
+          dhcp-relay
+          description [string]
+          destination [ [virtual_address_name:port] | [ipv4:port] | [ipv6.port] ]
+          [disabled | enabled]
+          eviction-protected [enabled | disabled]
+          fallback-persistence [none | [profile name] ]
+          flow-eviction-policy [none | [eviction policy name] ]
+          fw-enforced-policy [ [policy_name] | none ]
+          fw-staged-policy [ [policy_name] | none ]
+          gtm-score [integer]
+          ip-forward
+          ip-protocol [any | [protocol]
+          internal
+          l2-forward
+          last-hop-pool [ [pool_name] | none]
+          mask { [ipv4] | [ipv6] }
+          mirror { [disabled | enabled | none] }
+          nat64 [enabled | disabled]
+          per-flow-request-access-policy [ [policy_name] | none ]
+          persist [replace-all-with] {
+              [profile_name ... ] {
+                default [no | yes]
+              }
+          }
+          persist none
+          policies [ add | delete | replace-all-with] {
+              policy_name [[policy_name] ...]
+              }
+          pool [ [pool_name] | none]
+          profiles [add | delete | replace-all-with] {
+              [profile_name ...] {
+                context [all | clientside | serverside]
+              }
+          }
+          profiles [default | none]
+          rate-class [name]
+          rate-limit [integer]
+          rate-limit-mode [destination | object | object-destination |
+                           object-source | object-source-destination | source |
+                           source-destination]
+          rate-limit-dst [integer]
+          rate-limit-src [integer]
+          related-rules { none | [rule_name ...] }
+          reject
+          rules { [none | [rule_name ... ] }
+          security-nat-policy {
+              policy [ [policy_name] | none]
+              use-device-policy [no | yes]
+              use-route-domain-policy [no | yes]
+          }
+          serverssl-use-sni [ enabled | disabled ]
+          service-down-immediate-action [none | drop | reset]
+          service-policy [ [policy_name] | none ]
+          snat [automap | none]            DEPRECATED - see source-address-translation
+          snatpool [snatpool_name]         DEPRECATED - see source-address-translation
+          source { [ipv4[/prefixlen]] | [ipv6[/prefixlen]] }
+          source-address-translation {
+            options:
+              pool [ [pool_name] | none]
+              type [ automap | lsn | snat | none ]
+          }
+          source-port [change | preserve | preserve-strict]
+          traffic-classes [add | delete | replace-all-with] {
+              [traffic_class_name ...]
+          }
+          traffic-classes [default | none]
+          translate-address [enabled | disabled]
+          translate-port [enabled | disabled]
+          transparent-nexthop [vlan_name]
+          vlans [add | delete | replace-all-with] {
+              [vlan_name ... ]
+          }
+          vlans [default | none]
+          vlans-disabled
+          vlans-enabled
+          metadata [add | delete | modify] {
+              [metadata_name ... ] {
+                value [ "value content" ]
+                persist [ true | false ]
+              }
+          }
+        reset-stats virtual [ [ [name] | [glob] | [regex] ] ... ]
+          fw-enforced-policy-rules { [rule name] }
+          fw-staged-policy-rules  { [rule name] }
+          security-nat-rules { [rule name] }
+          profiles  { [profile name] }
+
+          options:
+            fw-context-stat
+            ip-intelligence-categories
+            port-misuse
+
+   [1mDISPLAY[0m
+        list virtual
+        list virtual [ [ [name] | [glob] | [regex] ] ...]
+        show running-config virtual
+        show running-config virtual [ [ [name] | [glob] | [regex] ] ... ]
+         options:
+          all-properties
+          non-default-properties
+          one-line
+          partition
+
+        show virtual
+        show virtual [ [ [name] | [glob] | [regex] ] ... ]
+         options:
+          all-properties (default | exa | gig | kil | meg | peta | raw | tera |
+                          yotta | zetta)
+          detail
+          field-fmt
+          fw-context-stat
+          ip-intelligence-categories
+          port-misuse
+
+        mv virtual [ [[source-name] [destination-name]] | [[name] to-folder [folder-name]] | [[name...name] to-folder [folder-name]] ]
+         options:
+          to-folder
+
+   [1mDELETE[0m
+        delete virtual [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mvirtual [22mcomponent to create, delete, modify properties
+       on, and display information about virtual servers. Virtual servers are
+       externally visible IP addresses that receive client requests. Rather
+       than sending the requests directly to the destination IP address
+       specified in the packet header, it sends the requests to any of several
+       content servers that make up a load balancing pool. Virtual servers
+       also apply various behavioral settings to multiple traffic types,
+       enable persistence for multiple traffic types, and direct traffic
+       according to user-written iRules(r).
+
+       [1mNote: [22mAfter you configure a Global Traffic Manager listener, when you
+       use the tab completion feature within the [1mltm [22mmodule, the listener
+       displays as one of the virtual servers in the Configuration Items
+       section.
+
+[1mEXAMPLES[0m
+       [1mcreate virtual myV2 { destination 11.11.11.12:any persist replace-all-[0m
+       [1mwith { source_addr } } pool myPool}[0m
+
+       Creates a virtual server named myV2, which uses the source address
+       persistence method.
+
+       [1mmodify virtual vs_fl4_http4 profiles replace-all-with { profile-udp }[0m
+
+       Replaces the profile associated with the virtual server vs_f14_http4.
+
+       [1mNote: [22mTo replace the profile associated with a virtual server, you must
+       enclose the name of the new profile in curly brackets.
+
+       [1mdelete virtual myV4 myV5 myV6[0m
+
+       Deletes the virtual servers named myV4, myV5, and myV6.
+
+       [1mshow virtual myV4[0m
+
+       Displays statistics and status for the virtual named [1mmyV4[22m.
+
+       [1mshow virtual myV4 all-properties[0m
+
+       Displays statistics and status for the virtual named [1mmyV4[22m.
+
+       [1mNote: [22mIf the system includes Packet Velocity(r) ASIC (PVA) and PVA
+       Assist capabilities, this command displays status and statistics for
+       that feature.
+
+       [1mmv /ltm virtual /Common/my_vip to-folder /Common/some_folder[0m
+
+       Moves a virtual server named [1mmy_vip [22mto the folder named [1msome_folder[22m,
+       where [1msome_folder [22mhas already been created under [1m/Common[22m.
+
+       [1mNote[22m: Please note that you may not move a virtual server that is
+       associated with CGNAT configuration items, such as LSN pools.
+
+[1mOPTIONS[0m
+       [1mall  [22mSpecifies that you want to modify all of the existing components
+            of the specified type.
+
+       [1macmev2-challenge[0m
+            Specifies whether the virtual will be used for ACME challenge.
+            Currently, only HTTP-01 challenge type is supported. The default
+            value is [1mdisabled[22m.
+
+       [1maddress-status[0m
+            Specifies whether the virtual will contribute to the operational
+            status of the associated virtual-address. The default value is
+            'yes'.
+
+       [1mapp-service[0m
+            Specifies the name of the application service to which the virtual
+            server belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-[0m
+            [1mupdates [22moption is [1menabled [22mon the application service that owns the
+            object, you cannot modify or delete the virtual server. Only the
+            application service can modify or delete the virtual server.
+
+       [1mauth [22mSpecifies a list of authentication profile names, separated by
+            spaces, that the virtual server uses to manage authentication.
+
+       [1mauto-discovery[0m
+            Enable or disable security protected objects (virtual server) auto
+            discovery functionality. The default value is [1mdisabled[22m.
+
+       [1mclone-pools[0m
+            Specifies a pool or list of pools that the virtual server uses to
+            replicate either client or server traffic. You must specify a
+            value of either [1mclientside [22mor [1mserverside [22mfor the [1mcontext [22moption
+            for each clone pool. Typically, this option is used for intrusion
+            detection.
+
+       [1mcmp-enabled[0m
+            Enables or disables clustered multi-processor (CMP) acceleration.
+            This feature applies to certain platforms only. The default value
+            is [1myes[22m.
+
+       [1mconnection-limit[0m
+            Specifies the maximum number of concurrent connections you want to
+            allow for the virtual server. The default value of [1m0 [22m(zero) allows
+            for an unlimited number of concurrent connections.
+
+       [1mcontext[0m
+            Specifies that the pool is either a [1mclientside [22mor [1mserverside [22mclone
+            pool.
+
+            [1mNote: [22mBecause validation occurs outside of TMSH, you will receive
+            an error when you modify the context for profiles in a virtual
+            server.
+
+       [1mdhcp-relay[0m
+            Specifies a virtual server that relays all received dhcp requests
+            to all pool members. If there is no pool, the received request get
+            dropped. If you specify the [1mdhcp-relay [22moption, you cannot use the
+            [1mip-forward [22mor [1ml2-forward [22mor [1mreject [22moptions.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mdestination[0m
+            Specifies the name of the virtual address and service on which the
+            virtual server listens for connections.
+
+            The format for "ipv4" is [4ma[24m.[4mb[24m.[4mc[24m.[4md[24m[:[4mport[24m]. The format for an "ipv6"
+            address is [4ma[24m:[4mb[24m:[4mc[24m:[4md[24m:[4me[24m:[4mf[24m:[4mg[24m:[4mh[24m[.[4mport[24m].
+
+            The default value is [1many:any[22m.
+
+       [1m(enabled | disabled)[0m
+            Specifies the state of the virtual server. The default value is
+            [1menabled[22m.
+
+            [1mNote: [22mWhen you disable a virtual server, the virtual server no
+            longer accepts new connection requests. However, it allows current
+            connections to finish processing before going to a [1mdown [22mstate.
+
+       [1meviction-protected[0m
+            Enables or disables protection for the virtual server from the
+            aggressive sweeper. The default is [1mdisabled[22m.
+
+       [1mfallback-persistence[0m
+            Specifies a fallback persistence profile for the virtual server to
+            use when the default persistence profile is not available. The
+            default value is [1mnone[22m.
+
+       [1mflow-eviction-policy[0m
+            Specifies a flow eviction policy for the virtual server to use, to
+            select which flows to terminate when the number of connections
+            approaches the connection limit on the virtual server. The default
+            value is [1mnone[22m.
+
+       [1mfw-enforced-policy[0m
+            Specifies an enforced firewall policy. [1mfw-enforced-policy [22mrules
+            are enforced on a virtual server.
+
+       [1mfw-enforced-policy-rules[0m
+            Specifies firewall rules enforced on [1mltm virtual [22mvia referenced
+            [1mfw-enforced-policy[22m.
+
+       [1mfw-staged-policy[0m
+            Specifies a staged firewall policy. [1mfw-staged-policy [22mrules are not
+            enforced while all the visibility aspects namely statistics,
+            reporting and logging function as if the [1mfw-staged-policy [22mrules
+            were enforced on a virtual server.
+
+       [1mfw-staged-policy-rules[0m
+            Specifies firewall rules staged on [1mltm virtual [22mvia referenced [1mfw-[0m
+            [1mstaged-policy[22m.
+
+       [1msecurity-nat-rules[0m
+            Specifies security nat rules associated with [1mltm virtual [22mvia
+            referenced [1msecurity-nat-policy[22m.
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1mgtm-score[0m
+            Specifies a score that is associated with the virtual server.
+            Global Traffic Manager (GTM) can rely on this value to load
+            balance traffic in a proportional manner.
+
+       [1mtraffic-acceleration-status[0m
+            Displays the current traffic-acceleration status. The virtual
+            server is considered traffic-acceleration-dedicated if it uses a
+            traffic-acceleration profile.
+
+       [1mip-forward[0m
+            Specifies a virtual server that has no pool members to load
+            balance, but instead, forwards the packet directly to the
+            destination IP address specified in the client request. If you
+            specify the [1mip-forward [22moption, you cannot use the [1ml2-forward [22mor
+            [1mreject [22moptions. The destination, mask, translate-address,
+            translate-port, vlans, vlans-disabled and vlans-enabled attributes
+            are set by the system, any attempt to change them will have no
+            effect.
+
+       [1mip-protocol[0m
+            Specifies the IP protocol for which you want the virtual server to
+            direct traffic. Sample protocol names are TCP and UDP. The default
+            value is [1many[22m.
+
+            [1mNote: [22mYou do not use this setting when creating an HTTP class
+            virtual server.
+
+       [1minternal[0m
+            Specifies an internal virtual server that handles requests for a
+            parent virtual server, such as content adaptation. Internal
+            virtual servers do not receive external connections, instead they
+            are specified by name by profiles in the parent virtual server
+            (see [1mltm profile request-adapt [22mand [1mltm profile response-adapt[22m).
+            Since internal virtual servers do not listen for external
+            connections, not all attributes are used for internal virtual
+            servers. The [1mdestination[22m, [1mmask[22m, [1mtranslate-address[22m, [1mtranslate-port[22m,
+            [1mvlans[22m, [1mvlans-disabled [22mand [1mvlans-enabled [22mattributes are set by the
+            system, any attempt to change them will have no effect.
+
+       [1ml2-forward[0m
+            Specifies a virtual server that shares the same IP address as a
+            node in an associated VLAN. You create this type of virtual server
+            when you want to create a VLAN group. If you specify the
+            [1ml2-forward [22moption, you cannot use the [1mip-forward [22mor [1mreject[0m
+            options.
+
+       [1mlast-hop-pool[0m
+            Specifies the name of the last hop pool that you want the virtual
+            server to use to direct reply traffic to the last hop router. The
+            default value is [1mnone[22m.
+
+       [1mmask [22mSpecifies the netmask for a network virtual server only. This
+            setting is required for a network virtual server.
+
+            The netmask clarifies whether the host bit is an actual zero or a
+            wildcard representation. The default value is [1m255.255.255.255 [22mfor
+            IPv4 or [1mffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff [22mfor IPv6.
+
+       [1mmirror[0m
+            Enables or disables mirroring. You can use mirroring to maintain
+            the same state information in the standby unit that is in the
+            active unit, allowing transactions such as FTP file transfers to
+            continue as though uninterrupted. The default value is [1mnone[22m.
+
+       [1mmobile-app-tunnel[0m
+            Deprecated since v13.1.0.
+
+       [1mname [22mSpecifies a unique name for the component. This option is required
+            for the commands [1mcreate[22m, [1mdelete[22m, and [1mmodify[22m.
+
+       [1mnat64[0m
+            Enable or disable NAT64. The default value is [1mdisabled[22m. NAT64 is a
+            service that automatically translate IPv6 traffic into IPv4.
+
+       [1mpartition[0m
+            Displays the name of the administrative partition within which the
+            virtual server resides.
+
+       [1mper-flow-request-access-policy[0m
+            Specifies the name of the per-request access policy to be used
+            with the virtual server. The default value is [1mnone[22m.
+
+       [1mpersist[0m
+            Specifies a list of profiles separated by spaces that the virtual
+            server uses to manage connection persistence. The default value is
+            [1mnone[22m.
+
+            To enable persistence, typically you specify a single profile.
+            However, you can specify multiple profiles in conjunction with
+            iRules(r) that define a persistence strategy based on incoming
+            traffic. In the case of multiple profiles, the [1mdefault [22moption
+            specifies which profile you want the virtual server to use if an
+            iRule does not specify a persistence method. When you specify
+            multiple profiles, the default value of the default property is
+            [1mno[22m. You can set the value of the [1mdefault [22mproperty to [1myes [22mfor only
+            one of the profiles.
+
+       [1mpolicies[0m
+            Manage LTM Policies applied to the virtual server. LTM Policies
+            define a set of conditions and actions that can be used to
+            inspect, modify, direct traffic, and enable/disable features on
+            the fly, similar to iRules. LTM Policies do not require
+            programming. See also [1mltm policy[22m.
+
+       [1mpool [22mSpecifies a default pool to which you want the virtual server to
+            automatically direct traffic. The default value is [1mnone[22m.
+
+       [1mport-misuse[0m
+            Used to show or reset port misuse policy statistics for the
+            virtual server.
+
+       [1mfw-context-stat[0m
+            Used to show or reset firewall statistics for the virtual server.
+
+       [1mprofiles[0m
+            Specifies a list of profiles for the virtual server to use to
+            direct and manage traffic. The default value is [1mfastL4[22m.
+
+       [1mrate-class[0m
+            Specifies the name of an existing rate class that you want the
+            virtual server to use to enforce a throughput policy for incoming
+            network traffic. The default value is [1mnone[22m.
+
+       [1mrate-limit[0m
+            Specifies the maximum number of connections per second allowed for
+            a virtual server. The default value is 'disabled'.
+
+       [1mrate-limit-mode[0m
+            Indicates whether the rate limit is applied per virtual object,
+            per source address, per destination address, or some combination
+            thereof. The default value is 'object', which does not use the
+            source or destination address as part of the key.
+
+       [1mrate-limit-dst-mask[0m
+            Specifies a mask, in bits, to be applied to the destination
+            address as part of the rate limiting. The default value is '0',
+            which is equivalent to using the entire address - '32' in IPv4, or
+            '128' in IPv6.
+
+       [1mrate-limit-src-mask[0m
+            Specifies a mask, in bits, to be applied to the source address as
+            part of the rate limiting. The default value is '0', which is
+            equivalent to using the entire address - '32' in IPv4, or '128' in
+            IPv6.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+       [1mrelated-rules[0m
+            Specifies a list of iRules, separated by spaces, that customize
+            the behavior of secondary channels (for instance the data channel
+            on FTP) opened on behalf of the virtual server. The default value
+            is [1mnone[22m.
+
+       [1mreject[0m
+            Specifies that the BIG-IP(r) system rejects any traffic destined
+            for the virtual server IP address. If you specify the [1mreject[0m
+            option, you cannot use the [1mip-forward [22mor [1ml2-forward [22moptions.
+
+       [1mrules[0m
+            Specifies a list of iRules, separated by spaces, that customize
+            the virtual server to direct and manage traffic. The default value
+            is [1mnone[22m.
+
+       [1msecurity-nat-policy[0m
+            Configures the following options to specify which Security NAT
+            Policy is to be used to match the incoming traffic and perform
+            source/destination translation (address/port) using the first-
+            match rule criteria:
+
+            [1mpolicy[0m
+                 Specifies the name of the Security NAT Policy to be used (see
+                 [1msecurity nat policy[22m).
+
+            [1muse-route-domain-policy[0m
+                 Specifies whether to use the virtual server's route domain
+                 context's Security NAT policy.  If enabled AND the virtual
+                 server does not have a NAT policy configured, route domain's
+                 security NAT policy is used.
+
+            [1muse-device-policy[0m
+                 Specifies whether to use the security device context NAT
+                 policy (see [1msecurity device-context[22m).  If enabled AND both
+                 virtual server as well as route domain do not have a NAT
+                 policy configured, NAT policy configured at security device
+                 (a.k.a global) level is used.
+
+       [1mserverssl-use-sni[0m
+            When multiple server-ssl profiles are attached to a virtual,
+            setting this allows one to be chosen based on the SNI extention
+            from the ClientHello if a client-ssl profile is also attached to
+            the virtual.
+
+       [1mservice-down-immediate-action[0m
+            Specifies the immediate action the BIG-IP system should respond
+            with upon the receipt of the initial client's SYN packet if the
+            availability status of the virtual server is Offline or
+            Unavailable. This is supported for the virtual server of [1mStandard[0m
+            type and [1mTCP [22mprotocol. The default value is [1mnone[22m.
+
+       [1mservice-policy[0m
+            Specifies a service policy for the virtual server. If set, it will
+            enforce the service policy for incoming network traffic. The
+            service policy can be used to validate if incoming traffic
+            conforms to a set of application protocols.
+
+       [1msnat [22mSpecifies whether SNAT automap is enabled for the virtual server.
+            The default value is [1mnone[22m.  This attribute is DEPRECATED. Use
+            [1msource-address-translation { type ( automap / none ) }[0m
+
+       [1msnatpool[0m
+            Specifies the name of an existing SNAT pool that you want the
+            virtual server to use to implement selective and intelligent
+            SNATs.  This attribute is DEPRECATED. Use [1msource-address-[0m
+            [1mtranslation { type snatpool pool [4m[22mpool_name[24m [1m}[0m
+
+       [1msource[0m
+            Specifies an IP address or network from which the virtual server
+            will accept traffic.
+
+            The format for an "ipv4" address is [4ma[24m.[4mb[24m.[4mc[24m.[4md[24m[/[4mprefixlen[24m]. The
+            format for an "ipv6" address is [4ma[24m:[4mb[24m:[4mc[24m:[4md[24m:[4me[24m:[4mf[24m:[4mg[24m:[4mh[24m[/[4mprefixlen[24m].
+
+       [1msource-address-translation[0m
+            Specifies the type of source address translation enabled for the
+            virtual server as well as the pool that the source address
+            translation will use.
+
+            [1mpool [22mSpecifies the name of a LSN or SNAT pool used by the
+                 specified virtual server.
+
+            [1mtype [22mSpecifies the type of source address translation associated
+                 with the specified virtual server.
+
+                 The options are:
+
+                 [1mautomap[0m
+                      Specifies the use of self IP addresses for virtual
+                      server source address translation.
+
+                 [1mlsn  [22mSpecifies the use of a LSN pool of translation addresses
+                      for virtual server source address translation.
+
+                 [1mnone [22mSpecifies no source address translation to be used by
+                      the virtual server.
+
+                 [1msnat [22mSpecifies the use of a SNAT pool of translation
+                      addresses for virtual server source address translation.
+
+       [1msource-port[0m
+            Specifies whether the system preserves the source port of the
+            connection. The default value is [1mpreserve[22m.
+
+            The options are:
+
+            [1mchange[0m
+                 Obfuscates internal network addresses.
+
+            [1mpreserve[0m
+                 Preserves the source port of the connection.
+
+            [1mpreserve-strict[0m
+                 Use this value only for UDP under very special circumstances,
+                 such as nPath or transparent (that is, no translation of any
+                 other L3/L4 field), where there is a 1:1 relationship between
+                 virtual IP addresses and node addresses, or when clustered
+                 multi-processing (CMP) is disabled.
+
+       [1mtraffic-classes[0m
+            Specifies a list of traffic classes that are associated with the
+            virtual server. The default value is [1mnone[22m.
+
+       [1mtranslate-address[0m
+            Enables or disables address translation for the virtual server.
+            Disable address translation for a virtual server if you want to
+            use the virtual server to load balance connections to any address.
+            This option is useful when the system is load balancing devices
+            that have the same IP address. The default value is [1mdisabled[22m.
+
+       [1mtranslate-port[0m
+            Enables or disables port translation. Disable port translation for
+            a virtual server, if you want to use the virtual server to load
+            balance connections to any service. The default value is [1mdisabled[22m.
+
+       [1mtransparent-nexthop[0m
+            Specifies the egress interface for traffic and enables layer 2
+            (MAC) address preservation.  Layer 2 address preservation disables
+            layer 3 (IP/IPv6) address translation.
+
+       [1mvlans[0m
+            Specifies a list of VLANs on which the virtual server is either
+            enabled or disabled. The default value is [1mnone[22m. The options [1mvlans-[0m
+            [1mdisabled [22mand [1mvlans-enabled [22mindicate whether the virtual server is
+            disabled or enabled on the list of specified VLANs.
+
+       [1mvlans-disabled[0m
+            Disables the virtual server on the VLANs specified in the [1mvlans[0m
+            option. This is the default setting.
+
+       [1mvlans-enabled[0m
+            Enables the virtual server on the VLANs specified in the [1mvlans[0m
+            option.
+
+       [1mvs-index[0m
+            Displays a unique index assigned to this virtual server.
+
+       [1mmetadata[0m
+            Associates user defined data, each of which has name and value
+            pair and persistence. Persistent(default) means the data will be
+            saved into config file.
+
+       [1mip-intelligence-categories[0m
+            Used to show/ reset statistics on IP intelligence white/ black
+            lists categories.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm persistence[22m, [1mltm pool[22m, [1mmodify[22m,
+       [1mmv[22m, [1msecurity nat policy[22m, [1mnet service-policy[22m, [1mnet vlan[22m, [1mnet vlan-group[22m,
+       [1msecurity firewall schedule[22m, [1msecurity firewall rule-list[22m, [1mregex[22m, [1mreset-[0m
+       [1mstats[22m, [1mrule[22m, [1mshow[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2008-2014, 2016. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2026-04-16                                                             ltm virtual(1)

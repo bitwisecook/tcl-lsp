@@ -1,0 +1,37 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Accept-CH: Sec-CH-UA-Platform-Version
+Content-Length: 0
+Location: /my.policy
+Set-Cookie: LastMRH_Session=dcc073cb;path=/;secure
+Set-Cookie: MRHSession=acdbd8fb1fddb0fe9970f166dcc073cb;path=/;secure
+Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/;secure
+Connection: close
+
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791363218z604800;path=/;secure
+Set-Cookie: LastMRH_Session=dcc073cb;path=/;secure
+Set-Cookie: MRHSession=139b1e0ccd0b7e25ebaa60fcdcc073cb;path=/;secure
+Content-Length: 0
+Location: /vdesk/hangup.php3
+Connection: close
+
+HTTP/1.1 200 OK
+Server: BigIP
+Content-Type: text/html; charset=utf-8
+Accept-Ranges: bytes
+Connection: close     
+Date: Wed, 07 Oct 2026 08:55:05 GMT
+Age:      87
+Content-Length:       5230
+X-Frame-Options: DENY
+Set-Cookie: MRHSession=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_ST=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSHint=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_HT_shrinked=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_fullWT=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSequence=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Pragma: no-cache
+Cache-Control: no-cache, must-revalidate
+

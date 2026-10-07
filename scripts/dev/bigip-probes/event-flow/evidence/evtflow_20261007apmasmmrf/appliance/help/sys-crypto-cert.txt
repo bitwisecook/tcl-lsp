@@ -1,0 +1,222 @@
+sys crypto cert(1)                                                     BIG-IP TMSH Manual                                                     sys crypto cert(1)
+
+
+
+[1mNAME[0m
+       cert - Manage cryptographic certificates on the BIG-IP(r) system.
+
+[1mMODULE[0m
+       [1msys crypto[0m
+
+[1mSYNTAX[0m
+       Manage cryptographic [1mcert[22ms using the syntax in the following section.
+
+   [1mCREATE[0m
+         create cert [name]
+           options:
+             city [string]
+             common-name [string]
+             consumer
+               [enterprise-manager | iquery | iquery-big3d | ltm | webserver]
+             country [string]
+             email-address [string]
+             key [string]
+             lifetime [days]
+             organization [string]
+             ou [string]
+             state [string]
+             subject-alternative-name [string]
+
+   [1mINSTALL[0m
+         install cert [name]
+           options:
+             ca-file [ssl-cert object name]
+             certificate-verification [true | false]
+             cert-validation-options [none | ocsp]
+             cert-validators [none | [cert_validator_name]]
+             consumer
+               [enterprise-manager | iquery | iquery-big3d | ltm | webserver]
+             from-editor
+             from-local-file [filename]
+             from-url [URL]
+             issuer-cert [none | [issuer_cert_name]]
+             no-overwrite
+
+   [1mMODIFY[0m
+         modify cert [name]
+           options:
+           cert-validation-options [none | ocsp]
+           cert-validators [none | [cert_validator_name]]
+           issuer-cert [none | [issuer_cert_name]]
+
+   [1mDELETE[0m
+         delete cert [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mcert [22mcomponent to create, install, and delete
+       cryptographic certificates, and bundles.
+
+[1mEXAMPLES[0m
+       [1mcreate cert example key testkey.key common-name "My Company Inc."[0m
+       [1mcountry "US"[0m
+
+       Generates a self signed certificate named "example.crt". A key with the
+       specified name "testkey.key" in this case must be installed on the
+       system in order for this operation to succeed. The cert extension
+       (".crt") will be appended to the created cert name if it is not already
+       provided in the name.
+
+       [1mcreate cert /myfolder/example key testkey.key common-name "My Company[0m
+       [1mInc." country "US"[0m
+
+       Similar to above, but creates the cert "example.crt" in the folder
+       "/myfolder" instead of the default "/Common". The specified folder
+       "/myfolder" must already exist in order for this operation to succeed.
+
+       [1mcreate cert server2 key server2.key common-name "My Company Inc."[0m
+       [1mcountry "US" consumer webserver[0m
+
+       Generates a self-signed certificate named server2.crt. The consumer
+       attribute, "webserver", is used to cause the files to be placed
+       directly in the path which can be found by the BIG-IP system httpd. A
+       pre-existing key named "server2.key" must exist in the web server's key
+       path in order for this operation to succeed. Please note that for non
+       LTM consumer's key and cert names must be the same.
+
+       [1minstall cert example from-editor[0m
+
+       Opens an interactive editor session into which can be pasted a
+       certificate for import into the BIG-IP system. A certificate file-
+       object will be created with the name example which contains the
+       contents saved from the editor session.
+
+       [1minstall cert example from-local-file /tmp/example.crt[0m
+
+       Obtains a certificate from the file located at /tmp/example.crt.
+
+       [1minstall cert example from-url http://example.com/example.crt[0m
+
+       Obtains a certificate from a remote host, based on the URI specified.
+
+       [1minstall cert example from-url http://example.com/example.crt[0m
+       [1mcertificate-verification true ca-file /Common/pebble.minica-fixed.crt[0m
+
+       Obtains a certificate from a remote host using the specified URL and
+       validates the server using the specified [1msys file ssl-cert [22mobject.
+
+       [1mmodify sys crypto cert leaf.crt issuer-cert issuer.crt cert-validators[0m
+       [1madd { my_ocsp1 } cert-validation-options { ocsp }[0m
+
+       Assigns issuer certificate issuer.crt to the certificate leaf.crt,
+       associates the OCSP certificate validator my_ocsp to the certificate,
+       and enables the OCSP certificate validator for this certificate.
+
+       [1mdelete cert example.crt[0m
+
+       Deletes the certificate "example.crt" from the system.
+
+[1mOPTIONS[0m
+       [1mcert-validation-options[0m
+            Specifies the option used for validating the certificate status.
+
+       [1mcert-validators[0m
+            Specifies the name of the cert-validators used for validating the
+            certificate status. Each cert-validation type can only have one
+            cert-validator.
+
+       [1mcity [22mSpecifies the x509 city field to be used in creation of the
+            certificate.
+
+       [1mcommon-name[0m
+            Specifies the x509 common-name to be used in creation of the
+            certificate.
+
+       [1mconsumer[0m
+            Specifies the system component by which a certificate will be
+            consumed. The default behavior is to create file-objects for use
+            by ltm components. This is the same as specifying "ltm" for this
+            property. If a component other than "ltm" is specified then files
+            will be installed/created in locations where the specified
+            components can find them. For example, for component "webserver",
+            certificates will be placed in the webservers ssl directories.
+
+       [1mcountry[0m
+            Specifies the x509 country to be used in creation of the
+            certificate. The country must be a 2 letter country code.
+
+       [1memail-address[0m
+            Specifies the x509 email-address to be used in creation of the
+            certificate.
+
+       [1mfingerprint[0m
+            Displays the SHA-256 fingerprint of the certificate.
+
+       [1mfrom-editor[0m
+            Specifies that the certificate should be obtained from a text
+            editor session. This allows certificates to be imported via cut-n-
+            paste from another location as long as they are in a text
+            representation.
+
+       [1mfrom-local-file[0m
+            Specifies a local file path from which a certificate is to be
+            copied.
+
+       [1mfrom-url[0m
+            Specifies a URI which is to be used to obtain a certificate for
+            import into the system.
+
+            The URL syntax is protocol dependent. Supported schemes are
+            "HTTP", "HTTPS", "FTP", "FTPS", "SCP", "SFTP" and "FILE."
+
+       [1mcertificate-verification[0m
+            Controls whether tmsh verifies remote server identity for HTTPS,
+            SCP, and SFTP downloads. The default behavior is controlled by the
+            DB variable [1mtmsh.url.options.secure[22m. This option is only valid
+            when used with [1mfrom-url[22m.
+
+       [1mca-file[0m
+            Specifies an existing [1msys file ssl-cert [22mobject to use as the CA
+            bundle for server verification. If unspecified, tmsh uses the
+            system-wide CA certificate bundle. This option is only valid when
+            used with [1mfrom-url[22m. Raw file paths are not accepted.
+
+       [1missuer-cert[0m
+            Specifies the name of the issuer certificate for this certificate.
+
+       [1mno-overwrite[0m
+            Specifies option of not overwriting a certificate if it is in the
+            scope.
+
+       [1mkey  [22mSpecifies a [1mkey [22mfrom which a certificate should be generated when
+            using the create command.
+
+       [1morganization[0m
+            Specifies the x509 organization to be used in creation of the
+            certificate.
+
+       [1mou   [22mSpecifies the x509 organizational unit to be used in creation of
+            the certificate.
+
+       [1mstate[0m
+            Specifies the x509 state or province of the certificate.
+
+       [1msubject-alternative-name[0m
+            Specifies standard X.509 extensions as shown in RFC 2459. Allowed
+            values e.g. DNS:example.com, IP:192.168.1.1, IP:12:34,
+            email:user@example.com, URI:http://www.example.com
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1minstall[22m, [1mmodify[22m, [1mdelete[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2009-2013. All rights reserved.
+
+
+
+BIG-IP                                                                     2026-03-31                                                         sys crypto cert(1)

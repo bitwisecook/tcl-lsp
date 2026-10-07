@@ -1,0 +1,221 @@
+* WARNING: failed to open cookie file "apm-deny.cookies"
+* Added bigip.bitwisecook.org:18604:192.168.9.24 to DNS cache
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18604...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18604) from 192.168.9.80 port 37126 
+* using HTTP/1.x
+=> Send header, 122 bytes (0x7a)
+0000: GET /ok HTTP/1.1
+0012: Host: bigip.bitwisecook.org:18604
+0035: User-Agent: curl/8.18.0
+004e: Accept: */*
+005b: X-Evtflow-Request: apm-deny
+0078: 
+* Request completely sent off
+* HTTP 1.0, assume close after body
+<= Recv header, 20 bytes (0x14)
+0000: HTTP/1.0 302 Found
+<= Recv header, 15 bytes (0xf)
+0000: Server: BigIP
+<= Recv header, 39 bytes (0x27)
+0000: Accept-CH: Sec-CH-UA-Platform-Version
+<= Recv header, 19 bytes (0x13)
+0000: Content-Length: 0
+<= Recv header, 22 bytes (0x16)
+0000: Location: /my.policy
+* skipped cookie because not 'secure'
+<= Recv header, 52 bytes (0x34)
+0000: Set-Cookie: LastMRH_Session=a5236caa;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 71 bytes (0x47)
+0000: Set-Cookie: MRHSession=84b75ce539305607f94a7c2ba5236caa;path=/;s
+0040: ecure
+* skipped cookie because not 'secure'
+<= Recv header, 84 bytes (0x54)
+0000: Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 
+0040: GMT; path=/;secure
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 2 bytes (0x2)
+0000: 
+* shutting down connection #0
+* Issue another request to this URL: 'http://bigip.bitwisecook.org:18604/my.policy'
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18604...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18604) from 192.168.9.80 port 37142 
+* using HTTP/1.x
+=> Send header, 129 bytes (0x81)
+0000: GET /my.policy HTTP/1.0
+0019: Host: bigip.bitwisecook.org:18604
+003c: User-Agent: curl/8.18.0
+0055: Accept: */*
+0062: X-Evtflow-Request: apm-deny
+007f: 
+* Request completely sent off
+* HTTP 1.0, assume close after body
+<= Recv header, 20 bytes (0x14)
+0000: HTTP/1.0 302 Found
+<= Recv header, 15 bytes (0xf)
+0000: Server: BigIP
+<= Recv header, 35 bytes (0x23)
+0000: Cache-Control: no-cache, no-store
+<= Recv header, 19 bytes (0x13)
+0000: Content-Length: 0
+<= Recv header, 40 bytes (0x28)
+0000: Location: /my.logout.php3?errorcode=19
+* skipped cookie because not 'secure'
+<= Recv header, 44 bytes (0x2c)
+0000: Set-Cookie: LastMRH_Session=;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 39 bytes (0x27)
+0000: Set-Cookie: MRHSession=;path=/;secure
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 2 bytes (0x2)
+0000: 
+* shutting down connection #1
+* Issue another request to this URL: 'http://bigip.bitwisecook.org:18604/my.logout.php3?errorcode=19'
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18604...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18604) from 192.168.9.80 port 37158 
+* using HTTP/1.x
+=> Send header, 147 bytes (0x93)
+0000: GET /my.logout.php3?errorcode=19 HTTP/1.0
+002b: Host: bigip.bitwisecook.org:18604
+004e: User-Agent: curl/8.18.0
+0067: Accept: */*
+0074: X-Evtflow-Request: apm-deny
+0091: 
+* Request completely sent off
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 37 bytes (0x25)
+0000: Date: Wed, 07 Oct 2026 08:26:24 GMT
+<= Recv header, 15 bytes (0xf)
+0000: Server: BigIP
+<= Recv header, 22 bytes (0x16)
+0000: Content-Length: 5406
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 40 bytes (0x28)
+0000: Content-Type: text/html; charset=utf-8
+<= Recv header, 23 bytes (0x17)
+0000: X-Frame-Options: DENY
+* skipped cookie because not 'secure'
+<= Recv header, 84 bytes (0x54)
+0000: Set-Cookie: MRHSession=deleted;expires=Thu, 01-Jan-1970 00:00:01
+0040:  GMT;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 79 bytes (0x4f)
+0000: Set-Cookie: F5_ST=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;
+0040: path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 82 bytes (0x52)
+0000: Set-Cookie: MRHSHint=deleted;expires=Thu, 01-Jan-1970 00:00:01 G
+0040: MT;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 88 bytes (0x58)
+0000: Set-Cookie: F5_HT_shrinked=deleted;expires=Thu, 01-Jan-1970 00:0
+0040: 0:01 GMT;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 83 bytes (0x53)
+0000: Set-Cookie: F5_fullWT=deleted;expires=Thu, 01-Jan-1970 00:00:01 
+0040: GMT;path=/;secure
+* skipped cookie because not 'secure'
+<= Recv header, 85 bytes (0x55)
+0000: Set-Cookie: MRHSequence=deleted;expires=Thu, 01-Jan-1970 00:00:0
+0040: 1 GMT;path=/;secure
+<= Recv header, 18 bytes (0x12)
+0000: Pragma: no-cache
+<= Recv header, 42 bytes (0x2a)
+0000: Cache-Control: no-cache, must-revalidate
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 4191 bytes (0x105f)
+0000: <html>.  <head>.    <meta name="robots" content="noindex,nofollo
+0040: w">.    <title>BIG-IP logout page</title>.    <link rel="stylesh
+0080: eet" type="text/css" HREF="/public/include/css/apm.css">.    <sc
+00c0: ript src="/public/include/js/common.js" language="javascript"></
+0100: script>.    <script src="/public/include/js/u_plugin.js" languag
+0140: e="javascript"></script>..    <script language="javascript">.   
+0180:    function InsertActivexControl(clsid, params).      {.        
+01c0:   var container = document.getElementById("logoutActivexContaine
+0200: r");..          if (navigator.appName == "Microsoft Internet Exp
+0240: lorer") {.              var paramsCode = "";.              for (
+0280: var item in params) {.                  paramsCode += "<param na
+02c0: me='" + item + "' value='" + params[item] + "'>";.              
+0300: }..              container.innerHTML =.                  "<cente
+0340: r><object classId=CLSID:" + clsid + " border=0 width=1 height=1>
+0380: " +.                  paramsCode + "</object></center>";.       
+03c0:    }.          else {.              var pluginHost = new UPlugin
+0400: Host("", container);.              var control = {"clsid": clsid
+0440: , "width": 1, "height": 1};.              pluginHost.hostControl
+0480: (control, params);.          }.      }..      function OnLoad().
+04c0:       {.        var isBrowserControl = false;.        try {.    
+0500:         isBrowserControl = ("undefined" != typeof(window.externa
+0540: l)).                && ("unknown" != typeof(window.external)).  
+0580:               && ("undefined" != typeof(window.external.WebLogon
+05c0: NotifyUser)).                && ("unknown" != typeof(window.exte
+0600: rnal.WebLogonNotifyUser));.        }.        catch(e) {}..      
+0640:   var display_session = get_cookie("LastMRH_Session");.        i
+0680: f(null != display_session) {.          document.getElementById("
+06c0: sessionDIV").innerHTML = '<BR>The session reference number: &nbs
+0700: p;' + display_session + '<BR><BR>';.          document.getElemen
+0740: tById("sessionDIV").style.visibility = "visible";.        }..   
+0780:      if(isBrowserControl) {.            window.external.WebLogon
+07c0: NotifyUser();.        }.        console.log("session.edgeclient.
+0800: browser value: '%{session.edgeclient.browser}'");.        if(!is
+0840: BrowserControl && '%{session.edgeclient.browser}' != '1') {.    
+0880:         document.getElementById("newSessionDIV").style.visibilit
+08c0: y = "visible";.        }..        try.        {.            if (
+0900: get_cookie("F5_PWS") == "1").            {.                docum
+0940: ent.cookie = "F5_PWS=0; path=/; expires=Fri, 01-Jan-1970 00:00:0
+0980: 1 GMT";.                var pwsClassId = "7E73BE8F-FD87-44EC-8E2
+09c0: 2-023D5FF960FF";.                InsertActivexControl(pwsClassId
+0a00: , {"command": "exit"} );.            }.        }catch (e) {};.  
+0a40:     }.    </script>.  </head>..<body onload="OnLoad();">.<script
+0a80: >.try{..    if(window.external && window.external.WebLogonOnAuth
+0ac0: Failure) {.        window.external.WebLogonOnAuthFailure();.    
+0b00: }.}catch(e){};.    try {.        window.external.OnHostClose();.
+0b40:     } catch(e) { }.</script>.<meta http-equiv="X-UA-Compatible" 
+0b80: content="IE=Edge">.<meta name="viewport" id="viewport" content="
+0bc0: initial-scale=1.0" />.<meta name="robots" context="noindex,nofol
+0c00: low">.<script language="javascript">.//orientation toolbox.funct
+0c40: ion setViewport(){.    document.getElementById("viewport").setAt
+0c80: tribute('content', Math.abs(window.orientation) == 90 ? 'width=d
+0cc0: evice-height, initial-scale=1' : 'width=device-width, initial-sc
+0d00: ale=1.0' );.}.setViewport();.window.onorientationchange = functi
+0d40: on() {.    setViewport();.}.</script>.<table id="page_header">. 
+0d80:  <tr >.    <td id="header_leftcell"><img src='/public/images/my/
+0dc0: flogo.png'/></td>.    <td id="header_rightcell"></td>.  </tr>.  
+0e00: <tr>.     <td></td>.     <td id="maxTimeoutTd"><span id="maxTime
+0e40: outTag" title=""></span></td>.  </tr>.</table>.<noscript>.<div i
+0e80: d="noscript_warning_red">JavaScript is not enabled. Please enabl
+0ec0: e JavaScript in your browser or contact your system administrato
+0f00: r for assistance.</div>.<div id="noscript_warning_newsession">To
+0f40:  open a new session, please  <A href="/">click here.</A></div>.<
+0f80: /noscript>.<table id="main_table" class="logout_page">.<tr>.    
+0fc0:     <td id="main_table_info_cell">.        <table id="interactio
+1000: n_table">.            <tr>.                <td id="interaction_t
+1040: able_header">Your session could
+<= Recv data, 1215 bytes (0x4bf)
+0000:  not be established.</td>.            </tr>.            <tr>.   
+0040:              <td class="interaction_table_option_cell"><br><DIV 
+0080: ID="sessionDIV" style='visibility:hidden' align=left></DIV>.    
+00c0:                 <font color=red>BIG-IP can not find session info
+0100: rmation in the request. This can happen because your browser res
+0140: tarted after an add-on was installed. If this occurred, click th
+0180: e link below to continue.  This can also happen because cookies 
+01c0: are disabled in your browser. If so, enable cookies in your brow
+0200: ser and start a new session.</font><br>                    <br>T
+0240: hank you for using BIG-IP.<br><br>.                    <div id="
+0280: newSessionDIV" style='visibility:hidden'>To open a new session, 
+02c0: please  <A href='/'>click here.</A></div>                </td>. 
+0300:            </tr>.            <tr>.                <td class="int
+0340: eraction_table_footer"></td>.            </tr>.        </table>.
+0380:     </td>.    <td id="main_table_image_cell"><img src="/public/i
+03c0: mages/my/tr.gif"></td></tr>.</table>.<div id="page_footer"><div>
+0400: This product is licensed from F5 Networks. .. 1999-2019 F5 Netwo
+0440: rks. All rights reserved. </div></div>.<DIV ID="logoutActivexCon
+0480: tainer" class="inspectionHostDIVSmall"></DIV>..</body>.</html>.
+* shutting down connection #2

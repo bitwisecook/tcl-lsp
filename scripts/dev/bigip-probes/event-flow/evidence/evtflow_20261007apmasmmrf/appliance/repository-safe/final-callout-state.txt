@@ -1,0 +1,12 @@
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    frequency weekly
+}
+sys db iprep.autoupdate {
+    value "enable"
+}
+sys db liveupdate.autodownload {
+    value "enable"
+}
+f5_update_checker     down, No action required

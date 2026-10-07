@@ -1,0 +1,28 @@
+* Added bigip.bitwisecook.org:18606:192.168.9.24 to DNS cache
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18606...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18606) from 192.168.9.80 port 50012 
+* using HTTP/1.x
+=> Send header, 132 bytes (0x84)
+0000: GET /ok HTTP/1.1
+0012: Host: bigip.bitwisecook.org:18606
+0035: User-Agent: curl/8.18.0
+004e: Accept: */*
+005b: X-Evtflow-Request: asm-blocking-clean
+0082: 
+* Request completely sent off
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 37 bytes (0x25)
+0000: Date: Wed, 07 Oct 2026 08:31:38 GMT
+<= Recv header, 20 bytes (0x14)
+0000: Content-Length: 18
+<= Recv header, 41 bytes (0x29)
+0000: Content-Type: text/plain; charset=utf-8
+<= Recv header, 40 bytes (0x28)
+0000: X-Evtflow-Backend: dev.bitwisecook.org
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 18 bytes (0x12)
+0000: evtflow-module-ok.
+* Connection #0 to host bigip.bitwisecook.org:18606 left intact

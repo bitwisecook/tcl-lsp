@@ -1,0 +1,5 @@
+/home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/pki/public/server.crt: OK
+/home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/pki/public/client-trusted.crt: OK
+C=GB, O=tcl-lsp event-flow, CN=untrusted-client
+error 20 at 0 depth lookup: unable to get local issuer certificate
+error /home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/pki/public/client-untrusted.crt: verification failed

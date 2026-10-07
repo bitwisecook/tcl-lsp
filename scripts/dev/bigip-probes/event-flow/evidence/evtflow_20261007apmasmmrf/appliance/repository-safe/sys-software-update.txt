@@ -1,0 +1,5 @@
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    frequency weekly
+}

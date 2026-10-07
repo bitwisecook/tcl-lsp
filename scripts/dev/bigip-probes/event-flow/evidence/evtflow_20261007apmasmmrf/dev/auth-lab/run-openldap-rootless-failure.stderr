@@ -1,0 +1,2 @@
+time="2026-10-07T08:39:42Z" level=error msg="running `/usr/bin/newuidmap 2762476 0 1000 1 1 100000 65536`: newuidmap: write to uid_map failed: Operation not permitted\n"
+Error: cannot set up namespace using "/usr/bin/newuidmap": exit status 1

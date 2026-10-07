@@ -1,0 +1,3 @@
+FROM docker.io/bitnamilegacy/openldap:2.6.8
+
+COPY 50-evtflow.ldif /ldifs/50-evtflow.ldif

@@ -1,0 +1,6 @@
+subject=C=GB, O=tcl-lsp event-flow, CN=evtflow test CA
+issuer=C=GB, O=tcl-lsp event-flow, CN=evtflow test CA
+serial=693C0BE91857515C612004D827FECB85839CC9ED
+notBefore=Oct  7 08:05:46 2026 GMT
+notAfter=Nov  6 08:05:46 2026 GMT
+sha256 Fingerprint=C5:1D:8C:55:18:F2:7F:41:F6:10:8E:96:87:06:C0:A2:F5:72:AF:9B:38:2F:E5:5C:E7:D3:EC:2C:0B:7F:80:66

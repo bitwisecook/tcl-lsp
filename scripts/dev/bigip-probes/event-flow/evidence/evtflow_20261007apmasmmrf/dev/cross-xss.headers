@@ -1,0 +1,30 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Accept-CH: Sec-CH-UA-Platform-Version
+Content-Length: 0
+Location: /my.policy
+Set-Cookie: LastMRH_Session=87c822c5;path=/;secure
+Set-Cookie: MRHSession=3749b54fb285e441d680ad6d87c822c5;path=/;secure
+Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/;secure
+Connection: close
+
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791362145z604800;path=/;secure
+Set-Cookie: LastMRH_Session=87c822c5;path=/;secure
+Set-Cookie: MRHSession=ecfde8a78a1fef0b5571035e87c822c5;path=/;secure
+Content-Length: 0
+Location: /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+Connection: close
+
+HTTP/1.1 200 OK
+X-Frame-Options: SAMEORIGIN
+X-XSS-Protection: 1; mode=block
+X-Content-Type-Options: nosniff
+Cache-Control: no-cache
+Connection: close
+Content-Type: text/html; charset=utf-8
+Pragma: no-cache
+Content-Length: 247
+Expires: Thu, 01 Dec 1994 16:00:00 GMT
+

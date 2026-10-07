@@ -1,0 +1,155 @@
+ltm message-routing generic transport-config(1)                        BIG-IP TMSH Manual                        ltm message-routing generic transport-config(1)
+
+
+
+[1mNAME[0m
+       transport-config - Configures a message transport-config instance for
+       routing generic message protocol messages.
+
+[1mMODULE[0m
+       [1mltm message-routing generic[0m
+
+[1mSYNTAX[0m
+       Configure the [1mtransport-config [22mcomponent within the [1mltm message-routing[0m
+       [1mgeneric [22mmodule using the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create transport-config [name]
+        modify transport-config [name]
+          options:
+            app-service [[string] | none]
+            description [string]
+            profiles [add | delete | replace-all-with] {
+              [profile_name ...] {
+                context [all | clientside | serverside]     read-only attribute for v12.0.0 or greater.
+              }
+            }
+            rules { [none | [rule_name ... ] }
+            source-address-translation {
+              options:
+                pool [ [pool_name] | none]
+                type [ automap | snat | none ]
+            }
+            source-port [integer]
+            source-port-mode [change | preserve | preserve-strict]
+
+        edit transport-config [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+   [1mDISPLAY[0m
+        list transport-config
+        list transport-config [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+            partition
+
+   [1mDELETE[0m
+        delete transport-config [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mtransport-config [22mcomponent to define the profiles,
+       rules, and source-address-translation of an outgoing connection.
+
+[1mEXAMPLES[0m
+       [1mcreate transport-config my_transport-config[0m
+
+       Creates a transport-config instance named [1mmy_transport-config [22musing the
+       system defaults.
+
+       [1mcreate transport-config my_transport-config { profiles add {[0m
+       [1mmy_genericmsg my_tcp } }[0m
+
+       Creates a transport-config instance named [1mmy_transport-config [22mthat will
+       use two profiles, [1mmy_genericmsg [22mand [1mmy_tcp[22m, to create and configure an
+       outgoing connection. The outgoing connection is automatically
+       configured with the router instance that created the connection.
+
+[1mOPTIONS[0m
+       [1mapp-service[0m
+            Specifies the name of the application service to which the object
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the object. Only the application
+            service can modify or delete the object.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mprofiles[0m
+            Specifies a list of profiles that the outgoing connection uses to
+            direct and manage traffic. The default value is [1mnone[22m.
+
+       [1mrules[0m
+            Specifies a list of iRules, separated by spaces, that customize
+            the transport configuration to direct and manage traffic. The
+            default value is [1mnone[22m.
+
+       [1msource-address-translation[0m
+            Specifies the type of source address translation enabled for the
+            transport configuration, as well as the pool that the source
+            address translation uses.
+
+            [1mpool [22mSpecifies the name of a SNAT pool used by the specified
+                 transport configuration.
+
+            [1mtype [22mSpecifies the type of source address translation associated
+                 with the specified transport configuration.
+
+                 The options are:
+
+                 [1mautomap[0m
+                      Specifies the use of self IP addresses for transport
+                      configuration server source address translation.
+
+                 [1mnone [22mSpecifies no source address translation is used by the
+                      transport configuration.
+
+                 [1msnat [22mSpecifies the use of a SNAT pool of translation
+                      addresses for virtual server source address translation.
+
+       [1msource-port[0m
+            Specifies the source port to be used for the connection being
+            created. If [1msource-port-mode [22mis [1mchange[22m, this setting has no
+            effect. The default value is [1m0[22m.
+
+       [1msource-port-mode[0m
+            Specifies how the system should select a source port for the
+            outgoing connection. The default value is [1mchange[22m.
+
+            The options are:
+
+            [1mchange[0m
+                 Selects an ephemeral source port for the outgoing connection.
+
+            [1mpreserve[0m
+                 Attempts to use the value of [1msource-port [22mfor the outgoing
+                 connection, if specified. Otherwise attempts to preserve the
+                 source port of the incoming connection.
+
+            [1mpreserve-strict[0m
+                 Forces the outgoing connection to use the value of [1msource-[0m
+                 [1mport[22m, if specified. Otherwise forces the new connection to
+                 preserve the source port of the incoming connection. The
+                 system will fail to create a new outgoing connection if the
+                 specified source port is already in use.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm virtual[22m, [1mmodify[22m, [1mregex[22m, [1mtmsh[22m, [1mltm[0m
+       [1mmessage-routing generic route ltm message-routing generic protocol[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2013-2016. All rights reserved.
+
+
+
+BIG-IP                                                                     2019-10-07                            ltm message-routing generic transport-config(1)

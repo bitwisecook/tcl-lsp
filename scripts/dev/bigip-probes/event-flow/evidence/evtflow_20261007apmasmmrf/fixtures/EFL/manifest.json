@@ -1,0 +1,34 @@
+{
+  "backend": "192.168.9.80",
+  "backend_port": 18703,
+  "clientssl": "/Common/__tcl_lsp_evtflow_efe_clientssl",
+  "encoding": "ASCII",
+  "files": [
+    {
+      "file": "rule.conf",
+      "kind": "irule",
+      "sha256": "56e3c03a199744d608e21812faa3a221a5b00dc1ad9a3bf00e227c8f6ca655ed",
+      "size": 2112
+    },
+    {
+      "file": "config.conf",
+      "kind": "tmsh-config",
+      "sha256": "2d37d1efcc38f7acd4794097c8e6601afcea8cbcecc0d46159dbcc3f38a3c3c3",
+      "size": 4754
+    }
+  ],
+  "generated_test_credentials": {
+    "bind_dn": "cn=admin,dc=bitwisecook,dc=org",
+    "bind_password": "evtflow-admin-2026",
+    "password": "evtflow-pass-2026",
+    "username": "evtflow"
+  },
+  "ldap": "192.168.9.80",
+  "ldap_port": 1389,
+  "line_endings": "LF",
+  "run": "EFL",
+  "schema": 1,
+  "source_commit": "0a66990ee",
+  "vip": "192.168.9.24",
+  "vip_port": 18615
+}

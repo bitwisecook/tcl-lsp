@@ -1,0 +1,165 @@
+ltm message-routing generic peer(1)                                    BIG-IP TMSH Manual                                    ltm message-routing generic peer(1)
+
+
+
+[1mNAME[0m
+       peer - Configures a peer for routing generic message protocol messages.
+
+[1mMODULE[0m
+       [1mltm message-routing generic[0m
+
+[1mSYNTAX[0m
+       Configure the [1mpeer [22mcomponent within the [1mltm message-routing generic[0m
+       module using the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create peer [name]
+        modify peer [name]
+          options:
+            app-service [[string] | none]
+            auto-initialization [ enabled | disabled ]
+            auto-initialization-interval [integer]
+            connection-mode [ per-peer | per-blade | per-tmm | per-client | per-client-per-blade |
+                   per-client-per-tmm | per-peer-alternate-tmm | per-client-alternate-tmm ]
+            description [string]
+            number-connections [integer]
+            pool [name]
+            ratio [integer]
+            transport-config [ transport-config ]
+
+        edit peer [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+   [1mDISPLAY[0m
+        list peer
+        list peer [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+            partition
+
+   [1mDELETE[0m
+        delete peer [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mpeer [22mcomponent to manage a named generic message peer.
+       A peer specifies the pool for the generic message parser to use as the
+       destination for generic message routes. You can also use the [1mpeer[0m
+       component to specify how many connections the parser creates to a
+       remote host and what transport the parser uses to establish the
+       connection.
+
+[1mEXAMPLES[0m
+       [1mcreate peer my_peer { pool my_pool transport { type virtual name my_vip[0m
+       [1m} }[0m
+
+       Creates a generic message peer named [1mmy_peer [22mwhich uses the settings of
+       [1mmy_vip [22mto establish a connection with a pool member from pool [1mmy_pool[22m.
+
+[1mOPTIONS[0m
+       [1mapp-service[0m
+            Specifies the name of the application service to which the object
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the object. Only the application
+            service can modify or delete the object.
+
+       [1mauto-initialization[0m
+            If enabled, the BIGIP will automatically create outbound
+            connections to the active pool members in the specified pool using
+            the configuration of the specified transport-config. For auto-
+            initialization to attempt to create a connection, the peer must be
+            included in a route that is attached to a router instance. For
+            each router instance that the peer is contained in, a connection
+            will be initiated. The auto-initialization logic will verify at a
+            configurable interval if the a connection exists between the BIG-
+            IP and the pool members of the pool. If a connection does not
+            exist, it will attempt to reestablish one. The default is
+            [1mdisabled[22m.
+
+       [1mauto-initialization-interval[0m
+            Specifies the interval (in milliseconds) that attempts to initiate
+            a connection occur. Valid ranges are from 500ms to 65535ms. The
+            default is [1m5000[22mms.
+
+       [1mconnection-mode[0m
+            Specifies how the number of connections per host is limited. Note
+            a host (specified in the referred pool) may exist more than one
+            peer object, and those peer objects may have different settings
+            for [1mconnection-mode [22mand [1mnumber_connections[22m. Thus, these settings
+            specify how messages are routed through this peer are distributed
+            between a set of connections, not the maximum number of
+            connections to a specified host. The default value is [1mper-peer[22m.
+
+            [1mper-peer[0m
+                 Specifies the number of connections to a remote host.
+
+            [1mper-blade[0m
+                 Specifies the number of connections to a remote host per
+                 blade in the cluster.
+
+            [1mper-tmm[0m
+                 Specifies the number of connections to a remote host per TMM
+                 in the system.
+
+            [1mper-client[0m
+                 Specifies the number of connections to a remote host per
+                 client connection.
+
+            [1mper-client-per-blede[0m
+                 Specifies the number of connections to a remote host per
+                 client connection for each blade.
+
+            [1mper-client-per-tmm[0m
+                 Specifies the number of connections to a remote host per
+                 client connection for each tmm.
+
+            [1mper-peer-alternate-tmm[0m
+                 Specifies the number of connections to a remote host. Any new
+                 connections will be opened on an alternate TMM to spread CPU
+                 usage.
+
+            [1mper-client-alternate-tmm[0m
+                 Specifies the number of connections to a remote host per
+                 client connection. Any new connections will be opened on an
+                 alternate TMM to spread CPU usage.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mnumber-connections[0m
+            Specifies the distribution of connections between the BIG-IP
+            system and a remote host. The default value is [1m1[22m.
+
+       [1mpool [22mSpecifies the name of the pool to which the generic parser routes
+            messages.
+
+       [1mratio[0m
+            Specifies the ratio the generic message parser uses to select a
+            [1mpeer [22mfrom a list of peers for the [1mltm message-routing generic[0m
+            [1mroute[22m. The default value is [1m1[22m.
+
+       [1mtransport-config[0m
+            Specifies the name of the transport configuration (ltm message-
+            routing generic transport-config) the message router uses to
+            create an outgoing connection.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm virtual[22m, [1mmodify[22m, [1mregex[22m, [1mtmsh[22m, [1mltm[0m
+       [1mmessage-routing generic route ltm message-routing generic protocol[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2012-2014. All rights reserved.
+
+
+
+BIG-IP                                                                     2019-11-20                                        ltm message-routing generic peer(1)

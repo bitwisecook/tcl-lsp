@@ -1,0 +1,99 @@
+ltm message-routing generic protocol genericmsg {
+    app-service none
+    cur-pending-req-sweeper-interval 60000
+    defaults-from none
+    description none
+    disable-parser no
+    max-egress-buffer 32768
+    max-message-size 32768
+    message-terminator none
+    no-response no
+    partition Common
+    transaction-timeout 10
+}
+ltm message-routing generic router messagerouter {
+    app-service none
+    defaults-from none
+    description none
+    ignore-client-port no
+    inherited-traffic-group true
+    irule-scope-message no
+    max-payload-pending-bytes 32768
+    max-pending-bytes 32768
+    max-pending-messages 64
+    max-retries 1
+    mirror disabled
+    mirrored-message-sweeper-interval 1000
+    partition Common
+    per-peer-stats disabled
+    routes none
+    traffic-group traffic-group-1
+    use-local-connection yes
+}
+apm profile access access {
+    accept-languages { en }
+    access-policy none
+    access-policy-timeout 300
+    app-service none
+    cpc-check-interval 90
+    cpc-inspection-enabled true
+    cpc-log-level info
+    customization-group none
+    customization-key 7fabe52b4b7293459ba355c88c94f929
+    default-language en
+    defaults-from none
+    domain-cookie none
+    domain-groups none
+    domain-mode single-domain
+    enforce-policy true
+    eps-group none
+    errormap-group none
+    exchange-profile none
+    framework-installation-group none
+    general-ui-group none
+    generation 0
+    generation-action noop
+    httponly-cookie false
+    inactivity-timeout 900
+    kerberos-auth-name none
+    log-settings none
+    logout-uri-include none
+    logout-uri-timeout 5
+    max-concurrent-sessions 0
+    max-concurrent-users 0
+    max-failure-delay 5
+    max-in-progress-sessions 128
+    max-session-timeout 604800
+    min-failure-delay 2
+    modified-since-last-policy-sync true
+    named-scope none
+    ntlm-auth-name none
+    oauth-profile none
+    partition Common
+    persistent-cookie false
+    primary-auth-service none
+    restrict-to-single-client-ip false
+    samesite-cookie false
+    samesite-cookie-attr-value strict
+    sandboxes none
+    scope profile
+    secure-cookie true
+    sso-name none
+    type all
+    use-http-503-on-error false
+    user-identity-method http
+    webtop-redirect-on-root-uri true
+}
+ltm profile websocket websocket {
+    app-service none
+    compress-mode preserved
+    compression enabled
+    defaults-from none
+    description none
+    masking selective
+    no-delay enabled
+    partition Common
+    payload-processing-mode end-to-end
+    payload-protocol-profile none
+    window-bits 10
+}

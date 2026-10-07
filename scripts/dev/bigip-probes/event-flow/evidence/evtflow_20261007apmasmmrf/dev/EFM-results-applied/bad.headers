@@ -1,0 +1,10 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Accept-CH: Sec-CH-UA-Platform-Version
+Content-Length: 0
+Location: /my.policy
+Set-Cookie: LastMRH_Session=d5445b79;path=/;secure
+Set-Cookie: MRHSession=01b07deed7e9347929701e7cd5445b79;path=/;secure
+Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/;secure
+Connection: close
+

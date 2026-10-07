@@ -1,0 +1,161 @@
+ltm profile websocket(1)                                               BIG-IP TMSH Manual                                               ltm profile websocket(1)
+
+
+
+[1mNAME[0m
+       websocket - Configures a WebSocket protocol profile.
+
+[1mMODULE[0m
+       [1mwebsocket profile[0m
+
+[1mSYNTAX[0m
+       Configure the [1mwebsocket [22mcomponent within the [1mltm profile [22mmodule using
+       the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create websocket [name]
+        modify websocket [name]
+          options:
+            masking [preserve | unmask | remask | selective]
+            compress-mode [preserved | typed]
+                compression [enabled | disabled]
+                window-bits [integer]
+                no-delay [enabled | disabled]
+
+        edit websocket [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+        mv websocket [ [[source-name] [destination-name]] | [[name] to-folder
+       [folder-name]] | [[name...name] to-folder [folder-name]] ]
+          options:
+            to-folder
+
+        reset-stats websocket
+        reset-stats websocket [ [ [name] | [glob] | [regex] ] ... ]
+
+   [1mDISPLAY[0m
+         list websocket
+         list websocket [ [ [name] | [glob] | [regex] ] ... ]
+         show running-config websocket
+         show running-config websocket [ [ [name] | [glob] | [regex] ] ... ]
+           options:
+             all-properties
+             non-default-properties
+             one-line
+             partition
+
+         show websocket
+         show websocket [ [ [name] | [glob] | [regex] ] ... ]
+           options:
+             (default | exa | gig | kil | meg | peta | raw | tera | yotta | zetta)
+             field-fmt
+             global
+
+   [1mDELETE[0m
+         delete websocket [name]
+
+[1mDESCRIPTION[0m
+       Use this command to create, modify, display, or delete a WebSocket
+       profile.
+
+[1mEXAMPLES[0m
+       [1mcreate websocket my_websocket_profile defaults-from websocket[0m
+
+[1mOPTIONS[0m
+       [1mmasking[0m
+            Specifies the masking operation for WebSocket frames.
+
+            [1mpreserve[0m
+                 Maintains the mask of the packet received from the client.
+
+            [1munmask[0m
+                 Removes the mask from the packet and remasks it using the
+                 same mask when sending the traffic to the server.
+
+            [1mremask[0m
+                 Removes the mask received from the client and the system
+                 generates a new, random mask when sending the traffic to the
+                 server.
+
+            [1mselective[0m
+                 Preserves the mask of the packet received, and makes no
+                 changes unless an Application Security Policy is associated
+                 with the virtual server.
+
+       [1mcompress-mode[0m
+            Specifies the mode that controls what compression operations are
+            performed. The default value is [1mpreserved[22m.
+
+            [1mpreserved[0m
+                 No compression or decompression operations are performed in
+                 this mode.
+
+            [1mtyped[0m
+                 The [1mcompression [22mparameter controls whether compression is
+                 negotiated with the endpoint. Compressed data received from
+                 the endpoint is decompressed thereby enabling security
+                 policies to take actions on cleartext data. Data maybe
+                 recompressed before being masked and sent on the wire.
+
+                 = over 5
+
+            [1mcompression[0m
+                 Specifies whether compression will be negotiated with the
+                 endpoint. The default value is [1menabled[22m.
+
+            [1mwindow-bits[0m
+                 Specifies the maximum sliding window for compression
+                 negotiated with the endpoint. The default value is [1m10[22m.
+
+            [1mno-delay[0m
+                 Specifies whether data should be buffered for efficient
+                 compression, or compressed without delay. The default value
+                 is [1menabled[22m.
+
+                 = back
+
+       [1mdefaults-from[0m
+            Specifies the profile that you want to use as the parent profile.
+            Your new profile inherits all settings and values from the parent
+            profile specified. The default value is [1mnone[22m.
+
+       [1mpayload-processing-mode[0m
+            Specifies the payload processing mode (end-to-end or termination).
+
+       [1mpayload-protocol-profile[0m
+            Specifies the payload protocol profile (only mqtt for now).
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1mname [22mSpecifies a unique name for the component. This option is required
+            for the commands [1mcreate[22m, [1mdelete[22m, and [1mmodify[22m.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm profile fasthttp[22m, [1mltm virtual[22m,
+       [1mmodify[22m, [1mregex[22m, [1mreset-stats[22m, [1mshow[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2008-2011, 2013-2016. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2021-02-05                                                   ltm profile websocket(1)

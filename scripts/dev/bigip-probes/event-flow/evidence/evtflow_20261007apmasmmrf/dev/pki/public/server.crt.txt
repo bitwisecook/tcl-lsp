@@ -1,0 +1,6 @@
+subject=C=GB, O=tcl-lsp event-flow, CN=bigip.bitwisecook.org
+issuer=C=GB, O=tcl-lsp event-flow, CN=evtflow test CA
+serial=1001
+notBefore=Oct  7 08:05:46 2026 GMT
+notAfter=Nov  6 08:05:46 2026 GMT
+sha256 Fingerprint=66:01:F5:FC:B8:C9:0C:32:C5:83:50:38:90:D3:8D:CA:19:65:F5:E4:AA:95:49:08:46:62:BC:51:6E:E0:99:E1

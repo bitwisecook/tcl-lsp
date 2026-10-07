@@ -1,0 +1,395 @@
+sys crypto key(1)                                                      BIG-IP TMSH Manual                                                      sys crypto key(1)
+
+
+
+[1mNAME[0m
+       key - Manage cryptographic keys and related objects on the BIG-IP(r)
+       system.
+
+[1mMODULE[0m
+       [1msys crypto[0m
+
+[1mSYNTAX[0m
+       Manage cryptographic [1mkey[22ms and related objects of the [1msys crypto [22mmodule
+       using the syntax in the following section.
+
+   [1mCREATE[0m
+        create key [name]
+         options:
+           challenge-password [string]
+           admin-email-address [string]
+           city [string]
+           common-name [string]
+           consumer
+             [enterprise-manager | iquery | iquery-big3d | ltm | webserver]
+           country [string]
+           curve-name [prime256v1 | secp384r1 | secp521r1]
+           email-address [string]
+           key-size [512 | 1024 | 2048 | 4096]
+           key-type [dsa-private | ec-private | rsa-private]
+           lifetime [days]
+           organization [string]
+           ou [string]
+           passphrase [passphrase]
+           prompt-for-password
+           security-type [fips | normal | password | nethsm]
+           state [string]
+           subject-alternative-name [string]
+           cert-order-manager [add | delete | modify | replace-all-with] {
+               [ [name] ] {
+                 options:
+                   check-status [yes | no]
+                   order-id [string | none]
+                   order-passphrase [string | none]
+                   order-type [cancel | new | renew | revoke]
+                   revoke-reason [AACompromise | affiliationChanged | cessationOfOperation | removeFromCRL | unspecified | CACompromise | certificateHold |keyCompromise | privilegeWithdrawn | superseded]
+               }
+           }
+           acme-provider [add | delete | modify | replace-all-with] {
+               [ [name] ] {
+                 options:
+                   order-type [cancel | new | renew | revoke]
+                   identifiers [[string] | none ]
+               }
+           }
+
+   [1mMODIFY[0m
+        modify key [name]
+         options
+           cert-order-manager [add | delete | modify | replace-all-with] {
+               [ [name] ] {
+                 options:
+                   check-status [yes | no]
+                   order-id [string | none]
+                   order-passphrase [string | none]
+                   order-type [cancel | new | renew | revoke]
+                   revoke-reason [AACompromise | affiliationChanged | cessationOfOperation | removeFromCRL | unspecified | CACompromise | certificateHold |keyCompromise | privilegeWithdrawn | superseded]
+               }
+           }
+           acme-provider [add | delete | modify | replace-all-with] {
+               [ [name] ] {
+                 options:
+                   order-type [cancel | new | renew | revoke]
+                   identifiers [[string] | none ]
+               }
+           }
+
+   [1mSHOW[0m
+         show key
+         show key [name | none] cert-order-manager
+         show key [name | none] acme-provider
+
+   [1mLIST[0m
+         list key
+         list key [name]
+
+   [1mINSTALL[0m
+         install key [name]
+           options:
+             ca-file [ssl-cert object name]
+             certificate-verification [true | false]
+             consumer
+               [enterprise-manager | iquery | iquery-big3d | ltm | webserver]
+             from-editor
+             from-local-file [filename]
+             from-url [URL]
+             from-nethsm
+             no-overwrite
+
+   [1mDELETE[0m
+         delete key [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mkey [22mcomponent to create, show, list, install, and
+       delete cryptographic keys and associated cryptographic objects. The
+       file-objects created by these operations can be used in other BigIP
+       configuration blocks such as ssl profiles.
+
+[1mEXAMPLES[0m
+       [1mcreate key mykey[0m
+
+       Generates a 2048-bit (default-sized) RSA key file object named
+       "mykey.key". The appropriate extension will be added to the generated
+       key/cert if not already a part of the provided name.
+
+       [1mcreate key mykey key-type ec-private curve-name prime256v1[0m
+
+       Generates a prime256v1 curve name EC private key file object named
+       "mykey.key". The appropriate extension will be added to the generated
+       key/cert if it is not already a part of the provided name.
+
+       [1mcreate key /myfolder/mykey[0m
+
+       Similar to the above action except it creates the key "mykey.key" in
+       the folder "/myfolder" instead of the default "/Common". The specified
+       folder "/myfolder" must already exist in order for this operation to
+       succeed.
+
+       [1mcreate key example gen-cert gen-csr common-name "My Company Inc."[0m
+       [1mcountry "US"[0m
+
+       Generates a 2048-bit (default-sized) RSA key file object named
+       "example.key" and a self signed certificate named "example.crt". Also,
+       a certificate signing request will be printed to the console for use in
+       obtaining a signed certificate from a certificate authority, if
+       desired.
+
+       [1mcreate key my gen-cert gen-csr prompt-for-password common-name "My[0m
+       [1mCompany Inc." country "US"[0m
+
+       Similar to the above action when creating key "my.key" except it also
+       prompts for a password to be used as a challenge password in the
+       certificate authority signing procedure.
+
+       [1mcreate key server2 gen-cert gen-csr common-name "My Company Inc."[0m
+       [1mcountry "US" consumer webserver[0m
+
+       Generates a key and self signed certificate identified by server2. The
+       consumer attribute, "webserver", is used to cause these files to be
+       placed directly in the paths which can be found by the BigIP's httpd.
+
+       [1mcreate key server gen-csr common-name "My Company Inc." country "US"[0m
+       [1mcert-order-manager add { certmgr { order-type new } }[0m
+
+       Generates a key and CSR identified by server. Associates cert-order-
+       manager object "certmgr" with the key and makes a "new" certificate
+       order to the CA.
+
+       [1mcreate key server gen-csr common-name "My Company Inc." country "US"[0m
+       [1macme-provider add { acme { order-type new } }[0m
+
+       Generates a key and CSR identified by server. Associates acme-provider
+       object "acme" with the key and makes a "new" certificate order to the
+       ACME server.
+
+       [1mshow key[0m
+
+       Shows the number of keys installed in the system.
+
+       [1mshow key cert-order-manager[0m
+
+       Shows certificate order statistics if a cert-order-manager object is
+       associated with key.
+
+       [1mshow key acme-provider[0m
+
+       Shows acme-provider statistics if an acme-provider object is associated
+       with key.
+
+       [1mlist key example.key[0m
+
+       Lists all details of the key named "example.key". A key with the
+       specified name "example.key" in this case must already be installed on
+       the system in order for this operation to succeed.
+
+       [1mlist key[0m
+
+       Lists all details of all keys installed in the system.
+
+       [1minstall key example from-editor[0m
+
+       Opens an interactive editor session into which it a key for import into
+       the BigIP system can be pasted. A key file-object will be created with
+       the name example which contains the contents saved from the editor
+       session.
+
+       [1minstall key example from-local-file /tmp/example.key[0m
+
+       Obtains a key from the file located at /tmp/example.key.
+
+       [1minstall key example from-url http://example.com/my.key[0m
+
+       Obtains a key from a remote host that is based on the URI specified.
+
+       [1mdelete key example.key[0m
+
+       Deletes the key "example.key" from the system.
+
+[1mOPTIONS[0m
+       [1mchallenge-password[0m
+            Specifies the challenge password to create the certificate request
+            key.
+
+       [1madmin-email-address[0m
+            Specifies the administrator email-address to be used in creation
+            of the certificate request associated with the given key.
+
+       [1mcity [22mSpecifies the x509 city field to be used in creation of the
+            certificate associated with the given key.
+
+       [1mcommon-name[0m
+            Specifies the x509 common-name to be used in creation of the
+            certificate associated with the given key.
+
+       [1mconsumer[0m
+            Specifies the system component by which a key and/or associated
+            cryptographic file will be consumed. The default behavior is to
+            create file-objects for use by ltm components. This is the same as
+            specifying "ltm" for this property. If a component other than
+            "ltm" is specified then files will be installed/created into
+            locations where the specified components can find them. For
+            example, for component "webserver", keys and certs will be placed
+            in the webservers ssl directories.
+
+       [1mcountry[0m
+            Specifies the x509 country to be used in creation of the
+            certificate associated with the given key. The country must be a 2
+            letter country code.
+
+       [1mcurve-name[0m
+            Specifies the curve name to be used in creation of the elliptic
+            curve (EC) key. This option only applies when generating EC keys.
+            The default value is [1mprime256v1[22m.
+
+       [1memail-address[0m
+            Specifies the x509 email-address to be used in creation of the
+            certificate associated with the given key.
+
+       [1mfrom-editor[0m
+            Specifies that the key should be obtained from a text editor
+            session. This allows keys to be imported via cut-n-paste from
+            another location as long as they are in a text representation.
+
+       [1mfrom-local-file[0m
+            Specifies a local file path from which a key is to be copied.
+
+       [1mfrom-url[0m
+            Specifies a URI which is to be used to obtain a key for import
+            into the configuration of the system.
+
+            The URL syntax is protocol dependent. Supported schemes are
+            "HTTP", "HTTPS", "FTP", "FTPS", "SCP", "SFTP" and "FILE."
+
+       [1mcertificate-verification[0m
+            Controls whether tmsh verifies remote server identity for HTTPS,
+            SCP, and SFTP downloads. The default behavior is controlled by the
+            DB variable [1mtmsh.url.options.secure[22m. This option is available with
+            [1minstall [22mand [1mcreate[22m, and is only meaningful when a remote URL is
+            used.
+
+       [1mca-file[0m
+            Specifies an existing [1msys file ssl-cert [22mobject to use as the CA
+            bundle for server verification. If unspecified, tmsh uses the
+            system-wide CA certificate bundle. This option is available with
+            [1minstall [22mand [1mcreate[22m, and is only meaningful when a remote URL is
+            used. Raw file paths are not accepted.
+
+       [1mfrom-nethsm[0m
+            Specifies an option to import an existing key from network-HSM to
+            BIG-IP config. The key label is specified as the key name to
+            identify the key to be imported from network-HSM.
+
+       [1mno-overwrite[0m
+            Specifies the option for not overwriting a key if it is in the
+            scope.
+
+       [1mgen-certificate[0m
+            Specifies that in addition to generating a key, a self-signed
+            certificate will also be created. If this option is specified then
+            x509 attributes should also be specified. Minimally, you must also
+            specify a common-name.
+
+       [1mgen-csr[0m
+            Specifies that a certificate signing request should be generated
+            along with the key. The CSR will be displayed to the terminal for
+            the purposes of use in getting a certificate signed by an outside
+            authority. X509 attributes must also be specified.
+
+       [1mkey-size[0m
+            Specifies the size, in bits, of the key to be generated. This
+            option does not apply when generating EC keys.
+
+       [1mkey-type[0m
+            Specifies the type of cryptographic key to be generated. Default
+            is rsa-private.
+
+       [1mlifetime[0m
+            Specifies the certificate life time to be used in creation of the
+            certificate associated with the given key.
+
+       [1morganization[0m
+            Specifies the x509 organization to be used in creation of the
+            certificate associated with the given key.
+
+       [1mou   [22mSpecifies the x509 organizational unit to be used in creation of
+            the certificate associated with the given key.
+
+       [1mprompt-for-password[0m
+            Specifies that a password should be prompted for and then used as
+            a challenge password in generation of the CSR (Certificate Signing
+            Request).
+
+       [1msecurity-type[0m
+            Specifies the level of security used in storing the key in
+            question. For example, a security-type of FIPS means that the key
+            should be stored on a FIPS card if one is available.
+
+       [1mstate[0m
+            Specifies the x509 state or province of the certificate associated
+            with the given key.
+
+       [1mpassphrase[0m
+            Specifies an optional passphrase with which the key has been
+            protected. It may be used by consumers of the key in the data-
+            plane or control-plane to decrypt it.
+
+       [1msubject-alternative-name[0m
+            Specifies standard X.509 extensions as shown in RFC 2459. Allowed
+            values e.g. DNS:example.com, IP:192.168.1.1, IP:12:34,
+            email:user@example.com, URI:http://www.example.com
+
+       [1mcert-order-manager[0m
+            Specifies an optional cert-order-manager to be associated with the
+            key.
+
+       [1macme-provider[0m
+            Specifies an optional acme-provider to be associated with the key.
+
+       [1mcheck-status[0m
+            Specifies that it checks the status of a certificate order. This
+            command triggers an immediate status check query with CA for a
+            current pending certificate order.
+
+       [1morder-id[0m
+            Specifies the order id for a certificate order. This order id is
+            provided by the CA and the bigip stores it in the order-id field.
+            Order id is required for certificate renewal and revoke.  If the
+            first certificate was not orginally ordered from the bigip, the
+            user needs to enter the order-id manually before making a
+            certificate renewal or revoke.
+
+       [1morder-passphrase[0m
+            Specifies the order challenge passphrase. This is a CA specific
+            requirement. Some CA's require a challenge passphrase for making a
+            certificate order.
+
+       [1morder-type[0m
+            Specifies the type of certificate order to authority.
+
+            [1mnew [22m: Make a new certificate order to the CA.
+
+            [1mrenew [22m: Make a certificate renewal order to the CA.
+
+            [1mrevoke [22m: Make a certificate revoke order to the CA.
+
+            [1mcancel [22m: Tries to cancel the previous certificate order.
+
+       [1mrevoke-reason[0m
+            Specifies the reason for certificate revoke.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1minstall[22m, [1mshow[22m, [1mlist[22m, [1mdelete[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2009-2013, 2015-2018. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2026-03-31                                                          sys crypto key(1)

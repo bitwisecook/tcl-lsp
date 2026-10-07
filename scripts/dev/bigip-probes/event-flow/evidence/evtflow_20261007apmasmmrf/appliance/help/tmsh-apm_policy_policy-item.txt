@@ -1,0 +1,26 @@
+apm policy policy-item(1)                                              BIG-IP TMSH Manual                                              apm policy policy-item(1)
+
+
+
+[1mNAME[0m
+       policy-item - Manages an access policy item.
+
+[1mMODULE[0m
+       [1mapm policy[0m
+
+[1mSYNTAX[0m
+       [1mWarning: [22mF5 Networks recommends that you use the visual policy editor
+       in the Configuration utility to create and manage access policy items.
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2011-2013. All rights reserved.
+
+
+
+BIG-IP                                                                     2013-03-22                                                  apm policy policy-item(1)

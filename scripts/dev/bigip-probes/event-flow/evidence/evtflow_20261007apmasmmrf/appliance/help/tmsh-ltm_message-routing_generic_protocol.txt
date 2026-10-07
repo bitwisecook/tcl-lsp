@@ -1,0 +1,142 @@
+ltm message-routing generic protocol(1)                                BIG-IP TMSH Manual                                ltm message-routing generic protocol(1)
+
+
+
+[1mNAME[0m
+       protocol - Configures a generic message protocol component for parsing
+       generic messages.
+
+[1mMODULE[0m
+       [1mltm message-routing generic[0m
+
+[1mSYNTAX[0m
+       Configure the [1mprotocol [22mcomponent within the [1mltm message-routing generic[0m
+       module using the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create protocol [name]
+        modify protocol [name]
+          options:
+            defaults-from [ [name] | none]
+            description [string]
+            disable-parser [ yes | no ]
+            max-egress-buffer [integer]
+            max-message-size [integer]
+            message-terminator [string]
+            no-response [ yes | no ]
+            transaction-timeout [integer]
+            cur-pending-req-sweeper-interval [integer]
+
+        edit protocol [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+        reset-stats protocol
+        reset-stats protocol [ [ [name] | [glob] | [regex] ] ... ]
+
+   [1mDISPLAY[0m
+        list protocol
+        list protocol [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config protocol
+        show running-config protocol [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+            partition
+
+        show protocol
+        show protocol [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            (default | exa | gig | kil | meg | peta | raw | tera | yotta | zetta)
+            field-fmt
+
+   [1mDELETE[0m
+        delete protocol [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mprotocol [22mcomponent to implement a named generic message
+       parser for use with the message routing framework. You can create a
+       [1mprotocol [22mcomponent, and then add it to a virtual server. You do this
+       when you want to separate a stream of bytes, from a connection to a
+       peer, into messages for routing. This also enables a set of iRule
+       commands to create, populate, and route messages.
+
+[1mEXAMPLES[0m
+       [1mcreate protocol my_protocol defaults-from genericmsg[0m
+
+       Creates a message protocol component named [1mmy_protocol [22musing the system
+       defaults.
+
+       [1mcreate protocol my_protocol { welcome-message hello }[0m
+
+       Creates a protocol instance named [1mmy_protocol [22mthat sends a welcome
+       message of "hello" to any new connection.
+
+[1mOPTIONS[0m
+       [1mdefaults-from[0m
+            Specifies the protocol that you want to use as the parent
+            protocol. The new protocol inherits all of the settings and values
+            from the specified parent protocol. The default value is
+            [1mgenericmsg[22m.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mdisable-parser[0m
+            When set to [1myes[22m, the generic message parser is disabled. The
+            parser ignores all incoming packets and does not directly send
+            message data. This mode supports iRule script protocol
+            implementations that generate messages from the incoming transport
+            stream and send messages on the outgoing transport stream.
+
+       [1mmax-egress-buffer[0m
+            Specifies the maximum size of the send buffer in bytes. If the
+            number of bytes in the send buffer for a connection exceeds this
+            value, the generic message parser stops receiving outgoing
+            messages from the router until the size of the buffer drops below
+            this setting. The default value is [1m32768[22m.
+
+       [1mmax-message-size[0m
+            Specifies the maximum size of a received message. If a message
+            exceeds this size, the connection is reset. The default value is
+            [1m32768[22m.
+
+       [1mmessage-terminator[0m
+            Specifies the string of characters used to terminate a message. If
+            the [1mmessage-terminator [22mparameter is empty, the generic message
+            parser does not separate the input stream into messages. The
+            default value is [1m\n[22m.
+
+       [1mno-response[0m
+            When set to [1myes[22m, matching of responses to requests is disabled.
+            The default value is [1mno[22m.
+
+       [1mtransaction-timeout[0m
+            Specifies the maximum time (in seconds) between a request and its
+            response. The default value is [1m10[22mseconds.
+
+       [1mcur-pending-req-sweeper-interval[0m
+            Specifies the interval in milliseconds between passes of the
+            pending request sweeper. The pending request sweeper will delete
+            pending request entries that are older than twice the transaction-
+            timeout. The default value is [1m60000[22mms.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm virtual[22m, [1mmodify[22m, [1mregex[22m, [1mreset-[0m
+       [1mstats[22m, [1mshow[22m, [1mtmsh[22m, [1mltm message-routing generic route ltm message-[0m
+       [1mrouting generic protocol[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2012-2014. All rights reserved.
+
+
+
+BIG-IP                                                                     2024-07-24                                    ltm message-routing generic protocol(1)

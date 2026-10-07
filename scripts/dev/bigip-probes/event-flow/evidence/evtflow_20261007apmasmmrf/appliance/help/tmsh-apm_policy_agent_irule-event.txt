@@ -1,0 +1,121 @@
+apm policy agent irule-event(1)                                        BIG-IP TMSH Manual                                        apm policy agent irule-event(1)
+
+
+
+[1mNAME[0m
+       irule-event - Manages an iRule Event agent.
+
+[1mMODULE[0m
+       [1mapm policy agent[0m
+
+[1mSYNTAX[0m
+       Configure the [1mirule-event [22mcomponent within the [1mpolicy agent [22mmodule
+       using the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create irule-event [name]
+        modify irule-event [name]
+          options:
+            app-service [[string] | none]
+            id [[string] | none]
+            expect-data [[client-accepted] | [ssl-client-hello] | [ssl-cert-available] | [http] | [none]
+
+        edit irule-event  [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+   [1mDISPLAY[0m
+        list irule-event
+        list irule-event  [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config irule-event
+        show running-config irule-event  [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            partition
+
+        show irule-event
+        show irule-event  [name]
+
+   [1mDELETE[0m
+        delete irule-event  [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mirule-event [22mcomponent to add a custom Access iRule
+       event to an access policy. This agent enables you to combine access
+       policy execution with iRule execution.
+
+       For example, you can retrieve the current agent ID (using an iRule
+       command ACCESS::policy agent_id ) to determine which of the iRule
+       agents raised the event and then perform some custom logic execution.
+
+       The Per-Request Policy's Access iRule event functions similarly to the
+       Access iRule event in the main access policy, but retrieval of the
+       current agent ID uses the iRule command "ACCESS::perflow get
+       perflow.irule_agent_id" to determine which of the iRule agents raised
+       the event.
+
+       The [1mexpect-data [22mcomponent is used in the Per-Request Policy when adding
+       an Access iRule event. You must specify the last piece of data that the
+       policy should wait for before raising the event. The default is HTTP.
+
+[1mEXAMPLES[0m
+       [1mwhen ACCESS_POLICY_AGENT_EVENT { if {[ACCESS::policy agent_id] eq[0m
+       [1m"lastLogon" } { # our limit in seconds set 2weeks 1209600 # diff in 100[0m
+       [1mnanosecond increments between MS time attribute (year 1601) and start[0m
+       [1mof epoch set offset 11644473600000 set adtime "[ACCESS::session data[0m
+       [1mget session.ad.last.attr.lastLogon]" # convert adtime to milliseconds[0m
+       [1mset millisecs [expr {$adtime / 10000}] # subtract offset set[0m
+       [1mlastlogintime [expr {$millisecs - $offset}] # convert to seconds[0m
+       [1mbecause milliseconds for 'now' were negative (maybe vmware issue) set[0m
+       [1msecs [expr {$lastlogintime / 1000}] set now [clock seconds] # finally[0m
+       [1mcalculate the difference set diff [expr {$now - [4m$secs[24m}] log local0.[0m
+       [1m"lastLogon: $diff seconds from current time" if { $diff  [22m$2weeks } {
+       ACCESS::session data set session.custom.lastLogonWithin2Weeks 0 } else
+       { ACCESS::session data set session.custom.lastLogonWithin2Weeks 1 } } }
+       >
+            In this example, ACCESS_POLICY_AGENT_EVENT gathers data containing
+            the users whose last logon was within the last two weeks. Note
+            that you can access session variables and create new session
+            variables inside this event.
+
+       [1mlist irule-event all[0m
+            Displays a list of OAM agents.
+
+       [1mdelete irule-event my_irule_agent[0m
+            Deletes the iRule Event agent named [1mmy_irule_agent[22m.
+
+[1mOPTIONS[0m
+       [1mapp-service[0m
+            Specifies the name of the application service to which the object
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the object. Only the application
+            service can modify or delete the object.
+
+       [1mid   [22mSpecifies the ID of the iRule event. The default is [1mnone[22m. You can
+            use the ID to determine which agent caused the
+            ACCESS_POLICY_AGENT_EVENT. You can also use the ID to perform
+            different processing inside iRule for different agents.
+
+       [1m[name][0m
+            Specifies the name of the component. This option is required.
+
+       [1mpartition[0m
+            Displays the partition within which the component resides.
+
+[1mSEE ALSO[0m
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2011-2013, 2016. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2017-11-28                                            apm policy agent irule-event(1)

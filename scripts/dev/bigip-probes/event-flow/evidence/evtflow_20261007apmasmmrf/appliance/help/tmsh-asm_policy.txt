@@ -1,0 +1,269 @@
+asm policy(1)                                                          BIG-IP TMSH Manual                                                          asm policy(1)
+
+
+
+[1mNAME[0m
+       policy - Configures an application security policy.
+
+[1mMODULE[0m
+       [1masm[0m
+
+[1mSYNTAX[0m
+       Configure the [1mpolicy [22mcomponent within the [1masm [22mmodule using the syntax
+       shown in the following sections.
+
+   [1mCREATE[0m
+        create policy [name]
+          options:
+            [active | inactive]
+            app-service [[string] | none]
+            blocking-mode [enabled | disabled]
+            description [[string] | none]
+            encoding [[name] | none]
+            policy-builder [enabled | disabled]
+            policy-template [name]
+            policy-type [security | parent]
+            parent-policy [name]
+
+   [1mMODIFY[0m
+        modify policy [name]
+          options:
+            [active | inactive]
+            app-service [[string] | none]
+            blocking-mode [enabled | disabled]
+            description [[string] | none]
+            encoding [[name] | none]
+            policy-builder [enabled | disabled]
+            policy-template [name]
+
+   [1mDISPLAY[0m
+        list policy [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config policy [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            one-line
+            partition
+            virtual-servers
+
+   [1mDELETE[0m
+        delete policy [name]
+
+   [1mSAVE[0m
+        save policy [name]
+          options:
+            include-suggestions
+            overwrite
+            bin-file [filename]
+            json-file [filename]
+            min-json-file [filename]
+            min-xml-file [filename]
+            policy-template [name]
+            xml-file [filename]
+
+   [1mLOAD[0m
+        load policy [name]
+          options:
+            overwrite
+            file [filename]
+            xml-string [string]
+
+   [1mPUBLISH[0m
+        publish policy [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mpolicy [22mcomponent to create, modify, display, delete,
+       save, load, or publish an application security policy for use with
+       Application Security Manager functionality.
+
+       [1mNote: [22mTo display all policy properties available in [1mtmsh[22m, including
+       initial settings used by iApp and advanced configuration accessible in
+       ASM GUI, specify the [1mall-properties [22moption or the detailed properties.
+       By default, only initial properties are displayed: [1mencoding[22m, [1mpolicy-[0m
+       [1mtemplate [22mand [1m[active | inactive][22m.
+
+       [1mNote: [22mThe [1mmodify [22mcommand with the properties [1mencoding [22mand/or [1mpolicy-[0m
+       [1mtemplate [22mcauses ASM to reconfigure the security policy and clear all
+       its former data.
+
+       [1mNote: [22mThe [1mpolicy-type [22mcannot be modified after the creation of the
+       policy.
+
+       [1mNote: [22mThe [1mparent-policy [22mcan only, optionally, be set while creating a
+       policy with [1mpolicy-type [22mset to [1msecurity[22m.
+
+[1mEXAMPLES[0m
+       [1mcreate policy my_asm_policy encoding utf-8[0m
+
+       Creates a new policy named [1mmy_asm_policy [22mwith the default language
+       encoding, [1mpolicy-type [22mset to [1msecurity [22mand no [1mparent-policy[22m.
+
+       [1mmodify policy my_asm_policy active[0m
+
+       Activates the inactive policy named [1mmy_asm_policy[22m.
+
+       [1mcreate policy my_parent_asm_policy encoding utf-8 policy-type parent[0m
+
+       Creates a new policy named [1mmy_parent_asm_policy [22mwith the default
+       language encoding.
+
+       [1mcreate policy my_security_asm_policy policy-type security parent-policy[0m
+       [1mmy_parent_asm_policy[0m
+
+       Creates a new policy named [1mmy_security_asm_policy[22m, [1mpolicy-type [22mset to
+       [1msecurity [22mand [1mmy_parent_asm_policy [22mset as the parent policy.
+
+       [1mlist policy[0m
+
+       Displays the properties of all application security policies.
+
+       [1msave policy my_asm_policy xml-file my_asm_policy.xml[0m
+
+       Exports the policy named [1mmy_asm_policy [22mto the XML file
+       [1m/var/tmp/my_asm_policy.xml[22m.
+
+       [1mload policy my_asm_policy overwrite file /tmp/my_asm_policy.plc[0m
+
+       Imports the policy named [1mmy_asm_policy [22mfrom the file
+       [1m/tmp/my_asm_policy.plc [22mand overwrites the policy if it already exists.
+
+       [1mpublish policy my_asm_policy[0m
+
+       Applies the active policy named [1mmy_asm_policy[22m.
+
+[1mOPTIONS[0m
+       [1mapp-service[0m
+            Specifies the name of the application service to which the object
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the object. Only the application
+            service can modify or delete the object.
+
+       [1m[active | inactive][0m
+            Activates or deactivates the policy for later association with L7
+            policies and virtual servers. The default value is [1minactive[22m.
+
+       [1mbin-file[0m
+            Specifies the exported file name to be saved in binary format when
+            using the [1msave [22mcommand. The file name should be simple (not a full
+            path); it is saved to the [1m/var/tmp [22mdirectory on the system.
+
+       [1mblocking-mode[0m
+            Specifies whether the system blocks a request that triggers a
+            security policy violation or only logs the violation event
+            (transparent mode).
+
+       [1mdescription[0m
+            Specifies an optional description of the security policy.
+
+       [1mencoding[0m
+            Specifies the language encoding, which determines how the security
+            policy processes the character sets. This property corresponds to
+            the [1mlanguage [22mproperty of the [1mhttpclass-asm [22mcomponent.
+
+       [1mfile [22mSpecifies the file name from which the policy is going to be
+            imported when using the [1mload [22mcommand. A full path should be
+            specified.
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1minclude-suggestions[0m
+            Specifies that the JSON policy file for the [1msave [22mcommand should
+            also include the suggestions.
+
+       [1mjson-file[0m
+            Specifies the exported file name to be saved in a JSON format when
+            using the [1msave [22mcommand. The file name should be simple (not a full
+            path); it is saved to the [1m/var/tmp [22mdirectory on the system.
+
+       [1mmin-json-file[0m
+            Specifies the exported file name to be saved in compact JSON
+            format when using the [1msave [22mcommand. The file name should be simple
+            (not a full path); it is saved to the [1m/var/tmp [22mdirectory on the
+            system.
+
+       [1mmin-xml-file[0m
+            Specifies the exported file name to be saved in compact XML format
+            when using the [1msave [22mcommand. The file name should be simple (not a
+            full path); it is saved to the [1m/var/tmp [22mdirectory on the system.
+            To display the XML output immediately, omit this property, the
+            properties [1mxml-file json-file min-json-file [22mand [1mbin-file[22m.
+
+       [1mname [22mSpecifies a unique name for the component. This option is required
+            for the commands [1mcreate[22m, [1mdelete[22m, [1mmodify[22m, [1msave[22m, and [1mpublish[22m. If it
+            is not specified for the [1mload [22mcommand, the policy name will be
+            taken from the imported settings.
+
+       [1moverwrite[0m
+            Specifies that the policy file for the [1msave [22mcommand or the policy
+            component for the [1mload [22mcommand can be overwritten if it exists.
+
+       [1mpartition[0m
+            Displays the administrative partition within which the component
+            resides.
+
+       [1mpolicy-builder[0m
+            Enables or disables automatic policy building.
+
+       [1mpolicy-template[0m
+            Specifies whether the security policy is based on a predefined
+            security policy template, and if so, which one. If you create or
+            modify a security policy based on a template, the system
+            automatically configures the new security policy according to the
+            conditions of the template. This property corresponds to the
+            [1mpredefined-policy [22mproperty of the [1mhttpclass-asm [22mcomponent. If you
+            save a security policy in compact JSON format, you can choose a
+            template which the saved policy will be based on.
+
+       [1mpolicy-type[0m
+            Specifies the security policy type, which cannot be changed after
+            you create the policy. The parent policy type cannot be active and
+            cannot have a parent. The security policy type may or may not have
+            a single parent policy defined.
+
+       [1mparent-policy[0m
+            Optionally, specifies the name of an existing policy, of [1mpolicy-[0m
+            [1mtype parent[22m, to be set as the parent policy, while creating a
+            [1mpolicy-type security[22m.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+            [1mNote: [22mThis component supports matching by the [1mregex [22mexpression
+            only when displaying the initial policy properties.
+
+       [1mvirtual-servers[0m
+            Displays the name of the protected virtual server, or virtual
+            servers, which have attached to them the security policy via L7
+            policies.
+
+       [1mxml-file[0m
+            Specifies the exported file name to be saved in XML format when
+            using the [1msave [22mcommand. The file name should be simple (not a full
+            path); it is saved to the [1m/var/tmp [22mdirectory on the system. To
+            display the XML output immediately, omit this property, the
+            properties [1mmin-xml-file json-file min-json-file [22mand [1mbin-file[22m.
+
+       [1mxml-string[0m
+            Specifies the XML document from which the policy is going to be
+            imported when using the [1mload [22mcommand.
+
+[1mSEE ALSO[0m
+       [1masm predefined-policy[22m, [1masm webapp-language[22m, [1mcreate[22m, [1mdelete[22m, [1mglob[22m, [1mlist[22m,
+       [1mload[22m, [1mltm policy[22m, [1mltm virtual[22m, [1mmodify[22m, [1mpublish[22m, [1mregex[22m, [1msave[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2010-2012. All rights reserved.
+
+
+
+BIG-IP                                                                     2020-09-29                                                              asm policy(1)

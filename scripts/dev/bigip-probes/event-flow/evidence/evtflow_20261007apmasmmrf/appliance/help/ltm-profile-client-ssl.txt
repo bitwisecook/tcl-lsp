@@ -1,0 +1,784 @@
+ltm profile client-ssl(1)                                              BIG-IP TMSH Manual                                              ltm profile client-ssl(1)
+
+
+
+[1mNAME[0m
+       client-ssl - Configures a Client SSL profile.
+
+[1mMODULE[0m
+       [1mltm profile[0m
+
+[1mSYNTAX[0m
+       Configure the [1mclient-ssl [22mcomponent within the [1mltm.profile [22mmodule using
+       the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create client-ssl [name]
+        modify client-ssl [name]
+          options:
+            alert-timeout [indefinite | immediate | [integer] ]
+            allow-non-ssl [disabled | enabled]
+            allow-dynamic-record-sizing [disabled | enabled]
+            app-service [[string] | none]
+            authenticate [always | once]
+            authenticate-depth [integer]
+            bypass-on-client-cert-fail [disabled | enabled]
+            bypass-on-handshake-alert [disabled | enabled]
+            c3d-client-fallback-cert [name | none]
+            c3d-drop-unknown-ocsp-status [drop | ignore]
+            c3d-ocsp [[ocsp profile name] | none]
+            ca-file [name]
+            cache-size [integer]
+            cache-timeout [integer]
+            cert [name]
+            cert-extension-includes {
+              none |
+              [ basic-constraints extended-key-usage
+                key-usage subject-alternative-name
+                subject-directory-attribute
+              ]...
+            }
+            cert-key-chain [add | delete | modify | replace-all-with] {
+               [ [name] ] {
+                 options:
+                   cert [name | none]
+                   chain [name | none]
+                   key [name]
+                   passphrase [none | [string] ]
+                   usage [SERVER | CA]
+               }
+            }
+            cert-lifespan [integer]
+            cert-lookup-by-ipaddr-port [disabled | enabled]
+            chain [name | none]
+            cipher-group [name | none]
+            ciphers [name | none]
+            client-cert-ca [name | none]
+            crl-file [name]
+            allow-expired-crl [enabled | disabled]
+            defaults-from [clientssl | [name] ]
+            description [string]
+            destination-ip-blacklist [name]
+            destination-ip-whitelist [name]
+            forward-proxy-bypass-default-action [intercept | bypass]
+            generic-alert [disabled | enabled]
+            handshake-timeout [indefinite | [integer] ]
+            hostname-blacklist [name]
+            hostname-whitelist [name]
+            key [ [name] | none]
+            log-publisher [log publisher name | none]
+            log-ssl-c3d-events [log level | emerg | alert | crit | err | warn | notice | info | debug]
+            log-ssl-client-authentication-events [log level | emerg | alert | crit | err | warn | notice | info | debug]
+            log-ssl-forward-proxy-events [log level | emerg | alert | crit | err | warn | notice | info | debug]
+            log-ssl-handshake-events [log level | emerg | alert | crit | err | warn | notice | info | debug]
+            maximum-record-size [integer]
+            mod-ssl-methods [disabled | enabled]
+            mode [disabled | enabled]
+            notify-cert-status-to-virtual-server [disabled | enabled]
+            ocsp-stapling [disabled | enabled]
+            options {
+              none |
+              [ dont-insert-empty-fragments no-dtls no-dtlsv1.0 no-dtlsv1.2
+                no-session-resumption-on-renegotiation no-ssl no-sslv3
+                no-tls no-tlsv1 no-tlsv1.1 no-tlsv1.2 no-tlsv1.3 gmsslv1.1 passive-close
+                single-dh-use tls-rollback-bug ]...
+            }
+            passphrase [none | [string] ]
+            peer-cert-mode [auto | ignore | request | require]
+            peer-no-renegotiate-timeout [indefinite | [integer] ]
+            proxy-ssl [disabled | enabled]
+            proxy-ssl-passthrough [disabled | enabled]
+            proxy-ca-cert [name]
+            proxy-ca-key [name]
+            proxy-ca-lifespan [integer]
+            proxy-ca-passphrase [string]
+            renegotiate-max-record-delay [indefinite | [integer] ]
+            renegotiate-period [indefinite | [integer] ]
+            renegotiate-size [indefinite | [integer] ]
+            renegotiation [disabled | enabled]
+            retain-certificate [true | false]
+            secure-renegotiation [request | require | require-strict]
+            max-renegotiations-per-minute [integer]
+            max-aggregate-renegotiation-per-minute [integer]
+            server-name [name]
+            session-mirroring [disabled | enabled]
+            session-ticket [disabled | enabled]
+            session-ticket-timeout [integer]
+            sni-default [true | false]
+            sni-require [true | false]
+            source-ip-blacklist [name]
+            source-ip-whitelist [name]
+            ssl-c3d [disabled | enabled]
+            ssl-forward-proxy [disabled | enabled]
+            ssl-forward-proxy-bypass [disabled | enabled]
+            ssl-forward-proxy-verified-handshake [disabled | enabled]
+            hello-extension-includes {
+              none |
+              [ application-layer-protocol-negotiation
+              ]...
+            }
+            strict-resume [disabled | enabled]
+            unclean-shutdown [disabled | enabled]
+            ssl-sign-hash [any | sha1 | sha256 | sha384]
+            max-active-handshakes [integer]
+            data-0rtt [disabled | enabled-with-anti-replay | enabled-no-anti-replay]
+
+        edit client-ssl [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+          options:
+        mv client-ssl [ [[source-name] [destination-name]] | [[name] to-folder [folder-name]] | [[name...name] to-folder [folder-name]] ]
+            to-folder
+
+        reset-stats client-ssl
+        reset-stats client-ssl [ [ [name] | [glob] | [regex] ] ... ]
+
+   [1mDISPLAY[0m
+        list client-ssl
+        list client-ssl [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config client-ssl
+        show running-config client-ssl [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            inherit-certkeychain
+            non-default-properties
+            one-line
+            partition
+
+        show client-ssl
+        show client-ssl [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            (default | exa | gig | kil | meg | peta | raw | tera | yotta | zetta)
+            field-fmt
+            global
+
+   [1mDELETE[0m
+        delete client-ssl [all | [name]]
+          options:
+            recursive
+
+[1mDESCRIPTION[0m
+       You can use the [1mclient-ssl [22mcomponent to create, modify, or delete a
+       custom Client SSL profile, or  display a custom or default Client SSL
+       profile.
+
+       Client-side profiles allow the traffic management system to handle
+       authentication and encryption tasks for any SSL connection coming into
+       a traffic management system from a client system.
+
+[1mEXAMPLES[0m
+       [1mcreate client-ssl my_clientssl_profile[0m
+
+       Creates a clientssl profile named [1mmy_clientssl_profile [22musing the system
+       defaults.
+
+       [1mcreate clientssl my_clientssl_profile authenticate-depth number[0m
+
+       Creates a Client SSL profile named [1mmy_clientssl_profile [22musing the
+       system defaults, except that a user is authenticated with depth [1mnumber[22m.
+
+       [1mmv client-ssl /Common/my_client-ssl_profile to-folder /Common/my_folder[0m
+
+       Moves a custom client-ssl profile named [1mmy_client-ssl_profile [22mto a
+       folder named [1mmy_folder[22m, where [1mmy_folder [22mhas already been created and
+       exists within [1m/Common[22m.
+
+[1mOPTIONS[0m
+       [1malert-timeout[0m
+            Specifies the maximum time period in seconds to keep the SSL
+            session active after alert message is sent, or indefinite. The
+            default value is [1mindefinite[22m.
+
+       [1mallow-non-ssl[0m
+            Enables or disables non-SSL connections. Specify [1menabled [22mwhen you
+            want non-SSL connections to pass through the traffic management
+            system as clear text. The default value is [1mdisabled[22m.
+
+       [1mallow-dynamic-record-sizing[0m
+            Enables or disables dynamic application record sizing. Specify
+            [1menabled [22mwhen you want to allow dynamic record sizing. The default
+            value is [1mdisabled[22m.
+
+       [1mapp-service[0m
+            Specifies the name of the application service to which the profile
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the profile. Only the application
+            service can modify or delete the profile.
+
+       [1mauthenticate[0m
+            Specifies how often the system authenticates a user. The default
+            value is [1monce[22m. Note that if this is set to [1malways [22msession cache
+            and session ticket will be disabled.
+
+       [1mauthenticate-depth[0m
+            Specifies the authenticate depth. This is the client certificate
+            chain maximum traversal depth. The default value is [1m9[22m.
+
+       [1mbypass-on-client-cert-fail[0m
+            Enables or disables SSL forward proxy bypass on failing to get
+            client certificate that server asks for. When enabled and the SSL
+            handshake cannot be completed because of failure to get the client
+            certificate, SSL traffic bypasses the BIG-IP system untouched,
+            without decryption/encryption. The default value is [1mdisabled[22m.
+            Conversely, you can specify enabled to use this feature.
+
+       [1mbypass-on-handshake-alert[0m
+            Enables or disables SSL forward proxy bypass on receiving
+            handshake_failure, protocol_version or unsupported_extension alert
+            message during the serverside SSL handshake. When enabled and
+            there is an SSL handshake_failure, protocol_version or
+            unsupported_extension alert during the serverside SSL handshake,
+            SSL traffic bypasses the BIG-IP system untouched, without
+            decryption/encryption. The default value is [1mdisabled[22m. Conversely,
+            you can specify enabled to use this feature.
+
+       [1mc3d-client-fallback-cert[0m
+            Specifies the client certificate to use in SSL client certificate
+            constrained delegation. This certificate will be used if client
+            does not provide a cert during the SSL handshake. The default
+            value is [1mnone[22m.
+
+       [1mc3d-drop-unknown-ocsp-status[0m
+            Specifies the BIG-IP action when the OCSP responder returns
+            unknown status. The default value is drop, which causes the
+            connection to be dropped. Conversely, you can specify ignore,
+            which causes the connection to ignore the unknown status and
+            continue.
+
+       [1mc3d-ocsp[0m
+            Specifies the SSL client certificate constrained delegation OCSP
+            object that the BIG-IP SSL should use to connect to the OCSP
+            responder and check the client certificate status.
+
+       [1mca-file[0m
+            Specifies the certificate authority (CA) file name. Configures
+            certificate verification by specifying a list of client or server
+            CAs that the traffic management system trusts. The default value
+            is [1mnone[22m.
+
+       [1mcache-size[0m
+            Specifies the SSL session cache size. For client-side profiles
+            only, you can configure timeout and size values for the SSL
+            session cache. Because each profile maintains a separate SSL
+            session cache, you can configure the values on a per-profile
+            basis. The default value is [1m262144[22m.
+
+       [1mcache-timeout[0m
+            Specifies the SSL session cache timeout value. This specifies the
+            number of usable lifetime seconds of negotiated SSL session IDs.
+            The default value is [1m3600 [22mseconds. Acceptable values are integers
+            greater than or equal to [1m0 [22mand less than or equal to [1m86400[22m.
+
+       [1mcert [22mThis option is [1mdeprecated [22mand is maintained here for backward
+            compatibility reasons. Please check cert-key-chain option to add
+            certificate, key, passphrase and chain to the profile.
+
+       [1mcert-extension-includes[0m
+            Specifies the extensions of the web server certificates to be
+            included in the generated certificates using SSL Forward Proxy.
+            For example, { [1mbasic-constraints [22m}. The default value is none. The
+            extensions are:
+
+            [1mbasic-constraints[0m
+                 Basic Constraints are used to indicate whether the
+                 certificate belongs to a CA.
+
+            [1mextended-key-usage[0m
+                 Extended Key Usage is used, typically on a leaf certificate,
+                 to indicate the purpose of the public key contained in the
+                 certificate.
+
+            [1mkey-usage[0m
+                 Key Usage provides a bitmap specifying the cryptographic
+                 operations which may be performed using the public key
+                 contained in the certificate; for example, it could indicate
+                 that the key should be used for signature but not for
+                 encipherment.
+
+            [1msubject-alternative-name[0m
+                 Subject Alternative Name allows identities to be bound to the
+                 subject of the certificate. These identities may be included
+                 in addition to or in place of the identity in the subject
+                 field of the certificate.
+
+            [1msubject-directory-attributes[0m
+                 Subject Directory Attributes are used to convey
+                 identification attributes (for example, nationality) of the
+                 subject.
+
+       [1mdestination-ip-blacklist[0m
+            Specifies the data group name of destination ip blacklist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1mdestination-ip-whitelist[0m
+            Specifies the data group name of destination ip whitelist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1mforward-proxy-bypass-default-action[0m
+            Specifies the SSL forward proxy bypass default action. The default
+            option is [1mintercept[22m.
+
+       [1mhostname-blacklist[0m
+            Specifies the data group name of hostname blacklist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1mhostname-whitelist[0m
+            Specifies the data group name of hostname whitelist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1minherit-certkeychain[0m
+            This is read only value used internally.
+
+       [1mcert-key-chain[0m
+            Adds, deletes, or replaces a set of certificate, key, passphrase,
+            chain (usage specifies whether this item is used for Server or CA,
+            where Server is the default and CA is for SSL forward proxy).
+            [1mclient-ssl [22mprofile requires at least one [1mcert/key [22mpair to work.
+            Multiple [1mcert/key [22mtypes can be associated to a [1mclient-ssl [22mprofile
+            using following options:
+
+       [1mcert [22mSpecifies the name of the certificate installed on the traffic
+            management system for the purpose of terminating or initiating an
+            SSL connection. You can specify the default certificate name,
+            which is [1mdefault.crt[22m.
+
+       [1mchain[0m
+            Specifies or builds a certificate chain file that a client can use
+            to authenticate the profile. The default value is [1mnone[22m.
+
+       [1mkey  [22mSpecifies the name of a key file that you generated and installed
+            on the system. When selecting this option, type a key file name or
+            use the default value [1mdefault.key[22m.
+
+       [1mpassphrase[0m
+            Specifies the key passphrase, if required. The default value is
+            [1mnone[22m.
+
+       [1mcert-lifespan[0m
+            Specifies the lifespan of the certificate generated using the SSL
+            forward proxy feature. The default value is [1m30[22m.
+
+       [1mcert-lookup-by-ipaddr-port[0m
+            Specifies whether to perform certificate look up by IP address and
+            port number.
+
+       [1mchain[0m
+            This option is [1mdeprecated [22mand is maintained here for backward
+            compatibility reasons. Please check cert-key-chain option to add
+            certificate, key, passphrase and chain to the profile.
+
+       [1mcipher-group[0m
+            Specifies a cipher group. If the cipher group is not blank or
+            [1mnone[22m, the ciphers string will be used.
+
+       [1mciphers[0m
+            Specifies a cipher name. The default value is [1mDEFAULT[22m, which uses
+            the default ciphers.
+
+       [1mclient-cert-ca[0m
+            Specifies the client cert certificate authority name. The default
+            value is [1mnone[22m.
+
+       [1mcrl  [22mSpecifies the name of crl validator for validating status of
+            client certificate. Specifying [1mnone [22mdisables crl validation of
+            client certificate. The default value is [1mnone[22m.
+
+       [1mcrl-file[0m
+            Specifies the certificate revocation list file name. The default
+            value is [1mnone[22m.
+
+       [1mallow-expired-crl[0m
+            Use the specified CRL file even if it has expired. The default
+            value is [1mdisabled[22m.
+
+       [1mdefaults-from[0m
+            This setting specifies the profile that you want to use as the
+            parent profile. Your new profile inherits all settings and values
+            from the parent profile specified. The default value is [1mclientssl[22m.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mgeneric-alert[0m
+            Enables or disables generic-alert. The default option is [1menabled[22m,
+            which causes the SSL profile to use generic alert number.
+            Conversely, you can specify [1mdisabled [22mto cause SSL profile to use
+            alert number defined in RFC5246/RFC6066 strictly.
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1mhandshake-timeout[0m
+            Specifies the handshake timeout in seconds. The default value is
+            [1m10 [22mseconds.
+
+       [1mkey  [22mThis option is [1mdeprecated [22mand is maintained here for backward
+            compatibility reasons. Please check cert-key-chain option to add
+            certificate, key, passphrase and chain to the profile.
+
+       [1mlog-publisher[0m
+            Specify the name of the log publisher which logs translation
+            events. See [1mhelp sys log-config [22mfor more details on the logging
+            sub-system. Use the "sys log-config publisher" component to set up
+            a log publisher.
+
+       [1mlog-ssl-c3d-events[0m
+            Specify the log level above which profile logs c3d events. Default
+            log level is Warning.
+
+       [1mlog-ssl-client-authentication-events[0m
+            Specify the log level above which profile logs SSL client
+            authentication events. Default log level is Warning.
+
+       [1mlog-ssl-forward-proxy-events[0m
+            Specify the log level above which profile logs SSL forward proxy
+            events. Default log level is Warning.
+
+       [1mlog-ssl-handshake-events[0m
+            Specify the log level above which profile logs SSL handshake
+            events. Default log level is Warning.
+
+       [1mmaximum-record-size[0m
+            Specifies the profile's maximum record size. The range is 128 -
+            16384. The default value is [1m16384[22m.
+
+       [1mmod-ssl-methods[0m
+            Enables or disables ModSSL method emulation. Enable this option
+            when OpenSSL methods are inadequate, for example, when you want to
+            use SSL compression over TLSv1. The default value is [1mdisabled[22m.
+
+       [1mmode [22mSpecifies the profile mode, which enables or disables SSL
+            processing. The default value is [1menabled[22m.
+
+       [1mname [22mSpecifies a unique name for the component. This option is required
+            for the commands [1mcreate[22m, [1mdelete[22m, and [1mmodify[22m.
+
+       [1moptions[0m
+            Enables options, including some industry-related workarounds.
+            Enter options inside braces, for example,
+            [1m{dont-insert-empty-fragments}[22m.
+
+            The default value is [1mdont-insert-empty-fragments no-tlsv1.3[22m. The
+            options are:
+
+       [1mdont-insert-empty-fragments[0m
+            Disables a countermeasure against an SSL 3.0/TLS 1.0 protocol
+            vulnerability affecting CBC ciphers. These ciphers cannot be
+            handled by certain broken SSL implementations. This option has no
+            effect for connections using other ciphers.
+
+       [1mno-session-resumption-on-renegotiation[0m
+            When performing renegotiation as an SSL server, this option always
+            starts a new session (that is, session resumption requests are
+            only accepted in the initial handshake). The system ignores this
+            option for server-side SSL.
+
+       [1mgmsslv1.1[0m
+            Enable GMSSLv1.1 protocol.
+
+       [1mno-ssl[0m
+            Do not use any version of the SSL protocol.
+
+       [1mno-sslv3[0m
+            Do not use the SSLv3 protocol.
+
+       [1mno-tls[0m
+            Do not use any version of the TLS protocol.
+
+       [1mno-tlsv1[0m
+            Do not use the TLSv1.0 protocol.
+
+       [1mno-tlsv1.1[0m
+            Do not use the TLSv1.1 protocol.
+
+       [1mno-tlsv1.2[0m
+            Do not use the TLSv1.2 protocol.
+
+       [1mno-tlsv1.3[0m
+            Do not use the TLSv1.3 protocol.
+
+       [1mno-dtls[0m
+            Do not use any version of the DTLS protocol.
+
+       [1mno-dtlsv1.0[0m
+            Do not use the DTLSv1.0 protocol.
+
+       [1mno-dtlsv1.2[0m
+            Do not use the DTLSv1.2 protocol.
+
+       [1mpassive-close[0m
+            Specifies how to handle passive closes.
+
+       [1mnone [22mDisables all workarounds. Note that F5 Networks does not recommend
+            this option.
+
+       [1mnotify-cert-status-to-virtual-server[0m
+            Specifies whether to propagate the status of the certificates of
+            this clientssl profile to the virtual servers that are using this
+            clientssl profile.
+
+       [1mocsp-stapling[0m
+            Specifies whether to enable OCSP stapling.
+
+       [1msingle-dh-use[0m
+            Creates a new key when using temporary/ephemeral DH parameters.
+            This option must be used to prevent small subgroup attacks, when
+            the DH parameters were not generated using strong primes (for
+            example. when using DSA-parameters). If strong primes were used,
+            it is not strictly necessary to generate a new DH key during each
+            handshake, but F5 Networks recommends it. Enable the Single DH Use
+            option whenever temporary or ephemeral DH parameters are used.
+
+       [1mtls-rollback-bug[0m
+            Disables version rollback attack detection. During the client key
+            exchange, the client must send the same information about
+            acceptable SSL/TLS protocol levels as it sends during the first
+            hello. Some clients violate this rule by adapting to the server's
+            answer. For example, the client sends an SSLv2 hello and accepts
+            up to SSLv3.1 (TLSv1), but the server only processes up to SSLv3.
+            In this case, the client must still use the same SSLv3.1 (TLSv1)
+            announcement. Some clients step down to SSLv3 with respect to the
+            server's answer and violate the version rollback protection. The
+            system ignores this option for server-side SSL.
+
+       [1mpartition[0m
+            Displays the administrative partition within which the profile
+            resides.
+
+       [1mpassphrase[0m
+            This option is [1mdeprecated [22mand is maintained here for backward
+            compatibility reasons. Please check cert-key-chain option to add
+            certificate, key, passphrase and chain to the profile.
+
+       [1mpeer-cert-mode[0m
+            Specifies the peer certificate mode. The default value is [1mignore[22m.
+
+       [1mpeer-no-renegotiate-timeout [22mSpecifies the timeout in seconds when the
+       server sends Hello Request and waits for ClientHello before it sends
+       Alert with fatal alert. You can also specify indefinite. The default is
+       [1m10 [22mseconds.
+       [1mproxy-ca-cert[0m
+            Specifies the name of the certificate file that is used as the
+            certification authority certificate when SSL forward proxy feature
+            is enabled. The certificate should be generated and installed by
+            you on the system. When selecting this option, type a certificate
+            file name. (This option is deprecated since v14.0.0, suggest to
+            use cert-key-chain with usage CA to add SSL forward proxy CA
+            key/cert.)
+
+       [1mproxy-ca-key[0m
+            Specifies the name of the key file that is used as the
+            certification authority key when SSL forward proxy feature is
+            enabled. The key should be generated and installed by you on the
+            system. When selecting this option, type a key file name. (This
+            option is deprecated since v14.0.0, suggest to use cert-key-chain
+            with usage CA to add SSL forward proxy CA key/cert.)
+
+       [1mproxy-ca-passphrase[0m
+            Specifies the passphrase of the key file that is used as the
+            certification authority key when SSL forward proxy feature is
+            enabled. When selecting this option, type the passphrase
+            corresponding to the selected proxy-ca-key. (This option is
+            deprecated since v14.0.0, suggest to use cert-key-chain with usage
+            CA to add SSL forward proxy CA key/cert.)
+
+       [1mproxy-ssl[0m
+            Enabling this option requires a corresponding server ssl profile
+            with [1mproxy-ssl [22menabled to perform transparent SSL decryption. This
+            allows further modification of application traffic within an SSL
+            tunnel while still allowing the server to perform necessary
+            authorization, authentication, auditing steps.
+
+       [1mproxy-ssl-passthrough[0m
+            Enabling this option requires a corresponding server ssl profile
+            with [1mproxy-ssl-passthrough [22menabled. This allows Proxy SSL to
+            passthrough the traffic when ciphersuite negotiated between the
+            client and server is not supported. The default option is
+            [1mdisabled[22m.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+       [1mrenegotiate-max-record-delay[0m
+            Specifies the maximum number of SSL records that the traffic
+            management system can receive before it renegotiates an SSL
+            session. After the system receives this number of SSL records, it
+            closes the connection. This setting applies to client profiles
+            only. The default value is [1mindefinite[22m.
+
+       [1mrenegotiate-period[0m
+            Specifies the number of seconds required to renegotiate an SSL
+            session. The default value is [1mindefinite[22m.
+
+       [1mrenegotiate-size[0m
+            Specifies the size of the application data, in megabytes, that is
+            transmitted over the secure channel. If the size of the data is
+            higher than this value, the traffic management system must
+            renegotiate the SSL session. The default value is [1mindefinite[22m.
+
+       [1mrenegotiation[0m
+            Specifies whether renegotiations are enabled. The default value is
+            [1menabled[22m.  When renegotiations are disabled, and the system is
+            acting as an SSL server, and a COMPAT or NATIVE cipher is
+            negotiated, the system will abort the connection.  Additionally,
+            when renegotiations are disabled, and the system is acting as an
+            SSL client, the system will ignore the server's HelloRequest
+            messages.
+
+       [1mretain-certificate[0m
+            APM module requires storing certificate in SSL session. When set
+            to false, certificate will not be stored in SSL session. The
+            default value is [1mtrue[22m.
+
+       [1msecure-renegotiation[0m
+            Specifies the secure renegotiation mode. The default value is
+            [1mrequire[22m. When secure renegotiation is required, any client
+            attempting to renegotiate that does not support secure
+            renegotiation will have its connection aborted. When secure
+            renegotiation is set to [1mrequire-strict[22m, any client attempting to
+            connect that does not support secure renegotiation will have its
+            initial handshake denied. When secure renegotiation is set to
+            [1mrequest[22m, unpatched clients will be permitted to renegotiate. This
+            setting is NOT recommended however, as it is subject to active
+            man-in-the-middle attacks.
+
+       [1mmax-renegotiations-per-minute[0m
+            Specifies the maximum number of renegotiation attempts allowed in
+            a minute. The default value is [1m5[22m.
+
+       [1mmax-active-handshakes[0m
+            Specifies the maximum number allowed SSL active handshakes. The
+            default value is [1m0[22m.
+
+       [1mmax-aggregate-renegotiation-per-minute[0m
+            Specifies the maximum number of aggregate renegotiation attempts
+            allowed in a minute. The default value is [1mindefinite[22m.
+
+       [1mserver-name[0m
+            Specifies the server names to be matched with SNI (server name
+            indication) extension information in ClientHello from a client
+            connection. Wildcard is supported by using wildcard character "*"
+            to match multiple names.
+
+       [1msni-default[0m
+            When true, this profile is the default SSL profile when the server
+            name in a client connection does not match any configured server
+            names, or a client connection does not specify any server name at
+            all.
+
+       [1msni-require[0m
+            When this option is enabled, a client connection that does not
+            specify a known server name or does not support SNI extension will
+            be rejected.
+
+       [1mssl-sign-hash[0m
+            Specifies SSL sign hash algorithm which is used to sign and verify
+            SSL Server Key Exchange and Certificate Verify messages for the
+            specified SSL profiles. The default value is [1msha1[22m.
+
+       [1mstrict-resume[0m
+            Enables or disables strict-resume. The default option is [1mdisabled[22m,
+            which causes the SSL profile to resume an uncleanly shut down SSL
+            session. Conversely, you can specify [1menabled [22mto prevent an SSL
+            session from being resumed after an unclean shutdown.
+
+       [1munclean-shutdown[0m
+            By default, the SSL profile performs unclean shutdowns of all SSL
+            connections, which means that underlying TCP connections are
+            closed without exchanging the required SSL shutdown alerts. If you
+            want to force the SSL profile to perform a clean shutdown of all
+            SSL connections, set this option to [1mdisabled[22m.
+
+       [1msession-mirroring[0m
+            Enables or disables the mirroring of sessions to high availability
+            peer. By default, this setting is disabled, which causes the
+            system to not mirror ssl sessions.
+
+       [1msession-ticket[0m
+            Enables or disables session-ticket. The default option is
+            [1mdisabled[22m, which causes the SSL profile not to use session ticket
+            per RFC 5077. Conversely, you can specify [1menabled [22mto cause SSL
+            profile to use session ticket per RFC 5077.
+
+       [1msession-ticket-timeout[0m
+            Specifies the session ticket timeout. The default value is [1m0 [22mwhich
+            means cache timeout is used.
+
+       [1msource-ip-blacklist[0m
+            Specifies the data group name of source ip blacklist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1msource-ip-whitelist[0m
+            Specifies the data group name of source ip whitelist when SSL
+            forward proxy bypass feature is enabled.
+
+       [1mdata-0rtt[0m
+            Specifies if TLSv1.3 should accept 0-RTT with early data, with or
+            without anti-replay. To protect against packet replay, F5
+            recommends that you enable anti-replay. The default value is
+            [1mdisabled[22m, which means TLSv1.3 will discard any early data.
+
+       [1mssl-c3d[0m
+            Enables or disables SSL client certificate constrained delegation.
+            The default option is [1mdisabled[22m. Conversely, you can specify
+            [1menabled [22mto use the SSL client certificate constrained delegation.
+
+       [1mssl-forward-proxy[0m
+            Enables or disables SSL forward proxy feature. The default option
+            is [1mdisabled[22m. Conversely, you can specify [1menabled [22mto use the SSL
+            Forward Proxy Feature.
+
+       [1mssl-forward-proxy-bypass[0m
+            Enables or disables SSL forward proxy bypass feature. The default
+            option is [1mdisabled[22m. Conversely, you can specify [1menabled [22mto use the
+            SSL Forward Proxy Bypass Feature.
+
+       [1mssl-forward-proxy-verified-handshake[0m
+            Specifies, when [1menabled[22m, that in SSL forward proxy mode, the
+            system should always do a TLS handshake with the server first
+            before doing the client handshake. When [1mdisabled[22m, the system will
+            do the server handshake first only if it has not previously forged
+            and cached the server certificate; once the server certificate is
+            ready, the system will always handshake first with the client. The
+            default value is [1mdisabled[22m.
+
+       [1mhello-extension-includes[0m
+            Specifies the hello extensions extension recieved from client to
+            be sent to the server by SSL Forward Proxy. For example, {
+            [1mapplication-layer-protocol-negotiation [22m}. The default value is
+            none. The extensions are:
+
+            [1mapplication-layer-protocol-negotiation[0m
+                 Specifies whether the ALPN extension recieved in ClientHello
+                 from client to be sent to the server by SSL Forward Proxy;
+                 this also requires ssl-forward-proxy-verified-handshake to be
+                 enabled.
+
+       [1mto-folder[0m
+            [1mclient-ssl [22mprofiles can be moved to any folder under [1m/Common[22m, but
+            configuration dependencies may restrict moving the profile out of
+            [1m/Common[22m.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm virtual[22m, [1mmodify[22m, [1mmv[22m, [1mregex[22m,
+       [1mreset-stats[22m, [1mshow[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2008-2010, 2012-2013, 2015-2016.
+       All rights reserved.
+
+
+
+BIG-IP                                                                     2025-11-06                                                  ltm profile client-ssl(1)

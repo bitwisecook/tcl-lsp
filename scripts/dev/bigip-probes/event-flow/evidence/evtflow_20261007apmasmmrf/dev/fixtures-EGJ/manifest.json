@@ -1,0 +1,44 @@
+{
+  "backend": "192.168.9.80",
+  "backend_port": 18703,
+  "encoding": "ASCII",
+  "files": [
+    {
+      "file": "rules/10-early.conf",
+      "kind": "irule",
+      "sha256": "3540e6952dd2742c903bbb36d1015b2c4799299828c7ccd08a8ce3b3b52bcf30",
+      "size": 629
+    },
+    {
+      "file": "rules/100-security.conf",
+      "kind": "irule",
+      "sha256": "71f99f76d7fc54803fa2a09c5465d933cfb33f74dc4d6416ed631a5f1828422f",
+      "size": 970
+    },
+    {
+      "file": "rules/900-late.conf",
+      "kind": "irule",
+      "sha256": "155b1a6725955c6e5d5cda043eedd8f24cf3e20b6610f525fff2cd5f5eba05d5",
+      "size": 1624
+    },
+    {
+      "file": "config.conf",
+      "kind": "tmsh-config",
+      "sha256": "dae1128b7f05fc8968b09c84b7c64e130642e796febd8f163b7beafe431ea661",
+      "size": 881
+    }
+  ],
+  "line_endings": "LF",
+  "references": {
+    "access_profile": "/Common/__tcl_lsp_evtflow_efe_apm_allow",
+    "apm_rule": "/Common/__tcl_lsp_evtflow_efe_apm_trace",
+    "asm_policy": "/Common/__tcl_lsp_evtflow_egh_asm_blocking",
+    "client_cert_rule": "/Common/__tcl_lsp_evtflow_efe_client_cert",
+    "clientssl": "/Common/__tcl_lsp_evtflow_efe_clientssl_dynamic"
+  },
+  "run": "EGJ",
+  "schema": 1,
+  "source_commit": "0a66990ee",
+  "vip": "192.168.9.24",
+  "vip_port": 18613
+}

@@ -1,0 +1,381 @@
+tmsh(1)                       BIG-IP TMSH Manual                       tmsh(1)
+
+
+
+NAME
+       tmsh - Traffic Management Shell - A command line interface for managing
+       the BIG-IP(r) system.
+
+DESCRIPTION
+       You can use tmsh to configure and manage the BIG-IP system in
+       conjunction with the Configuration utility, which is the browser-based
+       BIG-IP system and network management tool.
+
+MODULES
+       The structure of tmsh is hierarchical and modular. The highest level is
+       the root module, which contains subordinate modules: auth, cli, gtm,
+       ltm, net, sys and wom. Use the command help with no arguments to
+       display the module hierarchy relative to the current module.
+
+       The gtm, ltm, net, sys, and wom modules also contain subordinate
+       modules. All modules and subordinate modules contain components. To
+       display the list of modules and components that are available in the
+       current module type Tab or ? at the tmsh prompt.
+
+       Commands operate on components. To display the list of available
+       commands type Tab or ? at the beginning of the command line. To display
+       a list of components on which a command can operate type the command
+       followed by a space followed by Tab or ?.
+
+       The following examples illustrate how to navigate the tmsh hierarchy.
+
+       To enter a module, type the name of the module at the tmsh prompt.
+
+        (tmos)# ltm
+
+       The prompt displays the current module location.
+
+        (tmos.ltm)#
+
+       You can display the components in a module using the commands list
+       (configuration) and show (statistics and runtime status). The following
+       command sequence displays the virtual server configuration of the BIG-
+       IP system.
+
+        (tmos.ltm)# list virtual
+
+       In the following examples, the commands list and show display
+       information about only ltm components.
+
+        (tmos.ltm)# list
+        (tmos.ltm)# show
+
+       You can access any component in any module from any other module by
+       specifying a complete path to the component. For example, from the ltm
+       module, the following command displays all of the properties of the
+       VLANs on the system. The forward slash / specifies that what follows is
+       relative to the root module.
+
+        (tmos.ltm)# list /net vlan all-properties
+
+       The forward slash is optional if the root module is the current module.
+       For example, the following command sequences display profiles.
+
+        (tmos)# list ltm profile
+        (tmos)# list /ltm profile
+        (tmos)# list / ltm profile
+
+       Most components also support component mode. You can navigate to a
+       single component and run commands to manage that component. For
+       example, from the ltm module, to navigate to the node component, use
+       the following command.
+
+        (tmos.ltm)# node
+
+       To display the properties of all nodes, use the following command.
+
+        (tmos.ltm.node)# list
+
+       You can also navigate to a specific object (object mode). For example,
+       from the node component, to enter object mode for a specific node,
+       enter the command modify followed by the IP address of the node.
+
+        (tmos.ltm.node)# modify 10.1.1.10
+
+       In object mode, you can configure property settings directly. For
+       example, to set the connection limit for 10.1.1.10 to 10000, use the
+       following command.
+
+        (tmos.ltm.node.10.1.1.10)# connection-limit 10000
+
+       To exit a module enter the command exit at the tmsh prompt, as shown
+       below.
+
+        (tmos.ltm)# exit
+        (tmos)#
+
+PRODUCT PROVISIONING
+       You must provision a BIG-IP system module before you can use tmsh to
+       configure that product, for example, the Global Traffic Manager. The
+       command sequence list sys provision displays the BIG-IP system modules
+       that can be provisioned. For more information about provisioning, see
+       the TMOS(r) Management Guide for BIG-IP Systems and help sys provision.
+
+LOADING/SAVING THE SYSTEM CONFIGURATION
+       The system applies all configuration changes that you make from within
+       tmsh to the running configuration of the system.
+
+       You can save a portion of the running configuration known as the base
+       configuration. You can also load the base configuration from the stored
+       configuration files.
+
+       To save the base configuration to the stored configuration files, use
+       the command sequence: save sys base-config.
+       To replace the running base configuration with the configuration in the
+       stored configuration files, use the command sequence: load /sys base-
+       config.
+
+       Additionally, you can save the entire running configuration or load all
+       of the stored configuration files.
+
+       To save the entire running configuration to the stored configuration
+       files, use the command sequence: save /sys config.
+       To replace the entire running configuration with the configuration in
+       the stored configuration files using the command sequence: load /sys
+       config.
+
+HELP
+       tmsh tmsh includes man pages for each of the commands and components
+       that are available within tmsh. You access the man pages using the
+       following command syntax: help [ [command]  | [full path to component]
+       ].
+
+       For example, to access the man page for the vlan component from the
+       root module, use this command sequence: help / net vlan.
+
+       You can also search the man pages for information on a specific topic.
+       To do this you use the command syntax: help search [topic]. You can
+       perform a help search from within any module in the tmsh hierarchy. For
+       example, to find the man pages that contain a reference to VLANs, use
+       this command sequence: help search vlan
+
+       To display a list of topics that are available in a module use this
+       command sequence: help [full path to module].
+
+       For example, to display the topics that are available in the current
+       module use this command: help. To display the topics that are available
+       in the net module use this command sequence: help / net.
+
+CONTEXT-SENSITIVE HELP
+       tmsh includes a context-sensitive help feature that provides help as
+       you type commands. At any time, you can type a question mark (?) on the
+       command line, and tmsh returns information to assist you in completing
+       the command. Based on when you type the question mark, you get the
+       following results.
+
+       When you type a question mark immediately following any portion of a
+       command, tmsh returns possible completions for the command, but does
+       not complete the command as the command completion feature does.
+       When you type a space before the question mark, tmsh returns
+       descriptive text that explains the commands, components, or properties
+       that you can configure.
+       When you type a question mark in the middle of a command, tmsh returns
+       help on the command to the left of the cursor.
+
+       Note: To use a question mark in a Glob or regular expression, you must
+       escape the question mark using quotation marks, apostrophes, or a
+       backslash.
+
+       Additionally, you can request context-sensitive help for the last
+       command in a series of commands. For more information, see ENTERING
+       MULTIPLE COMMANDS, following.
+
+COMMAND COMPLETION
+       At any point while typing or editing a command in tmsh, you can press
+       the Tab key. tmsh either completes the current or next word, or
+       displays possible completions for the current or next word. If tmsh
+       displays nothing after you press the Tab key, no options exist to
+       complete the word. If you move the cursor anywhere on the command line
+       and press the Tab key, tmsh completes what is to the left of the
+       cursor.
+
+       Command completion also reduces the amount of typing that is required
+       to run commands. When you press the Tab key, the system automatically
+       completes the current command-line element to as many unique characters
+       as possible. If there is more than one possible completion the list of
+       possible completions displays. Command completion also completes
+       configuration object identifiers.
+
+ENTERING MULTIPLE COMMANDS
+       You can enter multiple commands on the command line by separating the
+       commands with semi-colons (;). For example, to display the properties
+       of the self IP addresses and VLANs of the system, use this command
+       sequence:
+
+        list / net self ; list / net vlan
+
+       When you enter multiple commands in this way, all of the commands are
+       added to the command history in a single line item, regardless of
+       whether any of the commands were successful. However, if one of the
+       commands that you enter fails to parse, tmsh does not run the remaining
+       commands you entered. tmsh audits commands as the commands run;
+       therefore, if a command fails to parse, tmsh does not audit the
+       remaining commands. For more information about the command history, see
+       COMMAND HISTORY, following.
+
+       You can also specify multiple commands in a command alias by separating
+       the commands with semi-colons. For example, to create an alias that
+       displays the properties of the VLANs and VLAN groups on the system, use
+       this command sequence:
+
+        create / cli alias vlans command "list / net vlan ; list / net vlan-group"
+
+       You can request context-sensitive help and utilize the command
+       completion feature on the last command in a series of commands. For
+       example, the following command sequence displays help for the vlan-
+       group component.
+
+        list / net vlan ; list / net vlan-group ?
+
+COMMAND HISTORY
+       tmsh saves in the command history file each command that you enter. The
+       command history persists when you log off of the system. The next time
+       you log on to the system, you can search for, display, and then edit,
+       the tmsh commands that you entered in previous sessions. The command
+       history persists even through a restart of the BIG-IP system. For more
+       information about the command history feature, see help history.
+
+       The following examples show how to use the command history feature.
+
+       To display the commands in the history list, enter either the command
+       sequence show history or an exclamation point (!). tmsh displays a list
+       of commands each preceded by a numeric ID.
+
+       To run a command from the history list, enter an exclamation point
+       followed by the numeric ID of the command.
+
+       To run the previous command, enter !!.
+
+FILTERING OUTPUT
+       You can filter the output generated by the commands list (configuration
+       settings) and show (statistics and runtime status) using the UNIX grep
+       utility. You must type the character | before the grep specification.
+       You can use multiple filters chained together. For a list of supported
+       grep options, see the Traffic Management Shell (tmsh) Reference Guide.
+
+       The following examples show how to use the grep utility in tmsh.
+
+        list ltm node | grep "^10\.2"
+        list ltm virtual | grep -i seattle
+        list ltm virtual | grep -i abc | grep -i ab | grep -i a
+
+KEYBOARD BINDINGS
+       tmsh supports vi, emacs and default keyboard bindings. You can set the
+       binding using the keymap preference. For more information, see help cli
+       preference. For a detailed description of the default mapping, see the
+       Traffic Management Shell (tmsh) Reference Guide.
+
+       Note that all mappings provide command-line editing and the capability
+       to search the command history.
+
+WILDCARD OBJECT IDENTIFIERS
+       You can specify configuration object identifiers using glob and regular
+       expression syntax.
+
+       For glob and regular expression syntax rules, see help glob and help
+       regex. Note that you can escape the glob and regular expression special
+       characters using a back slash.
+
+       The following examples show how to use glob and regular expressions in
+       tmsh.
+
+       Uses a glob expression to display the configuration of all nodes that
+       begin with 10.1..
+
+        list ltm node 10.1.*
+
+       Uses a regular expression to display the configuration of all nodes
+       that begin with 10. and contain .44.. Note that a regular expression
+       must begin with an @ symbol. This identifies to tmsh that the
+       identifier should be treated as a regular expression and not a glob or
+       standard object identifier. The leading @ is not part of the regular
+       expression.
+
+        list ltm node @^10\..*\.44\.
+
+PREFERENCES
+       You can customize the behavior of tmsh. For more information, see help
+       cli preference.
+
+FILES
+       tmsh manages several files in a user's home directory.
+
+       $HOME/.tmsh-history-<user> contains command history.
+
+STATISTICS
+       You can use tmsh to display statistics, including historical
+       performance statistics. You can select the format in which the
+       statistics display, as well as reset the statistics for some of the
+       tmsh components. To determine if statistics are available for a
+       component, see the man page for the specific component.
+
+       The following examples show how to display and reset statistics for the
+       net interface component from the root module.
+
+        show net interface
+        reset-stats net interface
+
+       The following examples show how to display and reset statistics for the
+       net interface component from the net module.
+
+        show interface
+        reset-stats interface
+
+AUTOMATING TMSH
+       You can use tmsh to build TCL scripts to automate management of the
+       BIG-IP. See the cli script help page.
+
+COMMAND LINE OPTIONS
+       The following options can be specified when tmsh is started from the
+       system shell.
+
+       -a   tmsh does not write commands to the command history file.
+
+            Note that if auditing is enabled, tmsh continues to write commands
+            to the audit log. This option is useful when writing scripts from
+            the system shell, because it stops the scripts from filling up the
+            command history file. This option applies to the non-interactive
+            mode only.
+
+       -c   Run the specified command. A command that contains multiple
+            arguments must be in quotes. No other options may be specified
+            after -c
+
+       -d [ip address | host name]
+            Connects to the specified blade in a clustered system.
+
+       -e   Disables video highlighting in tmsh.
+
+       -h   Displays options you can use when accessing tmsh from the system
+            shell.
+
+       -m   Generates a tmsh debug log named tmsh.out in the current
+            directory.
+
+            Note that when you run a tmsh script, the shell generates a debug
+            log file for the script named tmsh.out.[script name].
+
+            Using this option causes tmsh to run significantly slower.
+
+       -q   Prevents tmsh from responding to user actions with questions. This
+            option is useful when writing non-interactive shell scripts from
+            the system shell.
+
+       -r <version>
+            This option allows the user to run TMSH the specified version.
+            This is used to provide backwards compatibility for older TMSH
+            syntax only. The version must be specified in the format
+            maj.min.pt, for example 11.5.0
+
+SEE ALSO
+       Detailed information on the following topics is available through the
+       help command: cli preference, cli script, glob, help, regex, and sys
+       provision.
+
+       For complete information about tmsh, see the Traffic Management Shell
+       (tmsh) Reference Guide. This guide is available on the AskF5(sm)
+       Knowledge Base (<http://www.askf5.com>).
+
+COPYRIGHT
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2008-2010, 2012. All rights
+       reserved.
+
+
+
+BIG-IP                            2014-02-18                           tmsh(1)

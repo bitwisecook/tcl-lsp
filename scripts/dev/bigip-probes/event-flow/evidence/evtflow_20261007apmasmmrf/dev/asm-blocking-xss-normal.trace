@@ -1,0 +1,40 @@
+* Added bigip.bitwisecook.org:18606:192.168.9.24 to DNS cache
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18606...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18606) from 192.168.9.80 port 45104 
+* using HTTP/1.x
+=> Send header, 188 bytes (0xbc)
+0000: GET /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E HTTP/
+0040: 1.1
+0045: Host: bigip.bitwisecook.org:18606
+0068: User-Agent: curl/8.18.0
+0081: Accept: */*
+008e: X-Evtflow-Request: asm-blocking-xss-normal
+00ba: 
+* Request completely sent off
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 29 bytes (0x1d)
+0000: X-Frame-Options: SAMEORIGIN
+<= Recv header, 33 bytes (0x21)
+0000: X-XSS-Protection: 1; mode=block
+<= Recv header, 33 bytes (0x21)
+0000: X-Content-Type-Options: nosniff
+<= Recv header, 25 bytes (0x19)
+0000: Cache-Control: no-cache
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 40 bytes (0x28)
+0000: Content-Type: text/html; charset=utf-8
+<= Recv header, 18 bytes (0x12)
+0000: Pragma: no-cache
+<= Recv header, 21 bytes (0x15)
+0000: Content-Length: 247
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 247 bytes (0xf7)
+0000: <html><head><title>Request Rejected</title></head><body>The requ
+0040: ested URL was rejected. Please consult with your administrator.<
+0080: br><br>Your support ID is: 10414419420687368248<br><br><a href='
+00c0: javascript:history.back();'>[Go Back]</a></body></html>
+* shutting down connection #0

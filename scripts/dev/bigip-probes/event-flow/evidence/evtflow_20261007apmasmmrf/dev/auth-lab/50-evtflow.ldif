@@ -1,0 +1,16 @@
+dn: dc=bitwisecook,dc=org
+objectClass: top
+objectClass: domain
+dc: bitwisecook
+
+dn: ou=people,dc=bitwisecook,dc=org
+objectClass: organizationalUnit
+ou: people
+
+dn: uid=evtflow,ou=people,dc=bitwisecook,dc=org
+objectClass: inetOrgPerson
+cn: Event Flow User
+sn: User
+uid: evtflow
+mail: evtflow@bitwisecook.org
+userPassword: evtflow-pass-2026

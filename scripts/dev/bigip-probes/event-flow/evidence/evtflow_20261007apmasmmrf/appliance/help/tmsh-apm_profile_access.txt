@@ -1,0 +1,515 @@
+apm profile access(1)                                                  BIG-IP TMSH Manual                                                  apm profile access(1)
+
+
+
+[1mNAME[0m
+       access - Configures an access profile.
+
+[1mMODULE[0m
+       [1mapm profile[0m
+
+[1mSYNTAX[0m
+       Configure the [1maccess [22mcomponent within the [1mprofile [22mmodule using the
+       syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create access [name]
+          options:
+            accept-languages [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            access-policy [[string] | none]
+            access-policy-timeout [integer]
+            app-service [[string] | none]
+            cache-generation [integer]
+            customization-group [[string] | none]
+            default-language [[string] | none]
+            defaults-from [[string] | none]
+            domain-cookie [[string] | none]
+            domain-groups [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            domain-mode [single-domain | multi-domain]
+            user-identity-method [http | ip-address]
+            enforce-policy [true | false]
+            eps-group [[string] | none]
+            errormap-group [[string] | none]
+            framework-installation-group [[string] | none]
+            general-ui-group [[string] | none]
+            generation-action [increment | noop]
+            httponly-cookie [true | false]
+            inactivity-timeout [integer]
+            logout-uri-include [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            logout-uri-timeout [integer]
+            log-settings [add | delete | modify | replace-all-with] {
+               [name]
+            }
+            max-concurrent-sessions [[integer] | none]
+            max-concurrent-users [[integer] | none]
+            max-failure-delay [integer]
+            max-in-progress-sessions [[integer] | none]
+            max-session-timeout [integer]
+            min-failure-delay [integer]
+            oauth-profile [[oauth-profile-name] | none]
+            persistent-cookie [true | false]
+            primary-auth-service [[string] | none]
+            restrict-to-single-client-ip [true | false]
+            sandboxes [add | delete | modify | replace-all-with] {
+              [name] { retain-public-access [true|false] }
+            }
+            scope [profile | virtual-server | global | named | public]
+            named-scope [[string] | none]
+            secure-cookie [true | false]
+            sso-name [[string] | none]
+            type [all | identity-service | ltm-apm | oauth-resource-server | rdg-rap | ssl-vpn | sso | swg-explicit | swg-transparent | system-authentication]
+            use-http-503-on-error [true | false]
+
+        modify access [name]
+          options:
+            accept-languages [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            access-policy [[string] | none]
+            access-policy-timeout [integer]
+            app-service [[string] | none]
+            cache-generation [integer]
+            customization-group [[string] | none]
+            default-language [[string] | none]
+            defaults-from [[string] | none]
+            domain-cookie [[string] | none]
+            domain-groups [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            domain-mode [single-domain | multi-domain]
+            user-identity-method [http | ip-address]
+            enforce-policy [true | false]
+            eps-group [[string] | none]
+            errormap-group [[string] | none]
+            framework-installation-group [[string] | none]
+            general-ui-group [[string] | none]
+            generation-action [increment | noop]
+            httponly-cookie [true | false]
+            inactivity-timeout [integer]
+            logout-uri-include [add | delete | modify | replace-all-with] {
+              [name]
+            }
+            logout-uri-timeout [integer]
+            log-settings [add | delete | modify | replace-all-with] {
+               [name]
+            }
+            max-concurrent-sessions [[integer] | none]
+            max-concurrent-users [[integer] | none]
+            max-failure-delay [integer]
+            max-in-progress-sessions [[integer] | none]
+            max-session-timeout [integer]
+            min-failure-delay [integer]
+            oauth-profile [[oauth-profile-name] | none]
+            persistent-cookie [true | false]
+            primary-auth-service [[string] | none]
+            restrict-to-single-client-ip [true | false]
+            sandboxes [add | delete | modify | replace-all-with] {
+              [name] { retain-public-access [true|false] }
+            }
+            scope [profile | virtual-server | global | named | public]
+            named-scope [[string] | none]
+            secure-cookie [true | false]
+            sso-name [[string] | none]
+            use-http-503-on-error [true | false]
+         edit access [ [ [name] | [glob] | [regex] ] ... ]
+           options:
+             all-properties
+             non-default-properties
+
+   [1mDISPLAY[0m
+        list access
+        list access [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config access
+        show running-config access [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            partition
+
+        show access
+        show access [name]
+
+   [1mDELETE[0m
+        delete access [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1maccess [22mcomponent to configure an access profile. An
+       access profile is a pre-configured group of settings that you can use
+       to configure secure Network Access for an application.
+
+[1mEXAMPLES[0m
+       [1mcreate access MyAccessProfile { defaults-from access access-policy[0m
+       [1m"my_access_policy" accepted-languages "my_accepted_languages" default-[0m
+       [1mlanguage "en" customization-group "company_logout" eps-group[0m
+       [1m'myepsgroup' framework-installation-group "company_header"[0m
+       [1m"company_footer" errormap-group "company_errormap" }[0m
+            Creates an access profile named [1mMyAccessProfile [22mthat is based on
+            the default access profile named [1maccess[22m, uses the access policy
+            named [1mmy_access-policy[22m, accepts the languages in the
+            [1mmy_accepted_languages [22mclass, uses English as the default language,
+            and uses these groups to customize the application pages and
+            messages: company_logout, company_header, company_footer, and
+            company_errormap.
+
+       [1mlist access all all-properties[0m
+            Displays a list of access profiles, including parameter values.
+
+       [1mdelete access MyAccessProfile[0m
+            Deletes the access profile named [1mMyAccessProfile[22m.
+
+[1mOPTIONS[0m
+       [1maccept-languages[0m
+            Specifies the name of a class that defines the languages supported
+            by the access profile. The default languages are en (English), ja
+            (Japanese), zh-cn (simplified Chinese (PRC)), and zh tw
+            (traditional Chinese (Taiwan)). This option is required.
+
+       [1maccess-policy[0m
+            Specifies the access policy that you want to enforce using this
+            access profile. An access policy contains various security checks
+            that a client must pass before the BIG-IP Access Policy Manager
+            grants access to a protected application. This option is required.
+
+       [1maccess-policy-timeout[0m
+            Specifies, for this access profile, the number of seconds within
+            which a user must complete the steps to gain access to an
+            application. The default is [1m300 [22mseconds. This option is designed
+            to quickly release session resources when a user does not complete
+            the access process, for example, when the user closes the browser
+            before completing the access process.
+
+       [1mapp-service[0m
+            Specifies the name of the application service to which the object
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the object. Only the application
+            service can modify or delete the object.
+
+       [1mcustomization-group[0m
+            Specifies the customization group that defines the appearance of
+            the logout and error pages. This option is required.
+
+       [1mdefault-language[0m
+            Specifies the default language for the BIG-IP Access Policy
+            Manager that you want to implement with this access profile. The
+            default is [1men [22m(English). If the client requests a language that is
+            not supported, the BIG-IP Access Policy Manager uses the default
+            value. This option is required.
+
+       [1mdefaults-from[0m
+            Specifies the default access policy from which this profile is
+            created. This option is required.
+
+       [1mdomain-cookie[0m
+            Specifies a domain cookie to use with an application access
+            control connection. If you specify a domain cookie, then the line
+            [1mdomain=specified_domain [22mis added to the MRHsession cookie. The
+            default is [1mnone[22m.
+
+       [1mdomain-groups[0m
+            Specifies a group of multiple domains or multiple hosts in
+            multiple domains to which a single user session has access. For
+            example, you can use this option to configure a single user
+            session to have access to three domains: www.a.com, www.b.com, and
+            www.c.com. When a user logs in to any of these domains, that user
+            can access the other domains without logging in again. This option
+            is required when you set the [1mdomain-mode [22moption to [1mmulti-domain[22m.
+            This option is ignored when you set the access domain-mode option
+            to single-domain.
+
+            For each domain in the domain group, you can specify the following
+            settings:
+
+            [1mcookie-host[0m
+                 Specifies the host name for which to create the user's
+                 session cookie.
+
+            [1mcookie-domain[0m
+                 Specifies the domain for which to create the user's session
+                 cookie.
+
+            [1msecure-cookie[0m
+                 Adds a security attribute to the user's session cookie.
+
+            [1mpersistent-cookie[0m
+                 Adds a persistence attribute to the user's session.
+
+            [1msso-name[0m
+                 Specifies the SSO method to use when accessing a backend
+                 application.
+
+       [1mdomain-mode[0m
+            Specifies how the SSO configuration is applied. The options are:
+
+            [1msingle-domain[0m
+                 Applies the SSO configuration to a single domain. This is the
+                 default.
+
+                 When you set [1mdomain-mode [22mto [1msingle-domain[22m, you must also set
+                 the [1msso-name [22moption.
+
+            [1mmulti-domain[0m
+                 Applies the SSO configuration across multiple domains. This
+                 option allows users a single APM login/session and applies
+                 the credentials across multiple Local Traffic Manager or
+                 Access Policy Manager virtual servers in front of different
+                 domains. Note that to apply SSO configurations across
+                 multiple domains, all virtual servers must be on one BIG-IP
+                 system.
+
+                 When you set [1mdomain-mode [22mto [1mmulti-domain[22m, you must also
+                 configure the [1mdomain-group [22moption, and provide a URI for the
+                 [1mprimary-auth-service [22moption.
+
+       [1muser-identity-method[0m
+            Specifies how access will bind a session to a request.
+
+            [1mhttp [22mUse http information such as cookies and URI query string to
+                 identify user.
+
+            [1mip-address[0m
+                 Use IP address to identify a user. Do not use this setting if
+                 clients may be behind a NAT.
+
+       [1menforce-policy[0m
+            Set this option to [1mfalse[22m, if you don't want to enforce the access-
+            policy. The default is [1mtrue [22mwhich means the access-policy is
+            always enforced. This option can only be modified for SWG-
+            Transparent type profile.
+
+       [1meps-group[0m
+            This option is required.
+
+       [1merrormap-group[0m
+            Specifies the customization settings for the error map that you
+            want to implement with this access profile.  This setting is
+            required.
+
+       [1mframework-installation-group[0m
+            Specifies the customization settings for the header and footer
+            that you want to implement with this access profile.  This setting
+            is required.
+
+       [1mgeneration-ui-group[0m
+            Specifies the generation of the user interface group for the new
+            generation access configuration. This option is required.
+
+       [1mgeneration-timeout[0m
+            Specifies the timeout, in seconds, for the new generation access
+            configuration.
+
+       [1mgeneration-action[0m
+            [1mincrement[0m
+                 Activates the current access policy configuration for an
+                 access profile. For example, the following command activates
+                 current access policy configuration for profile
+                 myAccessProfile: tmsh modify apm profile access
+                 myAccessProfile generation-action increment
+
+            [1mnoop [22mSpecifies "no operation to be performed". This is the
+                 default.
+
+            [1msync [22mSpecifies that the policy is being modified due to APM policy
+                 sync operation. This is an internal action; you should not
+                 set it.
+
+       [1mhttponly-cookie[0m
+            Specifies whether HttpOnly directive should be inserted in HTTP
+            response from BIG-IP. The client browser should prevent script
+            from accessing cookie, if this flag is set in the response. The
+            default is [1mfalse[22m.
+
+       [1minactivity-timeout[0m
+            Specifies, for this access profile, the number of seconds that the
+            session on the client can be idle before the server disconnects
+            the VPN tunnel. The default is [1m900 [22mseconds.
+
+       [1mlogout-uri-include[0m
+            Specifies a list of URIs to include in the access profile for
+            initiating session logout.
+
+       [1mlogout-uri-timeout[0m
+            Specifies the timeout used to delay logout for the customized
+            logout URIs defined in the logout uri include list
+
+       [1mlog-settings[0m
+            Specifies one or more log-setting containers to associate with
+            this profile
+
+       [1mmax-concurrent-sessions[0m
+            Specifies, for this access profile, the number of concurrent
+            sessions allowed. The default is [1m0 [22m(zero), which represents
+            unlimited sessions. Users assigned an administrative role of
+            [1mApplication Editor [22mcan view the value of this option. Users
+            assigned any other administrative role can modify this option.
+
+       [1mmax-concurrent-users[0m
+            Specifies, for this access profile, the number of concurrent
+            sessions allowed. The default is 0 (zero), which represents
+            unlimited sessions. This field is Read-only for Application
+            Editors. Users assigned any other administrative role can modify
+            this field.
+
+       [1mmax-failure-delay[0m
+            Specifies the maximum random delay after authentication failure
+            during the access policy. It is the maximum number of seconds
+            before the user is shown an error message on the logon page and
+            prompted to re-enter credentials. The default is [1m5 [22mseconds. [1m0[0m
+            (zero) represents no delay. Note: Set max-failure-delay to no more
+            than one-half the access-policy-timeout value and no more than 65
+            seconds greater than min-failure-delay.
+
+       [1mmax-in-progress-sessions[0m
+            Specifies the maximum number of in-progress concurrent sessions a
+            user can have. The in-progress sessions are the sessions for which
+            an access policy has not completed. The default is [1m0[22m, which
+            represents an unlimited number of such sessions.
+
+       [1mmax-session-timeout[0m
+            Specifies the maximum lifetime of one session. The maximum
+            lifetime is the number of seconds between session creation and
+            session termination.
+
+       [1mmin-failure-delay[0m
+            Specifies the minimum random delay after authentication failure
+            during the access policy. It is the minimum number of seconds
+            before the user is prompted for credentials again or shown an
+            error message on the logon page. The default is [1m2 [22mseconds.
+
+       [1m[name][0m
+            Specifies the name of the access profile. This option is required.
+
+       [1moauth-profile[0m
+            Specifies an oauth profile for use with an OAuth Authorization
+            Server.
+
+       [1mpersistent-cookie[0m
+            Specifies to retain the cookie for a user session, even when the
+            user session is terminated, when set to [1mtrue[22m. Although this is an
+            insecure method, this setting is useful and required in cases
+            where you have a third-party application, such as Sharepoint, and
+            need to store the cookie in a local database so that any attempt
+            to access backend server applications through Access Policy
+            Manager succeeds. The default is [1mfalse[22m.
+
+       [1mprimary-auth-service[0m
+            Specifies the address of your primary authentication URI. This
+            setting is required when you set the [1mdomain-mode [22moption to [1mmulti-[0m
+            [1mdomain[22m.
+
+            For example, when you set this option to
+            [1mhttps://logon.yourcompany.com[22m, the user session is stored on this
+            primary domain, and the user can access multiple backend
+            applications from multiple domains and hosts without re-entering
+            credentials.
+
+       [1mrestrict-to-single-client-ip[0m
+            Specifies whether a user session is tied to a single client IP. If
+            during session's lifetime, the user's client IP address changes,
+            the current session is terminated. The user needs to re-login to
+            create a new session from the new client IP address. The default
+            is [1mfalse[22m.
+
+       [1msandboxes[0m
+            Specifies the association between the access profile and the
+            sandbox. If [1mretain-public-access [22mis set to true, this association
+            is retained even if there is no resource that uses sandbox files
+            in the access policy that corresponds to this access profile.
+
+       [1mscope[0m
+            Specifies the confining scope for sessions created by the profile.
+            Set this option to [1mprofile [22m(which is also the [1mdefault-value[22m) to
+            confine the validity of a session to the profile from which it was
+            created. Set this option to [1mvirtual-server [22mto further confine the
+            validity of a session to the virtual server from which it was
+            created. Setting this option to [1mglobal [22mallows the session to be
+            valid on any virtual server with any access profile that also
+            specifies [1mglobal [22mscope. Setting this option to [1mnamed [22mallows the
+            session to be valid for any virtual server with access profile
+            using the same named-scope value. The option [1mpublic [22mis allowed for
+            only SSLO access profiles and sessions aren't created.
+
+       [1mnamed-scope[0m
+            Specifies the string to which the validity of a session is
+            confined to. This setting is required when you set the [1mscope[0m
+            option to [1mnamed[22m.
+
+       [1msecure-cookie[0m
+            Set this option to [1mtrue[22m, if you want to add a secure keyword to
+            the session cookie. Set this option to [1mfalse[22m, if you want to
+            configure an application access control scenario that uses an
+            HTTPS virtual server to authenticate the user, and then sends the
+            user to an existing HTTP virtual server to use applications. The
+            default is [1mtrue[22m.
+
+       [1msso-name[0m
+            Specifies the SSO configuration that you want BIG-IP Access Policy
+            Manager to use to submit the user's credentials to the backend
+            application. This allows the user to log in once to the Access
+            Policy Manager and then gain access to backend applications
+            without logging in again.
+
+       [1mtype [22mSpecifies the type of access profile. You can specify the
+            following types for an access profile.
+
+            [1mall  [22mSupports [1mltm-apm [22mand [1mssl-vpn [22maccess types.
+
+            [1midentity-service[0m
+                 Used internally to provide identity service for a supported
+                 integration. Only APM creates this type of profile.
+
+            [1mltm-apm[0m
+                 For web access management configuration.
+
+            [1moauth-resource-server[0m
+                 Supports apps and devices that use OAuth tokens but do not
+                 support cookies.
+
+            [1mrdg-rap[0m
+                 For validating connections to hosts behind APM when APM acts
+                 as a gateway for RDP clients.
+
+            [1mssl-vpn[0m
+                 For network access, portal access, or application access.
+
+            [1msso  [22mFor configuring matching virtual servers for Single Sign-On
+                 (SSO).
+
+            [1mswg-explicit[0m
+                 For Secure Web Gateway explicit forward proxy.
+
+            [1mswg-transparent[0m
+                 For Secure Web Gateway transparent forward proxy.
+
+            [1msystem-authentication[0m
+                 For configuring administrator access to the BIG-IP system
+                 (when using APM as a pluggable authentication module).
+
+       [1muse-http-503-on-error[0m
+            Set this option to [1mtrue [22mto use HTTP response code 503 for error
+            pages sent by BIG-IP Access Policy Manager to clients. Set this
+            option to [1mfalse [22mto use HTTP response code 200. The default is
+            [1mfalse[22m.
+
+[1mSEE ALSO[0m
+       [1mapm sso[22m, [1mapm policy[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2011-2013, 2015-2016. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2019-02-10                                                      apm profile access(1)

@@ -1,0 +1,1280 @@
+security log profile(1)                                                BIG-IP TMSH Manual                                                security log profile(1)
+
+
+
+[1mNAME[0m
+       profile - Configures a Security log profile.
+
+[1mMODULE[0m
+       [1msecurity log[0m
+
+[1mSYNTAX[0m
+       Configure the [1mprofile [22mcomponent within the [1msecurity log [22mmodule using
+       the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create profile [name]
+        modify profile [name]
+          options:
+            antifraud [none | add | delete | modify | replace-all-with] {
+              name [string] {
+                encode-fields [none | add | delete | replace-all-with] { [integer] ... }
+                events [none | add | delete | modify | replace-all-with] {
+                  type [alert | login] {
+                    format {
+                       type [none | default | user-defined]
+                       user-template [string]
+                    }
+                    rate-limit [integer]
+                  }
+                }
+                rate-limit-template [string]
+                remote-publisher [[name] | none]
+              }
+            }
+            app-service [[string] | none]
+            application [none | add | delete | modify | replace-all-with] {
+              name [string] {
+                options:
+                  facility [local0 | local1 | local2 | local3 | local4 | local5 | local6 | local7]
+                  filter [none | add | delete | modify | replace-all-with] {
+                    key [request-type | protocol | response-code | http-method |
+                         search-all | search-in-headers | search-in-post-data | search-in-query-string | search-in-request | search-in-uri] {
+                      options:
+                        values [none | add | delete | replace-all-with] { [string] ... }
+                    }
+                  }
+                  format {
+                    field-delimiter [string]
+                    field-format [string]
+                    fields [none | { [string] ... }]
+                    type [predefined | user-defined]
+                    user-string [string]
+                  }
+                  guarantee-logging [enabled | disabled]
+                  guarantee-response-logging [enabled | disabled]
+                  local-storage [enabled | disabled]
+                  logic-operation [and | or]
+                  maximum-entry-length [1k | 2k | 10k | 64k]
+                  maximum-header-size [integer]
+                  maximum-query-size [integer]
+                  maximum-request-size [integer]
+                  protocol [udp | tcp | tcp-rfc3195]
+                  remote-storage [none | remote | splunk | arcsight]
+                  report-anomalies [enabled | disabled]
+                  response-logging [none | illegal | all]
+                  servers [none | add | delete | modify | replace-all-with] {
+                    [IPv4:port | IPv6.port ... ]
+                  }
+              }
+            }
+            built-in [enabled | disabled]
+            description [string]
+            dos-application [none | add | delete | modify | replace-all-with] {
+              name [string] {
+                options:
+                  local-publisher [name]
+                  remote-publisher [name]
+              }
+            }
+            bot-defense [none | add | delete | modify | replace-all-with] {
+              name [string] {
+                options:
+                  local-publisher [name]
+                  remote-publisher [name]
+                  filter {
+                    log-illegal-requests [disabled | enabled]
+                    log-challenged-requests [disabled | enabled]
+                    log-legal-requests [disabled | enabled]
+                    log-captcha-challenged-requests [disabled | enabled]
+                    log-bot-signature-matched-requests [disabled | enabled]
+                  }
+              }
+            }
+            flowspec {
+                log-publisher [none | [name]]
+            }
+            ip-intelligence {
+                aggregate-rate [integer]
+                log-publisher [none | [name]]
+                log-translation-fields [disabled | enabled]
+                log-shun [disabled | enabled]
+                log-geo [disabled | enabled]
+                log-rtbh [disabled | enabled]
+                log-scrubber [disabled | enabled]
+            }
+            port-misuse {
+                log-publisher [none | [name]]
+                aggregate-rate [integer]
+            }
+            traffic-statistics {
+                log-sctive-flows [disabled | enabled]
+                log-publisher [none | [name]]
+                log-missed-flows [disabled | enabled]
+                log-reaped-flows [disabled | enabled]
+                log-syncookies [disabled | enabled]
+                log-syncookies-whitelist [disabled | enabled]
+            }
+            network [add | delete | modify | none | replace-all-with] {
+              name [string] {
+                options:
+                  filter {
+                    log-acl-match-accept [disabled | enabled]
+                    log-acl-match-drop [disabled | enabled]
+                    log-acl-match-reject [disabled | enabled]
+                    log-ip-errors [disabled | enabled]
+                    log-tcp-errors [disabled | enabled]
+                    log-tcp-events [disabled | enabled]
+                    log-translation-fields [disabled | enabled]
+                    log-geo-always [disabled | enabled]
+                    log-uuid-field [disabled | enabled]
+                  }
+                  rate-limit {
+                    acl-match-accept [integer]
+                    acl-match-drop [integer]
+                    acl-match-reject [integer]
+                    ip-errors [integer]
+                    tcp-errors [integer]
+                    tcp-events [integer]
+                    aggregate-rate [integer]
+                  }
+                  format {
+                    field-list [none | { acl_policy_name | acl_policy_type | acl_rule_name | acl_rule_uuid | action | bigip_hostname | context_name | context_type | date_time |
+                                dest_ip | dest_port | drop_reason | management_ip_address | protocol | route_domain |
+                                sa_translation_pool | sa_translation_type | src_ip | src_port | translated_dest_ip |
+                                translated_dest_port | translated_ip_protocol | translated_route_domain |
+                                translated_src_ip | translated_src_port | translated_vlan | vlan }]
+                    field-list-delimiter [string]
+                    type [field-list | none | user-defined]
+                    user-defined [string]
+                  }
+                  publisher [none | [name]]
+              }
+            }
+            nat {
+              end-inbound-session [backup-allocation-only | disabled | enabled]
+              errors [disabled | enabled]
+              format {
+                end-inbound-session {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+                end-outbound-session {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+                errors {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+                quota-exceeded {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+                start-inbound-session {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+                start-outbound-session {
+                  field-list [none | { context_name | duration | route_domain | sub_id | translated_dest_port | translated_src_port | dest_ip | event_name | src_ip |
+                              timestamp | translated_route_domain | dest_port | protocol | src_port | translated_dest_ip | translated_src_ip}]
+                  field-list-delimiter [string]
+                  type [field-list | none | user-defined]
+                  user-defined [string]
+                }
+              }
+              log-publisher [none | [name]]
+              log-subscriber-id [disabled | enabled]
+              lsn-legacy-mode [disabled | enabled]
+              quota-exceeded [disabled | enabled]
+              rate-limit {
+                  aggregate-rate [integer]
+                  end-inbound-session [integer]
+                  end-outbound-session [integer]
+                  errors [integer]
+                  quota-exceeded [integer]
+                  start-inbound-session [integer]
+                  start-outbound-session [integer]
+              }
+              start-inbound-session [backup-allocation-only | disabled | enabled]
+              end-outbound-session {
+                  action [backup-allocation-only | disabled | enabled]
+                  elements [add | delete | none | replace-all-with] destination
+              }
+              start-outbound-session {
+                  action [backup-allocation-only | disabled | enabled]
+                  elements [add | delete | none | replace-all-with] destination
+              }
+            }
+            protocol-dns [add | delete | modify | none | replace-all-with] {
+              name [string] {
+                options:
+                  filter {
+                    log-dns-drop [disabled | enabled]
+                    log-dns-filtered-drop [disabled | enabled]
+                    log-dns-malformed [disabled | enabled]
+                    log-dns-malicious [disabled | enabled]
+                    log-dns-reject [disabled | enabled]
+                  }
+                  format {
+                    field-list [none | { action | attack_type | context_name | date_time | dest_ip | dest_port |
+                                dns_query_name | dns_query_type | src_ip | src_port | vlan | route_domain }]
+                    field-list-delimiter [string]
+                    type [field-list | none | user-defined]
+                    user-defined [string]
+                  }
+                  publisher [none | [name]]
+              }
+            }
+            protocol-dns-dos-publisher [none | [name]]
+            protocol-sip [add | delete | modify | none | replace-all-with] {
+              name [string] {
+                options:
+                  filter {
+                    log-sip-drop [disabled | enabled]
+                    log-sip-global-failures [disabled | enabled]
+                    log-sip-malformed [disabled | enabled]
+                    log-sip-redirection-responses [disabled | enabled]
+                    log-sip-request-failures [disabled | enabled]
+                    log-sip-server-errors [disabled | enabled]
+                  }
+                  format {
+                    field-list [none | { action | attack_type | context_name | date_time | dest_ip | dest_port |
+                                sip_method_type | sip_caller | sip_callee | src_ip | src_port | vlan | route_domain }]
+                    field-list-delimiter [string]
+                    type [field-list | none | user-defined]
+                    user-defined [string]
+                  }
+                  publisher [none | [name]]
+              }
+            }
+            protocol-sip-dos-publisher [none | [name]]
+            dos-network-publisher [none | [name]]
+            protocol-transfer [none | add | delete | modify | replace-all-with] {
+              name [string] {
+                options:
+                  publisher [name]
+              }
+            }
+
+        edit profile [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+   [1mDISPLAY[0m
+        list profile
+        list profile [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config profile
+        show running-config profile [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+            partition
+            recursive
+
+   [1mDELETE[0m
+        delete profile [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mprofile [22mcomponent to create, modify, display, or delete
+       a Security log profile for use with Security Logging functionality.
+
+[1mEXAMPLES[0m
+       [1mcreate profile my_log_profile[0m
+
+       Creates a custom Security log profile named [1mmy_log_profile [22mwith initial
+       settings.
+
+       [1mlist profile[0m
+
+       Displays the properties of all Security log profiles.
+
+[1mOPTIONS[0m
+       [1mantifraud[0m
+            Adds, deletes, or replaces a single Anti-Fraud Security sub-
+            profile. You can configure the following options for Anti-Fraud
+            Security:
+
+            [1mencode-fields[0m
+                 Adds, deletes, or replaces a set of [1mantifraud-storage-field[0m
+                 IDs for which the system performs URL-encoding before
+                 logging.
+
+            [1mevents[0m
+                 Adds, deletes, or replaces a set of events ([1malert[22m, [1mlogin[22m)
+                 used by the system to log data. You can configure the
+                 following options for each event:
+
+                 [1mformat[0m
+                      Specifies a storage format in Anti-Fraud Security. You
+                      can configure the following options for the storage
+                      format:
+
+                      [1mtype [22mSpecifies a type of the storage format. The options
+                           are:
+
+                           [1mdefault[0m
+                                Specifies that the log displays a predefined
+                                format and [1mantifraud-storage-field [22mfields.
+
+                           [1muser-defined[0m
+                                Specifies that the log displays any free text
+                                that you type in the [1muser-template [22mwhich can
+                                include relevant [1mantifraud-storage-field[0m
+                                fields for this event.
+
+                      [1mrate-limit[0m
+                           This option is used to set the rate for the Anti-
+                           Fraud log event that can be logged per second, per
+                           virtual-server (per TMM).
+
+                      [1muser-template[0m
+                           Specifies a user template in the [1muser-defined[0m
+                           storage format.
+
+            [1mrate-limit-template[0m
+                 Specifies a template for rate-limit event logging.
+
+            [1mremote-publisher[0m
+                 Specifies the name of the log publisher used for logging
+                 Anti-Fraud events.
+
+       [1mapp-service[0m
+            Specifies the name of the application service to which the profile
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the profile. Only the application
+            service can modify or delete the profile.
+
+       [1mapplication[0m
+            Adds, deletes, or replaces a single Application Security sub-
+            profile. You can configure the following options for Application
+            Security:
+
+            [1mfacility[0m
+                 Specifies the facility category of the logged traffic in
+                 Application Security. Select between [1mlocal0 [22mand [1mlocal7[22m.
+
+            [1mfilter[0m
+                 Adds, deletes, or replaces a set of request filters in
+                 Application Security. You can configure the following options
+                 for a request filter:
+
+                 [1mkey  [22mSpecifies a unique key for the request filter. This
+                      option is required for the operations [1mcreate[22m, [1mdelete[22m,
+                      [1mmodify[22m, and [1mreplace-all-with[22m. The options are:
+
+                      [1mrequest-type[0m
+                           Specifies which kind of requests the system, or
+                           server, logs.
+
+                      [1mprotocol[0m
+                           Specifies whether request logging is dependent on
+                           the protocol.
+
+                      [1mresponse-code[0m
+                           Specifies whether request logging is dependent on
+                           the response status code.
+
+                      [1mhttp-method[0m
+                           Specifies whether request logging is dependent on
+                           the HTTP method.
+
+                      [1msearch-all[22m, [1msearch-in-headers[22m, [1msearch-in-post-data[22m,
+                      [1msearch-in-query-string[22m, [1msearch-in-request[22m, [1msearch-in-uri[0m
+                           Specifies whether the request logging is dependent
+                           on a specific string, and if so, the part of the
+                           request where the system must find the string. You
+                           can select only one of these filters, the default
+                           is [1msearch-all[22m, which means that the system logs all
+                           requests, regardless of string.
+
+                 [1mvalues[0m
+                      Adds, deletes, or replaces a set of values in the
+                      request filter.
+
+            [1mformat[0m
+                 Specifies a storage format in Application Security. You can
+                 configure the following options for the storage format:
+
+                 [1mfield-delimiter[0m
+                      Specifies a field delimiter in the [1mpredefined [22mstorage
+                      format. You may not use the % character. The default
+                      delimiter is the comma character, for CSV.
+
+                 [1mfield-format[0m
+                      Specifies a field format (for each key/value pair) in
+                      the [1mpredefined [22mstorage format. Use %k for key and %v for
+                      value. The default format is empty that is interpreted
+                      as "%v", for CSV.
+
+                 [1mfields[0m
+                      Replaces a set of fields in the [1mpredefined [22mstorage
+                      format. The order in the set is important - the server
+                      displays the selected traffic items in the log
+                      sequentially according to it.
+
+                 [1mtype [22mSpecifies a type of the storage format. The options are:
+
+                      [1mpredefined[0m
+                           Specifies that the log displays only the predefined
+                           items you select in the [1mfields[22m.
+
+                      [1muser-defined[0m
+                           Specifies that the log displays any free text that
+                           you type in the [1muser-string [22mwhich can include the
+                           predefined items.
+
+                 [1muser-string[0m
+                      Specifies a user string in the [1muser-defined [22mstorage
+                      format.
+
+            [1mguarantee-logging[0m
+                 Indicates whether to guarantee local logging in Application
+                 Security.
+
+            [1mguarantee-response-logging[0m
+                 Indicates whether to guarantee local response logging in
+                 Application Security. In order to enable it, you must first
+                 enable [1mguarantee-logging[22m, and set [1mresponse-logging [22mto either
+                 [1millegal [22mor [1mall[22m.
+
+            [1mlocal-storage[0m
+                 Enables or disables local storage in Application Security.
+
+            [1mlogic-operation[0m
+                 Specifies the logic operation on the associated filters in
+                 Application Security. The options are:
+
+                 [1mand  [22mSpecifies that requests must pass all filters in order
+                      for the system, or server, to log the requests.
+
+                 [1mor   [22mSpecifies that requests must meet at least one filter in
+                      order for the system, or server, to log the requests.
+                      This is the default value.
+
+            [1mmaximum-entry-length[0m
+                 Specifies the maximum entry length in Application Security.
+                 The options are:
+
+                 [1m1k   [22mThis is the possible length for remote servers that
+                      support the [1mudp [22mprotocol.
+
+                 [1m2k   [22mThis is the default length for remote servers that
+                      support the [1mtcp[22m, [1mudp [22mand [1mtcp-rfc3195 [22mprotocols.
+
+                 [1m10k[22m, [1m64k[0m
+                      These are possible lengths for remote servers that
+                      support the [1mtcp [22mand [1mudp [22mprotocol.
+
+            [1mmaximum-header-size[0m
+                 Specifies the maximum headers size in Application Security.
+
+            [1mmaximum-query-size[0m
+                 Specifies the maximum query string size in Application
+                 Security.
+
+            [1mmaximum-request-size[0m
+                 Specifies the maximum request size in Application Security.
+
+            [1mname [22mSpecifies a dummy name for enabled Application Security. This
+                 option is required for the operations [1mcreate[22m, [1mdelete[22m, [1mmodify[22m,
+                 and [1mreplace-all-with[22m.
+
+            [1mprotocol[0m
+                 Specifies the protocol supported by the remote server in
+                 Application Security. Select either: [1mtcp [22m(the default value),
+                 [1mudp[22m, or [1mtcp-rfc3195[22m.
+
+            [1mremote-storage[0m
+                 Specifies a remote storage type in Application Security. The
+                 options are:
+
+                 [1mnone [22mSpecifies that the system does not store traffic on any
+                      remote logging server.
+
+                 [1mremote[0m
+                      Specifies that the system stores all traffic on a remote
+                      logging server, like a syslog.
+
+                 [1msplunk[0m
+                      Specifies that the system stores all traffic on a
+                      reporting server (Splunk) using a preconfigured storage
+                      format. Key/value pairs are used in the log messages.
+
+                 [1marcsight[0m
+                      Specifies that the system stores all traffic on a remote
+                      logging server using the predefined ArcSight settings
+                      for the logs. The log messages are in Common Event
+                      Format (CEF).
+
+            [1mreport-anomalies[0m
+                 Indicates whether to report detected anomalies in Application
+                 Security.
+
+            [1mresponse-logging[0m
+                 Specifies a response logging type in Application Security.
+                 The options are:
+
+                 [1mnone [22mSpecifies that the system does not log responses. This
+                      is the default value.
+
+                 [1millegal[0m
+                      Specifies that the system logs responses to illegal
+                      requests.
+
+                 [1mall  [22mSpecifies that the system logs all responses if the
+                      associated [1mrequest-type [22mfilter has the [1mall [22mvalue.
+
+            [1mservers[0m
+                 Adds, deletes, or replaces a set of remote servers in
+                 Application Security, by specifying an IP address and service
+                 port in the format [1m[IPv4:port] [22mor [1m[IPv6.port][22m.
+
+       [1mbuilt-in[0m
+            Displays whether this profile is predefined or user-defined.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mdos-application[0m
+            Adds, deletes, or replaces a single DoS (Application) Protection
+            sub-profile. You can configure the following options for DoS
+            (Application) Protection:
+
+            [1mlocal-publisher[0m
+                 Specifies the name of the local log publisher used for
+                 Application DoS attacks. [1mNote: [22mThis publisher should have a
+                 single [1mlocal-database [22mdestination.
+
+            [1mname [22mSpecifies a dummy name for enabled DoS (Application)
+                 Protection. This option is required for the operations
+                 [1mcreate[22m, [1mdelete[22m, [1mmodify[22m, and [1mreplace-all-with[22m.
+
+            [1mremote-publisher[0m
+                 Specifies the name of the remote log publisher used for
+                 Application DoS attacks. [1mNote: [22mThis publisher should have
+                 [1marcsight [22mor [1msplunk [22mdestinations.
+
+       [1mbot-defense[0m
+            Adds, deletes, or replaces a single Bot Defense sub-profile. You
+            can configure the following options for Bot Defense:
+
+            [1mname [22mSpecifies a dummy name for enabled Bot Defense. This option
+                 is required for the operations [1mcreate[22m, [1mdelete[22m, [1mmodify[22m, and
+                 [1mreplace-all-with[22m.
+
+            [1mlocal-publisher[0m
+                 Specifies the name of the local log publisher used for Bot
+                 Defense log messages. [1mNote: [22mThis publisher should have a
+                 single [1mlocal-database [22mdestination.
+
+            [1mremote-publisher[0m
+                 Specifies the name of the remote log publisher used for Bot
+                 Defense log messages. [1mNote: [22mThis publisher should have only
+                 [1msplunk [22mdestinations.
+
+            [1mfilter[0m
+                 Following options are available which enable or disable the
+                 logging of Bot Defense log messages:
+
+                 [1mlog-illegal-requests[0m
+                      This option is used to enable or disable the logging of
+                      illegal requests.
+
+                 [1mlog-challenged-requests[0m
+                      This option is used to enable or disable the logging of
+                      challenged requests.
+
+                 [1mlog-legal-requests[0m
+                      This option is used to enable or disable the logging of
+                      legal requests.
+
+                 [1mlog-captcha-requests[0m
+                      This option is used to enable or disable the logging of
+                      captcha challenged requests.
+
+                 [1mlog-bot-signature-matched-requests[0m
+                      This option is used to enable or disable the logging of
+                      reported bot signature requests.  =back
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1mflowspec[0m
+            Security FlowSpec log configuration
+
+            [1mlog-publisher[0m
+                 Specifies the name of the log publisher used for Security
+                 FlowSpec log events.
+
+       [1mip-intelligence[0m
+            You can configure the following options under this:
+
+            [1maggregate-rate[0m
+                 This option is used to set the aggregate rate limit that
+                 applies to any ip intelligence log message.
+
+            [1mlog-publisher[0m
+                 Specifies the name of the log publisher used for IP
+                 Intelligence events.
+
+            [1mlog-translation-fields[0m
+                 This option is used to enable or disable the logging of
+                 translated (i.e server side) fields in IP Intelligence log
+                 messages. Translated fields include (but not limited to)
+                 Source Address/Port, Destination Address/Port, IP Protocol,
+                 Route Domain and Vlan.
+
+            [1mlog-shun[0m
+                 This option is used to enable or disable the logging of shun
+                 IP Intelligence events.
+
+            [1mlog-geo[0m
+                 This option is used to enable or disable the logging of geo
+                 location in shun IP Intelligence event.
+
+            [1mlog-rtbh[0m
+                 This option is used to enable or disable the logging of rtbh
+                 IP Intelligence events.
+
+            [1mlog-scrubber[0m
+                 This option is used to enable or disable the logging of
+                 scrubber IP Intelligence events.
+
+       [1mport-misuse[0m
+            You can configure the following options under this:
+
+            [1mlog-publisher[0m
+                 Specifies the name of the log publisher used for port misuse
+                 events.
+
+            [1maggregate-rate[0m
+                 This option is used to set the rate limit that applies to any
+                 port misuse log messages.
+
+       [1mtraffic-statistics[0m
+            You can configure the following options under this:
+
+            [1mlog-active-flows[0m
+                 This option is used to enable and disable the logging of
+                 number of active flows on client side.  The number of flows
+                 are logged globally, per virtual server and per route domain
+                 periodically if number of active flows increased or
+                 decreased.
+
+            [1mlog-publisher[0m
+                 Specifies the name of the log publisher used for Traffic
+                 Statistics logs.
+
+            [1mlog-reaped-flows[0m
+                 This option is used to enable and disable the logging of
+                 number of reaped flows on client side.  The number of flows
+                 are logged globally, per virtual server and per route domain
+                 periodically if number of active flows increased or
+                 decreased.
+
+            [1mlog-missed-flows[0m
+                 This option is used to enable and disable the logging of
+                 number of TCP packets (non SYN/ACK) were dropped because of
+                 the flow table lookup failed. The number of packets are
+                 logged globally, and per route domain periodically.
+
+            [1mlog-syncookies[0m
+                 This option is used to enable and disable the logging of
+                 number of syncookies generated, accepted and rejected in the
+                 context globally and per virtual server.  These log messages
+                 will be generated periodically.
+
+            [1mlog-syncookies-whitelist[0m
+                 This option is used to enable and disable the logging of
+                 number of syncookies whitelist hits, accepted and rejected in
+                 the context globally and per virtual server.  These log
+                 messages will be generated periodically.
+
+       [1mnetwork[0m
+            Add, delete, modify or replace a single Network Security sub-
+            profile. You can configure the following options under this:
+
+            [1mfilter[0m
+                 Following options are available which enable or disable the
+                 logging of corresponding Network events:
+
+                 [1mlog-acl-match-accept[0m
+                      This option is used to enable or disable the logging of
+                      packets that match ACL rules configured with action =
+                      Accept or action = Accept Decisively.
+
+                 [1mlog-acl-match-drop[0m
+                      This option is used to enable or disable the logging of
+                      packets that match ACL rules configured with action =
+                      Drop.
+
+                 [1mlog-acl-match-reject[0m
+                      This option is used to enable or disable the logging of
+                      packets that match ACL rules configured with action =
+                      Reject.
+
+                 [1mlog-ip-errors[0m
+                      This option is used to enable or disable the logging of
+                      IP error packets.
+
+                 [1mlog-tcp-errors[0m
+                      This option is used to enable or disable the logging of
+                      TCP error packets.
+
+                 [1mlog-tcp-events[0m
+                      This option is used to enable or disable the logging of
+                      TCP events on client side. Only 'Established' and
+                      'Closed' states of a TCP session are logged if this
+                      option is enabled.
+
+                 [1mlog-translation-fields[0m
+                      This option is used to enable or disable the logging of
+                      translated (i.e server side) fields in ACL match and TCP
+                      events. Translated fields include (but not limited to)
+                      Source Address/Port, Destination Address/Port, IP
+                      Protocol, Route Domain and Vlan.
+
+                 [1mlog-geo-always[0m
+                      This option is used to enable or disable the logging of
+                      Geographic IP Location information fields in ACL match
+                      and TCP logging. Geographic information includes the
+                      country code of Source Address and Destination Address.
+
+                 [1mlog-uuid-field[0m
+                      This option is used to enable or disable the logging of
+                      ACL rule UUID field in ACL match and TCP logging. If the
+                      acl_rule_uuid field is explicitly specified in field-
+                      list or user-defined formats, UUID value will be logged
+                      regardless of state of this option.
+
+            [1mrate-limit[0m
+                 Following options are available to set throttling rate limits
+                 for the corresponding logging network events:
+
+                 [1macl-match-accept[0m
+                      This option is used to set rate limits for the logging
+                      of packets that match ACL rules configured with action =
+                      Accept or action = Accept Decisively. This option is
+                      effective only if logging of this message type is
+                      enabled.
+
+                 [1macl-match-drop[0m
+                      This option is used to set rate limits for the logging
+                      of packets that match ACL rules configured with action =
+                      Drop. This option is effective only if logging of this
+                      message type is enabled.
+
+                 [1macl-match-reject[0m
+                      This option is used to set rate limits for the logging
+                      of packets that match ACL rules configured with action =
+                      Reject. This option is effective only if logging of this
+                      message type is enabled.
+
+                 [1mip-errors[0m
+                      This option is used to set rate limits for the logging
+                      of IP error packets.  This option is effective only if
+                      logging of this message type is enabled.
+
+                 [1mtcp-errors[0m
+                      This option is used to set rate limits for the logging
+                      of TCP error packets.  This option is effective only if
+                      logging of this message type is enabled.
+
+                 [1mtcp-events[0m
+                      This option is used to set rate limits for the logging
+                      of TCP events on client side. This option is effective
+                      only if logging of this message type is enabled.
+
+                 [1maggregate-rate[0m
+                      This option is used to set the aggregate rate limit that
+                      applies to any network logging message.
+
+            [1mformat[0m
+                 Specifies the Storage format in Network Security sub-profile.
+                 These settings are only used to format the log messages
+                 destined to a Remote Syslog server. You can configure the
+                 following options for the storage format:
+
+                 [1mfield-list[0m
+                      Specifies a set of fields to be logged. This option is
+                      valid when storage format type is [1mfield-list[22m.  The order
+                      in the set is important - the server displays the
+                      selected traffic items in the log sequentially according
+                      to it.  User can pick fields from the following list:
+                      [1macl_policy_name[22m, [1macl_policy_type[22m, [1macl_rule_name[22m,
+                      [1macl_rule_uuid[22m, [1maction[22m, [1mbigip_hostname[22m, [1mcontext_name[22m,
+                      [1mcontext_type[22m, [1mdate_time[22m, [1mdest_fqdn[22m, [1mdest_geo[22m, [1mdest_ip[22m,
+                      [1mdest_port[22m, [1mdrop_reason[22m, [1mmanagement_ip_address[22m, [1mprotocol[22m,
+                      [1mroute_domain[22m, [1msa_translation_pool[22m, [1msa_translation_type[22m,
+                      [1msource_fqdn[22m, [1msource_user[22m, [1msrc_geo[22m, [1msrc_ip[22m, [1msrc_port[22m,
+                      [1mtranslated_dest_ip[22m, [1mtranslated_dest_port[22m,
+                      [1mtranslated_ip_protocol[22m, [1mtranslated_route_domain[22m,
+                      [1mtranslated_src_ip[22m, [1mtranslated_src_port[22m, [1mtranslated_vlan[22m,
+                      [1mvlan[22m.
+
+                 [1mfield-list-delimiter[0m
+                      Specifies the delimiter string in [1mfield-list [22mstorage
+                      format type. The default delimiter is the comma
+                      character, for CSV.  This option is valid when storage
+                      format type is [1mfield-list[22m. Special character [1m$ [22mshould
+                      not be used in delimiter string as it is reserved for
+                      internal usage. Also, the maximum length allowed for
+                      [1mfield-list-delimiter [22mis 31 characters (excluding NUL
+                      terminator).
+
+                 [1mtype [22mSpecifies a type of the storage format. The options are:
+
+                      [1mfield-list[0m
+                           Specifies that the log displays only the items you
+                           specify in the [1mfield-list [22mwith [1mfield-list-delimiter[0m
+                           as the delimiter between the items.
+
+                      [1mnone [22mDefault format type. With this option, the messages
+                           will be logged in the following format:
+
+                            "management_ip_address","bigip_hostname","context_type","context_name","src_geo","src_ip", "dest_geo","dest_ip","src_port","dest_port","vlan","protocol","route_domain", "translated_src_ip","translated_dest_ip","translated_src_port","translated_dest_port", "translated_vlan","translated_ip_protocol","translated_route_domain","acl_policy_type", "acl_policy_name","acl_rule_name","acl_rule_uuid","action","drop_reason","sa_translation_type", "sa_translation_pool","flow_id","source_user","source_fqdn","dest_fqdn"
+
+                      [1muser-defined[0m
+                           Specifies that the log displays the message as per
+                           the [1muser-defined [22mstring format.
+
+                 [1muser-defined[0m
+                      Specifies the format of log message in form of user
+                      defined string. This option is valid when storage format
+                      type is [1muser-defined[22m. Maximum configurable length is 512
+                      characters.  Any of the following items, if wrapped
+                      within ${ }, will be substituted with the actual value
+                      when generating the log: [1macl_policy_name[22m,
+                      [1macl_policy_type[22m, [1macl_rule_name[22m, [1macl_rule_uuid[22m, [1maction[22m,
+                      [1mbigip_hostname[22m, [1mcontext_name[22m, [1mcontext_type[22m, [1mdate_time[22m,
+                      [1mdest_fqdn[22m, [1mdest_geo[22m, [1mdest_ip[22m, [1mdest_port[22m, [1mdrop_reason[22m,
+                      [1mmanagement_ip_address[22m, [1mprotocol[22m, [1mroute_domain[22m,
+                      [1msa_translation_pool[22m, [1msa_translation_type[22m, [1msource_fqdn[22m,
+                      [1msource_user[22m, [1msrc_geo[22m, [1msrc_ip[22m, [1msrc_port[22m,
+                      [1mtranslated_dest_ip[22m, [1mtranslated_dest_port[22m,
+                      [1mtranslated_ip_protocol[22m, [1mtranslated_route_domain[22m,
+                      [1mtranslated_src_ip[22m, [1mtranslated_src_port[22m, [1mtranslated_vlan[22m,
+                      [1mvlan[22m.
+
+            [1mpublisher[0m
+                 Specifies the name of the log publisher used for Network
+                 events.
+
+       [1mname [22mSpecifies a unique name for the component. This option is required
+            for the commands [1mcreate[22m, [1mdelete[22m, and [1mmodify[22m.
+
+       [1mpartition[0m
+            Displays the administrative partition within which the component
+            resides.
+
+       [1mnat  [22mThis section is used to configure log settings related to events
+            applicable to firewall NAT feature. Following options are
+            available under this section:
+
+            [1mend-inbound-session[0m
+                 Event for end of incoming connection to a translated address.
+                 Inbound connections are supported only for [1mdynamic-pat [22msource
+                 translation.  Following options can be configured for logging
+                 this event:
+
+                      [1mbackup-allocation-only[0m
+
+                      Enable logging this event when translation is done using
+                      backup address in the source translation object
+                      configured in [1mdynamic-pat [22mmode. This is only applicable
+                      when [1mlsn-legacy-mode [22mis enabled.
+
+                      [1mdisabled[0m
+
+                      Disables logging this event.
+
+                      [1menabled[0m
+
+                      Enables logging this event when translation is done
+                      using primary address or backup address in the source
+                      translation object.
+
+            [1merrors[0m
+                 Event for errors encountered while attempting source or
+                 destination translation.
+
+                      [1mdisabled[0m
+
+                      Disables logging for this event.
+
+                      [1menabled[0m
+
+                      Enables logging for this event.
+
+            [1mlog-publisher[0m
+                 Specifies the name of log publisher used to log NAT related
+                 events to one (or more) remote or local destinations.
+
+            [1mlsn-legacy-mode[0m
+                 Specifies whether translation events (and other NAT events)
+                 are logged in existing CGNAT/LSN formats (for backward
+                 compatibility with LSN events).
+
+            [1mlog-subscriber-id[0m
+                 When [1menabled[22m, the subscriber ID associated with a subscriber
+                 IP address will be printed in the logs.
+
+            [1mquota-exceeded[0m
+                 Event for when client exceeded allocated resource limit.
+
+                      [1mdisabled[0m
+
+                      Disables logging for this event.
+
+                      [1menabled[0m
+
+                      Enables logging for this event.
+
+            [1mrate-limit[0m
+                 Following options are available to set throttling rate limits
+                 for the corresponding logging FW NAT events:
+
+                 [1maggregate-rate-limit[0m
+                      This option is used to set the aggregate rate for all
+                      the FW NAT log events that can be logged per second.
+
+                 [1mend-inbound-session[0m
+                      This option is used to rate limit the end inbound
+                      session log events per second.
+
+                 [1mend-outbound-session[0m
+                      This option is used to rate limit the end outbound
+                      session log events per second.
+
+                 [1merrors[0m
+                      This option is used to rate limit the errors to be
+                      logged per second.
+
+                 [1mstart-inbound-session[0m
+                      This option is used to rate limit the start inbound
+                      session log events per second.
+
+                 [1mstart-outbound-session[0m
+                      This option is used to rate limit the start outbound
+                      session log events per second.
+
+                 [1mquota-exceeded[0m
+                      This option is used to rate limit the quota exceeded log
+                      events per second.
+
+            [1mstart-inbound-session[0m
+                 Event for start of incoming connection to a translated
+                 address. Inbound connections are supported only for [1mdynamic-[0m
+                 [1mpat [22msource translation.  Following options can be configured
+                 for logging this event:
+
+                      [1mbackup-allocation-only[0m
+
+                      Enable logging this event when translation is done using
+                      backup address in the source translation object
+                      configured in [1mdynamic-pat [22mmode.
+
+                      [1mdisabled[0m
+
+                      Disables logging this event.
+
+                      [1menabled[0m
+
+                      Enables logging this event when translation is done
+                      using primary address or backup address in the source
+                      translation object.
+
+            [1mend-outbound-session[0m
+                 Event for end of outbound translation session, when outbound
+                 flow is deleted.
+
+                 [1maction[0m
+                      Specifies what action is taken at the time of logging
+                      the event. Possible options are: [1mbackup-allocation-only[22m,
+                      [1mdisabled [22mand [1menabled[22m.
+
+                 [1melements[0m
+                      Optional elements that can be logged for the event. This
+                      is applicable only if [1mlsn-legacy-mode [22mis enabled.
+
+                           [1mdestination[0m
+
+                           Optional element, if selected, is used to log
+                           destination address and port in the applicable log
+                           event.
+
+            [1mstart-outbound-session[0m
+                 Event for start of outbound translation session, when
+                 outbound flow is created.
+
+                 [1maction[0m
+                      Specifies what action is taken at the time of logging
+                      the event. Possible options are: [1mbackup-allocation-only[22m,
+                      [1mdisabled [22mand [1menabled[22m.
+
+                 [1melements[0m
+                      Optional elements that can be logged for the event. This
+                      is applicable only if [1mlsn-legacy-mode [22mis enabled.
+
+                           [1mdestination[0m
+
+                           Optional element, if selected, is used to log
+                           destination address and port in the applicable log
+                           event.
+
+       [1mprotocol-dns[0m
+            Add, delete, modify or replace a single Protocol (DNS) Security
+            sub-profile. You can configure the following options under this:
+
+            [1mfilter[0m
+                 Following options are available which enable or disable the
+                 logging of corresponding Network events:
+
+                 [1mlog-dns-drop[0m
+                      This option is used to enable or disable the logging of
+                      dropped DNS packets.
+
+                 [1mlog-dns-filtered-drop[0m
+                      This option is used to enable or disable the logging of
+                      DNS packets that are dropped due to filtering.
+
+                 [1mlog-dns-malformed[0m
+                      This option is used to enable or disable the logging of
+                      malformed DNS packets.
+
+                 [1mlog-dns-malicious[0m
+                      This option is used to enable or disable the logging of
+                      malicious DNS packets.
+
+                 [1mlog-dns-reject[0m
+                      This option is used to enable or disable the logging of
+                      rejected DNS packets.
+
+            [1mformat[0m
+                 Specifies the Storage format in Protocol (DNS) Security sub-
+                 profile.  These settings are only used to format the log
+                 messages destined to a Remote Syslog server. You can
+                 configure the following options for the storage format:
+
+                 [1mfield-list[0m
+                      Specifies a set of fields to be logged. This option is
+                      valid when storage format type is [1mfield-list[22m.  The order
+                      in the set is important - the server displays the
+                      selected traffic items in the log sequentially according
+                      to it.  User can pick fields from the following list:
+                      [1maction[22m, [1mattack_type[22m, [1mcontext_name[22m, [1mdate_time[22m, [1mdest_ip[22m,
+                      [1mdest_port[22m, [1mdns_query_name[22m, [1mdns_query_type[22m, [1msrc_ip[22m,
+                      [1msrc_port[22m, [1mvlan[22m.
+
+                 [1mfield-list-delimiter[0m
+                      Specifies the delimiter string in [1mfield-list [22mstorage
+                      format type. The default delimiter is the comma
+                      character, for CSV.  This option is valid when storage
+                      format type is [1mfield-list[22m. Special character [1m$ [22mshould
+                      not be used in delimiter string as it is reserved for
+                      internal usage. Also, the maximum length allowed for
+                      [1mfield-list-delimiter [22mis 31 characters (excluding NUL
+                      terminator).
+
+                 [1mtype [22mSpecifies a type of the storage format. The options are:
+
+                      [1mfield-list[0m
+                           Specifies that the log displays only the items you
+                           specify in the [1mfield-list [22mwith [1mfield-list-delimiter[0m
+                           as the delimiter between the items.
+
+                      [1mnone [22mDefault format type. With this option, the messages
+                           will be logged in the following format:
+
+                           "date_time", "context_name", "vlan",
+                           "dns_query_type", "dns_query_name", "attack_type",
+                           "action", "src_ip", "dest_ip", "src_port",
+                           "dest_port", "route_domain"
+
+                      [1muser-defined[0m
+                           Specifies that the log displays the message as per
+                           the [1muser-defined [22mstring format.
+
+                 [1muser-defined[0m
+                      Specifies the format of log message in form of user
+                      defined string. This option is valid when storage format
+                      type is [1muser-defined[22m. Maximum configurable length is 512
+                      characters.  Any of the following items, if wrapped
+                      within ${ }, will be substituted with the actual value
+                      when generating the log: [1maction[22m, [1mattack_type[22m,
+                      [1mcontext_name[22m, [1mdate_time[22m, [1mdest_ip[22m, [1mdest_port[22m,
+                      [1mdns_query_name[22m, [1mdns_query_type[22m, [1mroute_domain[22m, [1msrc_ip[22m,
+                      [1msrc_port[22m, [1mvlan[22m.
+
+            [1mname [22mSpecifies a dummy name for enabled Protocol (DNS) Security.
+                 This option is required for the operations [1mcreate[22m, [1mdelete[22m,
+                 [1mmodify[22m, and [1mreplace-all-with[22m.
+
+            [1mpublisher[0m
+                 Specifies the name of the log publisher used for DNS events.
+
+       [1mprotocol-dns-dos-publisher[0m
+            Specifies the name of the log publisher used for DNS DoS events.
+
+       [1mdos-network-publisher[0m
+            Specifies the name of the log publisher used for DoS Network
+            events.
+
+       [1mprotocol-sip[0m
+            Add, delete, modify or replace a single Protocol (SIP) Security
+            sub-profile. You can configure the following options under this:
+
+            [1mfilter[0m
+                 Following options are available which enable or disable the
+                 logging of corresponding protocol sip events:
+
+                 [1mlog-sip-drop[0m
+                      This option is used to enable or disable the logging of
+                      dropped SIP packets.
+
+                 [1mlog-sip-global-failures[0m
+                      This option is used to enable or disable the logging of
+                      SIP packets that resulted in global failures.
+
+                 [1mlog-sip-malformed[0m
+                      This option is used to enable or disable the logging of
+                      malformed SIP packets.
+
+                 [1mlog-sip-redirection-responses[0m
+                      This option is used to enable or disable the logging of
+                      SIP packets that resulted in sending redirection
+                      response.
+
+                 [1mlog-sip-request-failures[0m
+                      This option is used to enable or disable the logging of
+                      SIP request failures.
+
+                 [1mlog-sip-server-errors[0m
+                      This option is used to enable or disable the logging of
+                      SIP packets that resulted in server errors.
+
+            [1mformat[0m
+                 Specifies the Storage format in Protocol (SIP) Security sub-
+                 profile.  These settings are only used to format the log
+                 messages destined to a Remote Syslog server. You can
+                 configure the following options for the storage format:
+
+                 [1mfield-list[0m
+                      Specifies a set of fields to be logged. This option is
+                      valid when storage format type is [1mfield-list[22m.  The order
+                      in the set is important - the server displays the
+                      selected traffic items in the log sequentially according
+                      to it.  User can pick fields from the following list:
+                      [1maction[22m, [1mattack_type[22m, [1mcontext_name[22m, [1mdate_time[22m, [1mdest_ip[22m,
+                      [1mdest_port[22m, [1mdns_query_name[22m, [1mdns_query_type[22m, [1msrc_ip[22m,
+                      [1msrc_port[22m, [1mvlan[22m.
+
+                 [1mfield-list-delimiter[0m
+                      Specifies the delimiter string in [1mfield-list [22mstorage
+                      format type. The default delimiter is the comma
+                      character, for CSV.  This option is valid when storage
+                      format type is [1mfield-list[22m. Special character [1m$ [22mshould
+                      not be used in delimiter string as it is reserved for
+                      internal usage. Also, the maximum length allowed for
+                      [1mfield-list-delimiter [22mis 31 characters (excluding NUL
+                      terminator).
+
+                 [1mtype [22mSpecifies a type of the storage format. The options are:
+
+                      [1mfield-list[0m
+                           Specifies that the log displays only the items you
+                           specify in the [1mfield-list [22mwith [1mfield-list-delimiter[0m
+                           as the delimiter between the items.
+
+                      [1mnone [22mDefault format type. With this option, the messages
+                           will be logged in the following format:
+
+                           "date_time", "context_name", "vlan",
+                           "sip_method_type", "sip_caller", "sip_callee",
+                           "attack_type", "action", "src_ip", "dest_ip",
+                           "src_port", "dest_port", "route_domain"
+
+                      [1muser-defined[0m
+                           Specifies that the log displays the message as per
+                           the [1muser-defined [22mstring format.
+
+                 [1muser-defined[0m
+                      Specifies the format of log message in form of user
+                      defined string. This option is valid when storage format
+                      type is [1muser-defined[22m. Maximum configurable length is 512
+                      characters.  Any of the following items, if wrapped
+                      within ${ }, will be substituted with the actual value
+                      when generating the log: [1maction[22m, [1mattack_type[22m,
+                      [1mcontext_name[22m, [1mdate_time[22m, [1mdest_ip[22m, [1mdest_port[22m,
+                      [1mdns_query_name[22m, [1mdns_query_type[22m, [1mroute_domain[22m, [1msrc_ip[22m,
+                      [1msrc_port[22m, [1mvlan[22m.
+
+            [1mname [22mSpecifies a dummy name for enabled Protocol (SIP) Security.
+                 This option is required for the operations [1mcreate[22m, [1mdelete[22m,
+                 [1mmodify[22m, and [1mreplace-all-with[22m.
+
+            [1mpublisher[0m
+                 Specifies the name of the log publisher used for SIP events.
+
+       [1mprotocol-sip-dos-publisher[0m
+            Specifies the name of the log publisher used for SIP DoS events.
+
+       [1mprotocol-transfer[0m
+            Adds, deletes, or replaces a single Protocol (Transfer) Security
+            sub-profile. You can configure the following options for Protocol
+            (Transfer) Security:
+
+            [1mname [22mSpecifies a dummy name for enabled Protocol (Transfer)
+                 Security. This option is required for the operations [1mcreate[22m,
+                 [1mdelete[22m, [1mmodify[22m, and [1mreplace-all-with[22m.
+
+            [1mpublisher[0m
+                 Specifies the name of the log publisher used for Protocol
+                 Security log messages. [1mNote: [22mThis publisher should have
+                 either [1mlocal-database[22m, [1mlocal-syslog[22m, [1mremote-syslog[22m, [1marcsight[0m
+                 or [1msplunk [22msingle destination.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+[1mSEE ALSO[0m
+       [1masm http-method[22m, [1masm response-code[22m, [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m,
+       [1mltm virtual[22m, [1mmodify[22m, [1mregex[22m, [1msecurity[22m, [1msecurity log[22m, [1msecurity log[0m
+       [1mstorage-field[22m, [1mshow[22m, [1msys log-config destination[22m, [1msys log-config[0m
+       [1mpublisher[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2009-2013, 2015. All rights
+       reserved.
+
+
+
+BIG-IP                                                                     2018-11-27                                                    security log profile(1)

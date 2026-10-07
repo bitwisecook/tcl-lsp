@@ -1,0 +1,192 @@
+ltm message-routing generic router(1)                                  BIG-IP TMSH Manual                                  ltm message-routing generic router(1)
+
+
+
+[1mNAME[0m
+       router - Configures a message router instance for routing generic
+       message protocol messages.
+
+[1mMODULE[0m
+       [1mltm message-routing generic[0m
+
+[1mSYNTAX[0m
+       Configure the [1mrouter [22mcomponent within the [1mltm message-routing generic[0m
+       module using the syntax shown in the following sections.
+
+   [1mCREATE/MODIFY[0m
+        create router [name]
+        modify router [name]
+          options:
+            app-service [[string] | none]
+            defaults-from [ [name] | none]
+            description [string]
+            ha-message-sweeper-interval [integer]
+            ignore-client-port [ yes | no ]
+            max-pending-bytes [integer]
+            max-pending-messages [integer]
+            max-retries [integer]
+            mirrored [enabled | disabled]
+            per-peer-stats [enabled | disabled]
+            routes { [route-name] }
+            traffic-group [[string] | default | non-default | none]
+            use-local-connection [ yes | no ]
+            irule-scope-message [ yes | no ]
+
+        edit router [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+        reset-stats router
+        reset-stats router [ [ [name] | [glob] | [regex] ] ... ]
+
+   [1mDISPLAY[0m
+        list router
+        list router [ [ [name] | [glob] | [regex] ] ... ]
+        show running-config router
+        show running-config router [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+            partition
+
+        show router
+        show router [ [ [name] | [glob] | [regex] ] ... ]
+          options:
+            (default | exa | gig | kil | meg | peta | raw | tera | yotta | zetta)
+            field-fmt
+
+   [1mDELETE[0m
+        delete router [name]
+
+[1mDESCRIPTION[0m
+       You can use the [1mrouter [22mcomponent to manage a generic message router
+       instance. All virtual servers containing the same [1mrouter [22minstance share
+       the same route table and can route messages between peers.
+
+[1mEXAMPLES[0m
+       [1mcreate router my_router defaults-from messagerouter[0m
+
+       Creates a message router instance named [1mmy_router [22musing the system
+       defaults.
+
+       [1mcreate router my_router { routes add { route1 route2 } }[0m
+
+       Creates a router instance named [1mmy_router [22mthat contains two static
+       routes, [1mroute1 [22mand [1mroute2[22m.
+
+[1mOPTIONS[0m
+       [1mapp-service[0m
+            Specifies the name of the application service to which the router
+            belongs. The default value is [1mnone[22m. [1mNote: [22mIf the [1mstrict-updates[0m
+            option is [1menabled [22mon the application service that owns the object,
+            you cannot modify or delete the router. Only the application
+            service can modify or delete the router.
+
+       [1mdefaults-from[0m
+            Specifies the profile that you want to use as the parent profile.
+            The new profile inherits all of the settings and values from the
+            specified parent profile. The default value is [1mmessagerouter[22m.
+
+       [1mdescription[0m
+            User defined description.
+
+       [1mignore-client-port[0m
+            If set to [1myes[22m, the system ignores the remote port on clientside
+            connections (connections where the peer connected to the BIG IP
+            system) when searching for an existing connection. The default
+            value is [1mno[22m.
+
+       [1mirule-scope-message[0m
+            If set to [1myes[22m, iRule events are scoped to the message executing
+            (each message has its own execution context). This allows multiple
+            messages to process iRules concurrently without waiting for
+            commands from other messages. If set to [1mno[22m, all genericmsg iRule
+            events are scoped to the connection flow (that is all share a
+            single execution context per flow) and therefore are forced to
+            execute one at a time even though they are processing independent
+            messages (this is the legacy mode). The default value is [1mno[22m. Some
+            existing iRules might need to be adjusted to use the per-message
+            scope.
+
+       [1mha-message-sweeper-interval[0m
+            Specifies the maximum time in milliseconds that a message will be
+            held on the standby device as it waits for the active device to
+            route the message. Messages on the standby device held for longer
+            then the configurable sweeper interval, will be dropped. The
+            default value is [1m1000 [22mmilliseconds.
+
+       [1minherited-traffic-group[0m
+            Read-only property that indicates if the [1mtraffic-group [22mis
+            inherited from the parent folder.
+
+       [1mmax-pending-bytes[0m
+            Limits the number of bytes contained within messages held pending
+            while waiting for a connection to a peer. If [1mirule-scope-message[0m
+            is set to [1myes[22m, also limits the number of bytes contained within
+            messages that may concurrently process iRule events. Once reached
+            any additional messages to the peer will be flagged as
+            undeliverable and returned to the originator. The default value is
+            [1m32768[22m.
+
+       [1mmax-pending-messages[0m
+            Limits the number of messages held pending while waiting for a
+            connection to a peer. If [1mirule-scope-message [22mis set to [1myes[22m, also
+            limits the number of messages that may concurrently process iRule
+            events. Once the limit is reached, any additional messages to the
+            peer will be flagged as undeliverable and returned to the
+            originator. The default value is [1m64[22m.
+
+       [1mmax-retries[0m
+            This attribute sets the maximum number of time a message may be
+            resubmitted for rerouting by the MR::retry iRule command. The
+            default value is [1m1[22m.
+
+       [1mmirrored[0m
+            If enabled, connection created on the active device of the
+            traffic-group specified, will be mirrored on the standby device.
+            Messages processed on the active device will also be mirrored and
+            perform equivalent processing on the standby device.
+
+       [1mper-peer-stats[0m
+            If enabled, the profile specific statistics will be captured for
+            each pool member. The default value is [1mdisabled[22m.
+
+       [1mtraffic-group[0m
+            Specifies the traffic group on which the router is active. The
+            default traffic group is inherited from the containing folder.
+
+       [1minherited-traffic-group[0m
+            Read-only property that indicates if the [1mtraffic-group [22mis
+            inherited from the parent folder.
+
+       [1muse-local-connection[0m
+            If true, the router will route a message to an existing connection
+            on the same TMM as the message was received on. If an existing
+            connection is not found, it will route the message through an
+            existing connection based on a deterministic algorithm that may be
+            on another TMM. If a matching existing connection is not found, it
+            will create a connection on the current TMM. Setting this flag may
+            limit the number of connections that are created to a peer.
+
+       [1mroutes[0m
+            Specifies a list of static routes for the router instance to use.
+
+[1mSEE ALSO[0m
+       [1mcreate[22m, [1mdelete[22m, [1medit[22m, [1mglob[22m, [1mlist[22m, [1mltm virtual[22m, [1mmodify[22m, [1mregex[22m, [1mreset-[0m
+       [1mstats[22m, [1mshow[22m, [1mtmsh[22m, [1mltm message-routing generic route ltm message-[0m
+       [1mrouting generic protocol[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2012-2014. All rights reserved.
+
+
+
+BIG-IP                                                                     2019-12-19                                      ltm message-routing generic router(1)

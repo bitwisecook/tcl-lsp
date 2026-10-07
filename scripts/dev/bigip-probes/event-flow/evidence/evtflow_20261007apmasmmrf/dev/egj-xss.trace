@@ -1,0 +1,392 @@
+* WARNING: failed to open cookie file "egj-xss.cookies"
+* Added bigip.bitwisecook.org:18613:192.168.9.24 to DNS cache
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18613...
+* ALPN: curl offers h2,http/1.1
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS handshake, Client hello (1):
+=> Send SSL data, 230 bytes (0xe6)
+0000: ........>.O6.0\........V ....X._...Fo9..6.,.0.........+./...$.(.
+0040: k.#.'.g.....9.....3.....=.<.5./..................bigip.bitwiseco
+0080: ok.org...............................h2.http/1.1...........*.(..
+00c0: ......................................
+* SSL Trust Anchors:
+*   CAfile: pki/public/ca.crt
+*   CApath: /etc/ssl/certs
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....;
+* TLSv1.2 (IN), TLS handshake, Server hello (2):
+<= Recv SSL data, 59 bytes (0x3b)
+0000: ...7.....xN.^......J..T......Xg.W.s.5.../..................
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+<= Recv SSL data, 925 bytes (0x39d)
+0000: ..........0...0..w.........0...*.H........0D1.0...U....GB1.0...U
+0040: ....tcl-lsp event-flow1.0...U....evtflow test CA0...261007080546
+0080: Z..261106080546Z0J1.0...U....GB1.0...U....tcl-lsp event-flow1.0.
+00c0: ..U....bigip.bitwisecook.org0.."0...*.H.............0...........
+0100: .wj.0..9.....P;Z<_..:....?.i.....W..5.D..(..x..S..c.X. ....d-.@.
+0140: .a......N.w.@k.{(R9..jY..CL....:......0......c.u.}..p...4c=..h."
+0180: .7.qI.....?(.Igp...q......J....p...G.W...;;....|}.....^.....U...
+01c0: ..'[......O4C.U....=.s...j{.....d`......'.U..\k..M..t.Sy%. %....
+0200: .....0..0?..U...806..bigip.bitwisecook.org..evtflow.bitwisecook.
+0240: org......0...U.........W...n...<......'.0...U.#..0....`.2....(.A
+0280: .(..e.qJ.0...*.H...............[ .K...9.....% b..Rs.........Wt.C
+02c0: A...1.F.h..p...].!.Vh.`Y...e........u..%7..A..a..qQ....!;S.1..U.
+0300: .R..D.W..Q.........0/..y..j..2.qe...A...Sj.9.x......>P.....\....
+0340: "...a(V..)..-m**.{.&.2Y..r..@.P.....E.\.......l..q..../4.......}
+0380: I7p...$Y....Q7P9..Sl{!.fy. ..
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....M
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+<= Recv SSL data, 333 bytes (0x14d)
+0000: ...I...A.z.)Van.!.t.}.........M.B>.C.....<6.....U).._......._K..
+0040: ...O..G......FC.".......G;.....(...V%......i....a.;.f...3...!.ci
+0080: ..........#.I...R.....'f.b.1d.f..p..........-.1.J.I...9...zb~.X.
+00c0: -(K.o.BY.U..!~.~h..c..J..n.....3.......GTt.DjD.%KUA8.._....d....
+0100: .n...]}.A.......~.TV.....A.w.8.....k..@o`...+l.9...m..?S1..)LGz.
+0140: ......J .....
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+<= Recv SSL data, 4 bytes (0x4)
+0000: ....
+=> Send SSL data, 5 bytes (0x5)
+0000: ....F
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+=> Send SSL data, 70 bytes (0x46)
+0000: ...BA..NnLX.....<.'$...T9.&.A..6\*.7:mN...Ee.3...U..QV..`7"...{.
+0040: $.....
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+=> Send SSL data, 1 bytes (0x1)
+0000: .
+=> Send SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+=> Send SSL data, 16 bytes (0x10)
+0000: ....Gn.^...N..<.
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+<= Recv SSL data, 16 bytes (0x10)
+0000: .....U..y?...Z..
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES128-GCM-SHA256 / secp256r1 / rsaEncryption
+* ALPN: server did not agree on a protocol. Uses default.
+* Server certificate:
+*   subject: C=GB; O=tcl-lsp event-flow; CN=bigip.bitwisecook.org
+*   start date: Oct  7 08:05:46 2026 GMT
+*   expire date: Nov  6 08:05:46 2026 GMT
+*   issuer: C=GB; O=tcl-lsp event-flow; CN=evtflow test CA
+*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   subjectAltName: "bigip.bitwisecook.org" matches cert's "bigip.bitwisecook.org"
+* SSL certificate verified via OpenSSL.
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18613) from 192.168.9.80 port 39574 
+* using HTTP/1.x
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+=> Send header, 172 bytes (0xac)
+0000: GET /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E HTTP/
+0040: 1.1
+0045: Host: bigip.bitwisecook.org:18613
+0068: User-Agent: curl/8.18.0
+0081: Accept: */*
+008e: X-Evtflow-Request: egj-xss
+00aa: 
+* Request completely sent off
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....o
+* HTTP 1.0, assume close after body
+<= Recv header, 20 bytes (0x14)
+0000: HTTP/1.0 302 Found
+<= Recv header, 15 bytes (0xf)
+0000: Server: BigIP
+<= Recv header, 39 bytes (0x27)
+0000: Accept-CH: Sec-CH-UA-Platform-Version
+<= Recv header, 19 bytes (0x13)
+0000: Content-Length: 0
+<= Recv header, 22 bytes (0x16)
+0000: Location: /my.policy
+* Added cookie LastMRH_Session="0b01cb58" for domain bigip.bitwisecook.org, path /, expire 0
+<= Recv header, 52 bytes (0x34)
+0000: Set-Cookie: LastMRH_Session=0b01cb58;path=/;secure
+* Added cookie MRHSession="a52cad599077f9df412eaf650b01cb58" for domain bigip.bitwisecook.org, path /, expire 0
+<= Recv header, 71 bytes (0x47)
+0000: Set-Cookie: MRHSession=a52cad599077f9df412eaf650b01cb58;path=/;s
+0040: ecure
+* Added cookie MRHSHint="deleted" for domain bigip.bitwisecook.org, path /, expire 1
+<= Recv header, 84 bytes (0x54)
+0000: Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 
+0040: GMT; path=/;secure
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 2 bytes (0x2)
+0000: 
+* shutting down connection #0
+* Issue another request to this URL: 'https://bigip.bitwisecook.org:18613/my.policy'
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18613...
+* ALPN: curl offers h2,http/1.1
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS handshake, Client hello (1):
+=> Send SSL data, 230 bytes (0xe6)
+0000: ......2P.F.E./l. ........]......eTP.....6.,.0.........+./...$.(.
+0040: k.#.'.g.....9.....3.....=.<.5./..................bigip.bitwiseco
+0080: ok.org...............................h2.http/1.1...........*.(..
+00c0: ......................................
+* SSL Trust Anchors:
+*   CAfile: pki/public/ca.crt
+*   CApath: /etc/ssl/certs
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....;
+* TLSv1.2 (IN), TLS handshake, Server hello (2):
+<= Recv SSL data, 59 bytes (0x3b)
+0000: ...7.....\O-7.}.P...HR....-l.E.7)|Cb..../..................
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+<= Recv SSL data, 925 bytes (0x39d)
+0000: ..........0...0..w.........0...*.H........0D1.0...U....GB1.0...U
+0040: ....tcl-lsp event-flow1.0...U....evtflow test CA0...261007080546
+0080: Z..261106080546Z0J1.0...U....GB1.0...U....tcl-lsp event-flow1.0.
+00c0: ..U....bigip.bitwisecook.org0.."0...*.H.............0...........
+0100: .wj.0..9.....P;Z<_..:....?.i.....W..5.D..(..x..S..c.X. ....d-.@.
+0140: .a......N.w.@k.{(R9..jY..CL....:......0......c.u.}..p...4c=..h."
+0180: .7.qI.....?(.Igp...q......J....p...G.W...;;....|}.....^.....U...
+01c0: ..'[......O4C.U....=.s...j{.....d`......'.U..\k..M..t.Sy%. %....
+0200: .....0..0?..U...806..bigip.bitwisecook.org..evtflow.bitwisecook.
+0240: org......0...U.........W...n...<......'.0...U.#..0....`.2....(.A
+0280: .(..e.qJ.0...*.H...............[ .K...9.....% b..Rs.........Wt.C
+02c0: A...1.F.h..p...].!.Vh.`Y...e........u..%7..A..a..qQ....!;S.1..U.
+0300: .R..D.W..Q.........0/..y..j..2.qe...A...Sj.9.x......>P.....\....
+0340: "...a(V..)..-m**.{.&.2Y..r..@.P.....E.\.......l..q..../4.......}
+0380: I7p...$Y....Q7P9..Sl{!.fy. ..
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....M
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+<= Recv SSL data, 333 bytes (0x14d)
+0000: ...I...A...KJ...).yo...e.R..c.b..9..?......*.o..=.u)..<.u.......
+0040: 4...G..........2.2......_T.....f..,FZ.y.............u.. .M..e\X!
+0080: )"#......X.^J.c{...rO.y.K..U...]Y...6.Q.|.B......N.[.....4......
+00c0: ....=.2.......bM.....nD..2.=........g!..._.7!...HSk..h._.D....9.
+0100: AM:WBb....gj..)...`..`.l...1.7Zv5..j.......a..XdP."H]V....).m.i.
+0140: ..z.*.r/2..`.
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+<= Recv SSL data, 4 bytes (0x4)
+0000: ....
+=> Send SSL data, 5 bytes (0x5)
+0000: ....F
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+=> Send SSL data, 70 bytes (0x46)
+0000: ...BA......U>.....}o9B.&..........U.......... .....`R]?/{..>.aT.
+0040: ......
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+=> Send SSL data, 1 bytes (0x1)
+0000: .
+=> Send SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+=> Send SSL data, 16 bytes (0x10)
+0000: .....Z..-...O...
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+<= Recv SSL data, 16 bytes (0x10)
+0000: ......_.N.p..j.i
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES128-GCM-SHA256 / secp256r1 / rsaEncryption
+* ALPN: server did not agree on a protocol. Uses default.
+* Server certificate:
+*   subject: C=GB; O=tcl-lsp event-flow; CN=bigip.bitwisecook.org
+*   start date: Oct  7 08:05:46 2026 GMT
+*   expire date: Nov  6 08:05:46 2026 GMT
+*   issuer: C=GB; O=tcl-lsp event-flow; CN=evtflow test CA
+*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   subjectAltName: "bigip.bitwisecook.org" matches cert's "bigip.bitwisecook.org"
+* SSL certificate verified via OpenSSL.
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18613) from 192.168.9.80 port 39584 
+* using HTTP/1.x
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+=> Send header, 207 bytes (0xcf)
+0000: GET /my.policy HTTP/1.0
+0019: Host: bigip.bitwisecook.org:18613
+003c: User-Agent: curl/8.18.0
+0055: Accept: */*
+0062: Cookie: LastMRH_Session=0b01cb58; MRHSession=a52cad599077f9df412
+00a2: eaf650b01cb58
+00b1: X-Evtflow-Request: egj-xss
+00cd: 
+* Request completely sent off
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....Y
+* HTTP 1.0, assume close after body
+<= Recv header, 20 bytes (0x14)
+0000: HTTP/1.0 302 Found
+<= Recv header, 15 bytes (0xf)
+0000: Server: BigIP
+* Added cookie F5_ST="1z1z1z1791362196z604800" for domain bigip.bitwisecook.org, path /, expire 0
+<= Recv header, 57 bytes (0x39)
+0000: Set-Cookie: F5_ST=1z1z1z1791362196z604800;path=/;secure
+* Replaced cookie LastMRH_Session="0b01cb58" for domain bigip.bitwisecook.org, path /, expire 0
+<= Recv header, 52 bytes (0x34)
+0000: Set-Cookie: LastMRH_Session=0b01cb58;path=/;secure
+* Replaced cookie MRHSession="704b52fa50913ace8bee8c6d0b01cb58" for domain bigip.bitwisecook.org, path /, expire 0
+<= Recv header, 71 bytes (0x47)
+0000: Set-Cookie: MRHSession=704b52fa50913ace8bee8c6d0b01cb58;path=/;s
+0040: ecure
+<= Recv header, 19 bytes (0x13)
+0000: Content-Length: 0
+<= Recv header, 66 bytes (0x42)
+0000: Location: /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 2 bytes (0x2)
+0000: 
+* shutting down connection #1
+* Issue another request to this URL: 'https://bigip.bitwisecook.org:18613/vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E'
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18613...
+* ALPN: curl offers h2,http/1.1
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS handshake, Client hello (1):
+=> Send SSL data, 230 bytes (0xe6)
+0000: ......Up.....\.T4z..MY..6\..g......``'..6.,.0.........+./...$.(.
+0040: k.#.'.g.....9.....3.....=.<.5./..................bigip.bitwiseco
+0080: ok.org...............................h2.http/1.1...........*.(..
+00c0: ......................................
+* SSL Trust Anchors:
+*   CAfile: pki/public/ca.crt
+*   CApath: /etc/ssl/certs
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....;
+* TLSv1.2 (IN), TLS handshake, Server hello (2):
+<= Recv SSL data, 59 bytes (0x3b)
+0000: ...7...".?......`Rc.....s..>.n..G....Q../..................
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Certificate (11):
+<= Recv SSL data, 925 bytes (0x39d)
+0000: ..........0...0..w.........0...*.H........0D1.0...U....GB1.0...U
+0040: ....tcl-lsp event-flow1.0...U....evtflow test CA0...261007080546
+0080: Z..261106080546Z0J1.0...U....GB1.0...U....tcl-lsp event-flow1.0.
+00c0: ..U....bigip.bitwisecook.org0.."0...*.H.............0...........
+0100: .wj.0..9.....P;Z<_..:....?.i.....W..5.D..(..x..S..c.X. ....d-.@.
+0140: .a......N.w.@k.{(R9..jY..CL....:......0......c.u.}..p...4c=..h."
+0180: .7.qI.....?(.Igp...q......J....p...G.W...;;....|}.....^.....U...
+01c0: ..'[......O4C.U....=.s...j{.....d`......'.U..\k..M..t.Sy%. %....
+0200: .....0..0?..U...806..bigip.bitwisecook.org..evtflow.bitwisecook.
+0240: org......0...U.........W...n...<......'.0...U.#..0....`.2....(.A
+0280: .(..e.qJ.0...*.H...............[ .K...9.....% b..Rs.........Wt.C
+02c0: A...1.F.h..p...].!.Vh.`Y...e........u..%7..A..a..qQ....!;S.1..U.
+0300: .R..D.W..Q.........0/..y..j..2.qe...A...Sj.9.x......>P.....\....
+0340: "...a(V..)..-m**.{.&.2Y..r..@.P.....E.\.......l..q..../4.......}
+0380: I7p...$Y....Q7P9..Sl{!.fy. ..
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....M
+* TLSv1.2 (IN), TLS handshake, Server key exchange (12):
+<= Recv SSL data, 333 bytes (0x14d)
+0000: ...I...A.z.)Van.!.t.}.........M.B>.C.....<6.....U).._......._K..
+0040: ...O..G.........l....-........D..(..^D=do.LY0...d7...G.......Rz.
+0080: ..T.E{.....H..QpC,.}.zF\Z........l)._.H....M.......(...5.~M!+Q..
+00c0: _...~,..............K....&.$x.....q....>.0>|.f.~J.P=&.... ..3...
+0100: FT.br.......j.........8j..i.x...C.>.7..6..8.}~..\..).?>...Pi....
+0140: 9.k}....v.P. 
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (IN), TLS handshake, Server finished (14):
+<= Recv SSL data, 4 bytes (0x4)
+0000: ....
+=> Send SSL data, 5 bytes (0x5)
+0000: ....F
+* TLSv1.2 (OUT), TLS handshake, Client key exchange (16):
+=> Send SSL data, 70 bytes (0x46)
+0000: ...BA....W.v..Y.d..}.)]j4eX[:...6.K..qJ....m..tOLf.~..0.z..Ye.(.
+0040: .....H
+=> Send SSL data, 5 bytes (0x5)
+0000: .....
+* TLSv1.2 (OUT), TLS change cipher, Change cipher spec (1):
+=> Send SSL data, 1 bytes (0x1)
+0000: .
+=> Send SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (OUT), TLS handshake, Finished (20):
+=> Send SSL data, 16 bytes (0x10)
+0000: .....L..i....qk(
+<= Recv SSL data, 5 bytes (0x5)
+0000: .....
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....(
+* TLSv1.2 (IN), TLS handshake, Finished (20):
+<= Recv SSL data, 16 bytes (0x10)
+0000: .....2..m......x
+* SSL connection using TLSv1.2 / ECDHE-RSA-AES128-GCM-SHA256 / secp256r1 / rsaEncryption
+* ALPN: server did not agree on a protocol. Uses default.
+* Server certificate:
+*   subject: C=GB; O=tcl-lsp event-flow; CN=bigip.bitwisecook.org
+*   start date: Oct  7 08:05:46 2026 GMT
+*   expire date: Nov  6 08:05:46 2026 GMT
+*   issuer: C=GB; O=tcl-lsp event-flow; CN=evtflow test CA
+*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption
+*   subjectAltName: "bigip.bitwisecook.org" matches cert's "bigip.bitwisecook.org"
+* SSL certificate verified via OpenSSL.
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18613) from 192.168.9.80 port 39596 
+* using HTTP/1.x
+=> Send SSL data, 5 bytes (0x5)
+0000: ....2
+=> Send header, 282 bytes (0x11a)
+0000: GET /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E HTTP/
+0040: 1.0
+0045: Host: bigip.bitwisecook.org:18613
+0068: User-Agent: curl/8.18.0
+0081: Accept: */*
+008e: Cookie: LastMRH_Session=0b01cb58; MRHSession=704b52fa50913ace8be
+00ce: e8c6d0b01cb58; F5_ST=1z1z1z1791362196z604800
+00fc: X-Evtflow-Request: egj-xss
+0118: 
+* Request completely sent off
+<= Recv SSL data, 5 bytes (0x5)
+0000: ....$
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 29 bytes (0x1d)
+0000: X-Frame-Options: SAMEORIGIN
+<= Recv header, 33 bytes (0x21)
+0000: X-XSS-Protection: 1; mode=block
+<= Recv header, 33 bytes (0x21)
+0000: X-Content-Type-Options: nosniff
+<= Recv header, 25 bytes (0x19)
+0000: Cache-Control: no-cache
+<= Recv header, 19 bytes (0x13)
+0000: Connection: close
+<= Recv header, 40 bytes (0x28)
+0000: Content-Type: text/html; charset=utf-8
+<= Recv header, 18 bytes (0x12)
+0000: Pragma: no-cache
+<= Recv header, 21 bytes (0x15)
+0000: Content-Length: 247
+<= Recv header, 40 bytes (0x28)
+0000: Expires: Thu, 01 Dec 1994 16:00:00 GMT
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 247 bytes (0xf7)
+0000: <html><head><title>Request Rejected</title></head><body>The requ
+0040: ested URL was rejected. Please consult with your administrator.<
+0080: br><br>Your support ID is: 10414419420687368209<br><br><a href='
+00c0: javascript:history.back();'>[Go Back]</a></body></html>
+* shutting down connection #2

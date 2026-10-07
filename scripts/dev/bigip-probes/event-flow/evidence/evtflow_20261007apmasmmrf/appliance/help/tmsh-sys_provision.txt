@@ -1,0 +1,192 @@
+sys provision(1)                                                       BIG-IP TMSH Manual                                                       sys provision(1)
+
+
+
+[1mNAME[0m
+       provision - Configures provisioning on the BIG-IP(r) system.
+
+[1mMODULE[0m
+       [1msys[0m
+
+[1mSYNTAX[0m
+       Configure the [1mprovision [22mcomponent within the [1msys [22mmodule using the
+       syntax in the following sections.
+
+   [1mMODIFY[0m
+        modify provision [afm | apm | asm | avr | cgnat | fps | gtm | ilx | lc |
+                          ltm | pem | swg | urldb | sslo | vcmp]
+          options:
+            cpu-ratio [integer]
+            disk-ratio [integer]
+            level [custom | dedicated | minimum | nominal | none]
+            memory-ratio [integer]
+
+        edit provision
+          [ [ [afm | apm | asm | avr | cgnat | fps | gtm | ilx | lc | ltm | pem |
+               swg | urldb | sslo | vcmp] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+
+   [1mDISPLAY[0m
+        list provision
+          [ [ [afm | apm | asm | avr | cgnat | fps | gtm | ilx | lc | ltm | pem |
+               swg | urldb | sslo | vcmp] | [glob] | [regex] ] ... ]
+        show running-config provision
+          [ [ [afm | apm | asm | avr | cgnat | fps | gtm | ilx | lc | ltm | pem |
+               swg | urldb | sslo | vcmp] | [glob] | [regex] ] ... ]
+          options:
+            all-properties
+            non-default-properties
+            one-line
+
+[1mDESCRIPTION[0m
+       You can use the [1mprovision [22mcomponent to modify the allocation of
+       resources to the licensed modules on your system.
+
+[1mEXAMPLES[0m
+       [1mmodify provision asm level minimum[0m
+            Provisions the minimum amount of resources for the BIG-IP
+            Application Security Manager.
+
+       [1mlist provision[0m
+            Displays the current provisioning of the system.
+
+       [1mUsing Transactions[0m
+            1. [1mcreate / cli transaction[0m
+            2. [1mmodify / sys provision ltm level minimum[0m
+            3. [1mmodify / sys provision gtm level nominal[0m
+            4. [1msubmit / cli transaction[0m
+
+            The previous four steps create a transaction to modify the
+            provisioning of a unit to provision the Local Traffic Manager at
+            the [1mminimum [22mlevel and the Global Traffic Manager at the [1mnominal[0m
+            level.
+
+            1. [1mcreate / cli transaction[0m
+            2. [1mmodify / sys provision ltm level none[0m
+            3. [1mmodify / sys provision gtm level dedicated[0m
+            4. [1msubmit / cli transaction[0m
+
+            The previous four steps create a transaction to modify the
+            provisioning of a unit to dedicate all of the unit's resources to
+            the Global Traffic Manager when currently only the Local Traffic
+            Manager is provisioned.
+
+[1mOPTIONS[0m
+       [1mafm  [22mSpecifies that you are provisioning the BIG-IP Advanced Firewall
+            Manager. When the Advanced Firewall Manager is provisioned, the
+            [1mtmsh [22mmodule [1msecurity [22mis enabled.
+
+       [1mapm  [22mSpecifies that you are provisioning the BIG-IP Access Policy
+            Manager. When the Access Policy Manager is provisioned, the [1mtmsh[0m
+            module [1mapm [22mis enabled.
+
+       [1masm  [22mSpecifies that you are provisioning the BIG-IP Application
+            Security Manager. When [1masm [22mis provisioned the [1mtmsh [22mmodule [1masm [22mis
+            enabled.
+
+       [1mavr  [22mSpecifies that you are provisioning the BIG-IP Application
+            Visibility and Reporting. When Application Visibility and
+            Reporting is provisioned the [1mtmsh [22mmodule [1manalytics [22mis enabled.
+
+       [1mcpu-ratio[0m
+            Use this option only when the [1mlevel [22moption is set to [1mcustom[22m. F5
+            Networks recommends that you do not modify this option. The
+            default value is [1mnone[22m.
+
+       [1mdisk-ratio[0m
+            Use this option only when the [1mlevel [22moption is set to [1mcustom[22m. F5
+            Networks recommends that you do not modify this option. The
+            default value is [1mnone[22m.
+
+       [1mfps  [22mSpecifies that you are provisioning the BIG-IP Fraud Protection
+            Service. When [1mfps [22mis provisioned the [1mtmsh [22mmodule [1msecurity anti-[0m
+            [1mfraud [22mis enabled.
+
+       [1mglob [22mDisplays the items that match the [1mglob [22mexpression. See [1mhelp glob[0m
+            for a description of [1mglob [22mexpression syntax.
+
+       [1mgtm  [22mSpecifies that you are provisioning the BIG-IP Global Traffic
+            Manager. When [1mgtm [22mis provisioned the [1mtmsh [22mmodule [1mgtm [22mis enabled.
+
+       [1milx  [22mSpecifies that you are provisioning BIG-IP iRules Language
+            Extensions.
+
+       [1mlc   [22mSpecifies that you are provisioning the BIG-IP Link Controller.
+            When Link Controller is provisioned the [1mtmsh [22mmodule [1mgtm [22mis
+            enabled.
+
+       [1mlevel[0m
+            Specifies the level of resources that you want to provision for a
+            module. The options are:
+
+            [1mcustom[0m
+                 F5 Networks does not recommend that you specify this level.
+
+            [1mdedicated[0m
+                 Specifies that all resources are dedicated to the module you
+                 are provisioning. For all other modules, the [1mlevel [22moption
+                 must be set to [1mnone[22m.
+
+            [1mminimum[0m
+                 Specifies that you want to provision the minimum amount of
+                 resources for the module you are provisioning.
+
+            [1mnominal[0m
+                 Specifies that you want to share all of the available
+                 resources equally among all of the modules that are licensed
+                 on the unit.
+
+            [1mnone [22mSpecifies that you do not want to provision any resources for
+                 this module.
+
+       [1mltm  [22mSpecifies that you are provisioning the BIG-IP Local Traffic
+            Manager.
+
+       [1mmemory-ratio[0m
+            Use this option only when the [1mlevel [22moption is set to [1mcustom[22m. F5
+            Networks recommends that you do not modify this option. The
+            default value is [1mnone[22m.
+
+       [1mpem  [22mSpecifies that you are provisioning the BIG-IP Policy Enforcement
+            Manager. When Policy Enforcement Manager is provisioned the [1mtmsh[0m
+            module [1mpem [22mis enabled.
+
+       [1mregex[0m
+            Displays the items that match the regular expression. The regular
+            expression must be preceded by an at sign (@[regular expression])
+            to indicate that the identifier is a regular expression. See [1mhelp[0m
+            [1mregex [22mfor a description of regular expression syntax.
+
+       [1mswg  [22mSpecifies that you are provisioning the BIG-IP Secure Web Gateway.
+            When Secure Web Gateway is provisioned, the assumption is that
+            Access Policy Management is already provisioned and [1mtmsh [22mcomponent
+            [1mapm url-filter [22mis enabled;
+
+       [1murldb[0m
+            Specifies that you are provisioning the BIG-IP Secure Web Gateway
+            with minimum resource mode. Mainly used for SSL orchestration use
+            cases.  The [1mtmsh [22mmodule  [1murldb [22mcannot be provisioned in BIG-IP
+            when the [1mtmsh [22mmodule [1mswg [22mis already provisioned and vice-versa.
+
+       [1msslo [22mSpecifies that you are provisioning the BIG-IP SSL Otrchestrator.
+
+       [1mvcmp [22mSpecifies that you are provisioning the BIG-IP Virtual CMP. When
+            Virtual CMP is provisioned the [1mtmsh [22mmodule [1mvcmp [22mis enabled.
+
+[1mSEE ALSO[0m
+       [1medit[22m, [1mglob[22m, [1mlist[22m, [1mmodify[22m, [1mregex[22m, [1mshow[22m, [1mtmsh[0m
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2008-2015. All rights reserved.
+
+
+
+BIG-IP                                                                     2020-02-12                                                           sys provision(1)

@@ -95,7 +95,7 @@ class HttpHandler(http.server.BaseHTTPRequestHandler):
         for name, value in headers.items():
             self.send_header(name, value)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("X-Evtflow-Backend", "dev.bragi0.com")
+        self.send_header("X-Evtflow-Backend", "dev.bitwisecook.org")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)

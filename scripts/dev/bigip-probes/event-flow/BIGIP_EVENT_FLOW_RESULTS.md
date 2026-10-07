@@ -1,5 +1,9 @@
 # BIG-IP iRule event-flow results
 
+The provisioned APM/ASM/MRF, client-certificate, data-event and cross-module
+follow-up is reported in
+[BIGIP_EVENT_FLOW_MODULE_RESULTS.md](BIGIP_EVENT_FLOW_MODULE_RESULTS.md).
+
 > **Appliance under test: BIG-IP 21.1.0.1, build 0.0.26, Point Release 1, dated 14 July 2026. FIPS Module: Cryptographic Module for BIG-IP.**
 
 These are measured TMM results. Literal rule acceptance, virtual-server
@@ -16,7 +20,7 @@ unless it appeared in the continuous TMM log.
 | TMM process | PID 11604, one process using four CPUs |
 | Actual TMM roster | `0:0`, `0:1`, `0:2`, `0:3` |
 | Roster proof | `RULE_INIT` logged once on all four units for each trace rule. The 64-flow TCP baseline produced exactly 16 `CLIENT_ACCEPTED` events on each unit. |
-| Client and backend | `dev.bragi0.com`, `192.168.9.80` |
+| Client and backend | `dev.bitwisecook.org`, `192.168.9.80` |
 | VIP address | `192.168.9.24`, with per-protocol ports 18500-18515 |
 | Data-plane prerequisite | The post-relicence configuration lacked the prior `/Common/self_1nic`; it was restored as `192.168.9.24/24` on `/Common/internal`, local-only traffic group. Before that restoration the first TCP request reached TMM and ended in `LB_FAILED`; afterwards every intended backend was reachable. |
 | Return path | Every test virtual used SNAT automap. All 88 recorded backend TCP/HTTP/UDP/DNS connections and datagrams with a peer saw `192.168.9.24`, never the client address. |

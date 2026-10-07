@@ -1,0 +1,35 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Accept-CH: Sec-CH-UA-Platform-Version
+Content-Length: 0
+Location: /my.policy
+Set-Cookie: LastMRH_Session=1ab78107;path=/;secure
+Set-Cookie: MRHSession=48db32d35f026e474e2775c51ab78107;path=/;secure
+Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/;secure
+Connection: close
+
+HTTP/1.0 302 Found
+Server: BigIP
+Cache-Control: no-cache, no-store
+Content-Length: 0
+Location: /my.logout.php3?errorcode=19
+Set-Cookie: LastMRH_Session=;path=/;secure
+Set-Cookie: MRHSession=;path=/;secure
+Connection: close
+
+HTTP/1.1 200 OK
+Date: Wed, 07 Oct 2026 08:26:24 GMT
+Server: BigIP
+Content-Length: 5406
+Connection: close
+Content-Type: text/html; charset=utf-8
+X-Frame-Options: DENY
+Set-Cookie: MRHSession=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_ST=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSHint=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_HT_shrinked=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_fullWT=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSequence=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Pragma: no-cache
+Cache-Control: no-cache, must-revalidate
+

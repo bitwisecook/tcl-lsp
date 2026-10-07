@@ -1,0 +1,47 @@
+apm policy access-policy(1)                                            BIG-IP TMSH Manual                                            apm policy access-policy(1)
+
+
+
+[1mNAME[0m
+       access-policy - Manages an access policy.
+
+[1mMODULE[0m
+       [1mapm policy[0m
+
+[1mSYNTAX[0m
+       [1mWarning: [22mF5 Networks recommends that you use the visual policy editor
+       in the Configuration utility to create and manage access policies.  If
+       you are using tmsh scripts to create an access policy, please do the
+       following:
+
+        1. Create transaction.
+        2. Create policy agents; each policy must include an ending agent type.
+        3. Create access policy items for start and end and attach the corresponding agents.
+        4. Create access policy and add all the policy items.
+        5. Create access profile with the corresponding access policy.
+        6. Submit transaction.
+
+       Failure to follow the above mentioned steps will result in error
+       messages or invalid configuration.  This sample script creates a policy
+       with start and end agents only:
+
+        1. create cli transaction
+        2. create apm policy agent ending-allow /Common/rest_end_allow_ag { }
+        3a. create apm policy policy-item /Common/rest_end_allow { agents add { /Common/rest_end_allow_ag { type ending-allow } } caption Allow color 1 item-type ending }
+        3b. create apm policy policy-item /Common/rest_ent { caption Start color 1 rules { { caption fallback next-item /Common/rest_end_allow } } }
+        4. create apm policy access-policy /Common/rest { default-ending /Common/rest_end_allow items add { rest_end_allow { } rest_ent { } } start-item rest_ent }
+        5. create apm profile access /Common/rest { accept-languages add { en } access-policy /Common/rest log-settings add { default-log-setting } }
+        6. submit cli transaction
+
+[1mCOPYRIGHT[0m
+       No part of this program may be reproduced or transmitted in any form or
+       by any means, electronic or mechanical, including photocopying,
+       recording, or information storage and retrieval systems, for any
+       purpose other than the purchaser's personal use, without the express
+       written permission of F5 Networks, Inc.
+
+       F5 Networks and BIG-IP (c) Copyright 2011-2013. All rights reserved.
+
+
+
+BIG-IP                                                                     2016-12-01                                                apm policy access-policy(1)

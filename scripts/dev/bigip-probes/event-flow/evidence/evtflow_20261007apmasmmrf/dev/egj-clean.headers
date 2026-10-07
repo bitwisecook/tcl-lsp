@@ -1,0 +1,26 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Accept-CH: Sec-CH-UA-Platform-Version
+Content-Length: 0
+Location: /my.policy
+Set-Cookie: LastMRH_Session=23c3ee08;path=/;secure
+Set-Cookie: MRHSession=959264ce0b74f40a1ea4a1f023c3ee08;path=/;secure
+Set-Cookie: MRHSHint=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/;secure
+Connection: close
+
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791362196z604800;path=/;secure
+Set-Cookie: LastMRH_Session=23c3ee08;path=/;secure
+Set-Cookie: MRHSession=32cf1e50c43416f62245909223c3ee08;path=/;secure
+Content-Length: 0
+Location: /public
+Connection: close
+
+HTTP/1.1 200 OK
+Date: Wed, 07 Oct 2026 08:36:36 GMT
+Content-Length: 18
+Content-Type: text/plain; charset=utf-8
+X-Evtflow-Backend: dev.bitwisecook.org
+Expires: Thu, 01 Dec 1994 16:00:00 GMT
+

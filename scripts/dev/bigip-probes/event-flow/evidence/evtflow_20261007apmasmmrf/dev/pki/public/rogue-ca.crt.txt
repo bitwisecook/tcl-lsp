@@ -1,0 +1,6 @@
+subject=C=GB, O=tcl-lsp event-flow, CN=evtflow rogue CA
+issuer=C=GB, O=tcl-lsp event-flow, CN=evtflow rogue CA
+serial=169A5831D4998213797C5B9AB88B38766FE00FD5
+notBefore=Oct  7 08:05:46 2026 GMT
+notAfter=Nov  6 08:05:46 2026 GMT
+sha256 Fingerprint=41:81:80:C0:B7:50:4C:CC:6C:0B:33:D3:E5:EE:FB:C1:59:05:77:E7:7E:43:95:62:48:C8:04:A7:EF:35:8F:F1

@@ -1,0 +1,4 @@
+/bin/man
+/bin/tmsh
+ls: cannot access /usr/bin/tmui: No such file or directory
+ls: cannot access /bin/tmui: No such file or directory

@@ -1,0 +1,30 @@
+* Added bigip.bitwisecook.org:18605:192.168.9.24 to DNS cache
+* Hostname bigip.bitwisecook.org was found in DNS cache
+*   Trying 192.168.9.24:18605...
+* Established connection to bigip.bitwisecook.org (192.168.9.24 port 18605) from 192.168.9.80 port 56326 
+* using HTTP/1.x
+=> Send header, 184 bytes (0xb8)
+0000: GET /vulnerable?id=%3Cscript%3Ealert%281%29%3C%2Fscript%3E HTTP/
+0040: 1.1
+0045: Host: bigip.bitwisecook.org:18605
+0068: User-Agent: curl/8.18.0
+0081: Accept: */*
+008e: X-Evtflow-Request: asm-transparent-xss
+00b6: 
+* Request completely sent off
+<= Recv header, 17 bytes (0x11)
+0000: HTTP/1.1 200 OK
+<= Recv header, 37 bytes (0x25)
+0000: Date: Wed, 07 Oct 2026 08:31:38 GMT
+<= Recv header, 20 bytes (0x14)
+0000: Content-Length: 76
+<= Recv header, 41 bytes (0x29)
+0000: Content-Type: text/plain; charset=utf-8
+<= Recv header, 40 bytes (0x28)
+0000: X-Evtflow-Backend: dev.bitwisecook.org
+<= Recv header, 2 bytes (0x2)
+0000: 
+<= Recv data, 76 bytes (0x4c)
+0000: synthetic-reflection:/vulnerable?id=%3Cscript%3Ealert%281%29%3C%
+0040: 2Fscript%3E.
+* Connection #0 to host bigip.bitwisecook.org:18605 left intact
