@@ -2603,10 +2603,20 @@ enum ParamRole {
   and a seedless run take the places (`ModuleLevel::Places`), and a re-run
   — O103's argument-sensitive one among them — the call's result too
   (`ModuleLevel::Results`); a unit's lattice takes no call's result, since
-  its values feed every rewrite. A statement a throw leaves from, a
-  protected script and a callee that does not complete normally keep the
-  generic answer. A call that names only its caller's own plain locals
-  leaves the caller pure, so `p`'s constant return below is O103's.
+  its values feed every rewrite. A statement a throw leaves from and a
+  protected script keep the generic answer, since a summary says how a call
+  may complete, not that it completes normally. A call that never completes
+  normally — a word count the callee's parameters reject, a callee that
+  never does, a re-run under the call's seeds that reaches no exit — is a
+  certain raise in a run made to read how its caller completes (a re-run, a
+  summary's own run, a seedless return run, O103's re-run), so no exit past
+  it is read; in a unit's lattice its places wait instead, and no code after
+  it is proved unreachable. Such a run reads no exit's value where it holds
+  a statement it proves raises or a call whose completion no re-run decided
+  — none made, or one under a seed that is not exact. A `Name` parameter the
+  call omits names the place its default spells, as Tcl binds it. A call
+  that names only its caller's own plain locals leaves the caller pure, so
+  `p`'s constant return below is O103's.
 - **Context limits.** One summary per procedure, context-insensitive;
   summaries compose bottom-up over the call graph, so `twice`'s `Name`
   outcome is the composition of two `bump` cell updates; a cycle is

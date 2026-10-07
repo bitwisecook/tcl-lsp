@@ -2919,21 +2919,20 @@ fn detect_upvar_procs_with_bindings(
     // by luck of the process start.
     let mut entries: Vec<(&String, &crate::ir::Procedure)> = module.procedures.iter().collect();
     entries.sort_by(|a, b| a.0.cmp(b.0));
+    let rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(module.dialect.as_deref());
     let mut own: Vec<(&String, &crate::ir::Procedure, UpvarInfo)> = Vec::new();
     for (qname, proc) in entries {
         let (holder, _) = tcl_syntax::naming::key_holder_and_tail(qname);
         let namespace = if holder.is_empty() { "::" } else { holder };
-        own.push((
-            qname,
-            proc,
-            upvar_info::collect_upvar_targets_with_bindings(
-                &proc.body,
-                &proc.params,
-                registry,
-                command_bindings,
-                namespace,
-            ),
-        ));
+        let mut info = upvar_info::collect_upvar_targets_with_bindings(
+            &proc.body,
+            &proc.params,
+            registry,
+            command_bindings,
+            namespace,
+        );
+        info.param_defaults = upvar_info::name_param_defaults(&info, &proc.params_raw, rules);
+        own.push((qname, proc, info));
     }
 
     // One hop, no fixpoint: `uplevel <caller frame> [list callee …]` puts
@@ -5610,6 +5609,39 @@ mod tests {
             defs.is_empty(),
             "expanded source text became defs: {defs:?}"
         );
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier {
+                writes: true,
+                destroys: false,
+                reads: false,
+            }
+        );
+    }
+
+    /// A call omitting a `Name` parameter defines the place the parameter's
+    /// default names, as Tcl binds the default; a default that names no
+    /// variable the analysis can place widens the caller's frame, as a
+    /// substituted argument does.
+    #[test]
+    fn an_omitted_upvar_parameter_defines_its_default() {
+        let module = lower_module(
+            "proc setter {{name n}} { upvar 1 $name x; set x 1 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
+        let defs = find_call_defs(&cfg.top_level, "setter")
+            .expect("setter call should be in top-level CFG");
+        assert_eq!(defs, vec!["n".to_owned()]);
+        assert_eq!(
+            cfg.top_level.caller_frame_barrier,
+            crate::dynamic_names::DynamicNameBarrier::default()
+        );
+        let module = lower_module(
+            "proc setter {{name a(1)}} { upvar 1 $name x; set x 1 }\n\
+             setter",
+        );
+        let cfg = build_cfg(&module, false);
         assert_eq!(
             cfg.top_level.caller_frame_barrier,
             crate::dynamic_names::DynamicNameBarrier {

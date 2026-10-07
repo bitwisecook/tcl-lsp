@@ -95,11 +95,16 @@ literal word through the exact ingress, a `$name` as the version there holds
 it, an `expr` on the shared expression route; and a fall-through to the end
 of the body through its last command. Every exit must give the one value,
 and no statement the flow graph keeps whole may run a `return` of its own
-(#2393). The stage follows the purity fixpoint, which decides whose returns
-may fold, and holds the module's procedures: a call to one is applied as its
-transfer summary says (§ *Transfer summaries* below), its `Name` places
-taking what a re-run of the callee leaves in them, and its result taken by
-no seedless run, so one stage is the fixed point, and a return that passes
+(#2393). The run reads how the procedure completes
+(`sccp::ModuleRun::reads_exits`), so a statement it proves raises where no
+handler takes the throw ends its path in any block, and a run that holds
+one, or a call to a procedure of the module whose completion no re-run
+decided, gives no value (`sccp::RunCompletion`). The stage follows the
+purity fixpoint, which decides whose returns may fold, and holds the
+module's procedures: a call to one is applied as its transfer summary says
+(§ *Transfer summaries* below), its `Name` places taking what a re-run of
+the callee leaves in them, and its result taken by no seedless run, so one
+stage is the fixed point, and a return that passes
 through a recursive call is computed. The bottom-up composition and its
 cycle bound belong to the transfer summaries, whose own runs read their
 callees'; O103's argument-sensitive re-run takes a call's result too, and
@@ -189,9 +194,15 @@ prints each as a `transfer` line.
   arguments and its links the places' facts and values before the call; a
   re-run is made once per callee and seeds, bounded in depth (32) and count
   (4096), and where none can be made a place takes the summary's step with
-  no value. A unit's lattice and a seedless run take the places
-  (`sccp::ModuleLevel::Places`); a re-run, O103's argument-sensitive one
-  among them, takes the call's result too (`sccp::ModuleLevel::Results`).
+  no value. A `Name` parameter the call omits names the place its default
+  spells. A call whose word count the callee's parameters reject, a call to
+  a procedure that never completes normally and a call whose re-run
+  reaches no exit are each a certain raise in a run that reads how its
+  procedure completes (a re-run, a summary's own run, the seedless and
+  O103 runs), and in a unit's lattice leave their places waiting. A unit's
+  lattice and a seedless run take the places (`sccp::ModuleLevel::Places`);
+  a re-run, O103's argument-sensitive one among them, takes the call's
+  result too (`sccp::ModuleLevel::Results`).
 - **Invalidation.** The summaries' revision hashes every procedure's name,
   parameter list and body, the redefinitions and the command-trust snapshot,
   and rides `AnalysisContext::seeds_revision` in every run that holds the

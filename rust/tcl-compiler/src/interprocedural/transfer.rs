@@ -195,7 +195,8 @@ pub(crate) enum ParamRole {
 /// ([`ModuleProcedures::call_transfer`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CallTransfer {
-    /// The callee never completes normally.
+    /// The call never completes normally: the callee's parameters reject
+    /// its word count, or the callee never completes normally.
     Never,
     /// Each place, with the step the callee's outcomes on it compose to.
     Places(Vec<(String, ExistenceStep)>),
@@ -311,8 +312,14 @@ const MAX_RERUNS: u32 = 4096;
 pub(crate) struct Rerun {
     /// The value every normal exit returns, where they agree.
     pub(crate) result: Option<ExactValue>,
-    /// Whether a normal exit is reached.
+    /// Whether a normal exit is reached: where none is, the call never
+    /// completes normally.
     pub(crate) completes: bool,
+    /// Whether the run decided that a call so seeded completes at those
+    /// exits: every parameter and every place it was seeded with exact, no
+    /// statement raising beside them and every call it applied decided in
+    /// turn ([`crate::sccp::RunCompletion::is_decided`]).
+    pub(crate) decided: bool,
     /// Each `Name` link's place where the normal exits leave it, in
     /// [`TransferSummary::links`] order.
     pub(crate) places: Vec<PlaceAfter>,
@@ -466,15 +473,22 @@ impl<'a> ModuleProcedures<'a> {
 
     /// What a call to `callee` with these argument words does to the places
     /// its `Name` arguments name: `words` holds each argument's literal
-    /// value, `None` for one that substitutes. `None` when the call is a
-    /// barrier — a callee with no summary, a `Name` argument that
-    /// substitutes, names an element or names the place another one does,
-    /// or a word count the callee's parameters reject.
+    /// value, `None` for one that substitutes. A `Name` parameter the call
+    /// omits names the place its default spells, as Tcl binds the default.
+    /// The places come in [`TransferSummary::links`] order. A word count
+    /// the callee's parameters reject is a call that never completes. `None`
+    /// when the call is a barrier — a callee with no summary or parameters
+    /// the analysis cannot read, or a `Name` argument that substitutes,
+    /// names an element or names the place another one does.
     pub(crate) fn call_transfer(
         &self,
         callee: &str,
         words: &[Option<&str>],
     ) -> Option<CallTransfer> {
+        let formals = self.formals(callee)?;
+        if !accepts(&formals, words.len()) {
+            return Some(CallTransfer::Never);
+        }
         let roles = match self.provisional.borrow().get(callee) {
             Some(None) => return Some(CallTransfer::Never),
             Some(Some(roles)) => roles.clone(),
@@ -487,32 +501,27 @@ impl<'a> ModuleProcedures<'a> {
                 summary.params.clone()
             }
         };
-        if !self.accepts(callee, words.len()) {
-            return None;
-        }
         let mut places: Vec<(String, ExistenceStep)> = Vec::new();
-        for (role, word) in roles.iter().zip(words) {
+        for (index, role) in roles.iter().enumerate() {
             let ParamRole::Name { level, outcomes } = role else {
                 continue;
             };
             if *level != FrameLevel::Relative(1) {
                 return None;
             }
-            let place = crate::naming::normalise_var_name((*word)?);
-            if place.is_empty()
-                || crate::naming::split_array_name(place).1.is_some()
-                || places.iter().any(|(held, _)| held == place)
+            let word = match words.get(index) {
+                Some(word) => (*word)?,
+                None => formals.get(index)?.default_value.as_deref()?,
+            };
+            // A word that is not the name it normalises to — an element,
+            // whose index normalising drops — names no whole place.
+            if word.is_empty()
+                || crate::naming::normalise_var_name(word) != word
+                || places.iter().any(|(held, _)| held == word)
             {
                 return None;
             }
-            places.push((place.to_owned(), step_of(outcomes)));
-        }
-        if roles.len() > words.len()
-            && roles[words.len()..]
-                .iter()
-                .any(|role| matches!(role, ParamRole::Name { .. }))
-        {
-            return None;
+            places.push((word.to_owned(), step_of(outcomes)));
         }
         Some(CallTransfer::Places(places))
     }
@@ -554,6 +563,14 @@ impl<'a> ModuleProcedures<'a> {
             .is_some_and(|summary| summary.links.is_empty() && summary.globals.is_empty())
     }
 
+    /// The parameters of the procedure `qname` names, where it is one of
+    /// the module's.
+    pub(crate) fn params_of(&self, qname: &str) -> Option<&'a [String]> {
+        self.procedures
+            .get(qname)
+            .map(|declared| declared.params.as_slice())
+    }
+
     /// `callee`'s `Name` links: each such parameter's index and the local
     /// its body links to the place it names.
     pub(crate) fn links(&self, callee: &str) -> Option<Vec<(usize, String)>> {
@@ -572,9 +589,7 @@ impl<'a> ModuleProcedures<'a> {
         dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Option<Vec<Option<ExactValue>>> {
         let params = self.formals(callee)?;
-        if !u16::try_from(arguments.len())
-            .is_ok_and(|count| crate::signature_scan::arity::arity_of(&params).accepts(count))
-        {
+        if !accepts(&params, arguments.len()) {
             return None;
         }
         let variadic = crate::signature_scan::arity::is_variadic(&params);
@@ -710,9 +725,16 @@ impl<'a> ModuleProcedures<'a> {
                 procedures: Some(self),
                 owned: Some(&owned),
                 level: ModuleLevel::Results,
+                reads_exits: true,
             },
         });
         let exits = normal_exits(cfg, &result);
+        let seeded_exactly = params.iter().all(Option::is_some)
+            && places.iter().all(|(value, existence)| match existence {
+                Existence::Unbound => true,
+                Existence::Bound(_) => value.is_some(),
+                Existence::Pending | Existence::MayBound => false,
+            });
         let reading = super::ExitReading {
             policy: stance.policy,
             grammar: stance
@@ -727,6 +749,7 @@ impl<'a> ModuleProcedures<'a> {
         Some(Rerun {
             result: super::exit_value(super::ExitBody { cfg, ssa: &ssa }, &result, reading),
             completes: !exits.is_empty(),
+            decided: seeded_exactly && result.completion.is_decided(),
             places: links
                 .iter()
                 .map(|(_, local)| PlaceAfter {
@@ -771,14 +794,6 @@ impl<'a> ModuleProcedures<'a> {
             })
             .clone();
         Some((cfg, ssa))
-    }
-
-    /// Whether `callee`'s parameters accept `count` argument words.
-    fn accepts(&self, callee: &str, count: usize) -> bool {
-        self.formals(callee).is_some_and(|params| {
-            u16::try_from(count)
-                .is_ok_and(|count| crate::signature_scan::arity::arity_of(&params).accepts(count))
-        })
     }
 
     /// `callee`'s formal parameters, each with the default Tcl binds an
@@ -1299,6 +1314,7 @@ impl<'a> ModuleProcedures<'a> {
                 procedures: Some(self),
                 owned: Some(owned),
                 level: ModuleLevel::Outcomes,
+                reads_exits: true,
             },
         })
     }
@@ -1524,16 +1540,18 @@ fn mentions(text: &str, name: &str) -> bool {
         .any(|(at, _)| !text[..at].ends_with(word) && !text[at + name.len()..].starts_with(word))
 }
 
-/// The blocks a run reaches whose end completes the procedure normally.
+/// The blocks a run reaches whose end completes the procedure normally: a
+/// block a statement of which certainly raises never reaches its end.
 fn normal_exits(cfg: &CfgFunction, result: &SccpResult) -> Vec<crate::cfg::BlockId> {
     let mut exits: Vec<crate::cfg::BlockId> = result
         .executable_blocks
         .iter()
         .copied()
         .filter(|id| {
-            cfg.blocks.get(id).is_some_and(|block| {
-                matches!(block.terminator, None | Some(Terminator::Return { .. }))
-            })
+            !result.completion.raises_in(*id)
+                && cfg.blocks.get(id).is_some_and(|block| {
+                    matches!(block.terminator, None | Some(Terminator::Return { .. }))
+                })
         })
         .collect();
     exits.sort_unstable();
@@ -1726,6 +1744,12 @@ fn step_of(outcomes: &[ExistenceOutcome]) -> ExistenceStep {
         .fold(ExistenceStep::PRESERVE, |step, outcome| {
             step.then(ExistenceStep::of(*outcome))
         })
+}
+
+/// Whether parameters `formals` accept `count` argument words.
+fn accepts(formals: &[crate::signature_scan::types::ParamDef], count: usize) -> bool {
+    u16::try_from(count)
+        .is_ok_and(|count| crate::signature_scan::arity::arity_of(formals).accepts(count))
 }
 
 /// The binding a call to `qname` rests on.
@@ -2006,6 +2030,35 @@ mod tests {
                 ExistenceOutcome::MayBind(BindingKind::Either)
             )]
         );
+    }
+
+    /// A call that omits a `Name` parameter names the place the parameter's
+    /// default spells, as Tcl binds the default; a word count the callee's
+    /// parameters reject is a call that never completes; and a default that
+    /// names an element is a barrier, as an element argument is.
+    #[test]
+    fn a_call_names_its_omitted_parameters_default() {
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let source = "proc bumpd {{name n} {by 1}} {upvar 1 $name v; incr v $by}\n\
+            proc cell {{name a(1)}} {upvar 1 $name v; incr v}\n";
+        let unit = CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6");
+        let module = ModuleProcedures::of_unit(&unit, registry);
+        let bind = step_of(&[BIND]);
+        assert_eq!(
+            module.call_transfer("::bumpd", &[]),
+            Some(CallTransfer::Places(vec![("n".to_owned(), bind)]))
+        );
+        assert_eq!(
+            module.call_transfer("::bumpd", &[Some("m"), None]),
+            Some(CallTransfer::Places(vec![("m".to_owned(), bind)]))
+        );
+        assert_eq!(
+            module.call_transfer("::bumpd", &[Some("m"), Some("1"), Some("x")]),
+            Some(CallTransfer::Never)
+        );
+        assert_eq!(module.call_transfer("::cell", &[]), None);
     }
 
     const CYCLE: &str =

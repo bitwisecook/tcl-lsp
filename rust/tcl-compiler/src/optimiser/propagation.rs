@@ -1674,6 +1674,7 @@ fn evaluate_proc_with_constants(
             procedures: Some(&module),
             owned: None,
             level: crate::sccp::ModuleLevel::Results,
+            reads_exits: true,
         },
     });
     crate::interprocedural::exit_value(

@@ -6306,6 +6306,7 @@ mod tests {
             existence_guards: Vec::new(),
             loop_enumerations: Vec::new(),
             reads_module: false,
+            completion: crate::sccp::RunCompletion::default(),
             values: HashMap::new(),
             executable_blocks: blocks.iter().copied().collect(),
             executable_edges: HashSet::new(),

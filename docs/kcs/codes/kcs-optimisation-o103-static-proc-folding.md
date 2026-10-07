@@ -69,6 +69,15 @@ folds to `1.0`, `return 007` to `007`, and `return " 5"` to `{ 5}`.
   other.
 - Skipped when the analyser proves the procedure reaches none of its
   `return`s, as after a loop that ends only by raising.
+- Skipped when the analyser proves a command of the procedure raises —
+  `incr` of a value that is not an integer, `expr {1/0}`, `error` — or a
+  call it makes to another procedure of the file raises under that call's
+  arguments, or passes it a number of arguments its parameters do not
+  accept: the call never reaches its `return`. A procedure whose call to
+  one that writes its variables the analyser cannot decide completes, such
+  as `bump n` after `set n $x`, has no value every caller shares; a call to
+  it with constant arguments is still run with them, and folds where it
+  completes.
 - Skipped when the proc's bare name is anywhere `rename`d over, `rename`d away, or shadowed by an `interp alias` — the call site can no longer be trusted to run that proc's body.
 - A proc with no explicit `return` still folds when it falls through: the value is whatever Tcl's "result of the last command executed" rule would leave (the `double` example above relies on exactly this).
 

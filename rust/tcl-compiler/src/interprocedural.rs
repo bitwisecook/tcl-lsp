@@ -201,6 +201,9 @@ pub struct ProcSummary {
     pub can_fold_static_calls: bool,
     /// Per-parameter traits.
     pub param_traits: HashMap<String, HashSet<ProcArgTrait>>,
+    /// Each parameter with a default: the value Tcl binds it to in a call
+    /// that omits it.
+    pub param_defaults: HashMap<String, String>,
 }
 
 impl ProcSummary {
@@ -226,6 +229,7 @@ impl ProcSummary {
             return_passthrough_param: None,
             can_fold_static_calls: false,
             param_traits: HashMap::new(),
+            param_defaults: HashMap::new(),
         }
     }
 }
@@ -272,18 +276,29 @@ pub struct InterproceduralAnalysis {
     pub transfers: TransferSummaries,
 }
 
-/// A command-name → `(params, param_traits)` lookup, keyed by the bare leaf
-/// name (`bump`), the qualified name (`::demo::bump`), and the
-/// leading-colon-stripped name (`demo::bump`) so a bare call resolves to a
-/// proc declared in any namespace.  Input to [`collect_call_by_name_reads`].
-pub type ProcIndex = HashMap<String, (Vec<String>, HashMap<String, HashSet<ProcArgTrait>>)>;
+/// A command-name → `(params, param_traits, param_defaults)` lookup, keyed
+/// by the bare leaf name (`bump`), the qualified name (`::demo::bump`), and
+/// the leading-colon-stripped name (`demo::bump`) so a bare call resolves to
+/// a proc declared in any namespace.  Input to [`collect_call_by_name_reads`].
+pub type ProcIndex = HashMap<
+    String,
+    (
+        Vec<String>,
+        HashMap<String, HashSet<ProcArgTrait>>,
+        HashMap<String, String>,
+    ),
+>;
 
 /// Build a [`ProcIndex`] from interprocedural summaries.
 #[must_use]
 pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcIndex {
     let mut index = ProcIndex::new();
     for (qname, summary) in &ia.procedures {
-        let entry = (summary.params.clone(), summary.param_traits.clone());
+        let entry = (
+            summary.params.clone(),
+            summary.param_traits.clone(),
+            summary.param_defaults.clone(),
+        );
         // Leaf name (`::demo::bump` → `bump`): a `proc` declared inside a
         // namespaced body is registered under its qualified name, but a
         // same-namespace bare call (`bump x`) must still resolve to it.
@@ -297,25 +312,26 @@ pub fn build_proc_index_from_summaries(ia: &InterproceduralAnalysis) -> ProcInde
 }
 
 /// Record any literal-name argument landing on a callee param that
-/// carries `VarRead` / `VarWrite` (a call-by-name read/write).
+/// carries `VarRead` / `VarWrite` (a call-by-name read/write), and the
+/// default such a param binds where the call omits it.
 fn add_call_by_name(cmd: &str, args: &[String], index: &ProcIndex, out: &mut HashSet<String>) {
     if cmd.is_empty() || cmd.contains(['$', '[']) {
         return;
     }
-    let Some((params, traits_map)) = index
+    let Some((params, traits_map, defaults)) = index
         .get(cmd)
         .or_else(|| index.get(&format!("::{cmd}")))
         .or_else(|| index.get(cmd.trim_start_matches(':')))
     else {
         return;
     };
-    for (i, arg) in args.iter().enumerate() {
-        let Some(pname) = params.get(i) else {
-            break;
-        };
+    for (i, pname) in params.iter().enumerate() {
         let is_var = traits_map.get(pname).is_some_and(|t| {
             t.contains(&ProcArgTrait::VarRead) || t.contains(&ProcArgTrait::VarWrite)
         });
+        let Some(arg) = args.get(i).or_else(|| defaults.get(pname)) else {
+            break;
+        };
         // A substituted (`$x`) / array / non-name arg names a runtime
         // variable we can't identify — skip (preserve genuine FPs where
         // the caller passed a literal string, not a name).
@@ -1312,6 +1328,7 @@ fn build_method_summaries(
                     // Methods are not folded at static call sites.
                     can_fold_static_calls: false,
                     param_traits: HashMap::new(),
+                    param_defaults: HashMap::new(),
                 },
                 class_name: method.class_name.clone(),
                 method_kind: method.kind.as_str().to_owned(),
@@ -1720,6 +1737,8 @@ fn materialise_summaries(
     seedless: &HashMap<String, Option<ExactValue>>,
 ) -> HashMap<String, ProcSummary> {
     let mut procedures: HashMap<String, ProcSummary> = HashMap::with_capacity(local.len());
+    let rules =
+        tcl_syntax::word_rules::WordValueRules::of_dialect_name(ir_module.dialect.as_deref());
     for (qname, facts) in local {
         let Some(proc) = ir_module.procedures.get(qname) else {
             continue;
@@ -1783,10 +1802,27 @@ fn materialise_summaries(
                 return_passthrough_param: passthrough,
                 can_fold_static_calls: can_fold,
                 param_traits,
+                param_defaults: declared_defaults(&proc.params_raw, rules),
             },
         );
     }
     procedures
+}
+
+/// The defaults the parameter list `params_raw` declares, by parameter, as
+/// Tcl decodes them under `rules`; none where the list cannot be read.
+fn declared_defaults(
+    params_raw: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> HashMap<String, String> {
+    crate::signature_scan::params::parse_param_list_strict(params_raw, rules)
+        .map(|formals| {
+            formals
+                .into_iter()
+                .filter_map(|formal| Some((formal.name, formal.default?)))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Per-procedure scratch facts consumed by the summary-building
@@ -3453,7 +3489,10 @@ fn seedless_returns(
                 extra_escaping: &HashSet::new(),
                 trace,
                 folds: Some(reading.folds),
-                module: crate::sccp::ModuleRun::reading(Some(&module)),
+                module: crate::sccp::ModuleRun {
+                    reads_exits: true,
+                    ..crate::sccp::ModuleRun::reading(Some(&module))
+                },
             });
             (
                 qname.clone(),
@@ -3523,12 +3562,21 @@ impl<'b> ExitBody<'b> {
 /// seedless run share. A literal word is read through the exact value
 /// ingress — a braced word its content, a bare or quoted one its escapes
 /// decoded, nothing trimmed — so `return " 5"` is the two-character string.
+///
+/// The run is one made to read how the procedure completes
+/// ([`crate::sccp::ModuleRun::reads_exits`]). A statement it proved raises
+/// where no handler takes the throw, or a call whose completion it could
+/// not decide, means some call may not reach an exit at all, so no exit's
+/// value is the call's: `None`.
 pub(crate) fn exit_value(
     fu: ExitBody<'_>,
     result: &crate::sccp::SccpResult,
     reading: ExitReading<'_>,
 ) -> Option<ExactValue> {
     use crate::cfg::Terminator;
+    if !result.completion.is_decided() {
+        return None;
+    }
     if fu.cfg.blocks.iter().any(|(bn, block)| {
         result.executable_blocks.contains(bn)
             && block

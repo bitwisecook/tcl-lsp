@@ -388,6 +388,42 @@ pub struct SccpResult {
     /// read them had its caller held them: a lattice built without the
     /// module's procedures then answers less than one built with them.
     pub reads_module: bool,
+    /// What a run made to read how the procedure completes found
+    /// ([`ModuleRun::reads_exits`]): where it raises, and whether a call
+    /// it made has a completion no re-run decided.
+    pub completion: RunCompletion,
+}
+
+/// How a run made to read a procedure's exits found it may complete beside
+/// its exits ([`SccpResult::completion`]); empty for every other run.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RunCompletion {
+    /// The statements that certainly raise where no handler takes the
+    /// throw, as `(block, index)`: the procedure raises there, and its
+    /// block's own way out is never reached.
+    pub raises: HashSet<(BlockId, usize)>,
+    /// Whether a call to a procedure of the module has a completion the
+    /// run could not decide: no re-run of the callee was made, or one made
+    /// with a seed that is not exact, or one that itself held such a call
+    /// or a raise beside its normal exits.
+    pub undecided: bool,
+}
+
+impl RunCompletion {
+    /// Whether a call that reaches the run's exits is one that completes
+    /// there: no statement the run evaluated certainly raises, and every
+    /// call it applied had its completion decided.
+    #[must_use]
+    pub fn is_decided(&self) -> bool {
+        self.raises.is_empty() && !self.undecided
+    }
+
+    /// Whether `block` holds a statement that certainly raises, so its
+    /// terminator is never reached.
+    #[must_use]
+    pub fn raises_in(&self, block: BlockId) -> bool {
+        self.raises.iter().any(|&(at, _)| at == block)
+    }
 }
 
 /// A loop the solver ran to its exit over the exact state it starts from,
@@ -880,6 +916,13 @@ pub(crate) struct ModuleRun<'a> {
     pub(crate) owned: Option<&'a HashSet<String>>,
     /// What a call to a procedure of the module gives the run.
     pub(crate) level: ModuleLevel,
+    /// Whether the run is made to read how the procedure completes — a
+    /// callee's re-run, a summary's own run, a seedless return run, O103's
+    /// argument-sensitive re-run: a statement that certainly raises ends its
+    /// path in every block, where a unit's lattice ends it only where a
+    /// handler is thrown to, so that no code is proved unreachable by an
+    /// error the procedure raises itself.
+    pub(crate) reads_exits: bool,
 }
 
 /// What a run takes from a call to a procedure of the module, as the
@@ -904,6 +947,7 @@ impl<'a> ModuleRun<'a> {
         procedures: None,
         owned: None,
         level: ModuleLevel::Places,
+        reads_exits: false,
     };
 
     /// A run that reads the module's procedures where they are given, and
@@ -915,6 +959,7 @@ impl<'a> ModuleRun<'a> {
             procedures,
             owned: None,
             level: ModuleLevel::Places,
+            reads_exits: false,
         }
     }
 }
@@ -1321,6 +1366,7 @@ impl SweepContext<'_> {
                 // last one run — should reach the tally. Each sweep is one
                 // iteration of the run's request: a tenth of what it has left.
                 self.driver.reset_tally_for_sweep();
+                self.driver.reset_undecided_for_sweep();
                 self.driver.open_iteration();
                 for bn in order {
                     if state.executable_blocks.contains(bn) {
@@ -3501,9 +3547,9 @@ fn sccp_process_statements(
             })
             .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)))
             .or_else(|| driver.procedure_answer((ssa_block, index), values, ssa));
-        // Where a throw leaves from, whether the statement raises is part of
-        // what it does, so it is evaluated whatever its definitions need.
-        if driver.is_throwing() && evaluated.is_none() {
+        // Where a raise ends the path, whether the statement raises is part
+        // of what it does, so it is evaluated whatever its definitions need.
+        if driver.raises_end_paths() && evaluated.is_none() {
             evaluated = if stmt_ssa.defs.is_empty() {
                 driver.probe_completion(stmt_ssa, values, ssa)
             } else {

@@ -199,6 +199,25 @@ pub struct UpvarInfo {
     /// structural bookkeeping, not a caller-side effect, so it stays out of
     /// [`Self::is_empty`].
     pub plain_calls: BTreeSet<String>,
+    /// Each parameter whose value names a caller-frame variable
+    /// ([`Self::param_targets`], [`Self::uplevel_param_writes`]) that has a
+    /// default: the name a call omitting it binds it to, as Tcl decodes the
+    /// default, or `None` where the parameter list cannot be read. A
+    /// parameter with no default has no entry: a call omitting it raises.
+    pub param_defaults: BTreeMap<String, Option<String>>,
+}
+
+/// What a call omitting a parameter whose value names a caller-frame
+/// variable binds the parameter to ([`UpvarInfo::default_name`]).
+pub(super) enum OmittedName<'a> {
+    /// Nothing: the parameter has no default, and the call raises.
+    Raises,
+    /// The caller-frame variable its default names.
+    Names(&'a str),
+    /// A default that names no variable the analysis can place — an
+    /// element, a name with a substitution character — or a parameter
+    /// list that cannot be read.
+    Unplaceable,
 }
 
 #[derive(Debug, Default)]
@@ -283,6 +302,15 @@ impl UpvarInfo {
         }
     }
 
+    /// What a call omitting `param` binds it to ([`OmittedName`]).
+    pub(super) fn default_name(&self, param: &str) -> OmittedName<'_> {
+        match self.param_defaults.get(param) {
+            None => OmittedName::Raises,
+            Some(Some(name)) if is_var_name(name) => OmittedName::Names(name),
+            Some(_) => OmittedName::Unplaceable,
+        }
+    }
+
     /// Resolve the caller-frame name aliased by *local* in this
     /// proc.  Returns the literal name for `literal_targets`, the
     /// substituted argument value for `param_targets` (looked up in
@@ -322,8 +350,10 @@ impl UpvarInfo {
     ///   added directly — those are caller-frame literal names.
     /// * For each value in [`param_targets`](Self::param_targets), we
     ///   find the param's positional index in `params`, look up the
-    ///   actual argument value at that index in `call_args`, and
-    ///   normalise it (stripping `$` / `${…}` / `(…)` suffixes).
+    ///   actual argument value at that index in `call_args` — the name
+    ///   the parameter's default spells where the call omits it
+    ///   ([`Self::param_defaults`]) — and normalise it (stripping `$` /
+    ///   `${…}` / `(…)` suffixes).
     /// * For each entry in [`args_tail_upvar`](Self::args_tail_upvar),
     ///   we pair it positionally with a tail argument at the call
     ///   site (tail start = `params.len() - 1`, since `args` consumes
@@ -348,11 +378,17 @@ impl UpvarInfo {
             .values()
             .chain(self.uplevel_param_writes.iter())
         {
-            if let Some(idx) = params.iter().position(|p| p == param_name)
-                && let Some(arg) = call_args.get(idx)
-            {
-                push(crate::naming::normalise_var_name(arg).to_owned());
-            }
+            let Some(idx) = params.iter().position(|p| p == param_name) else {
+                continue;
+            };
+            let arg = match call_args.get(idx) {
+                Some(arg) => arg.as_str(),
+                None => match self.default_name(param_name) {
+                    OmittedName::Names(name) => name,
+                    OmittedName::Raises | OmittedName::Unplaceable => continue,
+                },
+            };
+            push(crate::naming::normalise_var_name(arg).to_owned());
         }
         if !self.args_tail_upvar.is_empty() {
             // `args` occupies the trailing param slot, so tail args
@@ -397,7 +433,11 @@ impl UpvarInfo {
                     InvocationArgument::Word(_) | InvocationArgument::Indeterminate => {
                         effects.opaque = true;
                     }
-                    InvocationArgument::Missing => {}
+                    InvocationArgument::Missing => match self.default_name(param_name) {
+                        OmittedName::Names(name) => push_caller_side_def(&mut effects, name),
+                        OmittedName::Unplaceable => effects.opaque = true,
+                        OmittedName::Raises => {}
+                    },
                 }
             }
         }
@@ -1548,6 +1588,36 @@ fn record_constructed_body(
     true
 }
 
+/// The defaults of the parameters whose value names a caller-frame variable
+/// in `info`, read from the procedure's parameter list `params_raw` under
+/// the document's word rules ([`UpvarInfo::param_defaults`]).
+pub(super) fn name_param_defaults(
+    info: &UpvarInfo,
+    params_raw: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> BTreeMap<String, Option<String>> {
+    let named: BTreeSet<&str> = info
+        .param_targets
+        .values()
+        .chain(info.uplevel_param_writes.iter())
+        .map(String::as_str)
+        .collect();
+    if named.is_empty() {
+        return BTreeMap::new();
+    }
+    match crate::signature_scan::params::parse_param_list_strict(params_raw, rules) {
+        Ok(formals) => formals
+            .into_iter()
+            .filter(|formal| named.contains(formal.name.as_str()))
+            .filter_map(|formal| Some((formal.name, Some(formal.default?))))
+            .collect(),
+        Err(_) => named
+            .into_iter()
+            .map(|name| (name.to_owned(), None))
+            .collect(),
+    }
+}
+
 /// Compose a callee's caller-frame effects into `info`, for a
 /// `uplevel <caller frame> [list callee ARG…]` forward.
 ///
@@ -1595,11 +1665,19 @@ pub(super) fn compose_forwarded(
         let Some(idx) = callee_params.iter().position(|p| p == param_name) else {
             continue;
         };
-        let Some(arg) = constructed.get(idx) else {
-            continue;
+        let arg = match constructed.get(idx) {
+            Some(arg) => arg.as_str(),
+            None => match callee.default_name(param_name) {
+                OmittedName::Names(name) => name,
+                OmittedName::Unplaceable => {
+                    info.caller_frame_opaque_writes = true;
+                    continue;
+                }
+                OmittedName::Raises => continue,
+            },
         };
         if is_literal_name(arg) {
-            info.uplevel_literal_writes.insert(arg.clone());
+            info.uplevel_literal_writes.insert(arg.to_owned());
         } else {
             info.caller_frame_opaque_writes = true;
         }

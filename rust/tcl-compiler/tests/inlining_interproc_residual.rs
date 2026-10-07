@@ -826,11 +826,35 @@ fn call_by_name_resolves_bare_call_to_namespaced_proc() {
 }
 
 #[test]
+fn call_by_name_omitted_parameter_collects_its_default() {
+    // A call that omits a by-name parameter binds its default, which names the
+    // caller variable the callee reaches through `upvar` as a word would; a
+    // default that is no literal name (`a(1)`) is not collected.
+    // tclsh (8.4 to 9.1): `proc bumpd {{name n}} { upvar 1 $name v; incr v };
+    // proc caller {} { set n 1; bumpd; return $n }; puts [caller]` → 2 — the
+    // store to `n` is read through the alias, so it is live.
+    let reads = call_by_name_reads(
+        "proc bumpd {{name n}} { upvar 1 $name v\nincr v }\n\
+         proc cell {{name a(1)}} { upvar 1 $name v\nincr v }\n\
+         proc caller {} { set n 1\nbumpd\ncell\nreturn $n }\n",
+        "::caller",
+    );
+    assert!(
+        reads.contains("n"),
+        "the default an omitted upvar param binds is collected, got {reads:?}"
+    );
+    assert!(
+        !reads.contains("a(1)") && !reads.contains("a"),
+        "a default that is no literal name is not collected, got {reads:?}"
+    );
+}
+
+#[test]
 fn call_by_name_extra_args_beyond_params_are_ignored() {
-    // `add_call_by_name` stops at the param count (`params.get(i)` → break): a
-    // trailing extra arg past the declared params can't land on any param, so it
-    // is never collected even if it looks like a name.  Here `setvar` takes
-    // `{n v}`; the third arg `extra` has no param slot.
+    // `add_call_by_name` walks the declared params: a trailing extra arg past
+    // them can't land on any param, so it is never collected even if it looks
+    // like a name.  Here `setvar` takes `{n v}`; the third arg `extra` has no
+    // param slot.
     let reads = call_by_name_reads(
         "proc setvar {n v} { upvar 1 $n x\nset x $v }\nproc caller {} { set y 0\nsetvar y 1 extra }\n",
         "::caller",

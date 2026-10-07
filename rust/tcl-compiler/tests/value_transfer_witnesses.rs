@@ -8730,3 +8730,195 @@ fn a_nested_caller_keeps_the_callee_whole() {
     }
     prints_under_every_release(source, "2 11 11\n");
 }
+
+/// Every release on `PATH` prints `printed` for `source` and then stops it
+/// with an error, and does the same for its optimised form under that
+/// release's dialect.
+fn prints_then_errors(source: &str, printed: &str) {
+    for (series, tclsh) in releases_on_path() {
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, printed.to_owned())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+/// A call that cannot complete normally is a raise where a run reads how its
+/// caller completes, so no exit past it is read: a callee whose re-run under
+/// the call's seeds raises — `incr` of `foo`, a division by zero, 8.4's
+/// `incr` of an absent place — and a call whose word count the callee's
+/// parameters reject leave `[c]` as written on both O103 paths, as an
+/// embedded call does. A call whose completion the re-run cannot decide, its
+/// seed unknown, leaves the seedless return unknown, and the
+/// argument-sensitive re-run decides each call: `[c 1]` folds to 0 and `[c
+/// foo]` stays. tclsh 8.4 to 9.1 raise in each, before and after `tcl opt`,
+/// and 8.5 onwards create the absent place, so there `[c]` folds to 0.
+#[test]
+fn a_call_that_cannot_complete_is_a_raise() {
+    let raising = [
+        format!("{BUMP}proc c {{}} {{set n foo; bump n; return 0}}\nputs [c]\n"),
+        format!("{BUMP}proc c {{name}} {{bump name; return 0}}\nputs [c foo]\n"),
+        format!("{BUMP}proc c {{}} {{set n foo; set r [bump n]; return 0}}\nputs [c]\n"),
+        "proc half {name} {upvar 1 $name v; set v [expr {$v / 0}]}\n\
+         proc c {} {set n 1; half n; return 0}\nputs [c]\n"
+            .to_owned(),
+        format!("{BUMP}proc c {{}} {{set n 1; bump n 1 extra; return 0}}\nputs [c]\n"),
+    ];
+    let seeded =
+        format!("{BUMP}proc c {{x}} {{set n $x; bump n; return 0}}\nputs [c 1]\nputs [c foo]\n");
+    let absent = format!("{BUMP}proc c {{}} {{bump n; return 0}}\nputs [c]\n");
+    for dialect in ["tcl8.4", "tcl8.6"] {
+        for source in &raising {
+            let (rewritten, _) = optimised(source, dialect);
+            assert!(
+                rewritten.contains("puts [c"),
+                "{dialect}: {source}{rewritten}"
+            );
+        }
+        let (rewritten, _) = optimised(&seeded, dialect);
+        assert!(
+            rewritten.contains("puts 0\nputs [c foo]\n"),
+            "{dialect}: {rewritten}"
+        );
+        assert!(
+            summary_of(&seeded, dialect, "::c")
+                .constant_return
+                .is_none(),
+            "{dialect}"
+        );
+        assert_eq!(
+            optimised(&absent, dialect).0.contains("puts 0\n"),
+            dialect != "tcl8.4",
+            "{dialect}"
+        );
+        // A call its callee's parameters reject states nothing of its place.
+        let wrong_count = unit_of(&raising[4], dialect);
+        assert!(
+            !matches!(
+                last_existence(&wrong_count, "::c", "n"),
+                Some(Existence::Bound(_))
+            ),
+            "{dialect}"
+        );
+    }
+    for source in &raising {
+        prints_then_errors(source, "");
+    }
+    prints_then_errors(&seeded, "0\n");
+    errors_alike_under(&absent, "8.4");
+    prints_under_releases_from(&absent, "0\n", "8.5");
+}
+
+/// A statement the solver proves raises ends its path in a run that reads
+/// how the procedure completes, so a `return` past it is no exit of the
+/// call: `incr` of `foo`, an `expr` statement or an assignment dividing by
+/// zero, `error`, and a call to a procedure with a word count it rejects
+/// each leave the call unfolded on both O103 paths. tclsh 8.4 to 9.1 raise
+/// in each, before and after `tcl opt`.
+#[test]
+fn a_statement_that_certainly_raises_ends_the_exit_reading() {
+    let sources = [
+        "proc c {} {set n foo; incr n; return 0}\nputs [c]\n",
+        "proc p {} {expr {1/0}; return foo}\nputs [p]\n",
+        "proc p {a} {expr {1/0}; return [expr {$a + 1}]}\nputs [p 5]\n",
+        "proc p {} {error boom; return 5}\nputs [p]\n",
+        "proc p {} {set x [expr {1/0}]; return 5}\nputs [p]\n",
+        "proc f {a} {return $a}\nproc p {} {f 1 2; return 0}\nputs [p]\n",
+    ];
+    for dialect in ["tcl8.4", "tcl8.6"] {
+        for source in sources {
+            assert!(
+                !rewrites_of(source, dialect)
+                    .iter()
+                    .any(|fold| fold.code == DiagCode::O103),
+                "{dialect}: {source}"
+            );
+        }
+    }
+    for source in sources {
+        prints_then_errors(source, "");
+    }
+}
+
+const BUMPD: &str = "proc bumpd {{name n}} {upvar 1 $name v; incr v}\n";
+
+/// A call that omits a `Name` parameter names the place its default spells,
+/// as Tcl binds it: the call defines that place and its summary applies
+/// there, so a read after it, and the next call's re-run, see what it left.
+/// At the top level `set n 1; bumpd n; bumpd` and `set n 1; bumpd; bumpd n`
+/// leave `n` 3, read as `puts 3`; in a procedure the lattice proves `n` 3
+/// and 2 after the same calls, and the store `bumpd` reads is kept, which
+/// O126 deleted, so 8.4's `incr` raised, and is read: neither W220 nor W211
+/// calls it unread. tclsh 8.4 to 9.1 print the same before and after
+/// `tcl opt`.
+#[test]
+fn an_omitted_name_argument_names_its_default() {
+    let after = format!("{BUMPD}set n 1\nbumpd n\nbumpd\nputs $n\n");
+    let before = format!("{BUMPD}set n 1\nbumpd\nbumpd n\nputs $n\n");
+    let both = format!(
+        "{BUMPD}set n 1\nbumpd\nputs $n\nbumpd n\nputs $n\n\
+         proc p {{}} {{set n 1; bumpd; return $n}}\nputs [p]\n\
+         proc q {{}} {{set n 1; bumpd n; bumpd; return $n}}\nputs [q]\n\
+         proc r {{}} {{set n 1; bumpd; return 0}}\nputs [r]\n"
+    );
+    for dialect in ["tcl8.4", "tcl8.6"] {
+        for source in [&after, &before] {
+            assert_eq!(
+                top_level_value(source, dialect, "n"),
+                LatticeValue::Const(ConstValue::Int(3)),
+                "{dialect}: {source}"
+            );
+            assert!(
+                optimised(source, dialect).0.contains("puts 3\n"),
+                "{dialect}: {source}"
+            );
+        }
+        assert_eq!(
+            last_value(&both, dialect, "::p", "n"),
+            LatticeValue::Const(ConstValue::Int(2)),
+            "{dialect}"
+        );
+        assert_eq!(
+            last_value(&both, dialect, "::q", "n"),
+            LatticeValue::Const(ConstValue::Int(3)),
+            "{dialect}"
+        );
+        let (rewritten, _) = optimised(&both, dialect);
+        assert!(
+            rewritten.contains("bumpd\nputs 2\nbumpd n\nputs 3\n")
+                && rewritten.contains("{set n 1; bumpd; return 0}"),
+            "{dialect}: {rewritten}"
+        );
+        for code in [DiagCode::W211, DiagCode::W220] {
+            assert!(!reports(&both, dialect, code), "{dialect}: {code:?}");
+        }
+    }
+    prints_under_every_release(&after, "3\n");
+    prints_under_every_release(&before, "3\n");
+    prints_under_every_release(&both, "2\n3\n2\n3\n0\n");
+}
+
+/// A `Name` argument that names an element is a barrier: the summary states
+/// what the callee does to a whole place, and an element's index is dropped
+/// when its name is normalised, so taking `a(k)` for `a` stated the array
+/// bound as a scalar and folded `[array exists a]` to 0. tclsh 8.4 to 9.1
+/// print `arr` and 1, before and after `tcl opt`.
+#[test]
+fn an_element_argument_is_a_barrier() {
+    let source = format!(
+        "{BUMP}proc q {{}} {{set a(k) 1; bump a(k); if {{[array exists a]}} {{return arr}} else {{return scalar}}}}\n\
+         puts [q]\nset b(k) 1\nbump b(k)\nputs [array exists b]\n"
+    );
+    for dialect in DIALECTS {
+        let (rewritten, _) = optimised(&source, dialect);
+        assert!(
+            rewritten.contains("if {[array exists a]}") && rewritten.contains("[array exists b]"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(&source, "arr\n1\n");
+}

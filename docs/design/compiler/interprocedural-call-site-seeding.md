@@ -146,7 +146,12 @@ CFG builder puts right ahead of the statement and pairs with it by
 construction (`<word-effects>`, `ssa::word_effects_host`), never by span. A
 place takes what a re-run of the callee leaves in it, the callee's
 parameters holding that one call's arguments and its links the caller's
-places before the call, so `set n 1; bump n` leaves `n` at 2. That value is
+places before the call, so `set n 1; bump n` leaves `n` at 2; a `Name`
+parameter the call omits names the place its default spells, so after `set
+n 1; bumpd` for `proc bumpd {{name n}} {upvar 1 $name v; incr v}` the
+caller's `n` is 2. A call whose re-run under its seeds reaches no exit, or
+whose word count the callee rejects, never completes normally, and where a
+run reads its caller's exits it is a raise there. That value is
 exact under one call only, so it never enters the callee's own lattice or
 its summary, which this page's seed reaches only where every caller agrees.
 One summary serves every caller: after `set n 1; bump n; set other 10; bump

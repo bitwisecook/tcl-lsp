@@ -100,6 +100,21 @@ See
 [W220](kcs-diagnostic-w220-dead-store.md#a-procedure-you-call-can-read-your-variables)
 for the same rule on the dead-store side.
 
+## A variable you hand a procedure by name
+
+A variable you name to a procedure that links it with `upvar` counts as used
+by the call, and so does the variable a parameter's default names when the call
+leaves that argument out:
+
+```tcl
+proc bumpd {{name n}} {upvar 1 $name v; incr v}
+proc p {} {
+    set n 1               ;# not flagged — bumpd reads n through the link
+    bumpd
+    return 0
+}
+```
+
 ## A command the file does not define can read your variables
 
 A plain variable in the top-level script is the global `::name`, which a
