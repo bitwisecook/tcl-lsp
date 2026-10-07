@@ -1,0 +1,9 @@
+/Common/__tcl_lsp_2286_capture_test: script failed to complete:
+can't eval proc: "script::run"
+records: required brace is missing "{"
+    while executing
+"tmsh::create ltm data-group internal /Common/__tcl_lsp_2286_capture_test_dg type string records add { k0 { data abc123 } k1 { data def456 } }"
+    (procedure "script::run" line 2)
+    invoked from within
+"script::run" line:1
+script did not successfully complete, status:1

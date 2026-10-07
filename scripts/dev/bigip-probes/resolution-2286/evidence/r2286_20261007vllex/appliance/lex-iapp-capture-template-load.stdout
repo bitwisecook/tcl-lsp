@@ -1,0 +1,8 @@
+Loading configuration...
+  /shared/tmp/r2286_20261007vllex/r2286lex1-fixtures-v3/contexts/iapp-capture.conf
+There were warnings:
+/Common/__tcl_lsp_2286_r2286lex1_iapp_capture definition:56: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_iapp_capture definition:58: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_iapp_capture definition:115: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_iapp_capture definition:121: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+

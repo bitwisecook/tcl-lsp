@@ -1,0 +1,5 @@
+HTTP/1.0 200 OK
+Server: BigIP
+Connection: Keep-Alive
+Content-Length: 410
+

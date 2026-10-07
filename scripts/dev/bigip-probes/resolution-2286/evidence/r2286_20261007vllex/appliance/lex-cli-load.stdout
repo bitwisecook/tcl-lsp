@@ -1,0 +1,8 @@
+Loading configuration...
+  /var/tmp/r2286_20261007vllex/r2286lex1-fixtures-v2/contexts/cli.conf
+There were warnings:
+/Common/__tcl_lsp_2286_r2286lex1_cli:57: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_cli:59: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_cli:116: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_cli:122: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+

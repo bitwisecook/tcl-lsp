@@ -1,0 +1,5 @@
+GET /r2286-lexical-byte-class HTTP/1.1
+Host: 192.168.9.24:18860
+X-R2286-Request: lexical-43102-0
+Connection: keep-alive
+

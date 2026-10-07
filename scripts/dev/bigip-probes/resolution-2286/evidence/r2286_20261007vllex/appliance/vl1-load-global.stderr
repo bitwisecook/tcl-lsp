@@ -1,0 +1,6 @@
+01070151:3: Rule [/Common/__tcl_lsp_2286_vl1_global] error: /Common/__tcl_lsp_2286_vl1_global:10: error: [command is not valid in the current scope][proc __tcl_lsp_2286_vl1_error_watch {n k op} {error BOOM}]
+/Common/__tcl_lsp_2286_vl1_global:11: error: [undefined procedure: __tcl_lsp_2286_vl1_error_watch][__tcl_lsp_2286_vl1_error_watch]
+/Common/__tcl_lsp_2286_vl1_global:23: error: [command is not valid in the current scope][proc __tcl_lsp_2286_vl1_global_watch {n k op} {uplevel 1 {upvar #0 ::__tcl_lsp_2286_vl1_replacement second}}]
+/Common/__tcl_lsp_2286_vl1_global:24: error: [undefined procedure: __tcl_lsp_2286_vl1_global_watch][__tcl_lsp_2286_vl1_global_watch]
+
+Unexpected Error: Loading configuration process failed.

@@ -1,0 +1,16 @@
+Loading configuration...
+  /var/tmp/r2286_20261007vllex/r2286lex1-fixtures-v2/sources/irule.conf
+There were warnings:
+/Common/__tcl_lsp_2286_r2286lex1_lbc:60: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:62: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:119: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:125: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:220: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:222: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:279: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:285: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:381: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:383: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:440: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+/Common/__tcl_lsp_2286_r2286lex1_lbc:446: warning: [variable reference used where variable name expected][$r2286_lbc_name]
+

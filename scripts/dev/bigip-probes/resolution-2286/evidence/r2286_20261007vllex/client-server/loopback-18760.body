@@ -1,0 +1,1 @@
+{"backend": ["192.168.9.80", 18760], "client": ["192.168.9.80", 52330], "path": "/loopback-lex", "probe_id": "lex-loopback", "scope": null, "utc": "2026-10-07T14:59:21Z"}

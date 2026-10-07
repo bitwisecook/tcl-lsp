@@ -1,0 +1,8 @@
+ltm virtual __tcl_lsp_2286_r2286lex1_vs { destination 192.168.9.24:18860 ip-protocol tcp last-modified-time 2026-10-07:08:10:32 mask 255.255.255.255 pool __tcl_lsp_2286_r2286lex1_pool profiles { http { } tcp { } } rules { __tcl_lsp_2286_r2286lex1_lbc } serverssl-use-sni disabled source 0.0.0.0/0 source-address-translation { type automap } translate-address enabled translate-port enabled vs-index 42 }
+ltm virtual __tcl_lsp_2286_vl1_global_vs { destination 192.168.9.24:18862 ip-protocol tcp mask 255.255.255.255 pool __tcl_lsp_2286_vl1_pool profiles { http { } tcp { } } rules { __tcl_lsp_2286_vl1_global } serverssl-use-sni disabled source 0.0.0.0/0 source-address-translation { type automap } translate-address enabled translate-port enabled vs-index 41 }
+ltm virtual __tcl_lsp_2286_vl1_vs { destination 192.168.9.24:18861 ip-protocol tcp last-modified-time 2026-10-07:08:17:37 mask 255.255.255.255 pool __tcl_lsp_2286_vl1_pool profiles { http { } tcp { } } rules { __tcl_lsp_2286_vl1_context_events } serverssl-use-sni disabled source 0.0.0.0/0 source-address-translation { type automap } translate-address enabled translate-port enabled vs-index 40 }
+ltm pool __tcl_lsp_2286_r2286lex1_pool { members { 192.168.9.80:18760 { address 192.168.9.80 } } }
+ltm pool __tcl_lsp_2286_vl1_pool { members { 192.168.9.80:18761 { address 192.168.9.80 } } }
+sys application service __tcl_lsp_2286_r2286lex1_iapp_capture_service { template __tcl_lsp_2286_r2286lex1_iapp_capture }
+sys icall handler triggered __tcl_lsp_2286_r2286lex1_icall_handler { script __tcl_lsp_2286_r2286lex1_icall subscriptions { only { event-name R2286LEX1_LBC } } }
+ltm data-group internal __tcl_lsp_2286_capture_test_dg { records { k0 { data abc123 } k1 { data def456 } } type string }

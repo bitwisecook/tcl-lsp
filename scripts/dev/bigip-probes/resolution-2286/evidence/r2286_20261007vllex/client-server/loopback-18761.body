@@ -1,0 +1,1 @@
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.80", 42216], "path": "/loopback-vl", "probe_id": "vl-loopback", "scope": null, "utc": "2026-10-07T14:59:21Z"}

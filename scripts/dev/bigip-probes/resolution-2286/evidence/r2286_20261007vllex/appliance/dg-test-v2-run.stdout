@@ -1,0 +1,11 @@
+{ltm data-group internal __tcl_lsp_2286_capture_test_dg {
+    records {
+        k0 {
+            data abc123
+        }
+        k1 {
+            data def456
+        }
+    }
+    type string
+}}

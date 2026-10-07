@@ -1,0 +1,1 @@
+01070734:3: Configuration error: Can't delete application template (/Common/__tcl_lsp_2286_r2286lex1_iapp) it is referenced by one or more applications (/Common/__tcl_lsp_2286_r2286lex1_iapp_service.app/__tcl_lsp_2286_r2286lex1_iapp_service)

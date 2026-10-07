@@ -1,0 +1,14 @@
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.80", 42216], "path": "/loopback-vl", "probe_id": "vl-loopback", "scope": null, "utc": "2026-10-07T14:59:21Z"}
+192.168.9.80 - - [07/Oct/2026 14:59:21] "GET /loopback-vl HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 1636], "path": "/r2286-vl1-backend", "probe_id": "vl-vip-backend", "scope": null, "utc": "2026-10-07T15:02:10Z"}
+192.168.9.24 - - [07/Oct/2026 15:02:10] "GET /r2286-vl1-backend HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 21503], "path": "/r2286-vl1-backend", "probe_id": "vl-main-backend", "scope": null, "utc": "2026-10-07T15:02:28Z"}
+192.168.9.24 - - [07/Oct/2026 15:02:28] "GET /r2286-vl1-backend HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 2933], "path": "/r2286-vl1-backend", "probe_id": null, "scope": null, "utc": "2026-10-07T15:17:38Z"}
+192.168.9.24 - - [07/Oct/2026 15:17:38] "GET /r2286-vl1-backend HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 27851], "path": "/r2286-vl1-backend", "probe_id": null, "scope": null, "utc": "2026-10-07T15:17:38Z"}
+192.168.9.24 - - [07/Oct/2026 15:17:38] "GET /r2286-vl1-backend HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 3965], "path": "/r2286-vl1-backend", "probe_id": null, "scope": null, "utc": "2026-10-07T15:17:38Z"}
+192.168.9.24 - - [07/Oct/2026 15:17:38] "GET /r2286-vl1-backend HTTP/1.1" 200 -
+{"backend": ["192.168.9.80", 18761], "client": ["192.168.9.24", 41187], "path": "/r2286-vl1-backend", "probe_id": null, "scope": null, "utc": "2026-10-07T15:17:38Z"}
+192.168.9.24 - - [07/Oct/2026 15:17:38] "GET /r2286-vl1-backend HTTP/1.1" 200 -
