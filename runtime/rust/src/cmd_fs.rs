@@ -187,7 +187,7 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // The pure `/`-based path text ops are the shared `tcl_cmd_core::path` core.
         b"dirname" => str_result(
             interp,
-            tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
+            &tcl_cmd_core::path::dirname(&arg(2).unwrap_or_default()),
         ),
         b"tail" => str_result(
             interp,

@@ -156,7 +156,7 @@ fn file_path_op(vm: &mut Vm, canon: &str, rest: &[Value]) -> Option<Completion<V
     Some(match canon {
         "join" => ok(Value::string(file_join(rest))),
         "dirname" => match rest {
-            [p] => path_str(tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
+            [p] => path_str(&tcl_cmd_core::path::dirname(p.to_str().as_bytes())),
             _ => err("wrong # args: should be \"file dirname name\""),
         },
         "tail" => match rest {
