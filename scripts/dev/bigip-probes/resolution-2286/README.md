@@ -45,6 +45,7 @@ A single-TMM result cannot establish multi-TMM locality or broadcast.
 | File | Use |
 | --- | --- |
 | [APPLIANCE_VERIFICATION_REQUEST.md](APPLIANCE_VERIFICATION_REQUEST.md) | Complete handoff for the variable-lifetime and lexical byte-class requests and their peer reports |
+| [EVENT_MATRIX_AND_SCAN_RECEIVER_CHECKS.md](EVENT_MATRIX_AND_SCAN_RECEIVER_CHECKS.md) | Complete retained RULE_INIT and CLIENT_ACCEPTED matrices, paginated transport and scan receiver controls; peer report: EVENT_MATRIX_AND_SCAN_RECEIVER_RESULTS.md |
 | `generate.py` | Offline canonical source generator; no appliance connection |
 | `irules/*.conf` | Materialized standalone iRules using run identifier `lab2286` |
 | `irules/*.conf.hex` | Full original config-file bytes as hexadecimal |

@@ -171,8 +171,11 @@ UTF-8 `cc81`. The `binary_source` braced case 257 was the eleventh catch-1 row
 in every context: `can't read "...v\x01Q": no such variable`. Its source build
 and scan both succeeded, but the seeded cell and constructed binary source did
 not resolve to the same variable. That counterexample is retained without
-normalizing either object. All other 260 append-source braced cases and 259
-other binary-source braced cases returned `FULL`.
+normalizing either object. In both source producers, braced case 125 (byte
+`7d`, the closing brace) succeeds with result bytes `53484f5254515c7d`
+(`SHORTQ\}`), because the byte closes the variable substitution. The exact
+counts are 260 append-source and 259 binary-source braced cases returning
+`FULL`; case 125 and the binary-source case 257 are retained exceptions.
 
 ### Read and trace evidence
 
