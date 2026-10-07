@@ -3514,14 +3514,15 @@ fn build_ssa_inner(
 }
 
 /// A statement whose `[…]` substitutions write a name reads it before,
-/// between and after the write, and the effect call the CFG builder puts ahead
-/// of the statement defines the name, so the statement's own use names the
-/// version after the write. No word of it is an operand something may rewrite:
-/// each such use becomes a read by name, and the call reads the version before
-/// the write on the statement's behalf.
+/// between and after the write, and the statement's word effects, the
+/// definition point the CFG builder pairs with it, define the name, so the
+/// statement's own use names the version after the write. No word of it is an
+/// operand something may rewrite: each such use becomes a read by name, and
+/// the definition point reads the version before the write on the
+/// statement's behalf.
 fn demote_reads_beside_writes(infos: &mut [SsaStatement]) {
     for call in 0..infos.len() {
-        let Some(host) = effect_call_host(infos, call) else {
+        let Some(host) = word_effects_host(infos, call) else {
             continue;
         };
         let written: Vec<Symbol> = infos[call].defs.keys().copied().collect();
@@ -3575,24 +3576,19 @@ pub(crate) fn arm_writes_host(infos: &[SsaStatement], marker: usize) -> Option<u
     (infos[host].statement.span() == statement.span()).then_some(host)
 }
 
-/// The statement the effect call at `call` ([`crate::ir::SyntheticMarker::
-/// UpvarInvalidate`]) stands ahead of: the first statement after it that is
-/// no marker, when it shares the call's span, as the CFG builder puts them.
-/// `None` for a statement that is no such call and for a call with no host.
-pub(crate) fn effect_call_host(infos: &[SsaStatement], call: usize) -> Option<usize> {
-    let Statement::Call {
-        span,
-        tokens: Some(tokens),
-        ..
-    } = &infos.get(call)?.statement
-    else {
-        return None;
-    };
-    if tokens.synthetic != Some(crate::ir::SyntheticMarker::UpvarInvalidate) {
-        return None;
+/// The statement whose words the definition point at `index` states the
+/// effects of ([`crate::ir::SyntheticMarker::WordEffects`]): the statement
+/// right after it, which the CFG builder pairs with it
+/// ([`crate::ir::WordEffectsHost::Statement`]). `None` for any other
+/// statement, and for a control statement's words, which no statement holds.
+pub(crate) fn word_effects_host(infos: &[SsaStatement], index: usize) -> Option<usize> {
+    match infos.get(index)?.statement.word_effects_host()? {
+        crate::ir::WordEffectsHost::Statement => {
+            let host = index + 1;
+            (host < infos.len()).then_some(host)
+        }
+        crate::ir::WordEffectsHost::Dispatch => None,
     }
-    let host = (call + 1..infos.len()).find(|&i| !is_synthetic_statement(&infos[i].statement))?;
-    (infos[host].statement.span() == *span).then_some(host)
 }
 
 /// Whether `stmt` is the marker the CFG builder puts where a call to a
@@ -5525,22 +5521,19 @@ mod tests {
             .collect()
     }
 
-    /// The call the CFG builder puts ahead of a statement for what the
-    /// statement's `[…]` substitutions write.
+    /// The definition point the CFG builder puts ahead of a statement for
+    /// what the statement's `[…]` substitutions write.
     fn is_effect_call(stmt: &Statement) -> bool {
-        matches!(
-            stmt,
-            Statement::Call { tokens: Some(tokens), .. }
-                if tokens.synthetic == Some(crate::ir::SyntheticMarker::UpvarInvalidate)
-        )
+        stmt.word_effects_host().is_some()
     }
 
-    /// The host an effect call stands ahead of is the first statement after it
-    /// that is no marker, when it shares the call's span — a marker for unseen
-    /// code among the statements included — and no other statement has one. A
-    /// statement with another span is no host.
+    /// A statement's word effects are paired with the statement whose words
+    /// they are by construction: the statement right after the definition
+    /// point, whatever its span, and no other statement has a host. A control
+    /// statement's words have no statement of their own, so their definition
+    /// point has none.
     #[test]
-    fn an_effect_call_stands_ahead_of_the_statement_that_shares_its_span() {
+    fn word_effects_stand_ahead_of_the_statement_whose_words_they_are() {
         let effect_block = |source: &str, name: &str| {
             let ssa = ssa_of_function(source, name);
             let block = ssa
@@ -5569,8 +5562,8 @@ mod tests {
             ("set x 1\nexpr {$x + [incr x]}\n", "::top"),
         ] {
             let (statements, call) = effect_block(source, name);
-            let host = effect_call_host(&statements, call).expect("the call has a host");
-            assert!(host > call, "{source}");
+            let host = word_effects_host(&statements, call).expect("the call has a host");
+            assert_eq!(host, call + 1, "{source}");
             assert!(
                 !is_synthetic_statement(&statements[host].statement),
                 "{source}"
@@ -5581,19 +5574,24 @@ mod tests {
                 "{source}"
             );
             for other in (0..statements.len()).filter(|&index| index != call) {
-                assert_eq!(effect_call_host(&statements, other), None, "{source}");
+                assert_eq!(word_effects_host(&statements, other), None, "{source}");
             }
         }
         let (mut statements, call) = effect_block(
             "proc p {} {set x 1; set r [expr {$x + [incr x]}]; return $x}\n",
             "::p",
         );
-        let host = effect_call_host(&statements, call).expect("the call has a host");
+        let host = word_effects_host(&statements, call).expect("the call has a host");
         let Statement::AssignExpr { span, .. } = &mut statements[host].statement else {
             panic!("an assignment of an expression hosts the call");
         };
         *span = tcl_lexer::Span::new(span.start() + 1, span.end());
-        assert_eq!(effect_call_host(&statements, call), None);
+        assert_eq!(word_effects_host(&statements, call), Some(host));
+        let (statements, call) = effect_block(
+            "proc p {} {set x 1; return [expr {$x + [incr x]}]}\n",
+            "::p",
+        );
+        assert_eq!(word_effects_host(&statements, call), None);
     }
 
     /// The words of a statement whose `[…]` substitutions write a place read it

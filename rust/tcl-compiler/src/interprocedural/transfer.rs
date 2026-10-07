@@ -32,9 +32,10 @@
 //! see, or a frame its summary cannot name, has none: a call to it is a
 //! barrier.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
+use std::rc::Rc;
 
 use tcl_core_types::RecursionLimit;
 use tcl_registry::CommandRegistry;
@@ -53,8 +54,8 @@ use crate::cfg_builder::upvar_info::{FrameReach, UpvarInfo};
 use crate::command_binding::{ModuleCommandMutations, ProcBindingTrustProjection};
 use crate::ir::{Statement, SyntheticMarker};
 use crate::sccp::{
-    BuiltinFoldInputs, CallerPlaces, ExistenceEntry, FoldTrust, ModuleRun, SccpResult, SolveInputs,
-    TraceInputs,
+    BuiltinFoldInputs, CallerPlaces, ExistenceEntry, FoldTrust, ModuleLevel, ModuleRun, SccpResult,
+    SolveInputs, TraceInputs,
 };
 use crate::ssa::SsaFunction;
 use crate::value_transfer::ExistenceStep;
@@ -81,6 +82,9 @@ pub(crate) struct TransferSummary {
     pub(crate) effects: EffectFootprint,
     /// The procedure bindings the summary rests on.
     pub(crate) evidence: DependencyEvidence,
+    /// Each `Name` parameter's index and the local the body links to the
+    /// place it names, by index.
+    pub(crate) links: Vec<(usize, String)>,
 }
 
 /// Each procedure's transfer summary, by qualified name; a procedure a call
@@ -252,6 +256,86 @@ pub(crate) struct ModuleProcedures<'a> {
     provisional: RefCell<HashMap<String, Option<Vec<ParamRole>>>>,
     /// The revision every summary rides on.
     revision: u64,
+    /// The module's flow graphs.
+    cfg: &'a crate::cfg::CfgModule,
+    /// The registry the module resolved against.
+    registry: &'a CommandRegistry,
+    /// The document's lexer configuration.
+    config: tcl_lexer::LexerConfig,
+    /// The module's variable traces.
+    trace: crate::compilation_unit::ModuleTraceFacts<'a>,
+    /// The analysis context the module's lattices run under, where the run
+    /// that reads the procedures has one.
+    analysis_context: Option<&'a crate::value_transfer::AnalysisContextKey>,
+    /// The built unit's procedures, once there is a unit: their flow graphs
+    /// and SSA are what a re-run solves.
+    units: Option<&'a HashMap<String, crate::compilation_unit::FunctionUnit>>,
+    /// Each procedure's SSA, built or borrowed once for its re-runs.
+    ssa: RefCell<HashMap<String, Rc<SsaFunction>>>,
+    /// Each re-run made: by callee, seeds and whole-module trust.
+    reruns: RefCell<HashMap<RerunKey, Option<Rc<Rerun>>>>,
+    /// The re-runs under way, innermost last.
+    active: RefCell<Vec<RerunKey>>,
+    /// How many re-runs were made.
+    spent: Cell<u32>,
+}
+
+/// A re-run's identity: the callee, the bytes each parameter and place is
+/// seeded with and each place's existence, and whether the run takes the
+/// whole-module trust.
+type RerunKey = (
+    String,
+    Vec<Option<Vec<u8>>>,
+    Vec<(Option<Vec<u8>>, Existence)>,
+    bool,
+);
+
+/// What one call gives a re-run of its callee: each parameter's value, where
+/// exact, and each `Name` link's place — its value, where exact, and its
+/// existence — in [`TransferSummary::links`] order.
+pub(crate) type RerunSeeds<'s> = (
+    &'s [Option<ExactValue>],
+    &'s [(Option<ExactValue>, Existence)],
+);
+
+/// How deep re-runs nest: a call a re-run evaluates re-runs its callee in
+/// turn.
+const MAX_RERUN_DEPTH: usize = 32;
+
+/// How many re-runs one module's procedures make in all.
+const MAX_RERUNS: u32 = 4096;
+
+/// A re-run of a procedure's body under what one call gives it
+/// ([`ModuleProcedures::rerun`]).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Rerun {
+    /// The value every normal exit returns, where they agree.
+    pub(crate) result: Option<ExactValue>,
+    /// Whether a normal exit is reached.
+    pub(crate) completes: bool,
+    /// Each `Name` link's place where the normal exits leave it, in
+    /// [`TransferSummary::links`] order.
+    pub(crate) places: Vec<PlaceAfter>,
+}
+
+/// One caller place where a re-run's normal exits leave it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PlaceAfter {
+    /// Its existence, joined over the exits; `None` where no exit states
+    /// it.
+    pub(crate) existence: Option<Existence>,
+    /// The value every exit leaves in it, where they agree.
+    pub(crate) value: Option<ExactValue>,
+}
+
+/// What a re-run is solved under: its caller's value semantics, and the
+/// registry, mutation facts and trust a fold is gated by.
+#[derive(Clone, Copy)]
+pub(crate) struct RerunStance<'s> {
+    /// The value semantics.
+    pub(crate) policy: crate::tcl_expr_eval::FoldPolicy,
+    /// The fold inputs.
+    pub(crate) folds: BuiltinFoldInputs<'s>,
 }
 
 impl<'a> ModuleProcedures<'a> {
@@ -273,11 +357,50 @@ impl<'a> ModuleProcedures<'a> {
             summaries: RefCell::new(HashMap::new()),
             provisional: RefCell::new(HashMap::new()),
             revision: revision_of(inputs.ir, inputs.mutations),
+            cfg: inputs.cfg,
+            registry: inputs.registry,
+            config: inputs.config,
+            trace: inputs.trace,
+            analysis_context: Some(inputs.analysis_context),
+            units: None,
+            ssa: RefCell::new(HashMap::new()),
+            reruns: RefCell::new(HashMap::new()),
+            active: RefCell::new(Vec::new()),
+            spent: Cell::new(0),
         };
         if inputs.analysis_context.tier == tcl_registry::value_transfer::AnalysisTier::Deep {
             procedures.summarise(&inputs, rounds);
         }
         procedures
+    }
+
+    /// The procedures of a built unit, with the summaries its build
+    /// computed, for a run made after the build: a seedless return run and
+    /// O103's argument-sensitive re-run.
+    pub(crate) fn of_unit(
+        cu: &'a crate::compilation_unit::CompilationUnit,
+        registry: &'a CommandRegistry,
+    ) -> Self {
+        Self {
+            procedures: &cu.ir_module.procedures,
+            redefined: &cu.ir_module.redefined_procedures,
+            mutations: &cu.command_mutations,
+            projection: &cu.caller_scope.proc_binding_trust,
+            word_rules: WordValueRules::of_dialect_name(cu.ir_module.dialect.as_deref()),
+            summaries: RefCell::new(cu.transfers.0.clone()),
+            provisional: RefCell::new(HashMap::new()),
+            revision: revision_of(&cu.ir_module, &cu.command_mutations),
+            cfg: &cu.cfg_module,
+            registry,
+            config: crate::dynamic_names::lexer_config_for(registry),
+            trace: crate::compilation_unit::ModuleTraceFacts::of(&cu.ir_module),
+            analysis_context: None,
+            units: Some(&cu.procedures),
+            ssa: RefCell::new(HashMap::new()),
+            reruns: RefCell::new(HashMap::new()),
+            active: RefCell::new(Vec::new()),
+            spent: Cell::new(0),
+        }
     }
 
     /// The revision the summaries ride on: the module's procedure bodies,
@@ -394,27 +517,289 @@ impl<'a> ModuleProcedures<'a> {
         Some(CallTransfer::Places(places))
     }
 
-    /// Whether `callee`'s parameters accept `count` argument words.
-    fn accepts(&self, callee: &str, count: usize) -> bool {
-        let Some(declared) = self.procedures.get(callee) else {
-            return false;
+    /// The existence step a call to `callee` takes on each outer place it
+    /// may write, by the place's name.
+    pub(crate) fn outer_steps(&self, callee: &str) -> Vec<(String, ExistenceStep)> {
+        let summaries = self.summaries.borrow();
+        let Some(summary) = summaries.get(callee) else {
+            return Vec::new();
         };
-        let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
-            &declared.params_raw,
-            self.word_rules,
-        ) else {
-            return false;
-        };
-        let params: Vec<crate::signature_scan::types::ParamDef> = formals
-            .into_iter()
-            .map(|formal| crate::signature_scan::types::ParamDef {
-                name: formal.name,
-                has_default: formal.default.is_some(),
-                default_value: formal.default,
+        let mut steps: Vec<(String, ExistenceStep)> = Vec::new();
+        for (place, outcome) in &summary.globals {
+            let step = ExistenceStep::of(*outcome);
+            match steps.iter_mut().find(|(name, _)| *name == place.name) {
+                Some((_, held)) => *held = held.then(step),
+                None => steps.push((place.name.clone(), step)),
+            }
+        }
+        steps
+    }
+
+    /// The document's lexer configuration.
+    pub(crate) const fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        self.config
+    }
+
+    /// The registry the module resolved against.
+    pub(crate) const fn registry(&self) -> &'a CommandRegistry {
+        self.registry
+    }
+
+    /// Whether a call to `callee` reaches no place outside its frame: it has
+    /// a summary, names no place and writes no outer one.
+    pub(crate) fn keeps_to_its_frame(&self, callee: &str) -> bool {
+        self.summaries
+            .borrow()
+            .get(callee)
+            .is_some_and(|summary| summary.links.is_empty() && summary.globals.is_empty())
+    }
+
+    /// `callee`'s `Name` links: each such parameter's index and the local
+    /// its body links to the place it names.
+    pub(crate) fn links(&self, callee: &str) -> Option<Vec<(usize, String)>> {
+        Some(self.summaries.borrow().get(callee)?.links.clone())
+    }
+
+    /// The values a call with `arguments` gives `callee`'s parameters —
+    /// each argument's where the call supplies it, else the parameter's
+    /// default, and the rest of the arguments as one list for a trailing
+    /// `args` — each `None` where it is not exact; `None` where the
+    /// parameters do not accept the call.
+    pub(crate) fn parameter_values(
+        &self,
+        callee: &str,
+        arguments: &[Option<ExactValue>],
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> Option<Vec<Option<ExactValue>>> {
+        let params = self.formals(callee)?;
+        if !u16::try_from(arguments.len())
+            .is_ok_and(|count| crate::signature_scan::arity::arity_of(&params).accepts(count))
+        {
+            return None;
+        }
+        let variadic = crate::signature_scan::arity::is_variadic(&params);
+        let fixed = params.len() - usize::from(variadic);
+        let mut values: Vec<Option<ExactValue>> = params
+            .iter()
+            .take(fixed)
+            .enumerate()
+            .map(|(index, param)| match arguments.get(index) {
+                Some(argument) => argument.clone(),
+                None => param.default_value.as_deref().map(ExactValue::from_literal),
             })
             .collect();
-        u16::try_from(count)
-            .is_ok_and(|count| crate::signature_scan::arity::arity_of(&params).accepts(count))
+        if variadic {
+            let rest: Option<Vec<&str>> = arguments
+                .get(fixed..)
+                .unwrap_or_default()
+                .iter()
+                .map(|argument| argument.as_ref()?.as_str().ok())
+                .collect();
+            values.push(rest.and_then(|rest| {
+                tcl_registry::value_transfer::TargetSemantics::of(dialect)
+                    .render_list(&rest)
+                    .map(|text| ExactValue::from_literal(&text))
+            }));
+        }
+        Some(values)
+    }
+
+    /// A re-run of `callee`'s body with its parameters holding `params` and
+    /// the places its `Name` parameters name holding `places`, in
+    /// [`TransferSummary::links`] order, under `stance`: its result,
+    /// whether it completes normally, and where it leaves each place. Each
+    /// re-run is made once. `None` for a callee with no summary or no flow
+    /// graph to solve, one whose re-run with these seeds is already under
+    /// way — a recursion its seeds do not end — and past the depth and
+    /// count bounds.
+    pub(crate) fn rerun(
+        &self,
+        callee: &str,
+        (params, places): RerunSeeds<'_>,
+        stance: RerunStance<'_>,
+    ) -> Option<Rc<Rerun>> {
+        let bytes = |value: &Option<ExactValue>| value.as_ref().map(|value| value.bytes.clone());
+        let key: RerunKey = (
+            callee.to_owned(),
+            params.iter().map(bytes).collect(),
+            places
+                .iter()
+                .map(|(value, existence)| (bytes(value), *existence))
+                .collect(),
+            stance.folds.trust == FoldTrust::WholeModule,
+        );
+        if let Some(made) = self.reruns.borrow().get(&key) {
+            return made.clone();
+        }
+        if self.active.borrow().contains(&key)
+            || self.active.borrow().len() >= MAX_RERUN_DEPTH
+            || self.spent.get() >= MAX_RERUNS
+        {
+            return None;
+        }
+        self.spent.set(self.spent.get() + 1);
+        self.active.borrow_mut().push(key.clone());
+        let made = self
+            .solve_rerun(callee, (params, places), stance)
+            .map(Rc::new);
+        self.active.borrow_mut().pop();
+        self.reruns.borrow_mut().insert(key, made.clone());
+        made
+    }
+
+    /// [`Self::rerun`]'s run, uncached.
+    fn solve_rerun(
+        &self,
+        callee: &str,
+        (params, places): RerunSeeds<'_>,
+        stance: RerunStance<'_>,
+    ) -> Option<Rerun> {
+        let declared = self.procedures.get(callee)?;
+        let links = self.links(callee)?;
+        let (cfg, ssa) = self.flow_of(callee)?;
+        let mut seed: HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue> =
+            HashMap::new();
+        for (name, value) in declared.params.iter().zip(params) {
+            if let Some(value) = value {
+                seed.insert(
+                    (name.clone(), 0),
+                    crate::value_transfer::exact_to_lattice(value),
+                );
+            }
+        }
+        let mut entries: HashMap<String, Existence> = HashMap::new();
+        for ((_, local), (value, existence)) in links.iter().zip(places) {
+            if let Some(value) = value {
+                seed.insert(
+                    (local.clone(), 0),
+                    crate::value_transfer::exact_to_lattice(value),
+                );
+            }
+            entries.insert(local.clone(), *existence);
+        }
+        let owned: HashSet<String> = entries.keys().cloned().collect();
+        let caller_places = CallerPlaces { entries };
+        let trace = self.trace;
+        let result = crate::sccp::sccp_in_module(&SolveInputs {
+            cfg,
+            ssa: &ssa,
+            param_constants: Some(&seed),
+            policy: stance.policy,
+            extra_escaping: &HashSet::new(),
+            trace: TraceInputs {
+                registry: self.registry,
+                traced_variables: trace.traced_variables,
+                has_dynamic_variable_trace: trace.has_dynamic_variable_trace,
+                deferred_writes: trace.deferred_writes,
+                analysis_context: self.analysis_context,
+                existence: Some(ExistenceEntry {
+                    params: &declared.params,
+                    object_state: None,
+                    initial_global: false,
+                    connection_scoped: None,
+                    dynamic_trace: trace.has_dynamic_variable_trace || trace.deferred_writes.any,
+                    config: self.config,
+                    caller_places: Some(&caller_places),
+                }),
+            },
+            folds: Some(BuiltinFoldInputs {
+                proven_pure_parameters: false,
+                ..stance.folds
+            }),
+            module: ModuleRun {
+                procedures: Some(self),
+                owned: Some(&owned),
+                level: ModuleLevel::Results,
+            },
+        });
+        let exits = normal_exits(cfg, &result);
+        let reading = super::ExitReading {
+            policy: stance.policy,
+            grammar: stance
+                .folds
+                .dialect
+                .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+                    profile.grammar
+                }),
+            folds: stance.folds,
+            module: Some((self, callee)),
+        };
+        Some(Rerun {
+            result: super::exit_value(super::ExitBody { cfg, ssa: &ssa }, &result, reading),
+            completes: !exits.is_empty(),
+            places: links
+                .iter()
+                .map(|(_, local)| PlaceAfter {
+                    existence: exit_fact(&ssa, &result, &exits, local),
+                    value: exit_constant(cfg, &ssa, &result, &exits, local),
+                })
+                .collect(),
+        })
+    }
+
+    /// `callee`'s flow graph and SSA: the built unit's where there is one,
+    /// else the module's flow graph with its SSA built once. `None` for a
+    /// body the complexity guard stops.
+    fn flow_of(&self, callee: &str) -> Option<(&'a CfgFunction, Rc<SsaFunction>)> {
+        let declared = self.procedures.get(callee)?;
+        let unit = self.units.and_then(|units| units.get(callee));
+        let cfg = match unit {
+            Some(unit) => &unit.cfg,
+            None => self.cfg.procedures.get(callee)?,
+        };
+        if crate::ssa::is_complexity_guarded(cfg)
+            || unit.is_some_and(|unit| unit.complexity_guarded)
+        {
+            return None;
+        }
+        let ssa = self
+            .ssa
+            .borrow_mut()
+            .entry(callee.to_owned())
+            .or_insert_with(|| {
+                Rc::new(unit.map_or_else(
+                    || {
+                        crate::ssa::build_ssa_for_entry(
+                            cfg,
+                            self.registry,
+                            self.config,
+                            Some(&declared.params),
+                        )
+                    },
+                    |unit| unit.ssa.clone(),
+                ))
+            })
+            .clone();
+        Some((cfg, ssa))
+    }
+
+    /// Whether `callee`'s parameters accept `count` argument words.
+    fn accepts(&self, callee: &str, count: usize) -> bool {
+        self.formals(callee).is_some_and(|params| {
+            u16::try_from(count)
+                .is_ok_and(|count| crate::signature_scan::arity::arity_of(&params).accepts(count))
+        })
+    }
+
+    /// `callee`'s formal parameters, each with the default Tcl binds an
+    /// omitted argument to.
+    fn formals(&self, callee: &str) -> Option<Vec<crate::signature_scan::types::ParamDef>> {
+        let declared = self.procedures.get(callee)?;
+        let formals = crate::signature_scan::params::parse_param_list_strict(
+            &declared.params_raw,
+            self.word_rules,
+        )
+        .ok()?;
+        Some(
+            formals
+                .into_iter()
+                .map(|formal| crate::signature_scan::types::ParamDef {
+                    name: formal.name,
+                    has_default: formal.default.is_some(),
+                    default_value: formal.default,
+                })
+                .collect(),
+        )
     }
 
     /// Compute every procedure's summary, callees before callers.
@@ -682,6 +1067,7 @@ impl<'a> ModuleProcedures<'a> {
                 completion,
                 effects: self.effects_of(qname, calls, inputs),
                 evidence: self.evidence_of(qname, calls),
+                links: links_of(declared, inputs),
             };
             self.summaries
                 .borrow_mut()
@@ -813,20 +1199,7 @@ impl<'a> ModuleProcedures<'a> {
     fn roles(&self, qname: &str, inputs: &ModuleInputs<'_>) -> Option<Vec<ParamRole>> {
         let declared = inputs.ir.procedures.get(qname)?;
         let cfg = inputs.cfg.procedures.get(qname)?;
-        let links: Vec<(usize, String)> = inputs
-            .frames
-            .get(qname)
-            .map(|frame| {
-                frame
-                    .param_targets
-                    .iter()
-                    .filter_map(|(local, param)| {
-                        let index = declared.params.iter().position(|p| p == param)?;
-                        Some((index, local.clone()))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
+        let links = links_of(declared, inputs);
         if links.is_empty() {
             return Some(value_roles(declared));
         }
@@ -889,10 +1262,7 @@ impl<'a> ModuleProcedures<'a> {
         inputs: &ModuleInputs<'_>,
     ) -> SccpResult {
         let declared = &inputs.ir.procedures[qname];
-        let places = CallerPlaces {
-            names: owned.clone(),
-            entry,
-        };
+        let places = CallerPlaces::each(owned, entry);
         let trace = inputs.trace;
         crate::sccp::sccp_in_module(&SolveInputs {
             cfg,
@@ -928,10 +1298,115 @@ impl<'a> ModuleProcedures<'a> {
             module: ModuleRun {
                 procedures: Some(self),
                 owned: Some(owned),
-                composes: true,
+                level: ModuleLevel::Outcomes,
             },
         })
     }
+}
+
+/// Each parameter of `declared` whose value names the place one frame up
+/// its body links a local to, by index, with that local.
+fn links_of(declared: &crate::ir::Procedure, inputs: &ModuleInputs<'_>) -> Vec<(usize, String)> {
+    let mut links: Vec<(usize, String)> = inputs
+        .frames
+        .get(&declared.qualified_name)
+        .map(|frame| {
+            frame
+                .param_targets
+                .iter()
+                .filter_map(|(local, param)| {
+                    let index = declared.params.iter().position(|p| p == param)?;
+                    Some((index, local.clone()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    links.sort_unstable();
+    links
+}
+
+/// The constant `local` holds at every one of a run's normal `exits`: the
+/// value of each version that reaches an exit along the executable edges,
+/// where every one agrees and may be written into source.
+fn exit_constant(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    result: &SccpResult,
+    exits: &[crate::cfg::BlockId],
+    local: &str,
+) -> Option<ExactValue> {
+    let symbol = ssa.var_symbol(local)?;
+    let mut found: Option<ExactValue> = None;
+    for &exit in exits {
+        for version in reaching_versions(cfg, ssa, result, exit, symbol) {
+            let key = (symbol, version);
+            let Some(crate::analyses::LatticeValue::Const(value)) = result.value_at(exit, key)
+            else {
+                return None;
+            };
+            if !result.materialises(key) {
+                return None;
+            }
+            let value = crate::value_transfer::const_to_exact(value);
+            match &found {
+                Some(held) if held.bytes != value.bytes => return None,
+                Some(_) => {}
+                None => found = Some(value),
+            }
+        }
+    }
+    found
+}
+
+/// The versions of `symbol` that reach the end of `block`: the block's own
+/// last definition or φ, else each executable predecessor's, back to the
+/// version the function enters with.
+fn reaching_versions(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    result: &SccpResult,
+    block: crate::cfg::BlockId,
+    symbol: crate::ssa::Symbol,
+) -> BTreeSet<crate::ssa::Version> {
+    let preds = cfg.predecessors();
+    let mut versions = BTreeSet::new();
+    let mut seen: HashSet<crate::cfg::BlockId> = HashSet::new();
+    let mut work = vec![block];
+    while let Some(at) = work.pop() {
+        if !seen.insert(at) {
+            continue;
+        }
+        let own = ssa.blocks.get(&at).and_then(|ssa_block| {
+            ssa_block
+                .statements
+                .iter()
+                .rev()
+                .find_map(|statement| statement.defs.get(&symbol).copied())
+                .or_else(|| {
+                    ssa_block
+                        .phis
+                        .iter()
+                        .find(|phi| phi.name == symbol)
+                        .map(|phi| phi.version)
+                })
+        });
+        if let Some(version) = own {
+            versions.insert(version);
+            continue;
+        }
+        let incoming: Vec<crate::cfg::BlockId> = preds
+            .get(&at)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|pred| result.executable_edges.contains(&(*pred, at)))
+            .collect();
+        if incoming.is_empty() {
+            versions.insert(0);
+        }
+        work.extend(incoming);
+    }
+    versions
 }
 
 /// Whether a procedure's caller-frame effects are all `Name` links its

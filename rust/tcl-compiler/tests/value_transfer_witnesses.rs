@@ -8490,3 +8490,67 @@ fn a_run_that_proves_no_value_leaves_no_constant() {
     }
     prints_under_every_release(source, "divide by zero\n");
 }
+
+/// A callee's `Name` effect is a value in its caller, on both O103 paths:
+/// `bump n` binds `n` to what a re-run of `bump` under `n`'s 1 leaves, 2,
+/// so `p`'s seedless run returns 2 — `p` pure, since the call writes only
+/// `p`'s own `n` — and the summary path folds `[p]`; `q`'s return depends on
+/// `x`, so `[q 5]` folds to 6 on the argument-sensitive re-run, which
+/// re-runs `bump` seeded from `q`'s `n`; and `rec`'s re-run reaches `rec 0`
+/// through its own re-runs, so `[rec 4]` folds to 10. tclsh 8.4 to 9.1
+/// print 2, 6 and 10, before and after `tcl opt`.
+#[test]
+fn bump_decides_through_both_o103_paths() {
+    let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
+                  proc p {} {set n 1; bump n; return $n}\n\
+                  proc q {x} {set n $x; bump n; return $n}\n\
+                  proc rec {n} {if {$n <= 0} {return 0}; expr {$n + [rec [expr {$n - 1}]]}}\n\
+                  puts [p]\nputs [q 5]\nputs [rec 4]\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "n"),
+            LatticeValue::Const(ConstValue::Int(2)),
+            "{dialect}"
+        );
+        let p = summary_of(source, dialect, "::p");
+        assert!(p.pure && p.can_fold_static_calls, "{dialect}: {p:?}");
+        assert_eq!(p.constant_return, Some(ConstantReturn::Int(2)), "{dialect}");
+        let q = summary_of(source, dialect, "::q");
+        assert!(q.pure && q.constant_return.is_none(), "{dialect}: {q:?}");
+        let (rewritten, _) = optimised(source, dialect);
+        for folded in ["puts 2\n", "puts 6\n", "puts 10\n"] {
+            assert!(rewritten.contains(folded), "{dialect}: {folded}{rewritten}");
+        }
+    }
+    prints_under_every_release(source, "2\n6\n10\n");
+}
+
+/// A command a statement's words run that calls a procedure naming a place
+/// is applied as a call statement is: the statement's word effects, paired
+/// with it, take what a re-run of the callee leaves in the place, so `n` is
+/// 2 after `set r [bump n]`. The unit's lattice takes no call's result, so
+/// `s`'s `expr {[bump m] + $m}` is no constant there and `s` has no constant
+/// return; the argument-sensitive re-run O103 makes of `s` takes the result
+/// and reads `$m` after the write, so `[s]` folds to 6. tclsh 8.4 to 9.1
+/// print 2 and 6, before and after `tcl opt`.
+#[test]
+fn an_embedded_call_applies_its_summary() {
+    let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
+                  proc p {} {set n 1; set r [bump n]; return $n}\n\
+                  proc s {} {set m 2; set t [expr {[bump m] + $m}]; return $t}\n\
+                  puts [p]\nputs [s]\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            last_value(source, dialect, "::p", "n"),
+            LatticeValue::Const(ConstValue::Int(2)),
+            "{dialect}"
+        );
+        let s = summary_of(source, dialect, "::s");
+        assert!(s.pure && s.constant_return.is_none(), "{dialect}: {s:?}");
+        let (rewritten, _) = optimised(source, dialect);
+        for folded in ["puts 2\n", "puts 6\n"] {
+            assert!(rewritten.contains(folded), "{dialect}: {folded}{rewritten}");
+        }
+    }
+    prints_under_every_release(source, "2\n6\n");
+}

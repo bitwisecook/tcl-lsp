@@ -304,7 +304,8 @@ of the module — the default `info default` names, a callee's transfer
 summary (§ *Proc-level transfer summaries*) — rests on more than the body
 its key holds: it marks the read (`SccpResult::reads_module`, set wherever
 the driver could have read the module's procedures, also in the memoised
-build, which holds none), and the unit build discards such a memo hit and
+build, which holds none — there at a call whose head may name a procedure
+a summary answers for), and the unit build discards such a memo hit and
 builds the lattice with the module's procedures in hand, as it already
 builds fresh a procedure whose flow graph carries module-derived
 instance-option writes; the memoised checks, rewrites and taint cascade
@@ -1519,7 +1520,7 @@ the existence rung computes as it sweeps.
   place and the binding's disappearance are its effects. Every existence
   read the lowering can place is an SSA use of
   the version it observes — a statement's, a condition's (`<cond>`), a
-  value word's and a `return` word's (`<upvar-invalidate>`) — and
+  value word's and a `return` word's (its word effects, `<word-effects>`) — and
   `array unset` is a conditional write (`Traits::CONDITIONAL_VARIABLE_WRITE`),
   since it leaves a scalar and every element its pattern misses in
   place; so `proc p {} { incr n; if {[info exists n]} { puts yes } }`
@@ -1813,10 +1814,12 @@ a place outside the admitted set, which is the `StatefulNested` decline:
 right operand never runs, is 0.
 
 The solver evaluates a statement whose substitutions write once, under
-`LocalWrites`. A statement that carries such writes has a synthetic call
-ahead of it that defines the places they write and reads by name those the
-statement reads, and the host that takes the result: the pair is evaluated
-together, from the versions it reads. The call's definitions take the last write the state
+`LocalWrites`. A statement that carries such writes has its word effects
+ahead of it — a definition point the CFG builder pairs with it by
+construction (`<word-effects>`, `ssa::word_effects_host`) — which defines
+the places they write and reads by name those the statement reads, and the
+statement, the host, takes the result: the pair is evaluated together, from
+the versions it reads. The definition point's definitions take the last write the state
 holds for each place, a place no write reached keeps the value it held, the
 members of a finite input join, and the host's definition takes the result
 and its folded type. Over `x` = 1, `set r [expr {$x + [incr x] + $x}]`
@@ -2584,14 +2587,26 @@ enum ParamRole {
   (`seed_params_from_args`) gain the caller-frame place values for the
   `Name` parameters: `bump n` re-runs `bump` with `v` seeded from the
   caller's `n`.
-- **Application at a call site.** The caller's driver resolves each
-  `Name` argument to a place in the frame `level` selects, applies the
-  outcomes in order — a cell update's value from the re-run when the
-  O103 path runs, otherwise a `MayWrite` with the summary's bounds — and
-  applies `globals` to the module's places; a summary with no `Name`
-  parameters and no `globals` leaves the caller's places alone, which is
-  what the synthetic `<upvar-invalidate>` def in `cfg_builder/mod.rs`
-  approximates today for every caller local an `upvar` callee could name.
+- **Application at a call site.** At a call statement, and at a command
+  a statement's words run — through the statement's word effects, the
+  definition point the CFG builder pairs with it (`<word-effects>`) — the
+  caller's driver resolves the head to a procedure of the module whose
+  binding stands and each `Name` argument to a place in the caller's
+  frame. The place takes the existence the summary states and, but in a
+  summary's own run, the fact and the value a re-run of the callee leaves
+  in it (`ModuleProcedures::rerun`): the callee's parameters hold the
+  call's arguments and its links the places' values and facts before the
+  call, and the run holds the module's procedures, so a call the callee
+  makes is applied in turn. Where no re-run can be made the place takes
+  the summary's step with no value, a `MayWrite` with the summary's bounds
+  where it may bind, and so does each place in `globals`. A unit's lattice
+  and a seedless run take the places (`ModuleLevel::Places`), and a re-run
+  — O103's argument-sensitive one among them — the call's result too
+  (`ModuleLevel::Results`); a unit's lattice takes no call's result, since
+  its values feed every rewrite. A statement a throw leaves from, a
+  protected script and a callee that does not complete normally keep the
+  generic answer. A call that names only its caller's own plain locals
+  leaves the caller pure, so `p`'s constant return below is O103's.
 - **Context limits.** One summary per procedure, context-insensitive;
   summaries compose bottom-up over the call graph, so `twice`'s `Name`
   outcome is the composition of two `bump` cell updates; a cycle is
@@ -2627,12 +2642,15 @@ proc ctr {} {incr ::hits}; ctr; ctr; set ::hits   ;# 2 from 8.5; 8.4: can't read
 bump absent                                    ;# 8.4: can't read "v"; from 8.5: 1, and absent is bound
 ```
 
-Today `tcl opt --profile full` leaves `if {$n == 2}` after `bump n`
-undecided. Consumers: O103; the caller's value lattice and existence
-rung; W210 and W211 in the caller (a `Name` write defines the caller's
-place); `param_traits.rs`, whose two-command copy tracker reads the
-summary's `Name` outcomes instead; taint's interprocedural pass; and the
-`<upvar-invalidate>` def, which the summary replaces. Tests:
+`if {$n == 2}` after `bump n` decides, and in `proc p {} {set n 1; bump
+n; return $n}` the call leaves `n` at 2, so `[p]` folds on O103's summary
+path and `[q 5]`, for `proc q {x} {set n $x; bump n; return $n}`, on the
+argument-sensitive one. Consumers: O103; the caller's value lattice and
+existence rung; W210 and W211 in the caller (a `Name` write defines the
+caller's place); `param_traits.rs`, whose two-command copy tracker reads
+the summary's `Name` outcomes instead; taint's interprocedural pass; and
+a statement's word effects, whose embedded calls take the summary as a
+call statement does. Tests:
 `o103_folds_implicit_return_proc_cmd_subst` and
 `o103_folds_arg_sensitive_passthrough_cmd_subst` in `propagation.rs` pin
 the two O103 paths; the seven witnesses above are the fixed additions.
@@ -2978,7 +2996,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `evaluate_proc_with_constants`, `seed_params_from_args`
 - `rust/tcl-compiler/src/analyser/param_traits.rs`, `bounds_checks.rs` — the two-command copy tracker and the W240–W242 loop-bound readers
-- `rust/tcl-compiler/src/cfg_builder/mod.rs` — `emit_opaque_catch`, `lower_try_dispatch`, `with_faithful_exceptions`, the `<upvar-invalidate>` def
+- `rust/tcl-compiler/src/cfg_builder/mod.rs` — `emit_opaque_catch`, `lower_try_dispatch`, `with_faithful_exceptions`, a statement's word effects (`Statement::word_effects`)
 - `rust/tcl-registry/src/completion.rs` — `CompletionDescriptor`, `CompletionCodeDomain`, `CompletionCode`
 - `rust/tcl-registry/src/frame_effect.rs` — `FrameLevel`
 - `rust/tcl-compiler/src/connection_scope.rs`, `compilation_unit.rs` — `cross_event_defs`, `drop_cross_event_existence_folds`

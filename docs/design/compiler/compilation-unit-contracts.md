@@ -39,7 +39,10 @@ build.
    the module — the default `info default` names, a callee's transfer
    summary — which its key cannot carry. The second marks itself
    (`SccpResult::reads_module`, set wherever the driver could have read the
-   module's procedures, also in the memoised build that holds none), and
+   module's procedures, also in the memoised build that holds none: there,
+   at a call whose head may name a procedure a summary answers for — at the
+   deep tier, in a module that rebinds no builtin, a head no registry
+   command answers to under the run's trust), and
    the fresh build runs with the module's procedures in hand; every other
    reader of the per-procedure memo — the checks, the rewrites, the taint
    cascade — takes the unit's lattice for such a procedure too.

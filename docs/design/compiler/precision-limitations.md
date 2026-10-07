@@ -131,7 +131,8 @@ frame is read.
 `ir_helpers::variable_read_effects_from_commands` and the SSA's own use
 scan see a nested command's read or write only where the lowering places a
 synthetic statement for it: a condition's `<cond>`, a value word's or a
-`return` word's own `<upvar-invalidate>`, and a host statement's own uses.
+`return` word's own word effects (`<word-effects>`), and a host statement's
+own uses.
 An audit of every position an existence read can reach found three
 positions with no synthetic statement at all, so **both** an
 existence and a value read there are invisible — not a precision loss but
@@ -196,17 +197,17 @@ reads. That is sound, and short of what the assignment form proves.
 
 Two shapes are left undecided as well. A nested command that reads a variable
 no statement records as a use (`[string length $y]`, `[incr x $y]`) leaves the
-expression unevaluated: the synthetic call and the host record the reads of the
-places the words write and of the expression's own variables, not of a nested
-command's own words. And at a script's top level, where a `catch` stays one
+expression unevaluated: the statement's word effects and the host record the
+reads of the places the words write and of the expression's own variables, not
+of a nested command's own words. And at a script's top level, where a `catch` stays one
 call, `catch {expr {[incr x] + [error mid]}}` is not evaluated and leaves `x`
 unknown; in a procedure, where the `catch` is lowered into blocks, the error
 ends the evaluation with its prefix and `x` is 2.
 
 Why it has not been done: the first shape needs the host statement to state
 the reads of its own substitutions, which is more than a policy change.
-Extend the host list, and the reads the call records, when one of these is
-the motivating case.
+Extend the host list, and the reads the word effects record, when one of
+these is the motivating case.
 
 ## Open — a constant the solver proves at a φ is not inlined into a read
 
@@ -343,6 +344,33 @@ for every caller, not the summary's, and a procedure body runs after the
 whole file in the ordinary case; reading a forward call as a call to the
 procedure the file defines is a change to that rule, with its own witnesses.
 Not assigned to a slice.
+
+## Open — an embedded call whose result its statement needs leaves its places unknown
+
+A unit's lattice applies a callee's transfer summary to the places a call
+names, a `[…]` command a statement's words run among them, but takes no
+call's result: its values feed every rewrite, and a result exact only under
+one call's arguments would let a fold drop the call (slice 13, D304). A
+statement whose words need the result exactly — an operand of an `expr`, an
+element of a `list` — is then not evaluated, and its word effects, the
+places the call writes among them, take the generic answer: in
+
+```tcl
+proc bump {name {by 1}} {upvar 1 $name v; incr v $by}
+proc s {} {set m 2; set t [expr {[bump m] + $m}]; return $t}
+```
+
+`m` and `t` are unknown after the assignment in `s`'s lattice, as `m` is
+beside a nested `incr` whose neighbour the run does not hold (§ *a
+statement's nested writes are evaluated for an assignment or an `expr`
+only*). `set r [bump n]` is evaluated, so there `n` holds the re-run's
+value. O103's argument-sensitive re-run takes the call's result, so `[s]`
+folds to 6, as tclsh 8.4 to 9.1 print. The answer is sound, and short of
+what the re-run proves.
+
+Why it has not been done: evaluating a statement's writes where its result
+is not known is a change to the pair's evaluation for every nested command,
+the registry's routes included, not the summary's. Not assigned to a slice.
 
 ## Open — a module that rebinds any builtin summarises no procedure
 

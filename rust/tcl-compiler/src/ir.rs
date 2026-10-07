@@ -368,11 +368,11 @@ pub enum WordOpacity {
 /// proc <cond> {} { puts "hit-cond" }
 /// proc <caller-frame-opaque> {} { puts "hit-cfo" }
 /// proc <global-frame-script> {} { puts "hit-gfs" }
-/// proc <upvar-invalidate> {} { puts "hit-uv" }
+/// proc <word-effects> {} { puts "hit-we" }
 /// proc <empty_clause> {} { puts "hit-ec" }
 /// <cond> ; <caller-frame-opaque> ; <global-frame-script>
-/// <upvar-invalidate> ; <empty_clause>
-/// ->  hit-cond / hit-cfo / hit-gfs / hit-uv / hit-ec   (all five run)
+/// <word-effects> ; <empty_clause>
+/// ->  hit-cond / hit-cfo / hit-gfs / hit-we / hit-ec   (all five run)
 /// ```
 ///
 /// Not even the empty name is reservable — `proc {} {} { puts EMPTY-NAME-RAN
@@ -393,9 +393,13 @@ pub enum SyntheticMarker {
     /// tclsh's bytecode has there, so the clause keeps its place in the
     /// instruction stream.
     EmptyClause,
-    /// Caller-side `defs` for an `[upvar_proc …]` embedded in a word, carried
-    /// on a statement of its own because the host statement cannot hold them.
-    UpvarInvalidate,
+    /// What the `[…]` substitutions in a statement's words do to the frame —
+    /// the names they write, and those they read before writing — as a
+    /// definition point of its own: the statement's words read a name before
+    /// and after a substitution writes it, and a statement's SSA records one
+    /// version of each name it reads. It is paired with the statement whose
+    /// words they are by construction, never by span ([`WordEffectsHost`]).
+    WordEffects(WordEffectsHost),
     /// A callee that runs an unreadable script at the global frame
     /// (`uplevel #0 $body`): it can write any global or namespace
     /// name, so the site widens instead of enumerating defs.
@@ -430,6 +434,20 @@ pub enum SyntheticMarker {
     /// The names are *may*-definitions of the statement, as the writes the arms
     /// of a `switch` make themselves are ([`crate::ssa::switch_may_defs`]).
     ArmWrites,
+}
+
+/// Where the statement whose words a [`SyntheticMarker::WordEffects`]
+/// definition point states the effects of stands, as the CFG builder puts
+/// the two ([`crate::ssa::word_effects_host`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum WordEffectsHost {
+    /// The statement right after the definition point: an assignment, an
+    /// expression or a command whose own words substitute.
+    Statement,
+    /// A control statement's words — a `return`'s value, a `switch`'s
+    /// subject and patterns, a `catch` or `try` header — which run before the
+    /// statement dispatches: no statement of the block holds them.
+    Dispatch,
 }
 
 /// Original parsed tokens for a command invocation.
@@ -1532,6 +1550,40 @@ impl Statement {
             safe_on_uninit: false,
             tokens: Some(CommandTokens::marker(SyntheticMarker::UnseenCall)),
             foreach_groups: None,
+        }
+    }
+
+    /// The definition point of what the `[…]` substitutions in a statement's
+    /// words do to the frame ([`SyntheticMarker::WordEffects`]): the names
+    /// they write and those they read before writing, for the statement
+    /// `host` places. It carries no command to run.
+    #[must_use]
+    pub fn word_effects(
+        span: Span,
+        (defs, reads): (Vec<String>, Vec<String>),
+        host: WordEffectsHost,
+    ) -> Self {
+        Self::Call {
+            span,
+            command: "<word-effects>".to_owned(),
+            canonical_command: None,
+            args: Vec::new(),
+            defs,
+            reads,
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(CommandTokens::marker(SyntheticMarker::WordEffects(host))),
+            foreach_groups: None,
+        }
+    }
+
+    /// Where the statement whose words this definition point states the
+    /// effects of stands, when this is one ([`SyntheticMarker::WordEffects`]).
+    #[must_use]
+    pub fn word_effects_host(&self) -> Option<WordEffectsHost> {
+        match self.synthetic_marker() {
+            Some(SyntheticMarker::WordEffects(host)) => Some(host),
+            _ => None,
         }
     }
 

@@ -869,3 +869,72 @@ fn a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites() {
     assert_eq!(got.checks, want.checks);
     assert_eq!(got.optimisations, want.optimisations);
 }
+
+/// A memoised lattice records that it would have read the module's
+/// procedures only where a call's head may name one a transfer summary
+/// answers for, so it alone is built afresh with the module: `p`'s `bump n`
+/// does, and `q`'s `lappend`, the registry's command whose binding the
+/// module leaves standing, does not, nor does `bump`'s own `upvar`.
+#[test]
+fn only_a_call_a_summary_may_answer_reads_the_module() {
+    let source = "proc bump {name} {upvar 1 $name v; incr v}\n\
+        proc p {} {set n 1; bump n; return $n}\n\
+        proc q {} {lappend x 1; return $x}\n";
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+    let dialect = file.dialect(&db).clone();
+    let cfg_key = lexer_cfg_key(&db, &dialect);
+    let surface = declared_command_surface(&db, file);
+    let registry = db.registry(&dialect);
+    let options = unit_build_options(&db, file, cfg_key, registry, None, &surface);
+    let (_, keys) = build_unit_with_keys(&db, source, options);
+    let reads = |qname: &str| function_lattice(&db, keys[qname]).sccp.reads_module;
+    assert!(reads("::p"));
+    assert!(!reads("::q"));
+    assert!(!reads("::bump"));
+}
+
+/// A call to a procedure that writes the place its argument names is
+/// applied as the callee's transfer summary says, on the memoised path as on
+/// the uncached one: `bump n` leaves `p`'s `n` at 2, so its `if` is decided
+/// — the constant branch the checks report, the condition folded (O101) and
+/// `[p]` folded to `two` (O103) — where tclsh 8.4 to 9.1 print `two`.
+#[test]
+fn a_call_through_a_name_parameter_decides_in_the_editor() {
+    let source = "proc bump {name} {upvar 1 $name v; incr v}\n\
+        proc p {} {set n 1; bump n; if {$n == 2} {return two}; return other}\n\
+        puts [p]\n";
+    let db = TclDatabase::default();
+    let file = SourceFile::new(&db, source.to_owned(), "tcl8.6".to_owned(), None);
+    let got = compiler_check_diagnostics(
+        &db,
+        file,
+        AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+            Vec::new(),
+        ),
+    );
+    let want =
+        compiler_check_diagnostics_uncached(source, db.registry("tcl8.6"), "tcl8.6", None, None);
+    assert!(
+        want.checks.iter().any(|check| check.code == DiagCode::O100),
+        "{:?}",
+        want.checks
+    );
+    for code in [DiagCode::O101, DiagCode::O103] {
+        assert!(
+            want.optimisations.iter().any(|opt| opt.code == code),
+            "{code:?}: {:?}",
+            want.optimisations
+        );
+    }
+    assert_eq!(got.checks, want.checks);
+    assert_eq!(got.optimisations, want.optimisations);
+}

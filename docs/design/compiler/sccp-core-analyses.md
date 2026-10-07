@@ -672,7 +672,7 @@ region's points. A flattened `catch` is evaluated where its region ends
 `catch` route, over the versions the block before the body exits with, so
 its result variable holds what the script returned; a `catch` that stays one
 call is evaluated as any other call, and one inside a `[…]` substitution with
-its statement's synthetic call. O109 and O126 read the region entries the
+its statement's word effects. O109 and O126 read the region entries the
 solver opens and the definitions a raise preserved
 ([optimisation-passes.md](optimisation-passes.md)).
 

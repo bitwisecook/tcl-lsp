@@ -760,19 +760,34 @@ pub struct ExistenceEntry<'a> {
     pub config: tcl_lexer::LexerConfig,
     /// The locals a procedure links to its caller's places, with the fact
     /// they enter with: set only for the runs that compute a procedure's
-    /// transfer summary ([`CallerPlaces`]).
+    /// transfer summary and for a re-run of it under one call
+    /// ([`CallerPlaces`]).
     pub caller_places: Option<&'a CallerPlaces>,
 }
 
 /// The locals a procedure links to its caller's places, and the fact each
-/// enters with in one run of its transfer summary: the summary reads the
-/// procedure's exits once with the places bound and once with them unbound.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// enters with: in a run of its transfer summary every one bound, then every
+/// one unbound; in a re-run under one call, what the call's places hold.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CallerPlaces {
-    /// The linked locals.
-    pub names: HashSet<String>,
-    /// The fact each holds once linked.
-    pub entry: Existence,
+    /// Each linked local, with the fact it holds once linked.
+    pub entries: HashMap<String, Existence>,
+}
+
+impl CallerPlaces {
+    /// Every one of `names` entering as `entry`.
+    #[must_use]
+    pub fn each(names: &HashSet<String>, entry: Existence) -> Self {
+        Self {
+            entries: names.iter().map(|name| (name.clone(), entry)).collect(),
+        }
+    }
+
+    /// Whether `name` is a linked local.
+    #[must_use]
+    pub fn links(&self, name: &str) -> bool {
+        self.entries.contains_key(name)
+    }
 }
 
 /// Like [`sccp`] but additionally forces every name in `extra_escaping` to
@@ -863,10 +878,24 @@ pub(crate) struct ModuleRun<'a> {
     /// states what it does to the place. A name a trace or a callback script
     /// may reach stays externally mutable.
     pub(crate) owned: Option<&'a HashSet<String>>,
-    /// Whether a call to a procedure of the module takes the existence its
-    /// transfer summary states for the places it names: a summary's own run,
-    /// which composes its callees' summaries.
-    pub(crate) composes: bool,
+    /// What a call to a procedure of the module gives the run.
+    pub(crate) level: ModuleLevel,
+}
+
+/// What a run takes from a call to a procedure of the module, as the
+/// callee's transfer summary says ([`crate::interprocedural::ModuleProcedures`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ModuleLevel {
+    /// The existence the summary states for each place the call names: a
+    /// summary's own run, which composes its callees' summaries.
+    Outcomes,
+    /// Each such place's existence and value, the value where a re-run of
+    /// the callee under the call's arguments and the places' facts proves
+    /// one: a unit's lattice and a seedless run.
+    Places,
+    /// Those, and the call's result where the re-run proves it: a re-run's
+    /// own run, the argument-sensitive one O103 makes among them.
+    Results,
 }
 
 impl<'a> ModuleRun<'a> {
@@ -874,7 +903,7 @@ impl<'a> ModuleRun<'a> {
     pub(crate) const NONE: Self = Self {
         procedures: None,
         owned: None,
-        composes: false,
+        level: ModuleLevel::Places,
     };
 
     /// A run that reads the module's procedures where they are given, and
@@ -885,7 +914,7 @@ impl<'a> ModuleRun<'a> {
         Self {
             procedures,
             owned: None,
-            composes: false,
+            level: ModuleLevel::Places,
         }
     }
 }
@@ -2779,9 +2808,7 @@ fn entry_fact(
         let held_elsewhere = entry.params.iter().any(|param| param == base)
             || linked(base)
             || special(base).is_some()
-            || entry
-                .caller_places
-                .is_some_and(|places| places.names.contains(base));
+            || entry.caller_places.is_some_and(|places| places.links(base));
         return if held_elsewhere {
             Existence::MayBound
         } else {
@@ -2791,11 +2818,11 @@ fn entry_fact(
     if entry.params.iter().any(|param| param == name) {
         return Existence::Bound(BindingKind::Scalar);
     }
-    if let Some(places) = entry
+    if let Some(&fact) = entry
         .caller_places
-        .filter(|places| places.names.contains(name))
+        .and_then(|places| places.entries.get(name))
     {
-        return places.entry;
+        return fact;
     }
     if linked(name) {
         return Existence::MayBound;
@@ -3472,7 +3499,8 @@ fn sccp_process_statements(
                         .and_then(|at| at.run.exits.get(&entry).cloned())
                 })
             })
-            .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)));
+            .or_else(|| pair_answer(&mut prepared, (ssa_block, index), values, (ssa, driver)))
+            .or_else(|| driver.procedure_answer((ssa_block, index), values, ssa));
         // Where a throw leaves from, whether the statement raises is part of
         // what it does, so it is evaluated whatever its definitions need.
         if driver.is_throwing() && evaluated.is_none() {

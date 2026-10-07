@@ -114,7 +114,10 @@ dispatches nothing and is excluded.
 
 - `CfgBuilder::apply_upvar_invalidation` — per-call-site defs widening +
   barriers (direct calls, embedded `[…]` substitutions, condition
-  substitutions, `return [callee …]`).
+  substitutions, `return [callee …]`); an embedded substitution's names
+  ride the statement's word effects, a definition point the builder pairs
+  with the statement (`<word-effects>`), or, for a control statement's
+  words, one at the end of the block it dispatches from.
 - `Function::caller_frame_barrier` / `alias_observed_vars` — whole-function
   blindness and "a callee may observe this store" facts for O109/O126.
 - The LSP navigation half lives in `rust/tcl-lsp-core/src/caller_frame.rs`

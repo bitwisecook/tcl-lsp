@@ -552,9 +552,9 @@ pub(crate) struct LatticeDriver<'a> {
     body_entry: RefCell<Option<Vec<Existence>>>,
     /// The module's procedures, when the run's caller holds them.
     module: Option<&'a crate::interprocedural::ModuleProcedures<'a>>,
-    /// Whether a call to a procedure of the module takes the existence its
-    /// transfer summary states ([`crate::sccp::ModuleRun::composes`]).
-    composes: bool,
+    /// What a call to a procedure of the module gives the run
+    /// ([`crate::sccp::ModuleLevel`]).
+    level: crate::sccp::ModuleLevel,
     /// The function the run analyses, by qualified name: where a procedure
     /// name it spells is looked up from.
     function: &'a str,
@@ -706,6 +706,158 @@ impl DefAnswer {
             preserved: self.preserved && other.preserved,
             existence: self.existence.join(other.existence),
         }
+    }
+}
+
+/// Each place a call names, with the step its callee's summary takes it by.
+type PlaceSteps = [(String, ExistenceStep)];
+
+/// What one call seeds a re-run of its callee with: each argument, exact
+/// where the call's words prove it, and each `Name` link's place — its value,
+/// where exact, and its existence.
+type CallSeeds = (
+    Vec<Option<ExactValue>>,
+    Vec<(Option<ExactValue>, Existence)>,
+);
+
+/// The re-run a call statement asks of its callee.
+enum CallRerun {
+    /// The re-run, where one can be made.
+    Made(Option<std::rc::Rc<crate::interprocedural::Rerun>>),
+    /// A word or a place the solver has not reached yet.
+    Waiting,
+}
+
+/// Each word's literal text, `None` for a word that substitutes.
+fn literal_words<'w>(cooked: &'w [ArgWord<'_>]) -> Vec<Option<&'w str>> {
+    cooked
+        .iter()
+        .map(|word| (word.kind == InvocationWordKind::Literal).then_some(word.text.as_ref()))
+        .collect()
+}
+
+/// The answer for each definition of a call statement to a procedure of the
+/// module: a place a `Name` argument names takes the fact and the value the
+/// re-run leaves in it, where one was made, else the summary's step and no
+/// value; an outer place the callee may write takes the summary's step; and
+/// any other definition is left may-bound with no value.
+fn place_answers(
+    defs: &[(String, ValueKey)],
+    (places, outer): (&PlaceSteps, &PlaceSteps),
+    after: Option<&crate::interprocedural::Rerun>,
+) -> Vec<DefAnswer> {
+    defs.iter()
+        .map(|(name, key)| {
+            if let Some(slot) = places.iter().position(|(place, _)| place == name) {
+                let left = after.and_then(|after| after.places.get(slot));
+                let existence = left
+                    .and_then(|left| left.existence)
+                    .map_or(places[slot].1, ExistenceStep::Set);
+                let value = left
+                    .filter(|left| matches!(left.existence, Some(Existence::Bound(_))))
+                    .and_then(|left| left.value.as_ref())
+                    .map_or(LatticeValue::Overdefined, exact_to_lattice);
+                return DefAnswer {
+                    stated: true,
+                    existence,
+                    ..DefAnswer::untyped(*key, value)
+                };
+            }
+            let existence = outer
+                .iter()
+                .find(|(place, _)| place == name)
+                .map_or(ExistenceStep::UNKNOWN, |(_, step)| *step);
+            DefAnswer {
+                existence,
+                ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
+            }
+        })
+        .collect()
+}
+
+/// The stores a `[…]` command to a procedure of the module makes: each place
+/// a `Name` argument names takes what the re-run leaves in it, where one was
+/// made, else the summary's step with no value, and each outer place the
+/// callee may write takes the summary's step.
+fn place_stores(
+    (places, links): (&PlaceSteps, &[(usize, String)]),
+    outer: &PlaceSteps,
+    after: Option<&crate::interprocedural::Rerun>,
+) -> Vec<(PlaceRef, StoreOutcome)> {
+    let mut stores = Vec::new();
+    for (slot, ((name, step), (param, _))) in places.iter().zip(links).enumerate() {
+        let target = TargetId(OperandId(*param));
+        let left = after.and_then(|after| after.places.get(slot));
+        let made = match (
+            left.and_then(|left| left.existence),
+            left.and_then(|left| left.value.clone()),
+        ) {
+            (Some(Existence::Bound(_)), Some(value)) => vec![StoreOutcome::Write { target, value }],
+            (Some(Existence::Bound(kind)), None) => vec![StoreOutcome::WriteUnavailable {
+                target,
+                facts: bound_to(kind),
+            }],
+            (Some(Existence::Unbound), _) => vec![StoreOutcome::Unbind { target }],
+            _ => stores_of(*step, target),
+        };
+        stores.extend(made.into_iter().map(|store| (place_named(name), store)));
+    }
+    for (name, step) in outer {
+        stores.extend(
+            stores_of(*step, TargetId(OperandId(0)))
+                .into_iter()
+                .map(|store| (place_named(name), store)),
+        );
+    }
+    stores
+}
+
+/// Every definition in `defs` holding `value` and waiting on its existence:
+/// a call whose callee does not complete normally, or whose places' facts
+/// the solver has not reached.
+fn waiting(defs: &[(String, ValueKey)], value: &LatticeValue) -> Vec<DefAnswer> {
+    defs.iter()
+        .map(|(_, key)| DefAnswer {
+            existence: ExistenceStep::PENDING,
+            ..DefAnswer::untyped(*key, value.clone())
+        })
+        .collect()
+}
+
+/// Bounds stating only a binding of `kind`.
+const fn bound_to(kind: BindingKind) -> FactBounds {
+    FactBounds {
+        existence: Existence::Bound(kind),
+        intrep: None,
+        shape: None,
+        segments: None,
+        taint: None,
+    }
+}
+
+/// The stores that take a place as `step` says, with no value: a binding a
+/// write whose value is unavailable, an unbinding, a preserve, a may-binding
+/// a may-write, and a place left may-bound whatever it held an unbinding
+/// then a may-write.
+fn stores_of(step: ExistenceStep, target: TargetId) -> Vec<StoreOutcome> {
+    match step {
+        ExistenceStep::Set(Existence::Bound(kind)) => vec![StoreOutcome::WriteUnavailable {
+            target,
+            facts: bound_to(kind),
+        }],
+        ExistenceStep::Set(Existence::Unbound) => vec![StoreOutcome::Unbind { target }],
+        ExistenceStep::Join(Existence::Bound(kind)) => vec![StoreOutcome::MayWrite {
+            target,
+            facts: bound_to(kind),
+        }],
+        ExistenceStep::Set(_) => vec![
+            StoreOutcome::Unbind { target },
+            StoreOutcome::MayWrite {
+                target,
+                facts: bound_to(BindingKind::Either),
+            },
+        ],
+        ExistenceStep::Join(_) => vec![StoreOutcome::Preserve { target }],
     }
 }
 
@@ -1058,7 +1210,7 @@ impl<'a> LatticeDriver<'a> {
             catch_ends: RefCell::new(HashMap::new()),
             body_entry: RefCell::new(None),
             module: None,
-            composes: false,
+            level: crate::sccp::ModuleLevel::Places,
             function: "::",
             reads_module: Cell::new(false),
         }
@@ -1070,7 +1222,7 @@ impl<'a> LatticeDriver<'a> {
     pub(crate) fn in_module(mut self, function: &'a str, run: crate::sccp::ModuleRun<'a>) -> Self {
         self.function = function;
         self.module = run.procedures;
-        self.composes = run.composes && run.procedures.is_some();
+        self.level = run.level;
         self.context.seeds_revision = run
             .procedures
             .map_or(0, crate::interprocedural::ModuleProcedures::revision);
@@ -1099,55 +1251,384 @@ impl<'a> LatticeDriver<'a> {
         })
     }
 
-    /// A call to a procedure of the module in a run that composes summaries:
-    /// each place a `Name` argument names takes the existence the callee's
-    /// summary states, and no value. `None` leaves the call to the generic
-    /// answer: a run that composes none, a head naming no procedure of the
-    /// module whose binding stands, or a callee whose summary does not
-    /// answer the call.
-    fn procedure_call(
+    /// The module's procedures for a call whose head is `head`, where the
+    /// run holds them. A run that holds none records that it would have read
+    /// them where `head` may name a procedure a transfer summary answers for
+    /// ([`crate::sccp::SccpResult::reads_module`]).
+    fn procedures_for(
         &self,
         head: &str,
-        cooked: &[ArgWord<'_>],
-        defs: &[(String, ValueKey)],
+    ) -> Option<&'a crate::interprocedural::ModuleProcedures<'a>> {
+        if self.module.is_none() && self.may_name_a_summary(head) {
+            self.reads_module.set(true);
+        }
+        self.module
+    }
+
+    /// Whether `head` may name a procedure of the module a transfer summary
+    /// answers for, as a run that holds no module can tell: the module has
+    /// summaries only at the deep tier and where it rebinds no builtin
+    /// (D299), and a registry command whose binding the module leaves
+    /// standing names none.
+    fn may_name_a_summary(&self, head: &str) -> bool {
+        let Some(folds) = self.folds else {
+            return true;
+        };
+        self.context.tier == AnalysisTier::Deep
+            && !folds.mutations.rebinds_builtins()
+            && (!self.trusted(head)
+                || self
+                    .registry
+                    .get(head.strip_prefix("::").unwrap_or(head))
+                    .is_none())
+    }
+
+    /// The stance a re-run this run asks for is solved under: its own.
+    fn rerun_stance(&self) -> Option<crate::interprocedural::RerunStance<'a>> {
+        Some(crate::interprocedural::RerunStance {
+            policy: self.policy,
+            folds: self.folds?,
+        })
+    }
+
+    /// A call statement to a procedure of the module, applied as the
+    /// callee's transfer summary says (§ *Proc-level transfer summaries*):
+    /// each place a `Name` argument names, and each outer place the callee
+    /// may write, takes the existence the summary states; and, but in a
+    /// summary's own run, a place takes the fact and the value a re-run of
+    /// the callee leaves in it — its parameters holding the call's arguments
+    /// and its links the places' facts before the call — where the re-run
+    /// can be made. `None` leaves the call to the generic answer: a call that
+    /// defines nothing, a head naming no procedure of the module whose
+    /// binding stands, a callee whose summary does not answer the call, and
+    /// a statement a throw leaves from, whose partial writes no summary
+    /// states.
+    pub(crate) fn procedure_answer<S: std::hash::BuildHasher>(
+        &self,
+        (block, index): (&crate::ssa::SsaBlock, usize),
+        values: &HashMap<ValueKey, LatticeValue, S>,
+        ssa: &SsaFunction,
     ) -> Option<DefValues> {
-        let module = self.module.filter(|_| self.composes)?;
-        let callee = module.resolve(head, self.function, self.procedure_trust())?;
+        let stmt_ssa = block.statements.get(index)?;
+        let Statement::Call {
+            command,
+            args,
+            tokens,
+            foreach_groups: None,
+            ..
+        } = &stmt_ssa.statement
+        else {
+            return None;
+        };
+        if stmt_ssa.defs.is_empty()
+            || stmt_ssa.statement.synthetic_marker().is_some()
+            || self.is_throwing()
+        {
+            return None;
+        }
+        let module = self.procedures_for(command)?;
+        let callee = module.resolve(command, self.function, self.procedure_trust())?;
         self.reads_module.set(true);
+        let cooked = call_arguments(args, tokens.as_ref(), &self.lexer_config);
         if cooked
             .iter()
             .any(|word| word.kind == InvocationWordKind::Expanded)
         {
             return None;
         }
-        let words: Vec<Option<&str>> = cooked
-            .iter()
-            .map(|word| (word.kind == InvocationWordKind::Literal).then_some(word.text.as_ref()))
-            .collect();
-        let places = match module.call_transfer(&callee, &words)? {
-            crate::interprocedural::CallTransfer::Never => {
-                return Some(DefValues::PerDef(
-                    defs.iter()
-                        .map(|(_, key)| DefAnswer {
-                            existence: ExistenceStep::PENDING,
-                            ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
-                        })
-                        .collect(),
-                ));
-            }
-            crate::interprocedural::CallTransfer::Places(places) => places,
+        let words = literal_words(&cooked);
+        let defs = named_defs(stmt_ssa, ssa);
+        let crate::interprocedural::CallTransfer::Places(places) =
+            module.call_transfer(&callee, &words)?
+        else {
+            return Some(DefValues::PerDef(waiting(
+                &defs,
+                &LatticeValue::Overdefined,
+            )));
         };
-        Some(DefValues::PerDef(
-            defs.iter()
-                .map(|(name, key)| DefAnswer {
-                    existence: places
-                        .iter()
-                        .find(|(place, _)| place == name)
-                        .map_or(ExistenceStep::UNKNOWN, |(_, step)| *step),
-                    ..DefAnswer::untyped(*key, LatticeValue::Overdefined)
-                })
-                .collect(),
-        ))
+        let after = if self.level == crate::sccp::ModuleLevel::Outcomes {
+            None
+        } else {
+            match self.statement_rerun(
+                (module, &callee),
+                (block, index),
+                (&cooked, &words),
+                (values, ssa),
+            )? {
+                CallRerun::Made(after) => after,
+                CallRerun::Waiting => {
+                    return Some(DefValues::PerDef(waiting(&defs, &LatticeValue::Unknown)));
+                }
+            }
+        };
+        if after.as_ref().is_some_and(|after| !after.completes) {
+            return Some(DefValues::PerDef(waiting(
+                &defs,
+                &LatticeValue::Overdefined,
+            )));
+        }
+        Some(DefValues::PerDef(place_answers(
+            &defs,
+            (&places, &module.outer_steps(&callee)),
+            after.as_deref(),
+        )))
+    }
+
+    /// The re-run of `callee` a call statement asks for: its parameters
+    /// holding the statement's words, exact where the solver proves them,
+    /// and its links the places its `Name` arguments name, as the solver
+    /// holds them before the call. `None` where a `Name` argument is not a
+    /// variable of the frame the call spells.
+    fn statement_rerun<S: std::hash::BuildHasher>(
+        &self,
+        (module, callee): (&crate::interprocedural::ModuleProcedures<'a>, &str),
+        (block, index): (&crate::ssa::SsaBlock, usize),
+        (cooked, words): (&[ArgWord<'_>], &[Option<&str>]),
+        (values, ssa): (&HashMap<ValueKey, LatticeValue, S>, &SsaFunction),
+    ) -> Option<CallRerun> {
+        let inputs = self.expression_inputs((&block.statements.get(index)?.uses, values, ssa));
+        let mut arguments = Vec::with_capacity(cooked.len());
+        for word in cooked {
+            arguments.push(match word.kind {
+                InvocationWordKind::Literal => Some(ExactValue::from_literal(&word.text)),
+                _ if word.source == OperandSource::Substituted => {
+                    match inputs.substituted(&word.text) {
+                        FactView::Exact(value, _) => Some(value),
+                        FactView::Pending => return Some(CallRerun::Waiting),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            });
+        }
+        let mut seeds = Vec::new();
+        for (param, _) in module.links(callee)? {
+            let name = crate::naming::normalise_var_name(words.get(param).copied().flatten()?);
+            let symbol = ssa.var_symbol(name)?;
+            let prior = crate::sccp::prior_version(block, index, symbol);
+            let value = match values.get(&(symbol, prior)) {
+                Some(LatticeValue::Unknown) => return Some(CallRerun::Waiting),
+                Some(LatticeValue::Const(value)) => Some(const_to_exact(value)),
+                _ => None,
+            };
+            let existence = match self.existence_now(symbol) {
+                Some(Existence::Pending) => return Some(CallRerun::Waiting),
+                Some(fact) => fact,
+                None if value.is_some() => Existence::Bound(BindingKind::Scalar),
+                None => Existence::MayBound,
+            };
+            seeds.push((value, existence));
+        }
+        Some(CallRerun::Made(self.rerun_with(
+            (module, callee),
+            &arguments,
+            &seeds,
+        )))
+    }
+
+    /// `callee` re-run under this run's stance, its parameters holding
+    /// `arguments` — an omitted one its default — and its links `seeds`.
+    fn rerun_with(
+        &self,
+        (module, callee): (&crate::interprocedural::ModuleProcedures<'a>, &str),
+        arguments: &[Option<ExactValue>],
+        seeds: &[(Option<ExactValue>, Existence)],
+    ) -> Option<std::rc::Rc<crate::interprocedural::Rerun>> {
+        let dialect = self.folds.and_then(|folds| folds.dialect);
+        module
+            .parameter_values(callee, arguments, dialect)
+            .zip(self.rerun_stance())
+            .and_then(|(params, stance)| module.rerun(callee, (&params, seeds), stance))
+    }
+
+    /// One `[…]` command naming a procedure of the module, run as the
+    /// callee's transfer summary says: its words first, then a write to each
+    /// place a `Name` argument names — the value a re-run of the callee
+    /// leaves there where one is made, else what the summary bounds — and
+    /// its result where the run takes results ([`crate::sccp::ModuleLevel::
+    /// Results`]). `None` leaves the command to the registry: a head naming
+    /// no procedure of the module; below `Results`, a command whose writes
+    /// nothing would carry (the effect-free policy); and a protected script
+    /// or a statement a throw leaves from, since a summary says how a call
+    /// may complete, not that it completes normally.
+    fn procedure_run<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        seg: &crate::segmenter::SegmentedCommand,
+        (uses, values, ssa): Lattice<'_, S1, S2>,
+        (prior, policy): (&[(PlaceRef, StoreOutcome)], NestedPolicy),
+    ) -> Option<ScriptRun> {
+        let head = seg.name();
+        if (policy == NestedPolicy::EffectFreeOnly
+            && self.level != crate::sccp::ModuleLevel::Results)
+            || policy == NestedPolicy::Protected
+            || self.is_throwing()
+        {
+            return None;
+        }
+        let module = self.procedures_for(head)?;
+        let callee = module.resolve(head, self.function, self.procedure_trust())?;
+        self.reads_module.set(true);
+        let binding = binding_of(head, &callee);
+        let answered = |answer, writes| {
+            Some(ScriptRun {
+                head: head.to_owned(),
+                route: None,
+                answer,
+                writes,
+                binding: binding.clone(),
+                rebound: false,
+                procedure: true,
+            })
+        };
+        let declined = |reason| answered(LiftedAnswer::Declined(reason), Vec::new());
+        let cooked = self.cooked_args(seg);
+        if cooked
+            .iter()
+            .any(|word| word.kind == InvocationWordKind::Expanded)
+        {
+            return None;
+        }
+        let words = literal_words(&cooked);
+        let Some(crate::interprocedural::CallTransfer::Places(places)) =
+            module.call_transfer(&callee, &words)
+        else {
+            return None;
+        };
+        let outer = module.outer_steps(&callee);
+        if policy == NestedPolicy::EffectFreeOnly && (!places.is_empty() || !outer.is_empty()) {
+            return declined(DeclineReason::StatefulNested);
+        }
+        let texts: Vec<&str> = cooked.iter().map(|arg| arg.text.as_ref()).collect();
+        let inputs = LatticeInputs {
+            driver: self,
+            prior_writes: prior.to_vec(),
+            words: match policy {
+                NestedPolicy::EffectFreeOnly => Words::Independent,
+                NestedPolicy::LocalWrites | NestedPolicy::Protected => {
+                    Words::Ordered(RefCell::new(None))
+                }
+            },
+            view: ResolvedInvocationView {
+                canonical_command: &callee,
+                subcommand: None,
+                form: None,
+                layout: InvocationLayout::Source,
+                operands: texts
+                    .iter()
+                    .zip(&cooked)
+                    .map(|(text, word)| OperandView {
+                        text,
+                        kind: word.kind,
+                        role: None,
+                    })
+                    .collect(),
+                argument_offset: 0,
+            },
+            uses,
+            values,
+            ssa,
+            sources: cooked.iter().map(|arg| arg.source).collect(),
+        };
+        let links = module.links(&callee)?;
+        let (arguments, seeds) = match self.run_seeds(&inputs, (&words, &links), ssa) {
+            Ok(seeds) => seeds,
+            Err(answer) => return answered(answer, Vec::new()),
+        };
+        let after = self.rerun_with((module, &callee), &arguments, &seeds);
+        if after.as_ref().is_some_and(|after| !after.completes) {
+            return declined(DeclineReason::Unsupported);
+        }
+        let mut writes = inputs.words.writes();
+        writes.extend(place_stores((&places, &links), &outer, after.as_deref()));
+        answered(
+            self.procedure_outcome(after.as_deref(), &binding),
+            if policy == NestedPolicy::EffectFreeOnly {
+                Vec::new()
+            } else {
+                vec![writes]
+            },
+        )
+    }
+
+    /// A `[…]` command to a procedure of the module that ran: it completes
+    /// normally, with the result the re-run proves where the run takes
+    /// results, and otherwise one the source does not give.
+    fn procedure_outcome(
+        &self,
+        after: Option<&crate::interprocedural::Rerun>,
+        binding: &BindingIdentity,
+    ) -> LiftedAnswer {
+        let result = match (after, self.level) {
+            (Some(after), crate::sccp::ModuleLevel::Results) => after.result.clone().map_or_else(
+                || ExactValueOrUnavailable::Unavailable(bound_to(BindingKind::Scalar)),
+                ExactValueOrUnavailable::Exact,
+            ),
+            _ => ExactValueOrUnavailable::Unavailable(bound_to(BindingKind::Scalar)),
+        };
+        let mut evidence = DependencyEvidence::default();
+        record_binding(&mut evidence, binding.clone());
+        LiftedAnswer::Evaluated(vec![Box::new(InvocationOutcome {
+            completion: CompletionOutcome::Normal,
+            result,
+            nested_writes: Vec::new(),
+            ordered_stores: Vec::new(),
+            types: TypeFacts::default(),
+            evidence,
+        })])
+    }
+
+    /// The arguments and the `Name` places a `[…]` command's re-run is
+    /// seeded with, as its words leave them: every operand first, the
+    /// substituting ones evaluated in order, then each place after their
+    /// writes. `Err` with the command's answer where a word or a place
+    /// waits on the solver, or a `Name` argument is not a literal word.
+    fn run_seeds<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
+        &self,
+        inputs: &LatticeInputs<'_, S1, S2>,
+        (words, links): (&[Option<&str>], &[(usize, String)]),
+        ssa: &SsaFunction,
+    ) -> Result<CallSeeds, LiftedAnswer> {
+        let mut arguments = Vec::with_capacity(words.len());
+        for index in 0..words.len() {
+            arguments.push(
+                match inputs.operand(OperandId(index), FactDomain::ExactValue) {
+                    FactView::Exact(value, _) => Some(value),
+                    FactView::Pending => return Err(LiftedAnswer::Pending),
+                    _ => None,
+                },
+            );
+        }
+        let mut seeds = Vec::with_capacity(links.len());
+        for (param, _) in links {
+            let Some(name) = words.get(*param).copied().flatten() else {
+                return Err(LiftedAnswer::Declined(DeclineReason::Unsupported));
+            };
+            let name = crate::naming::normalise_var_name(name);
+            let value = match inputs.words_written(name) {
+                WrittenPlace::Exact(value) => FactView::Exact(value, None),
+                WrittenPlace::Unknown => FactView::Top(DeclineReason::NotExact),
+                WrittenPlace::Untouched => inputs.named_fact(name),
+            };
+            let value = match value {
+                FactView::Exact(value, _) => Some(value),
+                FactView::Pending => return Err(LiftedAnswer::Pending),
+                _ => None,
+            };
+            let existence = match inputs.written_existence(name) {
+                Some(FactView::Domain(DomainFact::Existence(fact))) => fact,
+                Some(_) => Existence::MayBound,
+                None => match self.existence_fact(ssa, name) {
+                    FactView::Domain(DomainFact::Existence(Existence::Pending)) => {
+                        return Err(LiftedAnswer::Pending);
+                    }
+                    FactView::Domain(DomainFact::Existence(fact)) => fact,
+                    _ if value.is_some() => Existence::Bound(BindingKind::Scalar),
+                    _ => Existence::MayBound,
+                },
+            };
+            seeds.push((value, existence));
+        }
+        Ok((arguments, seeds))
     }
 
     /// Whether a typed assignment (`AssignConst`, `AssignValue`,
@@ -2369,11 +2850,12 @@ impl<'a> LatticeDriver<'a> {
             || escaping.contains(&place.name)
     }
 
-    /// A synthetic embedded-substitution call and the host statement it
-    /// stands ahead of, evaluated once (§ `expr`): the host's words run in
-    /// order under one ordered state, from the versions the call reads. The
-    /// call's definitions take what the state's writes left in each place —
-    /// a place no write reached keeps what it held — and the host's take the
+    /// A statement's word effects and the statement whose words they are,
+    /// paired by construction ([`crate::ssa::word_effects_host`]) and
+    /// evaluated once (§ `expr`): the host's words run in order under one
+    /// ordered state, from the versions the definition point reads. Its
+    /// definitions take what the state's writes left in each place — a place
+    /// no write reached keeps what it held — and the host's take the
     /// result. `None` wherever the pair is not one this evaluates or the
     /// evaluation declines, and both keep the answers they have without it.
     ///
@@ -2391,7 +2873,7 @@ impl<'a> LatticeDriver<'a> {
         values: &HashMap<ValueKey, LatticeValue, S>,
         ssa: &SsaFunction,
     ) -> Option<(usize, EmbeddedAnswer)> {
-        let host_index = crate::ssa::effect_call_host(&block.statements, index)?;
+        let host_index = crate::ssa::word_effects_host(&block.statements, index)?;
         let (call, host) = (&block.statements[index], &block.statements[host_index]);
         let incoming = incoming_versions(block, (index, host_index), values);
         let started = self.tally.get();
@@ -2570,11 +3052,14 @@ impl<'a> LatticeDriver<'a> {
         };
         let inner = std::str::from_utf8(script).ok()?;
         let run = self.run_script(inner, lattice, (Vec::new(), NestedPolicy::LocalWrites))?;
-        // A head the module rebinds has no route.
-        if !matches!(
-            run.route,
-            Some(EvalRoute::Expression { .. } | EvalRoute::Direct { .. })
-        ) {
+        // A head the module rebinds has no route; a procedure of the module
+        // is run as its summary says.
+        if !run.procedure
+            && !matches!(
+                run.route,
+                Some(EvalRoute::Expression { .. } | EvalRoute::Direct { .. })
+            )
+        {
             return None;
         }
         self.explain(&run.head, run.route, answer_label(&run.answer));
@@ -2686,16 +3171,6 @@ impl<'a> LatticeDriver<'a> {
             return DefValues::PerDef(widened(&defs));
         };
         let head = stmt_ssa.statement.canonical_command_or_source();
-        if foreach_groups.is_none()
-            && let Statement::Call { command, .. } = &stmt_ssa.statement
-            && let Some(answer) = self.procedure_call(
-                command,
-                &call_arguments(args, tokens.as_ref(), &self.lexer_config),
-                &defs,
-            )
-        {
-            return answer;
-        }
         if !self.trusted(head) {
             self.explain(head, None, "declined: rebinding-suspected".to_owned());
             return DefValues::PerDef(widened(&defs));
@@ -3196,6 +3671,9 @@ impl<'a> LatticeDriver<'a> {
         (uses, values, ssa): Lattice<'_, S1, S2>,
         (prior, policy): (Vec<(PlaceRef, StoreOutcome)>, NestedPolicy),
     ) -> Option<ScriptRun> {
+        if let Some(run) = self.procedure_run(seg, (uses, values, ssa), (&prior, policy)) {
+            return Some(run);
+        }
         let head = seg.name();
         if !self.trusted(head) {
             return Some(ScriptRun {
@@ -3205,6 +3683,7 @@ impl<'a> LatticeDriver<'a> {
                 writes: Vec::new(),
                 binding: binding_of(head, head),
                 rebound: true,
+                procedure: false,
             });
         }
         let cooked = self.cooked_args(seg);
@@ -3221,6 +3700,7 @@ impl<'a> LatticeDriver<'a> {
                 writes: Vec::new(),
                 binding,
                 rebound: false,
+                procedure: false,
             });
         }
         let semantics = resolved.semantics.value.semantics()?;
@@ -3262,6 +3742,7 @@ impl<'a> LatticeDriver<'a> {
             writes,
             binding,
             rebound: false,
+            procedure: false,
         })
     }
 
@@ -4023,13 +4504,19 @@ fn proven_substitution(
 }
 
 /// The inputs of an expression a rewrite evaluates outside a solver run:
-/// its `$name` reads answer from `constants`, a nested command declines, and
-/// a math function asks the driver's binding service under the rewrite's
-/// trust stance.
+/// its `$name` reads answer from `constants`, a nested command declines but
+/// where it calls a procedure of `module` ([`detached_procedure_result`]),
+/// and a math function asks the driver's binding service under the
+/// rewrite's trust stance.
 struct DetachedExpressionInputs<'a, 'd> {
     driver: &'a LatticeDriver<'d>,
     view: ResolvedInvocationView<'a>,
     constants: &'a HashMap<String, ExactValue>,
+    /// The module's procedures and the function the expression runs in,
+    /// where a re-run's exit reading holds them.
+    module: Option<(&'a crate::interprocedural::ModuleProcedures<'a>, &'a str)>,
+    /// The stance the expression is read under.
+    stance: (BuiltinFoldInputs<'a>, FoldPolicy),
 }
 
 impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
@@ -4068,8 +4555,21 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
         Err(DeclineReason::Unsupported)
     }
 
-    fn nested(&self, _script: &str, _state: &mut EvaluationState) -> EvalAnswer {
-        EvalAnswer::Declined(DeclineReason::Unsupported)
+    fn nested(&self, script: &str, _state: &mut EvaluationState) -> EvalAnswer {
+        let result = self.module.and_then(|module| {
+            detached_procedure_result(module, script, self.constants, self.stance)
+        });
+        match result {
+            Some(value) => EvalAnswer::Evaluated(Box::new(InvocationOutcome {
+                completion: CompletionOutcome::Normal,
+                result: ExactValueOrUnavailable::Exact(value),
+                nested_writes: Vec::new(),
+                ordered_stores: Vec::new(),
+                types: TypeFacts::default(),
+                evidence: DependencyEvidence::default(),
+            })),
+            None => EvalAnswer::Declined(DeclineReason::Unsupported),
+        }
     }
 
     fn math_function(&self, name: &str) -> Result<BindingIdentity, DeclineReason> {
@@ -4079,6 +4579,132 @@ impl AnalysisInputs for DetachedExpressionInputs<'_, '_> {
     fn context(&self) -> &AnalysisContext {
         &self.driver.context
     }
+}
+
+/// The result of the one command `script` holds, outside a solver run, where
+/// it calls a procedure of the module that names no place and writes none
+/// outside its frame: a re-run of the callee under the call's arguments
+/// ([`crate::interprocedural::ModuleProcedures::rerun`]). Each argument is a
+/// literal word, a variable `constants` holds, or a command substitution
+/// read the same way — or one on the expression route whose one word is a
+/// literal expression. `None` wherever any of that does not hold, and for a
+/// callee that does not complete normally.
+fn detached_procedure_result(
+    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
+    script: &str,
+    constants: &HashMap<String, ExactValue>,
+    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
+) -> Option<ExactValue> {
+    let config = module.lexer_config();
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
+    let [seg] = commands.as_slice() else {
+        return None;
+    };
+    if split_head(script).0 != seg.name() {
+        return None;
+    }
+    let callee = module.resolve(seg.name(), function, folds.trust)?;
+    if !module.keeps_to_its_frame(&callee) {
+        return None;
+    }
+    let arguments: Vec<Option<ExactValue>> = seg
+        .arg_tokens()
+        .iter()
+        .zip(seg.arg_single_token())
+        .zip(seg.args())
+        .map(|((token, &single), text)| {
+            detached_word(
+                (module, function),
+                (text, token.kind, single),
+                constants,
+                (folds, policy),
+            )
+        })
+        .collect();
+    let params = module.parameter_values(&callee, &arguments, folds.dialect)?;
+    let rerun = module.rerun(
+        &callee,
+        (&params, &[]),
+        crate::interprocedural::RerunStance { policy, folds },
+    )?;
+    if !rerun.completes {
+        return None;
+    }
+    rerun.result.clone()
+}
+
+/// One argument word of a command [`detached_procedure_result`] reads.
+fn detached_word(
+    (module, function): (&crate::interprocedural::ModuleProcedures<'_>, &str),
+    (text, kind, single): (&str, TokenType, bool),
+    constants: &HashMap<String, ExactValue>,
+    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
+) -> Option<ExactValue> {
+    use tcl_lexer::word_parts::{SubstFlags, WordBody, WordPart as Part, decompose};
+    let config = module.lexer_config();
+    if single && let Some(value) = literal_token_value(text, kind, &config) {
+        return Some(ExactValue::from_literal(&value));
+    }
+    if let Some(name) = simple_var_ref_name(text, config.braced_var) {
+        return constants.get(name).cloned();
+    }
+    let WordBody::Parts(parts) = decompose(text.as_bytes(), SubstFlags::default(), config) else {
+        return None;
+    };
+    let [Part::Command(script)] = parts.as_slice() else {
+        return None;
+    };
+    let inner = std::str::from_utf8(script).ok()?;
+    if let Some(value) =
+        detached_procedure_result((module, function), inner, constants, (folds, policy))
+    {
+        return Some(value);
+    }
+    let expression = detached_expression_word(module.registry(), inner, folds, config)?;
+    let grammar = folds
+        .dialect
+        .map_or_else(tcl_dialect::LexerGrammar::default, |profile| {
+            profile.grammar
+        });
+    let node = tcl_syntax::expr::parser::parse_expr_with_grammar(&expression, &grammar);
+    evaluate_expression_in_module(&node, constants, (folds, policy), Some((module, function)))
+}
+
+/// The expression of the one command `script` holds where the command is on
+/// the expression route under `folds`' trust and its one word is a literal
+/// expression.
+fn detached_expression_word(
+    registry: &CommandRegistry,
+    script: &str,
+    folds: BuiltinFoldInputs<'_>,
+    config: LexerConfig,
+) -> Option<String> {
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(script, 0, config);
+    let [seg] = commands.as_slice() else {
+        return None;
+    };
+    let head = seg.name();
+    let trusted = match folds.trust {
+        FoldTrust::WholeModule => folds.mutations.trusts(head),
+        FoldTrust::ObservedBindings => folds.mutations.observed_binding_is_the_builtin(head),
+    };
+    let ([token], [true], [text]) = (seg.arg_tokens(), seg.arg_single_token(), seg.args()) else {
+        return None;
+    };
+    let expression = literal_token_value(text, token.kind, &config)?;
+    let words = [InvocationWord::Literal(&expression)];
+    let resolved = registry
+        .resolve_structured_invocation(
+            InvocationWords::structured(InvocationWord::Literal(head), &words),
+            registry.own_surface_query(),
+        )
+        .resolved()?;
+    let on_the_route = resolved
+        .semantics
+        .value
+        .semantics()
+        .is_some_and(|semantics| matches!(semantics.route(), EvalRoute::Expression { .. }));
+    (trusted && on_the_route).then(|| expression.into_owned())
 }
 
 /// `node` evaluated by the shared expression route outside a solver run —
@@ -4095,6 +4721,18 @@ pub(crate) fn evaluate_expression_detached(
     constants: &HashMap<String, ExactValue>,
     folds: BuiltinFoldInputs<'_>,
     policy: FoldPolicy,
+) -> Option<ExactValue> {
+    evaluate_expression_in_module(node, constants, (folds, policy), None)
+}
+
+/// [`evaluate_expression_detached`] with a command the expression runs that
+/// calls a procedure of `module` re-run for its result
+/// ([`detached_procedure_result`]): a re-run's exit reading.
+pub(crate) fn evaluate_expression_in_module(
+    node: &ExprNode,
+    constants: &HashMap<String, ExactValue>,
+    (folds, policy): (BuiltinFoldInputs<'_>, FoldPolicy),
+    module: Option<(&crate::interprocedural::ModuleProcedures<'_>, &str)>,
 ) -> Option<ExactValue> {
     let driver = LatticeDriver::detached(Some(folds), policy);
     let expression = ExpressionEvaluation {
@@ -4114,6 +4752,8 @@ pub(crate) fn evaluate_expression_detached(
             argument_offset: 0,
         },
         constants,
+        module,
+        stance: (folds, policy),
     };
     match evaluate_lifted(
         &expression,
@@ -4215,6 +4855,9 @@ struct ScriptRun {
     binding: BindingIdentity,
     /// Whether the head no longer denotes its registry command.
     rebound: bool,
+    /// Whether the head names a procedure of the module, run as its transfer
+    /// summary says ([`LatticeDriver::procedure_run`]).
+    procedure: bool,
 }
 
 /// The binding `head` resolves to in the global namespace, expected to be
@@ -4891,7 +5534,7 @@ pub(crate) fn exact_to_const(value: &ExactValue) -> ConstValue {
 }
 
 /// An exact value's lattice projection; bytes that are not text decline.
-fn exact_to_lattice(value: &ExactValue) -> LatticeValue {
+pub(crate) fn exact_to_lattice(value: &ExactValue) -> LatticeValue {
     if value.numeric.is_none() && std::str::from_utf8(&value.bytes).is_err() {
         return LatticeValue::Overdefined;
     }
@@ -4932,6 +5575,21 @@ enum Words {
     /// (`evaluate_lifted` pins them first), so the words have run, in order,
     /// before anything of the command reads what they wrote.
     Ordered(RefCell<Option<Box<OrderedWords>>>),
+}
+
+impl Words {
+    /// The writes the words made, in order, where they were evaluated under
+    /// one ordered state.
+    fn writes(&self) -> Vec<(PlaceRef, StoreOutcome)> {
+        match self {
+            Self::Ordered(evaluated) => evaluated
+                .borrow()
+                .as_ref()
+                .map(|words| words.state.writes.clone())
+                .unwrap_or_default(),
+            Self::Independent => Vec::new(),
+        }
+    }
 }
 
 /// An invocation's substituting operand words after their evaluation.

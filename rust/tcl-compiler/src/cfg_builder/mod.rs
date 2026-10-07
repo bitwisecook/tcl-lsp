@@ -752,11 +752,11 @@ impl<'a> CfgBuilder<'a> {
     /// Augment a statement's effective `defs` with caller-side
     /// variable names that any callee proc will modify via `upvar`.
     /// Returns a list of statements — the original (possibly with
-    /// merged `defs` for the direct-call form) plus an optional
-    /// synthetic `<upvar-invalidate>` `Statement::Call` prepended
-    /// when the embedded-substitution form contributes defs that
-    /// can't be merged into the host statement (e.g. an
-    /// `AssignValue` whose `value` text contains `[upvar_proc arg]`).
+    /// merged `defs` for the direct-call form) plus, ahead of it, the
+    /// statement's word effects ([`Statement::word_effects`]) when the
+    /// embedded-substitution form contributes defs that can't be merged
+    /// into the host statement (e.g. an `AssignValue` whose `value` text
+    /// contains `[upvar_proc arg]`).
     ///
     /// Direct-call form: resolves the statement through the module command
     /// state, then maps the effective user-procedure target and its
@@ -766,8 +766,8 @@ impl<'a> CfgBuilder<'a> {
     /// Embedded-substitution form: scans the call's args / the
     /// `AssignValue`'s value text for `[command_substitution]`
     /// tokens whose head is a known upvar proc; merges those defs
-    /// into the host Call when possible, or emits a synthetic
-    /// `<upvar-invalidate>` Call before a non-Call host.
+    /// into the host Call when possible, or puts the statement's word
+    /// effects, paired with it, ahead of a non-Call host.
     ///
     /// The same two forms also widen `defs` with `global_write_procs`
     /// (a callee that writes an outer-scope name via `global`/`variable`/
@@ -1240,9 +1240,9 @@ impl<'a> CfgBuilder<'a> {
         //     the global frame (`set y [setter]` where `setter` does
         //     `uplevel #0 $body`): no def list can enumerate
         //     what it clobbers, so prepend an opaque barrier — the same
-        //     program-order position the synthetic `<upvar-invalidate>`
-        //     uses, so the host statement's own reads already see the
-        //     widened state.
+        //     program-order position the statement's word effects take,
+        //     so the host statement's own reads already see the widened
+        //     state.
         let opaque_barrier = embedded_opaque_global.then(|| Statement::Barrier {
             span: stmt.span(),
             reason: "embedded call runs an unreadable script at the global frame".to_owned(),
@@ -1285,29 +1285,19 @@ impl<'a> CfgBuilder<'a> {
             return (out, substitution_unseen);
         }
 
-        // 4. Non-Call host (e.g. AssignValue) with embedded extras —
-        //    emit a synthetic `<upvar-invalidate>` Call before the
-        //    host so the affected vars are invalidated in
-        //    program order.
+        // 4. Non-Call host (e.g. AssignValue) with embedded extras — its
+        //    word effects go right ahead of it as a definition point paired
+        //    with it, so the affected vars are written in program order.
         let mut out = Vec::new();
         if let Some(barrier) = opaque_barrier {
             out.push(barrier);
         }
         if !embedded_extras.is_empty() || !embedded_reads.is_empty() {
-            out.push(Statement::Call {
-                span: stmt.span(),
-                command: "<upvar-invalidate>".to_string(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: embedded_extras,
-                reads: embedded_reads,
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::UpvarInvalidate,
-                )),
-                foreach_groups: None,
-            });
+            out.push(Statement::word_effects(
+                stmt.span(),
+                (embedded_extras, embedded_reads),
+                crate::ir::WordEffectsHost::Statement,
+            ));
         }
         out.push(stmt);
         if let Some(barrier) = direct_opaque_barrier {
@@ -2338,20 +2328,13 @@ impl<'a> CfgBuilder<'a> {
             });
         }
         if !extras.is_empty() || !extra_reads.is_empty() {
-            self.block_mut(current).statements.push(Statement::Call {
-                span: stmt.span(),
-                command: "<upvar-invalidate>".to_string(),
-                canonical_command: None,
-                args: Vec::new(),
-                defs: extras,
-                reads: extra_reads,
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: Some(crate::ir::CommandTokens::marker(
-                    crate::ir::SyntheticMarker::UpvarInvalidate,
-                )),
-                foreach_groups: None,
-            });
+            self.block_mut(current)
+                .statements
+                .push(Statement::word_effects(
+                    stmt.span(),
+                    (extras, extra_reads),
+                    crate::ir::WordEffectsHost::Dispatch,
+                ));
         }
     }
 
@@ -5791,9 +5774,9 @@ mod tests {
     }
 
     #[test]
-    fn embedded_subst_in_assign_value_emits_synthetic_invalidate() {
+    fn embedded_subst_in_assign_value_emits_its_word_effects() {
         // `set foo [setter]` where setter upvars caller_x.  The
-        // resulting CFG should have a synthetic `<upvar-invalidate>`
+        // resulting CFG should have a word-effects `<word-effects>`
         // Call with `caller_x` in its defs, emitted BEFORE the
         // `set foo ...` AssignValue.
         let module = lower_module(
@@ -5803,7 +5786,7 @@ mod tests {
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
             .expect("expected a Call carrying caller_x in defs");
-        assert_eq!(cmd, "<upvar-invalidate>");
+        assert_eq!(cmd, "<word-effects>");
     }
 
     /// The `(defs, reads)` of the first call named `command` in `func`.
@@ -5832,18 +5815,18 @@ mod tests {
     #[test]
     fn the_call_carrying_a_write_reads_the_place_its_statement_reads() {
         for (body, carrier) in [
-            ("set r [expr {$x + [set x 10] + $x}]", "<upvar-invalidate>"),
-            ("expr {$x + [set x 10]}", "<upvar-invalidate>"),
-            ("set r \"$x [set x 10]\"", "<upvar-invalidate>"),
-            ("incr r [expr {$x + [set x 10]}]", "<upvar-invalidate>"),
-            ("return [expr {$x + [set x 10]}]", "<upvar-invalidate>"),
+            ("set r [expr {$x + [set x 10] + $x}]", "<word-effects>"),
+            ("expr {$x + [set x 10]}", "<word-effects>"),
+            ("set r \"$x [set x 10]\"", "<word-effects>"),
+            ("incr r [expr {$x + [set x 10]}]", "<word-effects>"),
+            ("return [expr {$x + [set x 10]}]", "<word-effects>"),
             (
                 "set r [expr {[string length $x] + [set x 10]}]",
-                "<upvar-invalidate>",
+                "<word-effects>",
             ),
             (
                 "set r [expr {[expr {$x + 1}] + [set x 10]}]",
-                "<upvar-invalidate>",
+                "<word-effects>",
             ),
             ("if {$x + [set x 10] > 3} {puts a}", "<cond>"),
             ("while {$x + [set x 10] < 3} {break}", "<cond>"),
@@ -5866,7 +5849,7 @@ mod tests {
     #[test]
     fn the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone() {
         for (body, carrier, place) in [
-            ("set r [expr {[set x 10] + 1}]", "<upvar-invalidate>", "x"),
+            ("set r [expr {[set x 10] + 1}]", "<word-effects>", "x"),
             ("puts [set x 2]", "puts", "x"),
             (
                 "while {[gets $fd line] >= 0} {puts $line}",
@@ -6258,7 +6241,7 @@ mod tests {
     }
 
     #[test]
-    fn embedded_subst_in_return_emits_synthetic_invalidate_before_terminator() {
+    fn embedded_subst_in_return_emits_its_word_effects_before_terminator() {
         let module = lower_module(
             "proc setter {} { upvar 1 caller_x x; set x 1; return 0 }\n\
              proc outer {} { return [setter] }",
@@ -6267,7 +6250,7 @@ mod tests {
         let outer = cfg.procedures.get("::outer").expect("::outer CFG");
         assert_eq!(
             find_call_with_def(outer, "caller_x"),
-            Some("<upvar-invalidate>")
+            Some("<word-effects>")
         );
         assert!(
             outer
@@ -6292,19 +6275,19 @@ mod tests {
         for name in ["subject", "pattern"] {
             assert_eq!(
                 find_call_with_def(outer, name),
-                Some("<upvar-invalidate>"),
+                Some("<word-effects>"),
                 "the unbraced switch {name} substitution must invalidate before dispatch"
             );
         }
         assert!(outer.blocks.values().any(|block| {
             block.statements.iter().any(|stmt| {
-                matches!(
-                    stmt,
-                    Statement::Call { command, defs, .. }
-                        if command == "<upvar-invalidate>"
-                            && defs.iter().any(|name| name == "subject")
-                            && defs.iter().any(|name| name == "pattern")
-                )
+                stmt.word_effects_host() == Some(crate::ir::WordEffectsHost::Dispatch)
+                    && matches!(
+                        stmt,
+                        Statement::Call { defs, .. }
+                            if defs.iter().any(|name| name == "subject")
+                                && defs.iter().any(|name| name == "pattern")
+                    )
             }) && matches!(block.terminator, Some(Terminator::Branch { .. }))
         }));
     }
@@ -6335,7 +6318,7 @@ mod tests {
             let function = cfg.procedures.get(proc_name).expect("procedure CFG");
             assert_eq!(
                 find_call_with_def(function, "caller_x"),
-                Some("<upvar-invalidate>"),
+                Some("<word-effects>"),
                 "missing embedded invalidation in {proc_name}"
             );
         }
@@ -6345,7 +6328,7 @@ mod tests {
     fn embedded_subst_in_call_arg_merges_into_call_defs() {
         // `puts [setter]` — Call host with embedded substitution.
         // The defs should merge into the existing Call's defs (no
-        // synthetic invalidate needed since the host is a Call).
+        // word effects needed since the host is a Call).
         let module = lower_module(
             "proc setter {} { upvar 1 caller_x x; return $x }\n\
              puts [setter]",
@@ -6357,7 +6340,7 @@ mod tests {
             defs.contains(&"caller_x".to_string()),
             "expected caller_x merged into puts's defs, got {defs:?}",
         );
-        // No synthetic invalidate should appear (the Call branch
+        // No word effects should appear (the Call branch
         // merged in place).
         let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
         assert_eq!(
@@ -6378,8 +6361,8 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "myvar")
-            .expect("expected synthetic invalidate carrying myvar");
-        assert_eq!(cmd, "<upvar-invalidate>");
+            .expect("expected word effects carrying myvar");
+        assert_eq!(cmd, "<word-effects>");
     }
 
     /// On tclsh 9.0.4:
@@ -6399,7 +6382,7 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let p = cfg.procedures.get("::p").expect("::p CFG");
-        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
     }
 
     #[test]
@@ -6415,7 +6398,7 @@ mod tests {
         );
         let namespace_cfg = build_cfg(&namespace_module, false);
         let p = namespace_cfg.procedures.get("::a::p").expect("::a::p CFG");
-        assert_eq!(find_call_with_def(p, "x"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "x"), Some("<word-effects>"));
         assert_eq!(find_call_with_def(p, "y"), None);
 
         let unknown_module = lower_module(
@@ -6424,13 +6407,13 @@ mod tests {
         );
         let unknown_cfg = build_cfg(&unknown_module, false);
         let p = unknown_cfg.procedures.get("::p").expect("::p CFG");
-        assert_eq!(find_call_with_def(p, "missing"), Some("<upvar-invalidate>"));
+        assert_eq!(find_call_with_def(p, "missing"), Some("<word-effects>"));
     }
 
     #[test]
     fn embedded_subst_unknown_command_ignored() {
         // `[not_upvar]` — unknown command, should produce no
-        // synthetic invalidate.
+        // word effects.
         let module = lower_module("proc setter {} { set x 1 }\nset foo [setter]");
         let cfg = build_cfg(&module, false);
         // setter has no upvar, so neither direct nor embedded form
@@ -6440,8 +6423,8 @@ mod tests {
             for stmt in &block.statements {
                 if let Statement::Call { command, .. } = stmt {
                     assert_ne!(
-                        command, "<upvar-invalidate>",
-                        "no synthetic invalidate should appear for non-upvar embedded calls",
+                        command, "<word-effects>",
+                        "no word effects should appear for non-upvar embedded calls",
                     );
                 }
             }
@@ -6461,13 +6444,13 @@ mod tests {
         let synthetic = find_call_with_def(&cfg.top_level, "caller_x");
         assert!(
             synthetic.is_none(),
-            "no synthetic invalidate expected when text has no `[`, got {synthetic:?}",
+            "no word effects expected when text has no `[`, got {synthetic:?}",
         );
     }
 
     #[test]
     fn embedded_subst_synthetic_appears_before_host_assign() {
-        // The synthetic invalidate must land BEFORE the host
+        // The word effects must land BEFORE the host
         // AssignValue in program order, so SSA / dataflow correctly
         // see the invalidation before any later use of the variable.
         let module = lower_module(
@@ -6476,13 +6459,13 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let entry = &cfg.top_level.blocks[&cfg.top_level.entry];
-        // Find the synthetic invalidate's index and the AssignValue's
-        // index; assert ordering.
+        // Find the word effects' index and the AssignValue's index; assert
+        // ordering.
         let mut synthetic_idx = None;
         let mut assign_idx = None;
         for (i, stmt) in entry.statements.iter().enumerate() {
             match stmt {
-                Statement::Call { command, .. } if command == "<upvar-invalidate>" => {
+                _ if stmt.word_effects_host() == Some(crate::ir::WordEffectsHost::Statement) => {
                     synthetic_idx = Some(i);
                 }
                 Statement::AssignValue { name, .. } if name == "foo" => {
@@ -6491,12 +6474,9 @@ mod tests {
                 _ => {}
             }
         }
-        let s = synthetic_idx.expect("synthetic <upvar-invalidate> should be in entry block");
+        let s = synthetic_idx.expect("<word-effects> should be in entry block");
         let a = assign_idx.expect("set foo AssignValue should be in entry block");
-        assert!(
-            s < a,
-            "synthetic invalidate at {s} should precede assign at {a}",
-        );
+        assert!(s < a, "word effects at {s} should precede assign at {a}");
     }
 
     // A known upvar proc's call-by-name write reached
@@ -6518,8 +6498,8 @@ mod tests {
         );
         let cfg = build_cfg(&module, false);
         let cmd = find_call_with_def(&cfg.top_level, "caller_x")
-            .expect("expected a synthetic invalidate recovering caller_x through the wrapper");
-        assert_eq!(cmd, "<upvar-invalidate>");
+            .expect("expected word effects recovering caller_x through the wrapper");
+        assert_eq!(cmd, "<word-effects>");
     }
 
     #[test]

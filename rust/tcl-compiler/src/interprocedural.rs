@@ -35,7 +35,7 @@ use crate::side_effects::EffectRegion;
 mod transfer;
 
 pub use transfer::TransferSummaries;
-pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures};
+pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures, Rerun, RerunStance};
 
 /// Depth cap shared by every `Script`/`Statement`-tree recursion in this
 /// module (`collect_instance_var_writes`; the mutually-recursive
@@ -718,6 +718,7 @@ pub(crate) fn build_interprocedural_analysis_for_unit(
         Some(ModuleUnits {
             cfg: &cu.cfg_module,
             seedless: Some(SeedlessUnits {
+                unit: cu,
                 procedures: &cu.procedures,
                 mutations: &cu.command_mutations,
                 transfers: &cu.transfers,
@@ -738,6 +739,8 @@ struct ModuleUnits<'a> {
 /// trust: what [`seedless_returns`] runs each procedure's lattice over.
 #[derive(Clone, Copy)]
 struct SeedlessUnits<'a> {
+    /// The unit itself, whose procedures a seedless run's calls reach.
+    unit: &'a crate::compilation_unit::CompilationUnit,
     procedures: &'a HashMap<String, crate::compilation_unit::FunctionUnit>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
     /// The transfer summaries the unit's build computed.
@@ -1366,7 +1369,7 @@ fn scan_method_body_facts(
         // that incomplete target set.
         facts.has_barrier = true;
         facts.has_unknown_calls = true;
-        facts.local_pure = false;
+        facts.mark_impure();
         facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
         facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
     }
@@ -1594,31 +1597,81 @@ fn compute_all_transitive_calls(
     out
 }
 
+/// Each procedure's purity: its own body pure and every procedure it calls
+/// pure — or one whose calls reach no further than the places its `Name`
+/// arguments name, called with locals of the caller's own frame that no
+/// other frame reaches, which end with the caller's call
+/// (`docs/design/compiler/value-transfers.md` § *Proc-level transfer
+/// summaries*). Such a procedure is one whose body does nothing its caller
+/// observes but through those links, and calls only procedures of the same
+/// kind with places of its own, its links' among them.
 fn fixpoint_pure(local: &HashMap<String, LocalFacts>) -> HashMap<String, bool> {
-    let local_pure: HashMap<String, bool> = local
+    let mut pure: HashMap<String, bool> = local
         .iter()
         .map(|(q, f)| (q.clone(), f.local_pure))
         .collect();
-    let mut pure = local_pure.clone();
-    let mut changed = true;
-    while changed {
-        changed = false;
+    let mut bounded: HashMap<String, bool> = local
+        .iter()
+        .map(|(q, f)| (q.clone(), !f.impure_beyond_links))
+        .collect();
+    loop {
+        let mut changed = false;
         for (qname, facts) in local {
-            if !local_pure[qname] {
-                continue;
+            let (now_bounded, now_pure) = {
+                let calls_stay = |own_links: bool| {
+                    facts.procedure_calls.iter().all(|(callee, words)| {
+                        pure.get(callee).copied().unwrap_or(false)
+                            || (bounded.get(callee).copied().unwrap_or(false)
+                                && words.as_deref().is_some_and(|words| {
+                                    local.get(callee).is_some_and(|called| {
+                                        names_own_places(
+                                            facts,
+                                            &called.name_params,
+                                            words,
+                                            own_links,
+                                        )
+                                    })
+                                }))
+                    })
+                };
+                (
+                    bounded[qname] && calls_stay(true),
+                    pure[qname] && calls_stay(false),
+                )
+            };
+            if now_bounded != bounded[qname] {
+                bounded.insert(qname.clone(), now_bounded);
+                changed = true;
             }
-            let all_callees_pure = facts
-                .direct_calls
-                .iter()
-                .all(|c| pure.get(c).copied().unwrap_or(false));
-            let new_val = local_pure[qname] && all_callees_pure;
-            if new_val != pure[qname] {
-                pure.insert(qname.clone(), new_val);
+            if now_pure != pure[qname] {
+                pure.insert(qname.clone(), now_pure);
                 changed = true;
             }
         }
+        if !changed {
+            return pure;
+        }
     }
-    pure
+}
+
+/// Whether a call's `words` name, at each of the callee's `name_params`, a
+/// plain local of the caller's frame: one no `global` or `variable` aliases
+/// and no `upvar` links elsewhere — or, where `own_links` is set, one the
+/// caller links to the place its own parameter names one frame up.
+fn names_own_places(
+    caller: &LocalFacts,
+    name_params: &[usize],
+    words: &[String],
+    own_links: bool,
+) -> bool {
+    name_params.iter().all(|&index| {
+        words.get(index).is_some_and(|word| {
+            is_plain_local_name(word)
+                && !caller.global_aliases.contains(word)
+                && (!caller.linked_locals.contains(word)
+                    || (own_links && caller.upvar_aliases.contains_key(word)))
+        })
+    })
 }
 
 fn fixpoint_effects(
@@ -1774,6 +1827,28 @@ struct LocalFacts {
     /// Only level-1 upvars populate this (other levels don't write back
     /// to the caller).
     upvar_aliases: HashMap<String, String>,
+    /// Whether the body does anything its caller observes besides linking a
+    /// local to the place a parameter names one frame up (`upvar 1 $name
+    /// v`): [`Self::local_pure`] with those links set aside.
+    impure_beyond_links: bool,
+    /// Every local the body links to a place outside its frame by `upvar`,
+    /// at any level.
+    linked_locals: HashSet<String>,
+    /// Each call to a procedure of the module, with its argument words where
+    /// the call spells them; `None` for a callback, whose words a later
+    /// invocation supplies.
+    procedure_calls: Vec<(String, Option<Vec<String>>)>,
+    /// The positions of the parameters whose value names the place one frame
+    /// up a local of the body is linked to.
+    name_params: Vec<usize>,
+}
+
+impl LocalFacts {
+    /// Record something the body does that its caller observes.
+    fn mark_impure(&mut self) {
+        self.local_pure = false;
+        self.impure_beyond_links = true;
+    }
 }
 
 /// One way a procedure returns, as the summary reads it: a `return`, or the
@@ -1808,6 +1883,10 @@ impl Default for LocalFacts {
             param_trait_flags: HashMap::new(),
             global_aliases: HashSet::new(),
             upvar_aliases: HashMap::new(),
+            impure_beyond_links: true,
+            linked_locals: HashSet::new(),
+            procedure_calls: Vec::new(),
+            name_params: Vec::new(),
         }
     }
 }
@@ -1825,6 +1904,7 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     } = scan;
     let mut facts = LocalFacts {
         local_pure: true,
+        impure_beyond_links: false,
         ..LocalFacts::default()
     };
     let params: HashSet<String> = proc.params.iter().cloned().collect();
@@ -1847,6 +1927,13 @@ fn scan_proc(scan: ProcScan<'_>) -> LocalFacts {
     if !script_always_returns(&proc.body, 0) {
         facts.returns.push(ReturnKind::Other);
     }
+    facts.name_params = proc
+        .params
+        .iter()
+        .enumerate()
+        .filter(|(_, param)| facts.upvar_aliases.values().any(|named| named == *param))
+        .map(|(index, _)| index)
+        .collect();
     facts
 }
 
@@ -1900,7 +1987,7 @@ impl<'a> ScanCtx<'a> {
 fn scan_script(script: &crate::ir::Script, ctx: ScanCtx<'_>, facts: &mut LocalFacts, depth: u32) {
     if MAX_INTERPROCEDURAL_WALK_DEPTH.exceeded(depth) {
         facts.has_barrier = true;
-        facts.local_pure = false;
+        facts.mark_impure();
         facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
         facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         return;
@@ -1963,6 +2050,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
             && is_plain_proc_name(&word)
             && let Some(target) = resolve_internal_call(&word, caller, known)
         {
+            facts.procedure_calls.push((target.clone(), None));
             facts.direct_calls.insert(target);
         }
     }
@@ -1991,6 +2079,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
                         && is_plain_proc_name(&word)
                         && let Some(target) = resolve_internal_call(&word, caller, known)
                     {
+                        facts.procedure_calls.push((target.clone(), None));
                         facts.direct_calls.insert(target);
                     }
                 }
@@ -2004,6 +2093,9 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     // command's own side-effect classification is NOT applied locally.
     // Non-internal commands apply their classified side effects.
     if let Some(target) = &internal_target {
+        facts
+            .procedure_calls
+            .push((target.clone(), (!invokes_named_proc).then(|| args.to_vec())));
         facts.direct_calls.insert(target.clone());
     } else {
         // Side-effect classification is dialect-agnostic here
@@ -2019,7 +2111,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
         let ci = classify_side_effects_in(&surface, resolved, args, None, None);
         if ci.dynamic_barrier {
             facts.has_barrier = true;
-            facts.local_pure = false;
+            facts.mark_impure();
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         }
@@ -2030,14 +2122,14 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
             facts.writes_global = true;
         }
         if !ci.pure {
-            facts.local_pure = false;
+            facts.mark_impure();
         }
         // A command the document declares is known — its declaration is
         // a workspace-authored fact, classified above — so only a name
         // neither the catalogue nor the document knows is an unknown call.
         if registry.get(resolved).is_none() && !surface.declares(resolved) {
             facts.has_unknown_calls = true;
-            facts.local_pure = false;
+            facts.mark_impure();
         }
     }
 
@@ -2089,8 +2181,10 @@ fn extract_var_name(text: &str) -> Option<&str> {
 /// only for the default level 1, which writes back to the caller's frame
 /// — record `local → param` so a later `set local …` upgrades it to
 /// [`ProcArgTrait::VarWrite`].  A `$param` *local* name (the binding
-/// target) is itself a write of that param's value.
-fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut LocalFacts) {
+/// target) is itself a write of that param's value. Every local linked is
+/// recorded; whether each pair links a plain local to the place a
+/// parameter names one frame up is the answer.
+fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut LocalFacts) -> bool {
     let mut start = 0;
     let mut level = "1";
     if let Some(first) = args.first()
@@ -2101,11 +2195,17 @@ fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut L
         start = 1;
     }
     let caller_frame = level == "1";
+    let mut names_only =
+        caller_frame && args.len() > start && (args.len() - start).is_multiple_of(2);
     let mut i = start;
     while i + 1 < args.len() {
         let other_var = &args[i];
         let my_var = &args[i + 1];
         i += 2;
+        facts.linked_locals.insert(my_var.clone());
+        names_only &= extract_var_name(other_var).is_some_and(|name| params.contains(name))
+            && is_plain_local_name(my_var)
+            && !params.contains(my_var);
         if let Some(other_vn) = extract_var_name(other_var)
             && params.contains(other_vn)
         {
@@ -2130,6 +2230,16 @@ fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut L
                 .insert(ProcArgTrait::VarWrite);
         }
     }
+    names_only
+}
+
+/// Whether `word` spells a plain local variable: a name of letters, digits
+/// and underscores, neither qualified nor an array element.
+fn is_plain_local_name(word: &str) -> bool {
+    word.chars()
+        .next()
+        .is_some_and(|first| first.is_alphabetic() || first == '_')
+        && word.chars().all(|c| c.is_alphanumeric() || c == '_')
 }
 
 /// Upgrade the param aliased by `name` (if any) to
@@ -2186,16 +2296,24 @@ fn scan_call_statement(
     // Call-by-name: record `upvar` aliases, and treat any command writing a
     // level-1 upvar alias (`append` / `lappend` / `lassign` … via `defs`) as a
     // write-back to the caller's variable.
-    if command == "upvar" {
-        handle_upvar_aliases(args, params, facts);
+    let links_only = if command == "upvar" {
+        handle_upvar_aliases(args, params, facts)
     } else {
         // `upvar` itself is excluded — its `defs` are the locals it *defines*
         // (aliases), not writes.
         for d in defs {
             mark_upvar_alias_write(d, facts);
         }
-    }
+        false
+    };
+    let beyond = facts.impure_beyond_links;
     scan_call_facts(command, args, ctx, facts);
+    // Linking a local to the place a parameter names one frame up does
+    // nothing the caller sees by itself: what the body does through the link
+    // is what the caller sees.
+    if links_only {
+        facts.impure_beyond_links = beyond;
+    }
     scan_role_code_arguments(command, args, ctx, facts);
 }
 
@@ -2311,7 +2429,7 @@ fn scan_statement(
             scan_call_facts(command, args, ctx, facts);
             scan_role_code_arguments(command, args, ctx, facts);
             facts.has_barrier = true;
-            facts.local_pure = false;
+            facts.mark_impure();
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
         }
@@ -2322,7 +2440,7 @@ fn scan_statement(
             // barrier conservatively. Any reads/writes inside
             // ``body`` propagate up.
             facts.has_barrier = true;
-            facts.local_pure = false;
+            facts.mark_impure();
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;
             facts.effect_writes |= EffectRegion::UNKNOWN_STATE;
             scan_script(body, ctx, facts, depth + 1);
@@ -2610,7 +2728,7 @@ fn scan_expr_for_calls(
 fn note_assign_global_write(name: &str, facts: &mut LocalFacts) {
     if is_global_or_namespace(name) || facts.global_aliases.contains(name) {
         facts.writes_global = true;
-        facts.local_pure = false;
+        facts.mark_impure();
     }
     mark_upvar_alias_write(name, facts);
 }
@@ -3301,9 +3419,11 @@ fn seedless_returns(
         dialect.and_then(crate::tcl_expr_eval::leading_zero_is_octal),
         dialect,
     );
+    let module = ModuleProcedures::of_unit(units.unit, registry);
     let reading = ExitReading {
         policy,
         grammar: dialect.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+        module: None,
         folds: crate::sccp::BuiltinFoldInputs {
             registry,
             mutations: units.mutations,
@@ -3327,16 +3447,20 @@ fn seedless_returns(
         .iter()
         .filter(|(qname, fu)| pure.get(*qname).copied().unwrap_or(false) && !fu.complexity_guarded)
         .map(|(qname, fu)| {
-            let result = crate::sccp::sccp_with_builtin_folds(
-                &fu.cfg,
-                &fu.ssa,
-                None,
+            let result = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+                cfg: &fu.cfg,
+                ssa: &fu.ssa,
+                param_constants: None,
                 policy,
-                &HashSet::new(),
+                extra_escaping: &HashSet::new(),
                 trace,
-                Some(reading.folds),
-            );
-            (qname.clone(), exit_value(fu, &result, reading))
+                folds: Some(reading.folds),
+                module: crate::sccp::ModuleRun::reading(Some(&module)),
+            });
+            (
+                qname.clone(),
+                exit_value(ExitBody::of(fu), &result, reading),
+            )
         })
         .collect()
 }
@@ -3357,6 +3481,29 @@ pub(crate) struct ExitReading<'a> {
     /// The registry, mutation facts and trust stance an expression is
     /// evaluated under.
     pub(crate) folds: crate::sccp::BuiltinFoldInputs<'a>,
+    /// The module's procedures and the function the exits are read in,
+    /// where a re-run reads them: a command a return's expression runs that
+    /// names a procedure of the module is re-run for its result.
+    pub(crate) module: Option<(&'a ModuleProcedures<'a>, &'a str)>,
+}
+
+/// The body an exit reading reads: a flow graph and its SSA.
+#[derive(Clone, Copy)]
+pub(crate) struct ExitBody<'b> {
+    /// The flow graph.
+    pub(crate) cfg: &'b crate::cfg::Function,
+    /// Its SSA.
+    pub(crate) ssa: &'b crate::ssa::SsaFunction,
+}
+
+impl<'b> ExitBody<'b> {
+    /// A unit's body.
+    pub(crate) const fn of(unit: &'b crate::compilation_unit::FunctionUnit) -> Self {
+        Self {
+            cfg: &unit.cfg,
+            ssa: &unit.ssa,
+        }
+    }
 }
 
 /// The one value every way `fu` returns gives under `result`, or `None`.
@@ -3379,7 +3526,7 @@ pub(crate) struct ExitReading<'a> {
 /// ingress — a braced word its content, a bare or quoted one its escapes
 /// decoded, nothing trimmed — so `return " 5"` is the two-character string.
 pub(crate) fn exit_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     result: &crate::sccp::SccpResult,
     reading: ExitReading<'_>,
 ) -> Option<ExactValue> {
@@ -3428,7 +3575,7 @@ pub(crate) fn exit_value(
 /// exact ingress, `$name` as the version there holds it, an `expr` on the
 /// shared expression route; a bare `return` (no word) gives none.
 fn return_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     bn: crate::cfg::BlockId,
     (value, braced, expr): (Option<&str>, bool, Option<&crate::expr_ast::ExprNode>),
     result: &crate::sccp::SccpResult,
@@ -3470,7 +3617,7 @@ fn return_value(
 /// of the correct `""` — confirmed against tclsh 9.0.4 — by walking straight
 /// through the empty `if`-body block back to the preceding `set x 1`.)
 fn fallthrough_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     bn: crate::cfg::BlockId,
     result: &crate::sccp::SccpResult,
     preds: &HashMap<crate::cfg::BlockId, HashSet<crate::cfg::BlockId>>,
@@ -3501,7 +3648,7 @@ fn fallthrough_value(
 /// whose own result this analysis doesn't track, …) — the caller simply
 /// won't fold that path, never mis-folds it.
 fn tail_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     bn: crate::cfg::BlockId,
     stmt: &crate::ir::Statement,
     result: &crate::sccp::SccpResult,
@@ -3544,7 +3691,7 @@ fn tail_value(
 /// constructed rather than read from the source is never one
 /// ([`crate::sccp::SccpResult::materialises`]).
 fn var_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     bn: crate::cfg::BlockId,
     name: &str,
     result: &crate::sccp::SccpResult,
@@ -3586,7 +3733,7 @@ fn var_value(
 /// proves: no rebound math function, no function the target lacks, no value
 /// past the target's integer tower.
 fn expr_value(
-    fu: &crate::compilation_unit::FunctionUnit,
+    fu: ExitBody<'_>,
     bn: crate::cfg::BlockId,
     expr: &crate::expr_ast::ExprNode,
     result: &crate::sccp::SccpResult,
@@ -3607,11 +3754,11 @@ fn expr_value(
             }
         }
     }
-    crate::value_transfer::evaluate_expression_detached(
+    crate::value_transfer::evaluate_expression_in_module(
         expr,
         &constants,
-        reading.folds,
-        reading.policy,
+        (reading.folds, reading.policy),
+        reading.module,
     )
 }
 
@@ -4405,6 +4552,31 @@ mod tests {
             "a proc that calls puts must be impure; got pure={}",
             logit.pure,
         );
+    }
+
+    /// A call that names only its caller's own places leaves the caller
+    /// pure: `bump` writes the place its parameter names one frame up, so it
+    /// is impure, as is `twice`, which hands `bump` the place its own
+    /// parameter names; `p` passes `bump` a plain local of its own and `r`
+    /// passes `twice` one, so both stay pure. A caller passing a qualified
+    /// name, or a local `global` links to the global frame, does not.
+    #[test]
+    fn a_call_naming_the_callers_own_place_keeps_it_pure() {
+        let ia = build(
+            "proc ::bump {name} {upvar 1 $name v; incr v}\n\
+             proc ::twice {name} {upvar 1 $name w; bump w; bump w}\n\
+             proc ::p {} {set n 1; bump n; return $n}\n\
+             proc ::r {} {set t 1; twice t; return $t}\n\
+             proc ::g {} {bump ::n; return 0}\n\
+             proc ::h {} {global n; bump n; return 0}\n",
+        );
+        let pure = |name: &str| ia.procedures.get(name).expect(name).pure;
+        assert!(!pure("::bump"));
+        assert!(!pure("::twice"));
+        assert!(pure("::p"));
+        assert!(pure("::r"));
+        assert!(!pure("::g"));
+        assert!(!pure("::h"));
     }
 
     #[test]

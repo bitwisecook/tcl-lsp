@@ -63,7 +63,12 @@ records:
 - `compute_all_transitive_calls` closes `direct_calls` into the full
   reachable set.
 - `fixpoint_pure` takes the least fixpoint of "locally pure ∧ every direct
-  callee pure".
+  callee pure", where a callee that does nothing its caller observes but
+  through a local it links to the place a parameter names one frame up
+  (`upvar 1 $name v`), calling only procedures pure or of the same kind, is
+  pure for a caller every call of which names, at each such parameter, a
+  plain local of the caller's own frame (`names_own_places`): `bump n` in
+  `p` writes only `p`'s `n`, so `p` stays pure while `bump` does not.
 - `fixpoint_effects` unions each procedure's local effect regions with its
   transitive callees'.
 
@@ -79,12 +84,14 @@ it, an `expr` on the shared expression route; and a fall-through to the end
 of the body through its last command. Every exit must give the one value,
 and no statement the flow graph keeps whole may run a `return` of its own
 (#2393). The stage follows the purity fixpoint, which decides whose returns
-may fold, and reads no summary: the lattice driver takes a call to a
-procedure of the module for a command it cannot see, so one stage is the
-fixed point, and a return that passes through a recursive call is computed.
-The bottom-up composition and its cycle bound belong to the transfer
-summaries (§ *Transfer summaries* below), whose own runs read their callees'
-summaries; a caller's lattice reads one from slice 13's second checkpoint.
+may fold, and holds the module's procedures: a call to one is applied as its
+transfer summary says (§ *Transfer summaries* below), its `Name` places
+taking what a re-run of the callee leaves in them, and its result taken by
+no seedless run, so one stage is the fixed point, and a return that passes
+through a recursive call is computed. The bottom-up composition and its
+cycle bound belong to the transfer summaries, whose own runs read their
+callees'; O103's argument-sensitive re-run takes a call's result too, and
+its exit reading re-runs a procedure call a return's expression makes.
 Only the compilation unit's entry
 (`build_interprocedural_analysis_for_unit`, which `with_interprocedural` and
 the optimiser call) has the lattices to run, and a procedure the complexity
@@ -145,7 +152,7 @@ prints each as a `transfer` line.
 - **Composition.** A summary's own runs read their callees' summaries: a
   call to a procedure of the module passing a linked local as a `Name`
   argument gives the place the step the callee's outcomes compose to
-  (`sccp::ModuleRun::composes`). Procedures are summarised callees first,
+  (`sccp::ModuleLevel::Outcomes`). Procedures are summarised callees first,
   over the strongly connected sets of the module's call graph; a cycle is
   solved from its procedures never completing, round by round, until no
   role changes, and one that does not settle within
@@ -161,6 +168,18 @@ prints each as a `transfer` line.
   A call to a procedure defined later in the file carries the unseen-call
   marker, so its caller has no summary
   ([precision-limitations.md](precision-limitations.md)).
+- **Application.** Every other run that holds the module's procedures
+  applies a callee's summary at a call statement and at a command a
+  statement's words run (the statement's word effects, `<word-effects>`):
+  each place a `Name` argument names takes the existence the summary
+  states, and the fact and the value a re-run of the callee leaves in it
+  (`ModuleProcedures::rerun`), the callee's parameters holding the call's
+  arguments and its links the places' facts and values before the call; a
+  re-run is made once per callee and seeds, bounded in depth (32) and count
+  (4096), and where none can be made a place takes the summary's step with
+  no value. A unit's lattice and a seedless run take the places
+  (`sccp::ModuleLevel::Places`); a re-run, O103's argument-sensitive one
+  among them, takes the call's result too (`sccp::ModuleLevel::Results`).
 - **Invalidation.** The summaries' revision hashes every procedure's name,
   parameter list and body, the redefinitions and the command-trust snapshot,
   and rides `AnalysisContext::seeds_revision` in every run that holds the

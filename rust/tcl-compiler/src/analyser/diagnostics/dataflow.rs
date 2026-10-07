@@ -1634,7 +1634,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // A statement the lowering synthesised to carry an effect — the
             // `<cond>` placeholder holding a branch condition's substitution
-            // reads, or `<upvar-invalidate>` holding a word's — has no source
+            // reads, or `<word-effects>` holding a word's — has no source
             // word to anchor a read at: its span is the whole `if` or the whole
             // host statement. And the reads it carries are precisely the
             // existence-tolerant ones — `[info exists x]` is the idiom for a
@@ -2871,13 +2871,7 @@ fn find_case_mismatch<'a>(variable: &str, defined_vars: &'a HashSet<String>) -> 
 /// It has no argv of its own, so no diagnostic can be anchored to a word in
 /// it, and its span is the whole construct it stands for.
 fn statement_is_synthetic_effect(stmt: &crate::ir::Statement) -> bool {
-    match stmt {
-        crate::ir::Statement::Call { tokens, .. }
-        | crate::ir::Statement::Barrier { tokens, .. } => tokens
-            .as_ref()
-            .is_some_and(|tokens| tokens.synthetic.is_some()),
-        _ => false,
-    }
+    stmt.synthetic_marker().is_some()
 }
 
 /// this pass and for the `Statement::Call` twin in [`crate::ssa`] alike.
@@ -3001,7 +2995,7 @@ fn use_site_safe_initialises(stmt: Option<&crate::ir::Statement>, var: &str) -> 
 /// words of a host `Call` (`puts [incr n]`, `lappend l [append s y]`): the CFG
 /// builder merges the embedded update's read and write into the host call, so
 /// the store feeding it stays live (#2050). A non-`Call` host carries them on
-/// a synthetic `<upvar-invalidate>` statement instead, which
+/// the definition point of its word effects instead (`<word-effects>`), which
 /// [`statement_is_synthetic_effect`] already exempts; this is the host-`Call`
 /// half of the same exemption. Lowering flags every call whose own named
 /// reads overlap its definitions `reads_own_defs`, so the overlap on an

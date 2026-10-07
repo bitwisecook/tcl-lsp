@@ -1816,8 +1816,9 @@ trait the prior value is never exact at the call and the evaluator declines
 `not-exact`. A writing call answers only in statement position: nested in
 `[…]` its stores have no definition to land on, so an outcome with stores
 is never substituted ("not substituted: the outcome writes storage"), and
-a nested call's read of its target sits on the synthetic call ahead of its
-host, as a nested `[incr x]`'s does, so an incoming target is not exact
+a nested call's read of its target sits on its host's word effects, the
+definition point paired with the host, as a nested `[incr x]`'s does, so an
+incoming target is not exact
 there either. `a_pack_write_through_an_incoming_target_reaches_the_driver`
 (compiler witnesses) runs the three shapes through the real driver and the
 tclvm host from a loaded pack.

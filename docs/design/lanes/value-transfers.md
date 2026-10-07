@@ -9548,6 +9548,8 @@ rust/tcl-compiler/src/cfg_builder rust/tcl-compiler/src/ir_helpers.rs`:
 - **Gates**: G7, G8, G9.
 - **Model**: opus. **Size**: L. **After**: VT13.1.
 
+Built otherwise, at the coordinator's ruling: a statement's word effects stay a definition point, paired with their host by construction (D303).
+
 ##### VT13.3 — the argument-sensitive re-run seeds `Name` parameters
 
 - **Files**: `rust/tcl-compiler/src/optimiser/propagation.rs`
@@ -9792,6 +9794,177 @@ O100 at `g`'s `if`, and no O112), run before the three readers' filter
 moved into `memo_key`. The second first survived: with `f`'s body empty,
 the rewrites took the whole-module path for another reason, `f` being a
 target of the argument-sensitive re-run, so the test's `f` returns 0.
+
+Measured after the commit, on its tree: the corpus comparison finished, and
+`tcl diag` and `tcl opt --profile full` print under the commit's binary what
+they print under its parent's for every one of the 1120 files, standard
+output, standard error and exit status alike; `fumagic/filetypes.tcl` runs
+past the 300 s limit under both binaries, as a debug build. The commit's
+trailer was amended at the coordinator's direction to the branch's
+`Co-Authored-By` line, its tree unchanged.
+
+##### The caller applies them
+
+`wip(value-transfers): slice 13 — the caller applies them`, VT13.2 and VT13.3,
+built as the coordinator ruled on VT13.2's host field (D303) and with D304 to
+D306. The exit criterion, as D303 words it: "`<upvar-invalidate>` and
+`SyntheticMarker::UpvarInvalidate` are gone; a statement's word effects ride a
+`WordEffects` definition point paired with its host, the driver evaluates the
+pair as one, and an embedded call to a summarised procedure applies its
+summary there."
+
+- **The word effects (VT13.2, D303).** `SyntheticMarker::WordEffects(host)`,
+  spelled `<word-effects>`, replaces the synthetic invalidation call; one
+  constructor, `Statement::word_effects`, builds it, and the CFG builder puts
+  it right ahead of the statement whose words it states the effects of
+  (`WordEffectsHost::Statement`) or, for a `return`'s value, a `switch`'s
+  subject and patterns and a `catch` or `try` header, at the end of the block
+  before the statement dispatches (`WordEffectsHost::Dispatch`).
+  `ssa::word_effects_host` replaces `effect_call_host`'s span match with the
+  marker's own host; the pair's evaluation, the SSA's demotion of a host's
+  reads beside a write, W210's exemption of a read a synthetic effect carries
+  (`statement_is_synthetic_effect`, now `Statement::synthetic_marker`) and
+  O109's hidden-read scan (`collect_rmw_hidden_reads`, which credited every
+  statement of a span with that span's uses and now credits a statement with
+  its own word effects' and a `return` word with its block's dispatch word
+  effects') read it through `Statement::word_effects_host`. The Explorer
+  prints `call <word-effects>` where it printed `call <upvar-invalidate>`.
+- **The caller applies the summary (VT13.2, D304).** The solver's statement
+  loop asks the driver first at a call statement that defines a place
+  (`LatticeDriver::procedure_answer`), and an ordered evaluation asks it at
+  each command it runs (`procedure_run`): a head naming a procedure of the
+  module whose binding stands, with a summary that answers the call, takes the
+  summary's step at each place a `Name` argument names and each outer place it
+  writes, and, but in a summary's own run, the fact and the value a re-run of
+  the callee leaves (`ModuleProcedures::rerun`, its parameters holding the
+  call's arguments, `parameter_values`, its links the places' values and
+  facts, `CallerPlaces::entries`), the result only at `ModuleLevel::Results`.
+  CP1's composition (`ModuleRun::composes`) is `ModuleLevel::Outcomes`. `bump
+  n; return $n` leaves `n` at 2 in `p`'s lattice, and `set r [bump n]` the
+  same through the statement's word effects.
+- **The re-run seeds `Name` parameters (VT13.3, D304 to D306).** O103's
+  argument-sensitive re-run (`evaluate_proc_with_constants`) and the seedless
+  returns hold the module (`ModuleProcedures::of_unit`), so `[q 5]` re-runs
+  `bump` with `v` seeded from `q`'s `n` and folds to 6; a call that names only
+  its caller's own plain locals leaves the caller pure (`fixpoint_pure`,
+  `names_own_places`), so `p` is pure and its seedless run's `const(2)` folds
+  `[p]` on the summary path; and the exit reading of a re-run runs a procedure
+  call a return's expression makes (`detached_procedure_result`), so `[rec 4]`
+  folds to 10.
+- **The editor's memo (D301, D304).** A run that holds no module records the
+  read only where a head may name a procedure a summary answers for
+  (`LatticeDriver::may_name_a_summary`);
+  `a_call_through_a_name_parameter_decides_in_the_editor` pins the memoised
+  path to the uncached one for `bump`.
+
+Tests: `bump_decides_through_both_o103_paths` and
+`an_embedded_call_applies_its_summary` (`value_transfer_witnesses.rs`, new:
+`n` at 2 in the unit's lattice under the five dialects, `p` and `q` pure,
+`p`'s constant `2` and `q`'s none, `[p]`, `[q 5]` and `[rec 4]` folding to 2,
+6 and 10 and `[p]` and `[s]` to 2 and 6, each program printing what tclsh 8.4
+to 9.1 print, before and after `tcl opt`);
+`a_call_naming_the_callers_own_place_keeps_it_pure` (`interprocedural.rs`,
+new); `a_call_through_a_name_parameter_decides_in_the_editor` and
+`only_a_call_a_summary_may_answer_reads_the_module`
+(`value_transfer_parity.rs`, new: the memoised checks and rewrites of a `bump`
+caller equal the uncached ones, and `p`'s memoised lattice records the read
+where `q`'s `lappend` and `bump`'s `upvar` do not);
+`word_effects_stand_ahead_of_the_statement_whose_words_they_are` (`ssa.rs`,
+`an_effect_call_stands_ahead_of_the_statement_that_shares_its_span` restated
+for the structural pairing: its span-shift case, which had unpaired the call,
+now keeps the pair, and a `return`'s word effects have no host); and a case
+added to `hidden_reads_are_what_the_ssa_does_not_record` (`elimination.rs`:
+`set a [incr n]`, whose read of `n` its word effects record). R6: beyond the
+restated SSA test, the expectations that move are spellings — the CFG
+builder's tests read `<word-effects>` where they read `<upvar-invalidate>`,
+two of them now find the marker by its host (`Statement::word_effects_host`),
+two are renamed (`embedded_subst_in_assign_value_emits_its_word_effects` and
+`embedded_subst_in_return_emits_its_word_effects_before_terminator`) and their
+comments say word effects for the synthetic invalidation call — and the
+`tcl-vm` program that defines a procedure under each reserved spelling
+(`variable_name_resolution_e2e.rs`) names `<word-effects>`. One expectation
+moves with the slice's behaviour, at the plan's `[rec 4]` delta:
+`o103_interprocedural_folding` (`optimiser_coverage.rs`) asserted that the
+recursive `[fact 5]` does not fold, and now asserts that it folds to `120`, as
+tclsh 8.4 to 9.1 print, and that a recursion whose seeds never end (`proc loop
+{n} {return [loop $n]}`, which tclsh stops at "too many nested evaluations")
+and one deeper than the re-run's 32 (`[down 50]`) do not. The #2050, #2141 and
+#2132 witnesses (`optimiser.rs`, `value_transfer_witnesses.rs`,
+`value_transfers_cli.rs`, the elimination and code-sinking unit tests) and the
+two O103 anchors are byte-identical and pass. R1: the diff's one command
+spelling, `command == "upvar"` in the purity scan, is the pre-existing site
+VT13.4 retires; `parameter_values` asks whether a procedure's last formal is
+`args` of `signature_scan::arity::is_variadic`, which `arity_of` now shares,
+so the registry-axes report gains no site (a first form compared the name in
+`transfer.rs`, and the gate refused it); and `<word-effects>` is spelled once,
+in its constructor. R2: no new `#[allow]`. R4: no new source file. R7: a place
+takes a value only from a re-run under the call's own arguments and places, a
+unit's lattice takes no call's result, an unknown seed waits, a callee with no
+summary or a call its summary does not answer keeps the generic answer, and a
+fold of a caller still needs the caller pure.
+
+Docs: D303 to D306, and one line under VT13.2 pointing at D303;
+`value-transfers.md` (§ *Proc-level transfer summaries*: the application at a
+call site and the decided `if`; the ordered-state paragraph and the O108 and
+O109 existence reads name the word effects; where a memoised build records a
+module read), `interprocedural-analysis.md` (the purity fixpoint's own-places
+rule, the seedless stage holding the module, the application bullet,
+`ModuleLevel::Outcomes`), `interprocedural-call-site-seeding.md` (§ *A call's
+effects on its caller*), `precision-limitations.md` (the word effects in the
+nested-reads entry, and a new open entry: an embedded call whose result its
+statement needs leaves its places unknown), `compilation-unit-contracts.md`,
+`pass-fact-ownership-matrix.md`, `value-evaluation.md`,
+`optimisation-passes.md`, `sccp-core-analyses.md` and
+`frame-effect-summaries.md` (the word effects where the synthetic call was),
+`value-transfers-migration.md` (the slice's exit as D303 words it, the O103
+and `cfg_builder/` rows, the file list) and `value-transfers-examples.md` (the
+summaries rung's programs as they now behave: `bump n; if {$n == 2}` and
+`reset m; if {[info exists m]}` decide, and `[rec 4]` folds).
+
+Measured, on the commit's tree: `make rust-check` passed whole and
+`dialect-drift` reports its 8 sites, the parent's 8; a first run failed on the
+registry-axes gate, which refused `transfer.rs`'s own comparison with `args`
+(above). The suites one crate at a time, each pruned after, passed whole, the
+witnesses comparing under the five reference releases on `PATH`:
+`tcl-compiler` 10202 passed, 6 ignored (the parent's 10199 and the three new
+tests; `optimiser_coverage` failed on `o103_interprocedural_folding` until its
+expectation was restated, and passed after, 93); `tcl-registry` 1430;
+`tcl-explorer` 113; `tcl-lsp-db` 143, 5 ignored (141 and the two new tests);
+`tcl-lsp-core --lib` 2353; `tcl-cli` 207; `xtask` 275; `tcl-spectcl` 476, 1
+ignored; `tcl-cmd-core` 143; and `tcl-vm`'s `variable_name_resolution_e2e` 3.
+Over the corpus — the same 1120 files — `tcl diag` and `tcl opt --profile
+full` under a binary built from the commit's tree (the one later change, the
+restated test, is no part of it) were compared against the parent's recorded
+outputs from checkpoint 1's own differential, the parent's code being
+checkpoint 1's: two files' `tcl opt` output differs, and each difference is
+the slice's. `samples/wasm/t4-scopes/41_upvar.tcl` prints `puts 15` for `puts
+$n` after `incrby n 5`, whose re-run leaves `n` at 15, and
+`samples/wasm/t3-procs/31_recursion.tcl` prints `puts 2432902008176640000` for
+`puts [fact 20]`, the argument-sensitive re-run running `fact`'s recursion,
+where `[fib 20]`, two calls in each return, stays; each program prints the
+same before and after `tcl opt` under tclsh 8.4 to 9.1, 8.4 stopping both at
+the sample's `lassign` alike. No `tcl diag` output moved, and
+`fumagic/filetypes.tcl` runs past the 300 s limit under both binaries, as a
+debug build. The differential ran across two container restarts, resumed each
+time from the outputs on disk with the same binary.
+
+Mutations, each reverted and the tree restored byte for byte: a statement's
+word effects paired with no host fails
+`word_effects_stand_ahead_of_the_statement_whose_words_they_are`; a call
+statement below `ModuleLevel::Results` taking no re-run fails
+`bump_decides_through_both_o103_paths` (`p`'s `n` overdefined, where its
+embedded twin in `an_embedded_call_applies_its_summary` still holds); no call
+keeping its caller pure through the caller's own places fails
+`a_call_naming_the_callers_own_place_keeps_it_pure`; a re-run's exit reading
+running no procedure call fails `bump_decides_through_both_o103_paths` (no
+`puts 10`); a run that holds no module never recording the read at a call
+fails `a_call_through_a_name_parameter_decides_in_the_editor` (the memoised
+checks without `p`'s constant branch); every head taken to name a summary
+fails `only_a_call_a_summary_may_answer_reads_the_module` (`q`'s `lappend`);
+and O109's hidden-read scan dropping a statement's word effects fails
+`hidden_reads_are_what_the_ssa_does_not_record` (`n` hidden in `set a [incr
+n]`), which it first survived: none of the test's cases put word effects ahead
+of a statement, and the case is new.
 
 ### Slice 7 — broader execution and runtime consumers
 
@@ -12767,6 +12940,10 @@ Taken in slice 13, proc-level transfer summaries (§ *Slice 13* › *Record (202
 - **D300 — `info default` writes its variable on every normal completion** (VT13.5; the coordinator's ruling on the plan's `MayWrite`). Under tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 the variable is written with the default and the result is 1, or with the empty string and the result 0 for a parameter with none; a procedure or a parameter that does not exist raises before anything is written. So the declaration is `Write(default)` where the analysis proves the procedure and the parameter, and otherwise `WriteUnavailable(Bound(Scalar))` beside an unavailable boolean result — never a may-write. The procedure is named from the calling function's namespace and must be a procedure of the module whose binding stands; `info default` follows no `interp alias`, and after `rename f g` answers for `g` and raises for `f`.
 - **D301 — A lattice that read another procedure is built fresh, and the summaries' revision rides the seeds revision** (VT13.6; the coordinator's ruling). Keying every per-procedure memo on a module-wide summary revision would re-key each procedure's lattice on any procedure's edit and lose the reuse the memo exists for. A run marks that it read the module's procedures, or would have where its caller holds none (`SccpResult::reads_module`: a parameter default asked for, a callee's summary looked up), and the unit build discards such a memo hit and builds the lattice with the module's procedures in hand, beside the fresh build of a procedure carrying module-derived instance-option writes; the editor's memoised checks, rewrites and taint cascade, which read the per-procedure memo too, take the unit's lattice for such a procedure (`a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites`). The revision — every procedure's name, parameter list and body, the redefinitions, the command-trust snapshot — rides `AnalysisContext::seeds_revision` in every run that holds the module's procedures, so a `rename` or a redefinition anywhere moves it.
 - **D302 — The scope-alias binders state a plan and no route** (VT13.5). `global`, `variable`, `my variable` and `sharedvar` each declare `PlanAnswer::ScopeAlias`, naming the operands the resolver gives the `VarWrite` role and where the cells live, with the route `none (declared)`: a linked local's existence and value are its cell's, which another frame, the object or the connection holds, so it enters may-bound with no value, which the escaping treatment of an aliased name already gives the lattice. The five `KNOWN_GAPS` rows go; the inventory shows each with its declaration, and `info default` with the registry-owned route `parameter-default`.
+- **D303 — A statement's word effects are a definition point paired with its host** (VT13.2; the coordinator's ruling on the plan's host field). The plan has a host statement carry its embedded effects as a field SSA reads like a call's definitions and reads. Against the code that does not hold, for two reasons. A statement's SSA use map holds one version per name, and a host and a command its words run read two versions of one name: in `set r [expr {[incr x] + $x}]` the `incr` reads `x` before its write and the host's `$x` after it, so on one statement one of the two reads names the wrong version — the store before the write looks dead (#2050's class), or a stale value is forwarded. And a `return`'s value, a `switch`'s subject and patterns and a `catch` or `try` header run their words with no statement of their own, so their effects need a definition point all the same. Building the field would have cost a second use map on `SsaStatement` and a definition site on terminators, threaded through def-use, liveness, O109, W210 and W211, taint and type inference, with the witnesses as the only guard. So the synthetic `<upvar-invalidate>` call and `SyntheticMarker::UpvarInvalidate` are gone, and the definition point is named for what it is: `SyntheticMarker::WordEffects`, spelled `<word-effects>` (`Statement::word_effects`), which the Explorer prints where it printed the old name. The CFG builder puts it right ahead of the statement whose words it states the effects of (`WordEffectsHost::Statement`), or, for a control statement's words, at the end of the block before the statement dispatches, with no statement paired (`WordEffectsHost::Dispatch`). `crate::ssa::word_effects_host` reads the pairing from the marker, never from a span, and every reader reads the marker through `Statement::synthetic_marker` and `Statement::word_effects_host`: the pair's evaluation, the SSA's demotion of a host's reads beside a write, W210's exemption of a read a synthetic effect carries, and O109's hidden-read scan, which credits a statement with the uses of its word effects and a `return` word with those of its block's dispatch. A `switch`, `catch` or `try` kept whole had been paired with its header's word effects through a shared span, though the pair's evaluation never ran for such a host; it no longer is, so its own uses of a name a header substitution writes name the version after the write, which the unpaired definition point leaves with no value, and O109's hidden-read scan no longer credits it with the header's reads. The exit criterion now reads: "`<upvar-invalidate>` and `SyntheticMarker::UpvarInvalidate` are gone; a statement's word effects ride a `WordEffects` definition point paired with its host, the driver evaluates the pair as one, and an embedded call to a summarised procedure applies its summary there."
+- **D304 — A call to a summarised procedure takes each place's fact and value from a re-run of the callee** (VT13.2 and VT13.3; the coordinator's ruling). At a call statement and at a command a statement's words run, the driver resolves the head to a procedure of the module whose binding stands and applies its summary: each place a `Name` argument names in the caller's frame takes the existence the summary states, and — but in a summary's own run (D297) — the fact and the value a re-run of the callee leaves in it (`ModuleProcedures::rerun`): the callee's parameters hold the call's arguments, an omitted one its default and a trailing `args` the rest as one list, its links hold the caller places' values and facts before the call, and the run holds the module's procedures, so a call the callee makes is applied in turn. A re-run is made once per callee, seeds and trust stance. Where none can be made — a seed that is not exact is unknown, not withheld, so this is a callee with no flow graph to solve, a recursion its seeds do not end, or the depth (32) and count (4096) bounds — a place takes the summary's step with no value, a may-write with the summary's bounds where the step may bind, and an outer place the callee may write takes the summary's step and no value. What a run takes is its level (`ModuleLevel`): a summary's own run the existence alone, a unit's lattice and a seedless run the places, and a re-run — O103's argument-sensitive one among them — the call's result too. A unit's lattice takes no call's result because its values feed every rewrite, and a result exact only under one call's arguments would let a fold drop the call; so an embedded call whose result an enclosing command needs exactly — an `expr` operand, a `list` element — leaves that command unevaluated there, and the pair is widened, its places with it, as it is beside a nested `incr` whose neighbour the run does not hold (`precision-limitations.md`). A statement a throw leaves from, a protected script and a callee that does not complete normally under the seeds keep the generic answer, because a summary says how a call may complete, not that it completes normally; a call whose words or places the solver has not reached waits. A run that holds no module records that it would have read one (D301) where the head may name a procedure a summary answers for — at the deep tier, in a module that rebinds no builtin, a head no registry command answers to under the run's trust — at a call statement that defines a place and at a command an ordered evaluation runs. On every eighth `.tcl` file of tcllib's modules (99 files, 1140 procedures) that rebuilds 51 procedures' memoised lattices with the module, where a first form that asked the trust alone rebuilt 378: every call with a definition, in a file whose rebindings the scan cannot all name.
+- **D305 — A call that names only its caller's own places leaves the caller pure** (VT13.3's exit). O103 folds only a pure procedure's calls, and `p`'s `bump n` writes `n` through `bump`'s link — a place of `p`'s own frame, which ends with `p`'s call — so `[p]` folding to its constant changes nothing a caller sees. The purity fixpoint takes a callee to be pure for a caller where the callee's body does nothing its caller observes but through links of a local to the place a parameter names one frame up (`upvar 1 $name v`), calling only procedures that are pure or of the same kind with places of its own, its links' among them; and where every call the caller makes to it names, at each such parameter, a plain local of the caller's frame no `global`, `variable` or `upvar` links elsewhere. `bump`, and `twice`, which passes the place its own parameter names, stay impure; `p`, and a caller passing its own local to `twice`, are pure. A write through such a link by a command that is not a typed assignment (`lappend v x`, `unset v`) is impure as before, so the callee is not of that kind.
+- **D306 — A re-run's exit reading runs the procedure calls a return's expression makes** (VT13.3; `[rec 4]` folds to 10). The exit reading evaluates a return's expression outside the solver, where a nested command declined. In a re-run it re-runs a call to a procedure of the module that names no place and writes no outer one (`detached_procedure_result`), its arguments literal words, variables the exit holds constant, or substitutions read the same way — a call of the same kind, or a command on the expression route whose one word is a literal expression — so `rec`'s `expr {$n + [rec [expr {$n - 1}]]}` reaches `rec 0` through its own re-runs. A seedless run takes no result (D304), so its reading runs none, and a nested command of any other kind declines as before.
 
 ### Open questions for the owner
 

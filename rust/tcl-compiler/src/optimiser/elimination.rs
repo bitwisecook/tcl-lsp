@@ -1604,9 +1604,9 @@ pub(crate) fn collect_textual_var_references(
 /// x]` — are uses of the version they read, which keep exactly that store
 /// live, so only what the SSA cannot see is left to suppress at name level.
 /// A statement's words are checked against the uses recorded under its span
-/// — its own, and those of the synthetic statements the lowering pushes
-/// ahead of it for its words' substitutions — and a `return` word against
-/// those of the synthetic statements pushed ahead of the terminator.
+/// — its own, and those of its word effects, the definition point the
+/// lowering pairs with it ([`crate::ssa::word_effects_host`]) — and a
+/// `return` word against those of the word effects of the block's dispatch.
 pub(crate) fn collect_rmw_hidden_reads(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
@@ -1647,16 +1647,33 @@ pub(crate) fn collect_rmw_hidden_reads(
     let mut terminator_values: Vec<(String, HashSet<&str>)> = Vec::new();
     for (block_id, block) in &fu.cfg.blocks {
         // Per span, the names the SSA records as read there: a statement's
-        // own uses, and those of the synthetic statements the lowering
-        // pushed ahead of it (or of the terminator) to carry its words'
-        // substitutions, which take the host's span.
+        // own uses, and those of the word effects the lowering pairs with
+        // it; and the uses of the word effects of the block's dispatch, which
+        // a `return` word's are.
         let mut recorded: HashMap<tcl_lexer::Span, HashSet<&str>> = HashMap::new();
+        let mut dispatch: HashSet<&str> = HashSet::new();
         if let Some(ssa_block) = fu.ssa.blocks.get(block_id) {
-            for (stmt, statement) in block.statements.iter().zip(&ssa_block.statements) {
-                recorded
-                    .entry(stmt.span())
-                    .or_default()
-                    .extend(statement.uses.keys().map(|&symbol| fu.ssa.var_name(symbol)));
+            for (index, (stmt, statement)) in block
+                .statements
+                .iter()
+                .zip(&ssa_block.statements)
+                .enumerate()
+            {
+                let names = statement.uses.keys().map(|&symbol| fu.ssa.var_name(symbol));
+                match stmt.word_effects_host() {
+                    Some(crate::ir::WordEffectsHost::Dispatch) => dispatch.extend(names),
+                    Some(crate::ir::WordEffectsHost::Statement) => {
+                        if let Some(host) =
+                            crate::ssa::word_effects_host(&ssa_block.statements, index)
+                        {
+                            recorded
+                                .entry(block.statements[host].span())
+                                .or_default()
+                                .extend(names);
+                        }
+                    }
+                    None => recorded.entry(stmt.span()).or_default().extend(names),
+                }
             }
         }
         for stmt in &block.statements {
@@ -1703,9 +1720,10 @@ pub(crate) fn collect_rmw_hidden_reads(
         }) = &block.terminator
             && v.contains('[')
         {
-            let recorded = span
+            let mut recorded = span
                 .and_then(|span| recorded.remove(&span))
                 .unwrap_or_default();
+            recorded.extend(dispatch);
             terminator_values.push((v.clone(), recorded));
         }
     }
@@ -2003,9 +2021,9 @@ mod tests {
     /// The hidden-read scan keeps only what the SSA does not record:
     /// an existence read, a `VarRead` role and a
     /// nested cell update in a statement's words, or in a `return` word, are
-    /// uses of the version they read — on the statement itself or on the
-    /// synthetic one the lowering pushes ahead of it under the same span —
-    /// so they leave the scan; a braced `expr` body in an `incr` amount,
+    /// uses of the version they read — on the statement itself or on its
+    /// word effects, the definition point the lowering pairs with it — so
+    /// they leave the scan; a braced `expr` body in an `incr` amount,
     /// which nothing records, stays.
     #[test]
     fn hidden_reads_are_what_the_ssa_does_not_record() {
@@ -2028,6 +2046,7 @@ mod tests {
                 vec![],
             ),
             ("proc p {} {set x 1; return [info exists x]}", vec![]),
+            ("proc p {} {set n 1; set a [incr n]; return $a}", vec![]),
             ("proc p {} {set n 1; return [incr n]}", vec![]),
             (
                 "proc p {w} {set i 0; incr i [expr {$w}]; return $i}",

@@ -133,6 +133,23 @@ every value set becomes unenumerable).
   level. Pinned by
   `uplevel_zero_body_resolves_against_global_not_enclosing_namespace`.
 
+## A call's effects on its caller
+
+This page's seed runs one way, from every caller into the callee's own
+lattice. The other way runs per call: a procedure's transfer summary
+([interprocedural-analysis.md](interprocedural-analysis.md) § *Transfer
+summaries*) says what a call does to the places its `Name` arguments name
+and to the outer places it writes, and the caller's lattice applies it
+where the call runs — at a call statement, and at a command a statement's
+words run, through the statement's word effects: the definition point the
+CFG builder puts right ahead of the statement and pairs with it by
+construction (`<word-effects>`, `ssa::word_effects_host`), never by span. A
+place takes what a re-run of the callee leaves in it, the callee's
+parameters holding that one call's arguments and its links the caller's
+places before the call, so `set n 1; bump n` leaves `n` at 2. That value is
+exact under one call only, so it never enters the callee's own lattice or
+its summary, which this page's seed reaches only where every caller agrees.
+
 ## Seeing it
 
 The compiler explorer's **interprocedural** view reports each procedure's

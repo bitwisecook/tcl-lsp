@@ -1621,7 +1621,7 @@ fn walk_statement(
 /// empty/false fact then, matching `run_function`'s own
 /// `ctx.ir_module`-absent fallback.
 fn evaluate_proc_with_constants(
-    ctx: &PassContext<'_>,
+    (ctx, cu): (&PassContext<'_>, &CompilationUnit),
     callee: &FunctionUnit,
     params: &[String],
     args: &[ConstValue],
@@ -1640,13 +1640,18 @@ fn evaluate_proc_with_constants(
         ),
         None => (&empty_traced, false, &crate::ir::NO_DEFERRED_WRITES),
     };
-    let result = crate::sccp::sccp_with_builtin_folds(
-        &callee.cfg,
-        &callee.ssa,
-        Some(&seed),
+    // A call the callee makes to another procedure of the module is applied
+    // as that procedure's transfer summary says, its result too: the
+    // re-run's module is the unit's.
+    let module = crate::interprocedural::ModuleProcedures::of_unit(cu, registry);
+    let no_escaping = std::collections::HashSet::new();
+    let result = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+        cfg: &callee.cfg,
+        ssa: &callee.ssa,
+        param_constants: Some(&seed),
         policy,
-        &std::collections::HashSet::new(),
-        crate::sccp::TraceInputs {
+        extra_escaping: &no_escaping,
+        trace: crate::sccp::TraceInputs {
             registry,
             traced_variables,
             has_dynamic_variable_trace,
@@ -1661,13 +1666,18 @@ fn evaluate_proc_with_constants(
         // with (#2164).
         // The callee is proved pure, so a handler cannot rebind the
         // parameters its caller bound.
-        Some(crate::sccp::BuiltinFoldInputs {
+        folds: Some(crate::sccp::BuiltinFoldInputs {
             proven_pure_parameters: true,
             ..ctx.rewrite_folds()
         }),
-    );
+        module: crate::sccp::ModuleRun {
+            procedures: Some(&module),
+            owned: None,
+            level: crate::sccp::ModuleLevel::Results,
+        },
+    });
     crate::interprocedural::exit_value(
-        callee,
+        crate::interprocedural::ExitBody::of(callee),
         &result,
         crate::interprocedural::ExitReading {
             policy,
@@ -1675,6 +1685,7 @@ fn evaluate_proc_with_constants(
                 .dialect
                 .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
             folds: ctx.rewrite_folds(),
+            module: Some((&module, callee.name.as_str())),
         },
     )
 }
@@ -2300,7 +2311,7 @@ fn try_o103_proc_fold(
         && let Some(callee) = cu.procedures.get(&qname)
         && let Some(args) = &args
         && let Some(value) = evaluate_proc_with_constants(
-            ctx,
+            (ctx, cu),
             callee,
             &summary.params,
             args,

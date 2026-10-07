@@ -236,9 +236,10 @@ executes that runtime.
    `variable` read sees it, with its evidence merged and an error
    completion ending the evaluation with the writes so far. A nested
    outcome naming a place outside the admitted set is the `StatefulNested`
-   decline. A statement's substitutions are evaluated once, as the
-   synthetic call that carries their writes and the host that takes the
-   result, so the writes are the statement's definitions for every
+   decline. A statement's substitutions are evaluated once, as its word
+   effects — a definition point paired with the statement, which carries
+   their writes — and the host that takes the result, so the writes are the
+   statement's definitions for every
    consumer; a command's own substituting words run before it, in order,
    under one state; a read inside a braced `expr` is an SSA use of the
    version it reads, and a read beside a write is read by name. *After:*
@@ -308,8 +309,11 @@ executes that runtime.
     call site, and the argument-sensitive re-run seeds `Name` parameters
     from the caller's places. *After:* slices 7 and 8. *Exit:* `bump n`
     decides through both O103 paths, `param_traits.rs` matches no command
-    by name, the synthetic `<upvar-invalidate>` def is gone, and the seven
-    witnesses pass.
+    by name, `<upvar-invalidate>` and `SyntheticMarker::UpvarInvalidate`
+    are gone — a statement's word effects ride a `WordEffects` definition
+    point paired with its host, the driver evaluates the pair as one, and
+    an embedded call to a summarised procedure applies its summary there —
+    and the seven witnesses pass.
 
 Slices 1–7 land the two contracts' machinery, and every part of the
 evaluation contract lands in one of them (§ *Where each part lands* on
@@ -365,7 +369,7 @@ semantic type and shape per value, distinct from representation evidence.
 | `common_aot_plan.rs`, `mixed_region_plan.rs`, `semantic_optimisation.rs` | AOT evidence and plans | reads `values` as evidence; refuses a constant without a singleton type | `folded_types` supplies the type; a computed value never authorises live intrinsic dispatch |
 | `slot_allocation.rs`, `signature_scan/`, `lattice_rebase.rs`, `environment_ingress.rs` | slots, signature scan, span rebasing, dialect ingress | — | `lattice_rebase.rs` shifts any new span-carrying fact in the same change |
 | `lowering/` const map | `proc $name` and body-word resolution before SSA | its own literal-only map, plus `eval_subst_nocommands_body`'s fold of a commands-off `subst` and its own template walk | the map itself is unchanged: it runs before SSA exists, records only `set var {literal}`, and nothing in the lattice replaces it; from slice 5 the `subst` fold reads the template-word plan rather than re-segmenting the `[subst …]` text and matching the head by spelling, and `specialise_factories.rs` extracts the factory template through the same plan |
-| `cfg_builder/` | blocks, terminators, loop nodes | the `switch` dispatch chain and `Raw` subject; `emit_opaque_catch` and `lower_try_dispatch` make a body one call whose defs are the body's; the synthetic `<upvar-invalidate>` def; since slice 10 both builds share one plan and completion protocol: a procedure's straight-line `catch` is lowered into a block per statement with its region entry and its `catch` end (`lower_catch`, `Function::region_entries`, `Function::catch_ends`), the faithful build's `try` body is a block per statement, and a handler's entry state is the join of its throw sources' prefix states | unchanged operand shape; explicit arm blocks or `while` `LoopNode`s only when a slice needs them; slice 13 replaces `<upvar-invalidate>` with the callee's summary |
+| `cfg_builder/` | blocks, terminators, loop nodes | the `switch` dispatch chain and `Raw` subject; `emit_opaque_catch` and `lower_try_dispatch` make a body one call whose defs are the body's; a statement's word effects (`<word-effects>`), a definition point paired with its host; since slice 10 both builds share one plan and completion protocol: a procedure's straight-line `catch` is lowered into a block per statement with its region entry and its `catch` end (`lower_catch`, `Function::region_entries`, `Function::catch_ends`), the faithful build's `try` body is a block per statement, and a handler's entry state is the join of its throw sources' prefix states | unchanged operand shape; explicit arm blocks or `while` `LoopNode`s only when a slice needs them; since slice 13 an embedded call to a summarised procedure takes the callee's summary through its statement's word effects |
 
 ## Every optimisation, and what changes for it
 
@@ -379,7 +383,7 @@ and a diagnostic is never that proof.
 | O100 | `propagation.rs` (five sites), `branch_folding.rs` | `sccp_constants_for`, `sccp_value_literal`, `command_mutations`, operand types — since slice 2 including the values the registry's routes give the lattice (`incr`, `append`, `lappend`, `[set x]`, the `dict` keyed updates, `string range`, `list`, `llength`, `string length`) and the values a statement's nested writes leave (`set r [expr {$x + [incr x] + $x}]` gives `r` 5 and `x` 2); a single call site's argument is propagated into the callee's body, so `bump n` rewrites `upvar 1 $name v` to `upvar 1 n v` | fires on every new constant, per SSA version with binding validity and correct quoting; the computed-write fallback stays O100; the producer is preserved (permission 2); slice 13 makes the callee's effect a summary the caller applies instead of a body specialised to one call site |
 | O101 | `branch_folding.rs`, `expr_simplify.rs`, `propagation.rs` | `constant_branches`, the constants projection, `trusts("expr")`; since slice 3's review fixes every fold re-asks the shared expression route (`evaluate_expression_detached`) under the rewrite's whole-module trust, so it folds only what the lattice proves | more branches decide; target-aware arithmetic, lazy operands, and exact transport; `is_switch_dispatch` suppression unchanged; the existence branch fact (slice 8), an enumerated loop's exit state (slice 12), and an edge refinement (slice 11) each decide more conditions, and I230 decides the same ones |
 | O102 | `propagation.rs` `run_load_forwarding` | def-use chains, `UseKind::Operand`, `is_externally_mutable`, `TraceInputs`; never `values`; no word of a statement that reads a place beside a write its own substitutions make is an operand | unchanged — a literal load is a literal load |
-| O103 | `propagation.rs` two shapes | `ProcSummary`, `trusts_proc_binding`, `evaluate_proc_with_constants`, whose re-run runs the callee's bounded loops under the call's seeds and reads each return's value at its block (`SccpResult::value_at`) | the argument-sensitive path folds string-building callees at once; the summary path reads the procedure's seedless lattice (landed in slice 7a) and folds only a call the re-run could make (#2389); slice 13's `TransferSummary` gives the re-run its `Name`-parameter seeds and the caller the callee's outcomes, so `[rec 4]` folds and `bump n` decides |
+| O103 | `propagation.rs` two shapes | `ProcSummary`, `trusts_proc_binding`, `evaluate_proc_with_constants`, whose re-run runs the callee's bounded loops under the call's seeds and reads each return's value at its block (`SccpResult::value_at`) | the argument-sensitive path folds string-building callees at once; the summary path reads the procedure's seedless lattice (landed in slice 7a) and folds only a call the re-run could make (#2389); since slice 13 the caller's lattice and both paths' runs apply a callee's `TransferSummary` at each call, each `Name` place taking what a re-run of the callee seeded from the caller's place leaves there, and a call that names only the caller's own places leaves it pure, so `[rec 4]` folds and `bump n` decides on both paths |
 | O104, O130 | `chain_fold.rs` | since slice 2 the classifier dispatches on the resolved cell update, gated on the observed binding of the statement's own head, and a `$var` piece folds through the lattice value it holds; a piece that needs backslash substitution ends the run; an unrelated statement between the writes is tolerated, and the chain must start at a literal `set` | a chain starting at an absent cell folds through the value at the last write (the existence rung, slice 8); coercion, traces, errors, and the implicit result are preserved |
 | O105, O106 | `rust/tcl-compiler/src/gvn.rs` | reachability | unchanged; same value is not same observable computation |
 | O107 | `elimination.rs` | `executable_blocks`: the blocks applied reachability drops, a flattened `switch`'s dead arms among them; a selection never drops a block, so an opaque form's arms are I231's alone | unchanged: applied reachability only, never a selection fact |
@@ -938,7 +942,7 @@ workloads, per the evaluation contract's budget section.
 - `rust/tcl-cmd-core/src/switch.rs`, `case.rs` — the selection cores `switch` and `case` declare
 - `rust/tcl-compiler/src/existence_query.rs`, `const_subst.rs`, `world_state_ssa.rs` — the clean exemplars
 - `rust/tcl-compiler/src/subst_nocommands.rs`, `specialise_factories.rs`, `dynamic_names.rs`, `lowering/mod.rs`, `rust/tcl-lsp-core/src/refactor/` (`extract_proc.rs`, `mod.rs`) — the template-word consumers
-- `rust/tcl-compiler/src/cfg_builder/mod.rs` (`emit_opaque_catch`, `lower_try_dispatch`, the `<upvar-invalidate>` def) and `cfg_builder/cfg_lower.rs` (`push_try_handler_exception_edges`) — the default and the faithful-exceptions body builds
+- `rust/tcl-compiler/src/cfg_builder/mod.rs` (`emit_opaque_catch`, `lower_try_dispatch`, `Statement::word_effects`) and `cfg_builder/cfg_lower.rs` (`push_try_handler_exception_edges`) — the default and the faithful-exceptions body builds
 - `rust/tcl-lsp-core/src/` (`document_links.rs`, `package_resolver.rs`, hover, inlay hints, semantic tokens), `rust/tcl-diagram/src/attach.rs`, `rust/tcl-irules/src/walker.rs` — the tooling-tier dataflow sites
 - `rust/xtask/src/callback_inventory.rs`, `number_drift.rs`, `owner_resolution.rs` — the gate shapes to copy
 - `rust/xtask/src/value_transfers.rs`, `docs/generated/value-transfers.md` — the gate and the inventory it writes

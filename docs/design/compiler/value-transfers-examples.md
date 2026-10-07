@@ -600,8 +600,8 @@ puts $x                            ;# not forwarded (#2141); the program prints 
 
 A `puts` argument, a `return`, a condition and a command's value other than
 an `expr` keep the effect-free policy, which declines a nested write that
-runs: the statement is not folded, and the effect call's definition of the
-place keeps a later read off the earlier version.
+runs: the statement is not folded, and the definition its word effects
+give the place keeps a later read off the earlier version.
 
 ```tcl
 proc p {} {
@@ -710,7 +710,7 @@ proc bump {name} {
 }
 set n 1
 bump n
-if {$n == 2} { puts two } else { puts other }   ;# today: nothing — the callee's write is invisible here
+if {$n == 2} { puts two } else { puts other }   ;# decided: I230, and `tcl opt` folds the test and drops the else arm
 ```
 
 `n` is `2` in every release. The rewrite is the callee body specialised to
@@ -724,23 +724,24 @@ visible at all.
 proc reset {name} { upvar 1 $name v ; unset v }   ;# today: O100 specialises this body too
 set m 1
 reset m
-puts [info exists m]       ;# today: nothing — the callee's unbind is invisible
+puts [info exists m]       ;# the call leaves `m` unbound; no rewrite folds an `info exists` result
 proc g {} { set ::counter 5 }
 g
-puts $::counter            ;# today: nothing — the callee's global write is invisible
+puts $::counter            ;# the call binds `::counter`, with no value: an outer place takes the summary's step alone
 proc rec {n} {
     if {$n <= 0} { return 0 }
     return [expr {$n + [rec [expr {$n - 1}]]}]
 }
-puts [rec 4]               ;# today: O123 hint only — the recursive call is not folded
+puts [rec 4]               ;# folded to `puts 10` (O103): the re-run runs `rec`'s recursion
 ```
 
 `info exists m` is `0`, `::counter` is `5`, and `rec 4` is `10` in every
-release. Under the contracts the `Name` parameter carries the callee's
-outcomes to the caller's place, so `reset m` unbinds `m` and the existence
-read answers `0`; `globals` carries `set ::counter 5`; and the
-argument-sensitive O103 path re-runs the callee under the call's seeds,
-which is what folds `[rec 4]`.
+release. The `Name` parameter carries the callee's outcomes to the caller's
+place, so `reset m` unbinds `m` and the existence read answers `0`;
+`globals` carries `::counter`'s binding, its value the summary does not
+state; and the argument-sensitive O103 path re-runs the callee under the
+call's seeds, and its exit reading re-runs the call a return's expression
+makes, which is what folds `[rec 4]`.
 
 ```tcl
 proc bump {name} { upvar 1 $name v ; incr v }
@@ -748,12 +749,13 @@ set n 1
 bump n
 set other 10
 bump other
-puts "$n $other"           ;# today: nothing — two call sites, and the body is left alone
+puts "$n $other"           ;# O100 proves `2` and `11` at the reads, and the body is left alone
 ```
 
-`2 11` in every release. Under the contracts one context-insensitive
-summary per procedure is what both call sites apply, so the caller's
-places are updated without specialising the callee to either of them, and
+`2 11` in every release. One context-insensitive summary per procedure is
+what both call sites apply, each with a re-run under its own place's
+value, so the caller's places are updated without specialising the callee
+to either of them, and
 `bump absent` keeps its release split — an error under 8.4, `1` with
 `absent` bound from 8.5.
 

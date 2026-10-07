@@ -961,9 +961,22 @@ fn o103_interprocedural_folding() {
         TCL,
         "O103"
     ));
-    // Recursive proc is not folded (infinite-inline risk).
-    assert!(opt_absent(
+    // A recursive proc folds where the argument-sensitive re-run reaches the
+    // end of its recursion — tclsh: fact 5 == 120 — and not where its seeds
+    // never end (tclsh: too many nested evaluations) or it recurses past the
+    // re-run's depth (tclsh: down 50 == 0).
+    assert!(optimised(
         "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nset v [fact 5]\n",
+        TCL
+    )
+    .contains("set v 120"));
+    assert!(opt_absent(
+        "proc loop {n} {return [loop $n]}\nset v [loop 1]\n",
+        TCL,
+        "O103"
+    ));
+    assert!(opt_absent(
+        "proc down {n} {if {$n <= 0} {return 0}; return [down [expr {$n - 1}]]}\nset v [down 50]\n",
         TCL,
         "O103"
     ));
