@@ -432,3 +432,20 @@ and only precision is lost.
 Why it has not been done: a summary per level would be context-sensitive,
 the computed level a seed the call site supplies; one context-insensitive
 summary per procedure is the slice's rule. Not assigned to a slice.
+
+## Open — a release-blind fold of index arithmetic declines
+
+The shared index parser (`rust/tcl-cmd-core/src/index.rs`) reads an index as
+the release it is given reads it, and the sums are 8.5's: tclsh 8.4.20 raises
+`bad index "1+1": must be integer or end?-integer?` where 8.5 to 9.1 answer.
+The compiler's `lindex`, `lrange` and `string index` / `range` / `first` /
+`last` folds (`rust/tcl-registry/src/const_fold.rs`, `parse_index`, and
+`commands/tcl/string_.rs`) name no release, so they answer only where every
+release reads the index alike: `lindex {a b c} 1+1` no longer folds under any
+dialect, where it folded to `c` before the parser told 8.4 apart (and, under
+8.4, folded to a value tclsh raises on). The answer is sound, and only the
+arithmetic's precision is lost; a route that names the release, as `string
+range`'s does, keeps it under every profile that names one.
+
+Why it has not been done: the folds take no release until they move to
+`VersionedConstFoldFn`, or onto routes of their own. Not assigned to a slice.

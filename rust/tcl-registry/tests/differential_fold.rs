@@ -745,6 +745,56 @@ fn check_range_witnesses(tclsh: &str, reg: &CommandRegistry, version: tcl_dialec
     }
 }
 
+/// Each spelling of an index, read by `string range` under each release on
+/// `PATH`: the fold answers as that release's `tclsh` does, and declines where
+/// it raises (`bad index`) — 8.4 reads no `end+1` or `1+1`, 8.4 to 8.6 read
+/// `e` as `end`, and no release reads ` end` or `end ` or a space after an
+/// operator but 8.4's `end- 1`.
+#[test]
+fn an_index_reads_as_each_release_reads_it() {
+    const SPECS: &[&str] = &[
+        "1", " 1", "1 ", "+1", "- 1", "-1", "0x2", "010", "0o10", "0b10", "1_0", "1e0", "end", "e",
+        "en", "endx", " end", "end ", "end-1", "end+1", "end--1", "end-+1", "end- 1", "end+ 1",
+        "end-1 ", "end-0x1", "end-010", "end-", "end-1-1", "end -1", "1+1", "1-1", "1+-1", "1--1",
+        "1++1", "+1+1", "1+ 1", "1 +1", " 1+1", "1+1 ", "0x1+1", "010+0", "-1+2", "1+end",
+        "end-1+1", "1 0", "",
+    ];
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        let reg = tcl_registry::model::ingress::static_context_for(version.dialect_profile_name())
+            .commands();
+        let range = reg
+            .get("string")
+            .expect("string")
+            .subcommand("range")
+            .expect("range");
+        for spec in SPECS {
+            let case = ["abcdefghijkl", spec, spec];
+            let want = tcl_value(&tclsh, &tcl_command("string", Some("range"), &case));
+            let got = range.run_const_fold(&case, Some(version));
+            match (&want, &got) {
+                (Some(want), Some(got)) => assert_eq!(
+                    got,
+                    want,
+                    "tclsh{}: string range {case:?}",
+                    version.version_string()
+                ),
+                (None, Some(got)) => panic!(
+                    "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
+                    version.version_string()
+                ),
+                (Some(want), None) => panic!(
+                    "tclsh{} answers {want:?} for string range {case:?}, the fold declined",
+                    version.version_string()
+                ),
+                (None, None) => {}
+            }
+        }
+    }
+}
+
 /// `dict <sub> d <words…>` through the keyed update the resolver selects
 /// under `profile`, with `d` holding `prior`; `None` for a decline or when
 /// the resolver finds no such command.

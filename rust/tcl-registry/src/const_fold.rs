@@ -707,19 +707,20 @@ mod tests {
 
     #[test]
     fn index_folds_match_tclsh_oracle() {
-        // The optimiser folds the arithmetic and radix index forms through
-        // `parse_index`'s shared runtime grammar. Expected
-        // results captured from real tclsh over `{a b c d e}` (end = 4).
-        assert_eq!(fold_lindex(&["a b c d e", "1+1"]).as_deref(), Some("c"));
-        assert_eq!(fold_lindex(&["a b c d e", "3-1"]).as_deref(), Some("c"));
+        // The optimiser folds the radix index forms through `parse_index`,
+        // which answers only where every release reads the index alike.
+        // Expected results captured from real tclsh over `{a b c d e}` (end
+        // = 4).
         assert_eq!(fold_lindex(&["a b c d e", "0x2"]).as_deref(), Some("c"));
         assert_eq!(fold_lindex(&["a b c d e", "end-1"]).as_deref(), Some("d"));
-        // `end--1` = end + 1 → out of range → empty.
+        // `end--1` = end + 1 → out of range → empty, in every release.
         assert_eq!(fold_lindex(&["a b c d e", "end--1"]).as_deref(), Some(""));
-        assert_eq!(
-            fold_lrange(&["a b c d e", "1+1", "end"]).as_deref(),
-            Some("c d e")
-        );
+        // The sums are 8.5's: tclsh 8.4.20 raises `bad index "1+1": must be
+        // integer or end?-integer?` where 8.5 to 9.1 answer `c`, so a fold
+        // that names no release declines them.
+        assert_eq!(fold_lindex(&["a b c d e", "1+1"]), None);
+        assert_eq!(fold_lindex(&["a b c d e", "3-1"]), None);
+        assert_eq!(fold_lrange(&["a b c d e", "1+1", "end"]), None);
         // Still declines genuinely bad specs.
         assert_eq!(fold_lindex(&["a b c d e", "1.0"]), None);
         assert_eq!(fold_lindex(&["a b c d e", "foo"]), None);

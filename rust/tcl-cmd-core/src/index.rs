@@ -20,15 +20,14 @@
 //!
 //! One parser for every indexed command — `string index/range`, `lindex`,
 //! `lrange`, `linsert`, `lreplace`, … — so the accepted forms and the error
-//! message live once. The grammar is a **base** (`end`, or a signed integer)
-//! optionally followed by a **connector** (`+`/`-`) and a (possibly signed)
-//! integer operand: `5`, `-2`, `end`, `end-2`, `1+1`, `0-1`, `end--1`
-//! (= `end - (-1)`).
+//! message live once. The grammar is the release's: an integer, `end` with an
+//! offset (`end-2`, `end--1` = `end - (-1)`), and from 8.5 `end+N` and the
+//! sums `1+1` and `0-1`, each spelt as that release reads it (`parse`).
 
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
-use tcl_syntax::number::ParseFlags;
+use tcl_syntax::number::{NumberSyntax, ParseFlags};
 
 /// The release's numeral grammar, or [`None`] to take the one this runtime was
 /// built for (the ambient). See [`index_int_flags`].
@@ -133,36 +132,125 @@ pub fn encodable(spec: &str) -> Option<bool> {
     })
 }
 
+/// One index as the release `numbers` names reads it (`TclGetIntForIndex` up to
+/// 8.6, `GetWideForIndex` from 9.0), measured with `string index` on tclsh
+/// 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0:
+///
+/// - an integer, whitespace allowed either side (`Tcl_GetInt`);
+/// - `end` from its first byte, which 8.4 to 8.6 also read abbreviated (`e`,
+///   `en`), followed by an offset: `-N` in 8.4, whose `N` may start with
+///   whitespace (`end- 1`), and `+N` or `-N` from 8.5, whose `N` starts at once;
+/// - from 8.5, `M+N` or `M-N` after any leading whitespace, the operator right
+///   after `M` and `N` right after the operator.
+///
+/// Nothing else is an index: not `end+1`, `1+1` or `1-1` in 8.4, not ` end`,
+/// `end ` or `end -1` in any release. A Jim grammar reads the forms of Tcl 9.0
+/// with whitespace around `end` and each operand.
 fn parse(spec: &str, len: usize, numbers: Numbers) -> Option<i64> {
-    let s = spec.trim();
-    if s.is_empty() {
+    let end = i64::try_from(len).unwrap_or(i64::MAX) - 1;
+    if let Some(value) = parse_int_whole(spec, numbers) {
+        return Some(value);
+    }
+    match numbers.unwrap_or_else(tcl_syntax::number::runtime_syntax) {
+        NumberSyntax::Tcl84 => {
+            end_offset_84(spec, numbers).map(|offset| end.saturating_add(offset))
+        }
+        syntax @ (NumberSyntax::Tcl85 | NumberSyntax::Tcl90) => {
+            if spec.starts_with('e') {
+                end_offset(spec, syntax == NumberSyntax::Tcl85, numbers)
+                    .map(|offset| end.saturating_add(offset))
+            } else {
+                sum(spec, numbers)
+            }
+        }
+        NumberSyntax::Jim | NumberSyntax::Jim080 => jim(spec, end, numbers),
+    }
+}
+
+/// Tcl's whitespace (`TclIsSpaceProc`).
+const fn is_space(c: char) -> bool {
+    matches!(c, ' ' | '\t' | '\n' | '\u{0b}' | '\u{0c}' | '\r')
+}
+
+/// 8.4's offset from `end`: `e`, `en`, `end`, or `end-` and a `Tcl_GetInt`
+/// integer.
+fn end_offset_84(spec: &str, numbers: Numbers) -> Option<i64> {
+    if !spec.starts_with('e') {
         return None;
     }
-    let len = i64::try_from(len).unwrap_or(i64::MAX);
+    if spec.len() <= 3 {
+        return "end".starts_with(spec).then_some(0);
+    }
+    parse_int_whole(spec.strip_prefix("end-")?, numbers).map(i64::saturating_neg)
+}
 
-    // Base: `end` or a leading signed integer.
-    let (base, rest) = if let Some(r) = s.strip_prefix("end") {
-        (len - 1, r)
+/// The offset from `end` from 8.5: `end`, abbreviated up to 8.6 when
+/// `abbreviates`, or `end+N` / `end-N` with `N` starting at once.
+fn end_offset(spec: &str, abbreviates: bool, numbers: Numbers) -> Option<i64> {
+    if spec == "end" || (abbreviates && spec.len() <= 3 && "end".starts_with(spec)) {
+        return Some(0);
+    }
+    signed_operand(spec.strip_prefix("end")?, numbers)
+}
+
+/// `M+N` or `M-N` from 8.5: leading whitespace, then `M` with its operator
+/// right after it.
+fn sum(spec: &str, numbers: Numbers) -> Option<i64> {
+    let body = spec.trim_start_matches(is_space);
+    let flags = ParseFlags {
+        no_whitespace: true,
+        ..index_int_flags(numbers)
+    };
+    let parsed = tcl_syntax::number::parse(body, flags)?;
+    let tcl_syntax::number::Number::Int(base) = parsed.number else {
+        return None;
+    };
+    signed_operand(&body[parsed.end..], numbers).map(|offset| base.saturating_add(offset))
+}
+
+/// `+N` or `-N` with `N` a whole integer starting right after the operator,
+/// as the value it adds.
+fn signed_operand(rest: &str, numbers: Numbers) -> Option<i64> {
+    let negative = match rest.as_bytes().first()? {
+        b'-' => true,
+        b'+' => false,
+        _ => return None,
+    };
+    let operand = &rest[1..];
+    if operand.is_empty() || operand.starts_with(is_space) {
+        return None;
+    }
+    let value = parse_int_whole(operand, numbers)?;
+    Some(if negative {
+        value.saturating_neg()
+    } else {
+        value
+    })
+}
+
+/// A Jim index: a base (`end` or an integer) and an optional `+`/`-` operand,
+/// whitespace allowed around each.
+fn jim(spec: &str, end: i64, numbers: Numbers) -> Option<i64> {
+    let s = spec.trim_matches(is_space);
+    let (base, rest) = if let Some(rest) = s.strip_prefix("end") {
+        (end, rest)
     } else {
         parse_int_prefix(s, numbers)?
     };
     if rest.is_empty() {
         return Some(base);
     }
-
-    // Optional offset: a `+`/`-` connector then a (possibly signed) integer, so
-    // `end--1` is `end - (-1)` and `0-1` is `0 - 1` (matches `GetEndOffsetFromObj`).
-    let connector = rest.as_bytes()[0];
-    if connector != b'+' && connector != b'-' {
-        return None;
-    }
-    let operand = parse_int_whole(rest[1..].trim(), numbers)?;
-    let offset = if connector == b'-' {
+    let negative = match rest.as_bytes()[0] {
+        b'-' => true,
+        b'+' => false,
+        _ => return None,
+    };
+    let operand = parse_int_whole(rest[1..].trim_matches(is_space), numbers)?;
+    Some(base.saturating_add(if negative {
         operand.saturating_neg()
     } else {
         operand
-    };
-    Some(base.saturating_add(offset))
+    }))
 }
 
 /// [`ParseFlags`](tcl_syntax::number::ParseFlags) for an index integer: reject a
@@ -210,7 +298,7 @@ fn parse_int_prefix(s: &str, numbers: Numbers) -> Option<(i64, &str)> {
 /// nothing but trailing space follows it.
 fn parse_int_whole(s: &str, numbers: Numbers) -> Option<i64> {
     let (val, tail) = parse_int_prefix(s, numbers)?;
-    tail.trim().is_empty().then_some(val)
+    tail.trim_matches(is_space).is_empty().then_some(val)
 }
 
 /// The canonical `bad index "<spec>": …` error.
@@ -363,6 +451,74 @@ mod tests {
                 on_90,
                 "index {spec} on 9.0"
             );
+        }
+    }
+
+    /// Each release reads one index as its own `string index` does, measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 over `abcdefghijkl` (8.5
+    /// and 8.6 answer alike, as do 9.0 and 9.1): `None` is `bad index`.
+    #[test]
+    fn each_release_reads_an_index_as_its_tclsh_does() {
+        use tcl_syntax::number::NumberSyntax::{Tcl84, Tcl85, Tcl90};
+        // (spec, 8.4, 8.5 and 8.6, 9.0 and 9.1)
+        type Row = (&'static str, Option<i64>, Option<i64>, Option<i64>);
+        let table: &[Row] = &[
+            ("1", Some(1), Some(1), Some(1)),
+            (" 1", Some(1), Some(1), Some(1)),
+            ("1 ", Some(1), Some(1), Some(1)),
+            ("+1", Some(1), Some(1), Some(1)),
+            (" +1", Some(1), Some(1), Some(1)),
+            ("- 1", None, None, None),
+            ("-1", Some(-1), Some(-1), Some(-1)),
+            ("0x2", Some(2), Some(2), Some(2)),
+            ("010", Some(8), Some(8), Some(10)),
+            ("0o10", None, Some(8), Some(8)),
+            ("0b10", None, Some(2), Some(2)),
+            ("1_0", None, None, Some(10)),
+            ("1e0", None, None, None),
+            ("end", Some(11), Some(11), Some(11)),
+            ("e", Some(11), Some(11), None),
+            ("en", Some(11), Some(11), None),
+            ("endx", None, None, None),
+            (" end", None, None, None),
+            ("end ", None, None, None),
+            ("end-1", Some(10), Some(10), Some(10)),
+            ("end+1", None, Some(12), Some(12)),
+            ("end--1", Some(12), Some(12), Some(12)),
+            ("end-+1", Some(10), Some(10), Some(10)),
+            ("end- 1", Some(10), None, None),
+            ("end+ 1", None, None, None),
+            ("end-1 ", Some(10), Some(10), Some(10)),
+            ("end-0x1", Some(10), Some(10), Some(10)),
+            ("end-010", Some(3), Some(3), Some(1)),
+            ("end-", None, None, None),
+            ("end+", None, None, None),
+            ("end-1-1", None, None, None),
+            ("end -1", None, None, None),
+            ("1+1", None, Some(2), Some(2)),
+            ("1-1", None, Some(0), Some(0)),
+            ("1+-1", None, Some(0), Some(0)),
+            ("1--1", None, Some(2), Some(2)),
+            ("1++1", None, Some(2), Some(2)),
+            ("+1+1", None, Some(2), Some(2)),
+            ("1+ 1", None, None, None),
+            ("1 +1", None, None, None),
+            (" 1+1", None, Some(2), Some(2)),
+            ("1+1 ", None, Some(2), Some(2)),
+            ("0x1+1", None, Some(2), Some(2)),
+            ("010+0", None, Some(8), Some(10)),
+            ("-1+2", None, Some(1), Some(1)),
+            ("1+end", None, None, None),
+            ("end-1+1", None, None, None),
+            ("1 0", None, None, None),
+            ("{1}", None, None, None),
+            ("", None, None, None),
+            (" ", None, None, None),
+        ];
+        for &(spec, on_84, on_85, on_90) in table {
+            assert_eq!(resolve_opt_with(spec, 12, Tcl84), on_84, "{spec:?} on 8.4");
+            assert_eq!(resolve_opt_with(spec, 12, Tcl85), on_85, "{spec:?} on 8.5");
+            assert_eq!(resolve_opt_with(spec, 12, Tcl90), on_90, "{spec:?} on 9.0");
         }
     }
 
