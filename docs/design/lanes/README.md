@@ -160,6 +160,10 @@ checkpoint compiling.
   registry declarations a summary is derived from, matching no command by
   name) have landed; slice 7, the last, is planned item by item in the
   tracking document's § *Plan for slices 2–13*.
+- [value-transfers-review-13.md](value-transfers-review-13.md) — the
+  slice 13 (proc-level transfer summaries) adversarial review's findings
+  (an interim snapshot while the review's last runs finish; the final
+  replaces it).
 - [value-transfers-review-12.md](value-transfers-review-12.md) — the
   adversarial review of slice 12 (bounded-loop enumeration), kept with the
   lane while its fixes land.
