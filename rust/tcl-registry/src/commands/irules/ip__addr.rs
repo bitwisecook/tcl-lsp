@@ -79,6 +79,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::IP_ADDR),
         ..CommandSpec::DEFAULT
     }
 }

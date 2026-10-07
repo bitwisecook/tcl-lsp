@@ -327,116 +327,45 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     adapt(interp, r)
 }
 
-/// `ledit listVar first last ?element ...?` — the in-place `lreplace` on a list
-/// *variable* (Tcl 8.7/9.0). Reads `listVar`, replaces the `[first,last]` range
-/// with the new elements, stores the result back into the variable, and returns
-/// the new list value. Mirrors `Tcl_LeditObjCmd` (`tclCmdIL.c`): the variable
-/// must already exist (a read miss is `can't read ...: no such variable`), the
-/// index clamping is identical to `lreplace`, and `listVar` may name an array
-/// element (`a(k)`), addressed like `set`/`lappend`.
-/// `index "X" out of range` (the `lset` index range error).
-fn lset_out_of_range(interp: &mut Interp, spec: &[u8]) -> Code {
-    let mut m = b"index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\" out of range");
-    interp.set_error(&m)
-}
-
-/// Recursively set the element at the index `path` of `list_obj` to `value`,
-/// returning the new (sub)list. Mirrors C's `TclLsetFlat`: each index resolves
-/// against its sublist's length (`end`/`end±N` aware), range `0..=len` with
-/// `len` appending; an empty `path` returns `value` itself (whole-list replace).
-///
-/// The returned object is either `value` (borrowed) or a fresh `new_list_obj`
-/// (rc 0) — in both cases the caller retains it (the parent via `new_list_obj`,
-/// the command via `var_set`/`set_result`), so no extra refcount is taken here.
-fn lset_descend(
+/// The list a list variable holds, read as `set` reads it: `listVar` may name
+/// an array element (`a(k)`), and a missing variable is the read error, with
+/// C's three-way distinction (variable-is-array / no-such-element /
+/// no-such-variable).
+fn read_list_var(
     interp: &mut Interp,
-    list_obj: *mut TclObj,
-    path: &[Vec<u8>],
-    value: *mut TclObj,
+    base: &[u8],
+    elem: Option<&[u8]>,
 ) -> Result<*mut TclObj, Code> {
-    let Some((spec, rest)) = path.split_first() else {
-        // No (more) indices: [lset] is [set] — the value replaces the list.
-        return Ok(value);
+    let cur = match elem {
+        Some(k) => interp.var_get_elem(base, k),
+        None => interp.var_get(base),
     };
-    let elems = match list::list_elements(list_obj) {
-        Ok(v) => v,
-        Err(e) => return Err(bad_list(interp, e)),
-    };
-    let len = elems.len();
-    let Some(idx) = index_spec(spec, len) else {
-        return Err(bad_index(interp, spec));
-    };
-    if idx < 0 || idx as usize > len {
-        return Err(lset_out_of_range(interp, spec));
-    }
-    let idx = idx as usize;
-    let appending = idx == len;
-    // Descend into the existing element, or a fresh empty list when appending a
-    // new (possibly nested) slot.
-    let child = if appending {
-        list::new_list_obj(&[])
-    } else {
-        elems[idx]
-    };
-    let new_child = match lset_descend(interp, child, rest, value) {
-        Ok(c) => c,
-        Err(e) => {
-            if appending {
-                drop_fresh(child);
-            }
-            return Err(e);
-        }
-    };
-    // Rebuild this level with the element replaced (or the new element pushed).
-    // `new_list_obj` retains every element, including `new_child`.
-    let mut out: Vec<*mut TclObj> = elems;
-    if appending {
-        out.push(new_child);
-    } else {
-        out[idx] = new_child;
-    }
-    let result = list::new_list_obj(&out);
-    if appending {
-        drop_fresh(child);
-    }
-    Ok(result)
+    cur.ok_or_else(|| {
+        let msg = interp.read_miss_msg(base, elem);
+        interp.set_error(&msg)
+    })
 }
 
 /// `lset listVar ?index ...? value` — set the element at the index path in the
-/// list stored in `listVar`, store it back (firing write traces), and return
-/// the new list (`Tcl_LsetObjCmd`). A lone index arg is split into an index
-/// path (`lset x {1 0} v`); multiple index args are each one index.
+/// list stored in `listVar` over the shared [`list_core::lset`] core, as the
+/// emulated release computes it, store it back (firing write traces), and
+/// return the new list (`Tcl_LsetObjCmd`).
 fn lset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"lset listVar ?index? ?index ...? value");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
-    };
-    let Some(listobj) = cur else {
-        let msg = interp.read_miss_msg(&base, elem.as_deref());
-        return interp.set_error(&msg);
+    let listobj = match read_list_var(interp, &base, elem.as_deref()) {
+        Ok(obj) => obj,
+        Err(code) => return code,
     };
     let value = argv[argv.len() - 1];
-    let idx_args = &argv[2..argv.len() - 1];
-    // Build the index path: a lone arg is itself split into a list of indices
-    // (matching C's TclLsetList); a malformed list falls back to one index.
-    let path: Vec<Vec<u8>> = if idx_args.len() == 1 {
-        match crate::parse::split_list(&obj_bytes(idx_args[0])) {
-            Ok(p) => p,
-            Err(_) => vec![obj_bytes(idx_args[0])],
-        }
-    } else {
-        idx_args.iter().map(|&a| obj_bytes(a)).collect()
-    };
-    let newlist = match lset_descend(interp, listobj, &path, value) {
+    let release = interp.runtime_version();
+    let newlist = match list_core::lset(interp, &listobj, &argv[2..argv.len() - 1], value, release)
+    {
         Ok(l) => l,
-        Err(c) => return c,
+        Err(e) => return interp.report_cmd_error(e),
     };
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),
@@ -454,46 +383,30 @@ fn lset(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
+/// `ledit listVar first last ?element ...?` — the in-place `lreplace` on a list
+/// *variable* (Tcl 9.0) over the shared [`list_core::ledit`] core: reads
+/// `listVar`, replaces the `[first,last]` range with the new elements, stores
+/// the result back into the variable, and returns the new list value
+/// (`Tcl_LeditObjCmd`).
 fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"ledit listVar first last ?element ...?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
+    let listobj = match read_list_var(interp, &base, elem.as_deref()) {
+        Ok(obj) => obj,
+        Err(code) => return code,
     };
-    let Some(listobj) = cur else {
-        // C reads via `Tcl_ObjGetVar2(..., TCL_LEAVE_ERR_MSG)`: a missing
-        // variable is a read error, with the C three-way distinction
-        // (variable-is-array / no-such-element / no-such-variable).
-        let msg = interp.read_miss_msg(&base, elem.as_deref());
-        return interp.set_error(&msg);
-    };
-    let elems = match list::list_elements(listobj) {
-        Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
-    };
-    let len = elems.len();
-    let Some(first) = index_spec(&obj_bytes(argv[2]), len) else {
-        return bad_index(interp, &obj_bytes(argv[2]));
-    };
-    let Some(last) = index_spec(&obj_bytes(argv[3]), len) else {
-        return bad_index(interp, &obj_bytes(argv[3]));
-    };
-    let lo = first.max(0).min(len as isize) as usize;
-    // `last.saturating_add(1)` — an `end`-relative or explicit index at
-    // `isize::MAX` must not overflow the `+ 1` before the clamp.
-    let hi = (last.saturating_add(1).max(0) as usize).clamp(lo, len);
-    let mut out: Vec<*mut TclObj> = Vec::with_capacity(len + argv.len());
-    out.extend_from_slice(&elems[..lo]);
-    out.extend_from_slice(&argv[4..]);
-    out.extend_from_slice(&elems[hi..]);
+    let release = interp.runtime_version();
     // Build the new list first (retains every element), *then* store it: the
     // store releases the old value, but the elements survive because the new
-    // list now holds its own refs. `new_list_obj` is rc 0; `var_set*` retains it.
-    let newlist = list::new_list_obj(&out);
+    // list now holds its own refs. The new list is rc 0; `var_set*` retains it.
+    let newlist = match list_core::ledit(interp, &listobj, &argv[2], &argv[3], &argv[4..], release)
+    {
+        Ok(l) => l,
+        Err(e) => return interp.report_cmd_error(e),
+    };
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),
         None => interp.var_set(&base, newlist),
@@ -509,56 +422,26 @@ fn ledit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// `lpop varName ?index?` — remove and return the element at `index` (default
-/// the last), storing the shortened list back into the variable. A radix or
-/// `end`-relative index resolves via the shared index core.
+/// `lpop varName ?index ...?` — remove and return the element at the index
+/// path (default the last element) over the shared [`list_core::lpop`] core,
+/// storing the shortened list back into the variable.
 fn lpop(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lpop varName ?index?");
     }
     let name = obj_bytes(argv[1]);
     let (base, elem) = crate::frame::split_array_ref(&name);
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
+    let listobj = match read_list_var(interp, &base, elem.as_deref()) {
+        Ok(obj) => obj,
+        Err(code) => return code,
     };
-    let Some(listobj) = cur else {
-        let msg = interp.read_miss_msg(&base, elem.as_deref());
-        return interp.set_error(&msg);
+    let release = interp.runtime_version();
+    let (removed, newlist) = match list_core::lpop(interp, &listobj, &argv[2..], release) {
+        Ok(r) => r,
+        Err(e) => return interp.report_cmd_error(e),
     };
-    let elems = match list::list_elements(listobj) {
-        Ok(v) => v,
-        Err(e) => return bad_list(interp, e),
-    };
-    let len = elems.len();
-    let (idx, spec_desc): (isize, Vec<u8>) = if argv.len() == 2 {
-        (len as isize - 1, b"end".to_vec())
-    } else if argv.len() == 3 {
-        let spec = obj_bytes(argv[2]);
-        match index_spec(&spec, len) {
-            Some(i) => (i, spec),
-            None => return bad_index(interp, &spec),
-        }
-    } else {
-        // A nested index path drills into sub-lists (rare); not specialised here.
-        return interp.set_error(b"lpop with a nested index path is not supported");
-    };
-    if idx < 0 || idx as usize >= len {
-        let mut m = b"index \"".to_vec();
-        m.extend_from_slice(&spec_desc);
-        m.extend_from_slice(b"\" out of range");
-        return interp.set_error(&m);
-    }
-    let idx = idx as usize;
-    let removed = elems[idx];
-    let out: Vec<*mut TclObj> = elems
-        .iter()
-        .enumerate()
-        .filter_map(|(i, e)| (i != idx).then_some(*e))
-        .collect();
-    let newlist = list::new_list_obj(&out); // retains survivors
-                                            // Retain `removed` (via the result) *before* the store releases the old
-                                            // list, so it survives to be returned.
+    // Retain `removed` (via the result) *before* the store releases the old
+    // list, so it survives to be returned.
     interp.set_result(removed);
     let stored = match &elem {
         Some(k) => interp.var_set_elem(&base, k, newlist),

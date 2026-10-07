@@ -41,6 +41,7 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Global,
             ..SideEffect::DEFAULT
         }],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::MD5),
         ..CommandSpec::DEFAULT
     }
 }

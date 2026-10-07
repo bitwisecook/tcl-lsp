@@ -215,6 +215,44 @@ fn explore_sccp_prints_the_route_of_each_statement() {
     );
 }
 
+/// An iRules pure function folds through its registry-owned route over the
+/// shared core the simulator runs (VT7.1): `b64encode abc` in `RULE_INIT` is
+/// `YWJj`, and the statement names the route; `lset` writes the list it
+/// computes (VT7.2).
+#[test]
+fn explore_sccp_folds_the_irules_cores_and_the_list_cell_updates() {
+    let irules = run_tcl(&[
+        "explore",
+        "--dialect",
+        "f5-irules",
+        "--source",
+        "when RULE_INIT {set h [b64encode abc]}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(irules.contains("h#1 = const('YWJj')"), "{irules}");
+    assert!(
+        irules.contains("route b64encode: direct base64-encode (registry)"),
+        "{irules}"
+    );
+    let lset = run_tcl(&[
+        "explore",
+        "--source",
+        "proc p {} {set l {a b c}; lset l 1 B; return $l}",
+        "--show",
+        "sccp",
+        "--text",
+        "--no-colour",
+    ]);
+    assert!(lset.contains("l#2 = const('a B c')"), "{lset}");
+    assert!(
+        lset.contains("route lset: direct list-set (registry)"),
+        "{lset}"
+    );
+}
+
 /// `tcl explore --show sccp --text` lists what a statement stores on each
 /// completion path: `lassign` over an array `c` stores its first target and
 /// stops, and over a place whose kind is not proven it may stop at any of its

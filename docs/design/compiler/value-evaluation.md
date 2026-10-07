@@ -155,10 +155,11 @@ default it was not asked for.
   the WASM runtime (`impl ValueOps for Interp`, `runtime/rust/src/value_ops.rs`)
   both implement it. Both route the `string` ensemble through
   `tcl_cmd_core::string::dispatch_canon`, `binary format` / `scan` through
-  `tcl_cmd_core::binary`, and `format`, `scan`, `regsub`, list, dict, and
-  the value half of `incr` / `append` / `lappend` through the cores; each
-  runtime's adapter keeps the store, the write trace, and the
-  const-variable check.
+  `tcl_cmd_core::binary`, and `format`, `scan`, `regsub`, list, dict, the
+  value half of `incr` / `append` / `lappend`, and the new list `lset`,
+  `ledit` and `lpop` write back (`tcl_cmd_core::list`, under the release the
+  engine emulates) through the cores; each runtime's adapter keeps the
+  store, the write trace, and the const-variable check.
 - **Not every core takes the seam.** `tcl_cmd_core::binary::{format, scan}`
   take `&[u8]` and `&[&[u8]]`, `tcl_cmd_core::regex::regsub` takes
   `&[&[u8]]`, and `tcl_cmd_core::string_is::class_check` takes `&str` —
@@ -176,7 +177,8 @@ default it was not asked for.
   from 8.5. Through explicit arguments: `format_cmd_with_syntax(…, NumberSyntax)`,
   `string_is::class_check(…, NumberSyntax)`, `index::resolve_opt_with`,
   `binary::signedness_available(profile)`, `binary::specifier_min_version`,
-  `format::is_available`. And in one place not at all:
+  `format::is_available`, `list::lset` / `ledit` / `lpop` (a `TclVersion`).
+  And in one place not at all:
   `index::resolve` reads an index numeral under the ambient grammar
   `tcl_syntax::number::runtime_syntax()` installed by `set_runtime_syntax`,
   and `string::range`, `string::index`, and `string::word_bound` call it,
@@ -557,6 +559,8 @@ once. "Charge" is in `WorkUnits` (§ *Budgets and cancellation*).
 | `case::select`, `case::splits_as_list` (`CaseSemantics` in `value_transfer/selection.rs`) | `SOURCE_ENCODING`, `LIST_RENDERING` | `case` exists on 8.4 to 8.6, and on the iRules 8.4 base, and not from 9.0; `Tcl_CaseObjCmd` is the same loop in 8.4.20, 8.5.19 and 8.6.18, so every release that has it selects alike | a pattern word that splits as a list and is not one; an odd clause list, which `case` raises on only once its scan reaches the missing body, and an empty one, which selects nothing; a non-ASCII word with no named release | 1 per pattern word per member, plus 1 per list element split |
 | `list::list`, `llength`, `lreverse`, `lrepeat`, `linsert`, `lreplace`, `concat` (with `trim_concat_element`), `join`, `split` | `LIST_RENDERING` | canonical quoting | `ValueError::BadList`; an output past the charge | 1 per element, charged first for `lrepeat` |
 | `list::lindex`, `lindex_flat`, `lrange` | `LIST_RENDERING`, `INDEX_GRAMMAR` | index grammar and quoting | as above, plus a malformed index | 1 per element |
+| `list::lset`, `ledit`, `lpop` (`ListUpdateSemantics` in `value_transfer/list_update.rs`) | `INDEX_GRAMMAR`, `LIST_RENDERING` | the index grammar; an index equal to a level's length appends from 8.6 (`lset x 3 D` over `a {b1 b2} c` raises `list index out of range` on 8.4 and 8.5 and gives `a {b1 b2} c D` from 8.6), the error worded `index "4" out of range` with `TCL VALUE INDEX OUTOFRANGE` from 9.0 and carrying `TCL OPERATION LSET BADINDEX` on 8.6; `ledit` and `lpop` exist from 9.0 | a variable the analysis cannot prove holds a value; a level that is not a list, which is the program's error under a named release; a bad or out-of-range index; disagreement with no named release | 1 per element, charged by each construction |
+| `irules::call` and the functions it names (`IrulesFunctionSemantics` in `value_transfer/irules.rs`) | none | none: TMM's own commands, the same under every release | an input outside F5's published reference (`irules::Unmodelled`: a `b64decode` of text that is not canonical base64, a `substr` count of 0, a `URI::port` scheme with no default the reference lists, …); a byte function's word that is not ASCII | 1 per input byte, charged first |
 | `dict::create`, `get`, `getdef`, `exists`, `keys`, `values`, `size`, `filter`, `merge`, `replace`, `remove`, `lookup`, `upsert`, `dispatch_canon` (and `worded_parse_error`) | `DICT_ORDER`, `LIST_RENDERING` | canonical key order, last value winning on a duplicate | an odd-length list; a missing key where the form raises | 1 per pair |
 | `dict::info` | `DICT_ORDER` | the retained bucket-array history | always. The core answers: it calls `dict_hash_bucket_count` and falls back to a fresh table when the answer is `None`, which `ConstOps` always returns. A bucket history is not derivable from a string, so the route declines rather than publish a statistic the analysed program's runtime may not have | 1 |
 | `scan::validate_format`, `scan::scan_match` (`Scanned`, `ScanOutcome`; `ScanSemantics` in `value_transfer/destructure.rs`) | `NUMERAL_GRAMMAR`, `CHAR_INDEXING`, `SOURCE_ENCODING`, `LIST_RENDERING` | conversion numeral grammar; `%b` from 8.6; a float is spelt `%.12g` on 8.4; past 32 bits `scan 2147483648 %d` is `-2147483648` on 8.4, 9.0 and 9.1 and `2147483648` on 8.5 and 8.6; from 8.5 an infinity spelling converts (`scan -inf %f` is `-Inf`) and an integer spelling converts as an integer (`scan -0 %f` is `0.0`) | a format `validate_format` rejects; a positional or size-modified conversion; `%u`, which the matcher reads signed (`scan -1 %u` is `18446744073709551615` on every release); an integer past 32 bits; an infinity spelling or a negative zero under a float conversion; a `0x` input to a radix conversion under 8.4 | 1 per subject byte, plus 1 per published byte |

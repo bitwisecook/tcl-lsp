@@ -148,6 +148,7 @@ pub fn spec() -> CommandSpec {
                 transparent_from: &[],
             },
         )],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LSET),
         ..CommandSpec::DEFAULT
     }
 }

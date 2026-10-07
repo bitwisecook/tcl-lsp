@@ -3234,3 +3234,112 @@ fn a_string_is_type_is_the_representation_its_test_leaves() {
         }
     }
 }
+
+/// The list a list cell update's witnesses start from.
+const NESTED: &[(&str, &str)] = &[("x", "a {b1 b2} c")];
+
+/// The list cell updates' witnesses, each with `x` holding `a {b1 b2} c`
+/// unless it says otherwise: `lset` on every release, `ledit` and `lpop`
+/// from 9.0. Measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: an
+/// index equal to a level's length appends from 8.6 (`lset x 3 D`, `lset x
+/// 3 0 Q`) and raises before it; the sums read from 8.5 (`lset x 1+1 Q`);
+/// a lone index word that is no index is a path (`lset x {1 0} Q`), and one
+/// that is neither an index nor a list a bad index; `lpop` reads each word
+/// as one index (`lpop x {1 0}` raises).
+const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
+    ("lset", None, &["x", "1", "B"], NESTED, &["x"]),
+    ("lset", None, &["x", "end", "B"], NESTED, &["x"]),
+    ("lset", None, &["x", "1 0", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "1", "0", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "", "NEW"], NESTED, &["x"]),
+    ("lset", None, &["x", "NEW"], NESTED, &["x"]),
+    ("lset", None, &["x", "0x1", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", " 1 ", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "end-0x1", "Q"], NESTED, &["x"]),
+    (
+        "lset",
+        None,
+        &["x", "0", "0", "0", "Q"],
+        &[("x", "a b")],
+        &["x"],
+    ),
+    ("lset", None, &["x", "3", "D"], NESTED, &["x"]),
+    ("lset", None, &["x", "end+1", "D"], NESTED, &["x"]),
+    ("lset", None, &["x", "3", "0", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "1", "2", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "1+1", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "-1", "Z"], NESTED, &["x"]),
+    ("lset", None, &["x", "4", "E"], NESTED, &["x"]),
+    ("lset", None, &["x", "1", "5", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "bogus", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "{a", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "1 bogus", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "010", "Q"], NESTED, &["x"]),
+    ("lset", None, &["x", "0", "Q"], &[("x", "a \"b")], &["x"]),
+    ("ledit", None, &["x", "1", "1", "X", "Y"], NESTED, &["x"]),
+    ("ledit", None, &["x", "1", "0", "I"], NESTED, &["x"]),
+    ("ledit", None, &["x", "5", "6", "Z"], NESTED, &["x"]),
+    ("ledit", None, &["x", "-1", "-1", "Z"], NESTED, &["x"]),
+    ("ledit", None, &["x", "end+1", "end+1", "Z"], NESTED, &["x"]),
+    ("ledit", None, &["x", "0", "end"], NESTED, &["x"]),
+    ("ledit", None, &["x", "bogus", "0", "A"], NESTED, &["x"]),
+    ("lpop", None, &["x"], NESTED, &["x"]),
+    ("lpop", None, &["x", "0"], NESTED, &["x"]),
+    ("lpop", None, &["x", "end"], NESTED, &["x"]),
+    ("lpop", None, &["x", "1", "0"], NESTED, &["x"]),
+    ("lpop", None, &["x", "0", "0"], NESTED, &["x"]),
+    ("lpop", None, &["x", "1 0"], NESTED, &["x"]),
+    ("lpop", None, &["x", "3"], NESTED, &["x"]),
+    ("lpop", None, &["x", "1", "5"], NESTED, &["x"]),
+    ("lpop", None, &["x", "bogus"], NESTED, &["x"]),
+    ("lpop", None, &["x"], &[("x", "")], &["x"]),
+];
+
+/// `lset`, `ledit` and `lpop` through their routes, against each release on
+/// `PATH` under that release's profile: the route answers every witness its
+/// `tclsh` answers, with the result and the list it leaves, and declines every
+/// one `tclsh` raises on; `ledit` and `lpop` decline before 9.0, which lacks
+/// them. A profile that names no release answers only what every release
+/// answers alike.
+#[test]
+fn list_cell_updates_match_every_release_on_path() {
+    let reg = CommandRegistry::build_default();
+    let mut answers: Vec<Vec<Option<Vec<String>>>> = vec![Vec::new(); LIST_UPDATE_WITNESSES.len()];
+    let mut releases = 0usize;
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        releases += 1;
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        for (index, &witness) in LIST_UPDATE_WITNESSES.iter().enumerate() {
+            let want = storage_oracle(&tclsh, witness);
+            let got = storage_route(&reg, profile, witness);
+            let (command, _, args, priors, _) = witness;
+            assert_eq!(
+                got,
+                want,
+                "tclsh{}: {command} {args:?} over {priors:?}",
+                version.version_string()
+            );
+            answers[index].push(want);
+        }
+    }
+    if releases < tcl_dialect::TclVersion::ALL.len() {
+        return;
+    }
+    for (index, &witness) in LIST_UPDATE_WITNESSES.iter().enumerate() {
+        let every = &answers[index];
+        let agreed = every
+            .first()
+            .cloned()
+            .flatten()
+            .filter(|first| every.iter().all(|answer| answer.as_ref() == Some(first)));
+        let got = storage_route(&reg, None, witness);
+        let (command, _, args, priors, _) = witness;
+        assert_eq!(
+            got, agreed,
+            "no release named: {command} {args:?} over {priors:?}"
+        );
+    }
+}

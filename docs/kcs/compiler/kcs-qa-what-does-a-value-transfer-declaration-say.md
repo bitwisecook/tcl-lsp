@@ -47,7 +47,12 @@ model (`ConstOps`), under the target's release semantics. `string range`,
 cell write, whose write form stores the value and whose read form answers
 the prior one; and the five keyed updates of `dict` declare theirs on the
 subcommand, which the `::tcl::dict::` spelling copies, so both find the
-dictionary by its `VarWrite` role and answer alike. `format` still
+dictionary by its `VarWrite` role and answer alike. `lset`, `ledit` and
+`lpop` declare list cell updates over the list cores both runtimes run,
+reading the list their variable holds under the target's release, and the
+iRules pure functions (`b64encode`, `crc32`, `md5`, `findstr`, `URI::path`,
+…) declare direct routes over the cores the iRule test simulator registers
+as the same commands. `format` still
 declares a route the compiler implements, and `expr` the compiler's
 expression engine; `NativeEvalId::owner` and the inventory's *Owner*
 column say so, and the migration plan's ledger names the slice that

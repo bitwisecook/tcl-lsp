@@ -4247,6 +4247,9 @@ dependencies = [
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "md-5",
+ "sha1",
+ "sha2 0.11.0",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -4410,12 +4413,14 @@ version = "0.1.0"
 dependencies = [
  "tcl-bigip",
  "tcl-bytecode",
+ "tcl-cmd-core",
  "tcl-compiler",
  "tcl-dialect",
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-vm",
 ]
 

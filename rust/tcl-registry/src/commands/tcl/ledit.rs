@@ -108,6 +108,7 @@ pub fn spec() -> CommandSpec {
                 },
             ),
         ],
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LEDIT),
         ..CommandSpec::DEFAULT
     }
 }

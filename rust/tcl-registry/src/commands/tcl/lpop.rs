@@ -117,6 +117,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The element that was removed from the list.",
         }),
         forms: FORMS,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::list_update::LPOP),
         ..CommandSpec::DEFAULT
     }
 }

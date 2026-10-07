@@ -399,6 +399,59 @@ pub enum NativeEvalId {
     /// `info default`: a procedure parameter's default written to the
     /// variable, where the analyser proves the procedure and the parameter.
     ParameterDefault,
+    /// `lset`: the list a variable holds with the element at an index path
+    /// replaced, written back and returned.
+    ListSet,
+    /// `ledit`: the list a variable holds with a range replaced, written back
+    /// and returned.
+    ListEdit,
+    /// `lpop`: the element at an index path removed from the list a variable
+    /// holds, the rest written back and the element returned.
+    ListPop,
+    /// `b64encode`: the base64 of the bytes.
+    Base64Encode,
+    /// `b64decode`: the bytes a canonical base64 text spells.
+    Base64Decode,
+    /// `crc32`: zlib's CRC-32, sign-extended from 32 bits.
+    Crc32Checksum,
+    /// `md5`: the MD5 digest's bytes.
+    Md5Digest,
+    /// `sha1`: the SHA-1 digest's bytes.
+    Sha1Digest,
+    /// `sha256`: the SHA-256 digest's bytes.
+    Sha256Digest,
+    /// `sha384`: the SHA-384 digest's bytes.
+    Sha384Digest,
+    /// `sha512`: the SHA-512 digest's bytes.
+    Sha512Digest,
+    /// `findstr`: the text after a search string, to a terminator.
+    FindString,
+    /// `getfield`: one field of a separated string.
+    StringField,
+    /// `substr`: the text from an offset, to a terminator.
+    Substring,
+    /// `domain`: the last labels of a dotted name.
+    DomainLabels,
+    /// `URI::basename`: the last segment of a URI's path.
+    UriBasename,
+    /// `URI::path`: a URI path's directories, or their count.
+    UriPath,
+    /// `URI::query`: a URI's query, or one parameter's value.
+    UriQuery,
+    /// `URI::host`: a URI's host.
+    UriHost,
+    /// `URI::port`: a URI's port, or its scheme's default.
+    UriPort,
+    /// `URI::protocol`: a URI's scheme.
+    UriProtocol,
+    /// `URI::decode`: one pass of percent-decoding.
+    UriDecode,
+    /// `URI::encode`: percent-encoding.
+    UriEncode,
+    /// `URI::compare`: whether two URIs are equivalent.
+    UriCompare,
+    /// `IP::addr A equals B`: whether two addresses share a network.
+    IpAddrEquals,
 }
 
 impl NativeEvalId {
@@ -433,6 +486,31 @@ impl NativeEvalId {
         Self::ContinueComplete,
         Self::CatchProtected,
         Self::ParameterDefault,
+        Self::ListSet,
+        Self::ListEdit,
+        Self::ListPop,
+        Self::Base64Encode,
+        Self::Base64Decode,
+        Self::Crc32Checksum,
+        Self::Md5Digest,
+        Self::Sha1Digest,
+        Self::Sha256Digest,
+        Self::Sha384Digest,
+        Self::Sha512Digest,
+        Self::FindString,
+        Self::StringField,
+        Self::Substring,
+        Self::DomainLabels,
+        Self::UriBasename,
+        Self::UriPath,
+        Self::UriQuery,
+        Self::UriHost,
+        Self::UriPort,
+        Self::UriProtocol,
+        Self::UriDecode,
+        Self::UriEncode,
+        Self::UriCompare,
+        Self::IpAddrEquals,
     ];
 
     /// Stable spelling for the inventory and the Explorer.
@@ -468,6 +546,31 @@ impl NativeEvalId {
             Self::ContinueComplete => "continue-complete",
             Self::CatchProtected => "catch-protected",
             Self::ParameterDefault => "parameter-default",
+            Self::ListSet => "list-set",
+            Self::ListEdit => "list-edit",
+            Self::ListPop => "list-pop",
+            Self::Base64Encode => "base64-encode",
+            Self::Base64Decode => "base64-decode",
+            Self::Crc32Checksum => "crc32-checksum",
+            Self::Md5Digest => "md5-digest",
+            Self::Sha1Digest => "sha1-digest",
+            Self::Sha256Digest => "sha256-digest",
+            Self::Sha384Digest => "sha384-digest",
+            Self::Sha512Digest => "sha512-digest",
+            Self::FindString => "find-string",
+            Self::StringField => "string-field",
+            Self::Substring => "substring",
+            Self::DomainLabels => "domain-labels",
+            Self::UriBasename => "uri-basename",
+            Self::UriPath => "uri-path",
+            Self::UriQuery => "uri-query",
+            Self::UriHost => "uri-host",
+            Self::UriPort => "uri-port",
+            Self::UriProtocol => "uri-protocol",
+            Self::UriDecode => "uri-decode",
+            Self::UriEncode => "uri-encode",
+            Self::UriCompare => "uri-compare",
+            Self::IpAddrEquals => "ip-addr-equals",
         }
     }
 
@@ -503,7 +606,32 @@ impl NativeEvalId {
             | Self::BreakComplete
             | Self::ContinueComplete
             | Self::CatchProtected
-            | Self::ParameterDefault => EvaluatorOwner::Registry,
+            | Self::ParameterDefault
+            | Self::ListSet
+            | Self::ListEdit
+            | Self::ListPop
+            | Self::Base64Encode
+            | Self::Base64Decode
+            | Self::Crc32Checksum
+            | Self::Md5Digest
+            | Self::Sha1Digest
+            | Self::Sha256Digest
+            | Self::Sha384Digest
+            | Self::Sha512Digest
+            | Self::FindString
+            | Self::StringField
+            | Self::Substring
+            | Self::DomainLabels
+            | Self::UriBasename
+            | Self::UriPath
+            | Self::UriQuery
+            | Self::UriHost
+            | Self::UriPort
+            | Self::UriProtocol
+            | Self::UriDecode
+            | Self::UriEncode
+            | Self::UriCompare
+            | Self::IpAddrEquals => EvaluatorOwner::Registry,
         }
     }
 }

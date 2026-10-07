@@ -47,6 +47,7 @@ pub mod error;
 pub mod format;
 pub mod index;
 pub mod info;
+pub mod irules;
 pub mod list;
 pub mod lsearch;
 pub mod lseq;

@@ -25,8 +25,10 @@ answer, the model reads the operand under that release: a leading-zero
 numeral is octal up to Tcl 8.6 and decimal from 9.0, so `incr` of `010`
 is 9 on one and 11 on the other; an index numeral follows the same
 grammar, so `string range … 010 end` is `ijkl` up to 8.6 and `kl` from
-9.0; an increment past the wide boundary widens to a bignum from 8.5 and
-is an error on 8.4.
+9.0, and the index sums are 8.5's, so `string range abcdef 0 1+1` is `abc`
+from 8.5 and `bad index "1+1": must be integer or end?-integer?` on 8.4;
+an increment past the wide boundary widens to a bignum from 8.5 and is an
+error on 8.4.
 
 `expr` reads the same release axis, because its route runs the shared
 expression engine over the same value model rather than a private

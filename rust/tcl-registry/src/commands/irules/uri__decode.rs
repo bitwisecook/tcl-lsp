@@ -43,6 +43,7 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         traits: Traits::IS_UNESCAPE,
+        semantics: SemanticsDeclaration::Declared(&crate::value_transfer::irules::URI_DECODE),
         ..CommandSpec::DEFAULT
     }
 }

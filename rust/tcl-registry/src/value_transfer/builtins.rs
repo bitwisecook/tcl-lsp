@@ -72,7 +72,7 @@ pub(super) fn exact_operands(
 
 /// The outcome of a pure direct route: its result, no store, and the
 /// evidence it rests on.
-fn pure_outcome(
+pub(super) fn pure_outcome(
     id: NativeEvalId,
     revision: u64,
     value: ExactValue,
@@ -136,7 +136,7 @@ fn run_core(
 }
 
 /// The type transfer of a route that writes nothing: its result type.
-fn result_type_transfer(domain: FactDomain, result_type: TclType) -> TransferAnswer {
+pub(super) fn result_type_transfer(domain: FactDomain, result_type: TclType) -> TransferAnswer {
     match domain {
         FactDomain::Type => TransferAnswer::Type(TypeFacts {
             result: Some(result_type),
@@ -1077,6 +1077,40 @@ pub static TRACE: MayWriteSemantics = MayWriteSemantics {
     reason: NoRouteReason::Callback,
     kind: Some(BindingKind::Either),
 };
+
+/// A command that writes nothing and has no route, for the reason the
+/// inventory records: `evaluate` declines with it and every transfer is
+/// generic, so the declaration classifies the command and leaves the
+/// lattice's answer as it was.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoRouteSemantics {
+    /// Why no route evaluates the command.
+    pub reason: NoRouteReason,
+}
+
+/// A value the host platform decides — its byte order, its file system —
+/// which no source fixes (`Needs::PLATFORM`).
+pub static PLATFORM_DECIDED: NoRouteSemantics = NoRouteSemantics {
+    reason: NoRouteReason::Platform,
+};
+
+impl CommandSemantics for NoRouteSemantics {
+    fn identity(&self) -> &'static str {
+        match self.reason {
+            NoRouteReason::Declared => "no-route:declared",
+            NoRouteReason::Unauthored => "no-route:unauthored",
+            NoRouteReason::FormUnsupported => "no-route:form-unsupported",
+            NoRouteReason::Callback => "no-route:callback",
+            NoRouteReason::Platform => "no-route:platform",
+        }
+    }
+
+    fn route(&self) -> EvalRoute {
+        EvalRoute::None {
+            reason: self.reason,
+        }
+    }
+}
 
 impl CommandSemantics for MayWriteSemantics {
     fn identity(&self) -> &'static str {
