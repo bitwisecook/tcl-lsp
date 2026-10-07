@@ -15,7 +15,7 @@ says where each lane stands, what is queued, and how the work is run.
 | Diagnostic policy | (landed; see the design page `docs/design/compiler/diagnostic-policy.md`) | complete | | |
 
 Branch heads at the last rewrite of this page: the main branch at the
-commit that rewrites this page, above `3419e5ce2`, slice 7's first checkpoint, `9fc56e4b9`, its index-grammar fix, `4872a52c7`, a rewrite of this page, `b26ba0252`, slice 13's review record, `d875c7c00` and `de1eac1cb`, its review fixes, three rewrites of this page and the review's findings (`d28041441`, `8877b04bb`, `163f3712d`), `bfb4e083b`, slice 13's landing, `3060659ba`, its second checkpoint, `5eac6d247`, its first, `e355162ca`, slice 7a's review nits,
+commit that rewrites this page, above `3dff86cbd`, the completion-proof fix, `e1100706c`, a rewrite of this page, `3419e5ce2`, slice 7's first checkpoint, `9fc56e4b9`, its index-grammar fix, `4872a52c7`, a rewrite of this page, `b26ba0252`, slice 13's review record, `d875c7c00` and `de1eac1cb`, its review fixes, three rewrites of this page and the review's findings (`d28041441`, `8877b04bb`, `163f3712d`), `bfb4e083b`, slice 13's landing, `3060659ba`, its second checkpoint, `5eac6d247`, its first, `e355162ca`, slice 7a's review nits,
 `aaabe16e3`, its record's measurements, `3076a049a`, its landing, `d4ca2bcbd`, its opaque-return fix, `dd166c181`, its summary-path fix, `1dbbd9a93`, its float spelling fix, and `4831e0e68`, the slice 12 review's docs commit,
 `723ae0326`, the review's S1 fix, `b0173698`, B1's record, and
 `1d5fbc1f`, the review's B1 fix, itself above `5bf6eb1b`, slice 12's landing,
@@ -36,7 +36,7 @@ gate cycle.
 ## Queued on the running implementers
 
 - Value transfers: slice 13 (proc-level transfer summaries) is landed at
-  `bfb4e083b`, reviewed (B 2, S 2, N 6, P 8, verdict "rework") and its fixes landed, the last `b26ba0252`; slice 7 (broader execution and runtime consumers), the lane's last, is running under the rulings in the next bullets, its checkpoint 1 landed at `3419e5ce2` and the regression fix next; slice 7a (seedless return summaries) is landed at `3076a049a`, reviewed,
+  `bfb4e083b`, reviewed (B 2, S 2, N 6, P 8, verdict "rework") and its fixes landed, the last `b26ba0252`; slice 7 (broader execution and runtime consumers), the lane's last, is running under the rulings in the next bullets, its checkpoint 1 landed at `3419e5ce2`, the regression fix at `3dff86cbd`, and checkpoint 2 running; slice 7a (seedless return summaries) is landed at `3076a049a`, reviewed,
   and its fixes are pushed, the last `e355162ca`; slice 12 (bounded-loop enumeration) is landed at `5bf6eb1b`,
   reviewed, and its fixes are pushed, the last `4831e0e68`; slice 11
   (predicate refinement) is landed at `f608abe7`, reviewed, and its fixes
@@ -83,10 +83,11 @@ gate cycle.
   `a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety`) have
   failed since `7f1d9c8ba` (4 October, D253: a call to a procedure is no clean
   fold for O126's raise proof), which restated four compiler tests and missed
-  these two because the lane's gates ran that crate's lib tests only. The fix,
-  ruled and running on top of checkpoint 1 as one commit
-  (`wip(value-transfers): a store whose call provably completes is dead when
-  unused`, D330 refining D253): `ProcSummary::completes` (straight-line bodies
+  these two because the lane's gates ran that crate's lib tests only. The fix landed
+  as `3dff86cbd` (`wip(value-transfers): a store whose call provably completes
+  is dead when unused`, D330 refining D253; gated green and pushed, after a
+  first gate failed the one-oracle rule and the completion module was made to
+  ask the registry's document surface instead of reading the declaration set): `ProcSummary::completes` (straight-line bodies
   of trusted registry commands declaring `Exact([Ok])` completion with the
   arity accepted, and module procedures with a standing binding, as a least
   fixpoint so recursion never completes; the IR-only build states false),
