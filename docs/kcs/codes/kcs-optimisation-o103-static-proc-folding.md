@@ -54,6 +54,29 @@ puts [prefix]     ;# becomes puts foo
 The folded value is spelled exactly as the procedure returns it: `return 1.0`
 folds to `1.0`, `return 007` to `007`, and `return " 5"` to `{ 5}`.
 
+A procedure that hands one of its own variables to another procedure, which
+changes it through `upvar`, changes nothing its caller can see, so it still
+folds. The called procedure runs from the value the variable holds, under
+the call's constant arguments too:
+
+```tcl
+proc bump {name} {upvar 1 $name v; incr v}
+proc two {} {set n 1; bump n; return $n}
+proc step {x} {set n $x; bump n; return $n}
+puts [two]        ;# becomes puts 2
+puts [step 5]     ;# becomes puts 6
+```
+
+A recursive procedure folds where the call's constant arguments end the
+recursion. The analyser follows at most 32 nested calls, and runs at most
+4096 calls for one file; a deeper or longer recursion is left as written:
+
+```tcl
+proc fact {n} {if {$n <= 1} {return 1}; expr {$n * [fact [expr {$n - 1}]]}}
+puts [fact 5]     ;# becomes puts 120
+puts [fact 40]    ;# left as written: 40 nested calls
+```
+
 ## Safety conditions
 
 - Skipped when the proc has observable side effects.
