@@ -591,15 +591,14 @@ fn stubbed(stub: &str, source: &str) -> String {
     format!("# tcl-lsp: stubs-begin\n# tcl-lsp: stub {stub}\n# tcl-lsp: stubs-end\n{source}")
 }
 
-/// Every optimisation code `source` draws, over a unit built as the server
-/// builds one: the document's own declarations reach the lowering and the
-/// interprocedural summary.
-fn optimisation_codes(source: &str) -> Vec<String> {
+/// The unit of `source`, built as the server builds one: the document's own
+/// declarations reach the lowering and the interprocedural summary.
+fn summarised_unit(source: &str) -> tcl_compiler::compilation_unit::CompilationUnit {
     use tcl_compiler::compilation_unit::{CompilationUnit, UnitBuildOptions};
     let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
     let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
     let declared = tcl_compiler::analyser::utils::document_declared_surface(source, None, DIALECT);
-    let unit = CompilationUnit::build_with_options(
+    CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
             registry,
@@ -610,15 +609,35 @@ fn optimisation_codes(source: &str) -> Vec<String> {
             declared_commands: Some(&declared),
         },
     )
-    .with_interprocedural(registry, Some(profile));
+    .with_interprocedural(registry, Some(profile))
+}
+
+/// Every optimisation code `source` draws, over a unit built as the server
+/// builds one ([`summarised_unit`]).
+fn optimisation_codes(source: &str) -> Vec<String> {
+    let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
+    let unit = summarised_unit(source);
     tcl_compiler::optimiser::optimise_unit(&unit, registry, Some(profile))
         .iter()
         .map(|o| o.code.as_str().to_owned())
         .collect()
 }
 
+/// Whether the interprocedural summary of `source` takes `label` as pure.
+fn label_is_pure(source: &str) -> bool {
+    summarised_unit(source).interproc.is_some_and(|summaries| {
+        summaries
+            .procedures
+            .get("::label")
+            .is_some_and(|label| label.pure)
+    })
+}
+
 /// `label` returns what `inner` makes of its argument, and `main` drops the
-/// result of calling it — removable exactly when `inner` is pure.
+/// result of calling it — removable exactly when the call cannot raise: when
+/// `inner` is pure and completes whatever it is given, so the summary takes
+/// `label` as pure and completing.
 fn pure_wrapper(inner: &str) -> String {
     format!(
         "proc label {{x}} {{ return [{inner} $x] }}\n\
@@ -627,8 +646,10 @@ fn pure_wrapper(inner: &str) -> String {
 }
 
 /// `-pure` is `Traits::PURE`: the interprocedural summary classifies the
-/// call as a pure one, so `label` is pure and the unused result of calling
-/// it goes (O126) as it does over `string length`.
+/// call as a pure one, so `label` is pure. Over `string length`, which
+/// completes whatever it is given, the unused result of calling `label`
+/// goes (O126); a stub states purity, not how the command completes, so
+/// `mypure abc` may raise and the result stays (D330).
 #[test]
 fn a_pure_stub_keeps_its_caller_pure() {
     let registry = optimisation_codes(&pure_wrapper("string length"));
@@ -636,15 +657,25 @@ fn a_pure_stub_keeps_its_caller_pure() {
         registry.contains(&"O126".to_owned()),
         "the registry baseline: a pure wrapper's unused result goes; got {registry:?}"
     );
-    let flagged = optimisation_codes(&stubbed("mypure {x} -pure", &pure_wrapper("mypure")));
+    let flagged = stubbed("mypure {x} -pure", &pure_wrapper("mypure"));
     assert!(
-        flagged.contains(&"O126".to_owned()),
-        "a `-pure` stub is pure to the summary; got {flagged:?}"
+        label_is_pure(&flagged),
+        "a `-pure` stub is pure to the summary"
     );
-    let flagless = optimisation_codes(&stubbed("mypure {x}", &pure_wrapper("mypure")));
+    let drawn = optimisation_codes(&flagged);
     assert!(
-        !flagless.contains(&"O126".to_owned()),
-        "without `-pure` the call may do anything, so the result stays; got {flagless:?}"
+        !drawn.contains(&"O126".to_owned()),
+        "a stub states no completion, so the call may raise and the result stays; got {drawn:?}"
+    );
+    let flagless = stubbed("mypure {x}", &pure_wrapper("mypure"));
+    assert!(
+        !label_is_pure(&flagless),
+        "without `-pure` the call may do anything"
+    );
+    let drawn = optimisation_codes(&flagless);
+    assert!(
+        !drawn.contains(&"O126".to_owned()),
+        "without `-pure` the call may do anything, so the result stays; got {drawn:?}"
     );
 }
 
@@ -858,24 +889,33 @@ fn an_extension_stub_is_hidden_in_a_safe_interpreter() {
     );
 }
 
-/// The default's purity axis is never pure, so the unused result of a wrapper
-/// around the call stays; `-pure` narrows that axis, and only the effect axes
-/// with it: the same stub is still hidden in a safe interpreter, and no longer
-/// a barrier, because the declaration said what the command does.
+/// The default's purity axis is never pure, so a wrapper around the call is
+/// not pure either; `-pure` narrows that axis, and only the effect axes with
+/// it: the summary takes the wrapper as pure, though its unused result still
+/// stays, since the stub states no completion (D330); the same stub is still
+/// hidden in a safe interpreter, and no longer a barrier, because the
+/// declaration said what the command does.
 #[test]
 fn a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety() {
-    let unstated = optimisation_codes(&stubbed(
-        "ext_label {x} -extension",
-        &pure_wrapper("ext_label"),
-    ));
+    let unstated = stubbed("ext_label {x} -extension", &pure_wrapper("ext_label"));
     assert!(
-        !unstated.contains(&"O126".to_owned()),
-        "an extension command is never pure until it is declared so; got {unstated:?}"
+        !label_is_pure(&unstated),
+        "an extension command is never pure until it is declared so"
+    );
+    let drawn = optimisation_codes(&unstated);
+    assert!(
+        !drawn.contains(&"O126".to_owned()),
+        "an extension command may do anything, so the result stays; got {drawn:?}"
     );
     let narrowed = stubbed("ext_label {x} -extension -pure", &pure_wrapper("ext_label"));
     assert!(
-        optimisation_codes(&narrowed).contains(&"O126".to_owned()),
+        label_is_pure(&narrowed),
         "a declared-pure extension command is pure to the summary"
+    );
+    let drawn = optimisation_codes(&narrowed);
+    assert!(
+        !drawn.contains(&"O126".to_owned()),
+        "a stub states no completion, so the call may raise and the result stays; got {drawn:?}"
     );
     let safe = codes(&stubbed(
         "ext_label {x} -extension -pure",

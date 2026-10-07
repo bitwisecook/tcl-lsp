@@ -49,7 +49,12 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   existence rung does not hold `Bound(Scalar)` where the statement reads it,
   an element read, an `expr` or a command substitution that does not fold
   cleanly — a definition a raise preserved is no clean fold, and a call to a
-  procedure, however pure, is not one either — a statement the
+  procedure, however pure, is not one either, unless the interprocedural
+  summary proves the procedure pure and completing whatever its arguments
+  hold (`ProcSummary::completes`: a straight-line body that reads only what
+  it set and runs only commands that complete so, without recursion) and the
+  call resolves to it from the caller's namespace with a word count its
+  parameters accept (D330) — a statement the
   solver proves raises where a handler is thrown to (`SccpResult::raised`),
   whose effect is the raise, and an `incr` unless its
   amount is a literal integer, its place holds an integer wherever it is

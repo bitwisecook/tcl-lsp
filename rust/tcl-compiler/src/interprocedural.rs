@@ -32,8 +32,10 @@ use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
+mod completion;
 mod transfer;
 
+pub(crate) use completion::CompletionWalk;
 pub use transfer::TransferSummaries;
 pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures, Rerun, RerunStance};
 
@@ -185,6 +187,15 @@ pub struct ProcSummary {
     pub writes_global: bool,
     /// True if the body is side-effect-free.
     pub pure: bool,
+    /// Whether a call whose word count the parameters accept completes
+    /// normally whatever its arguments hold: the body is straight-line, reads
+    /// only scalars it holds set, and runs only commands that complete so — a
+    /// registry command declaring the normal completion alone, or a procedure
+    /// of the module that completes in turn — and never recurses (D330). A
+    /// pure procedure that completes is a value that cannot raise, so an
+    /// unused store of its call is dead. False where the summary is built
+    /// from the IR alone, which holds no command trust.
+    pub completes: bool,
     /// Effect regions this proc (or its callees) may read.
     pub effect_reads: EffectRegion,
     /// Effect regions this proc (or its callees) may write.
@@ -221,6 +232,7 @@ impl ProcSummary {
             has_unknown_calls: true,
             writes_global: true,
             pure: false,
+            completes: false,
             effect_reads: EffectRegion::UNKNOWN_STATE,
             effect_writes: EffectRegion::UNKNOWN_STATE,
             returns_constant: false,
@@ -791,12 +803,26 @@ fn build_interprocedural_analysis_inner(
         .and_then(|units| units.seedless)
         .map(|units| seedless_returns(ir_module, units, &pure, registry, dialect))
         .unwrap_or_default();
+    // Completion reads the registry commands a body runs as the module
+    // leaves their bindings, which a unit's build holds and the IR alone
+    // does not.
+    let completes = units
+        .and_then(|units| units.seedless)
+        .map(|units| {
+            completion::procedures_complete(
+                ir_module,
+                tcl_registry::model::DocumentCommandSurface::new(registry, declared),
+                dialect,
+                units.mutations,
+            )
+        })
+        .unwrap_or_default();
 
     let procedures = materialise_summaries(
         ir_module,
         &local,
         &transitive_calls,
-        &pure,
+        (&pure, &completes),
         (&effect_reads, &effect_writes),
         &seedless,
     );
@@ -1319,6 +1345,9 @@ fn build_method_summaries(
                     has_unknown_calls: facts.has_unknown_calls,
                     writes_global: facts.writes_global,
                     pure: is_pure,
+                    // A method's command is looked up at run time, so no
+                    // call to it is proved to complete.
+                    completes: false,
                     effect_reads: m_reads,
                     effect_writes: m_writes,
                     returns_constant,
@@ -1729,7 +1758,7 @@ fn materialise_summaries(
     ir_module: &crate::ir::Module,
     local: &HashMap<String, LocalFacts>,
     transitive_calls: &HashMap<String, HashSet<String>>,
-    pure: &HashMap<String, bool>,
+    (pure, completes): (&HashMap<String, bool>, &HashMap<String, bool>),
     (effect_reads, effect_writes): (
         &HashMap<String, EffectRegion>,
         &HashMap<String, EffectRegion>,
@@ -1790,6 +1819,7 @@ fn materialise_summaries(
                 has_unknown_calls,
                 writes_global,
                 pure: is_pure,
+                completes: completes.get(qname).copied().unwrap_or(false),
                 effect_reads: *effect_reads
                     .get(qname)
                     .unwrap_or(&EffectRegion::UNKNOWN_STATE),

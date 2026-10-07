@@ -6298,6 +6298,109 @@ fn a_raising_store_is_never_dead() {
     }
 }
 
+/// One program of [`a_call_that_cannot_raise_leaves_a_dead_store`].
+struct CompletingCall {
+    source: &'static str,
+    /// The unused store of the call.
+    store: &'static str,
+    /// Whether `tcl opt` drops it: only where the call cannot raise.
+    goes: bool,
+    printed: &'static str,
+}
+
+/// The programs of [`a_call_that_cannot_raise_leaves_a_dead_store`].
+const COMPLETING_CALLS: [CompletingCall; 9] = [
+    // The registry baseline: `string length` completes whatever it is given.
+    CompletingCall {
+        source: "proc lbl {x} {return [string length $x]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [main]\n",
+        store: "set a [lbl abc]",
+        goes: true,
+        printed: "1\n",
+    },
+    // The call's word reads a parameter, which is set.
+    CompletingCall {
+        source: "proc lbl {x} {set n [string length $x]; return $n}\nproc main {y} {\n    set a [lbl $y]\n    return 1\n}\nputs [main q]\n",
+        store: "set a [lbl $y]",
+        goes: true,
+        printed: "1\n",
+    },
+    // A literal return, reached through a second procedure.
+    CompletingCall {
+        source: "proc one {} {return 1}\nproc two {} {return [one]}\nproc main {} {\n    set a [two]\n    return 1\n}\nputs [main]\n",
+        store: "set a [two]",
+        goes: true,
+        printed: "1\n",
+    },
+    // `expr` raises for `x + 1`.
+    CompletingCall {
+        source: "proc add {a b} {expr {$a + $b}}\nproc main {} {\n    set a [add x 1]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [add x 1]",
+        goes: false,
+        printed: "1\n",
+    },
+    // A word count the parameters reject.
+    CompletingCall {
+        source: "proc lbl {x} {return [string length $x]}\nproc main {} {\n    set a [lbl]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl]",
+        goes: false,
+        printed: "1\n",
+    },
+    // A recursion, which the nesting limit ends.
+    CompletingCall {
+        source: "proc rec {n} {return [string length [rec $n]]}\nproc main {} {\n    set a [rec 1]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [rec 1]",
+        goes: false,
+        printed: "1\n",
+    },
+    // `lindex` raises on a list with an unmatched brace.
+    CompletingCall {
+        source: "proc first {x} {return [lindex $x 0]}\nproc main {} {\n    set a [first \\{]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [first \\{]",
+        goes: false,
+        printed: "1\n",
+    },
+    // The call's word reads a variable nothing sets.
+    CompletingCall {
+        source: "proc lbl {x} {return [string length $x]}\nproc main {} {\n    set a [lbl $y]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl $y]",
+        goes: false,
+        printed: "1\n",
+    },
+    // `lbl` in `::ns` is `::ns::lbl`, which raises, not the global one.
+    CompletingCall {
+        source: "proc ::lbl {x} {return [string length $x]}\nnamespace eval ns {\n    proc lbl {x} {error boom}\n    proc main {} {\n        set a [lbl abc]\n        return 1\n    }\n}\nputs [catch ns::main]\n",
+        store: "set a [lbl abc]",
+        goes: false,
+        printed: "1\n",
+    },
+];
+
+/// The unused store of a call goes only where the call cannot raise (D330):
+/// purity says a call changes nothing, not that it completes (D253), so the
+/// call's procedure must complete whatever its arguments hold — a
+/// straight-line body that reads only what it set and runs only commands
+/// that complete so, `string length` among them — and be called with a word
+/// count its parameters accept, its words reading only set variables. A body
+/// whose `expr` or `lindex` may raise, a rejected word count, a recursion, an
+/// unset read and a procedure the caller's namespace shadows each keep the
+/// store. Every program prints what tclsh prints before and after `tcl opt`
+/// under every release.
+#[test]
+fn a_call_that_cannot_raise_leaves_a_dead_store() {
+    for call in &COMPLETING_CALLS {
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(call.source, dialect);
+            assert_eq!(
+                !rewritten.contains(call.store),
+                call.goes,
+                "{dialect}: `{}` goes only where the call cannot raise\n{rewritten}\n{rewrites:#?}",
+                call.store
+            );
+        }
+        prints_under_releases_from(call.source, call.printed, "8.4");
+    }
+}
+
 /// One program of [`a_level_zero_return_completes_where_it_stands`].
 struct LevelZeroReturn {
     source: &'static str,

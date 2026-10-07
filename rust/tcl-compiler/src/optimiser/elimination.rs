@@ -45,7 +45,9 @@
 //! place and the binding's disappearance are its effects. A store whose
 //! value can raise stays as well (`RaiseProof`): deleting it would drop
 //! the error, so a value reading a variable the existence rung does not hold
-//! bound as a scalar where it reads it, an `expr` that does not fold, and an
+//! bound as a scalar where it reads it, an `expr` that does not fold, a
+//! command substitution that does not fold — but a call to a procedure the
+//! summary proves pure and completing whatever its arguments hold — and an
 //! `incr` that may find its place absent under a release the profile spans,
 //! or holding something other than an integer, are kept.
 //!
@@ -305,14 +307,16 @@ fn assignment_safe_to_delete_with_effect(stmt: &Statement, effect: EffectCtx<'_>
 ///   an undefined, traced or escaping name as overdefined, and a definition
 ///   a raise left holding the value before it is preserved
 ///   ([`crate::sccp::SccpResult::preserved`]), which is no clean evaluation;
-/// * otherwise a word value (`AssignValue`) with no command substitution
-///   qualifies when the existence rung holds every variable it reads bound
-///   as a scalar where the statement reads it
-///   ([`crate::sccp::SccpResult::existence_before`]). A command substitution
-///   may raise on its own words whatever they read (`[lindex {a b} 1.5]`), a
-///   call to a procedure included, pure or not (purity says the call changes
-///   nothing, not that it completes), and an `expr` value's operators on a
-///   bound operand, so either needs the clean fold;
+/// * otherwise a word value (`AssignValue`) qualifies when the existence rung
+///   holds every variable it reads bound as a scalar where the statement
+///   reads it ([`crate::sccp::SccpResult::existence_before`]) and it has no
+///   command substitution, or only calls the summary proves complete
+///   ([`RaiseProof::calls_complete`]). A command substitution may raise on
+///   its own words whatever they read (`[lindex {a b} 1.5]`), and purity
+///   says a call changes nothing, not that it completes, so a call needs the
+///   clean fold or a procedure that completes whatever its arguments hold
+///   (D330); an `expr` value's operators may raise on a bound operand, so it
+///   needs the clean fold;
 /// * an `incr` qualifies when its amount is an integer literal and its place
 ///   is a scalar that holds an integer wherever it is bound, and is bound
 ///   where the statement reads it unless every release the profile names
@@ -326,10 +330,64 @@ struct RaiseProof<'a> {
     /// Whether every release the profile names creates the cell an `incr`
     /// of an absent place reads (8.5 onwards); 8.4 raises `can't read`.
     incr_creates_absent: bool,
+    /// What proves a value's calls complete ([`Self::calls_complete`]).
+    calls: CallCompletion<'a>,
+}
+
+/// What [`RaiseProof::calls_complete`] reads of the module: the procedures'
+/// summaries and how their names stand.
+struct CallCompletion<'a> {
+    /// Each procedure's summary, by qualified name.
+    procedures: &'a HashMap<String, crate::interprocedural::ProcSummary>,
+    /// The procedures the module defines more than once.
+    redefined: Option<&'a HashSet<String>>,
+    /// The module's command bindings: a renamed or aliased procedure's name
+    /// denotes another command.
+    mutations: &'a crate::command_binding::ModuleCommandMutations,
+    /// Whether the module traces a command, whose callback may raise.
+    traces_commands: bool,
+    /// The document's grammar, which a value's words were lexed under.
+    config: tcl_lexer::LexerConfig,
+    /// Whether the function runs in a namespace chosen at run time — a
+    /// method body — where a relative head names no proven procedure.
+    runtime_namespace: bool,
+}
+
+impl CallCompletion<'_> {
+    /// The procedure of the module `head` names from `function`, as Tcl
+    /// resolves a command: the function's namespace, then the global one.
+    fn procedure(&self, function: &str, head: &str) -> Option<String> {
+        if self.runtime_namespace && !head.starts_with("::") {
+            return None;
+        }
+        crate::interprocedural::resolve_internal_call_with(head, function, |qname| {
+            self.procedures.contains_key(qname)
+        })
+    }
+
+    /// Whether a call to `qname` with `words` words after its head cannot
+    /// raise: the summary proves the procedure pure and completing, its
+    /// parameters accept the count, and its name stands for it.
+    fn completes(&self, qname: &str, words: usize) -> bool {
+        self.procedures.get(qname).is_some_and(|summary| {
+            summary.pure
+                && summary.completes
+                && u16::try_from(words).is_ok_and(|count| {
+                    crate::interprocedural::arity_from_names(&summary.params).accepts(count)
+                })
+        }) && !self
+            .redefined
+            .is_some_and(|redefined| redefined.contains(qname))
+            && self.mutations.trusts_proc_binding(qname)
+    }
 }
 
 impl<'a> RaiseProof<'a> {
-    fn new(ctx: &PassContext<'a>, fu: &'a FunctionUnit) -> Self {
+    fn new(
+        ctx: &'a PassContext<'_>,
+        fu: &'a FunctionUnit,
+        execution_namespace: Option<&crate::ir::ExecutionNamespace>,
+    ) -> Self {
         // Alias recognition is registry-driven; a registry-less context (unit
         // tests) falls back to the cached default.
         let registry = ctx.registry.unwrap_or_else(|| {
@@ -342,6 +400,16 @@ impl<'a> RaiseProof<'a> {
             incr_creates_absent: ctx
                 .registry
                 .is_some_and(crate::value_transfer::typed_incr_creates_absent),
+            calls: CallCompletion {
+                procedures: &ctx.interproc.procedures,
+                redefined: ctx.ir_module.map(|m| &m.redefined_procedures),
+                mutations: &ctx.command_mutations,
+                traces_commands: ctx
+                    .ir_module
+                    .is_some_and(|m| !m.traced_commands.is_empty() || m.has_dynamic_trace),
+                config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+                runtime_namespace: execution_namespace.is_some(),
+            },
         }
     }
 
@@ -391,7 +459,7 @@ impl<'a> RaiseProof<'a> {
             Statement::AssignValue { value, .. } => {
                 folded()
                     || (!has_element_substitution(value)
-                        && !has_command_substitution(value)
+                        && (!has_command_substitution(value) || self.calls_complete(stmt))
                         && self.reads_are_set(block, idx))
             }
             Statement::Incr {
@@ -410,6 +478,39 @@ impl<'a> RaiseProof<'a> {
             }
             _ => folded(),
         }
+    }
+
+    /// Whether every command the value word of `stmt` (an `AssignValue`)
+    /// substitutes is a call that cannot raise (D330): to a procedure of the
+    /// module, resolved from the function's namespace as Tcl resolves it,
+    /// whose summary proves it pure and completing whatever its arguments
+    /// hold, called with a word count its parameters accept, under a name no
+    /// redefinition, `rename` or alias moves, in a module that traces no
+    /// command; each of its words literal, a variable read or a substitution
+    /// of the same kind. Whether the reads are set is
+    /// [`Self::reads_are_set`]'s question.
+    fn calls_complete(&self, stmt: &Statement) -> bool {
+        let Statement::AssignValue {
+            tokens: Some(tokens),
+            ..
+        } = stmt
+        else {
+            return false;
+        };
+        let [_, _, value] = tokens.word_exprs.as_slice() else {
+            return false;
+        };
+        let calls = &self.calls;
+        if calls.traces_commands {
+            return false;
+        }
+        let procedure = |head: &str| calls.procedure(&self.fu.name, head);
+        let mut walk = crate::interprocedural::CompletionWalk::new(calls.config, &procedure, None);
+        walk.word(value)
+            && walk
+                .calls
+                .iter()
+                .all(|(qname, words)| calls.completes(qname, *words))
     }
 
     /// Whether every variable the statement substitutes is bound as a scalar
@@ -859,7 +960,7 @@ fn emit_dead_stores_and_unused(
         .registry
         .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
-    let raise_proof = RaiseProof::new(ctx, fu);
+    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees
     // no read (the callee reads/writes it through the alias).
@@ -1178,7 +1279,7 @@ fn emit_adce(
 ) {
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
-    let raise_proof = RaiseProof::new(ctx, fu);
+    let raise_proof = RaiseProof::new(ctx, fu, execution_namespace);
     let removed = run_adce_fixpoint(
         fu,
         baseline,
@@ -2601,20 +2702,92 @@ mod tests {
     }
 
     #[test]
-    fn o126_keeps_a_pure_user_proc_rhs() {
+    fn o126_takes_the_store_of_a_pure_call_that_completes() {
         // A user proc proven pure by interproc analysis has no observable
-        // side effect, but purity is no proof that the call completes
-        // (`proc add {a b} {expr {$a + $b}}` raises for `add x 1`), and a
-        // store whose value raises is never dead: `set unused [::pure]`
-        // stays, its call folded to the constant instead.
+        // side effect, and purity is no proof that the call completes
+        // (`proc add {a b} {expr {$a + $b}}` raises for `add x 1`); but the
+        // summary proves `return 1` completes whatever the call is given, so
+        // the call cannot raise and `set unused [::pure]` is dead (D330;
+        // tclsh 8.4 to 9.1 run `::f` alike with and without it).
         let opts = crate::optimiser::optimise(
             "proc ::pure {} { return 1 }\nproc ::f {} { set unused [::pure]; return 1 }",
             &registry(),
         );
         assert!(
-            opts.iter().all(|o| o.code != DiagCode::O126)
-                && opts.iter().any(|o| o.code == DiagCode::O103),
-            "pure-proc RHS should fold by O103 and keep its store, got {opts:?}",
+            opts.iter().any(|o| o.code == DiagCode::O126),
+            "a pure, completing proc's unused store should go, got {opts:?}",
+        );
+    }
+
+    /// The store of a call goes only where the call cannot raise (D330):
+    /// a callee whose body may raise, a word count its parameters reject, a
+    /// recursion, a read the existence rung does not hold set, a procedure
+    /// the caller's namespace shadows, a name a `rename` moves or a second
+    /// definition replaces, and a module that traces a command each keep it.
+    #[test]
+    fn o126_keeps_the_store_of_a_call_that_may_raise() {
+        for (source, why) in [
+            (
+                "proc add {a b} {expr {$a + $b}}\nproc f {} {set unused [add x 1]; return 1}",
+                "`expr` may raise",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nproc f {} {set unused [len]; return 1}",
+                "too few words",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nproc f {} {set unused [len a b]; return 1}",
+                "too many words",
+            ),
+            (
+                "proc rec {n} {return [string length [rec $n]]}\nproc f {} {set unused [rec 1]; return 1}",
+                "a recursion",
+            ),
+            (
+                "proc first {x} {return [lindex $x 0]}\nproc f {} {set unused [first a]; return 1}",
+                "`lindex` may raise",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nproc f {} {set unused [len $y]; return 1}",
+                "`y` is not set",
+            ),
+            (
+                "proc ::len {x} {return [string length $x]}\nnamespace eval ns {\n    proc len {x} {puts $x; return 1}\n    proc f {} {set unused [len a]; return 1}\n}",
+                "`len` in `::ns` is the printing `::ns::len`",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nrename len other\nproc f {} {set unused [len a]; return 1}",
+                "`len` was renamed away",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nproc len {x} {error no}\nproc f {} {set unused [len a]; return 1}",
+                "`len` is defined twice",
+            ),
+            (
+                "proc len {x} {return [string length $x]}\nproc cb {args} {error no}\ntrace add execution len enter cb\nproc f {} {set unused [len a]; return 1}",
+                "an execution trace may raise",
+            ),
+        ] {
+            let opts = crate::optimiser::optimise(source, &registry());
+            assert!(
+                opts.iter()
+                    .all(|o| !matches!(o.code, DiagCode::O126 | DiagCode::O109 | DiagCode::O108)),
+                "{why}: the store stays, got {opts:?}",
+            );
+        }
+    }
+
+    /// A completing call whose words read variables the existence rung holds
+    /// set leaves a dead store: `y` is a parameter.
+    #[test]
+    fn o126_takes_the_store_of_a_completing_call_whose_reads_are_set() {
+        let opts = crate::optimiser::optimise(
+            "proc len {x} {return [string length $x]}\nproc f {y} {set unused [len $y]; return 1}",
+            &registry(),
+        );
+        assert!(
+            opts.iter().any(|o| o.code == DiagCode::O126),
+            "a completing call over a set parameter leaves a dead store, got {opts:?}",
         );
     }
 

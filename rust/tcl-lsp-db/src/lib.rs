@@ -2968,6 +2968,13 @@ pub struct OptCalleeSummary {
     /// Per-parameter traits (`upvar` / call-by-name / passthrough / …), sorted —
     /// the `call_by_name` O109/O126 suppression reads a callee's by-name params.
     pub param_traits: Vec<(String, Vec<tcl_compiler::interprocedural::ProcArgTrait>)>,
+    /// Each parameter's default, sorted by parameter — the same suppression
+    /// reads the place an omitted by-name argument's default names.
+    pub param_defaults: Vec<(String, String)>,
+    /// Whether a call completes normally whatever its arguments hold — the
+    /// O109/O126/O108 raise proof takes a pure callee's unused store as dead
+    /// where it does.
+    pub completes: bool,
 }
 
 fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
@@ -2982,6 +2989,12 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         })
         .collect();
     param_traits.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut param_defaults: Vec<(String, String)> = s
+        .param_defaults
+        .iter()
+        .map(|(param, default)| (param.clone(), default.clone()))
+        .collect();
+    param_defaults.sort();
     OptCalleeSummary {
         qname: s.qualified_name.clone(),
         params: s.params.clone(),
@@ -3000,6 +3013,8 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         return_passthrough_param: s.return_passthrough_param.clone(),
         return_depends_on_params: s.return_depends_on_params.clone(),
         param_traits,
+        param_defaults,
+        completes: s.completes,
     }
 }
 
@@ -3028,6 +3043,8 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
         .iter()
         .map(|(p, ts)| (p.clone(), ts.iter().copied().collect()))
         .collect();
+    s.param_defaults = o.param_defaults.iter().cloned().collect();
+    s.completes = o.completes;
     s
 }
 
@@ -6225,6 +6242,75 @@ mod tests {
             runs(&log),
             1,
             "unrelated body edit -> exactly ONE function_optimisations recomputes"
+        );
+    }
+
+    /// The opt projection a memoised procedure reads its callees through keeps
+    /// what the dead-store passes ask of them: the completion (D330), and each
+    /// parameter's default, which the call-by-name reads take for an omitted
+    /// `Name` argument (D311).
+    #[test]
+    fn the_opt_projection_keeps_completion_and_defaults() {
+        let mut summary = ProcSummary::unknown("::bumpd");
+        summary.params = vec!["name".to_owned()];
+        summary
+            .param_defaults
+            .insert("name".to_owned(), "n".to_owned());
+        summary.completes = true;
+        let projected = opt_callee_to_summary(&opt_callee_from_summary(&summary));
+        assert_eq!(projected.param_defaults, summary.param_defaults);
+        assert!(projected.completes);
+    }
+
+    /// A callee that completes whatever its arguments hold makes the unused
+    /// store of its call dead in the per-procedure optimiser memo as in the
+    /// whole-module build (D330): the memo reads a callee's summary through its
+    /// opt projection, which carries the completion with the purity.
+    #[test]
+    fn a_completing_callee_reaches_the_optimiser_memo() {
+        let log: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = {
+            let l = Arc::clone(&log);
+            move |ev: salsa::Event| {
+                if let salsa::EventKind::WillExecute { database_key } = ev.kind {
+                    l.lock().unwrap().push(format!("{database_key:?}"));
+                }
+            }
+        };
+        let db = TclDatabase {
+            storage: salsa::Storage::new(Some(Box::new(sink))),
+        };
+        // `k` is pure with an argument-independent constant return and `f`
+        // prints, so no procedure is an argument-sensitive fold target and the
+        // module keeps the memo path rather than the whole-module fallback.
+        let text = "proc k {} { return 1 }\nproc f {} {\n    set u [k]\n    puts done\n}\n";
+        let file = SourceFile::new(&db, text.to_owned(), "tcl8.6".to_owned(), None);
+        let memoised = compiler_check_diagnostics(&db, file, cfg(&db));
+        assert_eq!(
+            log.lock()
+                .unwrap()
+                .iter()
+                .filter(|key| key.contains("function_optimisations"))
+                .count(),
+            2,
+            "each procedure's optimisations come from the memo"
+        );
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let whole = compiler_check_diagnostics_uncached(text, registry, "tcl8.6", None, None);
+        let codes = |optimisations: &[Optimisation]| -> Vec<(String, u32, u32)> {
+            optimisations
+                .iter()
+                .map(|o| (o.code.as_str().to_owned(), o.span.start(), o.span.end()))
+                .collect()
+        };
+        assert_eq!(codes(&memoised.optimisations), codes(&whole.optimisations));
+        assert!(
+            memoised
+                .optimisations
+                .iter()
+                .any(|o| o.code.as_str() == "O126"),
+            "the unused store of a completing call goes; got {:?}",
+            memoised.optimisations
         );
     }
 
