@@ -46,9 +46,9 @@ qualified and aliased `Name` arguments (10), `k` kept-whole `switch`/`catch`/
 `sharedvar` (2), `gen/` the generated sweep (1470); every run's outputs under
 `review-vt13/out/`.
 
-- Hand batches a, b, c, d, g (full matrix, 1300 rows): DIFF rows on a11, a13,
-  a22, b01, b02, b22, b26, c14, c22, d08, d11 — each classified below; nothing
-  else. Batches h and i (330 rows): see the log section at the end.
+- Hand batches a, b, c, d, g, h, i (full matrix, 1630 rows): DIFF rows on
+  a11, a13, a22, b01, b02, b22, b26, c14, c22, d08, d11, h01, h04, h09, h10,
+  h11 and i06 (159 rows) — each classified below; nothing else.
 - Generated sweep (`gen.py`: 21 callee bodies over `upvar 1 $name v` — `incr`,
   `incr $by`, `set`, `unset`, `append`, `lappend`, a conditional `set`, an
   `ensure`, `[expr {$v * 2}]`, a read-only `return $v`, `catch {incr v}`,
@@ -120,6 +120,32 @@ that — so the exit reading sees no executable return; or, until #2390 is
 fixed, D305's purity must not extend to a caller whose re-run of the callee
 did not complete. Mutation M6 (below) shows which tests cover the word-count
 route.
+
+### B2. A call that omits a `Name` parameter whose default names a caller place is a barrier that widens nothing, so the place keeps a stale value the next read or re-run folds
+
+`proc bumpd {{name n}} {upvar 1 $name v; incr v}`: a call with no argument
+links `v` to the caller's `n` through the parameter's default. `call_transfer`
+(`transfer.rs`) returns `None` for an omitted `Name` parameter ("a word count
+the callee's parameters reject" or a `Name` role past the words), which
+`procedure_answer` turns into the generic answer — and the generic answer
+widens only the call statement's own definitions, of which the CFG builder
+recorded none (it maps arguments to `param_targets` and knows no default:
+the pre-existing half, P9). So the call is no barrier at all: the caller's
+lattice keeps `n`'s prior value across it, and the slice then reads it — a
+later `puts $n` is inlined from it, and a later `bumpd n` re-runs the callee
+seeded from it.
+
+| program (`progs/i/…`) | tclsh 8.4.20 … 9.1.0 | base `tcl opt` | HEAD `tcl opt --profile full --dialect tcl8.6` (and 8.4) |
+|---|---|---|---|
+| i21 `set n 1; bumpd n; bumpd; puts $n` | `3` | `puts $n` | `puts 2` (`# O100 Inline the constant value of 'n'`) |
+| i22 `set n 1; bumpd; bumpd n; puts $n` | `3` | `puts $n` | `puts 2` — the re-run of `bumpd n` seeded from the stale 1 |
+| i06 `set n 1; bumpd; puts $n; bumpd n; puts $n; proc p {} {set n 1; bumpd; return $n}; puts [p]` | `2 3 2` | `1 3 1` (P9) | `1 2 1` — the middle line newly wrong |
+
+`parameter_values` already computes the default an omitted argument binds,
+so `call_transfer` can name the default's place as the call's `Name` place
+and the CFG builder's `upvar_invalidated` give it a definition; until both
+hold, an omitted `Name` argument must widen the caller's frame as a call to
+unseen code does.
 
 ## S — should fix before the slice is called complete
 
@@ -210,6 +236,13 @@ caller's place)"); either the suppression reads the summary's step — an
   also folds `puts 1` (a07: `--dialect tcl8.5` and `tcl9.1` print `puts 1`,
   `tcl8.4` keeps `puts $absent`). A comment that names the dialect list would
   save the next reader the check.
+- N6. No witness exercises the summary's step applied without a re-run
+  (`place_answers` with `after == None`: a callee past the depth-32 or
+  4096-re-run bound, or a recursion its seeds do not end), so a wrong
+  composed outcome (M1) passes every witness and only
+  `summaries_compose_through_two_callees` stands between it and the caller.
+  A witness with a bounded recursion over an `upvar` link (`up z 40` in b22
+  prints 40 and is left unfolded, so it is a candidate) would close that.
 - N5. `RerunKey` carries the callee, the seeds and the trust but not the policy
   or the dialect; both are fixed per `ModuleProcedures` instance (one per unit
   build, one per O103 fold), which the type's comment could state.
@@ -221,7 +254,18 @@ target, run the named tests, restore byte for byte, `git status` clean after
 each; logs under `out/mut/<name>/`). The tree was clean and no `cargo test`
 other than the review's was running before each.
 
-MUTATION-TABLE
+| mutation (`out/mut/<name>/mutation.diff`) | target and tests run | outcome |
+|---|---|---|
+| M1 `outcomes_of`: a place unbound at every exit read as `Preserve` (`transfer.rs:1714`) | `tcl-compiler --lib`: `interprocedural::transfer` | dies: `summaries_compose_through_two_callees` (`reset` reads `[Preserve]` for `[Unbind]` under tcl8.4) |
+| M1b the same | `value_transfer_witnesses`: `the_seven_summary_witnesses` | **survives**: the witnesses take each place's fact from the callee's re-run (`place_answers` prefers `after.places`), and the summary's step is applied only where no re-run can be made (the depth and count bounds, a recursion its seeds do not end), a path no witness exercises — the unit test is the only guard (N6) |
+| M2 `word_effects_host`: a `Statement` host paired with no statement (`ssa.rs:3588`) | `--lib`: `word_effects`, `hidden_reads_are_what_the_ssa_does_not_record` | dies on both: `word_effects_stand_ahead_of_the_statement_whose_words_they_are`, `hidden_reads_are_what_the_ssa_does_not_record` |
+| M2b the same | witnesses: `an_embedded_call_applies_its_summary`, `set_result_incr_keeps_its_increment`, `a_nested_caller_keeps_the_callee_whole` | dies on the first and third; #2050's `set_result_incr_keeps_its_increment` survives (the definition point's own use keeps the store alive without the pairing) |
+| M3 `solve_rerun`: the links' values never seeded (`transfer.rs:672`) | witnesses: `bump_decides_through_both_o103_paths`, `the_seven_summary_witnesses`, `two_callers_share_one_summary` | dies on all three (no `const(2)`, no `puts 4`, no `2 11`): a place's value comes only from the seeded re-run (R7) |
+| M4 `memo_key` ignoring `reads_module` (`tcl-lsp-db/src/lib.rs:2204`) | `tcl-lsp-db --lib`: `value_transfer_parity` | dies: `a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites`, `a_call_through_a_name_parameter_decides_in_the_editor` (15 of 17 pass) |
+| M5 `names_own_places` always true (`interprocedural.rs:1664`) | `--lib`: `a_call_naming_the_callers_own_place_keeps_it_pure` | dies (`::g` with `bump ::n` and `h` with `global n` read as pure) |
+| M6 `call_transfer` without the word-count check (`transfer.rs:490`) | witnesses: `the_seven_summary_witnesses`, `bump_decides_through_both_o103_paths` | **survives** both: no test calls a summarised procedure with a word count its arity rejects — B1's b37 route |
+
+Every mutation's build and run log is beside its status; the tree was `git status`-clean after each restore and at the end of the chain (`out/suites/final-status.txt`, 0 lines).
 
 ## P — pre-existing defects found in passing (for GitHub issues, not fixes)
 
@@ -315,6 +359,15 @@ binary: identical; the MCP build of 2026-10-06 05:35 deletes the store
 outright (O109) instead. #2327 names "an intervening write … in the target
 body"; here the write is the header's, so the issue should name the header.
 
+### P9. A `Name` parameter's default names a caller place no definition records: O102 forwards and O100 folds across the call
+
+`proc bumpd {{name n}} {upvar 1 $name v; incr v}; set n 1; bumpd; puts $n;
+proc p {} {set n 1; bumpd; return $n}; puts [p]` (i06) prints `2` and `2`;
+base and HEAD alike print `1` and `1` (`# O102 Forward literal load of 'n'`,
+`# O100 Fold return of constant variable`): the CFG builder's call-by-name
+definitions come from the call's words, never from a parameter's default.
+B2 is what the slice builds on top of it.
+
 ### Known, met again (no new issue)
 
 - a13 `foreach x [list [bump n] [bump n]] {puts $x}; puts $n` → `puts 1` for
@@ -362,6 +415,19 @@ body"; here the write is the header's, so the issue should name the header.
   → 7, `g2` → 5, nothing folded once `f` is renamed), `unset -nocomplain`
   (b28), a read-only callee's store kept (b29, d04), `append`/`lappend` links
   (b30).
+- Batch i: a namespace `bump` shadowing the global one and `::bump` beside
+  it (i01: 11, 2, 11), a callee defined later inside `namespace eval` (i02),
+  `rename a {}; rename b a` between calls and `interp alias` (i03, i04: no
+  fold, right output), an `args`-tail link (i05: no summary), the place as a
+  `foreach` variable (i07), `return [get n]` and `[expr {[get n] + 1}]`
+  (i08), a `Name` beside `args` with braces in the rest (i09), a two-name
+  swap (i10), the parameter read as a value beside its link (i11),
+  `global`/`variable` then `bump` (i12, i13), an `upvar 0` place (i14),
+  `catch` around the call with a raising callee (i15), a call in each arm
+  and under a decided `if` (i16), `while` with the call in the body and the
+  header (i17), 4200 calls (i18), a callee named before its definition and
+  an unknown one under `catch` (i19), a callee that calls an unknown
+  command under `catch` (i20): 190 rows SAME.
 - Callee bodies writing the link by other means (batch g): `eval` braced,
   quoted and `[list …]`, `uplevel 0`, `apply`, `foreach`/`while`/`switch`/
   `catch`/`try` inside the callee, `lassign`, `scan`, `regexp`, a `foreach`
@@ -396,7 +462,30 @@ body"; here the write is the header's, so the issue should name the header.
 
 ## Verdict
 
-VERDICT-TEXT
+Rework. B1 and B2 are miscompiles the slice introduces, each with the base
+binary leaving the program alone: D305 makes a caller of a `Name`-linking
+callee foldable, and a callee whose re-run raises under the call's seeds (a
+non-integer, an absent place under 8.4, a division by zero) or whose arity
+rejects the call leaves the caller's exit reading a constant, so `puts [c]`
+becomes `puts 0` where every tclsh raises, on both O103 paths and in the
+embedded form (B1); and a call that omits a `Name` parameter whose default
+names a caller place is a barrier that widens nothing, so `set n 1; bumpd n;
+bumpd; puts $n` prints 2 for 3 (B2). S1 (the summary's `globals` states a
+false fact for a qualified or aliased `Name` argument) and S2 (W210 does not
+read a callee's unbind, though the slice's drafted row and
+`value-transfers.md` say it does) should be fixed or restated before the
+slice is called complete. Everything else the summaries decide was right
+under every release in 1630 hand rows, 4410 sweep rows and the five suites
+(the witness binary 158, `optimiser` 105, `optimiser_coverage` 93,
+`inlining_interproc_residual` 58, `value_transfer_parity` 17,
+`value_transfers_cli` 28, both xtask gates); every other miscompile found
+(P2–P9) is pre-existing with the base binary's identical output as evidence;
+six of the eight mutations die on the tests the record names, and M1b and M6
+survive the witness binary (N6, and B1's word-count route), which is where
+the lane's coverage should grow.
+
+S items: S1 (the summary's `globals` for a qualified or aliased `Name`
+argument), S2 (W210 after a callee's unbind, and the drafted row).
 
 ## Run log
 
