@@ -479,8 +479,14 @@ pub fn join<O: ValueOps>(
     Ok(ops.new_string(parts.join(&sep)))
 }
 
+/// The characters `split` splits on by default: space, newline, tab and
+/// carriage return, `Tcl_SplitObjCmd`'s `" \n\t\r"` — not the vertical tab or
+/// the form feed, which [`TCL_WS`] holds for `concat` (tclsh 8.4.20 to 9.1.0
+/// split `"a\vb\fc d"` into two elements).
+const SPLIT_WS: &[char] = &[' ', '\n', '\t', '\r'];
+
 /// `split string ?splitChars?` — split into a list. The default split set is
-/// whitespace; an empty split set splits into individual characters.
+/// [`SPLIT_WS`]; an empty split set splits into individual characters.
 pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value>) -> O::Value {
     let string = ops.as_str(value).to_string();
     let set = chars.map(|c| ops.as_str(c).to_string());
@@ -491,7 +497,7 @@ pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value
         // An empty split set makes each character its own element.
         string.chars().map(|c| c.to_string()).collect()
     } else {
-        let set: Vec<char> = set.map_or_else(|| TCL_WS.to_vec(), |c| c.chars().collect());
+        let set: Vec<char> = set.map_or_else(|| SPLIT_WS.to_vec(), |c| c.chars().collect());
         string
             .split(|c| set.contains(&c))
             .map(str::to_string)
@@ -502,4 +508,86 @@ pub fn split<O: ValueOps>(ops: &mut O, value: &O::Value, chars: Option<&O::Value
         values.push(ops.new_string(p));
     }
     ops.new_list(values)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Text values whose lists render through the shared `Tcl_Merge` owner,
+    /// as 8.5 to 9.1 render them.
+    struct TextOps;
+
+    impl ValueOps for TextOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            tcl_syntax::list::join_list(items.iter().map(String::as_str))
+        }
+        fn as_str(&mut self, v: &String) -> std::rc::Rc<str> {
+            std::rc::Rc::from(v.as_str())
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, _v: &String) -> Result<f64, tcl_syntax::value::ValueError> {
+            Ok(0.0)
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(false)
+        }
+        fn list_elements(
+            &mut self,
+            v: &String,
+        ) -> Result<Vec<String>, tcl_syntax::value::ValueError> {
+            tcl_syntax::list::split_list(v)
+                .map(|elements| elements.iter().map(ToString::to_string).collect())
+                .map_err(|error| tcl_syntax::value::ValueError::BadList(error.message().to_owned()))
+        }
+    }
+
+    /// Each `split` as tclsh 8.5.19 to 9.1.0 give it (8.4.20 too, which
+    /// renders a leading `#` unquoted).
+    #[test]
+    fn split_splits_as_tclsh_splits() {
+        let cases: &[(&str, Option<&str>, &str)] = &[
+            ("a b c", None, "a b c"),
+            (" a  b ", None, "{} a {} b {}"),
+            ("a\tb\nc\rd", None, "a b c d"),
+            ("a\u{b}b\u{c}c d", None, "{a\u{b}b\u{c}c} d"),
+            ("", None, ""),
+            (" ", None, "{} {}"),
+            ("a,b,,c", None, "a,b,,c"),
+            ("{a} b", None, "{{a}} b"),
+            ("a\\ b", None, "a\\\\ b"),
+            ("\"x\" y", None, "{\"x\"} y"),
+            ("#a b", None, "{#a} b"),
+            ("a,b,,c", Some(","), "a b {} c"),
+            ("abc", Some(""), "a b c"),
+            ("a.b-c", Some(".-"), "a b c"),
+            ("a  b", Some(" "), "a {} b"),
+            ("", Some(","), ""),
+            ("a,b", Some(""), "a , b"),
+            (",a,", Some(","), "{} a {}"),
+            ("abc", Some("abc"), "{} {} {} {}"),
+            ("a{b}c", Some("{}"), "a b c"),
+        ];
+        for &(string, chars, expected) in cases {
+            let chars = chars.map(str::to_owned);
+            let got = split(&mut TextOps, &string.to_owned(), chars.as_ref());
+            assert_eq!(got, expected, "split {string:?} {chars:?}");
+        }
+    }
 }
