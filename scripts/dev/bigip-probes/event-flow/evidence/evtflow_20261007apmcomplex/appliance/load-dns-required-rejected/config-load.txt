@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/evtflow_20261007apmcomplex/fixture/config.conf
+01071b14:3: AAA OAuth Server (/Common/__tcl_lsp_evtflow_efo_complex_oidc_server) must specify DNS resolver.
+Unexpected Error: Loading configuration process failed.

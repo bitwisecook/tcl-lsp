@@ -1,0 +1,83 @@
+● samba-ad-dc.service - Samba AD Daemon
+     Loaded: loaded (/lib/systemd/system/samba-ad-dc.service; enabled; preset: enabled)
+     Active: active (running) since Wed 2026-10-07 10:54:44 UTC; 29min ago
+       Docs: man:samba(8)
+             man:samba(7)
+             man:smb.conf(5)
+    Process: 130 ExecCondition=/usr/share/samba/is-configured samba (code=exited, status=0/SUCCESS)
+   Main PID: 139 (samba)
+     Status: "samba: ready to serve connections..."
+      Tasks: 59 (limit: 214956)
+     Memory: 195.2M
+        CPU: 3.632s
+     CGroup: /system.slice/samba-ad-dc.service
+             ├─139 "samba: root process"
+             ├─196 "samba: tfork waiter process(198)"
+             ├─198 "samba: task[s3fs] pre-fork master"
+             ├─199 "samba: tfork waiter process(201)"
+             ├─200 "samba: tfork waiter process(202)"
+             ├─201 "samba: task[rpc] pre-fork master"
+             ├─202 /usr/sbin/smbd -D "--option=server role check:inhibit=yes" --foreground
+             ├─203 "samba: tfork waiter process(205)"
+             ├─204 "samba: tfork waiter process(207)"
+             ├─205 "samba: task[nbt] pre-fork master"
+             ├─206 "samba: tfork waiter process(209)"
+             ├─207 "samba: task[rpc] pre-forked worker(0)"
+             ├─209 "samba: task[wrepl] pre-fork master"
+             ├─210 "samba: tfork waiter process(211)"
+             ├─211 "samba: task[ldap] pre-fork master"
+             ├─212 "samba: tfork waiter process(213)"
+             ├─213 "samba: task[cldap] pre-fork master"
+             ├─214 "samba: tfork waiter process(216)"
+             ├─215 "samba: tfork waiter process(217)"
+             ├─216 "samba: task[rpc] pre-forked worker(1)"
+             ├─217 "samba: task[kdc] pre-fork master"
+             ├─218 "samba: tfork waiter process(219)"
+             ├─219 "samba: task[drepl] pre-fork master"
+             ├─220 "samba: tfork waiter process(221)"
+             ├─221 "samba: task[winbindd] pre-fork master"
+             ├─222 "samba: tfork waiter process(225)"
+             ├─223 "samba: tfork waiter process(228)"
+             ├─225 "samba: task[kdc] pre-forked worker(0)"
+             ├─226 "samba: tfork waiter process(232)"
+             ├─227 "samba: tfork waiter process(233)"
+             ├─228 "samba: task[rpc] pre-forked worker(2)"
+             ├─231 "samba: tfork waiter process(236)"
+             ├─232 "samba: task[ntp_signd] pre-fork master"
+             ├─233 "samba: task[kdc] pre-forked worker(1)"
+             ├─234 "samba: tfork waiter process(237)"
+             ├─235 "samba: tfork waiter process(238)"
+             ├─236 /usr/sbin/winbindd -D "--option=server role check:inhibit=yes" --foreground
+             ├─237 "samba: task[kcc] pre-fork master"
+             ├─238 "samba: task[kdc] pre-forked worker(2)"
+             ├─239 "samba: tfork waiter process(242)"
+             ├─240 "samba: tfork waiter process(241)"
+             ├─241 "samba: task[rpc] pre-forked worker(3)"
+             ├─242 "samba: task[dnsupdate] pre-fork master"
+             ├─243 "samba: tfork waiter process(244)"
+             ├─244 "samba: task[kdc] pre-forked worker(3)"
+             ├─245 "samba: tfork waiter process(247)"
+             ├─247 "samba: task[dns] pre-fork master"
+             ├─276 "samba: tfork waiter process(277)"
+             ├─277 "samba: task[ldap] pre-forked worker(0)"
+             ├─279 "samba: tfork waiter process(280)"
+             ├─280 "samba: task[ldap] pre-forked worker(1)"
+             ├─281 "samba: tfork waiter process(282)"
+             ├─282 "samba: task[ldap] pre-forked worker(2)"
+             ├─284 /usr/sbin/smbd -D "--option=server role check:inhibit=yes" --foreground
+             ├─285 /usr/sbin/smbd -D "--option=server role check:inhibit=yes" --foreground
+             ├─286 "samba: tfork waiter process(287)"
+             ├─287 "samba: task[ldap] pre-forked worker(3)"
+             ├─303 "winbindd: domain child [EVTFLOW]"
+             └─309 "winbindd: idmap child"
+
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.170808,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.200363,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.228055,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.255563,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.305240,  0] ../../source4/dsdb/dns/dns_update.c:85(dnsupdate_nameupdate_done)
+Oct 07 11:04:45 ad samba[242]:   dnsupdate_nameupdate_done: Failed DNS update with exit code 5

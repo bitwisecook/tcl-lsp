@@ -1,0 +1,75 @@
+apm policy access-policy __tcl_lsp_evtflow_efo_complex_policy {
+    app-service none
+    caption none
+    default-ending __tcl_lsp_evtflow_efo_complex_deny
+    items {
+        __tcl_lsp_evtflow_efo_complex_ad_auth {
+            priority 5
+        }
+        __tcl_lsp_evtflow_efo_complex_ad_event {
+            priority 6
+        }
+        __tcl_lsp_evtflow_efo_complex_ad_logon {
+            priority 4
+        }
+        __tcl_lsp_evtflow_efo_complex_allow {
+            priority 19
+        }
+        __tcl_lsp_evtflow_efo_complex_deny {
+            priority 20
+        }
+        __tcl_lsp_evtflow_efo_complex_ldap_auth {
+            priority 8
+        }
+        __tcl_lsp_evtflow_efo_complex_ldap_event {
+            priority 9
+        }
+        __tcl_lsp_evtflow_efo_complex_ldap_logon {
+            priority 7
+        }
+        __tcl_lsp_evtflow_efo_complex_mfa_ad {
+            priority 13
+        }
+        __tcl_lsp_evtflow_efo_complex_mfa_event {
+            priority 18
+        }
+        __tcl_lsp_evtflow_efo_complex_mfa_logon {
+            priority 12
+        }
+        __tcl_lsp_evtflow_efo_complex_oidc_auth {
+            priority 10
+        }
+        __tcl_lsp_evtflow_efo_complex_oidc_event {
+            priority 11
+        }
+        __tcl_lsp_evtflow_efo_complex_otp_generate {
+            priority 14
+        }
+        __tcl_lsp_evtflow_efo_complex_otp_issued {
+            priority 15
+        }
+        __tcl_lsp_evtflow_efo_complex_otp_logon {
+            priority 16
+        }
+        __tcl_lsp_evtflow_efo_complex_otp_verify {
+            priority 17
+        }
+        __tcl_lsp_evtflow_efo_complex_public_event {
+            priority 3
+        }
+        __tcl_lsp_evtflow_efo_complex_route {
+            priority 2
+        }
+        __tcl_lsp_evtflow_efo_complex_start {
+            priority 1
+        }
+    }
+    macros none
+    max-macro-loop-count 1
+    oneshot-macro false
+    partition Common
+    per-req-policy-properties none
+    start-item __tcl_lsp_evtflow_efo_complex_start
+    subroutine-properties none
+    type access-policy
+}

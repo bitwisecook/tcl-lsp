@@ -1,0 +1,4 @@
+Loading configuration...
+  /var/tmp/evtflow_20261007apmcomplex/fixture/config.conf
+There were warnings:
+apm log-setting (/Common/default-log-setting) is attached to apm profile access (/Common/__tcl_lsp_evtflow_efo_complex_access). You may replace this log setting with your own setting.

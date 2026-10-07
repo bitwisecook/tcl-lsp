@@ -1,0 +1,25 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791371461z604800;path=/;secure
+Set-Cookie: LastMRH_Session=76afd554;path=/;secure
+Set-Cookie: MRHSession=99b522a74ca097dfe2fa235e76afd554;path=/;secure
+Content-Length: 0
+Location: /vdesk/hangup.php3
+Connection: close
+
+HTTP/1.1 200 OK
+Date: Wed, 07 Oct 2026 11:11:20 GMT
+Server: BigIP
+Content-Length: 5230
+Connection: close
+Content-Type: text/html; charset=utf-8
+X-Frame-Options: DENY
+Set-Cookie: MRHSession=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_ST=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSHint=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_HT_shrinked=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: F5_fullWT=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Set-Cookie: MRHSequence=deleted;expires=Thu, 01-Jan-1970 00:00:01 GMT;path=/;secure
+Pragma: no-cache
+Cache-Control: no-cache, must-revalidate
+

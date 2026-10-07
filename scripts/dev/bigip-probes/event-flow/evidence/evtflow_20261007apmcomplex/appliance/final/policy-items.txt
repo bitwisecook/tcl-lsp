@@ -1,0 +1,342 @@
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ad_auth {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ad_auth_ag {
+            type aaa-active-directory
+        }
+    }
+    caption "Samba AD authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ad.last.authresult}] == 1 }"
+            next-item __tcl_lsp_evtflow_efo_complex_ad_event
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ad_event {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ad_event_ag {
+            type irule-event
+        }
+    }
+    caption "AD scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ad_logon {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ad_logon_ag {
+            type logon-page
+        }
+    }
+    caption "AD username/password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_ad_auth
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_allow {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_allow_ag {
+            type ending-allow
+        }
+    }
+    caption Allow
+    color 1
+    item-type ending
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_deny {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_deny_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ldap_auth {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ldap_auth_ag {
+            type aaa-ldap
+        }
+    }
+    caption "OpenLDAP authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ldap.last.authresult}] == 1 }"
+            next-item __tcl_lsp_evtflow_efo_complex_ldap_event
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ldap_event {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ldap_event_ag {
+            type irule-event
+        }
+    }
+    caption "LDAP scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_ldap_logon {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_ldap_logon_ag {
+            type logon-page
+        }
+    }
+    caption "LDAP username/password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_ldap_auth
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_mfa_ad {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_mfa_ad_auth_ag {
+            type aaa-active-directory
+        }
+    }
+    caption "MFA AD authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ad.last.authresult}] == 1 }"
+            next-item __tcl_lsp_evtflow_efo_complex_otp_generate
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_mfa_event {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_mfa_event_ag {
+            type irule-event
+        }
+    }
+    caption "MFA scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_mfa_logon {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_mfa_logon_ag {
+            type logon-page
+        }
+    }
+    caption "MFA AD password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_mfa_ad
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_oidc_auth {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_oidc_auth_ag {
+            type aaa-oauth
+        }
+    }
+    caption "Keycloak OAuth authorization code"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [string length [mcget {session.oauth.client.last.access_token}]] > 0 }"
+            next-item __tcl_lsp_evtflow_efo_complex_oidc_event
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_oidc_event {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_oidc_event_ag {
+            type irule-event
+        }
+    }
+    caption "OIDC scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_otp_generate {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_otp_generate_ag {
+            type otp-generate
+        }
+    }
+    caption "Generate OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_otp_issued
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_otp_issued {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_otp_issued_ag {
+            type irule-event
+        }
+    }
+    caption "Expose generated test OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_otp_logon
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_otp_logon {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_otp_logon_ag {
+            type logon-page
+        }
+    }
+    caption "OTP challenge"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_otp_verify
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_otp_verify {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_otp_verify_ag {
+            type otp-verify
+        }
+    }
+    caption "Verify OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.otp.verify.last.authresult}] == 1 }"
+            next-item __tcl_lsp_evtflow_efo_complex_mfa_event
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_public_event {
+    agents {
+        __tcl_lsp_evtflow_efo_complex_public_event_ag {
+            type irule-event
+        }
+    }
+    caption "Public scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_route {
+    caption "Route by landing URI"
+    color 1
+    item-type action
+    rules {
+        {
+            caption MFA
+            expression "expr { [string match /mfa* [mcget {session.server.landinguri}]] }"
+            next-item __tcl_lsp_evtflow_efo_complex_mfa_logon
+        }
+        {
+            caption OIDC
+            expression "expr { [string match /oidc* [mcget {session.server.landinguri}]] }"
+            next-item __tcl_lsp_evtflow_efo_complex_oidc_auth
+        }
+        {
+            caption AD
+            expression "expr { [string match /ad* [mcget {session.server.landinguri}]] }"
+            next-item __tcl_lsp_evtflow_efo_complex_ad_logon
+        }
+        {
+            caption LDAP
+            expression "expr { [string match /ldap* [mcget {session.server.landinguri}]] }"
+            next-item __tcl_lsp_evtflow_efo_complex_ldap_logon
+        }
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_public_event
+        }
+    }
+}
+apm policy policy-item __tcl_lsp_evtflow_efo_complex_start {
+    caption Start
+    color 1
+    rules {
+        {
+            caption fallback
+            next-item __tcl_lsp_evtflow_efo_complex_route
+        }
+    }
+}

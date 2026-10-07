@@ -1,0 +1,23 @@
+apm policy agent aaa-oauth __tcl_lsp_evtflow_efo_complex_oidc_auth_ag {
+    app-service none
+    auth-redirect-request __tcl_lsp_evtflow_efo_complex_auth_request
+    dynamicserver none
+    grant-type authorization-code
+    jwt-provider-list none
+    openid-connect disabled
+    openid-flow-type code
+    openid-hybrid-response-type code-idtoken
+    openid-userinfo-request none
+    partition Common
+    redirection-uri https://app.bitwisecook.org:18840/oauth/client/redirect
+    response none
+    scope "openid profile email"
+    scope-data-request none
+    server __tcl_lsp_evtflow_efo_complex_oidc_server
+    token-refresh-request none
+    token-request __tcl_lsp_evtflow_efo_complex_token_request
+    token-validation-mode external
+    type client
+    using-dynamic-server disabled
+    validation-scopes-request none
+}

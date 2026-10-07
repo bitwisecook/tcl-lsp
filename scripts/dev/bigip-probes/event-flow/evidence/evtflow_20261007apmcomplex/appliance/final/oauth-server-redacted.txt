@@ -1,0 +1,17 @@
+apm aaa oauth-server __tcl_lsp_evtflow_efo_complex_oidc_server {
+    app-service none
+    client-id evtflow-apm
+    client-jwe-key none
+    client-secret <encrypted-redacted>
+    client-serverssl-profile-name serverssl
+    dns-resolver-name __tcl_lsp_evtflow_efo_complex_resolver
+    mode client
+    partition Common
+    provider-name __tcl_lsp_evtflow_efo_complex_oidc_provider
+    resource-server-id none
+    resource-server-secret none
+    resource-serverssl-profile-name none
+    route-domain none
+    rules none
+    token-validation-interval 60
+}

@@ -1,0 +1,1541 @@
+    update-partition Common
+}
+apm aaa active-directory /Common/__tcl_lsp_evtflow_efo_complex_ad_server {
+    domain lab.bitwisecook.org
+    domain-controller 192.168.9.251
+    domain-controllers {
+        ad.lab.bitwisecook.org {
+            ip 192.168.9.251
+        }
+    }
+    use-pool disabled
+}
+apm aaa ldap /Common/__tcl_lsp_evtflow_efm_ldap_server {
+    address 192.168.9.80
+    admin-dn cn=admin,dc=bitwisecook,dc=org
+    admin-encrypted-password $M$5H$e54tveieDLGX828qgmIvX2OBP9LAuJzCLATFR46+6xA=
+    base-dn dc=bitwisecook,dc=org
+    port 1389
+    schema-attr {
+        group-object-class groupOfNames
+        user-object-class inetOrgPerson
+    }
+    use-pool disabled
+}
+apm aaa ldap /Common/__tcl_lsp_evtflow_efn_ldap_server {
+    address 192.168.9.250
+    admin-dn cn=admin,dc=bitwisecook,dc=org
+    admin-encrypted-password $M$WY$dTpQ20na5trXCo+UZNCEbGOBP9LAuJzCLATFR46+6xA=
+    base-dn dc=bitwisecook,dc=org
+    port 1389
+    schema-attr {
+        group-object-class groupOfNames
+        user-object-class inetOrgPerson
+    }
+    use-pool disabled
+}
+apm aaa ldap /Common/__tcl_lsp_evtflow_efo_complex_ldap_server {
+    address 192.168.9.250
+    admin-dn cn=admin,dc=bitwisecook,dc=org
+    admin-encrypted-password $M$3g$R1KCHAv44eVBXeCB70VFHmOBP9LAuJzCLATFR46+6xA=
+    base-dn dc=bitwisecook,dc=org
+    port 1389
+    use-pool disabled
+}
+apm aaa localdb /Common/__tcl_lsp_evtflow_localdb_test { }
+apm aaa oauth-provider /Common/__tcl_lsp_evtflow_efo_complex_oidc_provider {
+    authentication-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/auth
+    introspect supported
+    openid-cfg-uri https://192.168.9.252:8443/realms/evtflow/.well-known/openid-configuration
+    token-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/token
+    trusted-ca-bundle /Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca
+    type custom
+    userinfo-request-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/userinfo
+}
+apm aaa oauth-request /Common/__tcl_lsp_evtflow_efo_complex_auth_request {
+    method get
+    parameters {
+        client_id {
+            type client-id
+        }
+        redirect_uri {
+            type redirect-uri
+        }
+        response_type {
+            type response-type
+        }
+        scope {
+            type scope
+        }
+    }
+    type auth-redirect-request
+}
+apm aaa oauth-request /Common/__tcl_lsp_evtflow_efo_complex_token_request {
+    parameters {
+        client_id {
+            type client-id
+        }
+        client_secret {
+            type client-secret
+        }
+        grant_type {
+            type grant-type
+        }
+        redirect_uri {
+            type redirect-uri
+        }
+    }
+    type token-request
+}
+apm aaa oauth-request /Common/__tcl_lsp_evtflow_efo_complex_userinfo_request {
+    headers {
+        Authorization {
+            value "Bearer %{session.oauth.client.last.access_token}"
+        }
+    }
+    method get
+    type openid-userinfo-request
+}
+apm aaa oauth-server /Common/__tcl_lsp_evtflow_efo_complex_oidc_server {
+    client-id evtflow-apm
+    client-secret $M$DO$B4GWn6jXozT//aQ1S68JljzuP0wfDQRrfQeezGrenA5gcVh9vPCTsu+ERk9gJxpy
+    client-serverssl-profile-name /Common/serverssl
+    dns-resolver-name /Common/__tcl_lsp_evtflow_efo_complex_resolver
+    provider-name /Common/__tcl_lsp_evtflow_efo_complex_oidc_provider
+}
+apm ephemeral-auth ssh-security-config /Common/ssh-security-config {
+    ciphers {
+        1 {
+            cipher-name aes256-ctr
+        }
+        2 {
+            cipher-name aes192-ctr
+        }
+        3 {
+            cipher-name aes128-ctr
+        }
+    }
+    compressions {
+        1 {
+            compression-name none
+        }
+    }
+    hmacs {
+        1 {
+            hmac-name hmac-sha2-512
+        }
+        2 {
+            hmac-name hmac-sha2-256
+        }
+    }
+    kex-methods {
+        1 {
+            kex-method-name ecdh-sha2-nistp256
+        }
+    }
+}
+apm epsec epsec-package /Common/epsec-1.0.0-2007.0.iso {
+    cache-path /config/filestore/files_d/Common_d/epsec_package_d/:Common:epsec-1.0.0-2007.0.iso_64927_1
+    oesis-version 4.3.6139.0
+    revision 1
+    version 1.0.0-2007.0
+}
+apm policy access-policy /Common/__tcl_lsp_evtflow_efd_apm_allow_policy {
+    default-ending /Common/__tcl_lsp_evtflow_efd_apm_allow_deny
+    items {
+        /Common/__tcl_lsp_evtflow_efd_apm_agent {
+            priority 2
+        }
+        /Common/__tcl_lsp_evtflow_efd_apm_allow_deny {
+            priority 4
+        }
+        /Common/__tcl_lsp_evtflow_efd_apm_allow_end {
+            priority 3
+        }
+        /Common/__tcl_lsp_evtflow_efd_apm_allow_start {
+            priority 1
+        }
+    }
+    start-item /Common/__tcl_lsp_evtflow_efd_apm_allow_start
+}
+apm policy access-policy /Common/__tcl_lsp_evtflow_efd_apm_deny_policy {
+    default-ending /Common/__tcl_lsp_evtflow_efd_apm_deny_end
+    items {
+        /Common/__tcl_lsp_evtflow_efd_apm_deny_end {
+            priority 2
+        }
+        /Common/__tcl_lsp_evtflow_efd_apm_deny_start {
+            priority 1
+        }
+    }
+    start-item /Common/__tcl_lsp_evtflow_efd_apm_deny_start
+}
+apm policy access-policy /Common/__tcl_lsp_evtflow_efe_apm_allow_policy {
+    default-ending /Common/__tcl_lsp_evtflow_efe_apm_allow_deny
+    items {
+        /Common/__tcl_lsp_evtflow_efe_apm_agent {
+            priority 2
+        }
+        /Common/__tcl_lsp_evtflow_efe_apm_allow_deny {
+            priority 4
+        }
+        /Common/__tcl_lsp_evtflow_efe_apm_allow_end {
+            priority 3
+        }
+--
+    start-item /Common/__tcl_lsp_evtflow_efn_ldap_start
+}
+apm policy access-policy /Common/__tcl_lsp_evtflow_efo_complex_policy {
+    default-ending /Common/__tcl_lsp_evtflow_efo_complex_deny
+    items {
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_auth {
+            priority 5
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_event {
+            priority 6
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_logon {
+            priority 4
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_allow {
+            priority 19
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_deny {
+            priority 20
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_auth {
+            priority 8
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_event {
+            priority 9
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_logon {
+            priority 7
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_ad {
+            priority 13
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_event {
+            priority 18
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_logon {
+            priority 12
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_oidc_auth {
+            priority 10
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_oidc_event {
+            priority 11
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_generate {
+            priority 14
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_issued {
+            priority 15
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_logon {
+            priority 16
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_verify {
+            priority 17
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_public_event {
+            priority 3
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_route {
+            priority 2
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_start {
+            priority 1
+        }
+    }
+    start-item /Common/__tcl_lsp_evtflow_efo_complex_start
+}
+apm policy access-policy /Common/kerberos_auth_config_default {
+    default-ending /Common/kerberos_auth_config_default_end_deny
+    items {
+        /Common/kerberos_auth_config_default_act_kerberos_auth { }
+        /Common/kerberos_auth_config_default_end_allow { }
+        /Common/kerberos_auth_config_default_end_deny { }
+        /Common/kerberos_auth_config_default_ent { }
+    }
+    start-item /Common/kerberos_auth_config_default_ent
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_deny_ag_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_deny_ag_logout_67751_1
+    revision 1
+    source /Common/standard
+    type logout
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_eps {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_eps_67763_1
+    revision 1
+    source /Common/standard
+    type eps
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_errormap {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_errormap_67760_1
+    revision 1
+    source /Common/standard
+    type errormap
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_framework_installation {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_framework_installation_67766_1
+    revision 1
+    source /Common/standard
+    type framework-installation
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_general_ui {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_general_ui_67754_1
+    revision 1
+    source /Common/standard
+    type general-ui
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_allow_logout_67757_1
+    revision 1
+    source /Common/standard
+    type logout
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_end_ag_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_end_ag_logout_67772_1
+    revision 1
+    source /Common/standard
+    type logout
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_eps {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_eps_67784_1
+    revision 1
+    source /Common/standard
+    type eps
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_errormap {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_errormap_67781_1
+    revision 1
+    source /Common/standard
+    type errormap
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_framework_installation {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_framework_installation_67787_1
+    revision 1
+    source /Common/standard
+    type framework-installation
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_general_ui {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_general_ui_67775_1
+    revision 1
+    source /Common/standard
+    type general-ui
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efd_apm_deny_logout_67778_1
+    revision 1
+--
+    source /Common/standard
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_eps {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_access_eps_111012_1
+    revision 1
+    source /Common/standard
+    type eps
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_errormap {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_access_errormap_111009_1
+    revision 1
+    source /Common/standard
+    type errormap
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_framework_installation {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_access_framework_installation_111015_1
+    revision 1
+    source /Common/standard
+    type framework-installation
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_general_ui {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_access_general_ui_111003_1
+    revision 1
+    source /Common/standard
+    type general-ui
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_access_logout_111006_1
+    revision 1
+    source /Common/standard
+    type logout
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_deny_ag_logout {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_deny_ag_logout_111000_1
+    revision 1
+    source /Common/standard
+    type logout
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_logon_cg {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_logon_cg_110698_1
+    revision 1
+    source /Common/standard
+}
+apm policy customization-group /Common/__tcl_lsp_evtflow_efo_complex_otp_cg {
+    cache-path /config/filestore/files_d/Common_d/customization_group_d/:Common:__tcl_lsp_evtflow_efo_complex_otp_cg_110700_1
+    revision 1
+    source /Common/standard
+}
+apm policy customization-source /Common/modern { }
+apm policy customization-source /Common/standard { }
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_agent {
+    agents {
+        /Common/__tcl_lsp_evtflow_efd_apm_agent_ag {
+            type irule-event
+        }
+    }
+    caption "iRule Event"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efd_apm_allow_end
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_allow_deny {
+    agents {
+        /Common/__tcl_lsp_evtflow_efd_apm_allow_deny_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_allow_end {
+    agents {
+        /Common/__tcl_lsp_evtflow_efd_apm_allow_end_ag {
+            type ending-allow
+        }
+    }
+    caption Allow
+    color 1
+    item-type ending
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_allow_start {
+    caption Start
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efd_apm_agent
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_deny_end {
+    agents {
+        /Common/__tcl_lsp_evtflow_efd_apm_deny_end_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efd_apm_deny_start {
+    caption Start
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efd_apm_deny_end
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efe_apm_agent {
+    agents {
+        /Common/__tcl_lsp_evtflow_efe_apm_agent_ag {
+            type irule-event
+        }
+    }
+    caption "iRule Event"
+    color 1
+    item-type action
+    rules {
+        {
+--
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ad_auth {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_auth_ag {
+            type aaa-active-directory
+        }
+    }
+    caption "Samba AD authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ad.last.authresult}] == 1 }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ad_event
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ad_event {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_event_ag {
+            type irule-event
+        }
+    }
+    caption "AD scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ad_logon {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ad_logon_ag {
+            type logon-page
+        }
+    }
+    caption "AD username/password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ad_auth
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_allow {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_allow_ag {
+            type ending-allow
+        }
+    }
+    caption Allow
+    color 1
+    item-type ending
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_deny {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_deny_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_auth {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_auth_ag {
+            type aaa-ldap
+        }
+    }
+    caption "OpenLDAP authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ldap.last.authresult}] == 1 }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_event
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_event {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_event_ag {
+            type irule-event
+        }
+    }
+    caption "LDAP scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_logon {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_ldap_logon_ag {
+            type logon-page
+        }
+    }
+    caption "LDAP username/password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_auth
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_ad {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_ad_auth_ag {
+            type aaa-active-directory
+        }
+    }
+    caption "MFA AD authentication"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.ad.last.authresult}] == 1 }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_otp_generate
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_event {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_event_ag {
+            type irule-event
+        }
+    }
+    caption "MFA scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_logon {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_mfa_logon_ag {
+            type logon-page
+        }
+    }
+    caption "MFA AD password"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_ad
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_oidc_auth {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_oidc_auth_ag {
+            type aaa-oauth
+        }
+    }
+    caption "Keycloak OAuth authorization code"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [string length [mcget {session.oauth.client.last.access_token}]] > 0 }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_oidc_event
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_oidc_event {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_oidc_event_ag {
+            type irule-event
+        }
+    }
+    caption "OIDC scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_otp_generate {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_generate_ag {
+            type otp-generate
+        }
+    }
+    caption "Generate OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_otp_issued
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_otp_issued {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_issued_ag {
+            type irule-event
+        }
+    }
+    caption "Expose generated test OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_otp_logon
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_otp_logon {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_logon_ag {
+            type logon-page
+        }
+    }
+    caption "OTP challenge"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_otp_verify
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_otp_verify {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_otp_verify_ag {
+            type otp-verify
+        }
+    }
+    caption "Verify OTP"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr { [mcget {session.otp.verify.last.authresult}] == 1 }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_event
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_deny
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_public_event {
+    agents {
+        /Common/__tcl_lsp_evtflow_efo_complex_public_event_ag {
+            type irule-event
+        }
+    }
+    caption "Public scope"
+    color 1
+    item-type action
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_allow
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_route {
+    caption "Route by landing URI"
+    color 1
+    item-type action
+    rules {
+        {
+            caption MFA
+            expression "expr { [string match /mfa* [mcget {session.server.landinguri}]] }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_mfa_logon
+        }
+        {
+            caption OIDC
+            expression "expr { [string match /oidc* [mcget {session.server.landinguri}]] }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_oidc_auth
+        }
+        {
+            caption AD
+            expression "expr { [string match /ad* [mcget {session.server.landinguri}]] }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ad_logon
+        }
+        {
+            caption LDAP
+            expression "expr { [string match /ldap* [mcget {session.server.landinguri}]] }"
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_ldap_logon
+        }
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_public_event
+        }
+    }
+}
+apm policy policy-item /Common/__tcl_lsp_evtflow_efo_complex_start {
+    caption Start
+    color 1
+    rules {
+        {
+            caption fallback
+            next-item /Common/__tcl_lsp_evtflow_efo_complex_route
+        }
+    }
+}
+apm policy policy-item /Common/kerberos_auth_config_default_act_kerberos_auth {
+    agents {
+        /Common/kerberos_auth_config_default_act_kerberos_auth_ag {
+            type aaa-kerberos
+        }
+    }
+    caption "Kerberos Auth"
+    color 1
+    item-type action
+    rules {
+        {
+            caption Successful
+            expression "expr {[mcget {session.kerberos.last.authresult}] == 1}"
+            next-item /Common/kerberos_auth_config_default_end_allow
+        }
+        {
+            caption fallback
+            next-item /Common/kerberos_auth_config_default_end_deny
+        }
+    }
+}
+apm policy policy-item /Common/kerberos_auth_config_default_end_allow {
+    agents {
+        /Common/kerberos_auth_config_default_end_allow_ag {
+            type ending-allow
+        }
+    }
+    caption Allow
+    color 1
+    item-type ending
+}
+apm policy policy-item /Common/kerberos_auth_config_default_end_deny {
+    agents {
+        /Common/kerberos_auth_config_default_end_deny_ag {
+            type ending-deny
+        }
+    }
+    caption Deny
+    color 2
+    item-type ending
+}
+apm policy policy-item /Common/kerberos_auth_config_default_ent {
+    caption Start
+    color 1
+    rules {
+        {
+            caption fallback
+            next-item /Common/kerberos_auth_config_default_act_kerberos_auth
+        }
+    }
+}
+apm policy agent aaa-active-directory /Common/__tcl_lsp_evtflow_efo_complex_ad_auth_ag {
+    auth-max-logon-attempt 1
+    server /Common/__tcl_lsp_evtflow_efo_complex_ad_server
+    type auth
+}
+apm policy agent aaa-active-directory /Common/__tcl_lsp_evtflow_efo_complex_mfa_ad_auth_ag {
+    auth-max-logon-attempt 1
+    server /Common/__tcl_lsp_evtflow_efo_complex_ad_server
+    type auth
+}
+apm policy agent aaa-ldap /Common/__tcl_lsp_evtflow_efm_ldap_auth_ag {
+    max-logon-attempt 1
+    server /Common/__tcl_lsp_evtflow_efm_ldap_server
+    type auth
+    user-dn "uid=%{session.logon.last.username},ou=people,dc=bitwisecook,dc=org"
+}
+apm policy agent aaa-ldap /Common/__tcl_lsp_evtflow_efn_ldap_auth_ag {
+    max-logon-attempt 1
+    server /Common/__tcl_lsp_evtflow_efn_ldap_server
+    type auth
+    user-dn "uid=%{session.logon.last.username},ou=people,dc=bitwisecook,dc=org"
+}
+apm policy agent aaa-ldap /Common/__tcl_lsp_evtflow_efo_complex_ldap_auth_ag {
+    max-logon-attempt 1
+    server /Common/__tcl_lsp_evtflow_efo_complex_ldap_server
+    type auth
+    user-dn "uid=%{session.logon.last.username},ou=people,dc=bitwisecook,dc=org"
+}
+apm policy agent aaa-ldap /Common/__tcl_lsp_evtflow_ldap_agent_test { }
+apm policy agent aaa-localdb /Common/__tcl_lsp_evtflow_localdb_agent_test { }
+apm policy agent aaa-oauth /Common/__tcl_lsp_evtflow_efo_complex_oidc_auth_ag {
+    auth-redirect-request /Common/__tcl_lsp_evtflow_efo_complex_auth_request
+    redirection-uri https://app.bitwisecook.org:18840/oauth/client/redirect
+    scope "openid profile email"
+    server /Common/__tcl_lsp_evtflow_efo_complex_oidc_server
+    token-request /Common/__tcl_lsp_evtflow_efo_complex_token_request
+}
+apm policy agent ending-allow /Common/__tcl_lsp_evtflow_efd_apm_allow_end_ag { }
+apm policy agent ending-allow /Common/__tcl_lsp_evtflow_efe_apm_allow_end_ag { }
+apm policy agent ending-allow /Common/__tcl_lsp_evtflow_efm_ldap_allow_ag { }
+apm policy agent ending-allow /Common/__tcl_lsp_evtflow_efn_ldap_allow_ag { }
+apm policy agent ending-allow /Common/__tcl_lsp_evtflow_efo_complex_allow_ag { }
+apm policy agent ending-allow /Common/kerberos_auth_config_default_end_allow_ag { }
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efd_apm_allow_deny_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_deny_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efd_apm_deny_end_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_end_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efe_apm_allow_deny_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efe_apm_allow_deny_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efe_apm_deny_end_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efe_apm_deny_end_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efm_ldap_deny_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efm_ldap_deny_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efn_ldap_deny_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efn_ldap_deny_ag_logout
+}
+apm policy agent ending-deny /Common/__tcl_lsp_evtflow_efo_complex_deny_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_deny_ag_logout
+}
+apm policy agent ending-deny /Common/kerberos_auth_config_default_end_deny_ag {
+    customization-group /Common/kerberos_auth_config_default_end_deny_ag
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efd_apm_agent_ag {
+    id EFD_agent
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efe_apm_agent_ag {
+    id EFE_agent
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efm_ldap_failure_ag {
+    id EFM_ldap_failure
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efm_ldap_success_ag {
+    id EFM_ldap_success
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efn_ldap_failure_ag {
+    id EFN_ldap_failure
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efn_ldap_success_ag {
+    id EFN_ldap_success
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_ad_event_ag {
+    id EFO_ad_ok
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_ldap_event_ag {
+    id EFO_ldap_ok
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_mfa_event_ag {
+    id EFO_mfa_ok
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_oidc_event_ag {
+    id EFO_oidc_ok
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_otp_issued_ag {
+    id EFO_otp_issued
+}
+apm policy agent irule-event /Common/__tcl_lsp_evtflow_efo_complex_public_event_ag {
+    id EFO_public_ok
+}
+apm policy agent kerberos /Common/kerberos_auth_config_default_act_kerberos_auth_ag { }
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efm_ldap_logon_ag {
+    basic-auth-realm "tcl-lsp event-flow LDAP"
+    customization-group /Common/__tcl_lsp_evtflow_efm_ldap_logon_cg
+    http-401-auth-level basic
+    type 401
+}
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efn_ldap_logon_ag {
+    basic-auth-realm "tcl-lsp event-flow LDAP"
+    customization-group /Common/__tcl_lsp_evtflow_efn_ldap_logon_cg
+    http-401-auth-level basic
+    type 401
+}
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efo_complex_ad_logon_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_logon_cg
+}
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efo_complex_ldap_logon_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_logon_cg
+}
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efo_complex_mfa_logon_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_logon_cg
+}
+apm policy agent logon-page /Common/__tcl_lsp_evtflow_efo_complex_otp_logon_ag {
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_otp_cg
+    fieldtype1 none
+}
+apm policy agent otp-generate /Common/__tcl_lsp_evtflow_efo_complex_otp_generate_ag { }
+apm policy agent otp-verify /Common/__tcl_lsp_evtflow_efo_complex_otp_verify_ag { }
+apm profile access /Common/__tcl_lsp_evtflow_efd_apm_allow {
+    access-policy /Common/__tcl_lsp_evtflow_efd_apm_allow_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efd_apm_allow_logout
+    customization-key none
+    defaults-from /Common/access
+    eps-group /Common/__tcl_lsp_evtflow_efd_apm_allow_eps
+    errormap-group /Common/__tcl_lsp_evtflow_efd_apm_allow_errormap
+    framework-installation-group /Common/__tcl_lsp_evtflow_efd_apm_allow_framework_installation
+    general-ui-group /Common/__tcl_lsp_evtflow_efd_apm_allow_general_ui
+    generation 1
+    generation-action noop
+    log-settings {
+        /Common/default-log-setting
+    }
+    max-failure-delay 0
+    min-failure-delay 0
+    user-identity-method http
+}
+apm profile access /Common/__tcl_lsp_evtflow_efd_apm_deny {
+    access-policy /Common/__tcl_lsp_evtflow_efd_apm_deny_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efd_apm_deny_logout
+    customization-key none
+    defaults-from /Common/access
+    eps-group /Common/__tcl_lsp_evtflow_efd_apm_deny_eps
+    errormap-group /Common/__tcl_lsp_evtflow_efd_apm_deny_errormap
+    framework-installation-group /Common/__tcl_lsp_evtflow_efd_apm_deny_framework_installation
+    general-ui-group /Common/__tcl_lsp_evtflow_efd_apm_deny_general_ui
+    generation 1
+    generation-action noop
+    log-settings {
+        /Common/default-log-setting
+    }
+    max-failure-delay 0
+    min-failure-delay 0
+    user-identity-method http
+}
+apm profile access /Common/__tcl_lsp_evtflow_efe_apm_allow {
+    access-policy /Common/__tcl_lsp_evtflow_efe_apm_allow_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efe_apm_allow_logout
+    customization-key none
+    defaults-from /Common/access
+    eps-group /Common/__tcl_lsp_evtflow_efe_apm_allow_eps
+    errormap-group /Common/__tcl_lsp_evtflow_efe_apm_allow_errormap
+    framework-installation-group /Common/__tcl_lsp_evtflow_efe_apm_allow_framework_installation
+    general-ui-group /Common/__tcl_lsp_evtflow_efe_apm_allow_general_ui
+    generation 2
+    generation-action noop
+    log-settings {
+        /Common/default-log-setting
+    }
+    max-failure-delay 0
+    min-failure-delay 0
+    user-identity-method http
+}
+apm profile access /Common/__tcl_lsp_evtflow_efe_apm_deny {
+    access-policy /Common/__tcl_lsp_evtflow_efe_apm_deny_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efe_apm_deny_logout
+    customization-key none
+    defaults-from /Common/access
+    eps-group /Common/__tcl_lsp_evtflow_efe_apm_deny_eps
+    errormap-group /Common/__tcl_lsp_evtflow_efe_apm_deny_errormap
+    framework-installation-group /Common/__tcl_lsp_evtflow_efe_apm_deny_framework_installation
+    general-ui-group /Common/__tcl_lsp_evtflow_efe_apm_deny_general_ui
+    generation 2
+    generation-action noop
+    log-settings {
+        /Common/default-log-setting
+    }
+    max-failure-delay 0
+    min-failure-delay 0
+    user-identity-method http
+}
+apm profile access /Common/__tcl_lsp_evtflow_efm_ldap_access {
+    access-policy /Common/__tcl_lsp_evtflow_efm_ldap_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efm_ldap_access_logout
+--
+    user-identity-method http
+}
+apm profile access /Common/__tcl_lsp_evtflow_efo_complex_access {
+    access-policy /Common/__tcl_lsp_evtflow_efo_complex_policy
+    app-service none
+    customization-group /Common/__tcl_lsp_evtflow_efo_complex_access_logout
+    customization-key none
+    defaults-from /Common/access
+    eps-group /Common/__tcl_lsp_evtflow_efo_complex_access_eps
+    errormap-group /Common/__tcl_lsp_evtflow_efo_complex_access_errormap
+    framework-installation-group /Common/__tcl_lsp_evtflow_efo_complex_access_framework_installation
+    general-ui-group /Common/__tcl_lsp_evtflow_efo_complex_access_general_ui
+    generation 8
+    generation-action noop
+    log-settings {
+        /Common/default-log-setting
+    }
+    max-failure-delay 0
+    min-failure-delay 0
+    user-identity-method http
+}
+apm report default-report {
+    report-name sessionReports/sessionSummary
+    user /Common/admin
+}
+asm policy /Common/__tcl_lsp_evtflow_efg_asm_blocking {
+    active
+    encoding utf-8
+    policy-template POLICY_TEMPLATE_RAPID_DEPLOYMENT
+}
+asm policy /Common/__tcl_lsp_evtflow_efg_asm_transparent {
+    active
+    encoding utf-8
+    policy-template POLICY_TEMPLATE_RAPID_DEPLOYMENT
+}
+asm policy /Common/__tcl_lsp_evtflow_egh_asm_blocking {
+    active
+    encoding utf-8
+    policy-template POLICY_TEMPLATE_BLANK
+}
+asm policy /Common/__tcl_lsp_evtflow_egh_asm_transparent {
+    active
+    encoding utf-8
+    policy-template POLICY_TEMPLATE_BLANK
+}
+asm predefined-policy POLICY_TEMPLATE_ACTIVESYNC_V1_0_V2_0_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_ACTIVESYNC_V1_0_V2_0_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_API_SECURITY { }
+asm predefined-policy POLICY_TEMPLATE_BEHAVIORAL_WAF { }
+asm predefined-policy POLICY_TEMPLATE_BLANK { }
+asm predefined-policy POLICY_TEMPLATE_COMPREHENSIVE { }
+asm predefined-policy POLICY_TEMPLATE_DRUPAL { }
+asm predefined-policy POLICY_TEMPLATE_DRUPAL_8 { }
+asm predefined-policy POLICY_TEMPLATE_FUNDAMENTAL { }
+asm predefined-policy POLICY_TEMPLATE_GRAPHQL { }
+asm predefined-policy POLICY_TEMPLATE_JOOMLA { }
+asm predefined-policy POLICY_TEMPLATE_LOTUSDOMINO_6_5_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_LOTUSDOMINO_6_5_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_MCP { }
+asm predefined-policy POLICY_TEMPLATE_MINIMAL_SECURITY { }
+asm predefined-policy POLICY_TEMPLATE_ORACLE_10G_PORTAL_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_ORACLE_10G_PORTAL_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_ORACLE_APPLICATIONS_11I_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_ORACLE_APPLICATIONS_11I_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2003_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2003_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2003_WITH_ACTIVESYNC_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2003_WITH_ACTIVESYNC_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2007_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2007_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2007_WITH_ACTIVESYNC_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2007_WITH_ACTIVESYNC_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2010_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2010_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_OWA_EXCHANGE_2016 { }
+asm predefined-policy POLICY_TEMPLATE_PASSIVE { }
+asm predefined-policy POLICY_TEMPLATE_PEOPLESOFT_PORTAL_9_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_PEOPLESOFT_PORTAL_9_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_RAPID_DEPLOYMENT { }
+asm predefined-policy POLICY_TEMPLATE_RATING_BASED { }
+asm predefined-policy POLICY_TEMPLATE_SAP_NETWEAVER { }
+asm predefined-policy POLICY_TEMPLATE_SAP_NETWEAVER_7_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_SAP_NETWEAVER_7_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2003_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2003_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2007_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2007_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2010_HTTP { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2010_HTTPS { }
+asm predefined-policy POLICY_TEMPLATE_SHAREPOINT_2016 { }
+--
+    }
+}
+ltm pool /Common/__tcl_lsp_evtflow_efo_complex_pool {
+    members {
+        /Common/192.168.9.80:18710 {
+            address 192.168.9.80
+        }
+    }
+}
+ltm pool /Common/__tcl_lsp_evtflow_egh_asm_blocking_pool {
+    members {
+        /Common/192.168.9.80:18706 {
+            address 192.168.9.80
+        }
+    }
+}
+ltm pool /Common/__tcl_lsp_evtflow_egh_asm_transparent_pool {
+    members {
+        /Common/192.168.9.80:18705 {
+            address 192.168.9.80
+        }
+    }
+}
+ltm pool /Common/__tcl_lsp_evtflow_egi_cross_pool {
+    members {
+        /Common/192.168.9.80:18703 {
+            address 192.168.9.80
+        }
+    }
+}
+ltm pool /Common/__tcl_lsp_evtflow_egj_cross_pool {
+    members {
+        /Common/192.168.9.80:18703 {
+            address 192.168.9.80
+        }
+    }
+}
+ltm rule /Common/__tcl_lsp_evtflow_efc_ssl_data {
+when RULE_INIT {
+        log local0. "EVTFLOW2|run=EFC|event=RULE_INIT|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=ssl-data"
+    }
+    when CLIENTSSL_HANDSHAKE {
+        log local0. "EVTFLOW2|run=EFC|event=CLIENTSSL_HANDSHAKE|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=ssl-data|cipher=[SSL::cipher name]"
+        SSL::collect 1
+    }
+    when CLIENTSSL_DATA {
+        binary scan [SSL::payload] H* payload_hex
+        log local0. "EVTFLOW2|run=EFC|event=CLIENTSSL_DATA|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=ssl-data|bytes=[SSL::payload length]|hex=$payload_hex"
+        SSL::release
+    }
+    when SERVERSSL_HANDSHAKE {
+        log local0. "EVTFLOW2|run=EFC|event=SERVERSSL_HANDSHAKE|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=ssl-data|cipher=[SSL::cipher name]"
+        SSL::collect 1
+    }
+    when SERVERSSL_DATA {
+        binary scan [SSL::payload] H* payload_hex
+        log local0. "EVTFLOW2|run=EFC|event=SERVERSSL_DATA|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=ssl-data|bytes=[SSL::payload length]|hex=$payload_hex"
+        SSL::release
+    }
+}
+ltm rule /Common/__tcl_lsp_evtflow_efc_tcp_user_data {
+when RULE_INIT {
+        log local0. "EVTFLOW2|run=EFC|event=RULE_INIT|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=tcp-user-data"
+    }
+    when CLIENT_ACCEPTED {
+        set evtflow2_id [format {%s:%s} [IP::client_addr] [TCP::client_port]]
+        log local0. "EVTFLOW2|run=EFC|event=CLIENT_ACCEPTED|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=tcp-user-data|id=$evtflow2_id"
+        TCP::collect
+    }
+    when CLIENT_DATA {
+        binary scan [TCP::payload] H* payload_hex
+        log local0. "EVTFLOW2|run=EFC|event=CLIENT_DATA|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=tcp-user-data|id=$evtflow2_id|bytes=[TCP::payload length]|hex=$payload_hex"
+        TCP::release
+        TCP::notify request
+        TCP::collect
+    }
+    when USER_REQUEST {
+        log local0. "EVTFLOW2|run=EFC|event=USER_REQUEST|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=tcp-user-data|id=$evtflow2_id|side=serverside"
+    }
+    when SERVER_CONNECTED {
+        log local0. "EVTFLOW2|run=EFC|event=SERVER_CONNECTED|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=tcp-user-data|id=$evtflow2_id"
+        TCP::collect
+    }
+--
+    }
+}
+ltm rule /Common/__tcl_lsp_evtflow_efo_complex_trace {
+when RULE_INIT {
+        log local0. "EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when CLIENT_ACCEPTED {
+        set evtflow5_id "[IP::client_addr]:[TCP::client_port]"
+        log local0. "EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=$evtflow5_id|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when HTTP_REQUEST {
+        if { [HTTP::header exists X-Evtflow-Request] } { set evtflow5_id [HTTP::header value X-Evtflow-Request] }
+        set required public
+        if { [HTTP::path] starts_with "/ad" } { set required ad }
+        if { [HTTP::path] starts_with "/ldap" } { set required ldap }
+        if { [HTTP::path] starts_with "/oidc" } { set required oidc }
+        if { [HTTP::path] starts_with "/mfa" } { set required mfa }
+        set granted [ACCESS::session data get session.custom.evtflow_scope]
+        log local0. "EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=$evtflow5_id|uri=[HTTP::uri]|required=$required|granted=$granted|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+        if { $required ne "public" && $granted ne "" && $granted ne $required } {
+            log local0. "EVTFLOW5|run=EFO|event=SCOPE_DENY|id=$evtflow5_id|required=$required|granted=$granted|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+            HTTP::respond 403 content "scope mismatch: required=$required granted=$granted\n" noserver
+            event disable all
+        }
+    }
+    when ACCESS_SESSION_STARTED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=$evtflow5_id|sid=[ACCESS::session sid]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_POLICY_AGENT_EVENT {
+        set agent [ACCESS::policy agent_id]
+        if { $agent eq "EFO_public_ok" } { ACCESS::session data set session.custom.evtflow_scope public }
+        if { $agent eq "EFO_ad_ok" } { ACCESS::session data set session.custom.evtflow_scope ad }
+        if { $agent eq "EFO_ldap_ok" } { ACCESS::session data set session.custom.evtflow_scope ldap }
+        if { $agent eq "EFO_oidc_ok" } { ACCESS::session data set session.custom.evtflow_scope oidc }
+        if { $agent eq "EFO_mfa_ok" } { ACCESS::session data set session.custom.evtflow_scope mfa }
+        set otp ""
+        if { $agent eq "EFO_otp_issued" } { set otp [ACCESS::session data get session.otp.assigned.val] }
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=$evtflow5_id|agent=$agent|otp=$otp|ad=[ACCESS::session data get session.ad.last.authresult]|ldap=[ACCESS::session data get session.ldap.last.authresult]|oauth=[ACCESS::session data get session.oauth.client.last.result]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_POLICY_COMPLETED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=$evtflow5_id|result=[ACCESS::policy result]|scope=[ACCESS::session data get session.custom.evtflow_scope]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_ACL_ALLOWED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=$evtflow5_id|scope=[ACCESS::session data get session.custom.evtflow_scope]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when SERVER_CONNECTED {
+        log local0. "EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=$evtflow5_id|peer=[IP::server_addr]:[TCP::server_port]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+}
+ltm rule /Common/__tcl_lsp_evtflow_egh_asm_blocking_trace {
+when RULE_INIT {
+        log local0. "EVTFLOW2|run=EGH|event=RULE_INIT|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking"
+    }
+    when HTTP_REQUEST priority 100 {
+        set evtflow2_asm_id [HTTP::header value X-Evtflow-Request]
+        ASM::enable /Common/__tcl_lsp_evtflow_egh_asm_blocking
+        log local0. "EVTFLOW2|run=EGH|event=HTTP_REQUEST|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking|id=$evtflow2_asm_id|uri=[HTTP::uri]"
+    }
+    when ASM_REQUEST_DONE {
+        log local0. "EVTFLOW2|run=EGH|event=ASM_REQUEST_DONE|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking|id=$evtflow2_asm_id|status=[ASM::status]|count=[ASM::violation count]|names=[ASM::violation names]"
+    }
+    when ASM_REQUEST_VIOLATION {
+        log local0. "EVTFLOW2|run=EGH|event=ASM_REQUEST_VIOLATION|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking|id=$evtflow2_asm_id"
+    }
+    when ASM_REQUEST_BLOCKING {
+        log local0. "EVTFLOW2|run=EGH|event=ASM_REQUEST_BLOCKING|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking|id=$evtflow2_asm_id|policy=[ASM::policy]"
+    }
+    when ASM_RESPONSE_VIOLATION {
+        log local0. "EVTFLOW2|run=EGH|event=ASM_RESPONSE_VIOLATION|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=blocking|id=$evtflow2_asm_id"
+    }
+}
+ltm rule /Common/__tcl_lsp_evtflow_egh_asm_transparent_trace {
+when RULE_INIT {
+        log local0. "EVTFLOW2|run=EGH|event=RULE_INIT|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=transparent"
+    }
+    when HTTP_REQUEST priority 100 {
+        set evtflow2_asm_id [HTTP::header value X-Evtflow-Request]
+        ASM::enable /Common/__tcl_lsp_evtflow_egh_asm_transparent
+        log local0. "EVTFLOW2|run=EGH|event=HTTP_REQUEST|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=transparent|id=$evtflow2_asm_id|uri=[HTTP::uri]"
+    }
+    when ASM_REQUEST_DONE {
+        log local0. "EVTFLOW2|run=EGH|event=ASM_REQUEST_DONE|tmm=[TMM::cmp_group]:[TMM::cmp_unit]|probe=asm|mode=transparent|id=$evtflow2_asm_id|status=[ASM::status]|count=[ASM::violation count]|names=[ASM::violation names]"
+    }
+--
+    translate-port enabled
+}
+ltm virtual /Common/__tcl_lsp_evtflow_efo_complex_vs {
+    destination /Common/192.168.9.24:18840
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/__tcl_lsp_evtflow_efo_complex_pool
+    profiles {
+        /Common/__tcl_lsp_evtflow_efd_clientssl {
+            context clientside
+        }
+        /Common/__tcl_lsp_evtflow_efo_complex_access { }
+        /Common/http { }
+        /Common/tcp { }
+    }
+    rules {
+        /Common/__tcl_lsp_evtflow_efo_complex_trace
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/__tcl_lsp_evtflow_egh_asm_blocking_vs {
+    destination /Common/192.168.9.24:18606
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/__tcl_lsp_evtflow_egh_asm_blocking_pool
+    profiles {
+        /Common/http { }
+        /Common/tcp { }
+        /Common/websecurity { }
+    }
+    rules {
+        /Common/__tcl_lsp_evtflow_egh_asm_blocking_trace
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/__tcl_lsp_evtflow_egh_asm_transparent_vs {
+    destination /Common/192.168.9.24:18605
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/__tcl_lsp_evtflow_egh_asm_transparent_pool
+    profiles {
+        /Common/http { }
+        /Common/tcp { }
+        /Common/websecurity { }
+    }
+    rules {
+        /Common/__tcl_lsp_evtflow_egh_asm_transparent_trace
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/__tcl_lsp_evtflow_egi_cross_vs {
+    destination /Common/192.168.9.24:18612
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/__tcl_lsp_evtflow_egi_cross_pool
+    profiles {
+        /Common/__tcl_lsp_evtflow_efe_apm_allow { }
+        /Common/__tcl_lsp_evtflow_efe_clientssl_dynamic {
+            context clientside
+        }
+        /Common/http { }
+        /Common/tcp { }
+        /Common/websecurity { }
+    }
+    rules {
+        /Common/__tcl_lsp_evtflow_egi_cross_early
+        /Common/__tcl_lsp_evtflow_egi_cross_security
+        /Common/__tcl_lsp_evtflow_egi_cross_late
+        /Common/__tcl_lsp_evtflow_efe_client_cert
+        /Common/__tcl_lsp_evtflow_efe_apm_trace
+    }
+    serverssl-use-sni disabled
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+--
+    peer-cert-mode ignore
+}
+net dns-resolver /Common/__tcl_lsp_evtflow_efo_complex_resolver {
+    route-domain /Common/0
+}
+net dns-resolver /Common/f5-aws-dns {
+    forward-zones {
+        amazonaws.com {
+            nameservers {
+                8.8.8.8:53 { }
+            }
+        }
+        idservice.net {
+            nameservers {
+                8.8.8.8:53 { }
+            }
+        }
+        shpapi.com {
+            nameservers {
+                8.8.8.8:53 { }
+            }
+        }
+    }
+    route-domain /Common/0
+}
+net interface 1.0 {
+    media-fixed 10000T-FD
+}
+net port-list /Common/_sys_self_allow_tcp_defaults {
+    ports {
+        22 { }
+        53 { }
+        161 { }
+        443 { }
+        1029-1043 { }
+        4353 { }
+    }
+}
+net port-list /Common/_sys_self_allow_udp_defaults {
+    ports {
+        53 { }
+        161 { }
+        520 { }
+        1026 { }
+        4353 { }
+    }
+}
+net route-domain /Common/0 {
+    id 0
+    vlans {
+        /Common/internal
+        /Common/socks-tunnel
+        /Common/http-tunnel
+    }
+}
+net self /Common/self_1nic {
+    address 192.168.9.24/24
+    allow-service {
+        default
+    }
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/internal
+}
+net self-allow {
+    defaults {
+        igmp:0
+        ospf:0
+        pim:0
+        tcp:161
+        tcp:22
+        tcp:4353
+        tcp:53
+        tcp:8443
+        udp:1026
+        udp:161
+        udp:4353
+        udp:520
+        udp:53
+    }
+}
+net stp /Common/cist {
+    interfaces {
+        1.0 {
+--
+    revision 1
+}
+sys file ssl-cert /Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca {
+    cache-path /config/filestore/files_d/Common_d/certificate_d/:Common:__tcl_lsp_evtflow_efo_complex_keycloak_ca_110663_1
+    revision 1
+}
+sys file ssl-key /Common/__tcl_lsp_evtflow_efc_server {
+    cache-path /config/filestore/files_d/Common_d/certificate_key_d/:Common:__tcl_lsp_evtflow_efc_server_67469_1
+    revision 1
+}
+sys file ssl-key /Common/__tcl_lsp_evtflow_efd_server {
+    cache-path /config/filestore/files_d/Common_d/certificate_key_d/:Common:__tcl_lsp_evtflow_efd_server_67549_1
+    revision 1
+}
+sys file ssl-key /Common/__tcl_lsp_evtflow_efe_server {
+    cache-path /config/filestore/files_d/Common_d/certificate_key_d/:Common:__tcl_lsp_evtflow_efe_server_68020_1
+    revision 1
+}
+sys fpga firmware-config {
+    type standard-balanced-fpga
+}
+sys sflow global-settings http { }
+sys sflow global-settings vlan { }
+sys software update {
+    auto-check disabled
+    auto-phonehome disabled
+    frequency weekly
+}
+sys turboflex profile-config {
+    type turboflex-adc
+}
+wom endpoint-discovery { }

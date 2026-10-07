@@ -1,0 +1,9 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791371450z604800;path=/;secure
+Set-Cookie: LastMRH_Session=5715f763;path=/;secure
+Set-Cookie: MRHSession=6a39013799c87a67c05350435715f763;path=/;secure
+Content-Length: 0
+Location: /vdesk/hangup.php3
+Connection: close
+

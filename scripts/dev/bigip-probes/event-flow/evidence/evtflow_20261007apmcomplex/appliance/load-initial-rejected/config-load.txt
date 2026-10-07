@@ -1,0 +1,3 @@
+Loading configuration...
+  /var/tmp/evtflow_20261007apmcomplex/fixture/config.conf
+Syntax Error:(/var/tmp/evtflow_20261007apmcomplex/fixture/config.conf at line: 35) "redirect_uri" unknown property

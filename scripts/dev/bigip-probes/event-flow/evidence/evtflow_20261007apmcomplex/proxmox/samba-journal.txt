@@ -1,0 +1,61 @@
+Oct 07 10:54:32 ad systemd[1]: Starting samba-ad-dc.service - Samba AD Daemon...
+Oct 07 10:54:32 ad systemd[1]: samba-ad-dc.service: Skipped due to 'exec-condition'.
+Oct 07 10:54:32 ad systemd[1]: Condition check resulted in samba-ad-dc.service - Samba AD Daemon being skipped.
+Oct 07 10:54:39 ad systemd[1]: Starting samba-ad-dc.service - Samba AD Daemon...
+Oct 07 10:54:39 ad samba[3291]: [2026/10/07 10:54:39.646522,  0] ../../source4/samba/server.c:621(binary_smbd_main)
+Oct 07 10:54:39 ad samba[3291]:   samba version 4.17.12-Debian started.
+Oct 07 10:54:39 ad samba[3291]:   Copyright Andrew Tridgell and the Samba Team 1992-2022
+Oct 07 10:54:39 ad samba[3291]: [2026/10/07 10:54:39.646614,  0] ../../lib/util/become_daemon.c:150(daemon_status)
+Oct 07 10:54:39 ad samba[3291]:   daemon_status: daemon 'samba' : Starting process...
+Oct 07 10:54:39 ad samba[3291]: [2026/10/07 10:54:39.720140,  0] ../../source4/samba/server.c:897(binary_smbd_main)
+Oct 07 10:54:39 ad samba[3291]:   binary_smbd_main: samba: using 'prefork' process model
+Oct 07 10:54:39 ad samba[3307]: [2026/10/07 10:54:39.741740,  0] ../../source4/lib/tls/tlscert.c:67(tls_cert_generate)
+Oct 07 10:54:39 ad samba[3307]:   Attempting to autogenerate TLS self-signed keys for https for hostname 'AD.lab.bitwisecook.org'
+Oct 07 10:54:39 ad smbd[3297]: [2026/10/07 10:54:39.746558,  0] ../../source3/smbd/server.c:1741(main)
+Oct 07 10:54:39 ad smbd[3297]:   smbd version 4.17.12-Debian started.
+Oct 07 10:54:39 ad smbd[3297]:   Copyright Andrew Tridgell and the Samba Team 1992-2022
+Oct 07 10:54:39 ad smbd[3297]: [2026/10/07 10:54:39.747820,  0] ../../lib/util/pidfile.c:217(pidfile_create)
+Oct 07 10:54:39 ad smbd[3297]:   ERROR: smbd is already running. File /run/samba/smbd.pid exists and process id 3065 is running.
+Oct 07 10:54:39 ad samba[3293]: [2026/10/07 10:54:39.749829,  0] ../../file_server/file_server.c:45(file_server_smbd_done)
+Oct 07 10:54:39 ad samba[3293]:   file_server smbd daemon died with exit status 1
+Oct 07 10:54:39 ad samba[3293]: [2026/10/07 10:54:39.750019,  0] ../../source4/samba/service_task.c:36(task_server_terminate)
+Oct 07 10:54:39 ad samba[3293]:   task_server_terminate: task_server_terminate: [smbd child process exited]
+Oct 07 10:54:39 ad samba[3291]: [2026/10/07 10:54:39.785859,  0] ../../source4/samba/server.c:391(samba_terminate)
+Oct 07 10:54:39 ad samba[3291]:   samba_terminate: samba_terminate of samba 3291: smbd child process exited
+Oct 07 10:54:39 ad systemd[1]: Started samba-ad-dc.service - Samba AD Daemon.
+Oct 07 10:54:39 ad systemd[1]: samba-ad-dc.service: Main process exited, code=exited, status=1/FAILURE
+Oct 07 10:54:41 ad samba[3307]: [2026/10/07 10:54:41.386678,  0] ../../source4/lib/tls/tlscert.c:154(tls_cert_generate)
+Oct 07 10:54:41 ad samba[3307]:   TLS self-signed keys generated OK
+Oct 07 10:54:41 ad systemd[1]: samba-ad-dc.service: Failed with result 'exit-code'.
+Oct 07 10:54:41 ad systemd[1]: Stopped samba-ad-dc.service - Samba AD Daemon.
+Oct 07 10:54:41 ad systemd[1]: samba-ad-dc.service: Consumed 1.935s CPU time.
+-- Boot fbc8ca08e7114b319c6b7dd23852bd60 --
+Oct 07 10:54:44 ad systemd[1]: Starting samba-ad-dc.service - Samba AD Daemon...
+Oct 07 10:54:44 ad samba[139]: [2026/10/07 10:54:44.461775,  0] ../../source4/samba/server.c:621(binary_smbd_main)
+Oct 07 10:54:44 ad samba[139]:   samba version 4.17.12-Debian started.
+Oct 07 10:54:44 ad samba[139]:   Copyright Andrew Tridgell and the Samba Team 1992-2022
+Oct 07 10:54:44 ad samba[139]: [2026/10/07 10:54:44.462267,  0] ../../lib/util/become_daemon.c:150(daemon_status)
+Oct 07 10:54:44 ad samba[139]:   daemon_status: daemon 'samba' : Starting process...
+Oct 07 10:54:44 ad samba[139]: [2026/10/07 10:54:44.531555,  0] ../../source4/samba/server.c:897(binary_smbd_main)
+Oct 07 10:54:44 ad samba[139]:   binary_smbd_main: samba: using 'prefork' process model
+Oct 07 10:54:44 ad systemd[1]: Started samba-ad-dc.service - Samba AD Daemon.
+Oct 07 10:54:44 ad smbd[202]: [2026/10/07 10:54:44.660717,  0] ../../source3/smbd/server.c:1741(main)
+Oct 07 10:54:44 ad smbd[202]:   smbd version 4.17.12-Debian started.
+Oct 07 10:54:44 ad smbd[202]:   Copyright Andrew Tridgell and the Samba Team 1992-2022
+Oct 07 10:54:44 ad winbindd[236]: [2026/10/07 10:54:44.672714,  0] ../../source3/winbindd/winbindd.c:1440(main)
+Oct 07 10:54:44 ad winbindd[236]:   winbindd version 4.17.12-Debian started.
+Oct 07 10:54:44 ad winbindd[236]:   Copyright Andrew Tridgell and the Samba Team 1992-2022
+Oct 07 10:54:44 ad winbindd[236]: [2026/10/07 10:54:44.923206,  0] ../../source3/winbindd/winbindd_cache.c:3117(initialize_winbindd_cache)
+Oct 07 10:54:44 ad winbindd[236]:   initialize_winbindd_cache: clearing cache and re-creating with version number 2
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.140664,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.170808,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.200363,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.228055,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.255563,  0] ../../lib/util/util_runcmd.c:355(samba_runcmd_io_handler)
+Oct 07 11:04:45 ad samba[242]:   /usr/sbin/samba_dnsupdate: ; TSIG error with server: tsig verify failure
+Oct 07 11:04:45 ad samba[242]: [2026/10/07 11:04:45.305240,  0] ../../source4/dsdb/dns/dns_update.c:85(dnsupdate_nameupdate_done)
+Oct 07 11:04:45 ad samba[242]:   dnsupdate_nameupdate_done: Failed DNS update with exit code 5

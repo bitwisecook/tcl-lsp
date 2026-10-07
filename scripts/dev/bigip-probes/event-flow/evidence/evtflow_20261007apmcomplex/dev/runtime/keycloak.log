@@ -1,0 +1,20 @@
+Updating the configuration and installing your custom providers, if any. Please wait.
+2026-10-07 11:01:10,367 INFO  [io.quarkus.deployment.QuarkusAugmentor] (main) Quarkus augmentation completed in 4216ms
+Running the server in development mode. DO NOT use this configuration in production.
+2026-10-07 11:01:11,303 INFO  [org.keycloak.url.HostnameV2ProviderFactory] (main) If hostname is specified, hostname-strict is effectively ignored
+2026-10-07 11:01:12,870 INFO  [org.keycloak.quarkus.runtime.storage.database.liquibase.QuarkusJpaUpdaterProvider] (main) Initializing database schema. Using changelog META-INF/jpa-changelog-master.xml
+2026-10-07 11:01:14,214 INFO  [org.keycloak.spi.infinispan.impl.embedded.JGroupsConfigurator] (main) JGroups JDBC_PING discovery enabled.
+2026-10-07 11:01:14,271 INFO  [org.infinispan.CONTAINER] (main) Virtual threads support enabled
+2026-10-07 11:01:14,344 INFO  [org.infinispan.CONTAINER] (main) ISPN000556: Starting user marshaller 'org.infinispan.commons.marshall.ImmutableProtoStreamMarshaller'
+2026-10-07 11:01:14,545 INFO  [org.keycloak.connections.infinispan.DefaultInfinispanConnectionProviderFactory] (main) Node name: node_312225, Site name: null
+2026-10-07 11:01:14,618 INFO  [org.keycloak.exportimport.dir.DirImportProvider] (main) Importing from directory /opt/keycloak/bin/../data/import
+2026-10-07 11:01:14,678 INFO  [org.keycloak.services] (main) KC-SERVICES0050: Initializing master realm
+2026-10-07 11:01:15,470 INFO  [org.keycloak.exportimport.singlefile.SingleFileImportProvider] (main) Full importing from file /opt/keycloak/bin/../data/import/realm-evtflow.json
+2026-10-07 11:01:16,031 INFO  [org.keycloak.exportimport.util.ImportUtils] (main) Realm 'evtflow' imported
+2026-10-07 11:01:16,031 INFO  [org.keycloak.services] (main) KC-SERVICES0030: Full model import requested. Strategy: IGNORE_EXISTING
+2026-10-07 11:01:16,031 INFO  [org.keycloak.services] (main) KC-SERVICES0032: Import finished successfully
+2026-10-07 11:01:16,062 INFO  [org.keycloak.services] (main) KC-SERVICES0077: Created temporary admin user with username evtflow-admin
+2026-10-07 11:01:16,205 INFO  [io.quarkus] (main) Keycloak 26.3.3 on JVM (powered by Quarkus 3.20.2.1) started in 5.570s. Listening on: http://0.0.0.0:8080 and https://0.0.0.0:8443
+2026-10-07 11:01:16,205 INFO  [io.quarkus] (main) Profile dev activated. 
+2026-10-07 11:01:16,205 INFO  [io.quarkus] (main) Installed features: [agroal, cdi, hibernate-orm, jdbc-h2, keycloak, narayana-jta, opentelemetry, reactive-routes, rest, rest-jackson, smallrye-context-propagation, vertx]
+2026-10-07 11:14:21,253 WARN  [org.keycloak.events] (executor-thread-1) type="CODE_TO_TOKEN_ERROR", realmId="30ff34ad-33c8-418d-b46f-8e248eb120ee", realmName="evtflow", clientId="evtflow-apm", userId="null", ipAddress="192.168.9.24", error="invalid_client_credentials", grant_type="authorization_code"

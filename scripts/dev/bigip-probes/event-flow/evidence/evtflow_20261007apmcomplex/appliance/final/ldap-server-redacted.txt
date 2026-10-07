@@ -1,0 +1,26 @@
+apm aaa ldap __tcl_lsp_evtflow_efo_complex_ldap_server {
+    address 192.168.9.250
+    admin-dn cn=admin,dc=bitwisecook,dc=org
+    admin-encrypted-password <encrypted-redacted>
+    app-service none
+    base-dn dc=bitwisecook,dc=org
+    cleanup-cache none
+    description none
+    group-cache-ttl 30
+    is-ldaps false
+    location-specific true
+    partition Common
+    pool none
+    port iclpv-dm
+    schema-attr {
+        group-member member
+        group-member-value dn
+        group-memberof memberOf
+        group-object-class group
+        user-memberof memberOf
+        user-object-class user
+    }
+    serverssl-profile none
+    timeout 15
+    use-pool disabled
+}

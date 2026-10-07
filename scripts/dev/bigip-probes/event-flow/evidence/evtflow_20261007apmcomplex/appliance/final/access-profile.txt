@@ -1,0 +1,56 @@
+apm profile access __tcl_lsp_evtflow_efo_complex_access {
+    accept-languages { en }
+    access-policy __tcl_lsp_evtflow_efo_complex_policy
+    access-policy-timeout 300
+    app-service none
+    cpc-check-interval 90
+    cpc-inspection-enabled true
+    cpc-log-level info
+    customization-group __tcl_lsp_evtflow_efo_complex_access_logout
+    customization-key b3c7c61985e0484b3db31c1aae0b70e8
+    default-language en
+    defaults-from access
+    domain-cookie none
+    domain-groups none
+    domain-mode single-domain
+    enforce-policy true
+    eps-group __tcl_lsp_evtflow_efo_complex_access_eps
+    errormap-group __tcl_lsp_evtflow_efo_complex_access_errormap
+    exchange-profile none
+    framework-installation-group __tcl_lsp_evtflow_efo_complex_access_framework_installation
+    general-ui-group __tcl_lsp_evtflow_efo_complex_access_general_ui
+    generation 8
+    generation-action noop
+    httponly-cookie false
+    inactivity-timeout 900
+    kerberos-auth-name none
+    log-settings {
+        default-log-setting
+    }
+    logout-uri-include none
+    logout-uri-timeout 5
+    max-concurrent-sessions 0
+    max-concurrent-users 0
+    max-failure-delay 0
+    max-in-progress-sessions 128
+    max-session-timeout 604800
+    min-failure-delay 0
+    modified-since-last-policy-sync true
+    named-scope none
+    ntlm-auth-name none
+    oauth-profile none
+    partition Common
+    persistent-cookie false
+    primary-auth-service none
+    restrict-to-single-client-ip false
+    samesite-cookie false
+    samesite-cookie-attr-value strict
+    sandboxes none
+    scope profile
+    secure-cookie true
+    sso-name none
+    type all
+    use-http-503-on-error false
+    user-identity-method http
+    webtop-redirect-on-root-uri true
+}

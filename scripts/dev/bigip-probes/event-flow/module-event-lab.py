@@ -132,9 +132,7 @@ def handle_lines(connection, peer, local, recorder, role):
             connection.sendall(b"ECHO:" + bytes(buffer))
 
 
-def serve_tls_lines(
-    bind: str, port: int, recorder: Recorder, cert: Path, key: Path
-):
+def serve_tls_lines(bind: str, port: int, recorder: Recorder, cert: Path, key: Path):
     listener = socket.create_server((bind, port))
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cert, key)
@@ -241,9 +239,7 @@ def handle_websocket(connection, peer, local, recorder):
         response = (
             b"HTTP/1.1 101 Switching Protocols\r\n"
             b"Upgrade: websocket\r\nConnection: Upgrade\r\n"
-            b"Sec-WebSocket-Accept: "
-            + accept
-            + b"\r\n\r\n"
+            b"Sec-WebSocket-Accept: " + accept + b"\r\n\r\n"
         )
         connection.sendall(response)
         opcode, payload = receive_websocket_frame(connection)
@@ -420,9 +416,7 @@ def protocol_matrix(args):
     for index, (name, port, payload) in enumerate(cases):
         source_port = args.source_port_base + index
         try:
-            response, peer = tcp_exchange(
-                args.vip, port, source_port, payload
-            )
+            response, peer = tcp_exchange(args.vip, port, source_port, payload)
             error = None
         except (OSError, TimeoutError) as caught:
             response, peer, error = b"", None, repr(caught)

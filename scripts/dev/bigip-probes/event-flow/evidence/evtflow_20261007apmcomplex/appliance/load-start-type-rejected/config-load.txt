@@ -1,0 +1,6 @@
+Loading configuration...
+  /var/tmp/evtflow_20261007apmcomplex/fixture/config.conf
+There were warnings:
+apm log-setting (/Common/default-log-setting) is attached to apm profile access (/Common/__tcl_lsp_evtflow_efo_complex_access). You may replace this log setting with your own setting.
+01071131:3: The access policy (/Common/__tcl_lsp_evtflow_efo_complex_policy)'s start item name (/Common/__tcl_lsp_evtflow_efo_complex_start) must refer to an access policy item of entry type.
+Unexpected Error: Loading configuration process failed.

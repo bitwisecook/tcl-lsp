@@ -1,0 +1,19 @@
+net dns-resolver __tcl_lsp_evtflow_efo_complex_resolver {
+    answer-default-zones no
+    app-service none
+    cache-size 5632k
+    description none
+    forward-zones none
+    nameserver-min-rtt 50
+    nameserver-ttl 900
+    outbound-msg-retry 5
+    partition Common
+    prefetch no
+    qname-minimisation no
+    randomize-query-name-case yes
+    route-domain 0
+    use-ipv4 yes
+    use-ipv6 yes
+    use-tcp yes
+    use-udp yes
+}

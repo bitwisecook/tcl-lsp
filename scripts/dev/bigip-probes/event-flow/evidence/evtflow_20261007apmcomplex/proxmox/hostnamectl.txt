@@ -1,0 +1,9 @@
+ Static hostname: ad
+       Icon name: computer-container
+         Chassis: container ☐
+      Machine ID: a94e5217f9834eac8919655cf1b3b20e
+         Boot ID: fbc8ca08e7114b319c6b7dd23852bd60
+  Virtualization: lxc
+Operating System: Debian GNU/Linux 12 (bookworm)
+          Kernel: Linux 7.0.14-20-pve
+    Architecture: x86-64

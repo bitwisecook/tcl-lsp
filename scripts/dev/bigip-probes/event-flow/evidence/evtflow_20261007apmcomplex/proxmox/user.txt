@@ -1,0 +1,37 @@
+dn: CN=Event Flow,CN=Users,DC=lab,DC=bitwisecook,DC=org
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: user
+cn: Event Flow
+sn: Flow
+givenName: Event
+instanceType: 4
+whenCreated: 20261007105437.0Z
+displayName: Event Flow
+uSNCreated: 4073
+name: Event Flow
+objectGUID: a5594ab9-7445-4ea9-aa67-68a7d726a238
+badPwdCount: 0
+codePage: 0
+countryCode: 0
+badPasswordTime: 0
+lastLogoff: 0
+primaryGroupID: 513
+objectSid: S-1-5-21-2651550943-674907102-2903250972-1103
+sAMAccountName: evtflow-ad
+sAMAccountType: 805306368
+userPrincipalName: evtflow-ad@lab.bitwisecook.org
+objectCategory: CN=Person,CN=Schema,CN=Configuration,DC=lab,DC=bitwisecook,DC=org
+mail: evtflow-ad@bitwisecook.org
+pwdLastSet: 134358440772980490
+userAccountControl: 66048
+accountExpires: 0
+memberOf: CN=evtflow-employees,CN=Users,DC=lab,DC=bitwisecook,DC=org
+lastLogonTimestamp: 134358450093115880
+whenChanged: 20261007111009.0Z
+uSNChanged: 4086
+lastLogon: 134358451458715380
+logonCount: 6
+distinguishedName: CN=Event Flow,CN=Users,DC=lab,DC=bitwisecook,DC=org
+

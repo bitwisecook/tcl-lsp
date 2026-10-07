@@ -1,0 +1,1 @@
+-rw-rw-rw-. 1 root root 48867956 Oct  7 04:15 /var/core/apmd.bld0.0.26.core.gz

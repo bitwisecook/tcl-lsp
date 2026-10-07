@@ -1,0 +1,15 @@
+
+---------------------------------------------------------
+CentMgmt::Device: bigip1          
+---------------------------------------------------------
+Hostname                            bigip.bitwisecook.org
+Mgmt IP                             192.168.9.24
+Alternate Mgmt IP                   None
+Configsync IP                       ::
+Mirroring IP                        ::
+Mirroring Secondary IP              ::
+Failover Multicast IP               ::
+Failover Unicast IP(s)              -
+Time Delta to Current Device (sec)  -
+Device Status                       -
+

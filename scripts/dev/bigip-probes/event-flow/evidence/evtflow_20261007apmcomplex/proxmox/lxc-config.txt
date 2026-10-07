@@ -1,0 +1,12 @@
+arch: amd64
+cores: 2
+features: nesting=1,keyctl=1
+hostname: ad.lab.bitwisecook.org
+memory: 2048
+nameserver: 192.168.9.251
+net0: name=eth0,bridge=vmbr0,firewall=1,hwaddr=BC:24:11:F1:38:5A,ip=192.168.9.251/24,type=veth
+onboot: 0
+ostype: debian
+rootfs: nvme-zfs:subvol-104-disk-0,size=16G
+searchdomain: lab.bitwisecook.org
+swap: 512

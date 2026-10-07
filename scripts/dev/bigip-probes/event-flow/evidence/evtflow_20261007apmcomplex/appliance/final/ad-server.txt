@@ -1,0 +1,27 @@
+apm aaa active-directory __tcl_lsp_evtflow_efo_complex_ad_server {
+    admin-encrypted-password none
+    admin-name none
+    app-service none
+    cleanup-cache none
+    description none
+    domain lab.bitwisecook.org
+    domain-controller 192.168.9.251
+    domain-controllers {
+        ad.lab.bitwisecook.org {
+            app-service none
+            ip 192.168.9.251
+        }
+    }
+    group-cache-ttl 30
+    kdc-lockout-duration 0
+    kdc-validation disabled
+    keytab-file-obj none
+    location-specific true
+    padata none
+    partition Common
+    pool none
+    pso-cache-ttl 30
+    service-name none
+    timeout 15
+    use-pool disabled
+}

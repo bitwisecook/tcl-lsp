@@ -1,0 +1,31 @@
+HTTP/2 302 
+cache-control: no-store, must-revalidate, max-age=0
+set-cookie: KC_RESTART=;Version=1;Path=/realms/evtflow/;Max-Age=0
+set-cookie: KEYCLOAK_IDENTITY=eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI2NmU1YTJiNC01NTAzLTRlZmMtYThmMy0wYzlhNzJiMzNiYjkifQ.eyJleHAiOjE3OTE0MDgwMTUsImlhdCI6MTc5MTM3MjAxNSwianRpIjoiOWViYTIzMTYtNTEyYi1mODAwLTYzY2QtZWQzODJkZGJmYmVmIiwiaXNzIjoiaHR0cHM6Ly8xOTIuMTY4LjkuMjUyOjg0NDMvcmVhbG1zL2V2dGZsb3ciLCJzdWIiOiI0NzBjMGIzOC02MzhmLTQxOWUtODVjNC1jNDUwMjdmMDE0NzYiLCJ0eXAiOiJTZXJpYWxpemVkLUlEIiwic2lkIjoiZGNhNDg3MWQtNGZkNy00ZDlmLTk2NjUtY2M0ODVkZjAzNDRlIiwic3RhdGVfY2hlY2tlciI6IlBlTXY0NllmX0J0SjVJQmNZQk1UTXpjM3U4SnJZN2NTOEUxX3FtRGo4UkkifQ.xN7yoT3CTV4JMYhDd7dKAps4YE6J8cOGHWDiDAubb41poylAg6u-ptsa5MXJ6a_WIra2uNP9Gj7FCvnyUJMZKw;Version=1;Path=/realms/evtflow/;Secure;HttpOnly;SameSite=None
+set-cookie: KEYCLOAK_SESSION=Jh-bKHeJQ5DB9joH5GkKAd_B-QiMdfH_aRvjLGfDkNE;Version=1;Path=/realms/evtflow/;Max-Age=36000;Secure;SameSite=None
+content-security-policy: frame-src 'self'; frame-ancestors 'self'; object-src 'none';
+location: https://app.bitwisecook.org:18840/oauth/client/redirect?state=5DNKIg_Ek8g8X8YAVoaRpIA&session_state=dca4871d-4fd7-4d9f-9665-cc485df0344e&iss=https%3A%2F%2F192.168.9.252%3A8443%2Frealms%2Fevtflow&code=17e6e470-0db9-4211-a078-1a86cf2e130c.dca4871d-4fd7-4d9f-9665-cc485df0344e.3ec24c5c-5f71-46c0-a5bb-2a68019f5aaa
+referrer-policy: no-referrer
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: SAMEORIGIN
+x-robots-tag: none
+content-length: 0
+
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791372015z604800;path=/;secure
+Set-Cookie: LastMRH_Session=433c0481;path=/;secure
+Set-Cookie: MRHSession=0b3e996f3411699d9370ef68433c0481;path=/;secure
+Content-Length: 0
+Location: /oidc/hello
+Connection: close
+
+HTTP/1.1 200 OK
+Server: BaseHTTP/0.6 Python/3.14.4
+Date: Wed, 07 Oct 2026 11:20:15 GMT
+Content-Length: 18
+Content-Type: text/plain; charset=utf-8
+X-Evtflow-Backend: dev.bitwisecook.org
+Expires: Thu, 01 Dec 1994 16:00:00 GMT
+

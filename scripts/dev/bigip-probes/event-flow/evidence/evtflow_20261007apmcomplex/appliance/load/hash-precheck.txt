@@ -1,0 +1,4 @@
+keycloak-ca.crt: OK
+rule.conf: OK
+config.conf: OK
+manifest.json: OK

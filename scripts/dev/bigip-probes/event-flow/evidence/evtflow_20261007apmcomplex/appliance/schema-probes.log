@@ -1,0 +1,14 @@
+=== otp-generate create/list ===
+apm policy agent otp-generate __tcl_lsp_evtflow_efo_schema_otp_generate {
+    app-service none
+    otp-length 6
+    otp-timeout 300
+    partition Common
+}
+=== otp-verify create/list ===
+apm policy agent otp-verify __tcl_lsp_evtflow_efo_schema_otp_verify {
+    app-service none
+    max-logon-attempt 3
+    otp-source "%{session.logon.last.password}"
+    partition Common
+}

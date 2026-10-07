@@ -1,0 +1,53 @@
+[38;5;6m [38;5;5m08:55:05.97 [0m[38;5;2mINFO [0m ==> ** Starting LDAP setup **
+[38;5;6m [38;5;5m08:55:05.99 [0m[38;5;2mINFO [0m ==> Validating settings in LDAP_* env vars
+[38;5;6m [38;5;5m08:55:05.99 [0m[38;5;2mINFO [0m ==> Initializing OpenLDAP...
+[38;5;6m [38;5;5m08:55:06.00 [0m[38;5;2mINFO [0m ==> Creating LDAP online configuration
+[38;5;6m [38;5;5m08:55:06.00 [0m[38;5;2mINFO [0m ==> Creating slapd.ldif
+[38;5;6m [38;5;5m08:55:06.02 [0m[38;5;2mINFO [0m ==> Starting OpenLDAP server in background
+[38;5;6m [38;5;5m08:55:07.02 [0m[38;5;2mINFO [0m ==> Configure LDAP credentials for admin user
+[38;5;6m [38;5;5m08:55:07.03 [0m[38;5;2mINFO [0m ==> Adding LDAP extra schemas
+[38;5;6m [38;5;5m08:55:07.04 [0m[38;5;2mINFO [0m ==> Loading custom LDIF files...
+[38;5;6m [38;5;5m08:55:07.04 [0m[38;5;3mWARN [0m ==> Ignoring LDAP_USERS, LDAP_PASSWORDS, LDAP_USER_DC and LDAP_GROUP environment variables...
+[38;5;6m [38;5;5m08:55:08.06 [0m[38;5;2mINFO [0m ==> ** LDAP setup finished! **
+
+[38;5;6m [38;5;5m08:55:08.08 [0m[38;5;2mINFO [0m ==> ** Starting slapd **
+6ac608ec.04f06cfc 0x7fee2d160740 @(#) $OpenLDAP: slapd 2.6.8 (Jul 22 2024 15:17:33) $
+	@5166997a1da7:/bitnami/blacksmith-sandox/openldap-2.6.8/servers/slapd
+6ac608ec.05317460 0x7fee2d160740 slapd starting
+6ac608ee.07f55f6b 0x7fede7fff6c0 conn=1000 fd=12 ACCEPT from IP=127.0.0.1:40478 (IP=0.0.0.0:1389)
+6ac608ee.07f69588 0x7fede7fff6c0 conn=1000 op=0 BIND dn="cn=admin,dc=bitwisecook,dc=org" method=128
+6ac608ee.07f6e463 0x7fede7fff6c0 conn=1000 op=0 BIND dn="cn=admin,dc=bitwisecook,dc=org" mech=SIMPLE bind_ssf=0 ssf=0
+6ac608ee.07f761ad 0x7fede7fff6c0 conn=1000 op=0 RESULT tag=97 err=0 qtime=0.000005 etime=0.000079 text=
+6ac608ee.07f853b7 0x7fede7fff6c0 conn=1000 op=1 SRCH base="uid=evtflow,ou=people,dc=bitwisecook,dc=org" scope=2 deref=0 filter="(objectClass=*)"
+6ac608ee.07f86be0 0x7fede7fff6c0 conn=1000 op=1 SRCH attr=dn uid
+6ac608ee.07f9a983 0x7fede7fff6c0 conn=1000 op=1 SEARCH RESULT tag=101 err=0 qtime=0.000002 etime=0.000099 nentries=1 text=
+6ac608ee.07fad419 0x7fede77fe6c0 conn=1000 op=2 UNBIND
+6ac608ee.07fb8933 0x7fede77fe6c0 conn=1000 fd=12 closed
+6ac608f7.28052689 0x7fede7fff6c0 conn=1001 fd=12 ACCEPT from IP=192.168.9.24:18966 (IP=0.0.0.0:1389)
+6ac608f7.28063329 0x7fede7fff6c0 conn=1001 op=0 BIND dn="cn=admin,dc=bitwisecook,dc=org" method=128
+6ac608f7.28067670 0x7fede7fff6c0 conn=1001 op=0 BIND dn="cn=admin,dc=bitwisecook,dc=org" mech=SIMPLE bind_ssf=0 ssf=0
+6ac608f7.2806f294 0x7fede7fff6c0 conn=1001 op=0 RESULT tag=97 err=0 qtime=0.000004 etime=0.000072 text=
+6ac608f7.280d30be 0x7fede77fe6c0 conn=1001 op=1 SRCH base="uid=evtflow,ou=people,dc=bitwisecook,dc=org" scope=2 deref=0 filter="(objectClass=*)"
+6ac608f7.280d9edf 0x7fede77fe6c0 conn=1001 op=1 SRCH attr=dn uid
+6ac608f7.280f3cfa 0x7fede77fe6c0 conn=1001 op=1 SEARCH RESULT tag=101 err=0 qtime=0.000007 etime=0.000160 nentries=1 text=
+6ac608f7.28128666 0x7fede7fff6c0 conn=1001 op=2 UNBIND
+6ac608f7.2812f736 0x7fede7fff6c0 conn=1001 fd=12 closed
+6ac6091a.2e076388 0x7fede77fe6c0 conn=1002 fd=12 ACCEPT from IP=192.168.9.24:56019 (IP=0.0.0.0:1389)
+6ac6091a.2e083b23 0x7fede7fff6c0 conn=1002 op=0 BIND dn="uid=evtflow,ou=people,dc=bitwisecook,dc=org" method=128
+6ac6091a.2e091a50 0x7fede7fff6c0 conn=1002 op=0 BIND dn="uid=evtflow,ou=people,dc=bitwisecook,dc=org" mech=SIMPLE bind_ssf=0 ssf=0
+6ac6091a.2e0982ce 0x7fede7fff6c0 conn=1002 op=0 RESULT tag=97 err=0 qtime=0.000008 etime=0.000115 text=
+6ac6091a.2e0cdfe8 0x7fede77fe6c0 conn=1002 op=1 UNBIND
+6ac6091a.2e0d4d61 0x7fede77fe6c0 conn=1002 fd=12 closed
+6ac6091a.2f3a96f3 0x7fede7fff6c0 conn=1003 fd=12 ACCEPT from IP=192.168.9.24:31675 (IP=0.0.0.0:1389)
+6ac6091a.2f3b6105 0x7fede77fe6c0 conn=1003 op=0 BIND dn="uid=evtflow,ou=people,dc=bitwisecook,dc=org" method=128
+6ac6091a.2f3c49f8 0x7fede77fe6c0 conn=1003 op=0 RESULT tag=97 err=49 qtime=0.000008 etime=0.000089 text=
+6ac6091a.2f404180 0x7fede7fff6c0 conn=1003 op=1 UNBIND
+6ac6091a.2f40b173 0x7fede7fff6c0 conn=1003 fd=12 closed
+6ac62627.1c6d3b6f 0x7fede77fe6c0 conn=1004 fd=12 ACCEPT from IP=192.168.9.24:57948 (IP=0.0.0.0:1389)
+6ac62627.1c6e0927 0x7fede7fff6c0 conn=1004 fd=12 closed (connection lost)
+6ac628ab.31139599 0x7fede77fe6c0 conn=1005 fd=12 ACCEPT from IP=192.168.9.24:28699 (IP=0.0.0.0:1389)
+6ac628ab.31d8f4b3 0x7fede7fff6c0 conn=1005 op=0 BIND dn="uid=evtflow,ou=people,dc=bitwisecook,dc=org" method=128
+6ac628ab.32b41cac 0x7fede7fff6c0 conn=1005 op=0 BIND dn="uid=evtflow,ou=people,dc=bitwisecook,dc=org" mech=SIMPLE bind_ssf=0 ssf=0
+6ac628ab.32b4e92a 0x7fede7fff6c0 conn=1005 op=0 RESULT tag=97 err=0 qtime=0.000100 etime=0.027142 text=
+6ac628ab.32b97ace 0x7fede77fe6c0 conn=1005 op=1 UNBIND
+6ac628ab.32ba0768 0x7fede77fe6c0 conn=1005 fd=12 closed

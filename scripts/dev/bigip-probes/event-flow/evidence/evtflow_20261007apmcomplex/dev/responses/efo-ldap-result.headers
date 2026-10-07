@@ -1,0 +1,17 @@
+HTTP/1.0 302 Found
+Server: BigIP
+Set-Cookie: F5_ST=1z1z1z1791371435z604800;path=/;secure
+Set-Cookie: LastMRH_Session=b3ceded4;path=/;secure
+Set-Cookie: MRHSession=fabde5928badafe5ca691394b3ceded4;path=/;secure
+Content-Length: 0
+Location: /ldap/hello
+Connection: close
+
+HTTP/1.1 200 OK
+Server: BaseHTTP/0.6 Python/3.14.4
+Date: Wed, 07 Oct 2026 11:10:35 GMT
+Content-Length: 18
+Content-Type: text/plain; charset=utf-8
+X-Evtflow-Backend: dev.bitwisecook.org
+Expires: Thu, 01 Dec 1994 16:00:00 GMT
+

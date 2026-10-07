@@ -47,9 +47,12 @@ ldap = ipaddress.IPv4Address(args.ldap)
 for port in (args.vip_port, args.backend_port, args.ldap_port):
     if not 1024 <= port <= 65535:
         parser.error("ports must be 1024..65535")
-source_commit = args.source_commit or subprocess.run(
-    ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
-).stdout.strip()
+source_commit = (
+    args.source_commit
+    or subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+)
 prefix = f"__tcl_lsp_evtflow_{args.run.lower()}_ldap"
 common = f"/Common/{prefix}"
 args.out.mkdir(parents=True)

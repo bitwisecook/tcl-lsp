@@ -1,0 +1,65 @@
+[
+     {
+          "name": "evtflow-auth-macvlan",
+          "id": "07c91a19a19be0db00a6925d711df93cf6eff339e68c826beeed800c31773f4f",
+          "driver": "macvlan",
+          "network_interface": "eth0",
+          "created": "2026-10-07T08:55:05.709343723Z",
+          "subnets": [
+               {
+                    "subnet": "192.168.9.0/24",
+                    "lease_range": {
+                         "start_ip": "192.168.9.249",
+                         "end_ip": "192.168.9.255"
+                    }
+               }
+          ],
+          "ipv6_enabled": false,
+          "internal": true,
+          "dns_enabled": false,
+          "ipam_options": {
+               "driver": "host-local"
+          },
+          "containers": {
+               "0bb6c256f087608972cc468cb88fc3f229fd50f7d428744445b02496846e9681": {
+                    "name": "evtflow-openldap",
+                    "interfaces": {
+                         "eth0": {
+                              "subnets": [
+                                   {
+                                        "ipnet": "192.168.9.250/24"
+                                   }
+                              ],
+                              "mac_address": "9a:0d:51:e2:1b:e2"
+                         }
+                    }
+               },
+               "1afba8b214636073857668e2ea6ade883b4c2b48aff37259e90c613880f03db1": {
+                    "name": "evtflow-auth-client",
+                    "interfaces": {
+                         "eth0": {
+                              "subnets": [
+                                   {
+                                        "ipnet": "192.168.9.253/24"
+                                   }
+                              ],
+                              "mac_address": "5a:5e:9d:37:33:c4"
+                         }
+                    }
+               },
+               "90ab26c70567fb2830b337ff733172a276a53925a31723ea97e254945df162c3": {
+                    "name": "evtflow-keycloak",
+                    "interfaces": {
+                         "eth0": {
+                              "subnets": [
+                                   {
+                                        "ipnet": "192.168.9.252/24"
+                                   }
+                              ],
+                              "mac_address": "52:bc:d1:6b:58:82"
+                         }
+                    }
+               }
+          }
+     }
+]

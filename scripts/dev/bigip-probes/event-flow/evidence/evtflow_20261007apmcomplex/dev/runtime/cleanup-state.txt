@@ -1,0 +1,5 @@
+evtflow-openldap|Up 3 hours|evtflow-auth-macvlan
+evtflow-keycloak|Up 24 minutes|evtflow-auth-macvlan
+evtflow-auth-client|Up 12 minutes|evtflow-auth-macvlan
+failed-container-absent
+failed-volume-absent

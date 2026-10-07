@@ -1,0 +1,5 @@
+Domain and forest function level for domain 'DC=lab,DC=bitwisecook,DC=org'
+
+Forest function level: (Windows) 2008 R2
+Domain function level: (Windows) 2008 R2
+Lowest function level of a DC: (Windows) 2008 R2

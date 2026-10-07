@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html class="login-pf" lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="color-scheme" content="light dark">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Sign in to tcl-lsp BIG-IP event-flow</title>
+    <link rel="icon" href="/resources/2puos/login/keycloak.v2/img/favicon.ico" />
+            <link href="/resources/2puos/common/keycloak/vendor/patternfly-v5/patternfly.min.css" rel="stylesheet" />
+            <link href="/resources/2puos/common/keycloak/vendor/patternfly-v5/patternfly-addons.css" rel="stylesheet" />
+            <link href="/resources/2puos/login/keycloak.v2/css/styles.css" rel="stylesheet" />
+    <script type="importmap">
+        {
+            "imports": {
+                "rfc4648": "/resources/2puos/common/keycloak/vendor/rfc4648/rfc4648.js"
+            }
+        }
+    </script>
+      <script type="module" async blocking="render">
+          const DARK_MODE_CLASS = "pf-v5-theme-dark";
+          const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+          updateDarkMode(mediaQuery.matches);
+          mediaQuery.addEventListener("change", (event) => updateDarkMode(event.matches));
+
+          function updateDarkMode(isEnabled) {
+            const { classList } = document.documentElement;
+
+            if (isEnabled) {
+              classList.add(DARK_MODE_CLASS);
+            } else {
+              classList.remove(DARK_MODE_CLASS);
+            }
+          }
+      </script>
+    <script type="module" src="/resources/2puos/login/keycloak.v2/js/passwordVisibility.js"></script>
+    <script type="module">
+        import { startSessionPolling } from "/resources/2puos/login/keycloak.v2/js/authChecker.js";
+
+        startSessionPolling(
+            "/realms/evtflow/login-actions/restart?client_id=evtflow-apm&tab_id=Yxd23qbE0TM&client_data=eyJydSI6Imh0dHBzOi8vYXBwLmJpdHdpc2Vjb29rLm9yZzoxODg0MC9vYXV0aC9jbGllbnQvcmVkaXJlY3QiLCJydCI6ImNvZGUiLCJzdCI6IjVETktJZ19FazhnOFg4WUFWb2FScElBIn0&skip_logout=true"
+        );
+    </script>
+    <script type="module">
+        document.addEventListener("click", (event) => {
+            const link = event.target.closest("a[data-once-link]");
+
+            if (!link) {
+                return;
+            }
+
+            if (link.getAttribute("aria-disabled") === "true") {
+                event.preventDefault();
+                return;
+            }
+
+            const { disabledClass } = link.dataset;
+
+            if (disabledClass) {
+                link.classList.add(...disabledClass.trim().split(/\s+/));
+            }
+
+            link.setAttribute("role", "link");
+            link.setAttribute("aria-disabled", "true");
+        });
+    </script>
+        <script type="module">
+            import { checkAuthSession } from "/resources/2puos/login/keycloak.v2/js/authChecker.js";
+
+            checkAuthSession(
+                "Jh+bKHeJQ5DB9joH5GkKAd/B+QiMdfH/aRvjLGfDkNE"
+            );
+        </script>
+    <script>
+      // Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1404468
+      const isFirefox = true;
+    </script>
+</head>
+
+<body id="keycloak-bg" class="" data-page-id="login-login">
+<div class="pf-v5-c-login">
+  <div class="pf-v5-c-login__container">
+    <header id="kc-header" class="pf-v5-c-login__header">
+      <div id="kc-header-wrapper"
+              class="pf-v5-c-brand">tcl-lsp BIG-IP event-flow</div>
+    </header>
+    <main class="pf-v5-c-login__main">
+      <div class="pf-v5-c-login__main-header">
+        <h1 class="pf-v5-c-title pf-m-3xl" id="kc-page-title"><!-- template: login.ftl -->
+
+        Sign in to your account
+
+</h1>
+      </div>
+      <div class="pf-v5-c-login__main-body">
+
+
+<!-- template: login.ftl -->
+
+        <div id="kc-form">
+          <div id="kc-form-wrapper">
+                <form id="kc-form-login" class="pf-v5-c-form pf-v5-u-w-100" onsubmit="login.disabled = true; return true;" action="https://192.168.9.252:8443/realms/evtflow/login-actions/authenticate?session_code=gfL7hMYfusX6L6C5lqC_Wn6uxI0G8XDgpR7LyNJKlm4&amp;execution=8d784a1a-9100-44b5-a90e-4b70eb783d0f&amp;client_id=evtflow-apm&amp;tab_id=Yxd23qbE0TM&amp;client_data=eyJydSI6Imh0dHBzOi8vYXBwLmJpdHdpc2Vjb29rLm9yZzoxODg0MC9vYXV0aC9jbGllbnQvcmVkaXJlY3QiLCJydCI6ImNvZGUiLCJzdCI6IjVETktJZ19FazhnOFg4WUFWb2FScElBIn0" method="post" novalidate="novalidate">
+
+<div class="pf-v5-c-form__group">
+    <div class="pf-v5-c-form__group-label pf-v5-u-pb-xs">
+        <label for="username" class="pf-v5-c-form__label">
+        <span class="pf-v5-c-form__label-text">
+                                        Username or email
+
+        </span>
+        </label>
+    </div>
+
+    <span class="pf-v5-c-form-control ">
+        <input id="username" name="username" value="" type="text" autocomplete="username" autofocus
+                aria-invalid=""/>
+    </span>
+
+    <div id="input-error-container-username">
+    </div>
+</div>
+
+
+<div class="pf-v5-c-form__group">
+    <div class="pf-v5-c-form__group-label pf-v5-u-pb-xs">
+        <label for="password" class="pf-v5-c-form__label">
+        <span class="pf-v5-c-form__label-text">
+            Password
+        </span>
+        </label>
+    </div>
+
+    <div class="pf-v5-c-input-group">
+      <div class="pf-v5-c-input-group__item pf-m-fill">
+        <span class="pf-v5-c-form-control ">
+          <input id="password" name="password" value="" type="password" autocomplete="current-password" 
+                  aria-invalid=""/>
+        </span>
+      </div>
+      <div class="pf-v5-c-input-group__item">
+        <button class="pf-v5-c-button pf-m-control" type="button" aria-label="Show password"
+                aria-controls="password" data-password-toggle
+                data-icon-show="fa-eye fas" data-icon-hide="fa-eye-slash fas"
+                data-label-show="Show password" data-label-hide="Hide password" id="password-show-password">
+            <i class="fa-eye fas" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="pf-v5-c-form__helper-text" aria-live="polite">
+        <div class="pf-v5-c-helper-text pf-v5-u-display-flex pf-v5-u-justify-content-space-between">
+        </div>
+    </div>
+
+
+    <div id="input-error-container-password">
+    </div>
+</div>
+
+
+                    <input type="hidden" id="id-hidden-input" name="credentialId" />
+  <div class="pf-v5-c-form__group">
+    <div class="pf-v5-c-form__actions pf-v5-u-pt-xs pf-v5-u-flex-wrap">
+  <button class="pf-v5-c-button pf-m-primary pf-m-block " name="login" id="kc-login"
+          type="submit" >
+  Sign In
+  </button>
+    </div>
+  </div>
+                </form>
+            </div>
+        </div>
+
+
+
+          <div class="pf-v5-c-login__main-footer">
+<!-- template: login.ftl -->
+
+
+
+          </div>
+      </div>
+
+        <div class="pf-v5-c-login__main-footer">
+        </div>
+    </main>
+  </div>
+</div>
+</body>
+</html>

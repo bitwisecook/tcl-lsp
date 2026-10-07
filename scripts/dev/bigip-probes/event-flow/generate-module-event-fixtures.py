@@ -46,9 +46,12 @@ for value in (args.vip_port_base, args.backend_port_base):
     if not 1024 <= value <= 65400:
         parser.error("port bases must be 1024..65400")
 
-source_commit = args.source_commit or subprocess.run(
-    ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
-).stdout.strip()
+source_commit = (
+    args.source_commit
+    or subprocess.run(
+        ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+)
 prefix = f"__tcl_lsp_evtflow_{args.run.lower()}"
 common = f"/Common/{prefix}"
 manifest = {
@@ -81,8 +84,7 @@ def write(name: str, source: str, kind: str) -> None:
 
 def event_log(event: str, extra: str = "") -> str:
     fields = (
-        f"EVTFLOW2|run={args.run}|event={event}"
-        "|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+        f"EVTFLOW2|run={args.run}|event={event}|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
     )
     if extra:
         fields += f"|{extra}"
@@ -453,16 +455,14 @@ def virtual(name: str, offset: int, profiles: list[str], rules: list[str]) -> st
     profiles {{
 {entries}
     }}
-    rules {{ {' '.join(rules)} }}
+    rules {{ {" ".join(rules)} }}
     source 0.0.0.0/0
     source-address-translation {{ type automap }}
 }}
 """
 
 
-base = pool("tcp", 0) + virtual(
-    "tcp", 0, ["/Common/tcp"], [f"{common}_tcp_user_data"]
-)
+base = pool("tcp", 0) + virtual("tcp", 0, ["/Common/tcp"], [f"{common}_tcp_user_data"])
 base += pool("ssl", 1) + virtual(
     "ssl",
     1,
@@ -525,7 +525,11 @@ ltm profile server-ssl {common}_serverssl {{
     peer-cert-mode ignore
 }}
 """
-for mode, peer_mode in (("dynamic", "ignore"), ("request", "request"), ("require", "require")):
+for mode, peer_mode in (
+    ("dynamic", "ignore"),
+    ("request", "request"),
+    ("require", "require"),
+):
     ssl_profiles += f"""ltm profile client-ssl {common}_clientssl_{mode} {{
     defaults-from /Common/clientssl
     authenticate always
@@ -620,7 +624,9 @@ apm profile access {common}_apm_deny {{
 """
 write("config/10-apm.conf", apm, "tmsh-config")
 
-mrf = pool("mrf_flow", 7) + f"""ltm message-routing generic protocol {common}_mrf_protocol {{
+mrf = (
+    pool("mrf_flow", 7)
+    + f"""ltm message-routing generic protocol {common}_mrf_protocol {{
     defaults-from /Common/genericmsg
     message-terminator %0A
     no-response no
@@ -677,6 +683,7 @@ ltm virtual {common}_mrf_message_vs {{
     source-address-translation {{ type automap }}
 }}
 """
+)
 write("config/30-mrf.conf", mrf, "tmsh-config")
 
 write(

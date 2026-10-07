@@ -1,0 +1,41 @@
+{
+  "ad": "192.168.9.251",
+  "backend": "192.168.9.80:18710",
+  "encoding": "ASCII except copied PEM certificate",
+  "files": [
+    {
+      "file": "keycloak-ca.crt",
+      "kind": "generated-test-certificate",
+      "sha256": "47bbf9eaeb786c1b1b869d07638320656927786462a7e572bd5070079ff98d56",
+      "size": 1326
+    },
+    {
+      "file": "rule.conf",
+      "kind": "irule",
+      "sha256": "8e2fa9676c7d8349d6902848d57e1fa8ba9fa1ea08fe80ba6913e0fe53145331",
+      "size": 3362
+    },
+    {
+      "file": "config.conf",
+      "kind": "tmsh-config",
+      "sha256": "d314653faec4a52be48a8a0c585596b48c035b1b44c9d098c3b617d338ea8567",
+      "size": 16065
+    }
+  ],
+  "generated_test_credentials": {
+    "ad_password": "Evtflow-Ad-User-2026!",
+    "ad_username": "evtflow-ad",
+    "ldap_password": "evtflow-pass-2026",
+    "ldap_username": "evtflow",
+    "oidc_client_secret": "evtflow-oidc-client-secret-2026",
+    "oidc_password": "Evtflow-Oidc-User-2026!",
+    "oidc_username": "evtflow-oidc"
+  },
+  "ldap": "192.168.9.250:1389",
+  "line_endings": "LF",
+  "oidc": "192.168.9.252:8443",
+  "run": "EFO",
+  "schema": 1,
+  "source_commit": "69a23bad2592558b879c9b758bb444a965d911b5",
+  "vip": "192.168.9.24:18840"
+}

@@ -1,0 +1,60 @@
+{
+  "realm": "evtflow",
+  "enabled": true,
+  "displayName": "tcl-lsp BIG-IP event-flow",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "evtflow-apm",
+      "name": "BIG-IP APM probe client",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "evtflow-oidc-client-secret-2026",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "publicClient": false,
+      "redirectUris": [
+        "https://app.bitwisecook.org:18840/oauth/client/redirect"
+      ],
+      "webOrigins": [
+        "https://app.bitwisecook.org:18840"
+      ],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles"
+      ]
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "evtflow-user",
+        "description": "Generated test role for the BIG-IP APM probe"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "evtflow-oidc",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Event",
+      "lastName": "Flow",
+      "email": "evtflow-oidc@bitwisecook.org",
+      "realmRoles": [
+        "evtflow-user"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Evtflow-Oidc-User-2026!",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

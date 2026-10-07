@@ -1,0 +1,23 @@
+apm aaa oauth-provider __tcl_lsp_evtflow_efo_complex_oidc_provider {
+    allow-self-signed-jwk-cert yes
+    app-service none
+    authentication-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/auth
+    auto-jwt-config-name none
+    description none
+    discovery-interval 0
+    ignore-expired-cert false
+    introspect supported
+    last-discovery-time 1969-12-31:16:00:00
+    manual-jwt-config-name none
+    max-json-nesting-layers 8
+    max-response-size 131072
+    openid-cfg-uri https://192.168.9.252:8443/realms/evtflow/.well-known/openid-configuration
+    partition Common
+    save-json-payload disabled
+    token-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/token
+    token-validation-scope-uri none
+    trusted-ca-bundle __tcl_lsp_evtflow_efo_complex_keycloak_ca
+    type custom
+    use-auto-jwt-config true
+    userinfo-request-uri https://192.168.9.252:8443/realms/evtflow/protocol/openid-connect/userinfo
+}

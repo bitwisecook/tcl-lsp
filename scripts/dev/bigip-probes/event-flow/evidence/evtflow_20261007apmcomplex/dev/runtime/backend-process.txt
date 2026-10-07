@@ -1,0 +1,2 @@
+UID          PID    PPID  C STIME TTY          TIME CMD
+jimd     2752874       1  1 08:14 ?        00:03:13 python3 /home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/bin/module-event-lab.py serve --bind 192.168.9.80 --base 18700 --cert /home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/pki/public/server.crt --key /home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/pki/private/server.key --log /home/jimd/tcl-lsp-bigip-lab/evtflow_20261007/backend.jsonl

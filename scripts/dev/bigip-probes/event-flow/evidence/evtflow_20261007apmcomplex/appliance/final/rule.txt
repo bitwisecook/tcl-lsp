@@ -1,0 +1,47 @@
+ltm rule __tcl_lsp_evtflow_efo_complex_trace {
+when RULE_INIT {
+        log local0. "EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when CLIENT_ACCEPTED {
+        set evtflow5_id "[IP::client_addr]:[TCP::client_port]"
+        log local0. "EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=$evtflow5_id|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when HTTP_REQUEST {
+        if { [HTTP::header exists X-Evtflow-Request] } { set evtflow5_id [HTTP::header value X-Evtflow-Request] }
+        set required public
+        if { [HTTP::path] starts_with "/ad" } { set required ad }
+        if { [HTTP::path] starts_with "/ldap" } { set required ldap }
+        if { [HTTP::path] starts_with "/oidc" } { set required oidc }
+        if { [HTTP::path] starts_with "/mfa" } { set required mfa }
+        set granted [ACCESS::session data get session.custom.evtflow_scope]
+        log local0. "EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=$evtflow5_id|uri=[HTTP::uri]|required=$required|granted=$granted|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+        if { $required ne "public" && $granted ne "" && $granted ne $required } {
+            log local0. "EVTFLOW5|run=EFO|event=SCOPE_DENY|id=$evtflow5_id|required=$required|granted=$granted|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+            HTTP::respond 403 content "scope mismatch: required=$required granted=$granted\n" noserver
+            event disable all
+        }
+    }
+    when ACCESS_SESSION_STARTED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=$evtflow5_id|sid=[ACCESS::session sid]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_POLICY_AGENT_EVENT {
+        set agent [ACCESS::policy agent_id]
+        if { $agent eq "EFO_public_ok" } { ACCESS::session data set session.custom.evtflow_scope public }
+        if { $agent eq "EFO_ad_ok" } { ACCESS::session data set session.custom.evtflow_scope ad }
+        if { $agent eq "EFO_ldap_ok" } { ACCESS::session data set session.custom.evtflow_scope ldap }
+        if { $agent eq "EFO_oidc_ok" } { ACCESS::session data set session.custom.evtflow_scope oidc }
+        if { $agent eq "EFO_mfa_ok" } { ACCESS::session data set session.custom.evtflow_scope mfa }
+        set otp ""
+        if { $agent eq "EFO_otp_issued" } { set otp [ACCESS::session data get session.otp.assigned.val] }
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=$evtflow5_id|agent=$agent|otp=$otp|ad=[ACCESS::session data get session.ad.last.authresult]|ldap=[ACCESS::session data get session.ldap.last.authresult]|oauth=[ACCESS::session data get session.oauth.client.last.result]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_POLICY_COMPLETED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=$evtflow5_id|result=[ACCESS::policy result]|scope=[ACCESS::session data get session.custom.evtflow_scope]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when ACCESS_ACL_ALLOWED {
+        log local0. "EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=$evtflow5_id|scope=[ACCESS::session data get session.custom.evtflow_scope]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+    when SERVER_CONNECTED {
+        log local0. "EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=$evtflow5_id|peer=[IP::server_addr]:[TCP::server_port]|tmm=[TMM::cmp_group]:[TMM::cmp_unit]"
+    }
+}

@@ -1,0 +1,2 @@
+RTNETLINK answers: Network is unreachable
+no-external-route

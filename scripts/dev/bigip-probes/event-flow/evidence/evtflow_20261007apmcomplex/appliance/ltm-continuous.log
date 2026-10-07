@@ -1,0 +1,430 @@
+Oct  7 03:39:42 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 03:44:42 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 03:49:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: SSL error: Connection timed out
+Oct  7 03:49:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Cannot send to host api.bcti.brightcloud.com: Connection timed out
+Oct  7 03:49:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 03:54:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: SSL error: Connection timed out
+Oct  7 03:54:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Cannot send to host api.bcti.brightcloud.com: Connection timed out
+Oct  7 03:54:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 03:57:32 bigip.bitwisecook.org err tmsh[9610]: 01420006:3: "oauth-response" unexpected argument
+Oct  7 03:57:33 bigip.bitwisecook.org err tmsh[9614]: 01420006:3: "oauth-jwt-config" unexpected argument
+Oct  7 03:57:33 bigip.bitwisecook.org err tmsh[9618]: 01420006:3: "jwt-provider-list" unexpected argument
+Oct  7 03:57:33 bigip.bitwisecook.org err tmsh[9622]: 01420006:3: "oauth-scope" unexpected argument
+Oct  7 03:57:51 bigip.bitwisecook.org err tmsh[9662]: 01420006:3: "oauth-client" unexpected argument
+Oct  7 03:57:51 bigip.bitwisecook.org err tmsh[9666]: 01420006:3: "oauth-response" unexpected argument
+Oct  7 03:58:04 bigip.bitwisecook.org err mcpd[23699]: 01070712:3: Caught configuration exception (0), Values (/Common/F5UserinfoRequest) specified for OAuth Agent (/Common/__tcl_lsp_evtflow_schema_oauth): foreign key index (responseFK) do not point at an item that exists in the database..
+Oct  7 03:58:04 bigip.bitwisecook.org err tmsh[9704]: 01420006:3: 01070712:3: Values (/Common/F5UserinfoRequest) specified for OAuth Agent (/Common/__tcl_lsp_evtflow_schema_oauth): foreign key index (responseFK) do not point at an item that exists in the database.
+Oct  7 03:58:04 bigip.bitwisecook.org err tmsh[9707]: 01420006:3: 01020036:3: The requested OAuth Agent (/Common/__tcl_lsp_evtflow_schema_oauth) was not found.
+Oct  7 03:58:04 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested OAuth Agent (/Common/__tcl_lsp_evtflow_schema_oauth) was not found.
+Oct  7 03:58:04 bigip.bitwisecook.org err tmsh[9711]: 01420006:3: 01020036:3: The requested OAuth Agent (/Common/__tcl_lsp_evtflow_schema_oauth) was not found.
+Oct  7 03:58:42 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested Customization Group (/Common/__tcl_lsp_evtflow_schema_cg) was not found.
+Oct  7 03:58:42 bigip.bitwisecook.org err tmsh[9816]: 01420006:3: 01020036:3: The requested Customization Group (/Common/__tcl_lsp_evtflow_schema_cg) was not found.
+Oct  7 03:59:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: SSL error: Connection timed out
+Oct  7 03:59:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Cannot send to host api.bcti.brightcloud.com: Connection timed out
+Oct  7 03:59:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 04:00:00 bigip.bitwisecook.org err tmsh[9972]: 01420006:3: "domain-controllers" unexpected argument "{" one of the following must be specified:
+Oct  7 04:00:00 bigip.bitwisecook.org err tmsh[9975]: 01420006:3: 01020036:3: The requested AAA Active Directory Server (/Common/__tcl_lsp_evtflow_schema_ad) was not found.
+Oct  7 04:00:00 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested AAA Active Directory Server (/Common/__tcl_lsp_evtflow_schema_ad) was not found.
+Oct  7 04:00:00 bigip.bitwisecook.org err tmsh[9978]: 01420006:3: 01020036:3: The requested AAA Active Directory Server (/Common/__tcl_lsp_evtflow_schema_ad) was not found.
+Oct  7 04:00:29 bigip.bitwisecook.org err mcpd[23699]: 01071b17:3: Invalid authentication_uri (http://192.168.9.252:8080/realms/evtflow/protocol/openid-connect/auth) in OAuth Provider (/Common/__tcl_lsp_evtflow_schema_provider). The value must start with "https://".
+Oct  7 04:00:29 bigip.bitwisecook.org err tmsh[10093]: 01420006:3: 01071b17:3: Invalid authentication_uri (http://192.168.9.252:8080/realms/evtflow/protocol/openid-connect/auth) in OAuth Provider (/Common/__tcl_lsp_evtflow_schema_provider). The value must start with "https://".
+Oct  7 04:00:30 bigip.bitwisecook.org err tmsh[10099]: 01420006:3: 01020036:3: The requested AAA OAuth Provider (/Common/__tcl_lsp_evtflow_schema_provider) was not found.
+Oct  7 04:00:30 bigip.bitwisecook.org err tmsh[10102]: 01420006:3: 01020036:3: The requested AAA OAuth Server (/Common/__tcl_lsp_evtflow_schema_server) was not found.
+Oct  7 04:00:30 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested AAA OAuth Server (/Common/__tcl_lsp_evtflow_schema_server) was not found.
+Oct  7 04:00:30 bigip.bitwisecook.org err tmsh[10105]: 01420006:3: 01020036:3: The requested AAA OAuth Server (/Common/__tcl_lsp_evtflow_schema_server) was not found.
+Oct  7 04:00:30 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested AAA OAuth Provider (/Common/__tcl_lsp_evtflow_schema_provider) was not found.
+Oct  7 04:00:30 bigip.bitwisecook.org err tmsh[10108]: 01420006:3: 01020036:3: The requested AAA OAuth Provider (/Common/__tcl_lsp_evtflow_schema_provider) was not found.
+Oct  7 04:01:36 bigip.bitwisecook.org warning mcpd[23699]: 01071859:4: Warning generated : Setting use-auto-jwt-config to false for Provider (/Common/__tcl_lsp_evtflow_schema_provider) because trusted-ca-bundle value is not provided.
+Oct  7 04:02:08 bigip.bitwisecook.org err tmsh[10561]: 01420006:3: "{" unknown property
+Oct  7 04:02:08 bigip.bitwisecook.org err tmsh[10567]: 01420006:3: 01020036:3: The requested OTP Verification Agent (/Common/__tcl_lsp_evtflow_schema_otpv) was not found.
+Oct  7 04:02:08 bigip.bitwisecook.org err mcpd[23699]: 01020036:3: The requested OTP Verification Agent (/Common/__tcl_lsp_evtflow_schema_otpv) was not found.
+Oct  7 04:02:08 bigip.bitwisecook.org err tmsh[10570]: 01420006:3: 01020036:3: The requested OTP Verification Agent (/Common/__tcl_lsp_evtflow_schema_otpv) was not found.
+Oct  7 04:04:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: SSL error: Connection timed out
+Oct  7 04:04:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Cannot send to host api.bcti.brightcloud.com: Connection timed out
+Oct  7 04:04:12 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 04:05:01 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:05:01 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:05:01 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:05:01 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:05:01 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:05:01 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:05:02 bigip.bitwisecook.org err tmsh[10887]: 01420006:3: "redirect_uri" unknown property
+Oct  7 04:05:32 bigip.bitwisecook.org err tmsh[10957]: 01420006:3: 01020036:3: The requested AAA Active Directory Server (/Common/__tcl_lsp_evtflow_efo_complex_ad_server) was not found.
+Oct  7 04:05:32 bigip.bitwisecook.org err tmsh[10960]: 01420006:3: 01020036:3: The requested AAA LDAP Server (/Common/__tcl_lsp_evtflow_efo_complex_ldap_server) was not found.
+Oct  7 04:05:32 bigip.bitwisecook.org err tmsh[10963]: 01420006:3: 01020036:3: The requested AAA OAuth Provider (/Common/__tcl_lsp_evtflow_efo_complex_oidc_provider) was not found.
+Oct  7 04:05:33 bigip.bitwisecook.org err tmsh[10966]: 01420006:3: 01020036:3: The requested AAA OAuth Server (/Common/__tcl_lsp_evtflow_efo_complex_oidc_server) was not found.
+Oct  7 04:05:33 bigip.bitwisecook.org err tmsh[10969]: 01420006:3: 01020036:3: The requested iRule (one-line) was not found.
+Oct  7 04:06:12 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:06:12 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:06:12 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:06:12 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:06:12 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:06:12 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:06:12 bigip.bitwisecook.org err mcpd[23699]: 01071b14:3: AAA OAuth Server (/Common/__tcl_lsp_evtflow_efo_complex_oidc_server) must specify DNS resolver.
+Oct  7 04:06:12 bigip.bitwisecook.org err tmsh[11172]: 01420006:3: Loading configuration process failed.
+Oct  7 04:06:58 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:06:58 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:06:58 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:06:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:06:58 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:06:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:06:58 bigip.bitwisecook.org err mcpd[23699]: 01071123:3: The access policy item (/Common/__tcl_lsp_evtflow_efo_complex_start) of action type should have the very last rule as fallback (with expression or caption = 'fallback').
+Oct  7 04:06:58 bigip.bitwisecook.org err tmsh[11399]: 01420006:3: Loading configuration process failed.
+Oct  7 04:07:26 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:07:26 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:07:26 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:07:26 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:07:26 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:07:26 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:07:27 bigip.bitwisecook.org err mcpd[23699]: 01071145:3: The access policy item (/Common/__tcl_lsp_evtflow_efo_complex_ad_logon) cannot share an agent (/Common/__tcl_lsp_evtflow_efo_complex_password_logon_ag) with other access policy item (/Common/__tcl_lsp_evtflow_efo_complex_ldap_logon).
+Oct  7 04:07:27 bigip.bitwisecook.org err tmsh[11571]: 01420006:3: Loading configuration process failed.
+Oct  7 04:08:10 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:08:10 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:08:10 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:08:10 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:08:10 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:08:10 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:08:10 bigip.bitwisecook.org warning mcpd[23699]: 01071859:4: Warning generated : apm log-setting (/Common/default-log-setting) is attached to apm profile access (/Common/__tcl_lsp_evtflow_efo_complex_access). You may replace this log setting with your own setting.
+Oct  7 04:08:10 bigip.bitwisecook.org err mcpd[23699]: 01071131:3: The access policy (/Common/__tcl_lsp_evtflow_efo_complex_policy)'s start item name (/Common/__tcl_lsp_evtflow_efo_complex_start) must refer to an access policy item of entry type.
+Oct  7 04:08:10 bigip.bitwisecook.org err tmsh[11764]: 01420006:3: Loading configuration process failed.
+Oct  7 04:08:44 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:08:44 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:08:44 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:08:44 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:08:44 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:08:44 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:08:44 bigip.bitwisecook.org err mcpd[23699]: 01071928:3: The access policy item (/Common/__tcl_lsp_evtflow_efo_complex_start) of entry type must have exactly one rule
+Oct  7 04:08:44 bigip.bitwisecook.org err tmsh[11941]: 01420006:3: Loading configuration process failed.
+Oct  7 04:09:15 bigip.bitwisecook.org warning mcpd[23699]: 01b40057:4: Certificate processing summary file (/Common/__tcl_lsp_evtflow_efo_complex_keycloak_ca) valid (1) skipped (0) total (1).
+Oct  7 04:09:15 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:09:15 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:0
+Oct  7 04:09:15 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:1
+Oct  7 04:09:15 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:3
+Oct  7 04:09:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <RULE_INIT>: EVTFLOW5|run=EFO|event=RULE_INIT|probe=complex-apm|tmm=0:2
+Oct  7 04:09:16 bigip.bitwisecook.org warning mcpd[23699]: 01071859:4: Warning generated : apm log-setting (/Common/default-log-setting) is attached to apm profile access (/Common/__tcl_lsp_evtflow_efo_complex_access). You may replace this log setting with your own setting.
+Oct  7 04:09:16 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Per-invocation log rate exceeded; throttling.
+Oct  7 04:09:17 bigip.bitwisecook.org warning tmsh[12128]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:09:17 bigip.bitwisecook.org warning tmsh[12128]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:09:17 bigip.bitwisecook.org warning tmsh[12128]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:09:17 bigip.bitwisecook.org warning tmsh[12128]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:09:17 bigip.bitwisecook.org warning tmsh[12128]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:09:27 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:48360|tmm=0:0
+Oct  7 04:09:27 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-public-1|uri=/public/hello|required=public|granted=|tmm=0:0
+Oct  7 04:09:27 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-public-1|sid=1bf7881577d9e0df41411750fca314d7|tmm=0:0
+Oct  7 04:09:27 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.80:48360 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:27 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:48360 -> 192.168.9.24:18840
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53600|tmm=0:2
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-public-2|uri=/public/hello|required=public|granted=|tmm=0:2
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-public-2|sid=2c4e9792565a8239d2bcea47717c962b|tmm=0:2
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53608|tmm=0:0
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:53600 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53600 -> 192.168.9.24:18840
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:53608|agent=EFO_public_ok|otp=|ad=|ldap=|oauth=|tmm=0:0
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:53608|result=allow|scope=public|tmm=0:0
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53612|tmm=0:1
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.80:53608 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53608 -> 192.168.9.24:18840
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-public-2|uri=/public/hello|required=public|granted=public|tmm=0:1
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-public-2|scope=public|tmm=0:1
+Oct  7 04:09:39 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-public-2|peer=192.168.9.80:18710|tmm=0:1
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:53612 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:39 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53612 -> 192.168.9.24:18840
+Oct  7 04:09:42 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 04:09:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:32966|tmm=0:1
+Oct  7 04:09:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-ad-form|uri=/ad/hello|required=ad|granted=|tmm=0:1
+Oct  7 04:09:49 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-ad-form|sid=d080cd8e4cb5f78b25c749883fde7cd0|tmm=0:1
+Oct  7 04:09:49 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:32966 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:49 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:32980|tmm=0:3
+Oct  7 04:09:49 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:32966 -> 192.168.9.24:18840
+Oct  7 04:09:49 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:32980 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:09:49 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:32980 -> 192.168.9.24:18840
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:44202|tmm=0:2
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:44202|agent=EFO_ad_ok|otp=|ad=1|ldap=|oauth=|tmm=0:2
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:44202|result=allow|scope=ad|tmm=0:2
+Oct  7 04:10:08 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:44202 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:08 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:44202 -> 192.168.9.24:18840
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:44214|tmm=0:1
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-ad-ok|uri=/ad/hello|required=ad|granted=ad|tmm=0:1
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-ad-ok|scope=ad|tmm=0:1
+Oct  7 04:10:08 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-ad-ok|peer=192.168.9.80:18710|tmm=0:1
+Oct  7 04:10:08 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:44214 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:08 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:44214 -> 192.168.9.24:18840
+Oct  7 04:10:22 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:36630|tmm=0:1
+Oct  7 04:10:22 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-cross-ad-to-mfa|uri=/mfa/hello|required=mfa|granted=ad|tmm=0:1
+Oct  7 04:10:22 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=SCOPE_DENY|id=EFO-cross-ad-to-mfa|required=mfa|granted=ad|tmm=0:1
+Oct  7 04:10:22 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:36630 -> 192.168.9.24:18840
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:33298|tmm=0:0
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-ldap-form|uri=/ldap/hello|required=ldap|granted=|tmm=0:0
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-ldap-form|sid=55758ba6c7c6eaa42ac11d7db3ceded4|tmm=0:0
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:33306|tmm=0:2
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.80:33298 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:33298 -> 192.168.9.24:18840
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:33306 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:33306 -> 192.168.9.24:18840
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:33310|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:33310|agent=EFO_ldap_ok|otp=|ad=|ldap=1|oauth=|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:33310|result=allow|scope=ldap|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:33326|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:33310 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:33310 -> 192.168.9.24:18840
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-ldap-ok|uri=/ldap/hello|required=ldap|granted=ldap|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-ldap-ok|scope=ldap|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-ldap-ok|peer=192.168.9.80:18710|tmm=0:3
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:33326 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:35 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:33326 -> 192.168.9.24:18840
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53382|tmm=0:1
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=192.168.9.80:53382|uri=/ad/denied|required=ad|granted=|tmm=0:1
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=192.168.9.80:53382|sid=fa8188b935d443c623b789825715f763|tmm=0:1
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53392|tmm=0:2
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:53382 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53382 -> 192.168.9.24:18840
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:53392 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53392 -> 192.168.9.24:18840
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:53398|tmm=0:1
+Oct  7 04:10:50 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:53398|result=deny|scope=|tmm=0:1
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:53398 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:10:50 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:53398 -> 192.168.9.24:18840
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:32858|tmm=0:2
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-mfa-form|uri=/mfa/hello|required=mfa|granted=|tmm=0:2
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-mfa-form|sid=285a856f0ea6aa00a610fe2476afd554|tmm=0:2
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:32868|tmm=0:3
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:32858 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:32858 -> 192.168.9.24:18840
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:32868 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:32868 -> 192.168.9.24:18840
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:32870|tmm=0:1
+Oct  7 04:11:01 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:32870|agent=EFO_otp_issued|otp=851439|ad=1|ldap=|oauth=|tmm=0:1
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:32870 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:11:01 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:32870 -> 192.168.9.24:18840
+Oct  7 04:11:20 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:36110|tmm=0:3
+Oct  7 04:11:20 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:36110|result=deny|scope=|tmm=0:3
+Oct  7 04:11:20 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:36110 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:11:20 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:36110 -> 192.168.9.24:18840
+Oct  7 04:11:20 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:36126|tmm=0:3
+Oct  7 04:11:20 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:36126 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:11:20 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:36126 -> 192.168.9.24:18840
+Oct  7 04:11:55 bigip.bitwisecook.org err tmsh[12485]: 01420006:3: "rules" you must specify either "none" or "{"
+Oct  7 04:11:57 bigip.bitwisecook.org warning tmsh[12488]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:11:57 bigip.bitwisecook.org warning tmsh[12488]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:11:57 bigip.bitwisecook.org warning tmsh[12488]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:11:57 bigip.bitwisecook.org warning tmsh[12488]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:11:57 bigip.bitwisecook.org warning tmsh[12488]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:11:57 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Resuming log processing at this invocation; held 2 messages.
+Oct  7 04:12:08 bigip.bitwisecook.org warning tmsh[12561]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:12:08 bigip.bitwisecook.org warning tmsh[12561]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:12:08 bigip.bitwisecook.org warning tmsh[12561]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:12:08 bigip.bitwisecook.org warning tmsh[12561]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:12:08 bigip.bitwisecook.org warning tmsh[12561]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:12:24 bigip.bitwisecook.org warning tmsh[12635]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:12:24 bigip.bitwisecook.org warning tmsh[12635]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:12:24 bigip.bitwisecook.org warning tmsh[12635]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:12:24 bigip.bitwisecook.org warning tmsh[12635]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:12:24 bigip.bitwisecook.org warning tmsh[12635]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:46506|tmm=0:2
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-mfa2-form|uri=/mfa/hello|required=mfa|granted=|tmm=0:2
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-mfa2-form|sid=cf9d2919bb8705a0fd1293a12364101f|tmm=0:2
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:46506 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:46520|tmm=0:0
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:46506 -> 192.168.9.24:18840
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.80:46520 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:46520 -> 192.168.9.24:18840
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:46534|tmm=0:1
+Oct  7 04:12:25 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:46534|agent=EFO_otp_issued|otp=825881|ad=1|ldap=|oauth=|tmm=0:1
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.80:46534 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:12:25 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:46534 -> 192.168.9.24:18840
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:50218|tmm=0:2
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.80:50218|agent=EFO_mfa_ok|otp=|ad=1|ldap=|oauth=|tmm=0:2
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.80:50218|result=allow|scope=mfa|tmm=0:2
+Oct  7 04:12:42 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.80:50218 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:12:42 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:50218 -> 192.168.9.24:18840
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:50228|tmm=0:3
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-mfa2-otp|uri=/mfa/hello|required=mfa|granted=mfa|tmm=0:3
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-mfa2-otp|scope=mfa|tmm=0:3
+Oct  7 04:12:42 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-mfa2-otp|peer=192.168.9.80:18710|tmm=0:3
+Oct  7 04:12:42 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.80:50228 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:12:42 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:50228 -> 192.168.9.24:18840
+Oct  7 04:13:36 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:54778|tmm=0:2
+Oct  7 04:13:37 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:2
+Oct  7 04:13:37 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=ba9a16ab121f58e8a3915495869a1133|tmm=0:2
+Oct  7 04:13:37 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:54778 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:13:37 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:54778 -> 192.168.9.24:18840
+Oct  7 04:13:37 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:54788|tmm=0:3
+Oct  7 04:13:37 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.253:54788 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:13:37 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:54788 -> 192.168.9.24:18840
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:55702|tmm=0:1
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:1
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=a169ab4b4f26875da6fb7bdb25d40e17|tmm=0:1
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:55708|tmm=0:1
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:55702 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:55702 -> 192.168.9.24:18840
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:55708 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:55708 -> 192.168.9.24:18840
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:55722|tmm=0:2
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:34796
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.253:55722|result=deny|scope=|tmm=0:2
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:55722 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:55722 -> 192.168.9.24:18840
+Oct  7 04:14:20 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:55728|tmm=0:2
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:55728 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:14:20 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:55728 -> 192.168.9.24:18840
+Oct  7 04:14:42 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 04:15:22 bigip.bitwisecook.org warning tmsh[12933]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:15:22 bigip.bitwisecook.org warning tmsh[12933]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:15:22 bigip.bitwisecook.org warning tmsh[12933]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:15:22 bigip.bitwisecook.org warning tmsh[12933]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:15:22 bigip.bitwisecook.org warning tmsh[12933]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:15:23 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:43118|tmm=0:3
+Oct  7 04:15:23 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:3
+Oct  7 04:15:23 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=f3c47d31e50325fac578a95bb67cafff|tmm=0:3
+Oct  7 04:15:23 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:43130|tmm=0:2
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.253:43118 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:43118 -> 192.168.9.24:18840
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:43130 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:43130 -> 192.168.9.24:18840
+Oct  7 04:15:23 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:43138|tmm=0:0
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:32851
+Oct  7 04:15:23 bigip.bitwisecook.org notice mcpd[23699]: 01070406:5: Removed publication with publisher id apmd:12353
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:43138 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:23 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:43138 -> 192.168.9.24:18840
+10/07/2026 04:15:25 Checking for OOM kills in the last 5 seconds for service: apmd
+Oct  7 04:15:29 bigip.bitwisecook.org notice mcpd[23699]: 01070404:5: Add a new Publication for publisherID apmd:13025 and filterType 0
+Oct  7 04:15:29 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Per-invocation log rate exceeded; throttling.
+Oct  7 04:15:33 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:37648|tmm=0:2
+Oct  7 04:15:33 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:2
+Oct  7 04:15:33 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=29bfc3808847a999ae784916f2b2822d|tmm=0:2
+Oct  7 04:15:33 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:37648 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:33 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:37648 -> 192.168.9.24:18840
+Oct  7 04:15:33 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:37660|tmm=0:1
+Oct  7 04:15:33 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:37660 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:33 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:37660 -> 192.168.9.24:18840
+Oct  7 04:15:33 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:37674|tmm=0:2
+Oct  7 04:15:33 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:34876
+Oct  7 04:15:34 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:37674 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:34 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:37674 -> 192.168.9.24:18840
+Oct  7 04:15:34 bigip.bitwisecook.org notice mcpd[23699]: 01070406:5: Removed publication with publisher id apmd:13025
+10/07/2026 04:15:36 Checking for OOM kills in the last 5 seconds for service: apmd
+Oct  7 04:15:39 bigip.bitwisecook.org notice mcpd[23699]: 01070404:5: Add a new Publication for publisherID apmd:13545 and filterType 0
+Oct  7 04:15:39 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Resuming log processing at this invocation; held 8 messages.
+Oct  7 04:15:39 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Per-invocation log rate exceeded; throttling.
+Oct  7 04:15:47 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.80:33138|tmm=0:0
+Oct  7 04:15:47 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=192.168.9.80:33138|uri=/oidc/hello|required=oidc|granted=|tmm=0:0
+Oct  7 04:15:47 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=192.168.9.80:33138|sid=e7d4e9a6e0f4cb18a64c5c6fb6de89d8|tmm=0:0
+Oct  7 04:15:47 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.80:33138 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:15:47 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.80:33138 -> 192.168.9.24:18840
+Oct  7 04:16:50 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Resuming log processing at this invocation; held 8 messages.
+Oct  7 04:16:52 bigip.bitwisecook.org warning tmsh[14203]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:16:52 bigip.bitwisecook.org warning tmsh[14203]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:16:52 bigip.bitwisecook.org warning tmsh[14203]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:16:52 bigip.bitwisecook.org warning tmsh[14203]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:16:52 bigip.bitwisecook.org warning tmsh[14203]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:56332|tmm=0:1
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:1
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=70f5280bba64f724f667e0b75c2aa6f4|tmm=0:1
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:56338|tmm=0:0
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:56332 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:56332 -> 192.168.9.24:18840
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:56338 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:56338 -> 192.168.9.24:18840
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:56344|tmm=0:0
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:36428
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.253:56344|result=deny|scope=|tmm=0:0
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:56344 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:56344 -> 192.168.9.24:18840
+Oct  7 04:17:04 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:56354|tmm=0:0
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:56354 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:17:04 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:56354 -> 192.168.9.24:18840
+Oct  7 04:17:59 bigip.bitwisecook.org info tmm[16500]: 01220002:6: Rule /Common/_sys_APM_Expression_Evaluation: syntax error in expression " [mcget {session.oauth.client.last.access_token}] ne  ": premature end of expression     while compiling "expr { [mcget {session.oauth.client.last.access_token}] ne  } "     while compiling "return [ expr { [mcget {session.oauth.client.last.access_token}] ne  } ]"     (compiling body of proc "accessv2_proc51", line 1)
+Oct  7 04:17:59 bigip.bitwisecook.org err tmm[16500]: 01010007:3: Config error: Access Policy Item update: Out of Memory
+Oct  7 04:17:59 bigip.bitwisecook.org info tmm1[16500]: 01220002:6: Rule /Common/_sys_APM_Expression_Evaluation: syntax error in expression " [mcget {session.oauth.client.last.access_token}] ne  ": premature end of expression     while compiling "expr { [mcget {session.oauth.client.last.access_token}] ne  } "     while compiling "return [ expr { [mcget {session.oauth.client.last.access_token}] ne  } ]"     (compiling body of proc "accessv2_proc51", line 1)
+Oct  7 04:17:59 bigip.bitwisecook.org err tmm1[16500]: 01010007:3: Config error: Access Policy Item update: Out of Memory
+Oct  7 04:17:59 bigip.bitwisecook.org info tmm3[16500]: 01220002:6: Rule /Common/_sys_APM_Expression_Evaluation: syntax error in expression " [mcget {session.oauth.client.last.access_token}] ne  ": premature end of expression     while compiling "expr { [mcget {session.oauth.client.last.access_token}] ne  } "     while compiling "return [ expr { [mcget {session.oauth.client.last.access_token}] ne  } ]"     (compiling body of proc "accessv2_proc51", line 1)
+Oct  7 04:17:59 bigip.bitwisecook.org err tmm3[16500]: 01010007:3: Config error: Access Policy Item update: Out of Memory
+Oct  7 04:17:59 bigip.bitwisecook.org info tmm2[16500]: 01220002:6: Rule /Common/_sys_APM_Expression_Evaluation: syntax error in expression " [mcget {session.oauth.client.last.access_token}] ne  ": premature end of expression     while compiling "expr { [mcget {session.oauth.client.last.access_token}] ne  } "     while compiling "return [ expr { [mcget {session.oauth.client.last.access_token}] ne  } ]"     (compiling body of proc "accessv2_proc51", line 1)
+Oct  7 04:17:59 bigip.bitwisecook.org err tmm2[16500]: 01010007:3: Config error: Access Policy Item update: Out of Memory
+Oct  7 04:18:00 bigip.bitwisecook.org warning tmsh[14356]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:18:00 bigip.bitwisecook.org warning tmsh[14356]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:18:01 bigip.bitwisecook.org warning tmsh[14356]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:18:01 bigip.bitwisecook.org warning tmsh[14356]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:18:01 bigip.bitwisecook.org warning tmsh[14356]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:49912|tmm=0:0
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:0
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=5813962f2126559717ff88d9c375a31d|tmm=0:0
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:49916|tmm=0:1
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:49912 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:49912 -> 192.168.9.24:18840
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:49916 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:49916 -> 192.168.9.24:18840
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:49922|tmm=0:0
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:45550
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.253:49922|result=deny|scope=|tmm=0:0
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:49922 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:49922 -> 192.168.9.24:18840
+Oct  7 04:18:13 bigip.bitwisecook.org info tmm3[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:49934|tmm=0:3
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm3[16500]: 01260009:4: 192.168.9.253:49934 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:13 bigip.bitwisecook.org warning tmm3[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:49934 -> 192.168.9.24:18840
+Oct  7 04:18:45 bigip.bitwisecook.org warning tmsh[14496]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:18:45 bigip.bitwisecook.org warning tmsh[14496]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:18:45 bigip.bitwisecook.org warning tmsh[14496]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:18:45 bigip.bitwisecook.org warning tmsh[14496]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:18:45 bigip.bitwisecook.org warning tmsh[14496]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:18:57 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:40796|tmm=0:1
+Oct  7 04:18:57 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:1
+Oct  7 04:18:57 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=825da29b00c8af521fb5296434651803|tmm=0:1
+Oct  7 04:18:57 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:40796 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:57 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:40796 -> 192.168.9.24:18840
+Oct  7 04:18:57 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:40812|tmm=0:1
+Oct  7 04:18:57 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:40812 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:57 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:40812 -> 192.168.9.24:18840
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:40818|tmm=0:0
+Oct  7 04:18:58 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:38361
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.253:40818|agent=EFO_oidc_ok|otp=|ad=|ldap=|oauth=|tmm=0:0
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.253:40818|result=allow|scope=oidc|tmm=0:0
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:40832|tmm=0:2
+Oct  7 04:18:58 bigip.bitwisecook.org warning tmm[16500]: 01260009:4: 192.168.9.253:40818 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:58 bigip.bitwisecook.org warning tmm[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:40818 -> 192.168.9.24:18840
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-login|uri=/oidc/hello|required=oidc|granted=oidc|tmm=0:2
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-oidc-login|scope=oidc|tmm=0:2
+Oct  7 04:18:58 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-oidc-login|peer=192.168.9.80:18710|tmm=0:2
+Oct  7 04:18:58 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:40832 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:18:58 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:40832 -> 192.168.9.24:18840
+Oct  7 04:19:36 bigip.bitwisecook.org notice mcpd[23699]: 0107167d:5: Data publisher not found or not implemented when processing request (unknown request), tag (6589).
+Oct  7 04:19:36 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Per-invocation log rate exceeded; throttling.
+Oct  7 04:19:38 bigip.bitwisecook.org warning tmsh[14761]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:19:38 bigip.bitwisecook.org warning tmsh[14761]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:19:38 bigip.bitwisecook.org warning tmsh[14761]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:19:38 bigip.bitwisecook.org warning tmsh[14761]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:19:38 bigip.bitwisecook.org warning tmsh[14761]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:19:38 bigip.bitwisecook.org notice mcpd[23699]: 01b00014:5: Resuming log processing at this invocation; held 1 messages.
+Oct  7 04:19:40 bigip.bitwisecook.org warning tmsh[14818]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:19:40 bigip.bitwisecook.org warning tmsh[14818]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:19:40 bigip.bitwisecook.org warning tmsh[14818]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:19:40 bigip.bitwisecook.org warning tmsh[14818]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:19:40 bigip.bitwisecook.org warning tmsh[14818]: 01420013:4: [api-status-warning] wom/server-discovery is deprecated
+Oct  7 04:19:42 bigip.bitwisecook.org err iprepd[12520]: 015c0004:3: Query(getipfile): Send: Failed to send request
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:50346|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-start|uri=/oidc/hello|required=oidc|granted=|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_SESSION_STARTED>: EVTFLOW5|run=EFO|event=ACCESS_SESSION_STARTED|id=EFO-oidc-start|sid=caf98642ff84088098f1e613433c0481|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:50352|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:50346 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:50346 -> 192.168.9.24:18840
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:50352 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:50352 -> 192.168.9.24:18840
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:50368|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.252:8443 -> 192.168.9.24:18542
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_AGENT_EVENT>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_AGENT_EVENT|id=192.168.9.253:50368|agent=EFO_oidc_ok|otp=|ad=|ldap=|oauth=|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm2[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_POLICY_COMPLETED>: EVTFLOW5|run=EFO|event=ACCESS_POLICY_COMPLETED|id=192.168.9.253:50368|result=allow|scope=oidc|tmm=0:2
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260009:4: 192.168.9.253:50368 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm2[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:50368 -> 192.168.9.24:18840
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <CLIENT_ACCEPTED>: EVTFLOW5|run=EFO|event=CLIENT_ACCEPTED|id=192.168.9.253:50374|tmm=0:1
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <HTTP_REQUEST>: EVTFLOW5|run=EFO|event=HTTP_REQUEST|id=EFO-oidc-login|uri=/oidc/hello|required=oidc|granted=oidc|tmm=0:1
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <ACCESS_ACL_ALLOWED>: EVTFLOW5|run=EFO|event=ACCESS_ACL_ALLOWED|id=EFO-oidc-login|scope=oidc|tmm=0:1
+Oct  7 04:20:15 bigip.bitwisecook.org info tmm1[16500]: Rule /Common/__tcl_lsp_evtflow_efo_complex_trace <SERVER_CONNECTED>: EVTFLOW5|run=EFO|event=SERVER_CONNECTED|id=EFO-oidc-login|peer=192.168.9.80:18710|tmm=0:1
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm1[16500]: 01260009:4: 192.168.9.253:50374 -> 192.168.9.24:18840: Connection error: ssl_codec_rx:2295: alert(50) received alert
+Oct  7 04:20:15 bigip.bitwisecook.org warning tmm1[16500]: 01260020:4: SSL Connection terminated for TCP 192.168.9.253:50374 -> 192.168.9.24:18840
+Oct  7 04:21:09 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: [api-status-warning] sys/datastor is deprecated
+Oct  7 04:21:09 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: [api-status-warning] sys/db, properties : deprecated : antifraud.baitsignatures, antifraud.beforeloadfunction, antifraud.closefakeconnection, antifraud.componentsvalidation.method, antifraud.cssalertimageid, antifraud.customgarbagefunction, antifraud.disableserversidessl.rules, antifraud.domainavailabilityurls, antifraud.fieldtypestosend, antifraud.injectplainjson, antifraud.injecttags, antifraud.maxcookielen, antifraud.maxhostheaderlength, antifraud.quirkssupport, antifraud.riskengine.reportlogins, antifraud.riskengine.reportrequests, antifraud.rsakeysize, antifraud.snifferfunctions, antifraud.userinspectioncookieduration, connection.dsrsynfloodprotect, connection.syncookies.threshold, dos.tscookie.vlan, pvasyncookies.virtual.connthresholdhigh, pvasyncookies.virtual.invalidthreshold, pvasyncookies.virtual.maxsyncache, tmm.pem.rancon.auxbmval, tmm.pem.session.gx.reporting.immediate
+Oct  7 04:21:10 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: [api-status-warning] sys/ecm/cloud-provider is deprecated
+Oct  7 04:21:10 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: [api-status-warning] wom/deduplication is deprecated
+Oct  7 04:21:10 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: [api-status-warning] wom/endpoint-discovery is deprecated
+Oct  7 04:21:10 bigip.bitwisecook.org warning tmsh[15148]: 01420013:4: Per-invocation log rate exceeded; throttling.
+Oct  7 04:21:36 bigip.bitwisecook.org err tmsh[15293]: 01420006:3: "hardware" unexpected argument
