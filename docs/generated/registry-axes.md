@@ -58,7 +58,7 @@ Every site outside `tcl-registry` that compares a word the registry declares —
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/analyser/recovery.rs`, `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs`, `rust/tcl-compiler/src/executable_ir.rs`, `rust/tcl-compiler/src/signature_scan/walker.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-lsp-core/src/definition.rs`, `rust/tcl-lsp-core/src/formatting/config.rs`, `rust/tcl-lsp-core/src/formatting/docstring.rs`, `rust/tcl-lsp-core/src/formatting/engine.rs`, `rust/tcl-lsp-core/src/formatting/keywords.rs`, `rust/tcl-lsp-core/src/minify.rs`, `rust/tcl-lsp-core/src/refactor/datagroup.rs`, `rust/tcl-lsp-core/src/refactor/if_to_switch.rs`, `rust/tcl-lsp-core/src/semantic_tokens.rs`, `rust/tcl-lsp-core/src/workspace_index.rs`, `rust/tcl-mcp/src/datagroup.rs`.
 
 Every other scanned file with an unwaived site, and its count, which is the pin in `rust/xtask/src/registry_axes.rs`. The count may only fall: the change that removes or waives a file's sites lowers its pin.
 
@@ -105,7 +105,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 5 |
 | `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs` | 7 |
 | `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs` | 1 |
-| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 5 |
+| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 8 |
 | `rust/tcl-compiler/src/analyser/diagnostics/usage.rs` | 6 |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 22 |
@@ -114,7 +114,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/analyser/handlers.rs` | 9 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 7 |
 | `rust/tcl-compiler/src/analyser/oo.rs` | 5 |
-| `rust/tcl-compiler/src/analyser/param_traits.rs` | 16 |
 | `rust/tcl-compiler/src/analyser/per_item.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/tk_checks.rs` | 2 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 6 |
@@ -131,7 +130,7 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/connection_scope.rs` | 1 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
 | `rust/tcl-compiler/src/inlining/mod.rs` | 1 |
-| `rust/tcl-compiler/src/interprocedural.rs` | 6 |
+| `rust/tcl-compiler/src/interprocedural.rs` | 1 |
 | `rust/tcl-compiler/src/interval_bounds.rs` | 5 |
 | `rust/tcl-compiler/src/ir.rs` | 2 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 7 |
@@ -163,7 +162,6 @@ Every other scanned file with an unwaived site, and its count, which is the pin 
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 |
 | `rust/tcl-compiler/src/var_escape/info_subcommands.rs` | 29 |
-| `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 7 |
 | `rust/tcl-compiler/src/var_scoping.rs` | 2 |
 | `rust/tcl-diagram/src/attach.rs` | 7 |
 | `rust/tcl-diagram/src/data.rs` | 4 |

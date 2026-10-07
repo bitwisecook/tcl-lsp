@@ -2647,16 +2647,27 @@ n; return $n}` the call leaves `n` at 2, so `[p]` folds on O103's summary
 path and `[q 5]`, for `proc q {x} {set n $x; bump n; return $n}`, on the
 argument-sensitive one. Consumers: O103; the caller's value lattice and
 existence rung; W210 and W211 in the caller (a `Name` write defines the
-caller's place); `param_traits.rs`, whose two-command copy tracker reads
-the summary's `Name` outcomes instead; taint's interprocedural pass; and
-a statement's word effects, whose embedded calls take the summary as a
-call statement does. Tests:
+caller's place); taint's interprocedural pass; and a statement's word
+effects, whose embedded calls take the summary as a call statement does.
+The consumers that run with no compilation unit in hand — the parameter
+traits (`param_traits.rs`), the interprocedural scan's alias names and
+`upvar` level, the analyser's binder checks (`diagnostics/helpers.rs`) and
+slot resolution — read the registry declarations a `Name` role is itself
+derived from, never a command's spelling: an alias-pair call's level word
+by argument-count parity and its value as a `FrameLevel`
+(`FrameEffectSpec::resolve_in`), so `upvar $lvl a b` links `b` to `a` at
+level `$lvl`; a scope alias's frame (`CommandRegistry::alias_frame`) and
+its `VarWrite` operands; a write's `VarWrite` word and a loop's
+`LoopVarList` word; a script word's evaluation traits; and a frame or
+trace introspection's traits and roles. Tests:
 `o103_folds_implicit_return_proc_cmd_subst` and
 `o103_folds_arg_sensitive_passthrough_cmd_subst` in `propagation.rs` pin
-the two O103 paths; the seven witnesses above are the fixed additions.
-Migration: slice 13, sequenced after slices 7 and 8, whose exit criteria
-are `bump n` deciding through both O103 paths and `param_traits.rs`
-matching no command by name.
+the two O103 paths; `the_seven_summary_witnesses`,
+`two_callers_share_one_summary` and `a_nested_caller_keeps_the_callee_whole`
+(`value_transfer_witnesses.rs`, and their twins in `value_transfers_cli.rs`)
+run the programs above, `bump n; bump other` and #2134's nested caller
+under tclsh 8.4 to 9.1, before and after `tcl opt`. Migration: slice 13,
+landed.
 
 ## Diagnostics consume facts
 
@@ -2995,7 +3006,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/intervals.rs` — `transfer`, `widen`, `MAX_ITERS`, `refine_interval`
 - `rust/tcl-compiler/src/interprocedural.rs` — `ProcSummary`, `ProcArgTrait`, `ReturnKind`, `summarise_returns`, `MAX_INTERPROCEDURAL_WALK_DEPTH`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `evaluate_proc_with_constants`, `seed_params_from_args`
-- `rust/tcl-compiler/src/analyser/param_traits.rs`, `bounds_checks.rs` — the two-command copy tracker and the W240–W242 loop-bound readers
+- `rust/tcl-compiler/src/analyser/param_traits.rs`, `bounds_checks.rs` — the copy trackers over the `VarWrite` role and the W240–W242 loop-bound readers
 - `rust/tcl-compiler/src/cfg_builder/mod.rs` — `emit_opaque_catch`, `lower_try_dispatch`, `with_faithful_exceptions`, a statement's word effects (`Statement::word_effects`)
 - `rust/tcl-registry/src/completion.rs` — `CompletionDescriptor`, `CompletionCodeDomain`, `CompletionCode`
 - `rust/tcl-registry/src/frame_effect.rs` — `FrameLevel`

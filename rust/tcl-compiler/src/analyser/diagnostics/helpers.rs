@@ -1440,7 +1440,7 @@ pub(super) fn build_undef_suppression(
         }
     }
 
-    s.alias_tails = collect_qualified_variable_alias_tails(fu, considered);
+    s.alias_tails = collect_qualified_variable_alias_tails(fu, considered, commands);
     s
 }
 
@@ -1576,10 +1576,13 @@ fn foreach_header_provably_empty(
 
 /// Local-alias tail names declared by a *qualified* `variable`
 /// (`variable ns::tail` / `variable ${name}::tail`): the bare tail read
-/// resolves to the namespace var, not an unset local.
+/// resolves to the namespace var, not an unset local. A declaration is one
+/// whose scope-alias plan links its locals into the current namespace, and
+/// its names are the words the registry gives the `VarWrite` role.
 fn collect_qualified_variable_alias_tails(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
+    registry: &tcl_registry::CommandRegistry,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
     let mut tails = FxHashSet::default();
@@ -1588,18 +1591,22 @@ fn collect_qualified_variable_alias_tails(
             continue;
         };
         for stmt in &block.statements {
-            let (Statement::Barrier { command, args, .. } | Statement::Call { command, args, .. }) =
-                stmt
-            else {
+            let (Statement::Barrier { args, .. } | Statement::Call { args, .. }) = stmt else {
                 continue;
             };
-            if command != "variable" && stmt.canonical_command_or_source() != "::variable" {
+            let head = stmt.canonical_command_or_source();
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            if registry.alias_frame(head, &words, None)
+                != Some(tcl_registry::value_transfer::AliasFrame::Namespace)
+            {
                 continue;
             }
-            // `variable` alternates (name, value?) pairs — names at even args.
-            let mut i = 0;
-            while i < args.len() {
-                let text = &args[i];
+            for index in
+                registry.arg_indices_for_role(head, &words, tcl_registry::ArgRole::VarWrite)
+            {
+                let Some(text) = args.get(index) else {
+                    continue;
+                };
                 if text.contains("::") {
                     let tail = text.rsplit("::").next().unwrap_or(text);
                     let (base, _) = crate::naming::split_array_name(tail);
@@ -1611,7 +1618,6 @@ fn collect_qualified_variable_alias_tails(
                         tails.insert(crate::naming::normalise_var_name(base).to_string());
                     }
                 }
-                i += 2;
             }
         }
     }
@@ -1667,6 +1673,7 @@ pub(super) fn collect_defined_vars(cfg: &crate::cfg::Function) -> HashSet<String
 /// populate before the top-level read.
 pub(super) fn globals_written_by_procs(
     cu: &crate::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
 ) -> HashSet<String> {
     use crate::ir::Statement;
     let mut result: HashSet<String> = HashSet::new();
@@ -1676,11 +1683,15 @@ pub(super) fn globals_written_by_procs(
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
                 let names: Vec<&String> = match stmt {
-                    Statement::Call { command, defs, .. } => {
-                        if command == "global" {
-                            for d in defs {
-                                global_aliases.insert(d.clone());
-                            }
+                    Statement::Call { args, defs, .. } => {
+                        let head = stmt.canonical_command_or_source();
+                        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+                        // `global` links its locals into the global namespace,
+                        // as its scope-alias plan states.
+                        if registry.alias_frame(head, &words, None)
+                            == Some(tcl_registry::value_transfer::AliasFrame::Global)
+                        {
+                            global_aliases.extend(defs.iter().cloned());
                             continue;
                         }
                         // `unset` destroys a variable, it never assigns one, so
@@ -1688,10 +1699,13 @@ pub(super) fn globals_written_by_procs(
                         // top-level read safe. tclsh: a proc whose only touch of
                         // `::x` is `unset ::x` leaves a top-level `$x` genuinely
                         // read-before-set ("can't read \"x\": no such variable").
-                        // (`variable`/`upvar` only *declare*/alias; `unset`
-                        // removes.) A proc that also `set`s the global still
-                        // contributes via that assignment statement.
-                        if matches!(command.as_str(), "variable" | "upvar" | "unset") {
+                        // (A scope alias — `variable`, `upvar` — only *declares*;
+                        // `unset` removes.) A proc that also `set`s the global
+                        // still contributes via that assignment statement.
+                        if registry.invocation_traits(head, &words, None).intersects(
+                            tcl_registry::Traits::CREATES_SCOPE_ALIAS
+                                | tcl_registry::Traits::DESTROYS_VARIABLE,
+                        ) {
                             continue;
                         }
                         defs.iter().collect()
@@ -1743,6 +1757,7 @@ pub(super) fn globals_written_by_procs(
 /// a global-scope top-level `set`.
 pub(super) fn globals_read_by_procs(
     cu: &crate::compilation_unit::CompilationUnit,
+    registry: &tcl_registry::CommandRegistry,
 ) -> HashSet<String> {
     use crate::ir::Statement;
     let mut result: HashSet<String> = HashSet::new();
@@ -1751,8 +1766,12 @@ pub(super) fn globals_read_by_procs(
         let mut global_aliases: FxHashSet<String> = FxHashSet::default();
         for block in fu.cfg.blocks.values() {
             for stmt in &block.statements {
-                if let Statement::Call { command, defs, .. } = stmt
-                    && command == "global"
+                if let Statement::Call { args, defs, .. } = stmt
+                    && registry.alias_frame(
+                        stmt.canonical_command_or_source(),
+                        &args.iter().map(String::as_str).collect::<Vec<_>>(),
+                        None,
+                    ) == Some(tcl_registry::value_transfer::AliasFrame::Global)
                 {
                     for d in defs {
                         global_aliases.insert(d.clone());

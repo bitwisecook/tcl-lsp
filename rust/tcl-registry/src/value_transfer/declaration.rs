@@ -246,6 +246,14 @@ impl ResolvedSemantics {
         self.semantics().map(CommandSemantics::route)
     }
 
+    /// The frame the specialisation's scope-alias declaration links its
+    /// locals into ([`CommandSemantics::alias_frame`]): what a consumer reads
+    /// to tell `global` from `variable` in place of the command's spelling.
+    #[must_use]
+    pub fn alias_frame(&self) -> Option<super::AliasFrame> {
+        self.semantics().and_then(CommandSemantics::alias_frame)
+    }
+
     /// Whether the specialisation is the direct route's one-target write of
     /// a value word ([`super::cell_write::CellWriteSemantics`], `set name
     /// value`): the command stores its last word, as Tcl substitutes it,

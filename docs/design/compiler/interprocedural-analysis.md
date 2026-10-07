@@ -49,6 +49,18 @@ records:
 - Barrier presence (`Statement::Barrier`, or a direct call to
   `eval` / `uplevel` / `interp eval` / `namespace eval`)
 - Local purity, global writes, unknown calls
+- The locals a scope alias links to global or namespace scope, a later bare
+  write of which is a global write, read from the registry rather than a
+  command's spelling: the `VarWrite` operands of a call whose declaration
+  aliases into the global namespace or the current one
+  (`CommandRegistry::alias_frame`: `global`, `variable`), and the local of
+  each pair of an alias-pair call (`FrameArgLayout::AliasPairs`: `upvar`)
+  whose level selects the global frame or the current one — the level word
+  present by argument-count parity and its value read as a `FrameLevel`
+  (`FrameEffectSpec::resolve_in`), so `upvar $lvl a b` pairs `(a, b)`
+- The parameter traits of call-by-name: a `$param` other variable of an
+  alias pair reads the place it names (`VarRead`), and at the caller's level
+  a later write of the pair's local writes it (`VarWrite`)
 - Local effect regions (reads/writes)
 - One `ReturnKind` per `return` statement, read from its word: a literal
   through the exact value ingress (`recorded_word_value`, then
@@ -291,7 +303,9 @@ Method purity is **conservative by design** — a method is `pure` iff:
   no global write, no local effect-writes), **and**
 - it writes no in-scope instance variable (class-level `variable` decls +
   the method's own `variable` decls — a write there mutates object state
-  that survives the call), **and**
+  that survives the call; a scope-alias declaration, which
+  `var_scoping::is_scope_alias_call` recognises from the registry, links a
+  name and writes none), **and**
 - every *proc* it calls is pure.
 
 A `my <method>` / `next` self-dispatch surfaces as an unknown call, which

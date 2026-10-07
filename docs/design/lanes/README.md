@@ -145,13 +145,21 @@ checkpoint compiling.
   through the registry's routes, and states what the loop leaves on its exit
   edges, so the branch after it decides for I230 as for O101, W230 bounds its
   counter and the argument-sensitive O103 re-run folds a callee that counts;
-  W240–W242 and IRULE5003 read the iteration plan), and slice 7a (seedless
+  W240–W242 and IRULE5003 read the iteration plan), slice 7a (seedless
   return summaries: each pure procedure's own lattice, run with no call-site
   seed and read at every exit through the exact value ingress, gives its
   summary's constant return, so O103's summary path folds a computed constant
-  and spells every folded value exactly as the procedure returns it) have
-  landed; the slices after them are planned item by item in the tracking
-  document's § *Plan for slices 2–13*.
+  and spells every folded value exactly as the procedure returns it), and
+  slice 13 (proc-level transfer summaries: every procedure has a transfer
+  summary beside its `ProcSummary`, composed bottom-up, and the caller's
+  lattice applies it at a call and at a command a statement's words run, a
+  place a `Name` argument names taking what a re-run of the callee seeded
+  from the caller's places leaves, so `bump n` decides on both O103 paths
+  and `[rec 4]` folds; a statement's word effects are a definition point
+  paired with it; and the consumers with no compilation unit read the
+  registry declarations a summary is derived from, matching no command by
+  name) have landed; slice 7, the last, is planned item by item in the
+  tracking document's § *Plan for slices 2–13*.
 - [value-transfers-review-12.md](value-transfers-review-12.md) — the
   adversarial review of slice 12 (bounded-loop enumeration), kept with the
   lane while its fixes land.

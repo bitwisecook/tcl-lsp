@@ -149,6 +149,12 @@ parameters holding that one call's arguments and its links the caller's
 places before the call, so `set n 1; bump n` leaves `n` at 2. That value is
 exact under one call only, so it never enters the callee's own lattice or
 its summary, which this page's seed reaches only where every caller agrees.
+One summary serves every caller: after `set n 1; bump n; set other 10; bump
+other` the caller's lattice holds `n` at 2 and `other` at 11, each call
+re-running `bump` under its own place, and `bump`'s body is left as written,
+since a body specialised to one place is right only while that call stays
+the only one — and a call a word nests (`set z [bump m]`) is a call site too
+(#2134).
 
 ## Seeing it
 

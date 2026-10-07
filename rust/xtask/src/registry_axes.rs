@@ -95,18 +95,20 @@ const AXES: &[&str] = &[
 /// has shipped without it. A lane bumps this when its step or slice lands.
 const LANDED: &[&str] = &[
     "step 1", "step 2", "step 3", "step 4", "step 5", "step 6", "step 7", "step 8", "step 9",
-    "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 8",
-    "slice 9", "slice 10", "slice 11",
+    "step 10", "slice 1", "slice 2", "slice 3", "slice 4", "slice 5", "slice 6", "slice 7a",
+    "slice 8", "slice 9", "slice 10", "slice 11", "slice 12", "slice 13",
 ];
 
 /// The files the lint holds clean: every site waived or gone. A step that
 /// rewrites a file adds it here with its pin removed; a file never leaves.
 const CLEAN_FILES: &[&str] = &[
     "rust/tcl-compiler/src/analyser/commands.rs",
+    "rust/tcl-compiler/src/analyser/param_traits.rs",
     "rust/tcl-compiler/src/analyser/recovery.rs",
     "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs",
     "rust/tcl-compiler/src/executable_ir.rs",
     "rust/tcl-compiler/src/signature_scan/walker.rs",
+    "rust/tcl-compiler/src/var_escape/slot_resolution.rs",
     "rust/tcl-lsp-core/src/definition.rs",
     "rust/tcl-lsp-core/src/formatting/config.rs",
     "rust/tcl-lsp-core/src/formatting/docstring.rs",
@@ -165,7 +167,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/class_lattice.rs", 5),
     ("rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs", 7),
     ("rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs", 1),
-    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 5),
+    ("rust/tcl-compiler/src/analyser/diagnostics/helpers.rs", 1),
     ("rust/tcl-compiler/src/analyser/diagnostics/security.rs", 8),
     ("rust/tcl-compiler/src/analyser/diagnostics/usage.rs", 6),
     ("rust/tcl-compiler/src/analyser/diagnostics/validity.rs", 22),
@@ -180,7 +182,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/analyser/handlers.rs", 9),
     ("rust/tcl-compiler/src/analyser/irules_event_checks.rs", 7),
     ("rust/tcl-compiler/src/analyser/oo.rs", 5),
-    ("rust/tcl-compiler/src/analyser/param_traits.rs", 16),
     ("rust/tcl-compiler/src/analyser/per_item.rs", 4),
     ("rust/tcl-compiler/src/analyser/tk_checks.rs", 2),
     ("rust/tcl-compiler/src/auto_path_eval.rs", 6),
@@ -197,7 +198,7 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/connection_scope.rs", 1),
     ("rust/tcl-compiler/src/inline_uplevel.rs", 1),
     ("rust/tcl-compiler/src/inlining/mod.rs", 1),
-    ("rust/tcl-compiler/src/interprocedural.rs", 6),
+    ("rust/tcl-compiler/src/interprocedural.rs", 1),
     ("rust/tcl-compiler/src/interval_bounds.rs", 5),
     ("rust/tcl-compiler/src/ir.rs", 2),
     ("rust/tcl-compiler/src/irules_checks.rs", 7),
@@ -229,7 +230,6 @@ const RATCHET: &[(&str, usize)] = &[
     ("rust/tcl-compiler/src/var_escape/handlers.rs", 2),
     ("rust/tcl-compiler/src/var_escape/helpers.rs", 1),
     ("rust/tcl-compiler/src/var_escape/info_subcommands.rs", 29),
-    ("rust/tcl-compiler/src/var_escape/slot_resolution.rs", 7),
     ("rust/tcl-compiler/src/var_scoping.rs", 2),
     ("rust/tcl-diagram/src/attach.rs", 7),
     ("rust/tcl-diagram/src/data.rs", 4),

@@ -98,6 +98,10 @@ impl CommandSemantics for ScopeAliasSemantics {
             frame: self.frame,
         })
     }
+
+    fn alias_frame(&self) -> Option<AliasFrame> {
+        Some(self.frame)
+    }
 }
 
 /// The revision of the registry-owned `info default` evaluator.

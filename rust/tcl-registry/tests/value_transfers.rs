@@ -2891,6 +2891,54 @@ fn the_binders_state_their_scope_alias_plan() {
     }
 }
 
+/// What a consumer with no compilation unit reads of a binder (D307): a
+/// scope alias's frame, from its plan, for the invocation it holds — none for
+/// `upvar`, whose frame its level word selects — and an alias-pair call's
+/// level and pairs, the level word present by argument-count parity.
+#[test]
+fn a_binder_names_its_frame_and_its_level() {
+    use tcl_registry::frame_effect::FrameLevel;
+    use tcl_registry::value_transfer::AliasFrame;
+    let registry = tcl_registry::default_registry();
+    for (name, args, frame) in [
+        ("global", &["a", "b"][..], Some(AliasFrame::Global)),
+        ("::global", &["a"][..], Some(AliasFrame::Global)),
+        ("variable", &["a", "1"][..], Some(AliasFrame::Namespace)),
+        ("my", &["variable", "a"][..], Some(AliasFrame::Object)),
+        ("upvar", &["1", "a", "b"][..], None),
+        ("set", &["a", "1"][..], None),
+    ] {
+        assert_eq!(
+            registry.alias_frame(name, args, None),
+            frame,
+            "{name} {args:?}"
+        );
+    }
+    let upvar = registry
+        .frame_effect("upvar")
+        .expect("upvar's frame effect");
+    for (args, level, pairs) in [
+        (
+            &["$lvl", "a", "b"][..],
+            FrameLevel::Dynamic,
+            &["a", "b"][..],
+        ),
+        (&["1", "b"][..], FrameLevel::DEFAULT, &["1", "b"][..]),
+        (
+            &["#0", "a", "b"][..],
+            FrameLevel::Absolute(0),
+            &["a", "b"][..],
+        ),
+        (
+            &["0", "a", "b", "c", "d"][..],
+            FrameLevel::Relative(0),
+            &["a", "b", "c", "d"][..],
+        ),
+    ] {
+        assert_eq!(upvar.resolve_in(args, registry), (level, pairs), "{args:?}");
+    }
+}
+
 /// `info default procname arg varname` writes the variable on every normal
 /// completion — the parameter's default and the result 1, or the empty
 /// string and the result 0 for a parameter with none — as tclsh 8.4 to 9.1

@@ -8554,3 +8554,179 @@ fn an_embedded_call_applies_its_summary() {
     }
     prints_under_every_release(source, "2\n6\n");
 }
+
+/// The top level's value for the last version of `var` in `source` under
+/// `dialect`.
+fn top_level_value(source: &str, dialect: &str, var: &str) -> LatticeValue {
+    let unit = unit_of(source, dialect);
+    let symbol = unit.top_level.ssa.var_symbol(var).expect("the variable");
+    unit.top_level
+        .sccp
+        .values
+        .iter()
+        .filter(|((sym, _), _)| *sym == symbol)
+        .max_by_key(|((_, version), _)| *version)
+        .map(|(_, value)| value.clone())
+        .expect("a definition")
+}
+
+/// `series`' tclsh stops `source` with an error, and its optimised form
+/// with the same one: nothing printed, and a non-zero exit.
+fn errors_alike_under(source: &str, series: &str) {
+    for (found, tclsh) in releases_on_path() {
+        if found != series {
+            continue;
+        }
+        let (rewritten, _) = optimised(source, &dialect_of(series));
+        for program in [source, rewritten.as_str()] {
+            assert_eq!(
+                run_script(&tclsh, program),
+                Some((false, String::new())),
+                "tclsh{series}:\n{program}"
+            );
+        }
+    }
+}
+
+const BUMP: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n";
+
+/// The seven summary witnesses (`value-transfers.md` § *Proc-level transfer
+/// summaries*), each a caller of a procedure whose summary it applies, under
+/// every dialect and release: `bump n; bump n 2` leaves `n` 4 and `twice t`,
+/// two `bump` updates through `twice`'s own alias, leaves `t` 3, each proved
+/// and read as a constant; `reset m` unbinds `m`, so `[info exists m]`
+/// decides false; `g` binds `::counter` and states no value, so its read
+/// stays; `[rec 4]` folds to 10 on the argument-sensitive path; `ctr; ctr`
+/// leaves `::hits` 2 from 8.5, where 8.4's `incr` raises on the absent
+/// variable; and `bump absent` binds `absent` to 1 from 8.5, folded only
+/// under a release that creates the cell, and raises under 8.4. tclsh 8.4
+/// to 9.1 print the same before and after the optimiser, or stop with the
+/// same error.
+#[test]
+fn the_seven_summary_witnesses() {
+    let bump_twice = format!("{BUMP}set n 1\nbump n\nbump n 2\nputs $n\n");
+    let reset = "proc reset {name} {upvar 1 $name v; unset v}\nset m 1\nreset m\n\
+                 if {[info exists m]} {puts bound} else {puts unbound}\n";
+    let twice = format!(
+        "{BUMP}proc twice {{name}} {{upvar 1 $name w; bump w; bump w}}\nset t 1\ntwice t\nputs $t\n"
+    );
+    let global = "proc g {} {set ::counter 5}\ng\nputs $::counter\n";
+    let rec = "proc rec {n} {if {$n <= 0} {return 0}; expr {$n + [rec [expr {$n - 1}]]}}\n\
+               puts [rec 4]\n";
+    let hits = "proc ctr {} {incr ::hits}\nctr\nctr\nputs $::hits\n";
+    let absent = format!("{BUMP}bump absent\nputs $absent\n");
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_level_value(&bump_twice, dialect, "n"),
+            LatticeValue::Const(ConstValue::Int(4)),
+            "{dialect}"
+        );
+        assert_eq!(
+            top_level_value(&twice, dialect, "t"),
+            LatticeValue::Const(ConstValue::Int(3)),
+            "{dialect}"
+        );
+        assert!(
+            unit_of(reset, dialect)
+                .top_level
+                .sccp
+                .constant_branches
+                .iter()
+                .any(|branch| branch.condition == "[info exists m]" && !branch.value),
+            "{dialect}"
+        );
+        for (source, folded) in [
+            (bump_twice.as_str(), "puts 4\n"),
+            (twice.as_str(), "puts 3\n"),
+            (rec, "puts 10\n"),
+        ] {
+            assert!(
+                optimised(source, dialect).0.contains(folded),
+                "{dialect}: {source}"
+            );
+        }
+        assert!(
+            !optimised(reset, dialect).0.contains("puts bound"),
+            "{dialect}"
+        );
+        for (source, read) in [(global, "puts $::counter\n"), (hits, "puts $::hits\n")] {
+            assert!(
+                optimised(source, dialect).0.contains(read),
+                "{dialect}: {source}"
+            );
+        }
+        let creates_absent = matches!(dialect, "tcl8.6" | "tcl9.0");
+        assert_eq!(
+            optimised(&absent, dialect).0.contains("puts 1\n"),
+            creates_absent,
+            "{dialect}"
+        );
+    }
+    prints_under_every_release(&bump_twice, "4\n");
+    prints_under_every_release(reset, "unbound\n");
+    prints_under_every_release(&twice, "3\n");
+    prints_under_every_release(global, "5\n");
+    prints_under_every_release(rec, "10\n");
+    prints_under_releases_from(hits, "2\n", "8.5");
+    errors_alike_under(hits, "8.4");
+    prints_under_releases_from(&absent, "1\n", "8.5");
+    errors_alike_under(&absent, "8.4");
+}
+
+/// One summary serves both callers (`value-transfers-examples.md`): each
+/// call applies it with a re-run under its own place's value, so the lattice
+/// proves `n` 2 and `other` 11, and `bump`'s body is left as written. tclsh
+/// 8.4 to 9.1 print `2 11` before and after the optimiser.
+#[test]
+fn two_callers_share_one_summary() {
+    let source = "proc bump {name} {upvar 1 $name v; incr v}\nset n 1\nbump n\n\
+                  set other 10\nbump other\nputs \"$n $other\"\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_level_value(source, dialect, "n"),
+            LatticeValue::Const(ConstValue::Int(2)),
+            "{dialect}"
+        );
+        assert_eq!(
+            top_level_value(source, dialect, "other"),
+            LatticeValue::Const(ConstValue::Int(11)),
+            "{dialect}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("{upvar 1 $name v; incr v}"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(source, "2 11\n");
+}
+
+/// #2134's program: `[bump m]` nested in a word is a second call site, so no
+/// rewrite specialises `bump` to `bump n`'s place and the body keeps `upvar 1
+/// $name v`; the summary applies at both calls, the nested one through its
+/// statement's word effects, so `n` is 2 and `m` 11. tclsh 8.4 to 9.1 print
+/// `2 11 11` before and after the optimiser, where the specialised body
+/// printed `3 10 3`.
+#[test]
+fn a_nested_caller_keeps_the_callee_whole() {
+    let source = "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nset m 10\n\
+                  bump n\nset z [bump m]\nputs \"$n $m $z\"\n";
+    for dialect in DIALECTS {
+        assert_eq!(
+            top_level_value(source, dialect, "n"),
+            LatticeValue::Const(ConstValue::Int(2)),
+            "{dialect}"
+        );
+        assert_eq!(
+            top_level_value(source, dialect, "m"),
+            LatticeValue::Const(ConstValue::Int(11)),
+            "{dialect}"
+        );
+        let (rewritten, _) = optimised(source, dialect);
+        assert!(
+            rewritten.contains("upvar 1 $name v\n"),
+            "{dialect}: {rewritten}"
+        );
+    }
+    prints_under_every_release(source, "2 11 11\n");
+}

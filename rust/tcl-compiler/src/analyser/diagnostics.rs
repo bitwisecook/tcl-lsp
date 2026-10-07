@@ -446,7 +446,7 @@ impl Analyser {
         // proc in this module writes to.  Top-level RBS (W210)
         // is suppressed for these variables — a helper proc may
         // populate them before the top-level read fires.
-        let globals_written = globals_written_by_procs(cu);
+        let globals_written = globals_written_by_procs(cu, registry);
 
         // **FP-DS-04 cross-scope traces.** A `::`-qualified global with a write
         // trace anywhere in the module is observable across scopes, so a
@@ -518,7 +518,7 @@ impl Analyser {
         // above. Fold those names in so the top-level assignment is neither a
         // dead store (W220) nor an unused variable (W211): both emitters honour
         // this set (W211 via `textually_referenced.extend(cross_event_vars)`).
-        top_level_cross_event_vars.extend(globals_read_by_procs(cu));
+        top_level_cross_event_vars.extend(globals_read_by_procs(cu, registry));
 
         // pkgIndex.tcl's ``$dir`` is set by the package loader before the
         // index script runs, so a read of it is not read-before-set (W210).

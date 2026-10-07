@@ -313,7 +313,10 @@ executes that runtime.
     are gone — a statement's word effects ride a `WordEffects` definition
     point paired with its host, the driver evaluates the pair as one, and
     an embedded call to a summarised procedure applies its summary there —
-    and the seven witnesses pass.
+    and the seven witnesses pass. Landed 2026-10-07; the record and the
+    decisions (D296–D307) are
+    [value-transfers.md (lane)](../lanes/value-transfers.md) § *Plan for
+    slices 2–13* › *Slice 13*.
 
 Slices 1–7 land the two contracts' machinery, and every part of the
 evaluation contract lands in one of them (§ *Where each part lands* on
@@ -359,7 +362,7 @@ semantic type and shape per value, distinct from representation evidence.
 | `dataflow_graph.rs` | the Explorer's data-flow graph | renders `LatticeValue` | renders `folded_types`, decline reasons, and the loss-of-exactness evidence |
 | `side_effects.rs` | effect classification | name-free | none |
 | `taint.rs`, `taint_interproc.rs` | taint colours | reads reachability and φ edges; never `values`; `Incr` passthrough | a computed value is untainted only when every input was; colour flows through write outcomes as through the `Incr` arm today; a numeric type never erases taint |
-| `interprocedural.rs` | `ProcSummary`, `MethodSummary` | since slice 7a, each pure procedure's seedless lattice read at its exits (`exit_value`, the reading O103's re-run shares), `classify_return`'s exact shapes where no run is made; `global` / `variable` / `upvar` name sets; `upvar`'s level word parsed as `#0` / `0` | `summarise_returns` consults a seedless run (landed in slice 7a, one stage after the purity fixpoint, since no lattice reads a summary before slice 13); the alias name sets move to `Traits::CREATES_SCOPE_ALIAS` + `FrameArgLayout`; slice 13 adds `TransferSummary` beside `ProcSummary` — parameter roles with a `Name` parameter's `FrameLevel` and ordered outcomes, the global places a callee writes, the completion domain, and the effect footprint — composed bottom-up and invalidated with the module's bindings |
+| `interprocedural.rs` | `ProcSummary`, `MethodSummary` | since slice 7a, each pure procedure's seedless lattice read at its exits (`exit_value`, the reading O103's re-run shares), `classify_return`'s exact shapes where no run is made; since slice 13, the alias names from the registry — a scope alias's `alias_frame` and `VarWrite` operands, an alias-pair call's level by argument-count parity as a `FrameLevel` — and a scope alias read as a link, not an instance-variable write | `summarise_returns` consults a seedless run (landed in slice 7a, one stage after the purity fixpoint, since no lattice reads a summary before slice 13); slice 13 adds `TransferSummary` beside `ProcSummary` (`interprocedural/transfer.rs`) — parameter roles with a `Name` parameter's `FrameLevel` and ordered outcomes, the global places a callee writes, the completion domain, and the effect footprint — composed bottom-up and invalidated with the module's bindings |
 | `unit_scope.rs` | call-site seeding | literal-only, string-typed seeds | computed arguments seed under the same gates; seeds enter through the exact ingress |
 | `command_binding.rs`, `alias.rs`, `realm.rs`, `registry_invocation.rs`, `dispatch_proof.rs` | binding validity, aliases, the realm, dispatch stability | name-free gates | unchanged; `realm.rs`'s `namespace import` scan is a `StateTransition::Namespace` consumer candidate |
 | `object_types.rs` | object-handle provenance | reads the type lattice | benefits from `folded_types` on constructor results |
@@ -538,9 +541,10 @@ each is a consumer of the interface once it exists:
   slice 8 (VT8.9) the four read `set`'s handle-binding layout
   (`HandleClassSource::ConstructionValue`) instead of its spelling.
 - **Value-copy tracking.** `analyser/param_traits.rs` tracks `set n $p` as a
-  copy and invalidates it on `incr` / `append` / `lappend` — a two-command
-  approximation of the transfer, which slice 13's summary `Name` outcomes
-  replace.
+  copy — a write of a `VarWrite` word by a call whose route stores its value
+  word — and ends it at any other write of the local's `VarWrite` word; with
+  no compilation unit in hand it reads these declarations, the ones a
+  summary's `Name` role is derived from (slice 13, D307).
 - **Substitution folders.** `lowering/mod.rs` folds a `subst` call whose
   registry answer is exactly commands-off into the const map, beside
   `set var {literal}`; `specialise_factories.rs` extracts the same template
@@ -591,14 +595,14 @@ migrations can be planned per axis rather than per file.
 | `options` (`OptionSpec::value_word_count`, `ResolvedTerminator`, `option_placement`) | ~72 | at least twenty private `--` / `-nocase` / `-encoding` / `-start` / `-nocomplain` scans; `analyser/handlers.rs`'s bare `o == "-command"` pre-scan thirty lines above the same file's correct `OptionSpec::matches` loop; `analyser/recovery.rs` knowing `-matchvar` / `-indexvar` but not `-exact` / `-glob` / `-regexp` / `-nocase` |
 | `arg_roles` / `arg_role_resolver` / `assigns_variable_at` | ~55 | `rust/tcl-cli/src/commands/minimize.rs`'s `var_target_positions`, a verbatim reimplementation of the role axis for eight commands and wrong for `dict update`, `binary scan`, `regexp -inline`, `scan`, and `foreach`; the W230–W232 index family in `analyser/bounds_checks.rs`; `place_bridge.rs` and `var_scoping.rs` asking for `global` / `variable` / `trace` positions by name |
 | `definition_body` / `MemberKind` | ~32 | `analyser/oo.rs`'s eleven-arm `apply_oo_subcommand` keyword switch and its snit / itcl member tables; `ir.rs`'s `MethodKind::from_str_lossy`; the `constructor` / `destructor` literals spread across ten `tcl-lsp-core` providers |
-| `traits` | ~41 | `var_escape/info_subcommands.rs`'s hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in three diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
+| `traits` | ~40 | `var_escape/info_subcommands.rs`'s hand-maintained `info` subcommand names, live through `var_escape/helpers.rs`, beside two consumers that already ask `INTROSPECTS_BY_NAME` / `CURRENT_FRAME_INTROSPECTION`; `unset` recognised by name in two diagnostics beside `irules_event_checks.rs`'s correct `DESTROYS_VARIABLE` query; `lowering/mod.rs`'s `WORD_DISQUALIFIERS` body-cache gate; `tcl-syntax`'s default `head == "when"` predicate |
 | `substitution_resolver` / `substitutions_performed` | 3 | W102 (`analyser/diagnostics/security.rs`), the two template folders, and extract-proc's literal cut and same-frame regions (`rust/tcl-lsp-core/src/refactor/`) already ask the registry; what remains is the dynamic-name barrier in `dynamic_names.rs` and the `inner_head_performs_substitution` gate reading only the trait, and `push_substituted_commands` re-walking a braced template for the bracket regions the answer does not carry — all three are what `TemplateWordPlan`'s `dynamic`, `kinds`, and `script_regions` retire in slice 5 |
 | `case_list` / clause grammar | ~30 | five independent `switch` parsers (`analyser/diagnostics/security.rs`, `analyser/recovery.rs`, `analyser/diagnostics/usage.rs`, `lowering/structured.rs`, `analyser/commands.rs`) where the segmenter's `flatten_case_list_clauses` and the registry's `CaseMatchMode` already exist; `then` / `elseif` / `else` and `on` / `trap` / `finally` walked by keyword in `lowering/structured.rs`, `signature_scan/walker.rs` (twice), `tcl-lsp-core`'s refactors, and `tcl-mcp`'s `datagroup.rs`; `TryHandler::kind` as a `String` re-matched in `executable_ir.rs` |
 | `return_type` / `format_string_type` / `pattern_type` | ~12 | `type_infer.rs`'s math-function return-type table (`expr_call_type`), a duplicate of `tcl_syntax::expr::mathfunc`; `scan_predicate.rs`'s conversion classes as strings; `analyser/diagnostics/usage.rs` mapping `binary format` / `binary scan` to a format-string index by name |
 | `special_vars` | ~15 | `static::` spelled in six places; `args` in fourteen; `auto_path`, `auto_index`, `$dir` |
 | `events` / `profiles` / `lifecycle` | ~14 | `tcl-mcp`'s `irule_gen.rs` rebuilding `HTTP_EVENTS` / `SSL_EVENTS` / `HOT_EVENTS` and `infer_profiles` beside a `code_actions.rs` that already reads `EventRequires.implied_profiles`; `RULE_INIT` as the init phase in four diagnostics |
 | `side_effects` / `world_effects` / `taint_*` | ~18 | `irules_checks.rs`'s `drop` / `reject` / `discard` and `DNS::return` sets; `tcl-mcp`'s `SECURITY_ACTIONS` / `ROUTING_ACTIONS` / `TAINTED_REFS` where every listed command already carries a `TaintColour`; `tcl-diagram`'s `is_terminal`; the sanitiser bodies `tcl-lsp-core`'s code actions inject by diagnostic code |
-| `frame_effect` / `state_transitions` | ~14 | `interprocedural.rs` parsing `upvar`'s level word as `#0` / `0` where `FrameLevel` documents why that is wrong, which slice 13's `ParamRole::Name { level, … }` carries as a `FrameLevel`; `realm.rs`'s `namespace import` scan beside `alias.rs`'s typed transitions; `taint.rs` ordering `interp` before `proc` by name |
+| `frame_effect` / `state_transitions` | ~13 | `realm.rs`'s `namespace import` scan beside `alias.rs`'s typed transitions; `taint.rs` ordering `interp` before `proc` by name (`interprocedural.rs`'s `upvar` level, parsed as `#0` / `0`, reads the frame effect's `FrameLevel` since slice 13) |
 | `abbrev` / `subcommands` / `presentation` / `completion` | ~26 | `tcl-lsp-core`'s `minify.rs` carrying a second unique-prefix table for `string` / `info` / `clock` beside `formatting/keywords.rs`, which computes it from the registry; `snippets.rs`, a sixteen-template catalogue with no registry involvement; `analyser/diagnostics/widget_command.rs` treating `configure` / `cget` as universal because no widget spec models them |
 | a parallel mini-registry | 1 | `rust/tcl-irules/data/irules_ref_specs.json`, the object-reference table `tcl-bigip` and `tcl-diagram` re-match by name |
 
@@ -858,11 +862,9 @@ which waives the sites by axis.
 |---|---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 | the `arg_roles` axis — `var_target_positions`, a reimplementation of the role axis for eight commands |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 | the `definition_body` axis — `oo::objdefine`, `oo::copy`, and `info` by name |
-| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 4 | slice 13 — the binder checks: `global`, `variable` and `upvar`, with the `unset` the global-write harvest skips beside them |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 | the `return_type` axis — a `pattern_type` conditional on `-regexp` absorbs the `switch`-specific ReDoS scan |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query, `matchclass` by its lifecycle field |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 | the `special_vars` and `side_effects` axes — the `static::`, `log`, and `global` checks |
-| `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 | slice 13 — the summary's `Name` outcomes replace the two-command copy tracker |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 3 | slice 7 — the direct routes for `file dirname` / `normalize` / `join` replace the private path folder |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 | the `native_lowering` axis — instruction selection for `set` and the `array` intrinsics |
 | `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` | 4 | the `native_lowering` axis — instruction selection for the `dict` and `array` ensembles |
@@ -871,7 +873,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/codegen/structured.rs` | 2 | the `native_lowering` axis — `break` / `continue` as loop exits |
 | `rust/tcl-compiler/src/connection_scope.rs` | 1 | the `traits` axis — `unset` beside the `DESTROYS_VARIABLE` query |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 | the `native_lowering` axis — the inliner's synthesised `break` / `continue`, the expected waiver |
-| `rust/tcl-compiler/src/interprocedural.rs` | 2 | slice 13 — `ParamRole::Name { level }` carries the `upvar` level as a `FrameLevel`; the `global` / `variable` name lists follow |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 | the `side_effects` axis — `drop` / `reject` / `discard`, `DNS::return`, `event disable all` |
 | `rust/tcl-compiler/src/lowering/mod.rs` | 1 | the `frame_effect` axis — the `namespace` body |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 | the `native_lowering` axis — `dict for` / `dict map` lowering by subcommand |
@@ -883,7 +884,6 @@ which waives the sites by axis.
 | `rust/tcl-compiler/src/uri_split.rs` | 6 | slice 7 — the direct routes for `split`, `string first`, and `string match` replace the private URI evaluator |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 | the `arg_roles` and `traits` axes — `namespace upvar`'s positions and `info exists` by name; the walker still calls the file, so it is reviewed, not deleted |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 | the `traits` axis — `info exists` beside `INTROSPECTS_BY_NAME` |
-| `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 6 | slice 13 — `info level` / `frame` and the `trace` subcommands read the frame-effect and trace facts |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 | the `arg_roles` axis — `namespace upvar` positions by name |
 | `rust/tcl-irules/src/lib.rs` | 1 | the `options` axis — the `class match` / `class search` option scan ahead of the data-group reference |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 | the `definition_body` axis — `oo::define` / `oo::objdefine` by name |

@@ -1393,14 +1393,20 @@ fn scan_method_body_facts(
     // so a method that writes any in-scope instance var is impure even
     // though the write looks like a plain local `set`.
     if !body_def.instance_vars.is_empty() {
-        collect_instance_var_writes(&body_def.body, &body_def.instance_vars, written_ivars, 0);
+        collect_instance_var_writes(
+            &body_def.body,
+            &body_def.instance_vars,
+            registry,
+            written_ivars,
+            0,
+        );
     }
 }
 
 /// Recursively collect the base names of instance-variable *writes* in
 /// a method body, comparing each written name against `ivars`. Walks
-/// the CFG, counting every `defs` of a non-`::variable` / `::upvar`
-/// Call, plus every assign / incr / loop / catch target. Array-element
+/// the CFG, counting every `defs` of a Call that is no scope-alias
+/// declaration, plus every assign / incr / loop / catch target. Array-element
 /// writes (`counter(0)`) compare on the base scalar name so they are
 /// not missed. Over-approximating writes is the sound direction (a
 /// spurious write only costs an O126 fold; a missed one would wrongly
@@ -1409,6 +1415,7 @@ fn scan_method_body_facts(
 fn collect_instance_var_writes(
     script: &crate::ir::Script,
     ivars: &HashSet<String>,
+    registry: &tcl_registry::CommandRegistry,
     out: &mut HashSet<String>,
     depth: u32,
 ) {
@@ -1422,15 +1429,14 @@ fn collect_instance_var_writes(
             | Statement::AssignExpr { name, .. }
             | Statement::AssignValue { name, .. }
             | Statement::Incr { name, .. } => check_ivar_write(name, ivars, out),
-            Statement::Call {
-                command,
-                canonical_command,
-                defs,
-                ..
-            } => {
-                // `variable` / `upvar` link or declare a name; they are
-                // not writes to instance state.
-                if is_variable_or_upvar(command, canonical_command.as_deref()) {
+            Statement::Call { args, defs, .. } => {
+                // A scope alias links or declares a name; it writes no
+                // instance state.
+                if crate::var_scoping::is_scope_alias_call(
+                    registry,
+                    stmt.canonical_command_or_source(),
+                    args,
+                ) {
                     continue;
                 }
                 for d in defs {
@@ -1441,18 +1447,18 @@ fn collect_instance_var_writes(
                 clauses, else_body, ..
             } => {
                 for clause in clauses {
-                    collect_instance_var_writes(&clause.body, ivars, out, depth + 1);
+                    collect_instance_var_writes(&clause.body, ivars, registry, out, depth + 1);
                 }
                 if let Some(eb) = else_body {
-                    collect_instance_var_writes(eb, ivars, out, depth + 1);
+                    collect_instance_var_writes(eb, ivars, registry, out, depth + 1);
                 }
             }
             Statement::For {
                 init, next, body, ..
             } => {
-                collect_instance_var_writes(init, ivars, out, depth + 1);
-                collect_instance_var_writes(next, ivars, out, depth + 1);
-                collect_instance_var_writes(body, ivars, out, depth + 1);
+                collect_instance_var_writes(init, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(next, ivars, registry, out, depth + 1);
+                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
             }
             Statement::Foreach {
                 iterators, body, ..
@@ -1462,7 +1468,7 @@ fn collect_instance_var_writes(
                         check_ivar_write(v, ivars, out);
                     }
                 }
-                collect_instance_var_writes(body, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
             }
             Statement::Catch {
                 body,
@@ -1470,7 +1476,7 @@ fn collect_instance_var_writes(
                 options_var,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
                 if let Some(rv) = result_var {
                     check_ivar_write(rv, ivars, out);
                 }
@@ -1484,7 +1490,7 @@ fn collect_instance_var_writes(
                 finally_body,
                 ..
             } => {
-                collect_instance_var_writes(body, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
                 for h in handlers {
                     if let Some(v) = &h.var_name {
                         check_ivar_write(v, ivars, out);
@@ -1492,10 +1498,10 @@ fn collect_instance_var_writes(
                     if let Some(ov) = &h.options_var {
                         check_ivar_write(ov, ivars, out);
                     }
-                    collect_instance_var_writes(&h.body, ivars, out, depth + 1);
+                    collect_instance_var_writes(&h.body, ivars, registry, out, depth + 1);
                 }
                 if let Some(fb) = finally_body {
-                    collect_instance_var_writes(fb, ivars, out, depth + 1);
+                    collect_instance_var_writes(fb, ivars, registry, out, depth + 1);
                 }
             }
             Statement::Switch {
@@ -1503,17 +1509,17 @@ fn collect_instance_var_writes(
             } => {
                 for arm in arms {
                     if let Some(b) = &arm.body {
-                        collect_instance_var_writes(b, ivars, out, depth + 1);
+                        collect_instance_var_writes(b, ivars, registry, out, depth + 1);
                     }
                 }
                 if let Some(db) = default_body {
-                    collect_instance_var_writes(db, ivars, out, depth + 1);
+                    collect_instance_var_writes(db, ivars, registry, out, depth + 1);
                 }
             }
             Statement::While { body, .. }
             | Statement::Block { body, .. }
             | Statement::UpFrame { body, .. } => {
-                collect_instance_var_writes(body, ivars, out, depth + 1);
+                collect_instance_var_writes(body, ivars, registry, out, depth + 1);
             }
             _ => {}
         }
@@ -1531,15 +1537,6 @@ fn check_ivar_write(raw: &str, ivars: &HashSet<String>, out: &mut HashSet<String
     if ivars.contains(base) {
         out.insert(base.to_owned());
     }
-}
-
-/// True iff a statement's command (preferring its canonical form,
-/// `::`-stripped) is `variable` or `upvar` — a link/declaration, not a
-/// write to instance state.
-fn is_variable_or_upvar(command: &str, canonical: Option<&str>) -> bool {
-    let c = canonical.unwrap_or(command);
-    let c = c.strip_prefix("::").unwrap_or(c);
-    c == "variable" || c == "upvar"
 }
 
 fn scan_all_procs(
@@ -2176,38 +2173,31 @@ fn extract_var_name(text: &str) -> Option<&str> {
     Some(name)
 }
 
-/// Call-by-name `upvar` handling.  For `upvar ?level? other local …`, mark a `$param`
-/// *other* (caller-var-name source) as [`ProcArgTrait::VarRead`] and —
-/// only for the default level 1, which writes back to the caller's frame
-/// — record `local → param` so a later `set local …` upgrades it to
-/// [`ProcArgTrait::VarWrite`].  A `$param` *local* name (the binding
-/// target) is itself a write of that param's value. Every local linked is
-/// recorded; whether each pair links a plain local to the place a
-/// parameter names one frame up is the answer.
-fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut LocalFacts) -> bool {
-    let mut start = 0;
-    let mut level = "1";
-    if let Some(first) = args.first()
-        && (first.starts_with('#')
-            || (!first.is_empty() && first.bytes().all(|b| b.is_ascii_digit())))
-    {
-        level = first;
-        start = 1;
-    }
-    let caller_frame = level == "1";
-    let mut names_only =
-        caller_frame && args.len() > start && (args.len() - start).is_multiple_of(2);
-    let mut i = start;
-    while i + 1 < args.len() {
-        let other_var = &args[i];
-        let my_var = &args[i + 1];
-        i += 2;
+/// Call-by-name alias-pair handling (`upvar`): the level and the `otherVar
+/// myVar` pairs are the head's frame-effect declaration's, the level word
+/// present by argument-count parity.  Mark a `$param` *other* (caller-var-name
+/// source) as [`ProcArgTrait::VarRead`] and — only when the level is the
+/// caller's frame, where a write lands in the caller — record `local → param`
+/// so a later write of `local` upgrades it to [`ProcArgTrait::VarWrite`].  A
+/// `$param` *local* name (the binding target) is itself a write of that
+/// param's value. Every local linked is recorded; whether each pair links a
+/// plain local to the place a parameter names one frame up is the answer.
+fn handle_upvar_aliases(
+    effect: tcl_registry::frame_effect::FrameEffectSpec,
+    args: &[String],
+    ctx: ScanCtx<'_>,
+    facts: &mut LocalFacts,
+) -> bool {
+    let (level, pairs) = effect.resolve_in(args, ctx.registry);
+    let caller_frame = level.is_caller_frame();
+    let mut names_only = caller_frame && !pairs.is_empty() && pairs.len().is_multiple_of(2);
+    for [other_var, my_var] in pairs.as_chunks::<2>().0 {
         facts.linked_locals.insert(my_var.clone());
-        names_only &= extract_var_name(other_var).is_some_and(|name| params.contains(name))
+        names_only &= extract_var_name(other_var).is_some_and(|name| ctx.params.contains(name))
             && is_plain_local_name(my_var)
-            && !params.contains(my_var);
+            && !ctx.params.contains(my_var);
         if let Some(other_vn) = extract_var_name(other_var)
-            && params.contains(other_vn)
+            && ctx.params.contains(other_vn)
         {
             facts
                 .param_trait_flags
@@ -2221,7 +2211,7 @@ fn handle_upvar_aliases(args: &[String], params: &HashSet<String>, facts: &mut L
             }
         }
         if let Some(my_vn) = extract_var_name(my_var)
-            && params.contains(my_vn)
+            && ctx.params.contains(my_vn)
         {
             facts
                 .param_trait_flags
@@ -2266,12 +2256,15 @@ fn scan_call_statement(
     ctx: ScanCtx<'_>,
     facts: &mut LocalFacts,
 ) {
-    let ScanCtx { params, .. } = ctx;
     // Track scope-aliasing declarations (`global` / `variable` / `upvar #0`)
     // so a later bare write to an aliased name counts as `writes_global`.
     // Declaring is not writing, so handle the declaration before the
     // defs-based write check.
-    match global_alias_names(command, args) {
+    let alias_pairs = ctx
+        .registry
+        .frame_effect(command)
+        .filter(|effect| effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs);
+    match global_alias_names(command, args, alias_pairs, ctx.registry) {
         Some(alias_names) => {
             if alias_names.contains("") {
                 // Dynamic / unbounded alias target — conservative.
@@ -2296,11 +2289,11 @@ fn scan_call_statement(
     // Call-by-name: record `upvar` aliases, and treat any command writing a
     // level-1 upvar alias (`append` / `lappend` / `lassign` … via `defs`) as a
     // write-back to the caller's variable.
-    let links_only = if command == "upvar" {
-        handle_upvar_aliases(args, params, facts)
+    let links_only = if let Some(effect) = alias_pairs {
+        handle_upvar_aliases(effect, args, ctx, facts)
     } else {
-        // `upvar` itself is excluded — its `defs` are the locals it *defines*
-        // (aliases), not writes.
+        // An alias-pair call itself is excluded — its `defs` are the locals it
+        // *defines* (aliases), not writes.
         for d in defs {
             mark_upvar_alias_write(d, facts);
         }
@@ -2601,43 +2594,48 @@ fn is_global_or_namespace(name: &str) -> bool {
     name.starts_with("::") || name.contains("::")
 }
 
-/// Local names a scope-aliasing *command* binds to global / namespace
-/// scope. Returns `None` when *command* is not a global-aliasing
-/// declaration. The returned set holds the bound local names; an empty
-/// string (`""`) in the set is a sentinel for a dynamic / unbounded
-/// declaration (`global $x`), which the caller must treat as a global
-/// write. `upvar` at any level other than `#0` / `0` aliases a caller
-/// frame, not global scope, and returns `None`.
-fn global_alias_names(command: &str, args: &[String]) -> Option<HashSet<String>> {
-    fn names(raw_names: &[String]) -> HashSet<String> {
-        raw_names
-            .iter()
+/// Local names a scope-aliasing call binds to global / namespace scope:
+/// the `VarWrite` operands of a scope alias the registry declares into the
+/// global namespace or the current one (`global`, `variable`), or the local
+/// of each pair of an alias-pair call whose level selects the global frame
+/// (`upvar #0`) or the current one (`upvar 0`), where the other variable is
+/// in practice a qualified, computed or namespace-declared name. Returns
+/// `None` for any other call. An empty string (`""`) in the set is a sentinel
+/// for a dynamic / unbounded declaration (`global $x`), which the caller must
+/// treat as a global write.
+fn global_alias_names(
+    command: &str,
+    args: &[String],
+    alias_pairs: Option<tcl_registry::frame_effect::FrameEffectSpec>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<HashSet<String>> {
+    use tcl_registry::value_transfer::AliasFrame;
+    let words: Vec<&str> = args.iter().map(String::as_str).collect();
+    let locals: Vec<&String> = match registry.alias_frame(command, &words, None) {
+        Some(AliasFrame::Global | AliasFrame::Namespace) => registry
+            .arg_indices_for_role(command, &words, tcl_registry::ArgRole::VarWrite)
+            .into_iter()
+            .filter_map(|index| args.get(index))
+            .collect(),
+        Some(_) => return None,
+        None => {
+            let (level, pairs) = alias_pairs?.resolve_in(args, registry);
+            if !(level.is_global_frame() || level.is_current_frame()) {
+                return None;
+            }
+            pairs.iter().skip(1).step_by(2).collect()
+        }
+    };
+    Some(
+        locals
+            .into_iter()
             .map(|raw| match raw.trim_start().as_bytes().first() {
                 // Dynamic alias target — can't bound the name set.
                 Some(b'$' | b'[') => String::new(),
                 _ => normalise_var_name(raw).to_owned(),
             })
-            .collect()
-    }
-    match command {
-        "global" => Some(names(args)),
-        // `variable name ?value? name ?value? ...` — names at even indices.
-        "variable" => Some(names(&args.iter().step_by(2).cloned().collect::<Vec<_>>())),
-        "upvar" => {
-            let level = args.first()?.trim();
-            // Only `#0` / `0` alias the *global* frame; an omitted or
-            // numeric level aliases a caller frame (handled elsewhere).
-            if level != "#0" && level != "0" {
-                return None;
-            }
-            // `upvar #0 otherVar localVar ...` — local names at indices
-            // 2, 4, 6, … (every second arg after the level + otherVar).
-            Some(names(
-                &args.iter().skip(2).step_by(2).cloned().collect::<Vec<_>>(),
-            ))
-        }
-        _ => None,
-    }
+            .collect(),
+    )
 }
 
 /// Walk an expression AST and record call-graph edges (and Body
@@ -4258,6 +4256,23 @@ mod tests {
         }
     }
 
+    /// An alias pair whose level selects the current frame stays a global
+    /// alias: its other variable is in practice a qualified, computed or
+    /// namespace-declared name (`upvar 0 $token state`), which reaches a
+    /// namespace cell from this frame. Its level is read as a `FrameLevel`,
+    /// so every spelling of the global frame and of this one counts.
+    #[test]
+    fn an_alias_at_the_current_or_global_frame_is_a_global_alias() {
+        for src in [
+            "proc ::f {} { upvar 0 ::x g\nset g 1 }",
+            "proc ::f {t} { upvar +0 $t g\nset g 1 }",
+            "proc ::f {} { upvar #00 x g\nset g 1 }",
+        ] {
+            let ia = build(src);
+            assert!(ia.procedures["::f"].writes_global, "{src}");
+        }
+    }
+
     #[test]
     fn non_aliased_local_write_is_not_writes_global() {
         // A plain local `set g` (no global/variable/upvar #0 decl) is
@@ -4686,6 +4701,36 @@ mod tests {
             pt.contains(&ProcArgTrait::VarRead) && !pt.contains(&ProcArgTrait::VarWrite),
             "upvar #0 is not a caller-frame write-back, got {pt:?}",
         );
+    }
+
+    /// `upvar $lvl $a b` has three words after the command, so `$lvl` is the
+    /// level and `($a, b)` the pair, by the argument-count parity
+    /// `Tcl_UpvarObjCmd` decides on; the text-sniffing reading took `$lvl`
+    /// for the other variable and paired `($lvl, $a)`. A computed level is no
+    /// known frame, so `a` names a variable the alias reads and no write-back
+    /// is claimed; at level 1 the same pair is the caller's write-back.
+    #[test]
+    fn upvar_level_word_is_read_by_argument_parity() {
+        let ia = build("proc ::q {lvl a} { upvar $lvl $a b\nset b 1 }");
+        let s = ia.procedures.get("::q").unwrap();
+        let a = s.param_traits.get("a").expect("a traits");
+        assert!(
+            a.contains(&ProcArgTrait::VarRead) && !a.contains(&ProcArgTrait::VarWrite),
+            "{a:?}"
+        );
+        assert!(
+            s.param_traits.get("lvl").is_none_or(|t| {
+                !t.contains(&ProcArgTrait::VarRead) && !t.contains(&ProcArgTrait::VarWrite)
+            }),
+            "{:?}",
+            s.param_traits.get("lvl")
+        );
+        let ia = build("proc ::q {lvl a} { upvar 1 $a b\nset b 1 }");
+        let a = ia.procedures["::q"]
+            .param_traits
+            .get("a")
+            .expect("a traits");
+        assert!(a.contains(&ProcArgTrait::VarWrite), "{a:?}");
     }
 
     #[test]

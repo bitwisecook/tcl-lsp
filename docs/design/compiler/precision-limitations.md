@@ -386,3 +386,26 @@ Why it has not been done: telling which typed statements a rebinding moves
 is the lowering's question, answered per command; the conservative rule
 holds until a rebinding module motivates the precise one. Not assigned to a
 slice.
+
+## Open — a procedure whose `upvar` level names no known frame has no transfer summary
+
+A transfer summary's `Name` role is a place in the frame a level selects, and
+the summary is applied at a call only for the caller's frame, level 1: a
+procedure that links a local through `upvar` at a computed level, or at any
+level other than its caller's, has none, and a call to it keeps the widening
+every call to code the module cannot see has. The level word is read as the
+registry's frame effect reads it — present by argument-count parity, its
+value a `FrameLevel` (slice 13, D307) — so in
+
+```tcl
+proc q {lvl a} {upvar $lvl $a b; set b 1}
+proc c {} {set x 0; q 1 x; return $x}
+```
+
+`$lvl` is the level and `($a, b)` the pair, and `x` is unknown after `q 1 x`
+in `c`'s lattice, though tclsh 8.4 to 9.1 leave it 1. The answer is sound,
+and only precision is lost.
+
+Why it has not been done: a summary per level would be context-sensitive,
+the computed level a seed the call site supplies; one context-insensitive
+summary per procedure is the slice's rule. Not assigned to a slice.

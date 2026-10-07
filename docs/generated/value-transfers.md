@@ -1177,7 +1177,7 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 
 ## The ratchet
 
-The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/bounds_checks.rs`, `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`, `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`, `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`, `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/ir_helpers.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/chain_fold.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/commit.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/specialise_factories.rs`, `rust/tcl-compiler/src/static_loops.rs`, `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/word_subst.rs`, `rust/tcl-lsp-core/src/document_links.rs`.
+The files the gate holds clean, with every site waived or gone: `rust/tcl-compiler/src/analyser/bounds_checks.rs`, `rust/tcl-compiler/src/analyser/commands.rs`, `rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs`, `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs`, `rust/tcl-compiler/src/analyser/diagnostics/usage.rs`, `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs`, `rust/tcl-compiler/src/analyser/param_traits.rs`, `rust/tcl-compiler/src/cfg_builder/mod.rs`, `rust/tcl-compiler/src/command_binding.rs`, `rust/tcl-compiler/src/compilation_unit.rs`, `rust/tcl-compiler/src/dataflow_graph.rs`, `rust/tcl-compiler/src/interprocedural.rs`, `rust/tcl-compiler/src/interprocedural/transfer.rs`, `rust/tcl-compiler/src/intervals.rs`, `rust/tcl-compiler/src/ir_helpers.rs`, `rust/tcl-compiler/src/lib.rs`, `rust/tcl-compiler/src/optimiser/chain_fold.rs`, `rust/tcl-compiler/src/optimiser/propagation.rs`, `rust/tcl-compiler/src/sccp.rs`, `rust/tcl-compiler/src/shimmer/commit.rs`, `rust/tcl-compiler/src/shimmer/mod.rs`, `rust/tcl-compiler/src/specialise_factories.rs`, `rust/tcl-compiler/src/static_loops.rs`, `rust/tcl-compiler/src/value_transfer.rs`, `rust/tcl-compiler/src/var_escape/slot_resolution.rs`, `rust/tcl-compiler/src/word_subst.rs`, `rust/tcl-lsp-core/src/document_links.rs`.
 
 Every other scanned file with an unwaived recogniser-shaped site, and its count, which is the pin in `rust/xtask/src/value_transfers.rs`. The count may only fall: a slice lowers the pin beside the review that removes or waives the file's sites, and the ledger in `docs/design/compiler/value-transfers-migration.md` names that slice or axis migration.
 
@@ -1185,11 +1185,9 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 |---|---|
 | `rust/tcl-cli/src/commands/minimize.rs` | 1 |
 | `rust/tcl-compiler/src/analyser/class_lattice.rs` | 3 |
-| `rust/tcl-compiler/src/analyser/diagnostics/helpers.rs` | 4 |
 | `rust/tcl-compiler/src/analyser/diagnostics/security.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/diagnostics/validity.rs` | 2 |
 | `rust/tcl-compiler/src/analyser/irules_event_checks.rs` | 6 |
-| `rust/tcl-compiler/src/analyser/param_traits.rs` | 1 |
 | `rust/tcl-compiler/src/auto_path_eval.rs` | 3 |
 | `rust/tcl-compiler/src/codegen/cmd_subst.rs` | 3 |
 | `rust/tcl-compiler/src/codegen/emitter/bytecoded.rs` | 4 |
@@ -1198,7 +1196,6 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/codegen/structured.rs` | 2 |
 | `rust/tcl-compiler/src/connection_scope.rs` | 1 |
 | `rust/tcl-compiler/src/inline_uplevel.rs` | 1 |
-| `rust/tcl-compiler/src/interprocedural.rs` | 2 |
 | `rust/tcl-compiler/src/irules_checks.rs` | 3 |
 | `rust/tcl-compiler/src/lowering/mod.rs` | 1 |
 | `rust/tcl-compiler/src/lowering/structured.rs` | 2 |
@@ -1210,7 +1207,6 @@ Every other scanned file with an unwaived recogniser-shaped site, and its count,
 | `rust/tcl-compiler/src/uri_split.rs` | 6 |
 | `rust/tcl-compiler/src/var_escape/handlers.rs` | 2 |
 | `rust/tcl-compiler/src/var_escape/helpers.rs` | 1 |
-| `rust/tcl-compiler/src/var_escape/slot_resolution.rs` | 6 |
 | `rust/tcl-compiler/src/var_scoping.rs` | 1 |
 | `rust/tcl-irules/src/lib.rs` | 1 |
 | `rust/tcl-lsp-core/src/oo_body.rs` | 1 |

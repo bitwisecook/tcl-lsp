@@ -3666,6 +3666,23 @@ impl CommandRegistry {
         resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
     }
 
+    /// The frame the invocation's scope-alias declaration links the locals
+    /// its `VarWrite` operands name into — the global namespace for
+    /// `global`, the current namespace for `variable` — where the resolved
+    /// command declares one
+    /// ([`crate::value_transfer::CommandSemantics::alias_frame`]).
+    #[must_use]
+    pub fn alias_frame(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<crate::value_transfer::AliasFrame> {
+        let resolved = self.resolve_call(name, args, dialect)?;
+        crate::value_transfer::resolve_semantics(resolved.spec, resolved.sub, resolved.form)
+            .alias_frame()
+    }
+
     /// When the script at 0-based argument `index` runs relative to this
     /// concrete invocation.
     ///

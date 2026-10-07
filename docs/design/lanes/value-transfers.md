@@ -1251,6 +1251,71 @@ the one reading of a procedure's exits, and the one seedless stage, which
 VT13.1's bottom-up composition and cycle bound replace once the caller's
 driver applies a callee's summary (VT13.2).
 
+## Status (2026-10-07): slice 13 landed
+
+One implementer ran the slice in the plan's three commits:
+`5eac6d24` (VT13.1, VT13.5 and VT13.6, the transfer summaries), `3060659b`
+(VT13.2 and VT13.3, the caller applies them) and this commit,
+`wip(value-transfers): slice 13 — proc-level transfer summaries` (VT13.4,
+VT13.7 and VT13.8). The decisions are D296 to D307 in § *Decisions taken*,
+the records § *Plan for slices 2–13* › *Slice 13* › *Record (2026-10-06):
+slice 13*.
+
+The exit criterion, as D303 restated it and this commit meets it: "`bump n`
+decides through both O103 paths, `param_traits.rs` matches no command by
+name, `<upvar-invalidate>` and `SyntheticMarker::UpvarInvalidate` are gone —
+a statement's word effects ride a `WordEffects` definition point paired with
+its host, the driver evaluates the pair as one, and an embedded call to a
+summarised procedure applies its summary there — and the seven witnesses
+pass", with `param_traits.rs` matching no command by name as D307 has it:
+reading the declarations the summary is derived from.
+
+Behaviour changes, as the plan's landing message states them: a callee's
+writes through `upvar` and to globals are values and existence in the caller
+— `bump n; bump n 2` leaves `n` 4, `reset m` decides `[info exists m]`;
+`[rec 4]` folds to 10 on the argument-sensitive path; the binder commands
+have semantics. Beyond them: a call that names only its caller's own places
+leaves the caller pure, so `[p]` folds on the summary path (D305); a
+statement's word effects pair with their host by construction (D303); the
+parameter traits, the interprocedural scan, the binder checks and slot
+resolution read the registry's declarations, so `upvar $lvl a b` pairs `(a,
+b)` by parity, a script word of every evaluating command is Eval, any write
+of an `upvar` alias is the caller's, and slot resolution takes a procedure
+out at every introspection of its frame and every trace that places no
+variable (D307 and the record's *What moves*).
+
+Things the plan did not say: D296 to D307, each the coordinator's ruling on
+a departure from the plan's text or the slice's own.
+
+Green at the landing: the record's Measured paragraphs, on the tree this
+commit commits.
+
+Left open, each with its program, every one a precision limit on the
+conservative side: a caller of a procedure defined later in the file has no
+summary — the flow graph marks the forward call unseen — and mutual
+recursion never summarises while self-recursion does; a module that may
+rebind a builtin summarises nothing (both D299, in
+`precision-limitations.md`); an embedded call whose result its statement
+needs exactly leaves its places unknown (`set t [expr {[bump m] + $m}]`
+keeps `m` unknown in the unit's lattice, D304); a procedure whose `upvar`
+level is computed or names another frame has no summary, so a call to it is
+a barrier — after `q 1 x` for `proc q {lvl a} {upvar $lvl $a b; set b 1}`,
+the caller's `x` is unknown; a concatenated `after ms $a $b` gives neither parameter the Eval
+trait, its roles abstaining on a concatenated script; and slot resolution
+takes a procedure out at `trace info` and `trace vinfo`, whose variable the
+registry gives no role.
+
+What slice 7 starts from: every procedure's `TransferSummary`
+(`interprocedural/transfer.rs`, `pub(crate)`), its `ParamRole::Name { level,
+outcomes }` read from the frame effect and its outer places from the
+alias and global-write facts, applied by the driver at a call statement and
+at a command a statement's words run (`procedure_answer`, `procedure_run`)
+through `ModuleProcedures::rerun`; `ModuleLevel` as what a run takes of a
+call; `SyntheticMarker::WordEffects` as the one carrier of a statement's
+embedded effects; and the registry readings D307 names, which a runtime
+consumer can share — the frame effect's `resolve_in`, a scope alias's
+`alias_frame`, the evaluation and introspection traits.
+
 ## Plan for slices 2–13
 
 The delivery plan for the rest of
@@ -9966,6 +10031,194 @@ and O109's hidden-read scan dropping a statement's word effects fails
 n]`), which it first survived: none of the test's cases put word effects ahead
 of a statement, and the case is new.
 
+##### Proc-level transfer summaries
+
+`wip(value-transfers): slice 13 — proc-level transfer summaries`, VT13.4,
+VT13.7 and VT13.8, the slice's landing, with VT13.4 built as the coordinator
+ruled (D307): a consumer that runs with no compilation unit in hand reads the
+registry declarations the summary's `Name` role is derived from.
+
+- **The consumers read the declarations (VT13.4, D307).** `param_traits.rs`
+  dispatches on no head: the Eval trait reads a call's evaluation traits and
+  script words (`apply_eval_traits`), the alias pairs are the head's
+  frame-effect pairs after its level word or a scope alias's pairs after its
+  namespace word (`record_alias_pairs`), a list loop's list is the word after
+  each `LoopVarList` word (`record_loop_lists`), and both copy trackers read
+  the `VarWrite` role (`track_writes`); the `while`, `for` and `foreach`
+  handlers' body and condition marks, and the `scan` and `lassign` handler's,
+  were the role scan's own and are gone with them; `caller_frame_upvar_params`
+  and `caller_frame_literal_targets` take the level from the head's own frame
+  effect, where `upvar_level_and_pairs` asked for `upvar`'s by name.
+  `interprocedural.rs`'s scope-alias names (`global_alias_names`) read
+  `CommandRegistry::alias_frame` and the `VarWrite` operands, and an
+  alias-pair call's level as a `FrameLevel`; the call-by-name scan
+  (`handle_upvar_aliases`) takes its pairs and level from the frame effect;
+  and the instance-variable write scan passes over a scope-alias declaration
+  (`var_scoping::is_scope_alias_call`) where it passed over `variable` and
+  `upvar` by name. `diagnostics/helpers.rs`'s qualified-`variable` tails and
+  the globals the procedures write and read take `alias_frame`, the `VarWrite`
+  role, and `CREATES_SCOPE_ALIAS` and `DESTROYS_VARIABLE` for the declarations
+  and the `unset` the write harvest passes over. `slot_resolution.rs` takes a
+  procedure out at a cell write of a value word whose name word substitutes,
+  marks the word after the subcommand of an introspection by name, takes it
+  out at an introspection of the current frame, marks a variable trace's
+  `VarWrite` words, leaves every local to a command trace, and takes the
+  procedure out at a trace form that places no variable. The registry gains
+  `CommandSemantics::alias_frame` (the scope-alias plan's frame, read through
+  `ResolvedSemantics::alias_frame` and `CommandRegistry::alias_frame`) and
+  `FrameEffectSpec::resolve_in`, the frame effect's level and words under a
+  registry's release. The value-transfer gate holds the four files and
+  `interprocedural/transfer.rs` clean, their pins and ledger rows gone; the
+  registry-axes gate holds `param_traits.rs` and `slot_resolution.rs` clean
+  and lowers `helpers.rs` and `interprocedural.rs` to their one site each, a
+  `--` and an `args` the slice does not touch, and its `LANDED` list gains
+  `slice 13` with `slice 7a` and `slice 12`, which their landings missed; no
+  waiver names any of the three.
+- **What moves.** Each reading is a declaration where a name list was, so
+  what the lists left out now reads as the declaration says. The level rule
+  is a behaviour change in the interprocedural scan, and a correction: `upvar
+  $lvl a b` pairs `(a, b)` at the level `$lvl` by argument-count parity, where
+  the digit-sniffing reading took no level word and paired `($lvl, a)`, which
+  is wrong against tclsh — 8.6 to 9.1 decide the level word by the count,
+  and 8.4 and 8.5 consume a `$lvl` whose value is a level, so for `proc q {lvl
+  a} {upvar $lvl $a b; set b 1}` the call `q 1 x` sets the caller's `x` under
+  every release and `q bogus z` raises under every release
+  (`upvar_level_word_is_read_by_argument_parity`). An alias pair at the
+  current frame stays a global alias, as `upvar 0` was, the level now read as
+  a `FrameLevel`: its other variable is in practice a qualified, computed or
+  namespace-declared name (`upvar 0 $token state`; 145 of the corpus's 202
+  `upvar 0` calls name a computed or qualified one), and a reading that took
+  it for a local link would lose those global writes
+  (`an_alias_at_the_current_or_global_frame_is_a_global_alias`). The Eval
+  trait follows the evaluation traits: a script word of `namespace eval`, of
+  `interp eval` and of a command that defers its script (`proc`,
+  `fileevent`, `chan event`, `package ifneeded`, `namespace code`, `bind`,
+  iRules `when`) is Eval, as `after`'s was, `uplevel`'s concatenated words
+  are all Eval, not only the last, a
+  concatenated `after ms $a $b` marks none, its roles abstaining on a
+  concatenated script as every script consumer's do, and `time`, which the
+  registry deliberately does not declare to evaluate code, marks its script a
+  body only. The trackers read every write: a write of an `upvar` alias by
+  any command, `array set arr …` through `upvar 1 $v arr` among them, writes
+  the caller's variable, a one-word `set` through it reads, and a value copy
+  ends at any write (`lassign {x} n`)
+  (`eval_reads_the_registry_evaluation_traits`,
+  `the_copy_trackers_read_the_var_write_role`). `global`, `namespace upvar`
+  and `my variable` are links, not instance-state writes, beside `variable`
+  and `upvar`. Slot resolution takes a procedure out at `info coroutine` and
+  `info errorstack` beside `info level` and `info frame`, and at `trace info`,
+  `trace vinfo` and a trace whose type is computed or unknown, where it marked
+  one word or none; an abbreviated type (`trace add var x …`) marks `x`
+  (`trace_targets_are_the_registry_roles`,
+  `current_frame_introspection_disables_whole_proc`). A `::`-rooted spelling
+  of `global`, `upvar` or `eval` reads as the bare one. None of it moves an
+  output over the corpus — `tcl diag` and `tcl opt --profile full` print what
+  checkpoint 2's binary prints for all 1120 files (below) — so the level
+  rule's correction moves no diagnostic and no fold there, and has no corpus
+  witness.
+- **The witnesses (VT13.7).** `the_seven_summary_witnesses`,
+  `two_callers_share_one_summary` and `a_nested_caller_keeps_the_callee_whole`
+  (`value_transfer_witnesses.rs`, new): the seven programs of
+  `value-transfers.md` § *Proc-level transfer summaries* at the top level
+  under the five dialects — `bump n; bump n 2` proves `n` 4 and `twice t`
+  `t` 3, both read as constants, `reset m` decides `[info exists m]` false,
+  `g`'s `::counter` and `ctr`'s `::hits` are read where the summary binds them
+  with no value, `[rec 4]` folds to 10, and `bump absent` folds to 1 only
+  under a release that creates the cell — with tclsh 8.4 to 9.1 printing the
+  same before and after `tcl opt`, and 8.4 stopping `ctr; ctr` and `bump
+  absent` with the same error; `bump n; bump other` proves 2 and 11 and
+  leaves `bump` as written; and #2134's program proves `n` 2 and `m` 11,
+  keeps `upvar 1 $name v`, and prints `2 11 11`. The CLI's twins
+  (`value_transfers_cli.rs`, new) run the same programs through `tcl opt
+  --profile full` under each release's dialect and tclsh, with the exit
+  evidence, `tcl explore --show sccp` printing `n#2 = const(2)` in `::p`
+  (`explore_sccp_prints_what_a_call_leaves_in_its_name_argument`).
+- **Docs (VT13.8).** `value-transfers.md` (§ *Proc-level transfer
+  summaries*: the consumers with no unit and what they read, the witnesses),
+  `interprocedural-analysis.md` (the local facts' alias names and level, the
+  call-by-name traits, a scope alias in the method-purity rule),
+  `interprocedural-call-site-seeding.md` (one summary for every caller,
+  #2134's nested caller), `pass-fact-ownership-matrix.md` (rows for the
+  transfer summaries and the parameter traits), `downstream-pass-contracts.md`
+  (what a pass reads of a call's effects, and what a consumer with no unit
+  reads), `optimisation-passes.md` (O100 and O103 over the applied
+  summaries), `value-transfers-migration.md` (slice 13 landed, the
+  `interprocedural.rs` and value-copy rows, the `traits` and `frame_effect`
+  debt rows, the ledger), `docs/design/lanes/README.md`, D307, this record
+  and § *Status (2026-10-07): slice 13 landed*.
+
+Tests beside the witnesses: `upvar_level_word_is_read_by_argument_parity`
+and `an_alias_at_the_current_or_global_frame_is_a_global_alias`
+(`interprocedural.rs`, new); `eval_reads_the_registry_evaluation_traits` and
+`the_copy_trackers_read_the_var_write_role` (`param_traits.rs`, new, every
+existing test byte-identical); `trace_targets_are_the_registry_roles` and
+`current_frame_introspection_disables_whole_proc` (`slot_resolution.rs`,
+new). R1: no consumer of the four files compares a command's spelling —
+`value-transfers --check` holds them clean, and none of `"upvar"`,
+`"global"`, `"variable"`, `"info"` or `"trace"` is matched outside their
+tests. R2: no new `#[allow]`. R4: no new source file. R6: the two O103
+anchors and every #2050, #2141 and #2132 witness are byte-identical and pass.
+R7: a reading that cannot place a name, a level or a script declines the
+precise answer: a computed level claims no frame, a trace that places no
+variable and an introspection of the current frame take the procedure out of
+slot resolution, and an alias at the current frame stays a global write.
+
+Measured, on the commit's tree: `make rust-check` passed whole, all 83
+steps, and `dialect-drift` reports its 8 sites, the parent's 8; earlier runs
+failed on two pedantic lints in the new code (`similar_names`,
+`chunks_exact_to_as_chunks`), on the registry-axes pins the four files'
+rewrite left above their counts and on the layout of the registry's new
+test, each fixed. The suites one crate at a
+time, each pruned after, passed whole, the witnesses comparing under the
+five reference releases with `TCL_LSP_REQUIRE_TCLSH` set: `tcl-compiler`
+10211 passed, 6 ignored (the parent's 10202 and the nine new tests);
+`tcl-registry` 1431 (1430 and `a_binder_names_its_frame_and_its_level`, new:
+`alias_frame` for `global`, `::global`, `variable` and `my variable` and
+none for `upvar` and `set`, and `resolve_in`'s level and pairs for four
+`upvar` shapes); `tcl-explorer` 113; `tcl-lsp-db` 143, 5 ignored;
+`tcl-lsp-core --lib` 2353, the caller-frame navigation tests among them;
+`tcl-cli` 210 (207 and the three new); `xtask` 275; `tcl-spectcl` 476, 1
+ignored; `tcl-cmd-core` 143. Over the corpus — the same 1120 files — `tcl
+diag` and `tcl opt --profile full` (`--dialect tcl8.6`, `f5-irules` for an
+`.irul`) under a binary built from the commit's crate sources print what
+checkpoint 2's binary printed, compared against its recorded outputs:
+standard output, standard error and exit status alike for all 2240 outputs;
+`fumagic/filetypes.tcl` runs past the 300 s limit under both, as a debug
+build. A container restart at about 04:00Z stopped the suites inside
+`tcl-registry`'s and the comparison after about 430 files; each resumed from what
+had finished, the suites one crate after another and the comparison after
+them with the same binary, its crate sources checked unchanged by their
+diff's hash.
+
+Mutations, each reverted and the tree restored byte for byte: the
+frame-effect alias pairs recording nothing fails
+`upvar_records_var_read_and_aliases_writes` and six more `param_traits`
+tests; the interprocedural scan reading no level word fails
+`upvar_level_word_is_read_by_argument_parity`,
+`call_by_name_param_traits_inferred` and
+`a_call_naming_the_callers_own_place_keeps_it_pure`; an alias at the current
+frame taken for no global alias fails
+`an_alias_at_the_current_or_global_frame_is_a_global_alias`; slot resolution
+passing over an introspection of the current frame fails
+`info_level_or_frame_disables_whole_proc` and
+`current_frame_introspection_disables_whole_proc`; a concatenated script read
+as its first word alone fails `eval_reads_the_registry_evaluation_traits`;
+and no write making a value copy fails
+`value_copy_carries_param_into_name_and_command_positions`.
+
+Rows for the diagnostic-policy lane's owner documents (B-DP4), drafted here:
+
+- `diagnostics-calculation.md`, § *Deep tier*, the compiler-checks row: a call
+  to a procedure of the module is applied as its transfer summary says, so a
+  caller's W210 and W211 read a place a `Name` argument names as the call
+  leaves it — `bump q; puts $q` in a procedure draws no W210 — and I230 and
+  O101 decide `[info exists m]` after `reset m`.
+- `diagnostics-calculation.md`, § *Analyser tier*: the binder checks behind
+  the read-before-set suppressions (the qualified `variable` tails, the
+  globals a procedure writes or reads) read the scope-alias plan's frame and
+  the `VarWrite` role, and the global-write harvest passes over a declaration
+  and an `unset` by their traits.
+
 ### Slice 7 — broader execution and runtime consumers
 
 #### Goal and exit
@@ -12944,6 +13197,7 @@ Taken in slice 13, proc-level transfer summaries (§ *Slice 13* › *Record (202
 - **D304 — A call to a summarised procedure takes each place's fact and value from a re-run of the callee** (VT13.2 and VT13.3; the coordinator's ruling). At a call statement and at a command a statement's words run, the driver resolves the head to a procedure of the module whose binding stands and applies its summary: each place a `Name` argument names in the caller's frame takes the existence the summary states, and — but in a summary's own run (D297) — the fact and the value a re-run of the callee leaves in it (`ModuleProcedures::rerun`): the callee's parameters hold the call's arguments, an omitted one its default and a trailing `args` the rest as one list, its links hold the caller places' values and facts before the call, and the run holds the module's procedures, so a call the callee makes is applied in turn. A re-run is made once per callee, seeds and trust stance. Where none can be made — a seed that is not exact is unknown, not withheld, so this is a callee with no flow graph to solve, a recursion its seeds do not end, or the depth (32) and count (4096) bounds — a place takes the summary's step with no value, a may-write with the summary's bounds where the step may bind, and an outer place the callee may write takes the summary's step and no value. What a run takes is its level (`ModuleLevel`): a summary's own run the existence alone, a unit's lattice and a seedless run the places, and a re-run — O103's argument-sensitive one among them — the call's result too. A unit's lattice takes no call's result because its values feed every rewrite, and a result exact only under one call's arguments would let a fold drop the call; so an embedded call whose result an enclosing command needs exactly — an `expr` operand, a `list` element — leaves that command unevaluated there, and the pair is widened, its places with it, as it is beside a nested `incr` whose neighbour the run does not hold (`precision-limitations.md`). A statement a throw leaves from, a protected script and a callee that does not complete normally under the seeds keep the generic answer, because a summary says how a call may complete, not that it completes normally; a call whose words or places the solver has not reached waits. A run that holds no module records that it would have read one (D301) where the head may name a procedure a summary answers for — at the deep tier, in a module that rebinds no builtin, a head no registry command answers to under the run's trust — at a call statement that defines a place and at a command an ordered evaluation runs. On every eighth `.tcl` file of tcllib's modules (99 files, 1140 procedures) that rebuilds 51 procedures' memoised lattices with the module, where a first form that asked the trust alone rebuilt 378: every call with a definition, in a file whose rebindings the scan cannot all name.
 - **D305 — A call that names only its caller's own places leaves the caller pure** (VT13.3's exit). O103 folds only a pure procedure's calls, and `p`'s `bump n` writes `n` through `bump`'s link — a place of `p`'s own frame, which ends with `p`'s call — so `[p]` folding to its constant changes nothing a caller sees. The purity fixpoint takes a callee to be pure for a caller where the callee's body does nothing its caller observes but through links of a local to the place a parameter names one frame up (`upvar 1 $name v`), calling only procedures that are pure or of the same kind with places of its own, its links' among them; and where every call the caller makes to it names, at each such parameter, a plain local of the caller's frame no `global`, `variable` or `upvar` links elsewhere. `bump`, and `twice`, which passes the place its own parameter names, stay impure; `p`, and a caller passing its own local to `twice`, are pure. A write through such a link by a command that is not a typed assignment (`lappend v x`, `unset v`) is impure as before, so the callee is not of that kind.
 - **D306 — A re-run's exit reading runs the procedure calls a return's expression makes** (VT13.3; `[rec 4]` folds to 10). The exit reading evaluates a return's expression outside the solver, where a nested command declined. In a re-run it re-runs a call to a procedure of the module that names no place and writes no outer one (`detached_procedure_result`), its arguments literal words, variables the exit holds constant, or substitutions read the same way — a call of the same kind, or a command on the expression route whose one word is a literal expression — so `rec`'s `expr {$n + [rec [expr {$n - 1}]]}` reaches `rec 0` through its own re-runs. A seedless run takes no result (D304), so its reading runs none, and a nested command of any other kind declines as before.
+- **D307 — A consumer with no compilation unit in hand reads the declarations a summary is derived from** (VT13.4; the coordinator's ruling on the plan's "read the summary"). The plan has the name-matching consumers read the summary: `param_traits.rs`'s copy tracker the `Name` outcomes, `interprocedural.rs` `upvar`'s level through `ParamRole::Name { level }`, the binder checks and slot resolution the same facts. Those consumers run where no unit is built — the analyser's procedure handler and `tcl-lsp-core`'s caller-frame navigation scan a body's text (`param_traits.rs`), the interprocedural local-facts scan reads the IR alone, slot resolution reads a procedure's script — so no summary exists for them to read, and making a procedure definition's traits depend on the whole-module build would invert the layering. Each reads instead the registry declarations the summary's `Name` role is itself derived from, never a command's spelling: the Eval trait from `EVALUATES_CODE` and `DEFERS_BODY` on a call's `Body` words, with every word after the first where the script concatenates its arguments (`SCRIPT_CONCATENATES_ARGS`), and from `PERFORMS_SUBSTITUTION` on its words; `upvar`'s pairs and level from the head's frame-effect declaration, the level word present by argument-count parity and its value a `FrameLevel` (`FrameEffectSpec::resolve_in`, the type `ParamRole::Name` carries), and `namespace upvar`'s pairs from the words after the namespace word of a scope alias that names one; `global` and `variable` from their scope-alias plan (`CommandRegistry::alias_frame`, `Global` or `Namespace`) with their `VarWrite` operands, and a scope-alias declaration (`var_scoping::is_scope_alias_call`, over `CREATES_SCOPE_ALIAS`) as a link that writes nothing; both copy trackers from the `VarWrite` role of the word written, the copy made by a cell write of its value word (`ResolvedSemantics::writes_value_word`) and ended by any other write; a loop's list from `LOOP_LIST_HEADER` and the word after each `LoopVarList` word, its body and condition from the `Body` and `Expr` roles the role scan already reads; `after`'s script from its `Body` role, its subcommand resolution keeping `cancel` and `info` out; and slot resolution's frame and trace arms from `INTROSPECTS_BY_NAME`, `CURRENT_FRAME_INTROSPECTION` and `TARGETS_VARIABLE_BY_NAME` with the `VarWrite` and `CommandName` roles. The plan's "reads the summary" is met as "reads the declarations the summary is derived from" at those sites; its contract points stand — the four files in `CLEAN_FILES`, no consumer matching a command by name, one fact one owner — and every existing `param_traits` test is byte-identical.
 
 ### Open questions for the owner
 

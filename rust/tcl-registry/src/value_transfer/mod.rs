@@ -120,6 +120,14 @@ pub trait CommandSemantics: Sync + Send {
         PlanAnswer::NoStructure
     }
 
+    /// The frame a scope-alias declaration links the locals its `VarWrite`
+    /// operands name into, whatever the invocation: the frame its
+    /// [`PlanAnswer::ScopeAlias`] plan states. `None` for every other
+    /// specialisation.
+    fn alias_frame(&self) -> Option<AliasFrame> {
+        None
+    }
+
     /// The targets whose incoming value and existence this invocation's
     /// evaluation reads. The derived cell updates need no override.
     fn incoming_targets(&self, input: &dyn AnalysisInputs) -> Vec<TargetId> {
