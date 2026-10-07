@@ -1,0 +1,846 @@
+{
+  "purpose": "Original variable receiver continuity, callback chronology and quiet-read error presentation. Native missing trace facilities are captured errors, not invented support.",
+  "engines": [
+    {
+      "engine": "tcl8.4",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "92f2b94c3d6de30d66833482d429caf46a7e3853ddeb8f286bc57f45aee5c4d1",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "fe8cb0d1d5138874817e8f4e48a0e8e23c2fa8015f60326fd5a00431d38d3ab2",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "7b6cc2cf3f6f845a73ab0feeb2559592a5559146c33f7dd10d25371a55de29ae",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "92f2b94c3d6de30d66833482d429caf46a7e3853ddeb8f286bc57f45aee5c4d1",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.4"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "c715d5e47b88dd9a18c1411673e5b24ca00af1f9d233a7e7bf5ec54f4189ff62",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.4",
+      "launcher_sha256": "551bef3a9b51f256f4ad9dec06bddc42ceab872a72528e83676d1d7df715b9d4",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "real_binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.4"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "c4a268983bec029286482df6caa3aaae81571c33d467c0a13f258e335da5954f",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "engine": "tcl8.5",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "dbf718537a602f2ce428688a20f5986f246ce34e5b71c1ffbb4fcc5266e190d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "fe8cb0d1d5138874817e8f4e48a0e8e23c2fa8015f60326fd5a00431d38d3ab2",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "7b6cc2cf3f6f845a73ab0feeb2559592a5559146c33f7dd10d25371a55de29ae",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "dbf718537a602f2ce428688a20f5986f246ce34e5b71c1ffbb4fcc5266e190d3",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.5"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "c715d5e47b88dd9a18c1411673e5b24ca00af1f9d233a7e7bf5ec54f4189ff62",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.5",
+      "launcher_sha256": "7a0fb4aa272a45662fb883295d0037a8c18e3e32c635736af8314fb835981935",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "real_binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.5"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "6b58793c92a3db92926bdacbe0a52a520d417fe876aaa7cf8c29fed54a1fea71",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "engine": "tcl8.6",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "4abd84a872d5f739dc2ca48f5c209283714a5108f50142a3fc2d244d3fba8459",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "7b6cc2cf3f6f845a73ab0feeb2559592a5559146c33f7dd10d25371a55de29ae",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh8.6"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "c715d5e47b88dd9a18c1411673e5b24ca00af1f9d233a7e7bf5ec54f4189ff62",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/bin/tclsh8.6",
+      "launcher_sha256": "0cc67113840d03c15c15d88188c16b8b019aa2a8c11ca6980f32723fbedacde0",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "real_binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh8.6"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "7523e113df6c321e18099a10ec22086db746e2fcc31a879e16d961e5d3878d01",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "engine": "tcl9.0",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.0"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "c715d5e47b88dd9a18c1411673e5b24ca00af1f9d233a7e7bf5ec54f4189ff62",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/bin/tclsh9.0",
+      "launcher_sha256": "cc28851d04548dce27006a317d22b78c67e5491204f66f924c20d1f3febf6c18",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "real_binary_sha256": "647d9627cd7c2aea30a8c629ed3386d2b06380aa096443ae1595eac9052b2553",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh9.0"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "b83920bac1b2d47c3840f588f95bee9dc69b85e26117f471541cdf85d7da52a2",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "engine": "tcl9.1",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "7116db59a431dbeb2fa5a48179887d1791fa0b4b70215078a467bb2dd7f1bcad",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "88e16b8ad5fe00a734e077f2bd1541a03708dc7a1b936ad29d5851bbb1c98c91",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "749db24783abce1ee2b96123f146c3c8f114316d9e542397bec6e9e56d5b67be",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "aa2022397b007b5543a60338456223a2b8af80ddaeef3a5769c601652b20c94d",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/bin/tclsh9.1"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "c715d5e47b88dd9a18c1411673e5b24ca00af1f9d233a7e7bf5ec54f4189ff62",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/bin/tclsh9.1",
+      "launcher_sha256": "d4c2dbd11cd88994b7ca992eb87cdc855750f75d5d9f42b681b4dd4c321c791c",
+      "real_binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "real_binary_sha256": "baa7535f758da4c3be4fdd3e7ba9d7ba48d6b863cacabfff6681f2ce75ec0cee",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/bin/tclsh9.1"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "077ee5b3a3a7fc2622ceff6466fea0c28f3fb08b24653dcc7f4baab29b9aef36",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "engine": "jim",
+      "cases": [
+        {
+          "case": "quiet-missing-error-code",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "a032ecac9fa603d8f0f0f2fcd60766e70f1c377078ee9adbda78faa417cb2e02",
+          "exit": 0,
+          "stdout_sha256": "6fc8dcc352fb988a80288d7ae915482423ac5c54e9184b12cb431d481ff34047",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "fc1ce99ae6ef729f39c310fe8dffc788fb03a8d3dffc75a7f917eafcac5b111a",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "5f1c7a41437d9b61f484da5c117f70ae49a2ae910d1b9c8f3b426bba25c42696",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "7136399473654a85a877a951b61e821bdae823d9bf53668f3cb6d10fec4505db",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "7c94e75e09aad1aee220cb7299fb84433214a0efdb3466fe2c0598b7f845ecb7",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "5ec53ed3b836ca059aa3b6a4f70709ba8bbb3d265f77efacbf7704c3d9c34fca",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-quiet-read-callback-error",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "4f10fdc0730f2b47370c1197039fbd8d65c8adc99d93124306a3cba67404653c",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lappend-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "307a61c0bf1d43369eafa60d89402b5814e1abdb1cff13421c606b9e90901054",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-lset-recreate-receiver",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "5b41fe4c6047935b39cf7485a6a33a672273f031668bb21ff39b534411c10258",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-sequential-output-link-rebind",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "e642f333e3b4cea059b3279768c35a6d69072ceda863fb53723bb01bedc4ad42",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        },
+        {
+          "case": "modern-qualified-index-trace-report",
+          "argv": [
+            "/tmp/2286-oracles/jimtcl/jimsh"
+          ],
+          "source_sha256": "e62fa41e78f63cffe7339839295e368732e1ea26720fcd3b5ea19968f82da88c",
+          "exit": 0,
+          "stdout_sha256": "8f255880286ee15b140e7b6ec8856def5a8c8688d3d255e119eea129bf30d4ec",
+          "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timeout_seconds": 60
+        }
+      ],
+      "launcher": "/tmp/2286-oracles/jimtcl/jimsh",
+      "launcher_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "real_binary": "/tmp/2286-oracles/jimtcl/jimsh",
+      "real_binary_sha256": "d5b47eb75b271d50331ca5a38775492cb186f8feedd3c76bb2a0fbf1905671f0",
+      "version": {
+        "argv": [
+          "/tmp/2286-oracles/jimtcl/jimsh"
+        ],
+        "source_sha256": "3bb5160b1867309469814c25b12f3d81bcfd0917fc44b7ab6c7563986fea0b8b",
+        "exit": 0,
+        "stdout_sha256": "f9752899fa012cf994a528e0250402609067a6f67a144a1172644a9329386803",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "timeout_seconds": 60
+      }
+    }
+  ],
+  "native_provenance": "Each engine retains original launcher/real ELF and the separate actual version control from manifest.json; source, raw output and exact process command are independently bound for every trace program."
+}

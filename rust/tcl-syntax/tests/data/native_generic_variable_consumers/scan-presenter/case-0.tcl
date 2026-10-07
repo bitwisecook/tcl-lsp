@@ -1,0 +1,1 @@
+scan {1 2} {%d %d} ::absent::first output

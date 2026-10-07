@@ -1,0 +1,9 @@
+# Native scan destination presentation
+
+These fifteen controls execute the original C Tcl 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 scan implementations. Each engine retains one interpreter across the three recorded case scripts, in numeric order. Case 0 leaves `output` set to 2; case 1 retains that prior value. C8.4–C8.6 case 2 assigns it again after a failed write callback. C9 rejects the legacy trace registration before scan executes and retains the earlier value.
+
+The C probe records the result primary, resident bytes, reference count and character cache before and after the actual string and character-length getters. All five engines produce a String primary with resident bytes, one result reference and an unknown character count before the length getter. C8.4 and C8.5 append each failed destination to the current result; C8.6 and C9 keep the first variable diagnostic. All engines attempt the later converted output after a scan assignment failure. `modern-c9-write-trace/` supplies the independently captured supported C9 callback trigger and its continuation/header receipts.
+
+`manifest.json` retains the exact compiler arguments, compiler/probe/native ELF hashes, source/library/header hashes and stdout/stderr/status receipts. `rows.tsv` projects the raw probe records using the manifest column names. Recorded absolute paths identify the captured inputs. The binary probes are omitted; `replay.py` recompiles the unchanged probe against explicitly supplied native engine build roots and compares the raw outputs. Every subprocess uses a 60-second limit and one of the two selected global lock slots.
+
+The variable-name protocol supplies scan write flags and destination-presentation selection. Physical result append and original-name materialisation require their separately selected native producers. The controls confer no logical dialect, compiler-local or unrelated storage authority.
