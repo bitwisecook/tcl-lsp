@@ -52523,13 +52523,14 @@ proc p {} {
 
     /// The viewport's enriched tier reads the unit under the workspace's pack
     /// overlay, so it colours exactly what the full-document query colours.
-    /// `mylib::put pat` is a pack command
-    /// that writes `pat` (`arg 0 -role VarWrite`): under the overlay the
-    /// `regexp` reads the version `mylib::put` wrote, so `set pat`'s literal is
-    /// not the pattern's source. A unit built without the overlay sees an
-    /// unknown command, keeps `pat` at its literal, and colours that literal as
-    /// a regex — a viewport that disagrees with the document it is a window
-    /// on, resolved against a registry that knows the command it ignored.
+    /// `mylib::peek pat` is a pack command that only reads `pat`
+    /// (`arg 0 -role VarRead`): under the overlay the `regexp` reads the
+    /// version `set pat` wrote, so that literal is coloured as the pattern's
+    /// source. A unit built without the overlay sees a call to code the module
+    /// cannot see, which may rewrite any name live past it, so the literal is
+    /// no proven source and stays a string — a viewport that disagrees with
+    /// the document it is a window on, resolved against a registry that knows
+    /// the command it ignored.
     ///
     /// Compared on the tier's own inputs — the unit and analysis handles
     /// `race_range_enriched_reads` awaits and the registry
@@ -52545,8 +52546,8 @@ proc p {} {
                 origin: tcl_spectcl::discovery::Origin::DotDir,
                 dependency_tier: None,
             },
-            "speclib mylib 1.0 {\n    command mylib::put {\n        arity 1\n        \
-             arg 0 -role VarWrite\n    }\n}\n"
+            "speclib mylib 1.0 {\n    command mylib::peek {\n        arity 1\n        \
+             arg 0 -role VarRead\n    }\n}\n"
                 .to_owned(),
         )]);
         assert!(packs.notices.is_empty(), "{:#?}", packs.notices);
@@ -52561,7 +52562,7 @@ proc p {} {
         backend.sync_db_config().await;
 
         let uri = Uri::from_str("file:///workspace/viewport.tcl").unwrap();
-        let src = "set pat {^a+$}\nmylib::put pat\nregexp $pat $s\n";
+        let src = "set pat {^a+$}\nmylib::peek pat\nregexp $pat $s\n";
         backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
         let profile = tcl_lsp_core::profile_for_dialect("tcl9.0");
         let whole = CoreLspRange {
@@ -52607,7 +52608,7 @@ proc p {} {
         );
 
         // The overlay is what decides it: the same tier over the unit built
-        // without the packs colours the literal as the pattern's source.
+        // without the packs leaves the literal a string.
         let file = (*backend.db_files.lock().await)
             .get(&uri)
             .copied()
@@ -52626,11 +52627,31 @@ proc p {} {
             Some(&bare),
             Some(&analysis),
         );
-        assert_ne!(
-            unaware.data, full.data,
-            "without the overlay the unit keeps `pat` at its literal, or this \
-             test proves nothing",
+        assert!(
+            first_line_has_a_regex_quantifier(&full.data),
+            "under the overlay `set pat`'s literal is the pattern's source: {:?}",
+            full.data,
         );
+        assert!(
+            !first_line_has_a_regex_quantifier(&unaware.data),
+            "without the overlay the call may rewrite `pat`, or this test proves \
+             nothing: {:?}",
+            unaware.data,
+        );
+    }
+
+    /// Whether the packed token stream colours a regex quantifier on line 0.
+    fn first_line_has_a_regex_quantifier(data: &[u32]) -> bool {
+        let quantifier = core_semantic_tokens::legend_token_types()
+            .iter()
+            .position(|kind| *kind == "regexpQuantifier")
+            .and_then(|index| u32::try_from(index).ok())
+            .expect("the legend has a regex quantifier");
+        let mut line = 0;
+        data.chunks(5).any(|token| {
+            line += token[0];
+            line == 0 && token[3] == quantifier
+        })
     }
 
     /// Direct unit coverage of `SemanticTokensRefreshCtx::deliver_if_changed`
