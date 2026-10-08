@@ -183,6 +183,11 @@ pub enum WordExpr {
         parts: Vec<WordPart>,
         /// Full source range of the word.
         source: SourceSite,
+        /// C's message where its parser rejects the word for what follows
+        /// a closing brace or quote (`{a}b`, `"a"b`, `{*}$x` under 8.4),
+        /// which the parts still model leniently so the analyser reads
+        /// them; a consumer that must not run past a parse error reads it.
+        rejected: Option<&'static str>,
     },
     /// Tcl 8.5+ argument expansion around another word expression.
     Expand {

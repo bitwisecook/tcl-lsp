@@ -52,9 +52,11 @@ under `rust/tcl-compiler/src/optimiser/`, with GVN in `src/gvn.rs`.
   procedure, however pure, is not one either, unless the interprocedural
   summary proves the procedure pure and completing whatever its arguments
   hold (`ProcSummary::completes`: a straight-line body that reads only what
-  it set and runs only commands that complete so, without recursion) and the
+  it set and runs only commands that complete so, without recursion or a
+  word the release's parser rejects, D349) and the
   call resolves to it from the caller's namespace with a word count its
-  parameters accept (D330) — a statement the
+  parameters accept (D330), its `proc` statement surely run before the call
+  (D348) — a statement the
   solver proves raises where a handler is thrown to (`SccpResult::raised`),
   whose effect is the raise, and an `incr` unless its
   amount is a literal integer, its place holds an integer wherever it is

@@ -33,9 +33,11 @@ use crate::naming::{normalise_var_name, split_array_name};
 use crate::side_effects::EffectRegion;
 
 mod completion;
+mod eager;
 mod transfer;
 
 pub(crate) use completion::CompletionWalk;
+pub(crate) use eager::{DefinitionReach, EagerInvocations};
 pub use transfer::TransferSummaries;
 pub(crate) use transfer::{CallTransfer, ModuleInputs, ModuleProcedures, Rerun, RerunStance};
 
@@ -196,6 +198,15 @@ pub struct ProcSummary {
     /// unused store of its call is dead. False where the summary is built
     /// from the IR alone, which holds no command trust.
     pub completes: bool,
+    /// Where the module's load surely runs this procedure's `proc` statement
+    /// (D348): a direct statement of the top level, or of a `namespace eval`
+    /// body that is one. `None` for a definition that may not have run there
+    /// — under a condition, in a loop, in another procedure or another file.
+    pub defined_at: Option<u32>,
+    /// The procedures this one calls whose definitions surely run before the
+    /// load may first run it, sorted (D348): the callees the completion proof
+    /// may take as defined where this procedure's calls run.
+    pub defined_callees: Vec<String>,
     /// Effect regions this proc (or its callees) may read.
     pub effect_reads: EffectRegion,
     /// Effect regions this proc (or its callees) may write.
@@ -233,6 +244,8 @@ impl ProcSummary {
             writes_global: true,
             pure: false,
             completes: false,
+            defined_at: None,
+            defined_callees: Vec::new(),
             effect_reads: EffectRegion::UNKNOWN_STATE,
             effect_writes: EffectRegion::UNKNOWN_STATE,
             returns_constant: false,
@@ -803,6 +816,10 @@ fn build_interprocedural_analysis_inner(
         .and_then(|units| units.seedless)
         .map(|units| seedless_returns(ir_module, units, &pure, registry, dialect))
         .unwrap_or_default();
+    // Where the load may first run each procedure, and where each one's
+    // `proc` statement surely runs: one fact for the completion proof and
+    // the instance lifecycle proof (D348).
+    let reach = DefinitionReach::of(ir_module, registry);
     // Completion reads the registry commands a body runs as the module
     // leaves their bindings, which a unit's build holds and the IR alone
     // does not.
@@ -814,11 +831,12 @@ fn build_interprocedural_analysis_inner(
                 tcl_registry::model::DocumentCommandSurface::new(registry, declared),
                 dialect,
                 units.mutations,
+                &|callee, caller| reach.defined(callee, caller),
             )
         })
         .unwrap_or_default();
 
-    let procedures = materialise_summaries(
+    let mut procedures = materialise_summaries(
         ir_module,
         &local,
         &transitive_calls,
@@ -826,6 +844,7 @@ fn build_interprocedural_analysis_inner(
         (&effect_reads, &effect_writes),
         &seedless,
     );
+    reach.state(&mut procedures);
 
     // Summarise TclOO method bodies into `MethodSummary` entries
     // (consumed by the O126 `my <method>` purity gate).  Method bodies are not
@@ -846,7 +865,8 @@ fn build_interprocedural_analysis_inner(
         },
     );
 
-    let global_instance_classes = global_instance_classes(ir_module, registry);
+    let global_instance_classes =
+        global_instance_classes_with(ir_module, registry, reach.invocations());
     let tainted_global_writes = units.map_or_else(
         || tainted_global_writes(ir_module, registry, &global_instance_classes),
         |units| {
@@ -908,66 +928,29 @@ fn return_shape(summary: &ProcSummary) -> ReturnKind {
 /// command names are interpreter-global, so callback procedures still need
 /// these receiver facts in that mode.
 #[must_use]
-// This is one forward phase analysis over the top-level ordering and call
-// graph; the state transitions must stay in one monotone walk.
-#[allow(clippy::too_many_lines)]
 pub(crate) fn global_instance_classes(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
 ) -> HashMap<String, crate::taint::InstanceClassState> {
-    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
-    let mut calls: HashMap<String, HashSet<String>> = HashMap::new();
-    for (caller, procedure) in &ir_module.procedures {
-        let targets = calls.entry(caller.clone()).or_default();
-        crate::ir::for_each_statement(&procedure.body, &mut |statement| {
-            let crate::ir::Statement::Call { command, .. } = statement else {
-                return;
-            };
-            if let Some(target) = resolve_internal_call(command, caller, &known) {
-                targets.insert(target);
-            }
-        });
-    }
+    global_instance_classes_with(
+        ir_module,
+        registry,
+        &EagerInvocations::of(ir_module, registry),
+    )
+}
 
-    // A procedure reached while the top-level script is still running may be
-    // called before a later constructor. Propagate that earliest possible
-    // invocation through the internal call graph; callback-only procedures
-    // have no eager call and therefore start after direct top-level setup.
-    let mut earliest: HashMap<String, u32> = HashMap::new();
-    crate::ir::for_each_statement(&ir_module.top_level, &mut |statement| {
-        let crate::ir::Statement::Call { span, command, .. } = statement else {
-            return;
-        };
-        if let Some(target) = resolve_internal_call(command, "::top", &known) {
-            earliest
-                .entry(target)
-                .and_modify(|old| *old = (*old).min(span.start()))
-                .or_insert(span.start());
-        }
-    });
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for (caller, callees) in &calls {
-            let Some(position) = earliest.get(caller).copied() else {
-                continue;
-            };
-            for callee in callees {
-                match earliest.get_mut(callee) {
-                    Some(old) if position < *old => {
-                        *old = position;
-                        changed = true;
-                    }
-                    None => {
-                        earliest.insert(callee.clone(), position);
-                        changed = true;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
+/// [`global_instance_classes`] over the module's eager invocations, which a
+/// summary build computes once for this proof and the completion proof.
+///
+/// A procedure the top-level script may run while it is still running may be
+/// called before a later constructor; one only a callback runs starts after
+/// direct top-level setup ([`EagerInvocations::named`]).
+#[must_use]
+pub(crate) fn global_instance_classes_with(
+    ir_module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    invocations: &EagerInvocations,
+) -> HashMap<String, crate::taint::InstanceClassState> {
     // Direct top-level constructors and lifecycle operations are unconditional;
     // nested ones are may-execute invalidations. Processing both in source
     // order means a later direct recreate restores a known receiver, while a
@@ -993,7 +976,7 @@ pub(crate) fn global_instance_classes(
         .procedures
         .keys()
         .map(|qname| {
-            let eager = earliest.get(qname).copied();
+            let eager = invocations.named(qname);
             let mut classes = crate::taint::InstanceClassState::new();
             let direct_positions: HashSet<u32> = ir_module
                 .top_level
@@ -1348,6 +1331,8 @@ fn build_method_summaries(
                     // A method's command is looked up at run time, so no
                     // call to it is proved to complete.
                     completes: false,
+                    defined_at: None,
+                    defined_callees: Vec::new(),
                     effect_reads: m_reads,
                     effect_writes: m_writes,
                     returns_constant,
@@ -1820,6 +1805,10 @@ fn materialise_summaries(
                 writes_global,
                 pure: is_pure,
                 completes: completes.get(qname).copied().unwrap_or(false),
+                // The summary build states the definition reach once every
+                // summary exists.
+                defined_at: None,
+                defined_callees: Vec::new(),
                 effect_reads: *effect_reads
                     .get(qname)
                     .unwrap_or(&EffectRegion::UNKNOWN_STATE),

@@ -3537,18 +3537,18 @@ struct State {
 
 /// The unperturbed binding of `qname` before any rename/proc/alias.
 ///
-/// An unqualified global name the registry knows is a `Builtin`
-/// (`::string` → `string`), and so is a math function's wrapper command,
-/// the one builtin that lives in a namespace: from 8.5 `expr` dispatches
-/// `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or `rename` of it rebinds
-/// the builtin every `abs(…)` reaches (tclsh 8.5 to 9.1 run the module's
-/// `proc`). Any other namespaced tail (`::ns::foo`) or unknown name is
-/// `Opaque`.
+/// A name the registry knows is a `Builtin`, global or namespaced alike
+/// (D350): `::string` → `string`, a math function's wrapper — from 8.5
+/// `expr` dispatches `abs(…)` to `::tcl::mathfunc::abs`, so a `proc` or
+/// `rename` of it rebinds the builtin every `abs(…)` reaches (tclsh 8.5 to
+/// 9.1 run the module's `proc`) — and a package's command such as
+/// `::base32::encode`, which a `proc` of that name, or of `encode` inside
+/// `namespace eval base32`, replaces for every caller (tclsh 8.5 to 9.1 run
+/// the module's `proc`). A name the registry does not know is `Opaque`.
 fn default_binding(qname: &str, registry: &CommandRegistry) -> Binding {
     let bare = qname.strip_prefix("::").unwrap_or(qname);
     let builtin = if bare.contains("::") {
-        tcl_registry::mathfunc::global_command_bare_name(qname).is_some()
-            && registry.get(qname).is_some()
+        registry.get(qname).is_some()
     } else {
         registry.get(bare).is_some()
     };

@@ -2975,6 +2975,11 @@ pub struct OptCalleeSummary {
     /// O109/O126/O108 raise proof takes a pure callee's unused store as dead
     /// where it does.
     pub completes: bool,
+    /// The callees surely defined before the load may first run this
+    /// procedure, which the same proof takes as callable from its body. The
+    /// positions they are proved from stay out of the key, so an edit that
+    /// only moves text leaves it alone.
+    pub defined_callees: Vec<String>,
 }
 
 fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
@@ -3015,6 +3020,7 @@ fn opt_callee_from_summary(s: &ProcSummary) -> OptCalleeSummary {
         param_traits,
         param_defaults,
         completes: s.completes,
+        defined_callees: s.defined_callees.clone(),
     }
 }
 
@@ -3045,6 +3051,7 @@ fn opt_callee_to_summary(o: &OptCalleeSummary) -> ProcSummary {
         .collect();
     s.param_defaults = o.param_defaults.iter().cloned().collect();
     s.completes = o.completes;
+    s.defined_callees.clone_from(&o.defined_callees);
     s
 }
 

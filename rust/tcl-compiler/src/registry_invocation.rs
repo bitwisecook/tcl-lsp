@@ -441,6 +441,7 @@ mod tests {
                         source: source.clone()
                     }],
                     source: source.clone(),
+                    rejected: None,
                 },
                 EscapeSyntax::Tcl86,
                 WordValueRules::TCL,
@@ -473,6 +474,7 @@ mod tests {
                 source: source.clone(),
             }],
             source: source.clone(),
+            rejected: None,
         };
         let quoted_plain = WordExpr::Template {
             parts: vec![WordPart::Text {
@@ -480,6 +482,7 @@ mod tests {
                 source: source.clone(),
             }],
             source: source.clone(),
+            rejected: None,
         };
         let dynamic = WordExpr::Variable {
             spelling: "$name".to_owned(),

@@ -160,7 +160,7 @@ fn rebase_word_expr(word: &mut WordExpr, delta: i64) {
         | WordExpr::Variable { source, .. }
         | WordExpr::CommandSubstitution { source, .. }
         | WordExpr::Opaque { source, .. } => shift(&mut source.span, delta),
-        WordExpr::Template { parts, source } => {
+        WordExpr::Template { parts, source, .. } => {
             shift(&mut source.span, delta);
             for part in parts {
                 rebase_word_part(part, delta);

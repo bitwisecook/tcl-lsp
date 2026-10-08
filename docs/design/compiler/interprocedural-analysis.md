@@ -131,14 +131,24 @@ word count its arity accepts, the module trusting the builtin binding and the
 document declaring no command of that name, or a procedure of the module
 (resolved as Tcl resolves a command from the procedure's namespace, under a
 binding no redefinition, `rename` or alias moves) that completes in turn,
-called with a word count its parameters accept. The answer is a least
+called with a word count its parameters accept, whose definition surely ran
+where the caller runs (D348): its `proc` statement is a direct statement of
+the top level, or of the body of a direct top-level `namespace eval`, before
+any `return` that may end that script, and precedes the first statement from
+which the load may run the caller (`interprocedural/eager.rs`, the fact the
+instance lifecycle proof reads too, D358); a caller only a callback runs,
+after the load, takes every such definition. A word the release's parser
+rejects (`{a}b`, `"a"b`, and `{*}` under 8.4: `WordExpr::Template`'s
+`rejected`, D349) never completes. The answer is a least
 fixpoint over those calls, so a recursion, which the interpreter's nesting
 limit ends, never completes. A `# tcl-lsp: stub` states no completion: its
 `-pure` says the command changes nothing. Only the compilation unit's entry
 has the module's command trust, so `build_interprocedural_analysis`, from IR
 alone, states `false` for every procedure. The dead-store passes read it
 (`RaiseProof::calls_complete` in `optimiser/elimination.rs`): the unused
-store of a call to a pure procedure that completes cannot raise, so O126,
+store of a call to a pure procedure that completes, and whose definition
+surely ran before the call (`defined_callees` in a procedure's body,
+`defined_at` before the statement at the top level), cannot raise, so O126,
 O109 and O108 may remove it ([optimisation-passes.md](optimisation-passes.md)).
 
 **Step 3 — Materialisation (`materialise_summaries`):**

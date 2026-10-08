@@ -6310,7 +6310,7 @@ struct CompletingCall {
 }
 
 /// The programs of [`a_call_that_cannot_raise_leaves_a_dead_store`].
-const COMPLETING_CALLS: [CompletingCall; 9] = [
+const COMPLETING_CALLS: [CompletingCall; 15] = [
     // The registry baseline: `string length` completes whatever it is given.
     CompletingCall {
         source: "proc lbl {x} {return [string length $x]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [main]\n",
@@ -6374,6 +6374,49 @@ const COMPLETING_CALLS: [CompletingCall; 9] = [
         goes: false,
         printed: "1\n",
     },
+    // `main` runs before `lbl`'s definition: `invalid command name` (D348).
+    CompletingCall {
+        source: "proc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\nproc lbl {x} {return [string length $x]}\n",
+        store: "set a [lbl abc]",
+        goes: false,
+        printed: "1\n",
+    },
+    // `lbl` is defined only under a condition that does not hold (D348).
+    CompletingCall {
+        source: "if {[info exists ::env(TCL_LSP_NEVER_SET)]} {\n    proc lbl {x} {return [string length $x]}\n}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl abc]",
+        goes: false,
+        printed: "1\n",
+    },
+    // A callback runs after the load, which defined `lbl` (D348).
+    CompletingCall {
+        source: "proc main {} {\n    set a [lbl abc]\n    return 1\n}\nproc lbl {x} {return [string length $x]}\nafter 0 {puts [main]; set ::done 1}\nvwait ::done\n",
+        store: "set a [lbl abc]",
+        goes: true,
+        printed: "1\n",
+    },
+    // `lbl`'s body is `extra characters after close-quote` (D349).
+    CompletingCall {
+        source: "proc lbl {x} {return [string length \"a\"b]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl abc]",
+        goes: false,
+        printed: "1\n",
+    },
+    // `lbl`'s body is `extra characters after close-brace` (D349).
+    CompletingCall {
+        source: "proc lbl {x} {return [string length {a}b]}\nproc main {} {\n    set a [lbl abc]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl abc]",
+        goes: false,
+        printed: "1\n",
+    },
+    // Under 8.4 `{*}` is a braced word, so `{*}$x` is the close-brace error;
+    // from 8.5 the expansion reaches `string length a b` (D349).
+    CompletingCall {
+        source: "proc lbl {x} {return [string length {*}$x]}\nproc main {} {\n    set a [lbl {a b}]\n    return 1\n}\nputs [catch main]\n",
+        store: "set a [lbl {a b}]",
+        goes: false,
+        printed: "1\n",
+    },
 ];
 
 /// The unused store of a call goes only where the call cannot raise (D330):
@@ -6384,8 +6427,12 @@ const COMPLETING_CALLS: [CompletingCall; 9] = [
 /// count its parameters accept, its words reading only set variables. A body
 /// whose `expr` or `lindex` may raise, a rejected word count, a recursion, an
 /// unset read and a procedure the caller's namespace shadows each keep the
-/// store. Every program prints what tclsh prints before and after `tcl opt`
-/// under every release.
+/// store, and so does a callee whose `proc` statement has not surely run
+/// where the caller runs — defined after the load first runs the caller, or
+/// under a condition (D348) — and a callee whose body holds a word the
+/// release's parser rejects (D349); a caller only a callback runs, after the
+/// load, takes a callee defined anywhere at the top level. Every program
+/// prints what tclsh prints before and after `tcl opt` under every release.
 #[test]
 fn a_call_that_cannot_raise_leaves_a_dead_store() {
     for call in &COMPLETING_CALLS {
@@ -6399,6 +6446,87 @@ fn a_call_that_cannot_raise_leaves_a_dead_store() {
             );
         }
         prints_under_releases_from(call.source, call.printed, "8.4");
+    }
+}
+
+/// A procedure of the module that takes a package command's name replaces
+/// it for every caller (D350): `proc base32::encode` and `namespace eval
+/// base32 {proc encode …}` print `shadowed` on tclsh 8.5.19 to 9.1.0, so the
+/// `base32` route never answers through them — the call folds to its
+/// procedure's constant (O103), as before the route — and no condition
+/// reading the call is decided (I230). The route still answers where the
+/// package is required and nothing shadows it.
+#[test]
+fn a_shadowing_procedure_stops_a_package_route() {
+    let shadows = [
+        (
+            "namespace eval base32 {}\nproc base32::encode {x} {return shadowed}\nputs [base32::encode abc]\n",
+            "shadowed\n",
+        ),
+        (
+            "namespace eval base32 {\n    proc encode {x} {return shadowed}\n}\nputs [base32::encode abc]\nputs [base32::encode xyz]\n",
+            "shadowed\nshadowed\n",
+        ),
+        (
+            "namespace eval base32 {}\nproc base32::encode {x} {return shadowed}\nif {[base32::encode abc] eq \"shadowed\"} {puts yes} else {puts no}\n",
+            "yes\n",
+        ),
+    ];
+    for (source, printed) in shadows {
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let (rewritten, rewrites) = optimised(source, dialect);
+            assert!(
+                !rewritten.contains("MFRGG===") && !rewritten.contains("if {0}"),
+                "{dialect}: the module's procedure answers\n{rewritten}\n{rewrites:#?}"
+            );
+            assert!(
+                !reports(source, dialect, DiagCode::I230),
+                "{dialect}: no condition on the shadowed call is decided"
+            );
+        }
+        prints_under_releases_from(source, printed, "8.5");
+    }
+    let required = "package require base32\nset h [base32::encode abc]\nputs $h\n";
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let (rewritten, rewrites) = optimised(required, dialect);
+        assert!(
+            rewritten.contains("puts MFRGG==="),
+            "{dialect}: the route answers\n{rewritten}\n{rewrites:#?}"
+        );
+    }
+}
+
+/// A route's decline is final (D356): the interpolation rewriter never takes
+/// a word the lexer reads as one `[…]` apart, so `[string match -nocase
+/// {a]€} {€a}]`, whose route declines the collation, stays as written where
+/// the rewriter had cut it at the `]` inside the braces and emitted a
+/// program no tclsh parses. A declined route inside interpolation text
+/// leaves the word as written, and an answered one still folds. tclsh 8.4.20
+/// to 9.1.0 print the same before and after `tcl opt`.
+#[test]
+fn a_declined_route_leaves_its_word_as_written() {
+    for (source, printed, kept) in [
+        ("puts [string match -nocase {a]€} {€a}]\n", "0\n", true),
+        ("puts [string match -nocase {ba]😀[€} {€a}]\n", "0\n", true),
+        (
+            "puts \"x[string match -nocase {a€} {€a}]y\"\n",
+            "x0y\n",
+            true,
+        ),
+        ("puts [string match {ba]😀[€} {€a}]\n", "0\n", false),
+        ("puts \"x[string match {a*} abc]y\"\n", "x1y\n", false),
+    ] {
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let (rewritten, rewrites) = optimised(source, dialect);
+            if kept {
+                assert_eq!(
+                    rewritten.lines().next(),
+                    source.lines().next(),
+                    "{dialect}: the declined word stays\n{rewrites:#?}"
+                );
+            }
+        }
+        prints_under_every_release(source, printed);
     }
 }
 

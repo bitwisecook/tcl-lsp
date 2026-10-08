@@ -59,7 +59,14 @@ puts 5
   [O118](kcs-optimisation-o118-lindex-folding.md) respectively; those codes
   take precedence over O129 for those commands.
 - Skipped when the command has been renamed, aliased, or redefined anywhere in
-  the file — the call site can no longer be trusted to run the builtin.
+  the file — the call site can no longer be trusted to run the builtin. A
+  package's command counts the same way: `proc base32::encode`, or `proc
+  encode` inside `namespace eval base32`, is the command every caller runs,
+  so `[base32::encode abc]` is never folded to the package's answer there.
+- A command substitution that is a whole word is folded whole or not at all:
+  where its route declines (`[string match -nocase {a]€} {€a}]`, whose
+  case-folding over `€` the route does not answer), the word stays as
+  written.
 
 ## How to disable
 

@@ -85,8 +85,8 @@ impl<'w> CompletionWalk<'w> {
     /// Whether evaluating `word` cannot raise where every variable it reads
     /// is set as a scalar and every procedure it calls completes: its text is
     /// literal or substitutes a scalar variable or a command that completes.
-    /// An element read, an expansion and a word the lexer could not model
-    /// may raise.
+    /// An element read, an expansion, a word the lexer could not model and a
+    /// word the release's parser rejects (D349) may raise.
     pub(crate) fn word(&mut self, word: &WordExpr) -> bool {
         self.word_at(word, 0)
     }
@@ -102,6 +102,11 @@ impl<'w> CompletionWalk<'w> {
             WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => true,
             WordExpr::Variable { spelling, .. } => self.read(spelling),
             WordExpr::CommandSubstitution { spelling, .. } => self.substitution(spelling, depth),
+            WordExpr::Template {
+                rejected: Some(_), ..
+            }
+            | WordExpr::Expand { .. }
+            | WordExpr::Opaque { .. } => false,
             WordExpr::Template { parts, .. } => parts.iter().all(|part| match part {
                 WordPart::Text { .. } => true,
                 WordPart::Variable { spelling, .. } => self.read(spelling),
@@ -110,7 +115,6 @@ impl<'w> CompletionWalk<'w> {
                 }
                 WordPart::Opaque { .. } => false,
             }),
-            WordExpr::Expand { .. } | WordExpr::Opaque { .. } => false,
         }
     }
 
@@ -180,12 +184,16 @@ impl<'w> CompletionWalk<'w> {
 /// a recursion never completes. The registry commands a body runs are read
 /// from the document's command surface as the module leaves them: the module
 /// must trust the head's builtin binding, and a command the document
-/// declares answers alone, with no completion stated.
+/// declares answers alone, with no completion stated. A procedure a body
+/// calls must be defined where the body runs (D348): `defined` answers
+/// whether a callee's `proc` statement surely runs before the load may first
+/// run the caller.
 pub(super) fn procedures_complete(
     ir_module: &crate::ir::Module,
     surface: tcl_registry::model::DocumentCommandSurface<'_>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     mutations: &ModuleCommandMutations,
+    defined: &dyn Fn(&str, &str) -> bool,
 ) -> HashMap<String, bool> {
     let config = tcl_lexer::LexerConfig::for_profile(dialect);
     let registry = surface.commands();
@@ -238,6 +246,7 @@ pub(super) fn procedures_complete(
             let each_completes = callees.iter().all(|(callee, count)| {
                 completes.contains(callee.as_str())
                     && stands(callee)
+                    && defined(callee, qname)
                     && ir_module.procedures.get(callee).is_some_and(|proc| {
                         u16::try_from(*count)
                             .is_ok_and(|count| super::arity_from_names(&proc.params).accepts(count))
@@ -346,13 +355,16 @@ mod tests {
 
     const DIALECT: &str = "tcl8.6";
 
-    /// Whether each procedure of `source` completes, by its summary, in a
-    /// unit built as the optimiser builds one: the document's own
-    /// declarations reach the lowering and the summary.
-    fn completes(source: &str) -> HashMap<String, bool> {
-        let profile = tcl_registry::model::ingress::resolve_environment(DIALECT).analyser_profile();
-        let registry = tcl_registry::model::ingress::static_context_for(DIALECT).commands();
-        let declared = crate::analyser::utils::document_declared_surface(source, None, DIALECT);
+    /// Each procedure's summary of `source` under `dialect`, in a unit built
+    /// as the optimiser builds one: the document's own declarations reach the
+    /// lowering and the summary.
+    fn summaries(
+        source: &str,
+        dialect: &str,
+    ) -> HashMap<String, crate::interprocedural::ProcSummary> {
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+        let declared = crate::analyser::utils::document_declared_surface(source, None, dialect);
         CompilationUnit::build_with_options(
             source,
             UnitBuildOptions {
@@ -368,9 +380,118 @@ mod tests {
         .interproc
         .expect("the summaries")
         .procedures
-        .into_iter()
-        .map(|(qname, summary)| (qname, summary.completes))
-        .collect()
+    }
+
+    /// Whether each procedure of `source` completes, by its summary.
+    fn completes(source: &str) -> HashMap<String, bool> {
+        completes_under(source, DIALECT)
+    }
+
+    /// Whether each procedure of `source` completes under `dialect`.
+    fn completes_under(source: &str, dialect: &str) -> HashMap<String, bool> {
+        summaries(source, dialect)
+            .into_iter()
+            .map(|(qname, summary)| (qname, summary.completes))
+            .collect()
+    }
+
+    /// Whether `procedure` is surely defined where `runner`'s calls run
+    /// (D348).
+    fn defined_for(source: &str, runner: &str, procedure: &str) -> bool {
+        summaries(source, DIALECT)[runner]
+            .defined_callees
+            .iter()
+            .any(|name| name == procedure)
+    }
+
+    /// A procedure called before the `proc` statement that defines it has
+    /// run raises `invalid command name`, so a callee counts as defined only
+    /// where a direct top-level `proc` statement defines it before the load
+    /// may first run the caller (D348): the load runs `main` (as a statement,
+    /// in a substitution, under `catch`, through `eval` or from a `namespace
+    /// eval`) before `label`'s definition, or `label` is defined only under
+    /// a condition, and `label` is not defined for `main`. Defined first, or
+    /// with `main` run only by a callback, after the load, it is; so is a
+    /// `namespace eval` body's direct definition, and the completion of a
+    /// caller follows its callees' definitions.
+    #[test]
+    fn a_callee_counts_as_defined_only_where_its_definition_surely_ran() {
+        let main = "proc main {} {set a [label abc]; return 1}\n";
+        let label = "proc label {x} {return [string length $x]}\n";
+        for run in [
+            "main\n",
+            "puts [main]\n",
+            "puts [catch main]\n",
+            "set s main\neval $s\n",
+            "namespace eval ns {::main}\n",
+            "puts [catch {time main}]\n",
+        ] {
+            let source = format!("{main}{run}{label}");
+            assert!(
+                !defined_for(&source, "::main", "::label"),
+                "{source:?}: `main` runs before `label` is defined"
+            );
+        }
+        let conditional = format!("if {{[info exists ::env(NOPE)]}} {{\n{label}}}\n{main}");
+        assert!(!defined_for(&conditional, "::main", "::label"));
+        let nested = format!("proc outer {{}} {{\n{label}}}\n{main}");
+        assert!(!defined_for(&nested, "::main", "::label"));
+        for source in [
+            format!("{label}{main}main\n"),
+            format!("{main}{label}"),
+            format!("{main}{label}after 0 main\n"),
+            format!("{main}namespace eval ns {{\n    {label}}}\n"),
+        ] {
+            let callee = if source.contains("namespace eval") {
+                "::ns::label"
+            } else {
+                "::label"
+            };
+            let source = source.replace("[label abc]", &format!("[{callee} abc]"));
+            assert!(
+                defined_for(&source, "::main", callee),
+                "{source:?}: `{callee}` is defined before `main` can run"
+            );
+        }
+        let chained = format!(
+            "proc wraps {{}} {{return [label abc]}}\nproc main {{}} {{return [wraps]}}\nmain\n{label}"
+        );
+        let completes = completes(&chained);
+        assert!(completes["::label"], "`label` itself completes");
+        assert!(
+            !completes["::wraps"] && !completes["::main"],
+            "`wraps` runs before `label` is defined: {completes:?}"
+        );
+    }
+
+    /// A word the release's parser rejects is a compile error when the body
+    /// is first compiled, so a body holding one never completes (D349):
+    /// content welded to a closing quote or brace under every release, and
+    /// `{*}` under 8.4, which reads it as a braced word.
+    #[test]
+    fn a_word_the_release_rejects_never_completes() {
+        for (body, dialects) in [
+            (
+                "return [string length \"a\"b]",
+                &["tcl8.4", "tcl8.6", "tcl9.0"][..],
+            ),
+            (
+                "return [string length {a}b]",
+                &["tcl8.4", "tcl8.6", "tcl9.0"][..],
+            ),
+            ("string length {a}$x", &["tcl8.4", "tcl8.6", "tcl9.0"][..]),
+            ("return [string length {*}$x]", &["tcl8.4"][..]),
+        ] {
+            let source = format!("proc lbl {{x}} {{{body}}}\n");
+            for dialect in dialects {
+                assert!(
+                    !completes_under(&source, dialect)["::lbl"],
+                    "{dialect}: {body:?} is a compile error"
+                );
+            }
+        }
+        let clean = "proc lbl {x} {return [string length \"a\"]}\n";
+        assert!(completes_under(clean, "tcl8.4")["::lbl"]);
     }
 
     /// A straight-line body whose every command completes whatever its words

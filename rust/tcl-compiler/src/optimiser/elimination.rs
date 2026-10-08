@@ -351,6 +351,62 @@ struct CallCompletion<'a> {
     /// Whether the function runs in a namespace chosen at run time — a
     /// method body — where a relative head names no proven procedure.
     runtime_namespace: bool,
+    /// Which procedures are surely defined where the function's calls run
+    /// (D348).
+    defined: Defined<'a>,
+}
+
+/// Which procedures are surely defined where a function's calls run (D348).
+enum Defined<'a> {
+    /// A procedure's body: the callees its summary proves defined before the
+    /// load may first run it.
+    Callees(&'a [String]),
+    /// The load's own statements: a callee whose `proc` statement surely ran
+    /// before the call's.
+    Before,
+    /// Nothing is proved: a method body, or a body a procedure runs.
+    Nothing,
+}
+
+impl<'a> Defined<'a> {
+    /// What `fu` can take as defined, read from the module and the summaries.
+    fn of(ctx: &'a PassContext<'_>, fu: &FunctionUnit, runtime_namespace: bool) -> Self {
+        if runtime_namespace {
+            return Self::Nothing;
+        }
+        if fu.name == "::top" {
+            return Self::Before;
+        }
+        if let Some(module) = ctx.ir_module
+            && let Some(unit) = module.body_units.get(&fu.name)
+        {
+            let run_by_a_procedure = module.procedures.values().any(|procedure| {
+                procedure.span.start() <= unit.span.start()
+                    && unit.span.end() <= procedure.span.end()
+            });
+            return if run_by_a_procedure {
+                Self::Nothing
+            } else {
+                Self::Before
+            };
+        }
+        ctx.interproc
+            .procedures
+            .get(&fu.name)
+            .map_or(Self::Nothing, |summary| {
+                Self::Callees(&summary.defined_callees)
+            })
+    }
+
+    /// Whether `summary`'s procedure is surely defined where a call at
+    /// `site` runs.
+    fn admits(&self, summary: &crate::interprocedural::ProcSummary, site: u32) -> bool {
+        match self {
+            Self::Callees(callees) => callees.contains(&summary.qualified_name),
+            Self::Before => summary.defined_at.is_some_and(|at| at < site),
+            Self::Nothing => false,
+        }
+    }
 }
 
 impl CallCompletion<'_> {
@@ -365,13 +421,15 @@ impl CallCompletion<'_> {
         })
     }
 
-    /// Whether a call to `qname` with `words` words after its head cannot
-    /// raise: the summary proves the procedure pure and completing, its
-    /// parameters accept the count, and its name stands for it.
-    fn completes(&self, qname: &str, words: usize) -> bool {
+    /// Whether a call to `qname` with `words` words after its head, made by
+    /// the statement at `site`, cannot raise: the summary proves the
+    /// procedure pure and completing, its parameters accept the count, its
+    /// definition surely ran (D348), and its name stands for it.
+    fn completes(&self, qname: &str, words: usize, site: u32) -> bool {
         self.procedures.get(qname).is_some_and(|summary| {
             summary.pure
                 && summary.completes
+                && self.defined.admits(summary, site)
                 && u16::try_from(words).is_ok_and(|count| {
                     crate::interprocedural::arity_from_names(&summary.params).accepts(count)
                 })
@@ -409,6 +467,7 @@ impl<'a> RaiseProof<'a> {
                     .is_some_and(|m| !m.traced_commands.is_empty() || m.has_dynamic_trace),
                 config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
                 runtime_namespace: execution_namespace.is_some(),
+                defined: Defined::of(ctx, fu, execution_namespace.is_some()),
             },
         }
     }
@@ -506,11 +565,12 @@ impl<'a> RaiseProof<'a> {
         }
         let procedure = |head: &str| calls.procedure(&self.fu.name, head);
         let mut walk = crate::interprocedural::CompletionWalk::new(calls.config, &procedure, None);
+        let site = stmt.span().start();
         walk.word(value)
             && walk
                 .calls
                 .iter()
-                .all(|(qname, words)| calls.completes(qname, *words))
+                .all(|(qname, words)| calls.completes(qname, *words, site))
     }
 
     /// Whether every variable the statement substitutes is bound as a scalar
