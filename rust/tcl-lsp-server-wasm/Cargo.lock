@@ -785,6 +785,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1287,6 +1297,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
 name = "sha2"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1432,6 +1453,9 @@ dependencies = [
 name = "tcl-cmd-core"
 version = "0.1.0"
 dependencies = [
+ "md-5",
+ "sha1",
+ "sha2",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -1494,6 +1518,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
 ]
 
@@ -1620,6 +1645,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-pkg-model"
+version = "0.1.0"
+dependencies = [
+ "regex",
+ "serde_json",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-platform"
 version = "0.1.0"
 
@@ -1644,6 +1680,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-regex",
+ "tcl-runtime-api",
  "tcl-syntax",
 ]
 
@@ -1676,7 +1713,9 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-lsp-core",
+ "tcl-pkg-model",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-spec-hooks",
  "tcl-syntax",
  "tcl-userdirs",
