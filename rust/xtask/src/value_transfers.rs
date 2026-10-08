@@ -865,6 +865,17 @@ fn push_row(
     }
     let resolved = resolve_semantics(spec, sub, form);
     let (route, owner, enabled) = describe_route(resolved.route());
+    // A command with no route may still fold through its own callback.
+    let callback = form.is_none()
+        && sub.map_or(
+            spec.const_fold.is_some() || spec.const_fold_versioned.is_some(),
+            |sub| sub.const_fold.is_some() || sub.const_fold_versioned.is_some(),
+        );
+    let route = if callback && !enabled {
+        format!("{route} · callback fold")
+    } else {
+        route
+    };
     // An explicit `none` names its reason: the row is classified.
     let reasoned = matches!(resolved.route(), Some(EvalRoute::None { .. }));
     let semantics = match resolved.semantics() {
@@ -1052,7 +1063,11 @@ fn render_report(rows: &[Row], lint: &Lint) -> String {
          of the migration plan that retires it; *Enabled* whether the route evaluates at all: \
          descriptor availability and enabled evaluation are separate columns. *Targets* lists the \
          variable-writing roles the effective descriptor declares. *Gap* names what the row still \
-         lacks. A row with no semantics and no gap is counted per dialect below rather than listed.\n\n",
+         lacks. A row with no semantics and no gap is counted per dialect below rather than listed. \
+         A route of `none` says no evaluator answers for the command; it does not say the command \
+         never folds: O129 and codegen still run a command's own `const_fold` callback where the \
+         registry declares one (`docs/design/compiler/precision-limitations.md`), and such a row's \
+         *Route* ends `· callback fold`.\n\n",
     );
     render_declarations(&mut out, rows);
     render_silent_rows(&mut out, rows);

@@ -391,7 +391,12 @@ impl<'a> Uri<'a> {
                 Some((host, port)) => (host, Some(count(port)?)),
                 None => (authority, None),
             };
-            if host.is_empty() || host.contains(['@', '[', ']']) {
+            // The reference's hosts are lower case, and what TMM makes of
+            // another case is not stated (D357).
+            if host.is_empty()
+                || host.contains(['@', '[', ']'])
+                || host.bytes().any(|byte| byte.is_ascii_uppercase())
+            {
                 return Err(UNMODELLED);
             }
             let port = port
@@ -745,7 +750,8 @@ mod tests {
     /// unmodelled at its edges: a byte function's non-ASCII word, a
     /// non-canonical base64 text, a terminator count of 0, a search string
     /// or a field that is not there, a scheme with no default port the
-    /// reference lists, two prefixes, a shape the command does not take.
+    /// reference lists, a scheme or a host in a case the reference does not
+    /// show (D357), two prefixes, a shape the command does not take.
     #[test]
     fn each_function_answers_only_what_the_reference_states() {
         assert_eq!(text("b64encode", &["abc"]).as_deref(), Some("YWJj"));
@@ -769,6 +775,9 @@ mod tests {
         assert_eq!(text("domain", &["a.b", "5"]), None);
         assert_eq!(text("URI::port", &["myproto://example.com/"]), None);
         assert_eq!(text("URI::host", &["http://user@example.com/"]), None);
+        assert_eq!(text("URI::host", &["http://A.B/"]), None);
+        assert_eq!(text("URI::host", &["http://a.b/"]).as_deref(), Some("a.b"));
+        assert_eq!(text("URI::protocol", &["HTTP://a/"]), None);
         assert_eq!(text("URI::basename", &["/a/../b"]), None);
         assert_eq!(text("URI::query", &["/p?a=1&a=2", "a"]), None);
         assert_eq!(text("URI::query", &["/p?A=1", "a"]), None);

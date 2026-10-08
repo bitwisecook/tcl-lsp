@@ -3828,7 +3828,9 @@ impl<'a> LatticeDriver<'a> {
             &run.head,
             run.route,
             match (&run.answer, &folded) {
-                (LiftedAnswer::Evaluated(_), None) => {
+                (LiftedAnswer::Evaluated(outcomes), None)
+                    if outcomes.iter().any(|outcome| outcome.has_stores()) =>
+                {
                     "not substituted: the outcome writes storage".to_owned()
                 }
                 _ => answer_label(&run.answer),

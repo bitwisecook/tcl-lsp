@@ -188,6 +188,7 @@ pub fn document_links_in_context(
         &tcl_compiler::auto_path_eval::constant_path_assignments(source, dialect),
         script_path,
         ctx.imported_constants.unwrap_or(&no_imports),
+        Some(dialect),
     );
     links.extend(pack_include_links(
         source,
@@ -268,6 +269,7 @@ pub fn document_links_in_context(
             seg.single_token_word.get(idx).copied(),
             script_path,
             &constants,
+            dialect,
         ) else {
             continue;
         };
@@ -474,6 +476,7 @@ fn resolve_source_argument(
     single_token_word: Option<bool>,
     script_path: Option<&str>,
     constants: &std::collections::HashMap<String, String>,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     if !carries_substitution(path) {
         // Genuinely literal — but still only when the word is one token, so
@@ -490,6 +493,7 @@ fn resolve_source_argument(
         path,
         script_path,
         constants,
+        Some(dialect),
     )
 }
 

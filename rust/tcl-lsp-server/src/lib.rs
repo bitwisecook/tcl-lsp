@@ -29803,7 +29803,9 @@ fn new_workspace_index() -> core_workspace_index::WorkspaceIndex {
 /// The [`core_workspace_index::ConstantFolder`] this server installs: the
 /// shared chain fold, with the document URI's filesystem path standing in
 /// for `[info script]`.  A URI outside the filesystem folds path-blind
-/// (literal constants still carry; `[info script]` idioms abstain).
+/// (literal constants still carry; `[info script]` idioms abstain).  The
+/// index hands it no dialect, so it reads the commands of a document that
+/// names none.
 fn fold_document_constants(
     uri: &str,
     writes: &[tcl_compiler::auto_path_eval::PathConstantWrite],
@@ -29815,6 +29817,7 @@ fn fold_document_constants(
         writes,
         path.as_deref().and_then(std::path::Path::to_str),
         imported,
+        None,
     )
 }
 
@@ -29831,6 +29834,8 @@ fn fold_document_constants(
 /// `source [file join $sourceDir x.tcl]` behind `set sourceDir [file join
 /// $dir src]` resolves as an edge exactly as it resolves as a document link
 /// — one expression must not resolve as a link and fail as a definition.
+/// Like [`fold_document_constants`] it reads the commands of a document that
+/// names no dialect.
 fn resolve_source_edge(
     parent_uri: &str,
     raw_path: &str,
@@ -29847,11 +29852,13 @@ fn resolve_source_edge(
         raw_constants,
         parent_path.to_str(),
         imported,
+        None,
     );
     let folded = tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
         raw_path,
         parent_path.to_str(),
         &constants,
+        None,
     )?;
     let child = tcl_lsp_core::source_graph::resolve_source_target(parent_path.as_ref(), &folded);
     canonical_file_uri(&child).map(|u| u.as_str().to_owned())
@@ -30065,9 +30072,11 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
     // The document's own single-assignment constants, chain-folded, so the
     // corpus idiom `set libDir [file join $dir lib]; lappend auto_path
     // $libDir` contributes its directory instead of nothing.
+    let profile = tcl_lsp_core::profile_for_dialect(&analysis.dialect);
     let constants = tcl_compiler::auto_path_eval::fold_constant_assignments(
         &analysis.path_constant_assignments,
         file_path.to_str(),
+        Some(profile),
     );
     let mut dirs: Vec<PathBuf> = Vec::new();
     for entry in &analysis.auto_path_entries {
@@ -30078,7 +30087,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
             entry,
             file_path.to_str(),
             &constants,
-            Some(tcl_lsp_core::profile_for_dialect(&analysis.dialect)),
+            Some(profile),
         ) {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;

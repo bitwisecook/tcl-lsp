@@ -32,7 +32,7 @@ use tcl_dialect::TclVersion;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
-use crate::index;
+use crate::index::{self, IndexReading};
 
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
@@ -234,17 +234,33 @@ fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
     }
 }
 
-/// `spec` read as one index of a level of `len` elements under `release`.
-fn index_under(spec: &str, len: usize, release: TclVersion) -> Result<i64, CmdError> {
-    index::resolve_opt_with(spec, len, release.number_syntax())
-        .ok_or_else(|| bad_index_under(spec, release))
+/// `spec` read as one index of a level of `len` elements under `release`; a
+/// reading the host's `long` decides takes `ops`'s answer (D360).
+fn index_under<O: ValueOps>(
+    ops: &mut O,
+    spec: &str,
+    len: usize,
+    release: TclVersion,
+) -> Result<i64, CmdError> {
+    match index::read_under(spec, len, release) {
+        IndexReading::At(index) => Ok(index),
+        IndexReading::HostLong(index) if ops.reads_a_wide_long() => Ok(index),
+        IndexReading::HostLong(_) | IndexReading::Bad | IndexReading::Unsure => {
+            Err(bad_index_under(spec, release))
+        }
+    }
 }
 
 /// The element `spec` names at a level of `len` elements for `lset`, which
 /// from 8.6 may also name `len` itself, the element it appends; anything else
 /// is out of range, worded as `release` words it.
-fn lset_level(spec: &str, len: usize, release: TclVersion) -> Result<usize, CmdError> {
-    let index = index_under(spec, len, release)?;
+fn lset_level<O: ValueOps>(
+    ops: &mut O,
+    spec: &str,
+    len: usize,
+    release: TclVersion,
+) -> Result<usize, CmdError> {
+    let index = index_under(ops, spec, len, release)?;
     let limit = if release >= TclVersion::V8_6 {
         len + 1
     } else {
@@ -290,13 +306,13 @@ pub fn lset<O: ValueOps>(
         [] => Vec::new(),
         [only] => {
             let text = ops.as_str(only).to_string();
-            if index::resolve_opt_with(&text, 0, release.number_syntax()).is_some() {
-                vec![text]
-            } else {
+            if index::read_under(&text, 0, release) == IndexReading::Bad {
                 match tcl_syntax::list::split_list(&text) {
                     Ok(parts) => parts.iter().map(|part| part.as_ref().to_owned()).collect(),
                     Err(_) => vec![text],
                 }
+            } else {
+                vec![text]
             }
         }
         many => many
@@ -313,7 +329,7 @@ pub fn lset<O: ValueOps>(
             Some(level) => ops.list_elements(level)?,
             None => Vec::new(),
         };
-        let at = lset_level(spec, elements.len(), release)?;
+        let at = lset_level(ops, spec, elements.len(), release)?;
         current = elements.get(at).cloned();
         levels.push((elements, at));
     }
@@ -355,7 +371,7 @@ pub fn lpop<O: ValueOps>(
     let mut current = list.clone();
     for spec in &path {
         let elements = ops.list_elements(&current)?;
-        let index = index_under(spec, elements.len(), release)?;
+        let index = index_under(ops, spec, elements.len(), release)?;
         let at = usize::try_from(index)
             .ok()
             .filter(|&at| at < elements.len())
@@ -394,8 +410,9 @@ pub fn ledit<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let mut items = ops.list_elements(value)?;
     let len = items.len();
-    let first = index_under(&ops.as_str(first), len, release)?;
-    let last = index_under(&ops.as_str(last), len, release)?;
+    let (first, last) = (ops.as_str(first), ops.as_str(last));
+    let first = index_under(ops, &first, len, release)?;
+    let last = index_under(ops, &last, len, release)?;
     let (lo, end) = replace_range(first, last, len);
     items.splice(lo..end, elements.iter().cloned());
     Ok(ops.new_list(items))
@@ -556,6 +573,34 @@ mod tests {
                 .map(|elements| elements.iter().map(ToString::to_string).collect())
                 .map_err(|error| tcl_syntax::value::ValueError::BadList(error.message().to_owned()))
         }
+    }
+
+    /// A runtime reads an index the host's `long` decides as C Tcl on the same
+    /// host does (D360): `lset x 18446744069414584321 Z` is `a Z c` on tclsh
+    /// 8.4.20 and 8.5.19 where `long` is 64 bits, `bad index` where it is 32,
+    /// and `bad index` on 8.6.18 everywhere.
+    #[test]
+    fn a_runtime_reads_an_index_the_hosts_long_decides_as_its_host() {
+        let list = "a b c".to_owned();
+        let index = ["18446744069414584321".to_owned()];
+        for release in [TclVersion::V8_4, TclVersion::V8_5] {
+            let set = lset(&mut TextOps, &list, &index, "Z".to_owned(), release);
+            if tcl_syntax::value::host_long_is_wide() {
+                assert_eq!(set.expect("written"), "a Z c");
+            } else {
+                assert!(set.is_err());
+            }
+        }
+        assert!(
+            lset(
+                &mut TextOps,
+                &list,
+                &index,
+                "Z".to_owned(),
+                TclVersion::V8_6
+            )
+            .is_err()
+        );
     }
 
     /// Each `split` as tclsh 8.5.19 to 9.1.0 give it (8.4.20 too, which

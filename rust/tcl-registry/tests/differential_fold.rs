@@ -745,20 +745,117 @@ fn check_range_witnesses(tclsh: &str, reg: &CommandRegistry, version: tcl_dialec
     }
 }
 
+/// The index spellings `an_index_reads_as_each_release_reads_it` reads.
+const INDEX_SPECS: &[&str] = &[
+    "1",
+    " 1",
+    "1 ",
+    "+1",
+    "- 1",
+    "-1",
+    "0x2",
+    "010",
+    "0o10",
+    "0b10",
+    "1_0",
+    "1e0",
+    "end",
+    "e",
+    "en",
+    "endx",
+    " end",
+    "end ",
+    "end-1",
+    "end+1",
+    "end--1",
+    "end-+1",
+    "end- 1",
+    "end+ 1",
+    "end-1 ",
+    "end-0x1",
+    "end-010",
+    "end-",
+    "end-1-1",
+    "end -1",
+    "1+1",
+    "1-1",
+    "1+-1",
+    "1--1",
+    "1++1",
+    "+1+1",
+    "1+ 1",
+    "1 +1",
+    " 1+1",
+    "1+1 ",
+    "0x1+1",
+    "010+0",
+    "-1+2",
+    "1+end",
+    "end-1+1",
+    "1 0",
+    "",
+    "2147483647",
+    "2147483648",
+    "4294967295",
+    "4294967296",
+    "-2147483649",
+    "-4294967295",
+    "-4294967296",
+    "0xffffffff",
+    "0x100000000",
+    "end-2147483648",
+    "end-4294967295",
+    "end-4294967296",
+    "end+2147483647",
+    "end+2147483636",
+    "end-2147483649",
+    "end--2147483647",
+    "end+4294967295",
+    "1+2147483647",
+    "4294967295+1",
+    "-2147483648-1",
+    "9223372036854775807",
+    "9223372036854775808",
+    "-9223372036854775809",
+    "0x8000000000000000",
+    "0x1ffffffffffffffff",
+    "1+9223372036854775807",
+    "9223372036854775807+9223372036854775807",
+    "end+9223372036854775807",
+    "end+9223372036854775808",
+    "end+99999999999999999999",
+    "end-9223372036854775808",
+];
+
+/// Magnitudes from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read only
+/// where `long` is 64 bits (D360).
+const HOST_LONG_SPECS: &[&str] = &[
+    "18446744073709551615",
+    "-0xffffffffffffffff",
+    "18446744069414584321",
+    "end-18446744073709551615",
+    "0xffffffffffffffff+1",
+];
+
+/// Words 8.6 encodes as literals after the end and reads as values before
+/// the first element (D361).
+const COMPILED_APART_86: &[&str] = &["end+2147483647", "end-2147483649", "end--2147483647"];
+
 /// Each spelling of an index, read by `string range` under each release on
 /// `PATH`: the fold answers as that release's `tclsh` does, and declines where
 /// it raises (`bad index`) — 8.4 reads no `end+1` or `1+1`, 8.4 to 8.6 read
 /// `e` as `end`, and no release reads ` end` or `end ` or a space after an
-/// operator but 8.4's `end- 1`.
+/// operator but 8.4's `end- 1`. Past 32 bits (D351, D359): 8.4 to 8.6 wrap an
+/// integer within ±4294967295 to 32 bits, sums and `end` offsets alike, and
+/// raise past it; 9.0 reads the wide, a bignum and a sum that reaches the
+/// widest as `end+1` past `end`. A magnitude from 2^64 − 2^32 + 1 to
+/// 2^64 − 1, which these 64-bit oracles read under 8.4 and 8.5 and a 32-bit
+/// `long` cannot, declines there (D360), and an `end` offset 8.6 reads apart
+/// as a literal and as a value declines under 8.6 (D361). Each spec is read
+/// as both ends of `string range` and as its last against the first
+/// character.
 #[test]
 fn an_index_reads_as_each_release_reads_it() {
-    const SPECS: &[&str] = &[
-        "1", " 1", "1 ", "+1", "- 1", "-1", "0x2", "010", "0o10", "0b10", "1_0", "1e0", "end", "e",
-        "en", "endx", " end", "end ", "end-1", "end+1", "end--1", "end-+1", "end- 1", "end+ 1",
-        "end-1 ", "end-0x1", "end-010", "end-", "end-1-1", "end -1", "1+1", "1-1", "1+-1", "1--1",
-        "1++1", "+1+1", "1+ 1", "1 +1", " 1+1", "1+1 ", "0x1+1", "010+0", "-1+2", "1+end",
-        "end-1+1", "1 0", "",
-    ];
     for version in tcl_dialect::TclVersion::ALL {
         let Some(tclsh) = find_tclsh(version.version_string()) else {
             continue;
@@ -770,28 +867,59 @@ fn an_index_reads_as_each_release_reads_it() {
             .expect("string")
             .subcommand("range")
             .expect("range");
-        for spec in SPECS {
-            let case = ["abcdefghijkl", spec, spec];
-            let want = tcl_value(&tclsh, &tcl_command("string", Some("range"), &case));
-            let got = range.run_const_fold(&case, Some(version));
-            match (&want, &got) {
-                (Some(want), Some(got)) => assert_eq!(
-                    got,
-                    want,
-                    "tclsh{}: string range {case:?}",
-                    version.version_string()
-                ),
-                (None, Some(got)) => panic!(
-                    "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
-                    version.version_string()
-                ),
-                (Some(want), None) => panic!(
-                    "tclsh{} answers {want:?} for string range {case:?}, the fold declined",
-                    version.version_string()
-                ),
-                (None, None) => {}
+        for spec in INDEX_SPECS.iter().chain(HOST_LONG_SPECS) {
+            for case in [["abcdefghijkl", spec, spec], ["abcdefghijkl", "0", spec]] {
+                let want = tcl_value(&tclsh, &tcl_command("string", Some("range"), &case));
+                let got = range.run_const_fold(&case, Some(version));
+                if HOST_LONG_SPECS.contains(spec) && version < tcl_dialect::TclVersion::V8_6 {
+                    assert_eq!(
+                        got,
+                        None,
+                        "tclsh{}: string range {case:?} turns on the host's long",
+                        version.version_string()
+                    );
+                    continue;
+                }
+                if COMPILED_APART_86.contains(spec) && version == tcl_dialect::TclVersion::V8_6 {
+                    assert_eq!(got, None, "tclsh8.6: string range {case:?} compiles apart");
+                    if case[1] == "0" {
+                        let as_value = tcl_value(
+                            &tclsh,
+                            &format!("string range {{{}}} 0 [set i {{{spec}}}]", case[0]),
+                        );
+                        assert_ne!(want, as_value, "tclsh8.6: string range {case:?}");
+                    }
+                    continue;
+                }
+                check_index_fold(version, &case, want.as_ref(), got.as_ref());
             }
         }
+    }
+}
+
+/// One `string range` fold against its `tclsh`'s answer.
+fn check_index_fold(
+    version: tcl_dialect::TclVersion,
+    case: &[&str],
+    want: Option<&String>,
+    got: Option<&String>,
+) {
+    match (want, got) {
+        (Some(want), Some(got)) => assert_eq!(
+            got,
+            want,
+            "tclsh{}: string range {case:?}",
+            version.version_string()
+        ),
+        (None, Some(got)) => panic!(
+            "tclsh{} raises on string range {case:?}, the fold answered {got:?}",
+            version.version_string()
+        ),
+        (Some(want), None) => panic!(
+            "tclsh{} answers {want:?} for string range {case:?}, the fold declined",
+            version.version_string()
+        ),
+        (None, None) => {}
     }
 }
 
@@ -3245,7 +3373,10 @@ const NESTED: &[(&str, &str)] = &[("x", "a {b1 b2} c")];
 /// 3 0 Q`) and raises before it; the sums read from 8.5 (`lset x 1+1 Q`);
 /// a lone index word that is no index is a path (`lset x {1 0} Q`), and one
 /// that is neither an index nor a list a bad index; `lpop` reads each word
-/// as one index (`lpop x {1 0}` raises).
+/// as one index (`lpop x {1 0}` raises). Past 32 bits each release reads in
+/// its own range (D351, D359): `lset x -4294967295 Z` writes element 1 up to
+/// 8.6, `end-4294967295` appends on 8.6, and 9.0 appends at a sum that
+/// reaches the widest wide or a bignum offset after `end`.
 const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
     ("lset", None, &["x", "1", "B"], NESTED, &["x"]),
     ("lset", None, &["x", "end", "B"], NESTED, &["x"]),
@@ -3276,6 +3407,31 @@ const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
     ("lset", None, &["x", "1 bogus", "Q"], NESTED, &["x"]),
     ("lset", None, &["x", "010", "Q"], NESTED, &["x"]),
     ("lset", None, &["x", "0", "Q"], &[("x", "a \"b")], &["x"]),
+    ("lset", None, &["x", "-4294967295", "Z"], NESTED, &["x"]),
+    ("lset", None, &["x", "end-4294967295", "Z"], NESTED, &["x"]),
+    ("lset", None, &["x", "2147483648", "Z"], NESTED, &["x"]),
+    ("lset", None, &["x", "4294967296", "Z"], NESTED, &["x"]),
+    (
+        "lset",
+        None,
+        &["x", "1+9223372036854775807", "Z"],
+        NESTED,
+        &["x"],
+    ),
+    (
+        "lset",
+        None,
+        &["x", "end+99999999999999999999", "Z"],
+        NESTED,
+        &["x"],
+    ),
+    (
+        "lset",
+        None,
+        &["x", "end+9223372036854775807", "Z"],
+        NESTED,
+        &["x"],
+    ),
     ("ledit", None, &["x", "1", "1", "X", "Y"], NESTED, &["x"]),
     ("ledit", None, &["x", "1", "0", "I"], NESTED, &["x"]),
     ("ledit", None, &["x", "5", "6", "Z"], NESTED, &["x"]),
@@ -3283,6 +3439,18 @@ const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
     ("ledit", None, &["x", "end+1", "end+1", "Z"], NESTED, &["x"]),
     ("ledit", None, &["x", "0", "end"], NESTED, &["x"]),
     ("ledit", None, &["x", "bogus", "0", "A"], NESTED, &["x"]),
+    (
+        "ledit",
+        None,
+        &[
+            "x",
+            "end+9223372036854775808",
+            "end+9223372036854775808",
+            "Z",
+        ],
+        NESTED,
+        &["x"],
+    ),
     ("lpop", None, &["x"], NESTED, &["x"]),
     ("lpop", None, &["x", "0"], NESTED, &["x"]),
     ("lpop", None, &["x", "end"], NESTED, &["x"]),
@@ -3293,6 +3461,7 @@ const LIST_UPDATE_WITNESSES: &[StorageWitness] = &[
     ("lpop", None, &["x", "1", "5"], NESTED, &["x"]),
     ("lpop", None, &["x", "bogus"], NESTED, &["x"]),
     ("lpop", None, &["x"], &[("x", "")], &["x"]),
+    ("lpop", None, &["x", "4294967296"], NESTED, &["x"]),
 ];
 
 /// `lset`, `ledit` and `lpop` through their routes, against each release on
@@ -3341,6 +3510,41 @@ fn list_cell_updates_match_every_release_on_path() {
             got, agreed,
             "no release named: {command} {args:?} over {priors:?}"
         );
+    }
+}
+
+/// A magnitude from 2^64 − 2^32 + 1 to 2^64 − 1 is an index on 8.4 and 8.5
+/// only where `long` is 64 bits, as on these oracles, and `bad index` where it
+/// is 32 bits: `lset x 18446744069414584321 Z` writes element 1 on tclsh
+/// 8.4.20 and 8.5.19 and raises on 8.6.18, so the route declines under 8.4
+/// and 8.5 and raises with `tclsh` from 8.6 (D360).
+#[test]
+fn an_index_the_hosts_long_decides_declines() {
+    let reg = CommandRegistry::build_default();
+    let witness: StorageWitness = (
+        "lset",
+        None,
+        &["x", "18446744069414584321", "Z"],
+        NESTED,
+        &["x"],
+    );
+    for version in tcl_dialect::TclVersion::ALL {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name());
+        let want = storage_oracle(&tclsh, witness);
+        let got = storage_route(&reg, profile, witness);
+        let series = version.version_string();
+        if version < tcl_dialect::TclVersion::V8_6 {
+            assert!(
+                want.is_some(),
+                "tclsh{series} reads it as a 64-bit long does"
+            );
+            assert_eq!(got, None, "tclsh{series}: the host's long decides it");
+        } else {
+            assert_eq!(got, want, "tclsh{series}");
+        }
     }
 }
 
@@ -3700,6 +3904,56 @@ const BASE32_WITNESSES: &[(&str, &str)] = &[
     ("base32::hex::decode", "CPNMV==="),
     ("base32::hex::decode", "W======="),
 ];
+
+/// `base32::encode`, `base32::decode` and their `base32::hex` twins take one
+/// word: tcllib 2.0's procedures raise `wrong # args` on two under every
+/// release from 8.5, and the routes decline them.
+#[test]
+fn base32_routes_decline_a_word_count_the_package_raises_on() {
+    use tcl_dialect::TclVersion;
+    let Some(modules) = tcllib_modules() else {
+        eprintln!(
+            "[differential_fold] skipped: no tcllib 2.0 under tmp/ (fetch it, or set TCLLIB_2_0_DIR)"
+        );
+        return;
+    };
+    let reg = CommandRegistry::build_default();
+    let cases: &[(&str, &[&str])] = &[
+        ("base32::encode", &["a", "b"]),
+        ("base32::decode", &["ME======", "ME======"]),
+        ("base32::hex::encode", &["a", "b"]),
+        ("base32::hex::decode", &["C4======", "C4======"]),
+    ];
+    for version in [
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let Some(tclsh) = find_tclsh(version.version_string()) else {
+            continue;
+        };
+        for &(command, words) in cases {
+            let quoted: Vec<String> = words.iter().map(|word| tcl_quoted_word(word)).collect();
+            let script = format!(
+                "lappend auto_path {{{}}}\npackage require base32\npackage require base32::hex\n\
+                 exit [catch {{{command} {}}}]",
+                modules.display(),
+                quoted.join(" "),
+            );
+            let label = format!("tclsh{}: {command} {words:?}", version.version_string());
+            assert!(
+                matches!(run_tcl(&tclsh, &script), Some((false, _))),
+                "{label}: the package raises"
+            );
+            assert_eq!(
+                literal_route(&reg, command, None, words, Some(version)),
+                None,
+                "{label}"
+            );
+        }
+    }
+}
 
 /// VT7.5: `base32::encode`, `base32::decode` and their `base32::hex` twins
 /// answer on their direct routes what tcllib 2.0's own packages give under

@@ -9270,3 +9270,18 @@ fn split_of_the_empty_string_is_the_empty_list() {
     }
     prints_under_every_release(source, "0\n<>\n");
 }
+
+/// A substitution whose route raises is labelled by its completion, as the
+/// `lset` view labels one, and not as a store (D353): 8.4 reads no sums, so
+/// `string range abcdefghijkl 0 1+1` raises `bad index` there and is no value.
+#[test]
+fn a_raising_substitution_is_labelled_by_its_completion() {
+    let source = "proc p {} {\n    set r [string range abcdefghijkl 0 1+1]\n    return $r\n}\n";
+    let unit = summarised_unit(source, "tcl8.4");
+    assert_eq!(
+        answers_for(&unit, "::p", "string"),
+        ["evaluated: error after 0 stores"]
+    );
+    let unit = summarised_unit(source, "tcl8.6");
+    assert_eq!(answers_for(&unit, "::p", "string"), ["evaluated"]);
+}

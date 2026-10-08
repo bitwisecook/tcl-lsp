@@ -41,11 +41,13 @@ const REVISION: u64 = 1;
 
 /// `base32::encode`, `base32::decode` and their `base32::hex` twins on the
 /// direct route over `tcl_cmd_core::base32`. An encoding reads its word a
-/// byte per character and declines a character past U+00FF, which 8.x
-/// reads as its UTF-8 bytes and 9.0 refuses; a decoding answers a canonical
-/// encoding only and declines the rest, which the package raises for or
-/// its two implementations read apart. A non-ASCII word is admitted only
-/// where the target decodes source as UTF-8.
+/// byte per character and declines a character past U+00FF, which tcllib
+/// 2.0 encodes as its UTF-8 bytes under every release from 8.5 alike
+/// (`base32::encode "€"` is `4KBKY===` on tclsh 8.5.19 to 9.1.0, D352), a
+/// reading the core does not model; a decoding answers a canonical encoding
+/// only and declines the rest, which the package raises for or its two
+/// implementations read apart. A non-ASCII word is admitted only where the
+/// target decodes source as UTF-8.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Base32Semantics {
     id: NativeEvalId,

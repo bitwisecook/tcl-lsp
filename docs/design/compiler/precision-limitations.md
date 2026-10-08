@@ -447,7 +447,13 @@ dialect, where it folded to `c` before the parser told 8.4 apart (and, under
 arithmetic's precision is lost; a route that names the release, as `string
 range`'s and `string first`'s do, keeps it under every profile that names
 one, and since slice 7 O129 and codegen fold through the route where a
-command declares one (D338).
+command declares one (D338). The integer range is the release's too (D351):
+`lindex $l 4294967295` is the last element up to 8.6, which wrap it to 32
+bits, and past it from 9.0, so it folds under no dialect here; and a reading
+no release decides alone declines on the routes as well — a magnitude from
+2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read only where the host's
+`long` is 64 bits (D360), and an `end` offset 8.6 reads apart as a literal
+and as a value (D361).
 
 Why it has not been done: the folds take no release until they move to
 `VersionedConstFoldFn`, or onto routes of their own. Not assigned to a slice.

@@ -27,7 +27,9 @@ is 9 on one and 11 on the other; an index numeral follows the same
 grammar, so `string range … 010 end` is `ijkl` up to 8.6 and `kl` from
 9.0, and the index sums are 8.5's, so `string range abcdef 0 1+1` is `abc`
 from 8.5 and `bad index "1+1": must be integer or end?-integer?` on 8.4;
-an increment past the wide boundary widens to a bignum from 8.5 and is an
+an index integer is read in the release's range, so `string range
+abcdefghijkl 0 2147483648` is empty up to 8.6, which wrap it to 32 bits,
+and the whole string from 9.0; an increment past the wide boundary widens to a bignum from 8.5 and is an
 error on 8.4.
 
 `expr` reads the same release axis, because its route runs the shared
@@ -81,7 +83,7 @@ it. The Explorer's `sccp` view shows the same rows.
 
 Adding a release rule to the compiler is the one thing not to do: the
 rule belongs to the axis's owner (`NumberSyntax`, `StringCharacterModel`,
-`index::resolve_opt_with`, `ValueOps::int_add`), and the value model asks
+`index::read_under`, `ValueOps::int_add`), and the value model asks
 it once for every route.
 
 ## Related

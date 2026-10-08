@@ -7715,11 +7715,13 @@ mod tests {
                 raw_constants,
                 Some(parent),
                 imported,
+                None,
             );
             tcl_compiler::auto_path_eval::evaluate_auto_path_expr_with_constants(
                 raw_path,
                 Some(parent),
                 &constants,
+                None,
             )?
         };
         let child = crate::source_graph::resolve_under(dir, &raw);
@@ -7734,7 +7736,9 @@ mod tests {
         imported: &HashMap<String, String>,
     ) -> HashMap<String, String> {
         let path = uri.strip_prefix("file://");
-        tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(writes, path, imported)
+        tcl_compiler::auto_path_eval::fold_constant_assignments_with_imports(
+            writes, path, imported, None,
+        )
     }
 
     /// An index over `documents` with the `source`-path resolver installed —

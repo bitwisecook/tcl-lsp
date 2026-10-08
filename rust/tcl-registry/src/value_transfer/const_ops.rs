@@ -79,7 +79,7 @@ impl Needs {
     pub const NONE: Self = Self(0);
     /// How a numeral operand is read (`NumberSyntax`).
     pub const NUMERAL_GRAMMAR: Self = Self(1 << 0);
-    /// How an index numeral is read (`index::resolve_opt_with`).
+    /// How an index numeral is read (`index::read_under`).
     pub const INDEX_GRAMMAR: Self = Self(1 << 1);
     /// The character-counting rule (`StringCharacterModel::count_for`).
     pub const CHAR_MODEL: Self = Self(1 << 2);
@@ -626,34 +626,53 @@ impl<'ctx> ConstOps<'ctx> {
         Ok(text)
     }
 
-    /// Resolve an index operand under the admitted grammar, returning the
+    /// Resolve an index operand under the admitted release, returning the
     /// canonical decimal spelling the cores' own `index::resolve` reads
     /// identically in every release. This is what keeps the `010` answer
     /// honest: `string range abcdefghijkl 010 end` is `ijkl` up to 8.6 and
-    /// `kl` from 9.0, and calling the core directly would lose that.
+    /// `kl` from 9.0, and calling the core directly would lose that. An index
+    /// further out than −1 or `len + 1` is spelt as that one, which every
+    /// release reads alike and no command reads apart from it.
     ///
     /// # Errors
     ///
     /// `ReleaseAmbiguous(IndexGrammar)` when the grammars disagree and no
-    /// release is named; `WrongRepresentation` for a malformed index,
-    /// which the program raises `bad index` on.
+    /// release is named, or where 8.6 compiles the literal apart from the
+    /// value ([`tcl_cmd_core::index::compiles_apart`], D361);
+    /// `ReleaseAmbiguous(Platform)` for a reading the host's `long` decides
+    /// (D360); `WrongRepresentation` for a malformed index, which the program
+    /// raises `bad index` on.
     pub fn index(&mut self, spec: &ConstValue, len: usize) -> Result<ConstValue, DeclineReason> {
+        use tcl_cmd_core::index::{IndexReading, compiles_apart, read_under, read_with};
         self.require(Needs::INDEX_GRAMMAR);
         self.charge(1)?;
         let text = self.text_of(spec)?;
-        let resolve =
-            |numbers: NumberSyntax| tcl_cmd_core::index::resolve_opt_with(&text, len, numbers);
-        let resolved = if let Some(numbers) = self.target.numerals {
-            resolve(numbers)
-        } else if let Some(answer) = NumberSyntax::unanimous(resolve) {
-            answer
-        } else {
+        // 8.6 reads such a word apart as a literal and as a value (D361); a
+        // target that names no release may be 8.6.
+        if compiles_apart(&text, len, self.target.release.unwrap_or(TclVersion::V8_6)) {
             let reason = DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar);
             self.poison(reason);
             return Err(reason);
+        }
+        let reading = if let (Some(release), Some(_)) = (self.target.release, self.target.numerals)
+        {
+            read_under(&text, len, release)
+        } else {
+            let Some(reading) = NumberSyntax::unanimous(|numbers| read_with(&text, len, numbers))
+            else {
+                let reason = DeclineReason::ReleaseAmbiguous(Axis::IndexGrammar);
+                self.poison(reason);
+                return Err(reason);
+            };
+            reading
         };
-        if let Some(index) = resolved {
-            Ok(ConstValue::int(index))
+        if let IndexReading::At(index) = reading {
+            let past = i64::try_from(len).unwrap_or(i64::MAX).saturating_add(1);
+            Ok(ConstValue::int(index.clamp(-1, past)))
+        } else if matches!(reading, IndexReading::HostLong(_) | IndexReading::Unsure) {
+            let reason = DeclineReason::ReleaseAmbiguous(Axis::Platform);
+            self.poison(reason);
+            Err(reason)
         } else {
             // A malformed index is the program's error, worded by the
             // release (measured, 8.4 to 9.1): 8.4 `must be integer or
@@ -820,6 +839,13 @@ impl<'ctx> ConstOps<'ctx> {
 
 impl ValueOps for ConstOps<'_> {
     type Value = ConstValue;
+
+    /// No host is named at compile time: a reading the host's `long`
+    /// decides declines (D360).
+    fn reads_a_wide_long(&mut self) -> bool {
+        self.poison(DeclineReason::ReleaseAmbiguous(Axis::Platform));
+        false
+    }
 
     fn new_str(&mut self, s: &str) -> ConstValue {
         let _ = self.charge_bytes(u64::try_from(s.len()).unwrap_or(u64::MAX));
